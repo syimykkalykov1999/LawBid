@@ -291,6 +291,12 @@ export const OWNER_BILLING_GATE_SETTINGS = {
   'billing.cancel_on_verification_loss': true,
   // Offer packs and Boost are for verified attorneys only (rollback: off).
   'billing.require_verified_for_purchases': true,
+  // Owner 2026-10-22 (systems checklist §12): Stripe Tax (automatic_tax)
+  // on subscriptions, seat purchases, hosted checkouts and our card page.
+  // Off until the owner enables Stripe Tax in the Stripe Dashboard
+  // (docs/runbooks/STRIPE_TAX.md); on without that, Stripe refuses the
+  // calls, so the API checks the customer's tax status first.
+  'billing.stripe_tax_enabled': false,
 } as const;
 
 // Owner 2026-10-16: our own card page (variant B) for the subscription; off or

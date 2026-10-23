@@ -30,6 +30,8 @@ enum LegalDocumentPublicDtoDocType {
   partnerTerms('partner_terms'),
   @JsonValue('dmca_policy')
   dmcaPolicy('dmca_policy'),
+  @JsonValue('accessibility')
+  accessibility('accessibility'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

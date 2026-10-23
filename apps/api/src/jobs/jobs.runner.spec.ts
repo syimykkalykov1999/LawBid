@@ -239,7 +239,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-21: + legal-qa.sweep (nightly).
     // Owner 2026-10-22: + contacts.joined (every 2 minutes).
     // Security research #5 (A7): + contacts.pepper-backfill (every 5 min).
-    expect(upserts).toHaveLength(60);
+    // Owner 2026-10-22 (SECURITY_TODO): + messages.reencrypt (every 5 min).
+    expect(upserts).toHaveLength(61);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

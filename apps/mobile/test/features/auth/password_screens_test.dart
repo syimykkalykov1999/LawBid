@@ -102,7 +102,8 @@ class _SampleTranslator implements Translator {
 
 const _ne = _SampleTranslator({
   'auth.login.title': 'लग इन गर्नुहोस्',
-  'auth.login.subtitle': 'आफ्नो फोन नम्बर वा इमेल र पासवर्ड प्रविष्ट गर्नुहोस् ताकि तपाईं खातामा प्रवेश गर्न सक्नुहुन्छ।',
+  'auth.login.subtitle':
+      'आफ्नो फोन नम्बर वा इमेल र पासवर्ड प्रविष्ट गर्नुहोस् ताकि तपाईं खातामा प्रवेश गर्न सक्नुहुन्छ।',
   'auth.login.identifier.hint': 'फोन नम्बर वा इमेल ठेगाना',
   'auth.login.password.hint': 'पासवर्ड',
   'auth.login.submit': 'लग इन गर्नुहोस्',
@@ -125,7 +126,8 @@ const _de = _SampleTranslator({
   'auth.login.forgot': 'Passwort vergessen?',
   'auth.login.create': 'Konto erstellen',
   'auth.setPassword.title': 'Passwort festlegen',
-  'auth.setPassword.body': 'Damit meldest du dich künftig ohne SMS-Code an – Zugangsdaten-Verwaltung inklusive.',
+  'auth.setPassword.body':
+      'Damit meldest du dich künftig ohne SMS-Code an – Zugangsdaten-Verwaltung inklusive.',
   'auth.setPassword.rule': 'Mindestens 8 Zeichen',
   'auth.setPassword.submit': 'Weiter',
 });
@@ -230,7 +232,8 @@ void main() {
 
     Finder button(String label) => find.widgetWithText(AppButton, label);
 
-    testWidgets('log in stays off until both fields are filled, then signs in '
+    testWidgets(
+        'log in stays off until both fields are filled, then signs in '
         'with the normalized number', (tester) async {
       await open(tester, AuthRoutes.login);
       expect(find.byType(LoginScreen), findsOneWidget);
@@ -405,7 +408,8 @@ void main() {
       expect(repo.currentPasswords, ['Old-pass-1']);
     });
 
-    testWidgets('forgot password: code to the phone, then code + new '
+    testWidgets(
+        'forgot password: code to the phone, then code + new '
         'password', (tester) async {
       await open(tester, AuthRoutes.forgotPassword, extra: '(415) 555-2680');
       expect(find.byType(ForgotPasswordScreen), findsOneWidget);

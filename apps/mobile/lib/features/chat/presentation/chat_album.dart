@@ -513,6 +513,9 @@ class ChatAttachmentGroupBody extends StatelessWidget {
                 ),
                 if (messages[i].delivery == DeliveryState.failed)
                   IconButton(
+                    tooltip: ProviderScope.containerOf(context, listen: false)
+                        .read(translatorProvider)
+                        .t('common.retry'),
                     onPressed:
                         onRetry == null ? null : () => onRetry!(messages[i]),
                     icon: AppIcon(

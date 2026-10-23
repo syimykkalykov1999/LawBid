@@ -90,6 +90,12 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!-- Owner 2026-10-22 (passkeys, checklist §1): the WebAuthn bridge of the
+       `passkeys` plugin (corbado). Pinned release; the web CSP
+       (infra/modules/web) must allow this origin for script-src, else the
+       browser simply reports «no passkey support» and the app hides the
+       button. -->
+  <script src="https://github.com/corbado/flutter-passkeys/releases/download/2.4.0/bundle.js" type="application/javascript"></script>
   <script src="boot_end.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

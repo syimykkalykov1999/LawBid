@@ -5,6 +5,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { AnalyticsConsentService } from '../src/modules/analytics/analytics-consent.service';
+import { DataExportService } from '../src/modules/privacy/data-export.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { FilesService } from '../src/modules/files/files.service';
 import { RealtimeGateway } from '../src/modules/realtime/realtime.gateway';
@@ -90,6 +92,7 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       photoFrom: 'everyone',
       aboutFrom: 'everyone',
       groupAddFrom: 'everyone',
+      doNotSell: false,
     });
     const put = await api()
       .put('/api/v1/users/me/privacy')
@@ -103,6 +106,7 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       photoFrom: 'everyone',
       aboutFrom: 'everyone',
       groupAddFrom: 'everyone',
+      doNotSell: false,
     });
     const flag = await api()
       .get('/api/v1/users/me/activity-status')
@@ -124,6 +128,57 @@ describe('Privacy settings and moderation appeals (e2e, owner 2026-10-20)', () =
       .put('/api/v1/users/me/privacy')
       .set(me.auth)
       .send({ lastSeen: 'sometimes' })
+      .expect(400);
+  });
+
+  it('CCPA «Do not sell or share»: PATCH stores an append-only consent, the export carries it, analytics stop', async () => {
+    const me = await person('client', 'Cal');
+    const on = await api()
+      .patch('/api/v1/users/me/privacy')
+      .set(me.auth)
+      .send({ doNotSell: true })
+      .expect(200);
+    expect(on.body.data).toMatchObject({
+      doNotSell: true,
+      lastSeen: 'everyone',
+    });
+    // Other settings are untouched by the switch and vice versa.
+    const mixed = await api()
+      .patch('/api/v1/users/me/privacy')
+      .set(me.auth)
+      .send({ callFrom: 'nobody' })
+      .expect(200);
+    expect(mixed.body.data).toMatchObject({
+      doNotSell: true,
+      callFrom: 'nobody',
+    });
+    const rows = await prisma.userConsent.findMany({
+      where: { user_id: me.id, consent_type: 'do_not_sell' },
+      orderBy: { created_at: 'asc' },
+    });
+    expect(rows.map((r) => r.granted)).toEqual([true]);
+
+    // Honoured by the analytics gate (anonymous counts stop for this person).
+    const files = await app.get(DataExportService).collect(me.id);
+    expect(files['privacy.json']).toMatchObject({ doNotSell: true });
+    expect(
+      (files['consents.json'] as { consent_type: string }[]).some(
+        (c) => c.consent_type === 'do_not_sell',
+      ),
+    ).toBe(true);
+    expect(await app.get(AnalyticsConsentService).allowed(me.id)).toBe(false);
+
+    const off = await api()
+      .patch('/api/v1/users/me/privacy')
+      .set(me.auth)
+      .send({ doNotSell: false })
+      .expect(200);
+    expect(off.body.data.doNotSell).toBe(false);
+    expect(await app.get(AnalyticsConsentService).allowed(me.id)).toBe(true);
+    await api()
+      .patch('/api/v1/users/me/privacy')
+      .set(me.auth)
+      .send({ doNotSell: 'yes' })
       .expect(400);
   });
 

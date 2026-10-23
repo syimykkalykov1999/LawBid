@@ -3,7 +3,8 @@ import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { EMAIL_FLOWS_FLAG } from '../../feature-flags/email-flows';
 
-export type LoginMethod = 'phone' | 'email' | 'apple' | 'google' | 'password';
+export type LoginMethod =
+  'phone' | 'email' | 'apple' | 'google' | 'password' | 'passkey';
 
 /** feature_flags keys seeded by prisma/seed.ts (docs/02 §4.B). */
 export const LOGIN_METHOD_FLAGS: Record<LoginMethod, string> = {
@@ -14,6 +15,8 @@ export const LOGIN_METHOD_FLAGS: Record<LoginMethod, string> = {
   password: 'password_login',
   apple: 'apple_login',
   google: 'google_login',
+  // Owner 2026-10-22: passkeys (WebAuthn).
+  passkey: 'passkey_login',
 };
 
 export const WEB_CLIENT_FLAG = 'web_client';

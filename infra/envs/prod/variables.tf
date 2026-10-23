@@ -42,6 +42,11 @@ variable "extra_secrets" {
   default     = []
   description = "Optional env-var secrets; add a name only after its value is set in Secrets Manager."
 }
+variable "documents_cdn_public_key_pem" {
+  type        = string
+  default     = ""
+  description = "PEM public key for CloudFront signed URLs on private media; the private key is the CLOUDFRONT_PRIVATE_KEY_PEM secret (extra_secrets). See docs/runbooks/DEPLOY_PROD.md."
+}
 variable "fcm_project_id" {
   type    = string
   default = ""

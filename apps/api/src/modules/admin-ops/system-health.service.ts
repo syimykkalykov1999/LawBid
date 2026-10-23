@@ -5,7 +5,9 @@ import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { SecretsService } from '../../common/secrets/secrets.service';
+import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
 import { OBSERVED_QUEUES } from '../../jobs/handlers/ops-metrics.job';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -57,6 +59,8 @@ export class SystemHealthService implements OnModuleDestroy {
     private readonly secrets: SecretsService,
     private readonly flags: FeatureFlagsService,
     private readonly storage: S3StorageService,
+    private readonly cipher: MessageBodyCipher,
+    private readonly reencrypt: MessageReencryptJob,
   ) {}
 
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
@@ -70,6 +74,7 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('queues', () => this.queueItem(now)),
       this.safe('backup', () => this.backup(now)),
       this.safe('cost', () => this.cost()),
+      this.safe('message_keys', () => this.messageKeys()),
     ]);
     const [
       heavyPause,
@@ -118,6 +123,58 @@ export class SystemHealthService implements OnModuleDestroy {
     } catch (e) {
       return { key, status: 'red', detail: { error: (e as Error).message } };
     }
+  }
+
+  /**
+   * Owner 2026-10-22 (SECURITY_TODO «Re-encryption job»): which message
+   * key is active, which retired kids still have rows, and how far the
+   * `messages.reencrypt` pass got. Grey without keys (local dev).
+   */
+  private async messageKeys(): Promise<Omit<HealthItemDto, 'key'>> {
+    if (!this.cipher.enabled) {
+      return { status: 'grey', detail: { enabled: false } };
+    }
+    const activeKid = this.cipher.activeKid;
+    const retiredKids = this.cipher.kids.filter((k) => k !== activeKid);
+    const state = await this.reencrypt.state();
+    const current =
+      state && state.fingerprint === this.reencrypt.fingerprint()
+        ? state
+        : null;
+    const stuck = current
+      ? Object.values(current.byKid).reduce((n, k) => n + k.failed, 0)
+      : 0;
+    const status: HealthStatus = !current
+      ? retiredKids.length > 0
+        ? 'yellow'
+        : 'green'
+      : stuck > 0
+        ? 'red'
+        : current.phase === 'done'
+          ? 'green'
+          : 'yellow';
+    return {
+      status,
+      detail: {
+        enabled: true,
+        activeKid,
+        retiredKids,
+        phase: current?.phase ?? null,
+        scanned: current?.scanned ?? 0,
+        rewritten: current?.rewritten ?? 0,
+        failed: current?.failed ?? 0,
+        byKid: current?.byKid ?? {},
+        startedAt: current?.startedAt ?? null,
+        updatedAt: current?.updatedAt ?? null,
+        finishedAt: current?.finishedAt ?? null,
+        /** Retired kids with no stuck rows after a finished pass may leave
+         * MESSAGE_ENC_KEYS. */
+        removableKids:
+          current?.phase === 'done'
+            ? retiredKids.filter((k) => (current.byKid[k]?.failed ?? 0) === 0)
+            : [],
+      },
+    };
   }
 
   private api(): HealthItemDto {

@@ -68,6 +68,8 @@ const ENV = {
 
 /** `identifier` of a sign-in the phone approved by scanning the web QR. */
 export const QR_LOGIN_IDENTIFIER = 'qr-login';
+/** Owner 2026-10-22: sign-in with a passkey; the credential id follows. */
+export const PASSKEY_LOGIN_PREFIX = 'passkey:';
 
 export interface SessionListItem {
   sessionId: string; // session_chain_id
@@ -667,6 +669,42 @@ export class AuthService {
     return this.issueLogin(user, false, QR_LOGIN_IDENTIFIER, deviceInfo, meta);
   }
 
+  /** Owner 2026-10-22: the `passkey_login` flag and the web kill switch. */
+  async assertPasskeyLoginAllowed(platform: string | undefined): Promise<void> {
+    await this.loginMethods.assertEnabled('passkey');
+    await this.loginMethods.assertPlatformAllowed(platform);
+  }
+
+  /**
+   * Owner 2026-10-22: the passkey assertion was verified (PasskeyService);
+   * issue the session like any other proven sign-in. A passkey is a
+   * primary factor here (user verification by the platform), so no OTP.
+   */
+  async issuePasskeyLogin(
+    userId: string,
+    credentialId: string,
+    deviceInfo: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<AuthTokensResult> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.status === 'suspended' || user.status === 'deleted') {
+      throw new ForbiddenException({
+        code:
+          user?.status === 'deleted'
+            ? ErrorCode.ACCOUNT_DELETED
+            : ErrorCode.ACCOUNT_SUSPENDED,
+        message: 'This account is not available.',
+      });
+    }
+    return this.issueLogin(
+      user,
+      false,
+      `${PASSKEY_LOGIN_PREFIX}${credentialId}`,
+      deviceInfo,
+      meta,
+    );
+  }
+
   /** Session, tokens, audit and the new-device alert of a sign-in. */
   private async issueLogin(
     user: User,
@@ -713,9 +751,11 @@ export class AuthService {
           ? AUTH_EVENT_TYPES.ASSISTANT_CODE_LOGIN
           : identifier === QR_LOGIN_IDENTIFIER
             ? AUTH_EVENT_TYPES.QR_LOGIN_SUCCESS
-            : identifier.startsWith('password:')
-              ? AUTH_EVENT_TYPES.PASSWORD_LOGIN_SUCCESS
-              : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
+            : identifier.startsWith(PASSKEY_LOGIN_PREFIX)
+              ? AUTH_EVENT_TYPES.PASSKEY_LOGIN_SUCCESS
+              : identifier.startsWith('password:')
+                ? AUTH_EVENT_TYPES.PASSWORD_LOGIN_SUCCESS
+                : AUTH_EVENT_TYPES.OTP_VERIFY_SUCCESS,
       success: true,
       identifier,
       deviceId: deviceInfo.deviceId,

@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart'
@@ -24,6 +25,7 @@ import 'package:lawbid/features/legal_qa/presentation/qa_search_button.dart';
 import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
+import 'package:lawbid/features/search/presentation/screens/guest_search_screen.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -194,6 +196,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Owner 2026-10-22 (guest browsing): the public directory with a local
+    // filter until the search endpoints accept a guest.
+    if (ref.watch(isGuestProvider)) return const GuestSearchScreen();
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final attorney = ref.watch(actsAsAttorneyProvider);

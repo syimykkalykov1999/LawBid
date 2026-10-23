@@ -23,6 +23,7 @@ function make(opts: { enabled?: boolean; key?: string | null } = {}) {
     ),
   };
   const subscriptions = {
+    stripeTaxEnabled: jest.fn().mockResolvedValue(false),
     start: jest.fn().mockResolvedValue({
       clientSecret: 'seti_secret',
       setupIntentId: 'seti_1',
@@ -247,6 +248,111 @@ describe('PayPageService (owner 2026-10-16 / 2026-10-22: our own card page)', ()
       1_800_000_000,
     );
     expect(r).toEqual({ status: 'requires_action', clientSecret: 'pi_s' });
+  });
+
+  it('Stripe Tax on: a one-time payment gets a tax calculation at the address and the intent is raised to the total; a card-saving page stores the address on the customer', async () => {
+    const h = make();
+    const { svc, links, prisma, subscriptions, provider } = h;
+    subscriptions.stripeTaxEnabled.mockResolvedValue(true);
+    subscriptions.customerId = jest.fn().mockResolvedValue('cus_1');
+    const tax = Object.assign(provider, {
+      retrievePaymentIntent: jest.fn().mockResolvedValue({
+        id: 'pi_1',
+        status: 'requires_payment_method',
+        amountCents: 3000,
+        currency: 'usd',
+        clientSecret: 'pi_1_secret_x',
+        metadata: { kind: 'case_promotion' },
+      }),
+      calculateTax: jest.fn().mockResolvedValue({
+        calculationId: 'taxcalc_1',
+        subtotalCents: 3000,
+        taxCents: 248,
+        totalCents: 3248,
+        currency: 'usd',
+      }),
+      updatePaymentIntent: jest.fn().mockResolvedValue({}),
+      updateCustomerTaxLocation: jest.fn().mockResolvedValue(undefined),
+    });
+    h.promotions.payPageSession.mockResolvedValue({
+      paid: false,
+      amountCents: 3000,
+      currency: 'usd',
+      days: 3,
+      target: 'post',
+      clientSecret: 'pi_1_secret_x',
+      paymentIntentId: 'pi_1',
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'client',
+      status: 'active',
+    });
+    const link = await links.link(
+      'u1',
+      { kind: 'promotion', promotionId: 'promo-1' },
+      'https://api.example/api/v1',
+    );
+    const address = { country: 'US', postalCode: '94105', state: 'CA' };
+    const s = await svc.session(link.token, { ip: '203.0.113.9', address });
+    expect(s).toMatchObject({
+      priceCents: 3248,
+      subtotalCents: 3000,
+      taxCents: 248,
+    });
+    expect(tax.calculateTax).toHaveBeenCalledWith({
+      amountCents: 3000,
+      currency: 'usd',
+      reference: 'pi_1',
+      location: { ip: '203.0.113.9', address },
+    });
+    expect(tax.updatePaymentIntent).toHaveBeenCalledWith('pi_1', {
+      amountCents: 3248,
+      metadata: {
+        kind: 'case_promotion',
+        taxCalculationId: 'taxcalc_1',
+        taxCents: '248',
+      },
+    });
+
+    // The subscription page (SetupIntent) stores the address on the customer.
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'attorney',
+      status: 'active',
+    });
+    const subLink = await svc.link(
+      {
+        sub: 'u1',
+        role: 'attorney',
+        sid: 's',
+        verified: true,
+        subscriptionStatus: 'none',
+      },
+      { planCode: 'pro' },
+      'https://api.example/api/v1',
+    );
+    const sub = await svc.session(tokenOf(subLink.url), { address });
+    expect(sub.mode).toBe('setup');
+    expect(tax.updateCustomerTaxLocation).toHaveBeenCalledWith('cus_1', {
+      ip: null,
+      address,
+    });
+
+    // Switch off: nothing is computed and the price stays as listed.
+    subscriptions.stripeTaxEnabled.mockResolvedValue(false);
+    tax.calculateTax.mockClear();
+    const again = await links.link(
+      'u1',
+      { kind: 'promotion', promotionId: 'promo-1' },
+      'https://api.example/api/v1',
+    );
+    prisma.user.findUnique.mockResolvedValue({
+      role: 'client',
+      status: 'active',
+    });
+    const plain = await svc.session(again.token, { address });
+    expect(plain.priceCents).toBe(3000);
+    expect(plain.taxCents).toBeUndefined();
+    expect(tax.calculateTax).not.toHaveBeenCalled();
   });
 
   it('promotion: any active user pays their own Boost by PaymentIntent', async () => {

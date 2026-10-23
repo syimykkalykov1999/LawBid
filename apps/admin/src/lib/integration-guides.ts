@@ -244,6 +244,9 @@ export const GUIDES: Record<string, ProviderGuide> = {
       accessKeyId: { how: 'На AWS оставьте пустым.' },
       secretAccessKey: { how: 'На AWS оставьте пустым.' },
       cdnBaseUrl: { how: 'Адрес CDN для фото и видео. Можно оставить пустым.', example: 'https://media.lawbid.dev' },
+      privateCdnDomain: { how: 'Домен CloudFront для приватных файлов (фото и голосовые в чатах, файлы дел, документы). Заполняйте все три поля сразу или ни одного — тогда ссылки подписывает сам S3. Домен и ID ключа показывает `terraform output` (documents_cdn_domain, documents_cdn_key_pair_id).', example: 'd1234abcd.cloudfront.net' },
+      privateCdnKeyId: { how: 'ID публичного ключа CloudFront из группы ключей.', example: 'K2JCJMDEHXQW5F' },
+      privateCdnPrivateKey: { how: 'Закрытый ключ пары (PEM целиком). Его же можно положить в Secrets Manager как CLOUDFRONT_PRIVATE_KEY_PEM — см. docs/runbooks/DEPLOY_PROD.md.' },
     },
   },
 

@@ -1,5 +1,13 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Ip,
+  Post,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
@@ -7,6 +15,7 @@ import {
   IsString,
   Length,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
@@ -20,6 +29,41 @@ class PayTokenDto {
   @IsString()
   @Length(20, 4000)
   token!: string;
+}
+
+/** Owner 2026-10-22 (Stripe Tax): the billing address the page collected
+ * (Stripe needs country + ZIP in the US; the IP is the fallback). */
+class PayAddressDto {
+  @IsString()
+  @Length(2, 2)
+  country!: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 20)
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 40)
+  state?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 80)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 120)
+  line1?: string;
+}
+
+class PaySessionDto extends PayTokenDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PayAddressDto)
+  address?: PayAddressDto;
 }
 
 class PayConfirmDto extends PayTokenDto {
@@ -61,8 +105,14 @@ export class PayPageController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('session')
   @HttpCode(HttpStatus.OK)
-  session(@Body() dto: PayTokenDto): Promise<PayPageSession> {
-    return this.pay.session(dto.token);
+  session(
+    @Body() dto: PaySessionDto,
+    @Ip() ip: string,
+  ): Promise<PayPageSession> {
+    return this.pay.session(dto.token, {
+      ip: ip || null,
+      address: dto.address ?? null,
+    });
   }
 
   @Public()

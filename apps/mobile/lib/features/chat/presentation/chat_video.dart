@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -484,6 +485,10 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   @override
   Widget build(BuildContext context) {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Checklist §17 (VoiceOver / TalkBack): every icon button says what
+    // it does.
+    final t = ProviderScope.containerOf(context, listen: false)
+        .read(translatorProvider);
     final v = _c.value;
     final total = v.duration;
     final pos = v.position > total ? total : v.position;
@@ -591,6 +596,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                         child: Align(
                           alignment: AlignmentDirectional.centerStart,
                           child: IconButton(
+                            tooltip: t.t('common.close'),
                             onPressed: () => Navigator.of(context).maybePop(),
                             icon: const AppIcon(
                               AppIcons.closeRounded,
@@ -633,6 +639,11 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                             child: Row(
                               children: [
                                 IconButton(
+                                  tooltip: t.t(
+                                    v.isPlaying
+                                        ? 'chat.voice.pause'
+                                        : 'chat.voice.play',
+                                  ),
                                   onPressed: _toggle,
                                   icon: AppIcon(
                                     v.isPlaying
@@ -692,6 +703,9 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                                 ),
                                 Text(voiceClock(total), style: clock),
                                 IconButton(
+                                  tooltip: t.t(
+                                    _muted ? 'a11y.unmute' : 'a11y.mute',
+                                  ),
                                   onPressed: _toggleSound,
                                   icon: AppIcon(
                                     _muted

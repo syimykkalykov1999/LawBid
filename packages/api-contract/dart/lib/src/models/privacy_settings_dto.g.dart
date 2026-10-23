@@ -14,6 +14,7 @@ PrivacySettingsDto _$PrivacySettingsDtoFromJson(Map<String, dynamic> json) =>
       photoFrom: PrivacyAudience.fromJson(json['photoFrom'] as String),
       aboutFrom: PrivacyAudience.fromJson(json['aboutFrom'] as String),
       groupAddFrom: PrivacyAudience.fromJson(json['groupAddFrom'] as String),
+      doNotSell: json['doNotSell'] as bool?,
     );
 
 Map<String, dynamic> _$PrivacySettingsDtoToJson(PrivacySettingsDto instance) =>
@@ -24,4 +25,5 @@ Map<String, dynamic> _$PrivacySettingsDtoToJson(PrivacySettingsDto instance) =>
       'photoFrom': instance.photoFrom.toJson(),
       'aboutFrom': instance.aboutFrom.toJson(),
       'groupAddFrom': instance.groupAddFrom.toJson(),
+      'doNotSell': ?instance.doNotSell,
     };

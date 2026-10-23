@@ -369,6 +369,45 @@ export const envSchema = z
       /^https:\/\/[^\s/]+$/,
       'MEDIA_CDN_BASE_URL must be an https origin without a path',
     ),
+    // Owner 2026-10-22 (systems checklist §22): private media (documents
+    // bucket) through CloudFront signed URLs. The three go together; unset
+    // keeps presigned S3 GET links. The PEM may be pasted with literal \n.
+    CLOUDFRONT_PRIVATE_DOMAIN: optionalMatching(
+      /^[a-z0-9.-]+\.[a-z]{2,}$/i,
+      'CLOUDFRONT_PRIVATE_DOMAIN must be a host name (no scheme, no path)',
+    ),
+    CLOUDFRONT_PRIVATE_KEY_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'CLOUDFRONT_PRIVATE_KEY_ID must be a CloudFront public key id',
+    ),
+    CLOUDFRONT_PRIVATE_KEY_PEM: optionalMatching(
+      /-----BEGIN (RSA )?PRIVATE KEY-----/,
+      'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',
+    ),
+    // Owner 2026-10-22 (passkeys): the WebAuthn relying party. Defaults:
+    // RP ID = host of APP_LINK_BASE_URL (lawbid.dev, which also covers
+    // admin.lawbid.dev and both native apps), origins = web.allowed_origins
+    // + ADMIN_ORIGINS + https://<rpId>. WEBAUTHN_ORIGINS adds the Android
+    // apps (`android:apk-key-hash:<base64url sha256 of the signing cert>`).
+    WEBAUTHN_RP_ID: optionalMatching(
+      /^[a-z0-9.-]+$/i,
+      'WEBAUTHN_RP_ID must be a bare domain (no scheme, no port)',
+    ),
+    WEBAUTHN_ORIGINS: optionalMatching(
+      /^(https?:\/\/[^\s,]+|android:apk-key-hash:[A-Za-z0-9_-]+)(,(https?:\/\/[^\s,]+|android:apk-key-hash:[A-Za-z0-9_-]+))*$/,
+      'WEBAUTHN_ORIGINS must be a comma-separated list of https origins or android:apk-key-hash:… values',
+    ),
+    // Owner 2026-10-22 (SECURITY_TODO «KMS-wrapped keys»): the KMS key and
+    // encryption context used to unwrap `kid:kms:…` entries of
+    // MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS at boot (common/secrets/kms-env.ts).
+    DATA_KEYS_KMS_KEY_ARN: optionalMatching(
+      /^arn:aws:kms:[a-z0-9-]+:\d{12}:key\/[\w-]+$/,
+      'DATA_KEYS_KMS_KEY_ARN must be a KMS key ARN',
+    ),
+    DATA_KEYS_KMS_APP: optionalMatching(
+      /^[\w-]{1,64}$/,
+      'DATA_KEYS_KMS_APP must be the stack name',
+    ),
     // MinIO root user/password locally; on AWS leave empty (IAM role).
     S3_ACCESS_KEY_ID: optionalMatching(
       /^\S{3,}$/,
@@ -883,6 +922,11 @@ export const envSchema = z
       ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'],
       ['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'],
       ['APNS_KEY_ID', 'APNS_TEAM_ID', 'APNS_PRIVATE_KEY'],
+      [
+        'CLOUDFRONT_PRIVATE_DOMAIN',
+        'CLOUDFRONT_PRIVATE_KEY_ID',
+        'CLOUDFRONT_PRIVATE_KEY_PEM',
+      ],
     ] as const;
     for (const group of groups) {
       const present = group.filter((key) => env[key] !== undefined);

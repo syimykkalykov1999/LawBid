@@ -43,4 +43,30 @@ void main() {
     expect(c('hello world'), isA<TextQrTarget>());
     expect(c('javascript:alert(1)'), isA<TextQrTarget>());
   });
+
+  // Owner 2026-10-22 (QR login): the website's QR code now carries the
+  // universal link `https://lawbid.dev/qr/<nonce>`; the in-app scanner and
+  // the deep-link router treat it exactly like the older `/q/<id>` payload.
+  const nonce = 'Xk3_aB-9Qz1LmN4pR7sT0wXk3_aB-9Qz1LmN4pR7sT0w';
+
+  test('/qr/<nonce> is the website sign-in question (link and scanner)', () {
+    final link = p('https://lawbid.dev/qr/$nonce');
+    expect(link, isA<WebLoginDeepLink>());
+    expect((link! as WebLoginDeepLink).qrId, nonce);
+    expect(p('lawbid://qr/$nonce'), isA<WebLoginDeepLink>());
+    final target = c('https://lawbid.dev/qr/$nonce');
+    expect(target, isA<WebLoginQrTarget>());
+    expect((target as WebLoginQrTarget).qrId, nonce);
+    // The older payload still works.
+    expect(
+      c('https://lawbid.dev/q/Xk3_aB-9Qz1LmN4pR7sT0w'),
+      isA<WebLoginQrTarget>(),
+    );
+  });
+
+  test("the app's own /qr/my and /qr/scan are never links", () {
+    expect(p('https://lawbid.dev/qr/my'), isNull);
+    expect(p('https://lawbid.dev/qr/scan'), isNull);
+    expect(p('https://lawbid.dev/qr/short'), isNull);
+  });
 }

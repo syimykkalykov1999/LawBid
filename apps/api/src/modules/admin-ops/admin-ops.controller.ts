@@ -17,6 +17,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
+import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AdminEndpoint,
@@ -53,6 +54,7 @@ export class AdminOpsController {
     private readonly writer: AppSettingsWriter,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
+    private readonly reencrypt: MessageReencryptJob,
   ) {}
 
   @Get()
@@ -74,6 +76,22 @@ export class AdminOpsController {
     this.requireAws();
     await this.aws.restartWorker();
     await this.log(admin, 'ops.restart_worker', null);
+    return this.health.report();
+  }
+
+  @Post('message-reencrypt/restart')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Start a new message re-encryption pass (needs step-up)',
+  })
+  @ApiEnvelopeResponse(SystemHealthDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async restartMessageReencrypt(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<SystemHealthDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    await this.reencrypt.restart();
+    await this.log(admin, 'ops.message_reencrypt_restart', null);
     return this.health.report();
   }
 

@@ -23,6 +23,10 @@ abstract final class DeepLinkRoutes {
   static const profilePath = '/u/:username';
   static const webLoginPath = '/q/:id';
 
+  /// Owner 2026-10-22: `lawbid.dev/qr/:nonce` — the same sign-in question,
+  /// as the universal link the website's QR code now carries.
+  static const qrLoginPath = '/qr/:nonce';
+
   /// Not a published deep link; the in-app people/followers rows use it.
   static const clientPath = '/client/:username';
 }
@@ -58,6 +62,13 @@ List<RouteBase> deepLinkRoutes() => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           WebLoginLinkScreen(qrId: state.pathParameters['id'] ?? ''),
+        ),
+      ),
+      GoRoute(
+        path: DeepLinkRoutes.qrLoginPath,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          WebLoginLinkScreen(qrId: state.pathParameters['nonce'] ?? ''),
         ),
       ),
       GoRoute(

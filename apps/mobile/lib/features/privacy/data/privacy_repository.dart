@@ -30,6 +30,7 @@ class PrivacySettings {
     this.photoFrom = Audience.everyone,
     this.aboutFrom = Audience.everyone,
     this.groupAddFrom = Audience.everyone,
+    this.doNotSell = false,
   });
 
   final Audience lastSeen;
@@ -39,6 +40,10 @@ class PrivacySettings {
   final Audience aboutFrom;
   final Audience groupAddFrom;
 
+  /// Owner 2026-10-22 (CCPA): «Do not sell or share my personal
+  /// information» — `PATCH /users/me/privacy { doNotSell }`.
+  final bool doNotSell;
+
   PrivacySettings copyWith({
     Audience? lastSeen,
     Audience? messageFrom,
@@ -46,6 +51,7 @@ class PrivacySettings {
     Audience? photoFrom,
     Audience? aboutFrom,
     Audience? groupAddFrom,
+    bool? doNotSell,
   }) =>
       PrivacySettings(
         lastSeen: lastSeen ?? this.lastSeen,
@@ -54,6 +60,7 @@ class PrivacySettings {
         photoFrom: photoFrom ?? this.photoFrom,
         aboutFrom: aboutFrom ?? this.aboutFrom,
         groupAddFrom: groupAddFrom ?? this.groupAddFrom,
+        doNotSell: doNotSell ?? this.doNotSell,
       );
 }
 
@@ -131,6 +138,9 @@ String _camel(String s) => s.replaceAllMapped(
 abstract interface class PrivacyRepository {
   Future<PrivacySettings> settings();
   Future<PrivacySettings> change(PrivacyField field, Audience value);
+
+  /// Owner 2026-10-22 (CCPA): `PATCH /users/me/privacy { doNotSell }`.
+  Future<PrivacySettings> setDoNotSell({required bool value});
   Future<List<ModerationNotice>> notices();
   Future<ModerationNotice> appeal(String actionId, String message);
   Future<List<MyReport>> myReports();
@@ -138,26 +148,65 @@ abstract interface class PrivacyRepository {
 
 class ApiPrivacyRepository implements PrivacyRepository {
   ApiPrivacyRepository(Dio dio)
-      : _privacy = api.PrivacyClient(dio),
+      : _dio = dio,
+        _privacy = api.PrivacyClient(dio),
         _moderation = api.ModerationClient(dio),
         _reports = api.ReportsClient(dio);
 
+  final Dio _dio;
   final api.PrivacyClient _privacy;
   final api.ModerationClient _moderation;
   final api.ReportsClient _reports;
 
-  PrivacySettings _settings(api.PrivacySettingsDto d) => PrivacySettings(
+  PrivacySettings _settings(
+    api.PrivacySettingsDto d, {
+    bool doNotSell = false,
+  }) =>
+      PrivacySettings(
         lastSeen: _audience(d.lastSeen),
         messageFrom: _audience(d.messageFrom),
         callFrom: _audience(d.callFrom),
         photoFrom: _audience(d.photoFrom),
         aboutFrom: _audience(d.aboutFrom),
         groupAddFrom: _audience(d.groupAddFrom),
+        doNotSell: doNotSell,
       );
 
+  /// The generated DTO predates `doNotSell` (worker A adds it to the API,
+  /// 2026-10-22): the raw body carries the typed fields and the switch.
+  PrivacySettings _fromBody(Object? body) {
+    final map = body is Map ? Map<String, Object?>.from(body) : null;
+    final data = map?['data'];
+    if (data is! Map) {
+      throw const FormatException('privacy settings: no data');
+    }
+    final json = Map<String, Object?>.from(data);
+    return _settings(
+      api.PrivacySettingsDto.fromJson(json),
+      doNotSell: json['doNotSell'] == true,
+    );
+  }
+
   @override
-  Future<PrivacySettings> settings() async =>
-      _settings((await guardApiCall(_privacy.getPrivacySettings)).data);
+  Future<PrivacySettings> settings() => guardApiCall(() async {
+        final r = await _dio.get<Object?>('/users/me/privacy');
+        return _fromBody(r.data);
+      });
+
+  @override
+  Future<PrivacySettings> setDoNotSell({required bool value}) =>
+      guardApiCall(() async {
+        final r = await _dio.patch<Object?>(
+          '/users/me/privacy',
+          data: {'doNotSell': value},
+        );
+        try {
+          return _fromBody(r.data);
+        } on FormatException {
+          // An answer without the settings body: read them back.
+          return (await settings()).copyWith(doNotSell: value);
+        }
+      });
 
   @override
   Future<PrivacySettings> change(PrivacyField field, Audience value) async {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/accessibility/reduce_motion.dart';
 import 'package:lawbid/core/account_status/account_restricted.dart';
 import 'package:lawbid/core/account_status/account_suspended.dart';
 import 'package:lawbid/core/app_update/app_update_gate.dart';
@@ -42,6 +43,10 @@ class LawBidApp extends ConsumerWidget {
     // Night by the phone.
     final chosen = ref.watch(appThemeControllerProvider);
     final spec = chosen == null ? null : AppThemes.of(chosen);
+    // Owner 2026-10-22 (checklist §17): the phone's «reduce motion» — the
+    // theme's route transitions and, below, MediaQuery.disableAnimations
+    // for every animated widget (core/accessibility/reduce_motion.dart).
+    final still = ref.watch(reduceMotionProvider);
     final themeMode = spec == null
         ? ThemeMode.system
         : (spec.brightness == Brightness.dark
@@ -60,8 +65,12 @@ class LawBidApp extends ConsumerWidget {
       // "LawBid Dev" / "LawBid Staging" / "LawBid" (task switcher).
       title: ref.watch(appEnvironmentProvider).appName,
       debugShowCheckedModeBanner: false,
-      theme: chosen == null ? AppTheme.light() : AppTheme.of(chosen),
-      darkTheme: chosen == null ? AppTheme.dark() : AppTheme.of(chosen),
+      theme: chosen == null
+          ? AppTheme.light(reduceMotion: still)
+          : AppTheme.of(chosen, reduceMotion: still),
+      darkTheme: chosen == null
+          ? AppTheme.dark(reduceMotion: still)
+          : AppTheme.of(chosen, reduceMotion: still),
       themeMode: themeMode,
       routerConfig: router,
       // Owner 2026-10-20: the date / time dialogs and the system texts speak
@@ -79,42 +88,46 @@ class LawBidApp extends ConsumerWidget {
       // Owner 2026-10-22 (audit #12, WCAG 1.4.4): the phone's font size counts
       // up to 1.3x in the app shell (was 1.1x); chat messages and post texts
       // follow it in full (FullTextScale, design_system/widgets/text).
-      builder: (context, child) => DeviceTextScale.shell(
-        context,
-        // Owner 2026-10-18: the iPhone's notch and home indicator in the
-        // browser too (core/platform/web_safe_area.dart).
-        child: WebSafeArea(
-          child: Directionality(
-            textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-            // Owner 2026-10-05: nothing ever sits under the Android system
-            // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
-            child: TextWarmUp(
-              child: WebConsentNotice(
-                onOpenPrivacy: () => router.push(AppRoutes.legalDoc('privacy')),
-                child: AppBackdrop(
-                  child: SystemNavBand(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: dropKeyboard,
-                      // Owner 2026-10-22 (audit #13): the explanation before
-                      // the phone's notification / microphone dialogs.
-                      child: PermissionPrimerHost(
-                        child: AccountSuspendedGate(
-                          child: AppUpdateGate(
-                            child: child == null
-                                ? null
-                                // OQ-041: the call screen pops over any route.
-                                : CallHost(
-                                    router: router,
-                                    // Owner 2026-10-21: no «connection lost»
-                                    // banner for users, ever (screens keep
-                                    // their cache and retry quietly).
-                                    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
-                                    child: AccountRestrictedHost(
+      builder: (context, child) => ReduceMotionScope(
+        child: DeviceTextScale.shell(
+          context,
+          // Owner 2026-10-18: the iPhone's notch and home indicator in the
+          // browser too (core/platform/web_safe_area.dart).
+          child: WebSafeArea(
+            child: Directionality(
+              textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+              // Owner 2026-10-05: nothing ever sits under the Android system
+              // navigation bar (core/design_system/widgets/bars/system_nav_band.dart).
+              child: TextWarmUp(
+                child: WebConsentNotice(
+                  onOpenPrivacy: () =>
+                      router.push(AppRoutes.legalDoc('privacy')),
+                  child: AppBackdrop(
+                    child: SystemNavBand(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTap: dropKeyboard,
+                        // Owner 2026-10-22 (audit #13): the explanation before
+                        // the phone's notification / microphone dialogs.
+                        child: PermissionPrimerHost(
+                          child: AccountSuspendedGate(
+                            child: AppUpdateGate(
+                              child: child == null
+                                  ? null
+                                  // OQ-041: the call screen pops over any
+                                  // route.
+                                  : CallHost(
                                       router: router,
-                                      child: child,
+                                      // Owner 2026-10-21: no «connection lost»
+                                      // banner for users, ever (screens keep
+                                      // their cache and retry quietly).
+                                      // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
+                                      child: AccountRestrictedHost(
+                                        router: router,
+                                        child: child,
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
                         ),
                       ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/app_update/app_update_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -31,6 +33,13 @@ class AppUpdateGate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(appUpdateStatusProvider);
+    // docs/analytics_events.md `app_update_prompted`: once per change of
+    // the status, not on every rebuild.
+    ref.listen(appUpdateStatusProvider, (_, next) {
+      if (next != AppUpdateStatus.upToDate) {
+        AppEvents.track(AppEventNames.appUpdatePrompted);
+      }
+    });
     final content = child ?? const SizedBox.shrink();
     // Theme extensions aren't resolved for the very first `builder` call
     // (before MaterialApp applied `theme`) — show the app as is; the next

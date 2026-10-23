@@ -32,6 +32,8 @@ export const OPS_KEYS = {
   capacity: 'ops:capacity',
   /** SET NX flag per resource pressure, so one alert per 6 hours. */
   pressureFlag: 'ops:pressure:',
+  /** JSON MessageReencryptState (jobs/handlers/message-reencrypt.job.ts). */
+  messageReencrypt: 'ops:message-reencrypt',
 } as const;
 
 /** An automatic pause lasts this long; the guard renews it while the
@@ -47,6 +49,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.trustRecompute,
   CRON_JOBS.licenseRegistryRecheck,
   CRON_JOBS.opsBusinessMetrics,
+  CRON_JOBS.messagesReencrypt,
 ];
 
 /** Queues paused as a whole (users get their file a little later). */

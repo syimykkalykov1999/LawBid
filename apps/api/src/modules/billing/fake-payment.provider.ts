@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import {
   type PaymentProvider,
+  type ProviderTaxCalculation,
+  type ProviderTaxLocation,
   type ProviderCharge,
   type ProviderCheckoutSession,
   type ProviderConnectAccount,
@@ -377,6 +379,69 @@ export class FakePaymentProvider implements PaymentProvider {
   retrievePaymentIntent(id: string): Promise<ProviderPaymentIntent | null> {
     const pi = this.paymentIntents.get(id);
     return Promise.resolve(pi ? publicIntent(pi) : null);
+  }
+
+  updatePaymentIntent(
+    id: string,
+    patch: { amountCents: number; metadata: Record<string, string> },
+  ): Promise<ProviderPaymentIntent> {
+    const pi = this.paymentIntents.get(id);
+    if (!pi) throw new Error('no such payment intent');
+    pi.amountCents = patch.amountCents;
+    pi.metadata = { ...pi.metadata, ...patch.metadata };
+    return Promise.resolve(publicIntent(pi));
+  }
+
+  // ---- Owner 2026-10-22: Stripe Tax in dev / e2e ----------------------
+  /** Per-customer tax location the tests may set; a US address with a
+   * ZIP counts as a recognised location. */
+  readonly taxLocations = new Map<string, ProviderTaxLocation>();
+  /** Flat rate the fake charges on top (0 = no tax, like a customer
+   * Stripe cannot place). Tests set it (e.g. 0.0825). */
+  taxRate = 0;
+  readonly taxTransactions: { calculationId: string; reference: string }[] = [];
+
+  updateCustomerTaxLocation(
+    customerId: string,
+    location: ProviderTaxLocation,
+  ): Promise<void> {
+    this.taxLocations.set(customerId, location);
+    return Promise.resolve();
+  }
+
+  customerTaxSupported(customerId: string): Promise<boolean> {
+    const l = this.taxLocations.get(customerId);
+    return Promise.resolve(
+      this.taxRate > 0 && Boolean(l?.address?.postalCode || l?.ip),
+    );
+  }
+
+  calculateTax(input: {
+    amountCents: number;
+    currency: string;
+    reference: string;
+    customerId?: string | null;
+    location: ProviderTaxLocation;
+  }): Promise<ProviderTaxCalculation> {
+    const placed = Boolean(
+      input.location.address?.postalCode || input.location.ip,
+    );
+    const taxCents = placed ? Math.round(input.amountCents * this.taxRate) : 0;
+    return Promise.resolve({
+      calculationId: `fake_taxcalc_${randomUUID().slice(0, 12)}`,
+      subtotalCents: input.amountCents,
+      taxCents,
+      totalCents: input.amountCents + taxCents,
+      currency: input.currency,
+    });
+  }
+
+  recordTaxTransaction(
+    calculationId: string,
+    reference: string,
+  ): Promise<string> {
+    this.taxTransactions.push({ calculationId, reference });
+    return Promise.resolve(`fake_taxtx_${this.taxTransactions.length}`);
   }
 
   cancelPaymentIntent(id: string): Promise<ProviderPaymentIntent | null> {

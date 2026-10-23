@@ -15,6 +15,7 @@ export class HealthItemDto {
       'queues',
       'backup',
       'cost',
+      'message_keys',
     ],
   })
   key!: string;

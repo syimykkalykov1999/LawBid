@@ -11,6 +11,7 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/application/invites_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Owner 2026-10-05 ("Предложить дело"): the client offers one of their
 /// open cases to the attorney whose profile they are on. Optional budget
@@ -22,16 +23,19 @@ Future<void> showOfferCaseSheet(
   required Set<String> licensedStateCodes,
   required Set<String> practiceIds,
 }) =>
-    showAppBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => OfferCaseSheet(
-        attorneyId: attorneyId,
-        attorneyName: attorneyName,
-        licensedStateCodes: licensedStateCodes,
-        practiceIds: practiceIds,
-      ),
-    );
+    // Owner 2026-10-22 (guest browsing): offering a case needs an account.
+    !requireSignInFromContext(context)
+        ? Future.value()
+        : showAppBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => OfferCaseSheet(
+              attorneyId: attorneyId,
+              attorneyName: attorneyName,
+              licensedStateCodes: licensedStateCodes,
+              practiceIds: practiceIds,
+            ),
+          );
 
 class OfferCaseSheet extends ConsumerStatefulWidget {
   const OfferCaseSheet({

@@ -198,3 +198,13 @@ variable "dmarc_policy" {
   type    = string
   default = "quarantine"
 }
+variable "extra_secrets" {
+  type        = list(string)
+  default     = []
+  description = "Optional env-var secrets; add a name only after its value is set in Secrets Manager."
+}
+variable "documents_cdn_public_key_pem" {
+  type        = string
+  default     = ""
+  description = "PEM public key for CloudFront signed URLs on private media (see envs/prod)."
+}

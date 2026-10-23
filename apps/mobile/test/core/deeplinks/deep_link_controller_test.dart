@@ -214,6 +214,22 @@ void main() {
     expect(navigations, isEmpty);
   });
 
+  testWidgets('guest browsing: a profile / post link opens without a session',
+      (tester) async {
+    // The compiled-in default of `guest_browsing` is on (decision A1).
+    final c = await container();
+    final ctl = c.read(deepLinkControllerProvider.notifier)
+      ..handleUri(Uri.parse('https://lawbid.dev/lawyer/anna'));
+    await tester.pump();
+    expect(navigations, ['/lawyer/anna']);
+    expect(ctl.state, isNull);
+    // An account-only link still waits for the sign-in.
+    ctl.handleUri(Uri.parse('https://lawbid.dev/case/abc-123'));
+    await tester.pump();
+    expect(navigations, ['/lawyer/anna']);
+    expect(c.read(deepLinkControllerProvider), isA<ContentDeepLink>());
+  });
+
   testWidgets('content link waits for sign-in + onboarding, then opens',
       (tester) async {
     final c = await container();

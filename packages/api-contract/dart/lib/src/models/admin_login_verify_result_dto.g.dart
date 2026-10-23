@@ -14,6 +14,7 @@ AdminLoginVerifyResultDto _$AdminLoginVerifyResultDtoFromJson(
       ? null
       : AdminSessionDto.fromJson(json['session'] as Map<String, dynamic>),
   totpSetupRequired: json['totpSetupRequired'] as bool,
+  passkeyAvailable: json['passkeyAvailable'] as bool?,
 );
 
 Map<String, dynamic> _$AdminLoginVerifyResultDtoToJson(
@@ -22,4 +23,5 @@ Map<String, dynamic> _$AdminLoginVerifyResultDtoToJson(
   'ticket': ?instance.ticket,
   'session': ?instance.session?.toJson(),
   'totpSetupRequired': instance.totpSetupRequired,
+  'passkeyAvailable': ?instance.passkeyAvailable,
 };

@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
+
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
@@ -16,6 +19,7 @@ Future<void> signOut(WidgetRef ref) async {
     await ref.read(demoSessionControllerProvider.notifier).exitDemo();
     return;
   }
+  AppEvents.track(AppEventNames.logout);
   // docs/05 §9.5: this device stops getting pushes for the account.
   await ref.read(pushServiceProvider).unregister();
   try {

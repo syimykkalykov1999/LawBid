@@ -254,6 +254,10 @@ const _keys = <String, String>{
   ApiErrorCodes.contentBlocked: 'error.api.CONTENT_BLOCKED',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
+  // Owner 2026-10-22 (passkeys).
+  ApiErrorCodes.passkeyInvalid: 'error.api.PASSKEY_INVALID',
+  ApiErrorCodes.passkeyNotFound: 'error.api.PASSKEY_NOT_FOUND',
+  ApiErrorCodes.passkeyLimit: 'error.api.PASSKEY_LIMIT',
   ApiErrorCodes.clientContactsIncomplete:
       'error.api.CLIENT_CONTACTS_INCOMPLETE',
   ApiErrorCodes.onboardingIncomplete: 'error.api.ONBOARDING_INCOMPLETE',

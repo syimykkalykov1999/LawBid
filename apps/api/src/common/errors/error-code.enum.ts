@@ -54,6 +54,13 @@ export enum ErrorCode {
   CONTACT_ALREADY_EXISTS = 'CONTACT_ALREADY_EXISTS',
   REAUTH_REQUIRED = 'REAUTH_REQUIRED',
   REAUTH_INVALID = 'REAUTH_INVALID',
+  // Owner 2026-10-22 (passkeys): 401 the assertion / attestation did not
+  // verify (timed-out challenge, unknown credential, wrong origin or
+  // account, bad signature or counter); 404 no such passkey; 409 the
+  // account already holds the maximum number of passkeys.
+  PASSKEY_INVALID = 'PASSKEY_INVALID',
+  PASSKEY_NOT_FOUND = 'PASSKEY_NOT_FOUND',
+  PASSKEY_LIMIT = 'PASSKEY_LIMIT',
   DEVICE_ATTESTATION_REQUIRED = 'DEVICE_ATTESTATION_REQUIRED',
   ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
   ACCOUNT_DELETED = 'ACCOUNT_DELETED',

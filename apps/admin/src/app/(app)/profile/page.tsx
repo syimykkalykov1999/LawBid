@@ -1,17 +1,21 @@
 'use client';
 
-import { Fingerprint, Key, ShieldCheck } from '@phosphor-icons/react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { Fingerprint, Key, Password, ShieldCheck } from '@phosphor-icons/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useConfirm } from '@/components/legacy/confirm';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/empty';
 import { Input, Label } from '@/components/ui/input';
 import { TwoFactorCard } from '@/components/two-factor-card';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
 import { ROLE_LABEL } from '@/lib/rbac';
+import { formatDateTime } from '@/lib/utils';
+import { PASSKEY_CANCELLED_TEXT, createPasskey, passkeyCancelled, passkeysSupported } from '@/lib/webauthn';
 
 /** Own sign-in (the authenticator is mandatory); the super admin also changes their own
  * login and password and sets the recovery question. */
@@ -52,6 +56,7 @@ export default function ProfilePage() {
         </Card>
         {me.role === 'super_admin' ? <CredentialsCard hasPassword={me.hasPassword} login={me.login} /> : null}
         <TwoFactorCard enabled={me.totpEnabled} />
+        <PasskeysCard />
         {me.role === 'super_admin' ? <QuestionCard question={me.securityQuestion} /> : null}
       </div>
     </>
@@ -225,6 +230,150 @@ function QuestionCard({ question }: { question: string | null }) {
           </div>
         </form>
       </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Owner 2026-10-22: passkeys (Face ID / Touch ID / Windows Hello / a
+ * hardware key) — step 2 of the sign-in and step-up without the code from
+ * the app. Adding and removing need a fresh step-up; the API client asks
+ * for it by itself (StepUpHost) and repeats the call.
+ */
+function PasskeysCard() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { confirm, dialog } = useConfirm();
+  const [name, setName] = useState('Этот компьютер');
+  const [error, setError] = useState<string | null>(null);
+  // Set after mount: the server render must not differ from the browser's.
+  const [supported, setSupported] = useState(false);
+  useEffect(() => setSupported(passkeysSupported()), []);
+
+  const list = useQuery({
+    queryKey: ['passkeys'],
+    queryFn: async () => (await api.GET('/admin/auth/passkeys')).data!.data.passkeys,
+  });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['passkeys'] });
+    void qc.invalidateQueries({ queryKey: ['me'] });
+  };
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const opts = await api.POST('/admin/auth/passkeys/options');
+      const response = await createPasskey(opts.data!.data.options);
+      await api.POST('/admin/auth/passkeys', { body: { response, name: name.trim() || undefined } });
+    },
+    onSuccess: () => {
+      setError(null);
+      toast.success('Ключ доступа добавлен');
+      refresh();
+    },
+    onError: (e) => setError(passkeyCancelled(e) ? PASSKEY_CANCELLED_TEXT : errorText(e)),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (p: { id: string; name: string }) => {
+      const ok = await confirm({
+        title: `Удалить ключ «${p.name}»?`,
+        description: 'Этим ключом больше нельзя будет войти или подтвердить действие. Код из приложения и коды восстановления продолжают работать.',
+        confirm: 'Удалить',
+        danger: true,
+      });
+      if (!ok) return false;
+      await api.DELETE('/admin/auth/passkeys/{id}', { params: { path: { id: p.id } } });
+      return true;
+    },
+    onSuccess: (done) => {
+      if (!done) return;
+      setError(null);
+      toast.success('Ключ удалён');
+      refresh();
+    },
+    onError: (e) => setError(errorText(e)),
+  });
+
+  const keys = list.data;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Password size={16} weight="light" /> Ключи доступа (passkeys)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3.5 text-sm">
+        <p className="text-muted">
+          Ключ доступа — это вход через Face ID, Touch ID, Windows Hello или аппаратный ключ вместо кода из
+          приложения. Пароль по-прежнему спрашивается, а коды восстановления продолжают работать.
+        </p>
+        {list.error ? <ErrorNote text={errorText(list.error)} /> : null}
+        {!keys ? (
+          <Skeleton className="h-12 rounded-[var(--radius-md)]" />
+        ) : keys.length === 0 ? (
+          <p className="text-faint">Ключей пока нет.</p>
+        ) : (
+          <ul className="divide-y divide-line rounded-[var(--radius-md)] border border-line">
+            {keys.map((k) => (
+              <li key={k.id} className="flex items-center gap-3 px-3.5 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 text-ink">
+                    <span className="font-medium">{k.name}</span>
+                    <Badge tone={k.deviceType === 'multiDevice' ? 'info' : 'neutral'}>
+                      {k.deviceType === 'multiDevice' ? 'синхронизируемый' : 'аппаратный'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted">
+                    Добавлен {formatDateTime(k.createdAt)}
+                    {' · '}
+                    {k.lastUsedAt ? `последний вход ${formatDateTime(k.lastUsedAt)}` : 'ещё не использовался'}
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="danger-soft"
+                  loading={remove.isPending && remove.variables?.id === k.id}
+                  disabled={add.isPending}
+                  onClick={() => remove.mutate({ id: k.id, name: k.name })}
+                >
+                  Удалить
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {supported ? (
+          <form
+            className="flex flex-wrap items-end gap-2.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              add.mutate();
+            }}
+          >
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Label htmlFor="pk-name">Название ключа</Label>
+              <Input
+                id="pk-name"
+                maxLength={64}
+                placeholder="Этот компьютер"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <Button type="submit" variant="outline" loading={add.isPending} disabled={remove.isPending}>
+              <Fingerprint size={16} /> Добавить ключ
+            </Button>
+          </form>
+        ) : (
+          <p className="text-xs text-faint">Этот браузер не умеет работать с ключами доступа.</p>
+        )}
+        <ErrorNote text={error} />
+        <p className="text-xs text-faint">
+          Перед добавлением и удалением спросим свежий код из приложения. Название — чтобы отличать ключи:
+          «Этот компьютер», «iPhone», «YubiKey».
+        </p>
+      </CardContent>
+      {dialog}
     </Card>
   );
 }

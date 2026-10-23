@@ -9,11 +9,14 @@ Part 1 is done (`apps/api/src/common/secrets/message-body-cipher.ts`):
 - Old `enc:v2…` rows still open.
 - If a body fails to decrypt, the API logs a warning with the message id and key id (never the text) and returns `''`. The app then shows «Не удалось расшифровать».
 
+Part 2 is done (2026-10-22):
+- **Re-encryption job** `messages.reencrypt` (`apps/api/src/jobs/handlers/message-reencrypt.job.ts`, every 5 minutes, batches of 500 with a pause, cursor in Redis `ops:message-reencrypt`): rewrites every `enc:v2…` row and every row under a retired key id as `enc:v3` with the active key, in `messages` (both columns) and `message_edits` (AAD = the parent message id). Counts failures per key id without logging any text; restarts a pass by itself when the key set changes. Admin → Система → Здоровье системы → «Ключи сообщений» shows the counters and names the retired kids that can leave `MESSAGE_ENC_KEYS` (only after a finished pass with zero stuck rows — until then **no key id may be removed**). «Перешифровать заново» starts a new pass.
+- **KMS-wrapped keys**: an entry of `MESSAGE_ENC_KEYS` or `SECRETS_MASTER_KEYS` may be `kid:kms:<base64 CiphertextBlob>`; `src/common/secrets/kms-env.ts` unwraps it once at boot (`kms:Decrypt` with the dedicated `alias/<stack>-data-keys` key and encryption context `app=<stack>`; the task role may only Decrypt with that key). Raw entries keep working. Owner steps: `docs/runbooks/DEPLOY_PROD.md` «Ключи шифрования через KMS».
+
 Still to do:
 
-1. **Re-encryption job.** A background job that walks `messages` (`body_original`, `body_display`) and `message_edits.body_original` in batches. It rewrites every `enc:v2…` row, and every row under a retired key id, as `enc:v3` with the active key. Edit copies use their `message_id` as the AAD id. It must be resumable (keyset by id), throttled, and must count failures without logging any text. Once it reports zero rows for a key id, that key can leave `MESSAGE_ENC_KEYS`. Until then **no key id may be removed**: rows under a removed key read as `''`. Look for the warning `Message body failed to decrypt` in the logs.
-2. **KMS-wrapped keys.** `MESSAGE_ENC_KEYS` should hold data keys encrypted by an AWS KMS key, not raw secrets in the task environment. At boot the API calls `kms:Decrypt` once per kid, keeps the plaintext key only in memory, and the IAM role gets `kms:Decrypt` on that key alone. Rotating a key then means a new data key plus the re-encryption job above.
-3. **Data-only pushes (later).** Push bodies still carry the masked text to FCM/APNs (`notifications/push/push-dispatcher.ts`). The goal is for the device to fetch or decrypt the text itself.
+1. **Data-only pushes (later).** Push bodies still carry the masked text to FCM/APNs (`notifications/push/push-dispatcher.ts`). The goal is for the device to fetch or decrypt the text itself.
+2. **Key store re-encryption covers `integration_credentials` only.** `assistant_memberships.join_code_enc` and `state_bar_registries.secret_enc` have no kid column and are not rewritten by «Перешифровать»; keep the old `SECRETS_MASTER_KEYS` kid until those rows are rewritten.
 
 ## Image moderation and CSAM reporting (audit #4 §5, owner steps)
 

@@ -20,6 +20,9 @@ const kLegalDocOrder = <String>[
   'third_party_services',
   'partner_terms',
   'dmca_policy',
+  // Owner 2026-10-22 (checklist §26): the accessibility statement, shown
+  // when the API lists it.
+  'accessibility',
 ];
 
 /// Position of [docType] in [kLegalDocOrder]; unknown types go last.

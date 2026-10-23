@@ -13,6 +13,10 @@ import '../models/admin_login_verify_result_envelope.dart';
 import '../models/admin_logout_result_envelope.dart';
 import '../models/admin_me_envelope.dart';
 import '../models/admin_ok_envelope.dart';
+import '../models/admin_passkey_login_dto.dart';
+import '../models/admin_passkey_options_dto.dart';
+import '../models/admin_passkey_register_dto.dart';
+import '../models/admin_passkey_step_up_dto.dart';
 import '../models/admin_password_login_dto.dart';
 import '../models/admin_recover_password_dto.dart';
 import '../models/admin_recover_question_dto.dart';
@@ -26,6 +30,11 @@ import '../models/admin_totp_dto.dart';
 import '../models/admin_totp_setup_begin_dto.dart';
 import '../models/admin_totp_setup_finish_dto.dart';
 import '../models/admin_totp_setup_result_envelope.dart';
+import '../models/passkey_authentication_options_envelope.dart';
+import '../models/passkey_envelope.dart';
+import '../models/passkey_list_envelope.dart';
+import '../models/passkey_registration_options_envelope.dart';
+import '../models/passkey_removed_envelope.dart';
 import '../models/totp_enrollment_envelope.dart';
 
 part 'admin_auth_client.g.dart';
@@ -72,6 +81,59 @@ abstract class AdminAuthClient {
   @POST('/admin/auth/step-up')
   Future<AdminStepUpResultEnvelope> stepUp({
     @Body() required AdminStepUpDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step 2 with a passkey: assertion options bound to the ticket (only when passkeyAvailable)
+  @POST('/admin/auth/login/passkey/options')
+  Future<PasskeyAuthenticationOptionsEnvelope> adminPasskeyLoginOptions({
+    @Body() required AdminPasskeyOptionsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step 2 with a passkey: the assertion → an admin session
+  @POST('/admin/auth/login/passkey')
+  Future<AdminSessionEnvelope> adminPasskeyLogin({
+    @Body() required AdminPasskeyLoginDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step-up with a passkey: assertion options
+  @POST('/admin/auth/step-up/passkey/options')
+  Future<PasskeyAuthenticationOptionsEnvelope> adminStepUpPasskeyOptions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Confirm with a passkey for 5 minutes before a sensitive change (every try is audited)
+  @POST('/admin/auth/step-up/passkey')
+  Future<AdminStepUpResultEnvelope> adminStepUpPasskey({
+    @Body() required AdminPasskeyStepUpDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Options to enrol a passkey (needs step-up)
+  @POST('/admin/auth/passkeys/options')
+  Future<PasskeyRegistrationOptionsEnvelope> adminPasskeyOptions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Store the enrolled passkey (needs step-up)
+  @POST('/admin/auth/passkeys')
+  Future<PasskeyEnvelope> adminPasskeyRegister({
+    @Body() required AdminPasskeyRegisterDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The passkeys of the signed-in admin
+  @GET('/admin/auth/passkeys')
+  Future<PasskeyListEnvelope> adminPasskeys({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a passkey (needs step-up)
+  @DELETE('/admin/auth/passkeys/{id}')
+  Future<PasskeyRemovedEnvelope> adminPasskeyRemove({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

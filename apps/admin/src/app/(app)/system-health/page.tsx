@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowClockwise, Pause, Play, TrendDown, TrendUp } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowsClockwise, Pause, Play, TrendDown, TrendUp } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
@@ -15,7 +15,7 @@ import { ApiError, api, errorText } from '@/lib/api/client';
 import { livePoll } from '@/lib/live';
 import { LIGHT_LABEL, LIGHT_TONE, RUNBOOK_BASE, word, type SystemHealth } from '@/lib/system-health';
 
-type Action = { kind: 'restart' } | { kind: 'scale'; mode: 'min' | 'normal' };
+type Action = { kind: 'restart' } | { kind: 'scale'; mode: 'min' | 'normal' } | { kind: 'reencrypt' };
 
 /**
  * Owner 2026-10-05 «я не понимаю серверы и базы»: one screen that says
@@ -37,13 +37,18 @@ export default function SystemHealthPage() {
     mutationFn: async (a: Action) =>
       a.kind === 'restart'
         ? (await api.POST('/admin/system-health/restart-worker')).data!.data
-        : (await api.POST('/admin/system-health/scale', { body: { mode: a.mode } })).data!.data,
+        : a.kind === 'reencrypt'
+          ? // Owner 2026-10-22: the message-key re-encryption pass, from the start.
+            (await api.POST('/admin/system-health/message-reencrypt/restart')).data!.data
+          : (await api.POST('/admin/system-health/scale', { body: { mode: a.mode } })).data!.data,
     onSuccess: (h, a) => {
       set(h);
       toast.success(
         a.kind === 'restart'
           ? 'Фоновые задачи перезапускаются (1–2 минуты)'
-          : a.mode === 'min'
+          : a.kind === 'reencrypt'
+            ? 'Перешифровка запущена заново: строки переписываются по 500 за раз'
+            : a.mode === 'min'
             ? 'Сервер держится на минимуме: счёт не вырастет'
             : 'Обычный режим: сервер снова растёт с нагрузкой',
       );
@@ -129,6 +134,17 @@ export default function SystemHealthPage() {
                     >
                       Подробная инструкция
                     </a>
+                  ) : null}
+                  {item.key === 'message_keys' && item.status !== 'grey' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="self-start"
+                      loading={run.isPending && run.variables?.kind === 'reencrypt'}
+                      onClick={() => run.mutate({ kind: 'reencrypt' })}
+                    >
+                      <ArrowsClockwise size={14} /> Перешифровать заново
+                    </Button>
                   ) : null}
                 </Card>
               );
@@ -233,7 +249,11 @@ export default function SystemHealthPage() {
 
       <StepUpDialog
         open={stepUp !== null}
-        description="Это действие меняет сервер на AWS. Подтвердите, что это вы."
+        description={
+          stepUp?.kind === 'reencrypt'
+            ? 'Перешифровка переписывает все сообщения новым ключом. Подтвердите, что это вы.'
+            : 'Это действие меняет сервер на AWS. Подтвердите, что это вы.'
+        }
         onCancel={() => setStepUp(null)}
         onDone={() => {
           const a = stepUp;

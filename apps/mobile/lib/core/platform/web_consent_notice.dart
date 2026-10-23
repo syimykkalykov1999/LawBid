@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
@@ -58,7 +59,7 @@ class _WebConsentNoticeState extends ConsumerState<WebConsentNotice> {
 
   void _answer(SharedPreferences prefs, {required bool accepted}) {
     AppEvents.setConsent(granted: accepted, prefs: prefs);
-    if (accepted) AppEvents.track('app_open');
+    if (accepted) AppEvents.track(AppEventNames.appOpen);
     prefs.setString(_kKey, accepted ? 'accepted' : 'declined');
     setState(() => _answered = true);
   }

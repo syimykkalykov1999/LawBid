@@ -291,4 +291,14 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
     description: 'Sign in with Google',
   },
+  {
+    // Owner 2026-10-22 (systems checklist §1): sign in with a passkey
+    // (Face ID / Touch ID / Windows Hello / a security key). Off: the
+    // button hides and the API refuses passkey sign-ins; enrolled passkeys
+    // stay and keep working for reauth.
+    key: 'passkey_login',
+    enabled: true,
+    app: true,
+    description: 'Sign in with a passkey (WebAuthn)',
+  },
 ];

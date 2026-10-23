@@ -15,6 +15,8 @@ function make(opts: {
   const book = opts.book ?? [];
   const follows = opts.follows ?? [];
   const prisma = {
+    // Owner 2026-10-22 (CCPA): the latest do_not_sell consent, none here.
+    userConsent: { findFirst: jest.fn().mockResolvedValue(null) },
     userPrivacySettings: {
       findUnique: jest.fn(({ where }: { where: { user_id: string } }) =>
         Promise.resolve(
@@ -121,6 +123,7 @@ describe('PrivacySettingsService (owner 2026-10-20)', () => {
   it('everyone is the default for a person who never opened the screen', async () => {
     const s = make({});
     await expect(s.get('a')).resolves.toEqual({
+      doNotSell: false,
       lastSeen: 'everyone',
       messageFrom: 'everyone',
       callFrom: 'everyone',

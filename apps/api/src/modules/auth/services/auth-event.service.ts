@@ -34,6 +34,12 @@ export const AUTH_EVENT_TYPES = {
   QR_LOGIN_APPROVED: 'qr_login_approved',
   QR_LOGIN_REJECTED: 'qr_login_rejected',
   QR_LOGIN_SUCCESS: 'qr_login_success',
+  // Owner 2026-10-22: passkeys (WebAuthn) — enrolled / removed on the
+  // account, signed in with one, a failed assertion at sign-in.
+  PASSKEY_ADDED: 'passkey_added',
+  PASSKEY_REMOVED: 'passkey_removed',
+  PASSKEY_LOGIN_SUCCESS: 'passkey_login_success',
+  PASSKEY_LOGIN_FAILED: 'passkey_login_failed',
   TOKEN_REFRESHED: 'token_refreshed',
   REFRESH_REUSE_DETECTED: 'refresh_reuse_detected',
   SESSION_REVOKED: 'session_revoked',

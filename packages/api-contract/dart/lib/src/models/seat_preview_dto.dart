@@ -18,6 +18,7 @@ class SeatPreviewDto {
     required this.seatCents,
     required this.monthlyIncreaseCents,
     required this.nextChargeCents,
+    this.taxCents,
   });
 
   factory SeatPreviewDto.fromJson(Map<String, Object?> json) =>
@@ -31,6 +32,9 @@ class SeatPreviewDto {
 
   /// Charged now: the prorated rest of the current period.
   final int amountNowCents;
+
+  /// Owner 2026-10-22 (Stripe Tax): the tax inside amountNowCents; null = no tax.
+  final int? taxCents;
   final String currency;
 
   /// Send back with POST /subscriptions/seats (unix seconds).

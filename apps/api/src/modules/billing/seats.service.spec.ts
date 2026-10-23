@@ -140,6 +140,7 @@ describe('SeatsService', () => {
     const subscriptions = {
       assertVerifiedAttorney: jest.fn().mockResolvedValue({ email: null }),
       me: jest.fn().mockResolvedValue({ isActive: true }),
+      stripeTaxEnabled: jest.fn().mockResolvedValue(false),
     };
     const svc = new SeatsService(
       prisma as never,

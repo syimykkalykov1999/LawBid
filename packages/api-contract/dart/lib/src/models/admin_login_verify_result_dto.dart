@@ -14,6 +14,7 @@ class AdminLoginVerifyResultDto {
     required this.ticket,
     required this.session,
     required this.totpSetupRequired,
+    this.passkeyAvailable,
   });
 
   factory AdminLoginVerifyResultDto.fromJson(Map<String, Object?> json) =>
@@ -27,6 +28,9 @@ class AdminLoginVerifyResultDto {
 
   /// This admin has no authenticator yet: set it up now (QR + recovery codes) before anything else.
   final bool totpSetupRequired;
+
+  /// Owner 2026-10-22: this admin has a passkey — step 2 may be /login/passkey/options + /login/passkey instead of the code.
+  final bool? passkeyAvailable;
 
   Map<String, Object?> toJson() => _$AdminLoginVerifyResultDtoToJson(this);
 }

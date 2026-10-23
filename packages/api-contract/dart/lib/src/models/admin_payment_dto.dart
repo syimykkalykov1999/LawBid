@@ -25,6 +25,8 @@ class AdminPaymentDto {
     required this.refundedCents,
     required this.refundableCents,
     required this.createdAt,
+    this.taxCents,
+    this.subtotalCents,
   });
 
   factory AdminPaymentDto.fromJson(Map<String, Object?> json) =>
@@ -34,6 +36,10 @@ class AdminPaymentDto {
   final String userId;
   final AdminBillingUserDto? user;
   final int amountCents;
+
+  /// Owner 2026-10-22 (Stripe Tax): tax inside amountCents / pre-tax amount.
+  final int? taxCents;
+  final int? subtotalCents;
   final String currency;
   final PaymentStatus status;
   final DateTime? paidAt;

@@ -83,7 +83,7 @@ export class SeatsService {
         ctx.row.price_cents + (seats - current) * ctx.seatCents,
       ),
     };
-    if (add === 0) return { ...base, amountNowCents: 0 };
+    if (add === 0) return { ...base, amountNowCents: 0, taxCents: null };
     await this.assertPaidPeriod(ctx.row);
     const p = await this.provider.previewSeatIncrease({
       subscriptionId: ctx.row.stripe_subscription_id,
@@ -91,10 +91,12 @@ export class SeatsService {
       knownSeatPriceIds: ctx.knownSeatPriceIds,
       addSeats: add,
       prorationDate,
+      automaticTax: await this.subscriptions.stripeTaxEnabled(),
     });
     return {
       ...base,
       amountNowCents: p.amountNowCents,
+      taxCents: p.taxCents ?? null,
       currency: p.currency || SUBSCRIPTION_CURRENCY,
       periodEnd: p.periodEnd
         ? new Date(p.periodEnd * 1000).toISOString()
@@ -157,6 +159,7 @@ export class SeatsService {
       quantity: seats,
       prorationDate: at,
       idempotencyKey: `seats:${user.sub}:${paid}-${seats}:${at}`,
+      automaticTax: await this.subscriptions.stripeTaxEnabled(),
     });
     const change = await this.prisma.assistantSeatChange.create({
       data: {

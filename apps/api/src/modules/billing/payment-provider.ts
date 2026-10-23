@@ -44,11 +44,40 @@ export interface ProviderSubscriptionItem {
   unitAmountCents: number | null;
 }
 
+/** Owner 2026-10-22 (Stripe Tax): a billing address the buyer gave us. */
+export interface ProviderTaxAddress {
+  /** ISO 3166-1 alpha-2. */
+  country: string;
+  postalCode?: string | null;
+  state?: string | null;
+  city?: string | null;
+  line1?: string | null;
+}
+
+/** Where Stripe Tax may place the buyer: an address and/or the IP. */
+export interface ProviderTaxLocation {
+  address?: ProviderTaxAddress | null;
+  ip?: string | null;
+}
+
+/** Owner 2026-10-22 (Stripe Tax): tax computed for a one-time amount. */
+export interface ProviderTaxCalculation {
+  /** The Stripe Tax calculation id (kept on the PaymentIntent). */
+  calculationId: string;
+  /** Pre-tax amount, the tax, and what is charged. */
+  subtotalCents: number;
+  taxCents: number;
+  totalCents: number;
+  currency: string;
+}
+
 /** Owner 2026-10-22: what buying seats now costs (Stripe's preview of
  * the invoice the change creates at once). */
 export interface ProviderSeatPreview {
   /** The prorated rest of the current period for the added seats. */
   amountNowCents: number;
+  /** Stripe Tax: the tax inside [amountNowCents] (null = no tax computed). */
+  taxCents?: number | null;
   currency: string;
   /** The proration moment to send back with the purchase (unix seconds). */
   prorationDate: number;
@@ -80,6 +109,10 @@ export interface ProviderInvoice {
   customerId: string | null;
   subscriptionId: string | null;
   amountCents: number;
+  /** Owner 2026-10-22 (Stripe Tax): the tax on the invoice and the amount
+   * before it; null when the provider does not say. */
+  taxCents?: number | null;
+  subtotalCents?: number | null;
   currency: string;
   status: 'draft' | 'open' | 'paid' | 'void' | 'uncollectible';
   paidAt: number | null;
@@ -138,7 +171,38 @@ export interface PaymentProvider {
   createCustomer(input: {
     userId: string;
     email: string | null;
+    /** Owner 2026-10-22 (Stripe Tax): where the buyer is, when known. */
+    tax?: ProviderTaxLocation | null;
   }): Promise<string>;
+  /** Owner 2026-10-22 (Stripe Tax): a billing address / IP for the
+   * customer, so automatic tax can place them. */
+  updateCustomerTaxLocation?(
+    customerId: string,
+    location: ProviderTaxLocation,
+  ): Promise<void>;
+  /** True when Stripe Tax can compute tax for this customer (it has a
+   * recognised location); false = automatic tax must stay off for them. */
+  customerTaxSupported?(customerId: string): Promise<boolean>;
+  /** Tax for a one-time amount (our own card page) at [location]. */
+  calculateTax?(input: {
+    amountCents: number;
+    currency: string;
+    reference: string;
+    customerId?: string | null;
+    location: ProviderTaxLocation;
+  }): Promise<ProviderTaxCalculation>;
+  /** After the payment succeeded: the calculation becomes a tax
+   * transaction (Stripe Tax reporting). Returns its id. */
+  recordTaxTransaction?(
+    calculationId: string,
+    reference: string,
+  ): Promise<string>;
+  /** Owner 2026-10-22: a paid amount changed (tax added): same intent,
+   * new amount and metadata. */
+  updatePaymentIntent?(
+    id: string,
+    patch: { amountCents: number; metadata: Record<string, string> },
+  ): Promise<ProviderPaymentIntent>;
   createSetupIntent(
     customerId: string,
     metadata?: Record<string, string>,
@@ -162,6 +226,10 @@ export interface PaymentProvider {
      * retry of the same attempt never creates a second subscription; a
      * new attempt (new SetupIntent) is a new request. */
     idempotencyKey: string;
+    /** Owner 2026-10-22: Stripe Tax on the subscription (admin switch
+     * billing.stripe_tax_enabled); applied only when the customer has a
+     * recognised tax location. */
+    automaticTax?: boolean;
   }): Promise<ProviderSubscription>;
   retrieveSubscription(id: string): Promise<ProviderSubscription | null>;
   setCancelAtPeriodEnd(
@@ -189,6 +257,9 @@ export interface PaymentProvider {
     /** Owner 2026-10-02: a promo code's coupon applied to the session
      * (then the page's own promotion-code box is off). */
     couponId?: string | null;
+    /** Owner 2026-10-22: Stripe Tax — the hosted page collects the billing
+     * address and adds the tax. */
+    automaticTax?: boolean;
   }): Promise<ProviderCheckoutSession>;
   retrieveCheckoutSession(id: string): Promise<ProviderCheckoutSession | null>;
   /** OQ-048: set the assistant-seat quantity of a monthly subscription
@@ -207,7 +278,11 @@ export interface PaymentProvider {
   /** Owner 2026-10-22: the price of going from the subscription's current
    * seat quantity up by [addSeats] now (the invoice it would create). */
   previewSeatIncrease(
-    input: ProviderSeatItemInput & { addSeats: number; prorationDate: number },
+    input: ProviderSeatItemInput & {
+      addSeats: number;
+      prorationDate: number;
+      automaticTax?: boolean;
+    },
   ): Promise<ProviderSeatPreview>;
   /** Owner 2026-10-22: set the seat quantity to [quantity] and charge the
    * prorated rest of the period NOW (`always_invoice`); the change is
@@ -217,6 +292,7 @@ export interface PaymentProvider {
       quantity: number;
       prorationDate: number;
       idempotencyKey: string;
+      automaticTax?: boolean;
     },
   ): Promise<ProviderSeatCharge>;
   /** Voids an open invoice (a pending seat change that will not be paid). */
@@ -226,6 +302,7 @@ export interface PaymentProvider {
   switchToYearly(
     subscriptionId: string,
     yearlyPriceId: string,
+    automaticTax?: boolean,
   ): Promise<ProviderSubscription>;
   retrieveInvoice(id: string): Promise<ProviderInvoice | null>;
   retrieveCharge(id: string): Promise<ProviderCharge | null>;
@@ -442,6 +519,8 @@ export interface ProviderOneTimeCheckoutInput {
   successUrl: string;
   cancelUrl: string;
   idempotencyKey?: string;
+  /** Owner 2026-10-22: Stripe Tax (the hosted page collects the address). */
+  automaticTax?: boolean;
 }
 
 /** Owner 2026-10-22: a one-time payment on our own card page. */
@@ -453,6 +532,11 @@ export interface ProviderPaymentIntentInput {
   receiptEmail?: string | null;
   idempotencyKey: string;
 }
+
+/** Metadata keys a PaymentIntent carries when Stripe Tax was computed
+ * for it (read by the webhook to record the tax transaction). */
+export const PI_TAX_CALCULATION_KEY = 'taxCalculationId';
+export const PI_TAX_CENTS_KEY = 'taxCents';
 
 export interface ProviderPaymentIntent {
   id: string;

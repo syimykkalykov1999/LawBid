@@ -2545,6 +2545,671 @@
         ]
       }
     },
+    "/auth/passkeys/register/options": {
+      "post": {
+        "operationId": "passkeyRegisterOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyRegistrationOptionsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PASSKEY_LIMIT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Options to create a passkey for this account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkeys/register": {
+      "post": {
+        "operationId": "passkeyRegister",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, PASSKEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Store the passkey the authenticator created",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkeys": {
+      "get": {
+        "operationId": "passkeyList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The passkeys of this account",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkeys/{id}": {
+      "delete": {
+        "operationId": "passkeyRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyRemovedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: PASSKEY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove a passkey (recent sign-in or reauth token)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkeys/login/options": {
+      "post": {
+        "operationId": "passkeyLoginOptions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyLoginOptionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyAuthenticationOptionsEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Options to sign in with a passkey (no identifier: the authenticator offers the saved accounts)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkeys/login": {
+      "post": {
+        "operationId": "passkeyLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokensEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: PASSKEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: AUTH_PROVIDER_DISABLED, ACCOUNT_SUSPENDED, ACCOUNT_DELETED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sign in with the passkey assertion",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkeys/reauth/options": {
+      "post": {
+        "operationId": "passkeyReauthOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyAuthenticationOptionsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: PASSKEY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Options to confirm a sensitive action with a passkey",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkeys/reauth": {
+      "post": {
+        "operationId": "passkeyReauth",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAssertDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthTokenEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, PASSKEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A single-use X-Reauth-Token from the passkey assertion (instead of an OTP)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/admin/auth/login/totp-setup": {
       "post": {
         "operationId": "adminTotpSetupBegin",
@@ -3072,6 +3737,729 @@
           }
         ],
         "summary": "Confirm with a fresh authenticator code for 5 minutes before a sensitive change (every try is audited)",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/login/passkey/options": {
+      "post": {
+        "operationId": "adminPasskeyLoginOptions",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasskeyOptionsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyAuthenticationOptionsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: ADMIN_TICKET_INVALID, ADMIN_TOTP_INVALID, ADMIN_RECOVERY_CODE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: PASSKEY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Step 2 with a passkey: assertion options bound to the ticket (only when passkeyAvailable)",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/login/passkey": {
+      "post": {
+        "operationId": "adminPasskeyLogin",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasskeyLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSessionEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: ADMIN_TICKET_INVALID, PASSKEY_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: ADMIN_AUTH_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Step 2 with a passkey: the assertion → an admin session",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/step-up/passkey/options": {
+      "post": {
+        "operationId": "adminStepUpPasskeyOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyAuthenticationOptionsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: PASSKEY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Step-up with a passkey: assertion options",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/step-up/passkey": {
+      "post": {
+        "operationId": "adminStepUpPasskey",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasskeyStepUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStepUpResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: PASSKEY_INVALID\n\nForbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Confirm with a passkey for 5 minutes before a sensitive change (every try is audited)",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/passkeys/options": {
+      "post": {
+        "operationId": "adminPasskeyOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyRegistrationOptionsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED\n\nForbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: PASSKEY_LIMIT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Options to enrol a passkey (needs step-up)",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/passkeys": {
+      "post": {
+        "operationId": "adminPasskeyRegister",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminPasskeyRegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: PASSKEY_INVALID\n\nUnauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED\n\nForbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Store the enrolled passkey (needs step-up)",
+        "tags": [
+          "admin-auth"
+        ]
+      },
+      "get": {
+        "operationId": "adminPasskeys",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The passkeys of the signed-in admin",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/passkeys/{id}": {
+      "delete": {
+        "operationId": "adminPasskeyRemove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyRemovedEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED\n\nForbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: PASSKEY_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Remove a passkey (needs step-up)",
         "tags": [
           "admin-auth"
         ]
@@ -11294,6 +12682,215 @@
         "summary": "Change my privacy settings (any subset)",
         "tags": [
           "privacy"
+        ]
+      },
+      "patch": {
+        "operationId": "patchPrivacySettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrivacySettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change my privacy settings (any subset), incl. the CCPA «Do not sell or share» switch",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/admin/analytics": {
+      "get": {
+        "operationId": "getAnalytics",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 7,
+              "maximum": 90,
+              "default": 30,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "DAU/MAU, the sign-up funnel, retention, churn and purchases by day",
+        "tags": [
+          "admin-analytics"
+        ]
+      }
+    },
+    "/app-events": {
+      "post": {
+        "operationId": "reportEvents",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppEventBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The app reports events (batch of up to 50)",
+        "tags": [
+          "app-events"
         ]
       }
     },
@@ -28342,140 +29939,6 @@
         "summary": "Rate-limited: an enumeration aid otherwise.",
         "tags": [
           "usernames"
-        ]
-      }
-    },
-    "/admin/analytics": {
-      "get": {
-        "operationId": "getAnalytics",
-        "parameters": [
-          {
-            "name": "days",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 7,
-              "maximum": 90,
-              "default": 30,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnalyticsEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "DAU/MAU, the sign-up funnel, retention, churn and purchases by day",
-        "tags": [
-          "admin-analytics"
-        ]
-      }
-    },
-    "/app-events": {
-      "post": {
-        "operationId": "reportEvents",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AppEventBatchDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "The app reports events (batch of up to 50)",
-        "tags": [
-          "app-events"
         ]
       }
     },
@@ -66235,6 +67698,83 @@
         ]
       }
     },
+    "/admin/system-health/message-reencrypt/restart": {
+      "post": {
+        "operationId": "restartMessageReencrypt",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Start a new message re-encryption pass (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/heavy-jobs": {
       "post": {
         "operationId": "setHeavyJobsPaused",
@@ -72306,7 +73846,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -72845,7 +74386,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           }
@@ -72955,7 +74497,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -73073,7 +74616,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -73199,7 +74743,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -73320,7 +74865,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -109046,6 +110592,9 @@
           "CONTACT_ALREADY_EXISTS",
           "REAUTH_REQUIRED",
           "REAUTH_INVALID",
+          "PASSKEY_INVALID",
+          "PASSKEY_NOT_FOUND",
+          "PASSKEY_LIMIT",
           "DEVICE_ATTESTATION_REQUIRED",
           "ACCOUNT_SUSPENDED",
           "ACCOUNT_DELETED",
@@ -109337,7 +110886,8 @@
           "cookies",
           "third_party_services",
           "partner_terms",
-          "dmca_policy"
+          "dmca_policy",
+          "accessibility"
         ]
       },
       "BootstrapLegalDocumentDto": {
@@ -110310,6 +111860,248 @@
           "data"
         ]
       },
+      "PasskeyRegistrationOptionsDto": {
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "PublicKeyCredentialCreationOptionsJSON — pass to @simplewebauthn/browser startRegistration() or the native passkey API as is."
+          }
+        },
+        "required": [
+          "options"
+        ]
+      },
+      "PasskeyRegistrationOptionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PasskeyRegistrationOptionsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PasskeyDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Label chosen at enrolment (or a default)."
+          },
+          "deviceType": {
+            "type": "string",
+            "enum": [
+              "singleDevice",
+              "multiDevice"
+            ],
+            "description": "multiDevice = a synced passkey (iCloud Keychain, Google Password Manager); singleDevice = a hardware key."
+          },
+          "backedUp": {
+            "type": "boolean",
+            "description": "Backed up by the platform (synced)."
+          },
+          "transports": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "deviceType",
+          "backedUp",
+          "transports",
+          "createdAt",
+          "lastUsedAt"
+        ]
+      },
+      "PasskeyRegisterDto": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "RegistrationResponseJSON from the authenticator."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "Label for the list («iPhone», «YubiKey»)."
+          }
+        },
+        "required": [
+          "response"
+        ]
+      },
+      "PasskeyEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PasskeyDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PasskeyListDto": {
+        "type": "object",
+        "properties": {
+          "passkeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PasskeyDto"
+            }
+          }
+        },
+        "required": [
+          "passkeys"
+        ]
+      },
+      "PasskeyListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PasskeyListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PasskeyRemovedDto": {
+        "type": "object",
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ]
+      },
+      "PasskeyRemovedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PasskeyRemovedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PasskeyAuthenticationOptionsDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "description": "Send it back with the assertion (single use, 5 minutes)."
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "PublicKeyCredentialRequestOptionsJSON — pass to startAuthentication() or the native passkey API as is."
+          }
+        },
+        "required": [
+          "challengeId",
+          "options"
+        ]
+      },
+      "PasskeyLoginOptionsDto": {
+        "type": "object",
+        "properties": {
+          "deviceInfo": {
+            "$ref": "#/components/schemas/DeviceInfoDto"
+          }
+        }
+      },
+      "PasskeyAuthenticationOptionsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PasskeyAuthenticationOptionsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PasskeyLoginDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 64
+          },
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "AuthenticationResponseJSON from the authenticator."
+          },
+          "deviceInfo": {
+            "$ref": "#/components/schemas/DeviceInfoDto"
+          }
+        },
+        "required": [
+          "challengeId",
+          "response"
+        ]
+      },
+      "PasskeyAssertDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 64
+          },
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "AuthenticationResponseJSON from the authenticator."
+          }
+        },
+        "required": [
+          "challengeId",
+          "response"
+        ]
+      },
       "TotpEnrollmentDto": {
         "type": "object",
         "properties": {
@@ -110395,6 +112187,10 @@
           },
           "totpEnabled": {
             "type": "boolean"
+          },
+          "passkeyCount": {
+            "type": "integer",
+            "description": "Owner 2026-10-22: passkeys enrolled for the admin sign-in."
           },
           "lastLoginAt": {
             "type": "string",
@@ -110682,6 +112478,84 @@
           "data"
         ]
       },
+      "AdminPasskeyOptionsDto": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 2000,
+            "description": "Ticket from login/password (5 minutes)."
+          }
+        },
+        "required": [
+          "ticket"
+        ]
+      },
+      "AdminPasskeyLoginDto": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 2000,
+            "description": "Ticket from login/password (5 minutes)."
+          },
+          "challengeId": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 64,
+            "description": "challengeId from /login/passkey/options."
+          },
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "AuthenticationResponseJSON from the authenticator."
+          }
+        },
+        "required": [
+          "ticket",
+          "challengeId",
+          "response"
+        ]
+      },
+      "AdminPasskeyStepUpDto": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 64,
+            "description": "challengeId from /step-up/passkey/options."
+          },
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "AuthenticationResponseJSON from the authenticator."
+          }
+        },
+        "required": [
+          "challengeId",
+          "response"
+        ]
+      },
+      "AdminPasskeyRegisterDto": {
+        "type": "object",
+        "properties": {
+          "response": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "RegistrationResponseJSON from the authenticator."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "response"
+        ]
+      },
       "AdminMeEnvelope": {
         "type": "object",
         "properties": {
@@ -110795,6 +112669,10 @@
           "totpSetupRequired": {
             "type": "boolean",
             "description": "This admin has no authenticator yet: set it up now (QR + recovery codes) before anything else."
+          },
+          "passkeyAvailable": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22: this admin has a passkey — step 2 may be /login/passkey/options + /login/passkey instead of the code."
           }
         },
         "required": [
@@ -114633,6 +116511,10 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "doNotSell": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22 (CCPA/CPRA): «Do not sell or share my personal information» — true = opted out. Stored as a do_not_sell consent (in the data export), honoured by the analytics gate."
           }
         },
         "required": [
@@ -114702,8 +116584,270 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "doNotSell": {
+            "type": "boolean",
+            "description": "CCPA/CPRA «Do not sell or share my personal information»: true = opt out, false = allow again."
           }
         }
+      },
+      "AnalyticsStepDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "signed_up",
+              "verified",
+              "role_chosen",
+              "onboarded",
+              "first_action",
+              "paid"
+            ]
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ]
+      },
+      "AnalyticsRetentionDto": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "number",
+            "description": "People who joined 7–14 days ago."
+          },
+          "d1Percent": {
+            "type": "number",
+            "description": "Came back after day 1."
+          },
+          "d7Percent": {
+            "type": "number",
+            "description": "Came back after day 7."
+          }
+        },
+        "required": [
+          "cohort",
+          "d1Percent",
+          "d7Percent"
+        ]
+      },
+      "AnalyticsChurnPartDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "number",
+            "description": "Active 30–60 days ago."
+          },
+          "lost": {
+            "type": "number",
+            "description": "Of them, not seen in the last 30 days."
+          }
+        },
+        "required": [
+          "before",
+          "lost"
+        ]
+      },
+      "AnalyticsChurnDto": {
+        "type": "object",
+        "properties": {
+          "clients": {
+            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
+          },
+          "attorneys": {
+            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
+          }
+        },
+        "required": [
+          "clients",
+          "attorneys"
+        ]
+      },
+      "AnalyticsDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "active": {
+            "type": "number",
+            "description": "People who opened the app."
+          },
+          "signups": {
+            "type": "number"
+          },
+          "subscriptionCents": {
+            "type": "number"
+          },
+          "boostCents": {
+            "type": "number"
+          },
+          "purchases": {
+            "type": "number",
+            "description": "Subscription payments and Boosts bought."
+          }
+        },
+        "required": [
+          "day",
+          "active",
+          "signups",
+          "subscriptionCents",
+          "boostCents",
+          "purchases"
+        ]
+      },
+      "AppEventCountDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "screen": {
+            "type": "string",
+            "description": "Empty when the event has no screen."
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "screen",
+          "count"
+        ]
+      },
+      "AnalyticsEventsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The app sends events (flag app_events)."
+          },
+          "topEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventCountDto"
+            }
+          },
+          "topScreens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventCountDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "topEvents",
+          "topScreens"
+        ]
+      },
+      "AnalyticsDto": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "number"
+          },
+          "dau": {
+            "type": "number"
+          },
+          "wau": {
+            "type": "number"
+          },
+          "mau": {
+            "type": "number"
+          },
+          "stickinessPercent": {
+            "type": "number",
+            "description": "DAU as a share of MAU, in percent."
+          },
+          "funnel": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStepDto"
+            }
+          },
+          "retention": {
+            "$ref": "#/components/schemas/AnalyticsRetentionDto"
+          },
+          "churn": {
+            "$ref": "#/components/schemas/AnalyticsChurnDto"
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDayDto"
+            }
+          },
+          "events": {
+            "$ref": "#/components/schemas/AnalyticsEventsDto"
+          }
+        },
+        "required": [
+          "days",
+          "dau",
+          "wau",
+          "mau",
+          "stickinessPercent",
+          "funnel",
+          "retention",
+          "churn",
+          "daily",
+          "events"
+        ]
+      },
+      "AnalyticsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnalyticsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AppEventInDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9_.]{1,40}$",
+            "example": "screen_view"
+          },
+          "screen": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_:/.-]{0,80}$",
+            "example": "/cases/:id",
+            "description": "Screen route."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "AppEventBatchDto": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventInDto"
+            }
+          }
+        },
+        "required": [
+          "events"
+        ]
       },
       "ConflictMatchDto": {
         "type": "object",
@@ -118609,6 +120753,11 @@
             "type": "integer",
             "description": "Charged now: the prorated rest of the current period."
           },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (Stripe Tax): the tax inside amountNowCents; null = no tax."
+          },
           "currency": {
             "type": "string"
           },
@@ -118978,6 +121127,15 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (Stripe Tax): the tax inside amountCents and the\namount before it; null when no tax was computed."
+          },
+          "subtotalCents": {
+            "type": "integer",
+            "nullable": true
           },
           "kind": {
             "type": "string",
@@ -124333,7 +126491,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -125184,7 +127343,8 @@
               "analytics",
               "attorney_agreement",
               "client_agreement",
-              "eula"
+              "eula",
+              "do_not_sell"
             ]
           },
           "granted": {
@@ -125320,264 +127480,6 @@
         },
         "required": [
           "data"
-        ]
-      },
-      "AnalyticsStepDto": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "enum": [
-              "signed_up",
-              "verified",
-              "role_chosen",
-              "onboarded",
-              "first_action",
-              "paid"
-            ]
-          },
-          "count": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "key",
-          "count"
-        ]
-      },
-      "AnalyticsRetentionDto": {
-        "type": "object",
-        "properties": {
-          "cohort": {
-            "type": "number",
-            "description": "People who joined 7–14 days ago."
-          },
-          "d1Percent": {
-            "type": "number",
-            "description": "Came back after day 1."
-          },
-          "d7Percent": {
-            "type": "number",
-            "description": "Came back after day 7."
-          }
-        },
-        "required": [
-          "cohort",
-          "d1Percent",
-          "d7Percent"
-        ]
-      },
-      "AnalyticsChurnPartDto": {
-        "type": "object",
-        "properties": {
-          "before": {
-            "type": "number",
-            "description": "Active 30–60 days ago."
-          },
-          "lost": {
-            "type": "number",
-            "description": "Of them, not seen in the last 30 days."
-          }
-        },
-        "required": [
-          "before",
-          "lost"
-        ]
-      },
-      "AnalyticsChurnDto": {
-        "type": "object",
-        "properties": {
-          "clients": {
-            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
-          },
-          "attorneys": {
-            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
-          }
-        },
-        "required": [
-          "clients",
-          "attorneys"
-        ]
-      },
-      "AnalyticsDayDto": {
-        "type": "object",
-        "properties": {
-          "day": {
-            "type": "string"
-          },
-          "active": {
-            "type": "number",
-            "description": "People who opened the app."
-          },
-          "signups": {
-            "type": "number"
-          },
-          "subscriptionCents": {
-            "type": "number"
-          },
-          "boostCents": {
-            "type": "number"
-          },
-          "purchases": {
-            "type": "number",
-            "description": "Subscription payments and Boosts bought."
-          }
-        },
-        "required": [
-          "day",
-          "active",
-          "signups",
-          "subscriptionCents",
-          "boostCents",
-          "purchases"
-        ]
-      },
-      "AppEventCountDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "screen": {
-            "type": "string",
-            "description": "Empty when the event has no screen."
-          },
-          "count": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "name",
-          "screen",
-          "count"
-        ]
-      },
-      "AnalyticsEventsDto": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "description": "The app sends events (flag app_events)."
-          },
-          "topEvents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AppEventCountDto"
-            }
-          },
-          "topScreens": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AppEventCountDto"
-            }
-          }
-        },
-        "required": [
-          "enabled",
-          "topEvents",
-          "topScreens"
-        ]
-      },
-      "AnalyticsDto": {
-        "type": "object",
-        "properties": {
-          "days": {
-            "type": "number"
-          },
-          "dau": {
-            "type": "number"
-          },
-          "wau": {
-            "type": "number"
-          },
-          "mau": {
-            "type": "number"
-          },
-          "stickinessPercent": {
-            "type": "number",
-            "description": "DAU as a share of MAU, in percent."
-          },
-          "funnel": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AnalyticsStepDto"
-            }
-          },
-          "retention": {
-            "$ref": "#/components/schemas/AnalyticsRetentionDto"
-          },
-          "churn": {
-            "$ref": "#/components/schemas/AnalyticsChurnDto"
-          },
-          "daily": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AnalyticsDayDto"
-            }
-          },
-          "events": {
-            "$ref": "#/components/schemas/AnalyticsEventsDto"
-          }
-        },
-        "required": [
-          "days",
-          "dau",
-          "wau",
-          "mau",
-          "stickinessPercent",
-          "funnel",
-          "retention",
-          "churn",
-          "daily",
-          "events"
-        ]
-      },
-      "AnalyticsEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AnalyticsDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AppEventInDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9_.]{1,40}$",
-            "example": "screen_view"
-          },
-          "screen": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_:/.-]{0,80}$",
-            "example": "/cases/:id",
-            "description": "Screen route."
-          }
-        },
-        "required": [
-          "name"
-        ]
-      },
-      "AppEventBatchDto": {
-        "type": "object",
-        "properties": {
-          "events": {
-            "maxItems": 50,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AppEventInDto"
-            }
-          }
-        },
-        "required": [
-          "events"
         ]
       },
       "CommentAuthorDto": {
@@ -133196,6 +135098,15 @@
           },
           "amountCents": {
             "type": "integer"
+          },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (Stripe Tax): tax inside amountCents / pre-tax amount."
+          },
+          "subtotalCents": {
+            "type": "integer",
+            "nullable": true
           },
           "currency": {
             "type": "string"
@@ -144091,7 +146002,8 @@
               "video",
               "queues",
               "backup",
-              "cost"
+              "cost",
+              "message_keys"
             ]
           },
           "status": {
@@ -147989,7 +149901,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -148067,7 +149980,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -148256,7 +150170,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "titleEn": {
@@ -148317,7 +150232,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -148500,7 +150416,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "titleEn": {

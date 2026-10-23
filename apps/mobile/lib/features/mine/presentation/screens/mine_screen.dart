@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/cases/presentation/screens/mine_views.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// "Моё" (docs/04 §11): clients get "Мои кейсы" / "Сохранённое",
 /// attorneys "Мои биды" / "В работе" / "Сохранённое".
@@ -29,13 +31,16 @@ class MineScreen extends ConsumerWidget {
       backgroundColor: colors.bg,
       body: SafeArea(
         bottom: false,
-        child: needsVerification
-            ? const VerificationRequiredView(
-                reason: VerificationGateReason.cases,
-              )
-            : attorney
-                ? const AttorneyMineView()
-                : const ClientMineView(),
+        // Owner 2026-10-22 (guest browsing): cases need an account.
+        child: ref.watch(isGuestProvider)
+            ? const GuestGateView()
+            : needsVerification
+                ? const VerificationRequiredView(
+                    reason: VerificationGateReason.cases,
+                  )
+                : attorney
+                    ? const AttorneyMineView()
+                    : const ClientMineView(),
       ),
     );
   }

@@ -20,6 +20,9 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AssistantContextService } from './assistant/assistant-context';
 import { AssistantCodeService } from './assistant/assistant-code.service';
 import { QrLoginService } from './services/qr-login.service';
+import { PasskeyController } from './passkeys/passkey.controller';
+import { PasskeyService } from './passkeys/passkey.service';
+import { WebAuthnConfig } from './passkeys/webauthn-config';
 import { WebSessionCookies } from './web-session-cookie';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ReauthGuard } from './guards/reauth.guard';
@@ -91,9 +94,12 @@ import { demoNoop } from '../../common/demo/demo-guards';
     NotificationsModule,
     SubscriptionsModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, PasskeyController],
   providers: [
     AuthService,
+    // Owner 2026-10-22: passkeys (WebAuthn) for the app and the admin.
+    WebAuthnConfig,
+    PasskeyService,
     PasswordAuthService,
     PasswordService,
     SocialAuthService,
@@ -185,6 +191,8 @@ import { demoNoop } from '../../common/demo/demo-guards';
     PasswordService,
     // ContactsService: per-user/per-identifier limits on contact OTPs.
     RateLimitService,
+    // Owner 2026-10-22: the admin's passkey second factor / step-up.
+    PasskeyService,
     // ContactsService: the notice on a contact change (audit #3).
     SignInChangeNotifier,
     // OQ-048: the assistant module drops the cache on team changes.
