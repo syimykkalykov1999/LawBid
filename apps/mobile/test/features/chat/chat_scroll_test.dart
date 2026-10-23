@@ -22,7 +22,7 @@ List<ChatMessage> _history(int n) => [
           kind: MessageKind.text,
           body: 'message $i',
           senderId: i.isEven ? 'u2' : 'me',
-          createdAt: DateTime(2026, 10, 1).add(Duration(hours: i * 3)),
+          createdAt: DateTime(2026, 10).add(Duration(hours: i * 3)),
           replyTo: i == n - 1
               ? const ReplyPreview(
                   id: 'm0',

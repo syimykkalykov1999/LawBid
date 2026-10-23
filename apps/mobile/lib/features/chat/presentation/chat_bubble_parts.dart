@@ -188,8 +188,11 @@ class ChatTextWithMeta extends StatelessWidget {
           height: height,
           child: Stack(
             children: [
+              // Both sides: a positioned child with one side is unbounded
+              // in width and would not wrap.
               PositionedDirectional(
                 start: 0,
+                end: 0,
                 top: 0,
                 child: Text.rich(span),
               ),

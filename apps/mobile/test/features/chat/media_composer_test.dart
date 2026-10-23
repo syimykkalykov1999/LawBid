@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -114,12 +115,13 @@ Future<_Host> _open(
           builder: (context) => Scaffold(
             body: TextButton(
               onPressed: () async {
-                host.result = await showMediaPreview(
-                  context,
-                  files: files,
-                  caption: caption,
-                );
-                host.done = true;
+                host
+                  ..result = await showMediaPreview(
+                    context,
+                    files: files,
+                    caption: caption,
+                  )
+                  ..done = true;
               },
               child: const Text('open'),
             ),
@@ -184,11 +186,12 @@ void main() {
     expect(find.byKey(const ValueKey('preview-pages')), findsOneWidget);
     expect(find.byKey(const ValueKey('preview-strip')), findsOneWidget);
     expect(
-        find.descendant(
-          of: find.byKey(const ValueKey('preview-count')),
-          matching: find.text('3'),
-        ),
-        findsOneWidget);
+      find.descendant(
+        of: find.byKey(const ValueKey('preview-count')),
+        matching: find.text('3'),
+      ),
+      findsOneWidget,
+    );
     // Nothing was sent by picking.
     expect(chat.sent, isEmpty);
 

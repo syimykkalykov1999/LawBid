@@ -2102,7 +2102,6 @@ class _Composer extends ConsumerStatefulWidget {
 }
 
 class _ComposerState extends ConsumerState<_Composer> {
-
   bool _recording = false;
   bool _locked = false;
 
