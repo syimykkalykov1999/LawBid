@@ -164,6 +164,7 @@ dependencies:
   # Its availability query (features/auth/data/passkey_authenticator.dart).
   passkeys_platform_interface: ^2.10.0
   in_app_review: ^2.0.12
+  swipeable_page_route: ^0.4.8
 dev_dependencies:
   flutter_test:
     sdk: flutter

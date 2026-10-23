@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
@@ -163,18 +164,23 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
               ),
             ),
             Expanded(
-              child: PageView(
+              // Owner 2026-10-22: the first page's drag to the right is «back».
+              child: BackAwarePages(
                 controller: _pages,
-                onPageChanged: (i) => setState(() => _tab = QaTab.values[i]),
-                children: [
-                  for (final tab in QaTab.values)
-                    _QaPage(
-                      key: ValueKey('qa-page-${tab.name}'),
-                      query: _queryFor(tab, attorney),
-                      attorney: attorney,
-                      mineTab: tab == QaTab.mine,
-                    ),
-                ],
+                child: PageView(
+                  controller: _pages,
+                  physics: BackAwarePages.physicsFor(context),
+                  onPageChanged: (i) => setState(() => _tab = QaTab.values[i]),
+                  children: [
+                    for (final tab in QaTab.values)
+                      _QaPage(
+                        key: ValueKey('qa-page-${tab.name}'),
+                        query: _queryFor(tab, attorney),
+                        attorney: attorney,
+                        mineTab: tab == QaTab.mine,
+                      ),
+                  ],
+                ),
               ),
             ),
           ],

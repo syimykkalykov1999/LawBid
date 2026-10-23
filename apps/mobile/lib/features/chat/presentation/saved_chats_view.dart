@@ -65,9 +65,6 @@ class _SavedChatsViewState extends ConsumerState<SavedChatsView> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final q = widget.query?.trim() ?? _q;
-    final key = (tab: _tab, query: q);
-    final value = ref.watch(savedChatListProvider(key));
-    final n = ref.read(savedChatListProvider(key).notifier);
     return Column(
       children: [
         if (widget.query == null)
@@ -96,23 +93,46 @@ class _SavedChatsViewState extends ConsumerState<SavedChatsView> {
         ),
         const SizedBox(height: AppSpacing.sm),
         Expanded(
-          child: PagedListBody<SavedChatEntry>(
-            value: value,
-            t: t,
-            itemKey: (e) => e.message.id,
-            onRefresh: n.refresh,
-            onLoadMore: n.loadMore,
-            onRetryMore: n.retryLoadMore,
-            skeleton: const Center(child: CircularProgressIndicator()),
-            empty: AppEmptyState(
-              icon: AppIcons.bookmarkOutlineRounded,
-              message:
-                  t.t(q.isEmpty ? 'saved.chats.empty' : 'search.empty.title'),
-            ),
-            itemBuilder: (context, e, _) => _SavedTile(entry: e),
+          // Owner 2026-10-22: All | Media | Files | Links swipe like tabs.
+          child: SwipePages<SavedChatTab>(
+            value: _tab,
+            values: SavedChatTab.values,
+            onChanged: (v) => setState(() => _tab = v),
+            pageBuilder: (_, tab) => _SavedPage(tab: tab, query: q),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// One tab of the saved messages.
+class _SavedPage extends ConsumerWidget {
+  const _SavedPage({required this.tab, required this.query});
+
+  final SavedChatTab tab;
+  final String query;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final key = (tab: tab, query: query);
+    final value = ref.watch(savedChatListProvider(key));
+    final n = ref.read(savedChatListProvider(key).notifier);
+    return PagedListBody<SavedChatEntry>(
+      value: value,
+      t: t,
+      itemKey: (e) => e.message.id,
+      onRefresh: n.refresh,
+      onLoadMore: n.loadMore,
+      onRetryMore: n.retryLoadMore,
+      skeleton: const Center(child: CircularProgressIndicator()),
+      empty: AppEmptyState(
+        icon: AppIcons.bookmarkOutlineRounded,
+        message:
+            t.t(query.isEmpty ? 'saved.chats.empty' : 'search.empty.title'),
+      ),
+      itemBuilder: (context, e, _) => _SavedTile(entry: e),
     );
   }
 }

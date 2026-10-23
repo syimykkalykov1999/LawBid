@@ -45,13 +45,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   /// «Groups | Channels» of each list (a tab, or the search).
   final _kinds = <String, _Kind>{};
   String get _listKey => _query.isNotEmpty ? 'search' : _tab.name;
-  late final _pages = PageController(initialPage: _order.indexOf(_tab));
-
-  @override
-  void dispose() {
-    _pages.dispose();
-    super.dispose();
-  }
 
   /// Owner 2026-10-21: what is picked stays on the list in view — another
   /// tab, kind or search starts the picking over.
@@ -60,19 +53,6 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
   void _pick(ChannelScope v) {
     _clearPicked();
     setState(() => _tab = v);
-    if (!_pages.hasClients) return;
-    // Reduced motion: a jump (a zero-length animation asserts).
-    if (context.reduceMotion) {
-      _pages.jumpToPage(_order.indexOf(v));
-      return;
-    }
-    unawaited(
-      _pages.animateToPage(
-        _order.indexOf(v),
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      ),
-    );
   }
 
   void _typed(String raw) {
@@ -173,25 +153,25 @@ class _ChannelsScreenState extends ConsumerState<ChannelsScreen> {
                         onKind: (k) => _kinds['search'] = k,
                         onClear: _clearPicked,
                       )
-                    : PageView(
-                        controller: _pages,
-                        // Owner 2026-10-21: Mine · Following · Discover
-                        // change by a tap only; the swipe belongs to
-                        // Groups | Channels.
-                        physics: const NeverScrollableScrollPhysics(),
-                        onPageChanged: (i) => setState(() => _tab = _order[i]),
-                        children: [
-                          for (final scope in _order)
-                            _ScopeList(
-                              key: ValueKey('channels-page-${scope.name}'),
-                              scope: scope,
-                              query: '',
-                              empty: _empty(t, false, scope),
-                              kind: _kinds[scope.name] ?? _Kind.groups,
-                              onKind: (k) => _kinds[scope.name] = k,
-                              onClear: _clearPicked,
-                            ),
-                        ],
+                    // Owner 2026-10-22: every tab can be swiped, also Mine ·
+                    // Following · Discover; inside a page «Groups | Channels»
+                    // swipes first and hands the finger over at its ends.
+                    : SwipePages<ChannelScope>(
+                        value: _tab,
+                        values: _order,
+                        onChanged: (v) {
+                          _clearPicked();
+                          setState(() => _tab = v);
+                        },
+                        pageBuilder: (_, scope) => _ScopeList(
+                          key: ValueKey('channels-page-${scope.name}'),
+                          scope: scope,
+                          query: '',
+                          empty: _empty(t, false, scope),
+                          kind: _kinds[scope.name] ?? _Kind.groups,
+                          onKind: (k) => _kinds[scope.name] = k,
+                          onClear: _clearPicked,
+                        ),
                       ),
               ),
             ],
@@ -385,35 +365,15 @@ class _ScopeList extends ConsumerStatefulWidget {
 
 class _ScopeListState extends ConsumerState<_ScopeList> {
   late _Kind _kind = widget.kind;
-  late final _pages = PageController(initialPage: _kind.index);
 
   void _changed(_Kind v) {
     if (v != _kind) widget.onClear();
     widget.onKind(v);
   }
 
-  @override
-  void dispose() {
-    _pages.dispose();
-    super.dispose();
-  }
-
   void _pick(_Kind v) {
     _changed(v);
     setState(() => _kind = v);
-    if (!_pages.hasClients) return;
-    // Reduced motion: a jump (a zero-length animation asserts).
-    if (context.reduceMotion) {
-      _pages.jumpToPage(v.index);
-      return;
-    }
-    unawaited(
-      _pages.animateToPage(
-        v.index,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      ),
-    );
   }
 
   @override
@@ -580,35 +540,32 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
           ),
         ),
         Expanded(
-          child: PageView(
-            controller: _pages,
-            onPageChanged: (i) {
-              _changed(_Kind.values[i]);
-              setState(() => _kind = _Kind.values[i]);
-            },
-            children: [
-              list(_Kind.groups, groupRows),
-              list(_Kind.channels, [
-                for (final c in channelRows)
-                  ChannelRow(
-                    key: ValueKey('channel-row-${c.id}'),
-                    channel: c,
-                    // Owner 2026-10-21: a channel I follow is picked like a
-                    // chat (long press, then taps).
-                    picked: picking == null || !c.isSubscribed
-                        ? null
-                        : picking.contains(c.id),
-                    onTap: picking != null && c.isSubscribed
-                        ? () => selection.toggle(c.id)
-                        : () => context.push(ChannelsRoutes.channel(c.id)),
-                    onLongPress: picking == null && c.isSubscribed
-                        ? () => selection
-                          ..start()
-                          ..toggle(c.id)
-                        : null,
-                  ),
-              ]),
-            ],
+          child: SwipePages<_Kind>(
+            value: _kind,
+            values: _Kind.values,
+            onChanged: _pick,
+            pageBuilder: (_, kind) => kind == _Kind.groups
+                ? list(_Kind.groups, groupRows)
+                : list(_Kind.channels, [
+                    for (final c in channelRows)
+                      ChannelRow(
+                        key: ValueKey('channel-row-${c.id}'),
+                        channel: c,
+                        // Owner 2026-10-21: a channel I follow is picked like
+                        // a chat (long press, then taps).
+                        picked: picking == null || !c.isSubscribed
+                            ? null
+                            : picking.contains(c.id),
+                        onTap: picking != null && c.isSubscribed
+                            ? () => selection.toggle(c.id)
+                            : () => context.push(ChannelsRoutes.channel(c.id)),
+                        onLongPress: picking == null && c.isSubscribed
+                            ? () => selection
+                              ..start()
+                              ..toggle(c.id)
+                            : null,
+                      ),
+                  ]),
           ),
         ),
       ],
