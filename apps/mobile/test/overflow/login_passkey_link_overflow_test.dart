@@ -68,10 +68,9 @@ void main() {
           expect(link, findsOneWidget);
           final forgot = find.text(t.t('auth.login.forgot'));
           expect(forgot, findsOneWidget);
-          final a = tester.getRect(find.ancestor(
-            of: forgot,
-            matching: find.byType(InkWell),
-          ));
+          final a = tester.getRect(
+            find.ancestor(of: forgot, matching: find.byType(InkWell)),
+          );
           final b = tester.getRect(link);
           expect((a.top - b.top).abs(), lessThan(1));
           // Not past the screen edge on either side.

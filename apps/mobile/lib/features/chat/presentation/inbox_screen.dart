@@ -336,11 +336,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                         .read(notificationsProvider.notifier)
                                         .markRead(),
                                   ),
-                                // Owner 2026-10-22: on the notifications screen the
-                                // header holds, close together, bell · filter ·
-                                // magnifier (left to right).
+                                // Owner 2026-10-23: the bell is always the
+                                // rightmost icon, the magnifier left of it, the
+                                // third icon (⋮ on Chats, the filter here) left
+                                // of the magnifier: filter · magnifier · bell.
                                 if (tab == InboxTab.notifications) ...[
-                                  bell,
                                   AppIconButton(
                                     key: const ValueKey('notif-filter'),
                                     compact: true,
@@ -369,6 +369,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                         )
                                         .open,
                                   ),
+                                  bell,
                                 ] else ...[
                                   // Owner 2026-10-22: «Роли помощников» — the
                                   // 10 duties, next to the team settings.

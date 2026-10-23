@@ -31,6 +31,7 @@ const checklistRu = <String, String>{
   // Item 2: passkeys.
   'passkey.signIn': 'Войти по Face ID / отпечатку',
   'passkey.signIn.short': 'Face ID / отпечаток',
+  'nav.backAgainToExit': 'Нажмите «Назад» ещё раз, чтобы выйти',
   'passkey.section': 'Ключи входа',
   'passkey.add': 'Добавить ключ',
   'passkey.added': 'Ключ добавлен',
@@ -80,6 +81,7 @@ const checklistEn = <String, String>{
   'call.updateApp': 'Update the app to make and answer calls.',
   'passkey.signIn': 'Sign in with Face ID / fingerprint',
   'passkey.signIn.short': 'Face ID / fingerprint',
+  'nav.backAgainToExit': 'Press back again to exit',
   'passkey.section': 'Sign-in keys',
   'passkey.add': 'Add a key',
   'passkey.added': 'Key added',
