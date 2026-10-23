@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/features/channels/presentation/channel_admins_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_composer_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_form_screen.dart';
@@ -44,8 +45,13 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: ChannelsRoutes.list,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const ChannelsScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          const BackSwipe(
+            mode: BackSwipeMode.rows,
+            child: ChannelsScreen(),
+          ),
+        ),
       ),
       // Before `/channels/:id`, so "new" is not read as an id.
       GoRoute(

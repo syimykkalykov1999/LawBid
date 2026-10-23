@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/material_locale.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/system_back.dart';
@@ -130,12 +131,11 @@ class LawBidApp extends ConsumerWidget {
                                         // closes the app from a deep screen.
                                         child: SystemBackGuard(
                                           router: router,
-                                          rootNavigatorKey:
-                                              appRootNavigatorKey,
+                                          rootNavigatorKey: appRootNavigatorKey,
                                           exitHint: () => ref
                                               .read(translatorProvider)
                                               .t('nav.backAgainToExit'),
-                                          child: child,
+                                          child: BackSwipeTheme(child: child),
                                         ),
                                       ),
                                     ),

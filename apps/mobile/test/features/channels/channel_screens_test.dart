@@ -140,7 +140,7 @@ void main() {
       await tester.pump(const Duration(minutes: 5));
     });
 
-    testWidgets('Mine, Subscriptions and Discover change by a tap, not a swipe',
+    testWidgets('Mine, Subscriptions and Discover change by a tap or a swipe',
         (tester) async {
       final repo = FakeChannelsRepository()..listed = [fakeChannel()];
       await pump(tester, const ChannelsScreen(), repo);
@@ -153,8 +153,32 @@ void main() {
       await tester.tap(find.text('Following'));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('list:subscribed:'));
-      final outer = tester.widget<PageView>(find.byType(PageView).first);
-      expect(outer.physics, isA<NeverScrollableScrollPhysics>());
+      // Owner 2026-10-22: every tab swipes. On Following (Groups first),
+      // a swipe goes to Channels, the next one carries on to Discover.
+      await tester.tap(find.text('Mine'));
+      await tester.pumpAndSettle();
+      Future<void> swipeLeft() async {
+        await tester.drag(
+          find.byKey(const ValueKey('channels-list-groups')).first,
+          const Offset(-400, 0),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await swipeLeft();
+      expect(
+          find.byKey(const ValueKey('channels-list-channels')), findsWidgets);
+      await tester.drag(
+        find.byKey(const ValueKey('channels-list-channels')).first,
+        const Offset(-400, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('channels-page-subscribed')))
+            .left,
+        closeTo(0, 1),
+      );
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(minutes: 5));
     });
