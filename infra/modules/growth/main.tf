@@ -323,6 +323,25 @@ resource "aws_cloudwatch_metric_alarm" "event_loop" {
   tags                = var.tags
 }
 
+# The signal for the first database step: the database processor stays high.
+resource "aws_cloudwatch_metric_alarm" "db_cpu" {
+  count               = var.rds_source_identifier != "" && var.alerts_topic_arn != null ? 1 : 0
+  alarm_name          = "${var.name}-db-cpu"
+  alarm_description   = "The database processor is above 70 % for 15 minutes: move the database one size up (admin Экономика → Увеличить) or add a read replica (growth.rds_read_replicas)."
+  namespace           = "AWS/RDS"
+  metric_name         = "CPUUtilization"
+  dimensions          = { DBInstanceIdentifier = var.rds_source_identifier }
+  statistic           = "Average"
+  period              = 60
+  evaluation_periods  = 15
+  datapoints_to_alarm = 15
+  threshold           = 70
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alerts_topic_arn]
+  tags                = var.tags
+}
+
 output "replica_endpoints" { value = aws_db_instance.replica[*].address }
 output "db_proxy_endpoint" { value = one(aws_db_proxy.this[*].endpoint) }
 output "opensearch_endpoint" { value = one(aws_opensearch_domain.search[*].endpoint) }
