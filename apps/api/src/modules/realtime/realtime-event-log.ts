@@ -79,11 +79,13 @@ export class RealtimeEventLog {
     return Number(await this.redis.eval(NEXT_SEQ_LUA, 1, SEQ_KEY));
   }
 
-  /** Newest cursor handed out (or a fresh one when none is live). */
+  /** Newest cursor handed out; with none live, just below the next one
+   * (Redis' clock), so every later event is greater than it. */
   async currentSeq(): Promise<number> {
-    const raw = await this.redis.get(SEQ_KEY);
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : Date.now() * 1000;
+    const n = Number(await this.redis.get(SEQ_KEY));
+    if (Number.isFinite(n) && n > 0) return n;
+    const [sec, micro] = await this.redis.time();
+    return (Number(sec) * 1000 + Math.floor(Number(micro) / 1000)) * 1000 - 1;
   }
 
   /** Keeps [event] for each of [userIds] under cursor [seq]. */

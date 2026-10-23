@@ -14,6 +14,7 @@ AppSessionDto _$AppSessionDtoFromJson(Map<String, dynamic> json) =>
       flags: Map<String, bool>.from(json['flags'] as Map),
       unreadSupport: (json['unreadSupport'] as num).toInt(),
       hasOngoingCalls: json['hasOngoingCalls'] as bool,
+      client: ClientTimingsDto.fromJson(json['client'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$AppSessionDtoToJson(AppSessionDto instance) =>
@@ -24,4 +25,5 @@ Map<String, dynamic> _$AppSessionDtoToJson(AppSessionDto instance) =>
       'flags': instance.flags,
       'unreadSupport': instance.unreadSupport,
       'hasOngoingCalls': instance.hasOngoingCalls,
+      'client': instance.client.toJson(),
     };

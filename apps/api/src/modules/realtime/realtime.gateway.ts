@@ -474,6 +474,7 @@ export class RealtimeGateway
     try {
       if ((await this.redis.del(goneKey(userId))) > 0) {
         this.stats?.record('reconnect');
+        this.logger.info({ metric: 'ws_reconnect' }, 'ws reconnect');
       }
     } catch {
       // statistics only

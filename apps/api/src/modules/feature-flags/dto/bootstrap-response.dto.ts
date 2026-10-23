@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { LegalDocType } from '@prisma/client';
+import { ClientTimingsDto } from '../../../common/dto/client-timings.dto';
 import { I18nLanguageDto } from '../../i18n/dto/i18n-responses.dto';
 
 /**
@@ -31,16 +32,6 @@ export class BootstrapLegalDocumentDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   published_at!: string | null;
-}
-
-export class ClientTimingsDto {
-  @ApiProperty({
-    type: 'object',
-    additionalProperties: { type: 'number' },
-    description:
-      'Live-connection timings the app must use (set in the admin, Config → realtime.*): reconnectMinMs, reconnectMaxMs, reconnectJitter (0–1), serverDisconnectMinWaitMs, serverDisconnectMaxWaitMs, offlineFailures, offlineSeconds, probeTimeoutMs, tokenRefreshLeadSeconds, pollingFallbackIntervalSeconds, reconnectedDebounceSeconds, refetchJitterMs, pingIntervalMs, pingTimeoutMs. See docs/runbooks/REALTIME_LIFECYCLE.md.',
-  })
-  timings!: Record<string, number>;
 }
 
 export class BootstrapDto {

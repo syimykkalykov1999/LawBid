@@ -18,6 +18,7 @@ BootstrapDto _$BootstrapDtoFromJson(Map<String, dynamic> json) => BootstrapDto(
   legalDocuments: (json['legal_documents'] as List<dynamic>)
       .map((e) => BootstrapLegalDocumentDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  client: ClientTimingsDto.fromJson(json['client'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$BootstrapDtoToJson(
@@ -28,4 +29,5 @@ Map<String, dynamic> _$BootstrapDtoToJson(
   'languages': instance.languages.map((e) => e.toJson()).toList(),
   'translations_version': instance.translationsVersion,
   'legal_documents': instance.legalDocuments.map((e) => e.toJson()).toList(),
+  'client': instance.client.toJson(),
 };
