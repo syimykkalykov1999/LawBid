@@ -14,6 +14,7 @@ import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/legal_qa/presentation/ask_question_screen.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_tabs_bar.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
@@ -213,9 +214,18 @@ void main() {
       final title = tester.getRect(
         find.descendant(of: card, matching: find.textContaining('landlord')),
       );
-      final time = tester.getRect(
-        find.descendant(of: card, matching: find.byType(Text)).last,
-      );
+      // Owner 2026-10-23: the time is in the top row of the card, at the
+      // end - the right-most text above the title.
+      final time = [
+        for (final e in find
+            .descendant(of: card, matching: find.byType(Text))
+            .evaluate())
+          tester.getRect(find.byWidget(e.widget)),
+      ].where((r) => r.bottom <= title.top).reduce(
+            (a, b) => dir == TextDirection.ltr
+                ? (a.right >= b.right ? a : b)
+                : (a.left <= b.left ? a : b),
+          );
       if (dir == TextDirection.ltr) {
         expect(time.right, closeTo(title.right, 1));
       } else {
@@ -300,7 +310,7 @@ void main() {
         );
         expect(tester.takeException(), isNull);
         final bar = tester.getRect(find.byKey(const ValueKey('qa-tabs')));
-        expect(bar.width, lessThanOrEqualTo(300));
+        expect(bar.width, lessThanOrEqualTo(QaTabsBar.maxWidth));
         expect(bar.right, lessThanOrEqualTo(360));
         expect(bar.left, greaterThanOrEqualTo(0));
         // No tab label is cut: a long one shrinks instead.

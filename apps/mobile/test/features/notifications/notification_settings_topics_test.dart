@@ -47,6 +47,12 @@ List<TopicSetting> _topics() => const [
         push: false,
         attorneyOnly: true,
       ),
+      TopicSetting(
+        key: 'legalQa',
+        block: 'cases',
+        push: false,
+        attorneyOnly: true,
+      ),
       TopicSetting(key: 'caseMessages', block: 'cases', push: true),
       TopicSetting(key: 'caseDeadlines', block: 'cases', push: true),
       TopicSetting(key: 'casePayments', block: 'cases', push: true),

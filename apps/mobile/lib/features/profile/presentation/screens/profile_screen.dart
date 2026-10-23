@@ -22,6 +22,9 @@ import 'package:lawbid/shared/presentation/guest_gate.dart';
 /// profile (§4.2, with Edit/Share and — before verification — a
 /// "Complete verification" banner); a client sees the private client
 /// profile (§5). The gear opens Settings (docs/01 §3.6).
+/// The scales in the profile bar: the same size as in the feed header.
+const double _kProfileLogoSize = 28;
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -90,10 +93,11 @@ class ProfileScreen extends ConsumerWidget {
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
                 child: Center(
+                  // Owner 2026-10-23: still (no swing) and as big as the
+                  // feed header's logo (28); the 48 dp slot keeps the rest
+                  // of the bar where it was.
                   child: ScalesLogo(
-                    size: AppSizes.iconMd,
-                    animated: true,
-                    runFor: const Duration(seconds: 6),
+                    size: _kProfileLogoSize,
                     semanticLabel: t.t('brand.name'),
                   ),
                 ),

@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
@@ -222,8 +223,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
       body: SafeArea(
         top: false,
         child: async.when(
-          loading: () =>
-              Center(child: CircularProgressIndicator(color: colors.gold)),
+          loading: () => const CasesListSkeleton(count: 2),
           error: (e, _) => AppErrorState(
             message: errorText(t, e),
             retryLabel: t.t('error.retry'),
@@ -450,7 +450,9 @@ class _AnswerCard extends ConsumerWidget {
         ),
       ),
     );
-    return AppCard(
+    // Owner 2026-10-23: the best answer carries a green frame; every answer
+    // is an attorney's, marked with the verified tick and its caption.
+    final card = AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -462,7 +464,9 @@ class _AnswerCard extends ConsumerWidget {
             name: a.attorney.displayName,
             avatarUrl: a.attorney.avatarUrl,
             verified: true,
-            subtitle: SocialFormat.ago(t, formats, a.createdAt),
+            subtitle:
+                '${t.t('qa.verified')} · '
+                '${SocialFormat.ago(t, formats, a.createdAt)}',
             onTap: username == null
                 ? null
                 : () => context.push(AppRoutes.lawyer(username)),
@@ -525,6 +529,14 @@ class _AnswerCard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+    if (!a.isBest) return card;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.success, width: 1.5),
+      ),
+      child: card,
     );
   }
 }

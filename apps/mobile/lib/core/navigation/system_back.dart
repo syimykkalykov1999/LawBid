@@ -89,6 +89,10 @@ class _SystemBackGuardState extends State<SystemBackGuard>
     }
     // 2. A page inside the current tab, or a PopScope of the tab's screen.
     if (await widget.router.routerDelegate.popRoute()) return true;
+    // 2b. The tab's own screen holds back with a PopScope (the feed's Chats
+    // page slides back to the feed): the router skips the first route of a
+    // tab, so ask the visible navigators ourselves, deepest first.
+    if (await _askVisibleNavigators()) return true;
 
     final path = widget.router.routerDelegate.currentConfiguration.uri.path;
     if (isAuthLocation(path)) return false;
@@ -116,6 +120,30 @@ class _SystemBackGuardState extends State<SystemBackGuard>
         ),
       );
     return true;
+  }
+
+  /// `maybePop` on every navigator that is on screen (not the off-stage tabs),
+  /// deepest first; true when one of them kept its route (a `PopScope` with
+  /// `canPop: false` took the press) or popped it.
+  Future<bool> _askVisibleNavigators() async {
+    final start = widget.rootNavigatorKey.currentContext;
+    if (start == null) return false;
+    final found = <NavigatorState>[];
+    void visit(Element e) {
+      final w = e.widget;
+      if (w is Offstage && w.offstage) return;
+      if (e is StatefulElement && e.state is NavigatorState) {
+        found.add(e.state as NavigatorState);
+      }
+      e.visitChildren(visit);
+    }
+
+    (start as Element).visitChildren(visit);
+    for (final nav in found.reversed) {
+      if (!nav.mounted) continue;
+      if (await nav.maybePop()) return true;
+    }
+    return false;
   }
 
   @override

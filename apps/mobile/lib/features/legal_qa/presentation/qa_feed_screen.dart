@@ -7,10 +7,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
+import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_filter_sheet.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_tabs_bar.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
@@ -19,17 +21,56 @@ import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-10-20 — «Вопрос юристу»: all questions, unanswered, solved
 /// and mine; search, topic and state; «Ask» for clients.
-class QaFeedScreen extends ConsumerStatefulWidget {
+///
+/// Owner 2026-10-23: the same content is the third tab of «Дела» (see
+/// [QaFeedBody]); this screen stays for links, banners and the search «?».
+class QaFeedScreen extends ConsumerWidget {
   const QaFeedScreen({this.initialUnanswered = false, super.key});
 
   /// Opened from the «New questions» card: starts on «Unanswered».
   final bool initialUnanswered;
 
   @override
-  ConsumerState<QaFeedScreen> createState() => _QaFeedScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        title: Text(t.t('qa.title')),
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      body: QaFeedBody(initialUnanswered: initialUnanswered),
+    );
+  }
 }
 
-class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
+/// The questions and answers: sections (All · Mine · Best · Unanswered),
+/// the notification switch (attorneys), search, filters, «Ask» for clients.
+/// No Scaffold of its own: it lives in the «Вопросы» tab of the Cases
+/// screen and under [QaFeedScreen].
+class QaFeedBody extends ConsumerStatefulWidget {
+  const QaFeedBody({
+    this.initialUnanswered = false,
+    this.embedded = false,
+    super.key,
+  });
+
+  final bool initialUnanswered;
+
+  /// Inside the Cases tabs: the sections change by tap only, so the swipe
+  /// between the Cases tabs stays free (a PageView in a PageView would eat
+  /// it) and a drag to the right is not «back».
+  final bool embedded;
+
+  @override
+  ConsumerState<QaFeedBody> createState() => _QaFeedBodyState();
+}
+
+class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
   final _search = TextEditingController();
   final _focus = FocusNode();
   Timer? _debounce;
@@ -95,6 +136,21 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
     if (r != null && mounted) setState(() => _query = r.copyWith(q: _query.q));
   }
 
+  Widget _sections(bool attorney, ScrollPhysics? physics) => PageView(
+        controller: _pages,
+        physics: physics,
+        onPageChanged: (i) => setState(() => _tab = QaTab.values[i]),
+        children: [
+          for (final tab in QaTab.values)
+            _QaPage(
+              key: ValueKey('qa-page-${tab.name}'),
+              query: _queryFor(tab, attorney),
+              attorney: attorney,
+              mineTab: tab == QaTab.mine,
+            ),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -102,90 +158,96 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
     final attorney = ref.watch(actsAsAttorneyProvider);
     final active = _query.activeFilters > 0;
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        // Owner 2026-10-22: one bar, placed by itself, for client and attorney.
-        title: QaTabsBar(
-          value: _tab,
-          onChanged: _pick,
-          labels: [
-            t.t('qa.tab.all'),
-            t.t('qa.tab.mine'),
-            t.t('qa.tab.solved'),
-            t.t('qa.tab.unanswered'),
-          ],
-        ),
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      floatingActionButton: attorney
-          ? null
-          : FloatingActionButton.extended(
-              tooltip: t.t('qa.ask'),
-              backgroundColor: colors.accent,
-              foregroundColor: colors.onAccent,
-              onPressed: () => context.push(LegalQaRoutes.ask),
-              icon: const AppIcon(AppIcons.addRounded),
-              label: Text(t.t('qa.ask')),
-            ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-                AppSpacing.screenSide,
-                AppSpacing.sm,
-              ),
-              // Owner 2026-10-20: the compact 36 px field (as in Channels).
-              child: FlipSearchBar(
-                controller: _search,
-                focusNode: _focus,
-                hints: [t.t('qa.search')],
-                semanticLabel: t.t('qa.search'),
-                cancelLabel: t.t('common.cancel'),
-                clearLabel: t.t('search.clear'),
-                showCancel: false,
-                leading: _FilterButton(
-                  active: active,
-                  label: t.t('search.filters'),
-                  onTap: () => unawaited(_openFilters(attorney)),
+    return Stack(
+      children: [
+        SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  0,
                 ),
-                trailing: AppIcon(
-                  AppIcons.searchRounded,
-                  color: colors.textSecondary,
-                ),
-                onSubmitted: _onSearch,
-              ),
-            ),
-            Expanded(
-              // Owner 2026-10-22: the first page's drag to the right is «back».
-              child: BackAwarePages(
-                controller: _pages,
-                child: PageView(
-                  controller: _pages,
-                  physics: BackAwarePages.physicsFor(context),
-                  onPageChanged: (i) => setState(() => _tab = QaTab.values[i]),
-                  children: [
-                    for (final tab in QaTab.values)
-                      _QaPage(
-                        key: ValueKey('qa-page-${tab.name}'),
-                        query: _queryFor(tab, attorney),
-                        attorney: attorney,
-                        mineTab: tab == QaTab.mine,
-                      ),
+                // Owner 2026-10-22: one bar, placed by itself, for client and
+                // attorney.
+                child: QaTabsBar(
+                  value: _tab,
+                  onChanged: _pick,
+                  labels: [
+                    t.t('qa.tab.all'),
+                    t.t('qa.tab.mine'),
+                    t.t('qa.tab.solved'),
+                    t.t('qa.tab.unanswered'),
                   ],
                 ),
               ),
-            ),
-          ],
+              // Owner 2026-10-23: new questions never ring until switched on.
+              if (attorney) const QaNotifySwitch(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                ),
+                // Owner 2026-10-20: the compact 36 px field (as in Channels).
+                child: FlipSearchBar(
+                  controller: _search,
+                  focusNode: _focus,
+                  hints: [t.t('qa.search')],
+                  semanticLabel: t.t('qa.search'),
+                  cancelLabel: t.t('common.cancel'),
+                  clearLabel: t.t('search.clear'),
+                  showCancel: false,
+                  leading: _FilterButton(
+                    active: active,
+                    label: t.t('search.filters'),
+                    onTap: () => unawaited(_openFilters(attorney)),
+                  ),
+                  trailing: AppIcon(
+                    AppIcons.searchRounded,
+                    color: colors.textSecondary,
+                  ),
+                  onSubmitted: _onSearch,
+                ),
+              ),
+              Expanded(
+                // Owner 2026-10-22: the first page's drag to the right is
+                // «back».
+                child: widget.embedded
+                    ? _sections(attorney, const NeverScrollableScrollPhysics())
+                    : BackAwarePages(
+                        controller: _pages,
+                        child: _sections(
+                          attorney,
+                          BackAwarePages.physicsFor(context),
+                        ),
+                      ),
+              ),
+            ],
+          ),
         ),
-      ),
+        if (!attorney)
+          PositionedDirectional(
+            end: AppSpacing.screenSide,
+            bottom: AppSpacing.lg,
+            child: SafeArea(
+              top: false,
+              child: FloatingActionButton.extended(
+                heroTag: null,
+                tooltip: t.t('qa.ask'),
+                backgroundColor: colors.accent,
+                foregroundColor: colors.onAccent,
+                onPressed: () => context.push(LegalQaRoutes.ask),
+                icon: const AppIcon(AppIcons.addRounded),
+                label: Text(t.t('qa.ask')),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -258,9 +320,8 @@ class _QaPage extends ConsumerWidget {
     final async = ref.watch(questionsProvider(query));
     final notifier = ref.read(questionsProvider(query).notifier);
     return async.when(
-      loading: () => Center(
-        child: CircularProgressIndicator(color: colors.gold),
-      ),
+      // Owner 2026-10-23: skeleton cards, not a spinner.
+      loading: () => const CasesListSkeleton(),
       error: (e, _) => AppErrorState(
         message: errorText(t, e),
         retryLabel: t.t('error.retry'),
@@ -295,8 +356,11 @@ class _QaPage extends ConsumerWidget {
                   separatorBuilder: (_, __) =>
                       const SizedBox(height: AppSpacing.md),
                   itemBuilder: (_, i) => i >= page.items.length
-                      ? Center(
-                          child: CircularProgressIndicator(color: colors.gold),
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: AppSpacing.md,
+                          ),
+                          child: AppContentCardSkeleton(),
                         )
                       : QuestionCard(
                           question: page.items[i],

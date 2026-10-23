@@ -190,93 +190,114 @@ class QuestionCard extends ConsumerWidget {
       label: '${question.title}. $answers'
           '${question.solved ? '. ${t.t('qa.best')}' : ''}',
       excludeSemantics: true,
+      // Owner 2026-10-23 (polish): topic chip and time on top, the title as
+      // the hero, a two-line preview, then the answers pill and the
+      // best-answer badge. The whole card is the tap target.
       child: AppCard(
         onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              question.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: type.titleMedium.copyWith(
-                color: colors.text,
-                fontFamily: type.body.fontFamily,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              question.body,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: type.body.copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.xs,
-              children: [
-                if (area != null)
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.sizeOf(context).width * 0.6,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: [
+                        if (area != null)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.sizeOf(context).width * 0.5,
+                            ),
+                            child: QaTag(label: qaAreaLabel(t, area)),
+                          ),
+                        if (question.stateCode != null)
+                          QaTag(label: question.stateCode!),
+                        if (question.closed) QaTag(label: t.t('qa.closed')),
+                      ],
                     ),
-                    child: QaTag(label: qaAreaLabel(t, area)),
                   ),
-                if (question.stateCode != null)
-                  QaTag(label: question.stateCode!),
-                if (question.closed) QaTag(label: t.t('qa.closed')),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            // Owner 2026-10-21: the time sits at the far end of the row.
-            Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      AppIcon(
-                        AppIcons.chatBubbleOutlineRounded,
-                        size: 16,
-                        color: colors.textSecondary,
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    SocialFormat.ago(t, formats, question.createdAt),
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                question.title,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: type.titleMedium.copyWith(
+                  color: colors.text,
+                  fontFamily: type.body.fontFamily,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                question.body,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: type.body.copyWith(color: colors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: colors.border),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
                       ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          question.answersEnough && attorney
-                              ? t.t('qa.enough')
-                              : attorney
-                                  ? t.t('qa.count.of', {
-                                      'n': formats.number(question.answerCount),
-                                      'max': formats.number(10),
-                                    })
-                                  : SocialFormat.count(
-                                      formats,
-                                      question.answerCount,
-                                    ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption.copyWith(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppIcon(
+                            AppIcons.chatBubbleOutlineRounded,
+                            size: 16,
                             color: colors.textSecondary,
                           ),
-                        ),
+                          const SizedBox(width: AppSpacing.xs),
+                          Text(
+                            question.answersEnough && attorney
+                                ? t.t('qa.enough')
+                                : attorney
+                                    ? t.t('qa.count.of', {
+                                        'n': formats
+                                            .number(question.answerCount),
+                                        'max': formats.number(10),
+                                      })
+                                    : SocialFormat.count(
+                                        formats,
+                                        question.answerCount,
+                                      ),
+                            maxLines: 1,
+                            style: type.caption.copyWith(
+                              color: colors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      if (question.solved) ...[
-                        const SizedBox(width: AppSpacing.md),
-                        QaBestBadge(label: t.t('qa.best'), iconOnly: true),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  SocialFormat.ago(t, formats, question.createdAt),
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
-              ],
-            ),
-          ],
+                  if (question.solved) ...[
+                    const SizedBox(width: AppSpacing.md),
+                    Flexible(child: QaBestBadge(label: t.t('qa.best'))),
+                  ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

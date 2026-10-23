@@ -29,7 +29,6 @@ import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/shared/presentation/chips_search_row.dart';
 
 /// Where a notification (or its push) leads (docs/05 §9.2); null = no
 /// target screen (a sheet with the text is shown instead).
@@ -537,18 +536,6 @@ IconData _icon(AppNotification n) => switch (n.type) {
         },
     };
 
-/// Owner 2026-10-22: the magnifier in the Inbox header opens the
-/// notifications search (each tap is a new number).
-final notificationSearchOpenProvider =
-    NotifierProvider.autoDispose<_NotifSearchOpen, int>(_NotifSearchOpen.new);
-
-class _NotifSearchOpen extends Notifier<int> {
-  @override
-  int build() => 0;
-
-  void open() => state++;
-}
-
 /// docs/05 §9.1 notifications: newest first, grouped "Сегодня", "На этой
 /// неделе", "Раньше"; a gold dot marks unread; a tap opens the target and
 /// marks the row read.
@@ -588,23 +575,9 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
     final list =
         team && _assistants ? const AssistantActivityList() : _list(context, t);
 
+    // Owner 2026-10-23: no search in the bell any more.
     return Column(
       children: [
-        // Owner 2026-10-22: no section chips any more — the list shows
-        // everything; the magnifier lives in the Inbox header and opens this
-        // search (the assistants' activity has its own list, no search).
-        if (!(team && _assistants))
-          ChipsSearchRow(
-            chips: const SizedBox.shrink(),
-            hideWhenClosed: true,
-            openSignal: ref.watch(notificationSearchOpenProvider),
-            hintKey: 'notif.search.hint',
-            query: ref.read(notificationQueryProvider),
-            onQuery: ref.read(notificationQueryProvider.notifier).set,
-            openKey: const ValueKey('notif-search-open'),
-            fieldKey: const ValueKey('notif-search'),
-            closeKey: const ValueKey('notif-search-close'),
-          ),
         Expanded(child: list),
       ],
     );

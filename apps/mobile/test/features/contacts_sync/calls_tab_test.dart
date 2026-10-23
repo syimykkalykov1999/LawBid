@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/data/call_history_repository.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
@@ -12,6 +13,7 @@ import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/presentation/calls_tab.dart';
 import 'package:lawbid/features/contacts_sync/presentation/chats_tab.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/people/my_people.dart';
@@ -274,6 +276,36 @@ void main() {
     // The two missed video calls with the same person are one line.
     expect(find.text('$_long (2)'), findsOneWidget);
     expect(find.text('Yesterday'), findsWidgets);
+  });
+
+  testWidgets('one trailing button per line, of the kind of that call',
+      (tester) async {
+    await pump(
+      tester,
+      const Scaffold(body: CallsTab()),
+      extra: [videoCallsEnabledProvider.overrideWithValue(true)],
+    );
+    // A video entry rings back as video, a voice entry as voice - one
+    // button each, never both.
+    expect(find.byKey(const ValueKey('call-back-video')), findsWidgets);
+    expect(find.byKey(const ValueKey('call-back-audio')), findsWidgets);
+    final rows = find.byType(ContactActionButton);
+    expect(
+      rows.evaluate().length,
+      find.byKey(const ValueKey('call-back-video')).evaluate().length +
+          find.byKey(const ValueKey('call-back-audio')).evaluate().length,
+    );
+  });
+
+  testWidgets('video calls off: every line rings back as voice',
+      (tester) async {
+    await pump(
+      tester,
+      const Scaffold(body: CallsTab()),
+      extra: [videoCallsEnabledProvider.overrideWithValue(false)],
+    );
+    expect(find.byKey(const ValueKey('call-back-video')), findsNothing);
+    expect(find.byKey(const ValueKey('call-back-audio')), findsWidgets);
   });
 
   testWidgets('«Join» hands the call to the controller', (tester) async {

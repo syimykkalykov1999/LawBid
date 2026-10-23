@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart';
@@ -18,20 +19,23 @@ import 'package:lawbid/features/cases/tools/running_timer_chip.dart';
 import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
 import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
+import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart'
+    deferred as d_qa_feed;
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
 // Owner 2026-10-15: two tabs per role. Client: Cases (Active · Completed
 // inside) · Tasks; the client's Saved moved to Settings.
-enum _ClientTab { cases, planner }
+enum _ClientTab { cases, planner, qa }
 
 enum _CaseSection { active, completed }
 
 // Attorney: Cases (Active · Bids · Completed inside, Saved behind the
 // bookmark right of the search) · Tasks. «Bids» holds Waiting and
 // Invitations.
-enum _AttorneyTab { cases, planner }
+enum _AttorneyTab { cases, planner, qa }
 
 enum _BidsSection { active, bids, completed }
 
@@ -64,9 +68,12 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    // Owner 2026-10-23: «Вопросы» is the third tab (while `legal_qa` is on).
+    final qa = ref.watch(legalQaEnabledProvider);
     Widget pageFor(_ClientTab tab) => switch (tab) {
           // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
           _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
+          _ClientTab.qa => const _QaTabPage(),
           _ClientTab.cases => Column(
               key: const ValueKey('cases'),
               children: [
@@ -134,6 +141,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
             tabs: [
               (_ClientTab.cases, t.t('mine.tab.cases')),
               (_ClientTab.planner, t.t('mine.tab.tasks')),
+              if (qa) (_ClientTab.qa, t.t('mine.tab.qa')),
             ],
             onChanged: (v) => setState(() => _tab = v),
           ),
@@ -142,7 +150,10 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
             // next one slides in with the finger, a tap slides to it.
             child: SwipePages<_ClientTab>(
               value: _tab,
-              values: _ClientTab.values,
+              values: [
+                for (final v in _ClientTab.values)
+                  if (v != _ClientTab.qa || qa) v,
+              ],
               onChanged: (v) => setState(() => _tab = v),
               pageBuilder: (_, tab) => pageFor(tab),
             ),
@@ -151,6 +162,22 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
       ),
     );
   }
+}
+
+/// Owner 2026-10-23: the questions and answers as a tab of the Cases
+/// screen (what the «?» opened before). Its code loads the first time.
+class _QaTabPage extends StatelessWidget {
+  const _QaTabPage();
+
+  @override
+  Widget build(BuildContext context) => DeferredScreen(
+        id: 'qa_feed_screen',
+        load: d_qa_feed.loadLibrary,
+        builder: (_) => d_qa_feed.QaFeedBody(
+          key: const ValueKey('qa-tab'),
+          embedded: true,
+        ),
+      );
 }
 
 class _ClientCasesGrid extends ConsumerWidget {
@@ -246,6 +273,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final qa = ref.watch(legalQaEnabledProvider);
     final filters = MineActiveFilters(
       search: _search,
       onChanged: (v) => setState(() => _search = v),
@@ -377,6 +405,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
               ],
             ),
           _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
+          _AttorneyTab.qa => const _QaTabPage(),
         };
     return FeedChrome(
       controller: _chrome,
@@ -388,6 +417,7 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             tabs: [
               (_AttorneyTab.cases, t.t('mine.tab.cases')),
               (_AttorneyTab.planner, t.t('mine.tab.tasks')),
+              if (qa) (_AttorneyTab.qa, t.t('mine.tab.qa')),
             ],
             onChanged: (v) => setState(() => _tab = v),
           ),
@@ -396,7 +426,10 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             // next one slides in with the finger, a tap slides to it.
             child: SwipePages<_AttorneyTab>(
               value: _tab,
-              values: _AttorneyTab.values,
+              values: [
+                for (final v in _AttorneyTab.values)
+                  if (v != _AttorneyTab.qa || qa) v,
+              ],
               onChanged: (v) => setState(() => _tab = v),
               pageBuilder: (_, tab) => pageFor(tab),
             ),
