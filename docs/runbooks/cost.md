@@ -27,3 +27,17 @@ S3), CloudWatch Logs ingestion (debug logging left on), ECS tasks stuck at
 
 **After.** Terraform re-applies the normal autoscaling ceiling on the next
 `terraform apply`; the worker re-caps within an hour if still over budget.
+
+## Лимиты по умолчанию на SMS и письма (SES)
+
+Живые значения лежат в админке (`budget.<провайдер>.per_minute_max|daily_max|monthly_max`);
+числа ниже — запасные, из переменных окружения.
+
+| Что | в минуту | в день | в месяц | Почему |
+| --- | --- | --- | --- | --- |
+| SMS (`BUDGET_SMS_*`) | 30 | 300 | 9 000 | 300 × 30 дней; цена США 1 150 милли-центов ($0,0115) → ≈ $104 в месяц на США, дальние страны дороже и режутся денежным лимитом `BUDGET_SMS_DAILY_CENTS` |
+| Письма SES (`BUDGET_EMAIL_*`) | 100 | 2 000 | 60 000 | 2 000 × 30 дней; SES ≈ $0,10 за 1 000 → ≈ $6 |
+
+Цена SMS в `cost-prices.ts`: США/Канада 1 150 милли-центов (было 830 —
+занижена, бюджет считался с недооценкой). Если реальный счёт Twilio
+расходится больше чем на 20 % — править таблицу и этот файл вместе.

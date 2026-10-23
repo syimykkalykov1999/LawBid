@@ -16,7 +16,7 @@ import type { CostProvider } from './cost-guard.constants';
  */
 export const UNIT_MILLICENTS: Record<CostProvider, number> = {
   /** Per message; the destination country decides (SMS_COUNTRY_TIERS). */
-  sms: 830,
+  sms: 1_150,
   email: 10,
   id_check: 150_000,
   storage: 5,
@@ -47,8 +47,8 @@ export const NOMINAL_UNITS_PER_CALL: Record<CostProvider, number> = {
  * the budget (SMS pumping fraud targets exactly those).
  */
 export const SMS_TIER_MILLICENTS = {
-  /** US, Canada, Puerto Rico: ~$0.0083. */
-  a: 830,
+  /** US, Canada, Puerto Rico: ~$0.0115 (Twilio list price with carrier fees). */
+  a: 1_150,
   /** Most of Western Europe, Latin America, East Asia: ~$0.05–0.10. */
   b: 8_000,
   /** Expensive routes (Central Asia, Russia, parts of Africa / SE Asia):

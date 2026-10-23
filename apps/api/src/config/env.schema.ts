@@ -493,7 +493,7 @@ export const envSchema = z
       .nonnegative()
       .default(30),
     BUDGET_SMS_DAILY_MAX: z.coerce.number().int().nonnegative().default(300),
-    BUDGET_SMS_MONTHLY_MAX: z.coerce.number().int().nonnegative().default(5000),
+    BUDGET_SMS_MONTHLY_MAX: z.coerce.number().int().nonnegative().default(9000),
     BUDGET_EMAIL_PER_MINUTE_MAX: z.coerce
       .number()
       .int()
@@ -504,7 +504,7 @@ export const envSchema = z
       .number()
       .int()
       .nonnegative()
-      .default(30000),
+      .default(60000),
     BUDGET_ID_CHECK_PER_MINUTE_MAX: z.coerce
       .number()
       .int()
