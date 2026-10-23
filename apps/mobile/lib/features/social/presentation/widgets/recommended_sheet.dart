@@ -31,10 +31,7 @@ Future<void> showRecommendedSheet(BuildContext context) {
       radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
       child: const FractionallySizedBox(
         heightFactor: 0.92,
-        child: GlassPanel(
-          radius: BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-          child: RecommendedSheet(),
-        ),
+        child: RecommendedSheet(),
       ),
     ),
   );

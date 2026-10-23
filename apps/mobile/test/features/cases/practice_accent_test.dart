@@ -13,7 +13,7 @@ double _contrast(Color a, Color b) {
 }
 
 /// Owner 2026-10-15: every practice has its own colour, and it stays
-/// readable in every theme (Day, Night, Navy, Glass): the colour stands out
+/// readable in every theme (Day, Night, Blue, Green): the colour stands out
 /// from the card, the text on the chip and on the tinted header band is
 /// legible.
 void main() {

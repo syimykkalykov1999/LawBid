@@ -65,6 +65,10 @@ enum ThemePref {
   /// Owner 2026-10-13: Navy and Glass (light = Day, dark = Night).
   navy
   glass
+  /// Owner 2026-10-22: the four themes Day / Night / Blue / Green; navy and
+  /// glass are legacy (old apps), read as blue / dark.
+  blue
+  green
 
   @@map("theme_pref")
 }

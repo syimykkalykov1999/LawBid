@@ -45,9 +45,9 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.inverseText,
     required this.barFill,
     required this.successText,
-    this.panelBlur = 0,
-    this.bgGradient,
-    this.bgSpots = const [],
+    this.headerFill,
+    this.headerGradient,
+    this.onHeader,
   });
 
   factory AppColorTokens.light() => const AppColorTokens(
@@ -132,95 +132,97 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         successText: AppColorsStatus.success,
       );
 
-  /// Navy: the dark blue theme (owner 2026-10-13).
-  factory AppColorTokens.navy() => const AppColorTokens(
-        bg: AppColorsNavy.bg,
-        surface: AppColorsNavy.surface,
-        text: AppColorsNavy.text,
-        textSecondary: AppColorsNavy.textSecondary,
-        border: AppColorsNavy.border,
-        accent: AppColorsNavy.gold,
-        onAccent: AppColorsNavy.bg,
-        ctaBright: AppColorsNavy.gold,
-        onCtaBright: AppColorsNavy.bg,
-        gold: AppColorsNavy.gold,
-        goldStroke: AppColorsNavy.goldStroke,
-        goldLight: AppColorsNavy.goldLight,
-        goldDark: AppColorsNavy.goldDark,
-        goldAccent: Color(0xFFE0C894),
-        navy: AppColorsNavy.navy,
-        panFill: AppColorsDark.panFill,
-        panText: AppColorsDark.panText,
-        watermarkOpacity: AppColorsNavy.watermarkOpacity,
-        focusRingGlow: AppColorsDark.focusRingGlow,
+  /// Blue: the Citi bank-app look (owner 2026-10-22). A deep-to-sky blue
+  /// header wash with white ink over a light blue-grey page with white
+  /// cards and a brand-blue button with a white label.
+  factory AppColorTokens.blue() => const AppColorTokens(
+        bg: AppColorsBlue.bg,
+        surface: AppColorsBlue.surface,
+        text: AppColorsBlue.text,
+        textSecondary: AppColorsBlue.textSecondary,
+        border: AppColorsBlue.border,
+        accent: AppColorsBlue.accent,
+        onAccent: AppColorsBlue.onAccent,
+        ctaBright: AppColorsBlue.accent,
+        onCtaBright: AppColorsBlue.onAccent,
+        gold: AppColorsBlue.gold,
+        goldStroke: AppColorsBlue.goldStroke,
+        goldLight: AppColorsBlue.goldLight,
+        goldDark: AppColorsBlue.goldDark,
+        goldAccent: AppColorsBlue.accent,
+        navy: AppColorsBlue.navy,
+        panFill: AppColorsLight.panFill,
+        panText: AppColorsLight.panText,
+        watermarkOpacity: AppColorsBlue.watermarkOpacity,
+        focusRingGlow: AppColorsLight.focusRingGlow,
         danger: AppColorsStatus.danger,
         success: AppColorsStatus.success,
         warning: AppColorsStatus.warning,
         info: AppColorsStatus.info,
-        shadow: AppColorsNavy.shadow,
-        goldTint: AppColorsNavy.goldTint,
-        dangerTint: AppColorsNavy.dangerTint,
-        successTint: AppColorsNavy.successTint,
-        infoTint: AppColorsNavy.infoTint,
-        skeletonBase: AppColorsNavy.skeletonBase,
-        skeletonHighlight: AppColorsNavy.skeletonHighlight,
-        onDanger: AppColorsDark.onDanger,
-        dangerText: AppColorsNavy.dangerText,
+        shadow: AppColorsBlue.shadow,
+        goldTint: AppColorsBlue.goldTint,
+        dangerTint: AppColorsBlue.dangerTint,
+        successTint: AppColorsBlue.successTint,
+        infoTint: AppColorsBlue.infoTint,
+        skeletonBase: AppColorsBlue.skeletonBase,
+        skeletonHighlight: AppColorsBlue.skeletonHighlight,
+        onDanger: AppColorsLight.onDanger,
+        dangerText: AppColorsBlue.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
-        chip: AppColorsNavy.chip,
-        sheet: AppColorsNavy.surface,
-        inverseText: AppColorsNavy.bg,
-        barFill: AppColorsNavy.bg,
-        successText: AppColorsStatus.success,
+        chip: AppColorsBlue.chip,
+        sheet: AppColorsBlue.surface,
+        inverseText: AppColorsBlue.text,
+        barFill: AppColorsBlue.bg,
+        successText: AppColorsBlue.successText,
+        headerFill: AppColorsBlue.deep,
+        headerGradient: AppColorsBlue.headerGradient,
+        onHeader: AppColorsBlue.onHeader,
       );
 
-  /// Glass: "wet glass", translucent blurred panels over a gradient.
-  factory AppColorTokens.glass() => const AppColorTokens(
-        bg: AppColorsGlass.bg,
-        surface: AppColorsGlass.surface,
-        text: AppColorsGlass.text,
-        textSecondary: AppColorsGlass.textSecondary,
-        border: AppColorsGlass.border,
-        accent: AppColorsGlass.gold,
-        onAccent: AppColorsGlass.onCta,
-        ctaBright: AppColorsGlass.cta,
-        onCtaBright: AppColorsGlass.onCta,
-        gold: AppColorsGlass.gold,
-        goldStroke: AppColorsGlass.goldStroke,
-        goldLight: AppColorsGlass.goldLight,
-        goldDark: AppColorsGlass.goldDark,
-        goldAccent: Color(0xFFDCBB6E),
-        navy: AppColorsGlass.navy,
-        panFill: AppColorsDark.panFill,
-        panText: AppColorsDark.panText,
-        watermarkOpacity: AppColorsGlass.watermarkOpacity,
-        focusRingGlow: AppColorsDark.focusRingGlow,
+  /// Green: the Credit Karma look (owner 2026-10-22). A fresh light page,
+  /// soft green cards, deep-green ink, a green button with a white label.
+  factory AppColorTokens.green() => const AppColorTokens(
+        bg: AppColorsGreen.bg,
+        surface: AppColorsGreen.surface,
+        text: AppColorsGreen.text,
+        textSecondary: AppColorsGreen.textSecondary,
+        border: AppColorsGreen.border,
+        accent: AppColorsGreen.accent,
+        onAccent: AppColorsGreen.onAccent,
+        ctaBright: AppColorsGreen.accent,
+        onCtaBright: AppColorsGreen.onAccent,
+        gold: AppColorsGreen.gold,
+        goldStroke: AppColorsGreen.goldStroke,
+        goldLight: AppColorsGreen.goldLight,
+        goldDark: AppColorsGreen.goldDark,
+        goldAccent: AppColorsGreen.accent,
+        navy: AppColorsGreen.navy,
+        panFill: AppColorsLight.panFill,
+        panText: AppColorsLight.panText,
+        watermarkOpacity: AppColorsGreen.watermarkOpacity,
+        focusRingGlow: AppColorsGreen.focusRingGlow,
         danger: AppColorsStatus.danger,
         success: AppColorsStatus.success,
         warning: AppColorsStatus.warning,
         info: AppColorsStatus.info,
-        shadow: AppColorsGlass.shadow,
-        goldTint: AppColorsGlass.goldTint,
-        dangerTint: AppColorsGlass.dangerTint,
-        successTint: AppColorsGlass.successTint,
-        infoTint: AppColorsGlass.infoTint,
-        skeletonBase: AppColorsGlass.skeletonBase,
-        skeletonHighlight: AppColorsGlass.skeletonHighlight,
-        onDanger: AppColorsDark.onDanger,
-        dangerText: AppColorsGlass.dangerText,
+        shadow: AppColorsGreen.shadow,
+        goldTint: AppColorsGreen.goldTint,
+        dangerTint: AppColorsGreen.dangerTint,
+        successTint: AppColorsGreen.successTint,
+        infoTint: AppColorsGreen.infoTint,
+        skeletonBase: AppColorsGreen.skeletonBase,
+        skeletonHighlight: AppColorsGreen.skeletonHighlight,
+        onDanger: AppColorsLight.onDanger,
+        dangerText: AppColorsGreen.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
-        chip: AppColorsGlass.chip,
-        sheet: AppColorsGlass.sheet,
-        inverseText: AppColorsGlass.onCta,
-        barFill: AppColorsGlass.bar,
-        successText: AppColorsGlass.successText,
-        panelBlur: AppColorsGlass.blur,
-        bgGradient: AppColorsGlass.gradient,
-        bgSpots: [
-          AppColorsGlass.spotBlue,
-          AppColorsGlass.spotIndigo,
-          AppColorsGlass.spotTeal,
-        ],
+        chip: AppColorsGreen.chip,
+        sheet: AppColorsGreen.surface,
+        inverseText: AppColorsGreen.bg,
+        barFill: AppColorsGreen.bg,
+        successText: AppColorsGreen.deep,
+        headerFill: AppColorsGreen.deep,
+        headerGradient: AppColorsGreen.headerGradient,
+        onHeader: AppColorsGreen.onHeader,
       );
 
   final Color bg;
@@ -245,7 +247,6 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// on the light theme (the plain gold is 2.3:1 on white), the plain gold on
   /// the dark ones. Big icons and buttons keep [gold].
   Color get goldText {
-    if (isGlass) return goldLight;
     return bg.computeLuminance() > 0.5 ? goldDark : gold;
   }
 
@@ -289,30 +290,33 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// Small chip / tag fill (tags, counters, segmented backgrounds).
   final Color chip;
 
-  /// Background of a bottom sheet / dialog (an opaque-ish glass for Glass).
+  /// Background of a bottom sheet / dialog.
   final Color sheet;
 
   /// Text / icon on a fill made of [text] (snackbar, banners).
   final Color inverseText;
 
-  /// Fill of the top bar / bottom action bar (the page colour; a faint
-  /// glass over the gradient in Glass).
+  /// Fill of the top bar / bottom action bar (the page colour).
   final Color barFill;
 
-  /// Readable green for TEXT on a success tint (lighter on Glass).
+  /// Readable green for TEXT on a success tint .
   final Color successText;
 
-  /// Blur radius behind a panel; 0 = none (only the Glass theme blurs).
-  final double panelBlur;
+  /// Owner 2026-10-22 (Blue, Green): the top bar is a deep-to-light wash
+  /// with white ink, over a light page. null = the plain [barFill] bar with
+  /// [text] ink (Day, Night).
+  final Color? headerFill;
+  final List<Color>? headerGradient;
+  final Color? onHeader;
 
-  /// Gradient painted behind every screen (Glass); null = plain [bg].
-  final List<Color>? bgGradient;
+  /// True when the top bar is a coloured wash with its own ink.
+  bool get hasHeaderWash => headerGradient != null;
 
-  /// Soft light spots drawn over [bgGradient] (top-left, right, bottom-left).
-  final List<Color> bgSpots;
+  /// Fill of the top bar.
+  Color get headerBg => headerFill ?? barFill;
 
-  /// True when panels are translucent and blurred (the Glass theme).
-  bool get isGlass => panelBlur > 0;
+  /// Ink of the title and icons on the top bar.
+  Color get headerInk => onHeader ?? text;
 
   @override
   AppColorTokens copyWith({
@@ -354,9 +358,9 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? inverseText,
     Color? barFill,
     Color? successText,
-    double? panelBlur,
-    List<Color>? bgGradient,
-    List<Color>? bgSpots,
+    Color? headerFill,
+    List<Color>? headerGradient,
+    Color? onHeader,
   }) {
     return AppColorTokens(
       bg: bg ?? this.bg,
@@ -397,9 +401,9 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       inverseText: inverseText ?? this.inverseText,
       barFill: barFill ?? this.barFill,
       successText: successText ?? this.successText,
-      panelBlur: panelBlur ?? this.panelBlur,
-      bgGradient: bgGradient ?? this.bgGradient,
-      bgSpots: bgSpots ?? this.bgSpots,
+      headerFill: headerFill ?? this.headerFill,
+      headerGradient: headerGradient ?? this.headerGradient,
+      onHeader: onHeader ?? this.onHeader,
     );
   }
 
@@ -437,8 +441,11 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       successTint: Color.lerp(successTint, other.successTint, t)!,
       infoTint: Color.lerp(infoTint, other.infoTint, t)!,
       skeletonBase: Color.lerp(skeletonBase, other.skeletonBase, t)!,
-      skeletonHighlight:
-          Color.lerp(skeletonHighlight, other.skeletonHighlight, t)!,
+      skeletonHighlight: Color.lerp(
+        skeletonHighlight,
+        other.skeletonHighlight,
+        t,
+      )!,
       onDanger: Color.lerp(onDanger, other.onDanger, t)!,
       dangerText: Color.lerp(dangerText, other.dangerText, t)!,
       dangerFill: Color.lerp(dangerFill, other.dangerFill, t)!,
@@ -447,9 +454,9 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       inverseText: Color.lerp(inverseText, other.inverseText, t)!,
       barFill: Color.lerp(barFill, other.barFill, t)!,
       successText: Color.lerp(successText, other.successText, t)!,
-      panelBlur: panelBlur + (other.panelBlur - panelBlur) * t,
-      bgGradient: t < 0.5 ? bgGradient : other.bgGradient,
-      bgSpots: t < 0.5 ? bgSpots : other.bgSpots,
+      headerFill: Color.lerp(headerFill, other.headerFill, t),
+      headerGradient: t < 0.5 ? headerGradient : other.headerGradient,
+      onHeader: Color.lerp(onHeader, other.onHeader, t),
     );
   }
 }

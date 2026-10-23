@@ -26,25 +26,17 @@ void main() {
   final themes = {
     'day': AppColorTokens.light(),
     'night': AppColorTokens.dark(),
-    'navy': AppColorTokens.navy(),
-    'glass': AppColorTokens.glass(),
+    'blue': AppColorTokens.blue(),
+    'green': AppColorTokens.green(),
   };
 
   for (final e in themes.entries) {
     test('${e.key}: text and secondary text reach 4.5:1 on their surfaces', () {
       final c = e.value;
-      // Glass is see-through: its text sits on the gradient stops and on the
-      // light spots drawn over them; the other themes on bg / surface.
       final backs = <Color>[
-        if (c.isGlass) ...[
-          for (final g in c.bgGradient!) _over(c.surface, g),
-          for (final g in c.bgGradient!)
-            for (final s in c.bgSpots) _over(c.surface, _over(s, g)),
-          c.sheet,
-        ] else ...[
-          c.bg,
-          _over(c.surface, c.bg),
-        ],
+        c.bg,
+        _over(c.surface, c.bg),
+        c.sheet,
       ];
       for (final back in backs) {
         final opaque = Color.alphaBlend(back, const Color(0xFF000000));
@@ -74,7 +66,7 @@ void main() {
       final c = e.value;
       expect(c.iconTint, isNot(c.gold));
       expect(c.iconTint, isNot(c.goldDark));
-      final back = c.isGlass ? c.sheet : c.bg;
+      final back = c.bg;
       final opaque = Color.alphaBlend(back, const Color(0xFF000000));
       expect(_ratio(c.iconTint, opaque), greaterThanOrEqualTo(3));
     });

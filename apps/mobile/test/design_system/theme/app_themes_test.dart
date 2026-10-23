@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/l10n/l10n_test_harness.dart';
 
-/// Owner 2026-10-13: Day, Night, Navy and Glass — the registry, what is
+/// Owner 2026-10-13: Day, Night, Blue and Green — the registry, what is
 /// saved, the tokens' contrast and the picker sheet.
 double _contrast(Color a, Color b) {
   final la = a.computeLuminance();
@@ -32,8 +32,9 @@ Future<void> main() async {
       );
       expect(AppThemes.of(AppThemeId.day).serverWire, 'light');
       expect(AppThemes.of(AppThemeId.night).serverWire, 'dark');
-      expect(AppThemes.of(AppThemeId.navy).serverWire, 'navy');
-      expect(AppThemes.of(AppThemeId.glass).serverWire, 'glass');
+      expect(AppThemes.of(AppThemeId.blue).serverWire, 'blue');
+      expect(AppThemes.of(AppThemeId.green).wire, 'green');
+      expect(AppThemes.of(AppThemeId.green).serverWire, 'green');
     });
 
     test('saved values of older versions still read', () {
@@ -41,8 +42,14 @@ Future<void> main() async {
       expect(AppThemes.fromWire('dark'), AppThemeId.night);
       expect(AppThemes.fromWire('system'), isNull);
       expect(AppThemes.fromWire(null), isNull);
-      expect(AppThemes.fromWire('glass'), AppThemeId.glass);
+      // The removed Glass theme reads as Night; the old Navy is Blue.
+      expect(AppThemes.fromWire('glass'), AppThemeId.night);
+      expect(AppThemes.fromWire('navy'), AppThemeId.blue);
+      expect(AppThemes.fromServer('glass'), AppThemeId.night);
+      expect(AppThemes.fromServer('navy'), AppThemeId.blue);
       expect(AppThemes.fromServer('light'), AppThemeId.day);
+      expect(AppThemes.fromServer('blue'), AppThemeId.blue);
+      expect(AppThemes.fromServer('green'), AppThemeId.green);
       expect(AppThemes.fromServer('system'), isNull);
     });
 
@@ -61,19 +68,10 @@ Future<void> main() async {
       }
     });
 
-    test('only Glass blurs and has a gradient', () {
-      for (final id in AppThemeId.values) {
-        final c = AppThemes.of(id).tokens();
-        expect(c.isGlass, id == AppThemeId.glass);
-        expect(c.bgGradient != null, id == AppThemeId.glass);
-      }
-    });
-
     test('text reads on the page and on a card (WCAG AA 4.5:1)', () {
       for (final id in AppThemeId.values) {
         final c = AppThemes.of(id).tokens();
-        // Glass: the page is its gradient's lightest stop under the panel.
-        final page = c.isGlass ? c.bgGradient!.first : c.bg;
+        final page = c.bg;
         final card = _over(c.surface, page);
         expect(_contrast(c.text, page), greaterThan(4.5), reason: '$id page');
         expect(_contrast(c.text, card), greaterThan(4.5), reason: '$id card');
@@ -85,11 +83,10 @@ Future<void> main() async {
       }
     });
 
-    test('Glass: the green status chip text reads on its tint', () {
-      for (final id in [AppThemeId.glass]) {
+    test('Blue and Green: the green status chip text reads on its tint', () {
+      for (final id in [AppThemeId.blue, AppThemeId.green]) {
         final c = AppThemes.of(id).tokens();
-        final page = c.isGlass ? c.bgGradient!.last : c.bg;
-        final chip = _over(c.success.withValues(alpha: 0.16), page);
+        final chip = _over(c.success.withValues(alpha: 0.16), c.bg);
         expect(_contrast(c.successText, chip), greaterThan(4.5), reason: '$id');
       }
     });
@@ -130,11 +127,28 @@ Future<void> main() async {
       expect(c.read(appThemeControllerProvider), AppThemeId.night);
       await c
           .read(appThemeControllerProvider.notifier)
-          .select(AppThemeId.glass);
-      expect(prefs.getString('design_system.theme_mode'), 'glass');
+          .select(AppThemeId.green);
+      expect(prefs.getString('design_system.theme_mode'), 'green');
       // A cold start: the first read already has it (no flash).
       c = make();
-      expect(c.read(appThemeControllerProvider), AppThemeId.glass);
+      expect(c.read(appThemeControllerProvider), AppThemeId.green);
+    });
+  });
+
+  group('removed Glass theme', () {
+    test('a saved "glass" opens as Night and is saved again as "night"',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'design_system.theme_mode': 'glass',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final c = ProviderContainer(
+        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      );
+      addTearDown(c.dispose);
+      expect(c.read(appThemeControllerProvider), AppThemeId.night);
+      await Future<void>.delayed(Duration.zero);
+      expect(prefs.getString('design_system.theme_mode'), 'night');
     });
   });
 
@@ -168,14 +182,14 @@ Future<void> main() async {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-      for (final name in ['Day', 'Night', 'Navy', 'Glass']) {
+      for (final name in ['Day', 'Night', 'Blue', 'Green']) {
         expect(find.text(name), findsOneWidget);
       }
       expect(find.text('Theme'), findsOneWidget);
-      await tester.tap(find.text('Navy'));
+      await tester.tap(find.text('Blue'));
       await tester.pumpAndSettle();
-      expect(c.read(appThemeControllerProvider), AppThemeId.navy);
-      expect(find.text('Navy'), findsNothing, reason: 'the sheet closed');
+      expect(c.read(appThemeControllerProvider), AppThemeId.blue);
+      expect(find.text('Blue'), findsNothing, reason: 'the sheet closed');
     });
   });
 }

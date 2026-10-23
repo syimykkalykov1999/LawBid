@@ -5,7 +5,7 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
 
 /// Owner 2026-10-15: every colour pair of the Boost screens reads in every
-/// theme (Day, Night, Navy, Glass): the button text on its gold tint, the
+/// theme (Day, Night, Blue, Green): the button text on its gold tint, the
 /// chosen card, the numbers and labels on the stats tiles, the credit line,
 /// the ad label.
 void main() {

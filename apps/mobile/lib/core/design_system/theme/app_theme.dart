@@ -24,7 +24,7 @@ abstract final class AppTheme {
   static ThemeData dark({bool reduceMotion = false}) =>
       _build(Brightness.dark, AppColorTokens.dark(), reduceMotion);
 
-  /// The theme the user picked (owner 2026-10-13: Day, Night, Navy, Glass).
+  /// The theme the user picked (owner 2026-10-22: Day, Night, Blue, Green).
   static ThemeData of(AppThemeId id, {bool reduceMotion = false}) =>
       (reduceMotion ? _cacheStill : _cache).putIfAbsent(id, () {
         final spec = AppThemes.of(id);
@@ -67,9 +67,7 @@ abstract final class AppTheme {
             ),
       brightness: brightness,
       useMaterial3: true,
-      // Glass paints its gradient behind the whole app (AppBackdrop), so
-      // screens are transparent over it.
-      scaffoldBackgroundColor: colors.isGlass ? Colors.transparent : colors.bg,
+      scaffoldBackgroundColor: colors.bg,
       fontFamily: AppFontFamilies.sans,
       colorScheme: ColorScheme(
         brightness: brightness,
@@ -79,10 +77,7 @@ abstract final class AppTheme {
         onSecondary: colors.navy,
         error: colors.danger,
         onError: colors.onAccent,
-        // Owner 2026-10-15: Glass's own surface is see-through; every Material
-        // popup (menus, dropdowns, pickers, sheets) that takes its colour from
-        // here must be solid, so it uses the sheet colour in Glass.
-        surface: colors.isGlass ? colors.sheet : colors.surface,
+        surface: colors.surface,
         onSurface: colors.text,
       ),
       extensions: <ThemeExtension<dynamic>>[
@@ -138,8 +133,7 @@ abstract final class AppTheme {
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       ),
       // Owner 2026-10-15: the date and time pickers sit on an opaque sheet
-      // in every theme (Glass's own surface is see-through, which let the
-      // form show through the calendar) and use the app's colours.
+      // in every theme and use the app's colours.
       datePickerTheme: DatePickerThemeData(
         backgroundColor: colors.sheet,
         surfaceTintColor: Colors.transparent,

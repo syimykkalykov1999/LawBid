@@ -892,7 +892,7 @@ class _DaySeparator extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
-            color: chat.theirs.withValues(alpha: colors.isGlass ? 1 : 0.92),
+            color: chat.theirs.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(AppRadii.pill),
             border: Border.all(color: chat.theirsBorder),
           ),

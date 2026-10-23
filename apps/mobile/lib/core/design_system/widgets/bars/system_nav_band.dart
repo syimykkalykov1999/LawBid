@@ -52,9 +52,7 @@ class SystemNavBand extends StatelessWidget {
             ),
           );
     final tokens = Theme.of(context).extension<AppColorTokens>();
-    // Glass: the strip is the gradient's last colour (the page is clear).
-    final pageColor =
-        tokens == null ? Colors.white : (tokens.bgGradient?.last ?? tokens.bg);
+    final pageColor = tokens == null ? Colors.white : tokens.bg;
     // Same widget shape for every inset (rotation, nav mode switch) so the
     // app below never loses its state.
     return Column(

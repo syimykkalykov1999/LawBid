@@ -9,7 +9,6 @@ class GroupSystemLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chat = ChatColors.of(context);
     return Padding(
@@ -27,10 +26,7 @@ class GroupSystemLine extends StatelessWidget {
               vertical: AppSpacing.xs + 1,
             ),
             decoration: BoxDecoration(
-              // Glass plates stay translucent (opaque = pale ink on white).
-              color: colors.isGlass
-                  ? chat.theirs
-                  : chat.theirs.withValues(alpha: 0.92),
+              color: chat.theirs.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(AppRadii.pill),
               border: Border.all(color: chat.theirsBorder),
             ),
