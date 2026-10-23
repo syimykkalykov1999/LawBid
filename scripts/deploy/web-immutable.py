@@ -73,7 +73,8 @@ def main() -> None:
         sys.exit("boot_head.js: no __LB_V__ placeholder")
     open(path, "w", encoding="utf-8").write(js.replace("__LB_V__", prefix))
 
-    print(f"moved to {prefix}/: {', '.join(moved)}")
+    shown = ", ".join(n for n in moved if ".part." not in n)
+    print(f"moved to {prefix}/: {shown} ({len(moved)} entries with the lazy parts)")
 
 
 if __name__ == "__main__":

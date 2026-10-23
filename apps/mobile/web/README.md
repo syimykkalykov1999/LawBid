@@ -15,3 +15,9 @@ stays closed in a browser until it is built with
   then serve `build/web` (any static server).
 - Not a replacement for `tool/web_preview` (the owner's browser preview): that
   script copies its own `index.html` over this one while it builds.
+- Deploy layout (2026-10-23): `scripts/deploy/web-immutable.py` moves
+  `main.dart.*`, `canvaskit/` and `assets/` to `v/<sha>/` (immutable cache) and
+  fills `__LB_V__` in `boot_head.js` (preload hints). A local build leaves the
+  placeholder and everything is served from the root. See
+  `docs/perf/WEB_PASS_2026-10-23.md`.
+- `boot_head.js` / `boot_end.js` are scripts, not inline code (strict CSP).
