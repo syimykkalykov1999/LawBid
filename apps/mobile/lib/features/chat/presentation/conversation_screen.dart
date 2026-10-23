@@ -29,6 +29,7 @@ import 'package:lawbid/features/case_payments/presentation/chat_payment_bar.dart
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
+import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -44,6 +45,7 @@ import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
@@ -1398,6 +1400,13 @@ class _Bubble extends ConsumerWidget {
                           spans: spans,
                           style: type.body.copyWith(color: fg, height: 1.35),
                         ),
+                      // Owner 2026-10-22 (link previews): the site card
+                      // under a text message that carries a web address.
+                      if (m.kind == MessageKind.text &&
+                          !m.revoked &&
+                          !m.contactMasked &&
+                          firstUrlIn(m.body) != null)
+                        LinkPreviewCard(url: firstUrlIn(m.body)!, mine: mine),
                       const SizedBox(height: 2),
                       pad(
                         Row(

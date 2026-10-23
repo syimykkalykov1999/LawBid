@@ -14,6 +14,7 @@ import 'package:lawbid/core/navigation/shell/bottom_nav_config.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -26,6 +27,7 @@ import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Shell scaffold for the 4 `StatefulShellRoute.indexedStack` branches
 /// (Лента/Поиск/Моё/Профиль), hosting [AppBottomNav]. The "+" tab is not a
@@ -63,11 +65,20 @@ class _MainShellState extends ConsumerState<MainShell> {
   }
 
   void _onTabSelected(int index) {
+    // Owner 2026-10-22 (guest browsing): Mine and Profile need an account;
+    // the guest comes back to the tab they were on after signing in.
+    if (index >= 2 && !requireSignIn(context, ref)) return;
     final reselect = index == navigationShell.currentIndex;
     // Owner 2026-10-19: switching tabs drops the keyboard of the tab left.
     dropKeyboard();
     navigationShell.goBranch(index, initialLocation: reselect);
     if (reselect) unawaited(_scrollToTopAndRefresh());
+  }
+
+  /// «+»: a guest signs in first (owner 2026-10-22, guest browsing).
+  void _create(BuildContext context) {
+    if (!requireSignIn(context, ref)) return;
+    unawaited(showCreateSheet(context, ref));
   }
 
   /// Owner 2026-10-06 (Instagram-style): a tap on the tab already open
@@ -93,7 +104,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     // docs/ops/demo-world.md: the shell is only reachable fully onboarded —
     // apply a pending install-referrer code / ask for one, once.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || ref.read(isGuestProvider)) return;
       unawaited(ref.read(referralOnboardingHookProvider).run(context));
       // Owner 2026-10-20: contacts re-sync at start and daily (if allowed).
       ref.read(contactsBackgroundSyncProvider).start();
@@ -105,13 +116,18 @@ class _MainShellState extends ConsumerState<MainShell> {
     final role = ref.watch(currentUserRoleProvider);
     final translator = ref.watch(translatorProvider);
     final tabs = tabsForRole(role, translator);
+    // Owner 2026-10-22 (guest browsing): no socket, badges or pushes
+    // without an account; a «Sign in» strip above the tab bar instead.
+    final guest = ref.watch(isGuestProvider);
     // docs/05 §8.5 / §9.5 / §10: while the signed-in app is on screen keep
     // the realtime socket, the offline outbox, the badges and push alive.
     // listen (not watch): a badge tick must not rebuild the shell.
-    ref
-      ..listen(realtimeClientProvider, (_, __) {})
-      ..listen(badgesProvider, (_, __) {})
-      ..listen(sessionServicesProvider, (_, __) {});
+    if (!guest) {
+      ref
+        ..listen(realtimeClientProvider, (_, __) {})
+        ..listen(badgesProvider, (_, __) {})
+        ..listen(sessionServicesProvider, (_, __) {});
+    }
 
     final miniPlayer = ref.watch(
       voicePlayerProvider.select(
@@ -164,7 +180,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                   tabs: tabs,
                   currentIndex: navigationShell.currentIndex,
                   onTabSelected: _onTabSelected,
-                  onCreatePressed: () => showCreateSheet(context, ref),
+                  onCreatePressed: () => _create(context),
                   extended: layout == ShellLayout.extendedRail,
                   createLabel: translator.t('nav.create'),
                 ),
@@ -193,12 +209,18 @@ class _MainShellState extends ConsumerState<MainShell> {
                   child: nav,
                 );
               },
-              child: AppBottomNav(
-                tabs: tabs,
-                currentIndex: navigationShell.currentIndex,
-                onTabSelected: _onTabSelected,
-                onCreatePressed: () => showCreateSheet(context, ref),
-                createSemanticLabel: translator.t('nav.create'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (guest) const GuestSignInBar(),
+                  AppBottomNav(
+                    tabs: tabs,
+                    currentIndex: navigationShell.currentIndex,
+                    onTabSelected: _onTabSelected,
+                    onCreatePressed: () => _create(context),
+                    createSemanticLabel: translator.t('nav.create'),
+                  ),
+                ],
               ),
             ),
     );

@@ -272,6 +272,8 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
               ),
               if (_installments) ...[
                 _Stepper(
+                  minusLabel: t.t('a11y.less'),
+                  plusLabel: t.t('a11y.more'),
                   label: t.t('cpay.req.sheet.parts', {'count': '$_parts'}),
                   onMinus:
                       _parts > 2 ? () => setState(() => _parts -= 1) : null,
@@ -280,6 +282,8 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
                       : null,
                 ),
                 _Stepper(
+                  minusLabel: t.t('a11y.less'),
+                  plusLabel: t.t('a11y.more'),
                   label: t.t(
                     'cpay.req.sheet.everyDays',
                     {'days': '$_everyDays'},
@@ -332,9 +336,15 @@ class _Stepper extends StatelessWidget {
     required this.label,
     required this.onMinus,
     required this.onPlus,
+    required this.minusLabel,
+    required this.plusLabel,
   });
 
   final String label;
+
+  /// Spoken names of the two buttons (checklist §17).
+  final String minusLabel;
+  final String plusLabel;
   final VoidCallback? onMinus;
   final VoidCallback? onPlus;
 
@@ -351,10 +361,12 @@ class _Stepper extends StatelessWidget {
           ),
         ),
         IconButton(
+          tooltip: minusLabel,
           onPressed: onMinus,
           icon: const AppIcon(AppIcons.removeRounded),
         ),
         IconButton(
+          tooltip: plusLabel,
           onPressed: onPlus,
           icon: const AppIcon(AppIcons.addRounded),
         ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/platform/review_prompter.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
@@ -756,6 +757,9 @@ class CaseActions {
     _ref.invalidate(attorneyCaseProvider(caseId));
     _clientCase(caseId);
     _attorneyLists();
+    // Owner 2026-10-22 (checklist §27): a case done to the client's
+    // satisfaction — ask for the store rating (90-day cap, flag).
+    askForReviewLater(_ref);
   }
 
   Future<void> dispute(String caseId, String reason) async {

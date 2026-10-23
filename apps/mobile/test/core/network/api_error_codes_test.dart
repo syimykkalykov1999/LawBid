@@ -34,6 +34,10 @@ void main() {
   group('user-visible codes have their own localized text (en + ru)', () {
     const visible = [
       ApiErrorCodes.deviceAttestationRequired,
+      // Owner 2026-10-22: passkeys.
+      ApiErrorCodes.passkeyInvalid,
+      ApiErrorCodes.passkeyNotFound,
+      ApiErrorCodes.passkeyLimit,
       ApiErrorCodes.authRefreshReuseDetected,
       ApiErrorCodes.authSessionRevoked,
       ApiErrorCodes.authRefreshExpired,

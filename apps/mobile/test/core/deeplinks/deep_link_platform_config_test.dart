@@ -37,6 +37,8 @@ void main() {
     final entitlements = read('ios/Runner/Runner.entitlements');
     expect(entitlements, contains('com.apple.developer.associated-domains'));
     expect(entitlements, contains(r'applinks:$(DEEP_LINK_HOST)'));
+    // Owner 2026-10-22 (passkeys): the same domain for WebAuthn.
+    expect(entitlements, contains(r'webcredentials:$(DEEP_LINK_HOST)'));
     expect(
       read('ios/Flutter/Common.xcconfig'),
       contains('DEEP_LINK_HOST = lawbid.dev'),
@@ -82,6 +84,11 @@ void main() {
         '/auth/email-code',
       },
     );
+    // Owner 2026-10-22 (passkeys): iOS lets the app use lawbid.dev passkeys.
+    expect(
+      (aasa['webcredentials'] as Map<String, dynamic>)['apps'],
+      ['78T56RPM74.com.lawbid.lawbid'],
+    );
 
     final assetlinks =
         jsonDecode(read('../../docs/deeplinks/assetlinks.json')) as List;
@@ -93,7 +100,11 @@ void main() {
         .toSet();
     expect(packages, {'com.lawbid.lawbid'});
     for (final e in assetlinks.cast<Map<String, dynamic>>()) {
-      expect(e['relation'], ['delegate_permission/common.handle_all_urls']);
+      expect(e['relation'], [
+        'delegate_permission/common.handle_all_urls',
+        // Owner 2026-10-22 (passkeys): Android passkeys for lawbid.dev.
+        'delegate_permission/common.get_login_creds',
+      ]);
     }
   });
 

@@ -945,6 +945,9 @@ class _KeptTile extends StatelessWidget {
           ),
           const Spacer(),
           IconButton(
+            tooltip: ProviderScope.containerOf(context, listen: false)
+                .read(translatorProvider)
+                .t('common.remove'),
             visualDensity: VisualDensity.compact,
             onPressed: onRemove,
             icon: AppIcon(
@@ -1046,6 +1049,7 @@ class _PickedTile extends ConsumerWidget {
             ),
           ),
           IconButton(
+            tooltip: t.t('common.remove'),
             visualDensity: VisualDensity.compact,
             onPressed: onRemove,
             icon: AppIcon(

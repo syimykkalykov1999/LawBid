@@ -15,31 +15,56 @@ import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 /// Design-system widgets read [AppColorTokens] / [AppTypographyTokens] via
 /// `Theme.of(context).extension<...>()!`.
 abstract final class AppTheme {
-  static ThemeData light() => _build(Brightness.light, AppColorTokens.light());
+  /// [reduceMotion] (owner 2026-10-22, checklist §17): the phone asks for
+  /// less motion — routes swap without a transition
+  /// (core/accessibility/reduce_motion.dart).
+  static ThemeData light({bool reduceMotion = false}) =>
+      _build(Brightness.light, AppColorTokens.light(), reduceMotion);
 
-  static ThemeData dark() => _build(Brightness.dark, AppColorTokens.dark());
+  static ThemeData dark({bool reduceMotion = false}) =>
+      _build(Brightness.dark, AppColorTokens.dark(), reduceMotion);
 
   /// The theme the user picked (owner 2026-10-13: Day, Night, Navy, Glass).
-  static ThemeData of(AppThemeId id) => _cache.putIfAbsent(id, () {
+  static ThemeData of(AppThemeId id, {bool reduceMotion = false}) =>
+      (reduceMotion ? _cacheStill : _cache).putIfAbsent(id, () {
         final spec = AppThemes.of(id);
-        return _build(spec.brightness, spec.tokens());
+        return _build(spec.brightness, spec.tokens(), reduceMotion);
       });
 
   static final Map<AppThemeId, ThemeData> _cache = {};
+  static final Map<AppThemeId, ThemeData> _cacheStill = {};
 
-  static ThemeData _build(Brightness brightness, AppColorTokens colors) {
+  /// No-motion route transitions for every platform (reduce motion).
+  static const PageTransitionsTheme stillTransitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: _NoMotionTransitionsBuilder(),
+      TargetPlatform.iOS: _NoMotionTransitionsBuilder(),
+      TargetPlatform.macOS: _NoMotionTransitionsBuilder(),
+      TargetPlatform.linux: _NoMotionTransitionsBuilder(),
+      TargetPlatform.windows: _NoMotionTransitionsBuilder(),
+      TargetPlatform.fuchsia: _NoMotionTransitionsBuilder(),
+    },
+  );
+
+  static ThemeData _build(
+    Brightness brightness,
+    AppColorTokens colors, [
+    bool reduceMotion = false,
+  ]) {
     final typography = AppTypographyTokens.standard();
 
     return ThemeData(
       // Owner 2026-10-01: every pushed screen (also plain MaterialPageRoute)
       // goes back with a swipe from the left edge, on iPhone and Android.
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-        },
-      ),
+      pageTransitionsTheme: reduceMotion
+          ? stillTransitions
+          : const PageTransitionsTheme(
+              builders: {
+                TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+                TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+              },
+            ),
       brightness: brightness,
       useMaterial3: true,
       // Glass paints its gradient behind the whole app (AppBackdrop), so
@@ -239,4 +264,24 @@ abstract final class AppTheme {
       ),
     );
   }
+}
+
+/// Reduce motion: the new route appears at once (no slide, no fade); the
+/// edge-swipe back of the Cupertino builder is kept out on purpose — it is
+/// itself an animation.
+class _NoMotionTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoMotionTransitionsBuilder();
+
+  @override
+  Duration get transitionDuration => Duration.zero;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      child;
 }

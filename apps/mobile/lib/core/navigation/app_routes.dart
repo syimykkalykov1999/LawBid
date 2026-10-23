@@ -79,6 +79,21 @@ abstract final class AppRoutes {
   static const webLoginPattern = '/q/:id';
   static String webLogin(String qrId) => '/q/${Uri.encodeComponent(qrId)}';
 
+  /// Owner 2026-10-22 (QR login): `lawbid.dev/qr/<nonce>` — the universal
+  /// link / App Link inside the website's sign-in QR code, so the phone's
+  /// own camera opens the approval screen. Same screen as [webLogin].
+  static const qrLoginPrefix = '/qr/';
+  static const qrLoginPattern = '/qr/:nonce';
+  static String qrLogin(String nonce) => '/qr/${Uri.encodeComponent(nonce)}';
+
+  /// True for the public sign-in-QR pages (`/q/<id>`, `/qr/<nonce>`), never
+  /// for the app's own [myQr] / [qrScan] screens.
+  static bool isWebLoginLink(String location) =>
+      location.startsWith(webLoginPrefix) ||
+      (location.startsWith(qrLoginPrefix) &&
+          location != myQr &&
+          location != qrScan);
+
   /// Profile → "My QR code" (owner 2026-10-20), and the scanner.
   static const myQr = '/qr/my';
   static const qrScan = '/qr/scan';

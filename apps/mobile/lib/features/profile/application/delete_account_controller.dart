@@ -1,3 +1,5 @@
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
@@ -135,6 +137,7 @@ class DeleteAccountController extends _$DeleteAccountController {
     result.when(
       success: () {
         succeeded = true;
+        AppEvents.track(AppEventNames.accountDeletionRequested);
         state =
             state.copyWith(isSubmitting: false, step: DeleteAccountStep.done);
       },

@@ -9,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// physical sides; those files are listed below.
 const _geometryFiles = {
   'lib/core/platform/web_safe_area_web.dart',
+  // The browser's safe-area insets, merged side by side (physical sides).
+  'lib/core/platform/web_safe_area.dart',
   // A diagonal gradient (decoration).
   'lib/core/design_system/widgets/display/brand_pattern.dart',
   'lib/core/design_system/widgets/buttons/gavel_strike_button.dart',
@@ -19,6 +21,26 @@ const _geometryFiles = {
   'lib/features/reels/presentation/video_editor_screen.dart',
   'lib/features/stories/presentation/story_frame.dart',
 };
+
+/// The top-level arguments of a call's text (nested brackets kept whole).
+List<String> _args(String body) {
+  final inner = body.substring(body.indexOf('(') + 1, body.length - 1);
+  final out = <String>[];
+  var depth = 0;
+  final cur = StringBuffer();
+  for (final ch in inner.split('')) {
+    if ('([{'.contains(ch)) depth++;
+    if (')]}'.contains(ch)) depth--;
+    if (ch == ',' && depth == 0) {
+      out.add(cur.toString().trim());
+      cur.clear();
+    } else {
+      cur.write(ch);
+    }
+  }
+  if (cur.toString().trim().isNotEmpty) out.add(cur.toString().trim());
+  return out;
+}
 
 /// The text of the call that opens at [start] (up to its closing bracket).
 String _call(String src, int start) {
@@ -77,6 +99,21 @@ void main() {
               : side.hasMatch(body) && !_same(body, 'left', 'right');
           if (hit) bad.add('$path:${line(m.start)} $name');
         }
+      }
+      // Owner 2026-10-22 (checklist §16): an asymmetric `fromLTRB` is a
+      // one-sided padding too (`EdgeInsetsDirectional.fromSTEB`); a
+      // horizontal radius pair and a physical text alignment mirror wrong.
+      for (final m in RegExp(r'EdgeInsets\.fromLTRB\(').allMatches(src)) {
+        final a = _args(_call(src, m.start));
+        if (a.length == 4 && a[0] != a[2]) {
+          bad.add('$path:${line(m.start)} EdgeInsets.fromLTRB (left ≠ right)');
+        }
+      }
+      for (final m in RegExp(r'BorderRadius\.horizontal\(').allMatches(src)) {
+        bad.add('$path:${line(m.start)} BorderRadius.horizontal');
+      }
+      for (final m in RegExp(r'TextAlign\.(left|right)\b').allMatches(src)) {
+        bad.add('$path:${line(m.start)} ${m.group(0)}');
       }
       for (final m in align.allMatches(src)) {
         // Gradients are decoration, not layout.

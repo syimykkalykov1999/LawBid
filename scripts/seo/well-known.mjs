@@ -74,7 +74,12 @@ export function parseFingerprints(list) {
 export function assetLinks(fingerprints) {
   return [
     {
-      relation: ['delegate_permission/common.handle_all_urls'],
+      // handle_all_urls: App Links. get_login_creds (owner 2026-10-22):
+      // Android lets the app create and use passkeys for lawbid.dev.
+      relation: [
+        'delegate_permission/common.handle_all_urls',
+        'delegate_permission/common.get_login_creds',
+      ],
       target: {
         namespace: 'android_app',
         package_name: ANDROID_PACKAGE,

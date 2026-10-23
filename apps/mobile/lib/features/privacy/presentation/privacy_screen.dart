@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 import 'package:lawbid/features/privacy/data/privacy_repository.dart';
 import 'package:lawbid/features/privacy/privacy_routes.dart';
@@ -129,9 +130,17 @@ class PrivacyScreen extends ConsumerWidget {
             // consent — off until the person turns it on (opt-in).
             AppListSection(
               title: t.t('privacy.section.data'),
-              children: const [_AnalyticsRow()],
+              children: [
+                const _AnalyticsRow(),
+                // Owner 2026-10-22 (CCPA): «Do not sell or share».
+                _DoNotSellRow(value: s.doNotSell),
+                // Owner 2026-10-22: link previews in chats (on the phone).
+                const _LinkPreviewsRow(),
+              ],
             ),
             _Hint(text: t.t('privacy.analytics.hint')),
+            _Hint(text: t.t('privacy.doNotSell.hint')),
+            _Hint(text: t.t('privacy.linkPreviews.hint')),
           ],
         ),
       ),
@@ -164,20 +173,110 @@ class _AnalyticsRowState extends ConsumerState<_AnalyticsRow> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    return _SwitchRow(
+      rowKey: const ValueKey('privacy-analytics'),
+      icon: AppIcons.insightsOutlined,
+      label: t.t('privacy.analytics'),
+      value: ref.watch(analyticsConsentProvider),
+      busy: _busy,
+      onChanged: _toggle,
+    );
+  }
+}
+
+/// Owner 2026-10-22 (CCPA, checklist §26): «Do not sell or share my personal
+/// information» — `PATCH /users/me/privacy { doNotSell }`.
+class _DoNotSellRow extends ConsumerStatefulWidget {
+  const _DoNotSellRow({required this.value});
+
+  final bool value;
+
+  @override
+  ConsumerState<_DoNotSellRow> createState() => _DoNotSellRowState();
+}
+
+class _DoNotSellRowState extends ConsumerState<_DoNotSellRow> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool on) async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await ref.read(privacySettingsProvider.notifier).setDoNotSell(value: on);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    return _SwitchRow(
+      rowKey: const ValueKey('privacy-do-not-sell'),
+      icon: AppIcons.blockRounded,
+      label: t.t('privacy.doNotSell'),
+      value: widget.value,
+      busy: _busy,
+      onChanged: _toggle,
+    );
+  }
+}
+
+/// Owner 2026-10-22 (link previews): the cards under links in chats; a
+/// device setting (no server), on by default.
+class _LinkPreviewsRow extends ConsumerWidget {
+  const _LinkPreviewsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    return _SwitchRow(
+      rowKey: const ValueKey('privacy-link-previews'),
+      icon: AppIcons.linkRounded,
+      label: t.t('privacy.linkPreviews'),
+      value: ref.watch(linkPreviewsEnabledProvider),
+      busy: false,
+      onChanged: (on) =>
+          ref.read(linkPreviewsEnabledProvider.notifier).set(enabled: on),
+    );
+  }
+}
+
+/// A list row whose whole width toggles one switch (one semantics node:
+/// the label, the state and the tap).
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.rowKey,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.busy,
+    required this.onChanged,
+  });
+
+  final Key rowKey;
+  final IconData icon;
+  final String label;
+  final bool value;
+  final bool busy;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final on = ref.watch(analyticsConsentProvider);
-    final label = t.t('privacy.analytics');
     return Semantics(
-      toggled: on,
-      enabled: !_busy,
+      toggled: value,
+      enabled: !busy,
       label: label,
       excludeSemantics: true,
-      onTap: _busy ? null : () => _toggle(!on),
+      onTap: busy ? null : () => onChanged(!value),
       child: GestureDetector(
-        key: const ValueKey('privacy-analytics'),
+        key: rowKey,
         behavior: HitTestBehavior.opaque,
-        onTap: _busy ? null : () => _toggle(!on),
+        onTap: busy ? null : () => onChanged(!value),
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             minHeight: AppSizes.touchTarget + AppSpacing.sm,
@@ -189,7 +288,7 @@ class _AnalyticsRowState extends ConsumerState<_AnalyticsRow> {
             ),
             child: Row(
               children: [
-                const AppIconMedallion(icon: AppIcons.insightsOutlined),
+                AppIconMedallion(icon: icon),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
@@ -203,8 +302,8 @@ class _AnalyticsRowState extends ConsumerState<_AnalyticsRow> {
                 const SizedBox(width: AppSpacing.sm),
                 ExcludeSemantics(
                   child: Switch(
-                    value: on,
-                    onChanged: _busy ? null : _toggle,
+                    value: value,
+                    onChanged: busy ? null : onChanged,
                     activeTrackColor: colors.accent,
                     activeThumbColor: colors.onAccent,
                   ),

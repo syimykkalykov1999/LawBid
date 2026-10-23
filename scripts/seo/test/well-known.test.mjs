@@ -19,6 +19,7 @@ test('iOS file: team + bundle id and the QR, sign-in and group paths', () => {
   assert.deepEqual(d.appIDs, ['78T56RPM74.com.lawbid.lawbid']);
   assert.deepEqual(j.webcredentials, { apps: ['78T56RPM74.com.lawbid.lawbid'] });
   const paths = d.components.map((c) => c['/']);
+  assert.deepEqual(j.webcredentials, { apps: ['78T56RPM74.com.lawbid.lawbid'] });
   for (const p of ['/u/*', '/q/*', '/g/*', '/lawyer/*', '/case/*', '/post/*', '/r/*', '/auth/email-code']) {
     assert.ok(paths.includes(p), p);
   }
@@ -52,7 +53,10 @@ test('files are written; assetlinks.json only with a real fingerprint', async ()
   const links = JSON.parse(readFileSync(join(out, '.well-known/assetlinks.json'), 'utf8'));
   assert.equal(links[0].target.package_name, 'com.lawbid.lawbid');
   assert.deepEqual(links[0].target.sha256_cert_fingerprints, [FP]);
-  assert.deepEqual(links[0].relation, ['delegate_permission/common.handle_all_urls']);
+  assert.deepEqual(links[0].relation, [
+    'delegate_permission/common.handle_all_urls',
+    'delegate_permission/common.get_login_creds',
+  ]);
 });
 
 test('Android manifest opens the same paths as the iOS file', () => {

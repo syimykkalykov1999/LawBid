@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Owner 2026-10-22 (checklist §27): Android 11 and older
+     (android:fullBackupContent). Nothing that identifies the account or
+     its data leaves the phone in a cloud backup or a device-to-device
+     transfer: the refresh token (flutter_secure_storage keeps it in
+     EncryptedSharedPreferences), the chat push prefs, every Drift store
+     (chat messages, cases, posts, upload queue, translations, http cache)
+     and the media caches. Only the small FlutterSharedPreferences file
+     (theme, language, consents) is kept — and even that is excluded on
+     Android 12+ (data_extraction_rules.xml), where the OS asks for a
+     stricter opt-in. allowBackup stays false in the manifest; these rules
+     say what would be allowed if the owner ever turns it on. -->
+<full-backup-content>
+    <include domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+    <!-- flutter_secure_storage: the refresh token. -->
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml"/>
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml"/>
+    <!-- ChatNotifications.kt: the chat push state. -->
+    <exclude domain="sharedpref" path="lawbid_chat_push.xml"/>
+    <!-- Drift (sqlite3): lawbid_cache, lawbid_social, lawbid_cases,
+         lawbid_uploads, l10n_cache, … -->
+    <exclude domain="database" path="."/>
+    <exclude domain="file" path="."/>
+    <exclude domain="root" path="."/>
+    <exclude domain="external" path="."/>
+</full-backup-content>

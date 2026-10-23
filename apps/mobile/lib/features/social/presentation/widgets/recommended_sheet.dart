@@ -87,6 +87,7 @@ class _RecommendedSheetState extends ConsumerState<RecommendedSheet> {
     Widget viewButton(IconData icon, {required bool grid}) {
       final active = _grid == grid;
       return IconButton(
+        tooltip: t.t(grid ? 'a11y.gridView' : 'a11y.listView'),
         visualDensity: VisualDensity.compact,
         onPressed: () => _setView(grid: grid),
         icon: Icon(

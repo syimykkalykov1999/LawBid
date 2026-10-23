@@ -9,6 +9,7 @@ import 'package:lawbid/core/deeplinks/group_invite_handler.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
@@ -110,6 +111,9 @@ class DeepLinkController extends Notifier<DeepLink?> {
     if (link == null) return;
     if (ref.read(appStartupProvider) != StartupStatus.ready) return;
     final hasSession = ref.read(sessionControllerProvider) != null;
+    // Owner 2026-10-22 (guest browsing): a public screen opens for a guest
+    // too — a profile, a post, a channel (and the web's tab addresses).
+    final guest = !hasSession && ref.read(guestBrowsingEnabledProvider);
 
     switch (link) {
       case EmailCodeDeepLink(:final token):
@@ -151,6 +155,11 @@ class DeepLinkController extends Notifier<DeepLink?> {
       case ProfileDeepLink(:final location) ||
             ContentDeepLink(:final location) ||
             TabDeepLink(:final location):
+        if (guest && isGuestRoute(location)) {
+          state = null;
+          ref.read(deepLinkNavigatorProvider)(location);
+          return;
+        }
         if (!hasSession) return; // wait for sign-in
         final user = ref.read(currentUserControllerProvider).user;
         if (user == null || AppRouterGuard.requiredStep(user) != null) {
