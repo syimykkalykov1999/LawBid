@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Owner 2026-10-15: the app's own usage events — free, in our database
@@ -105,7 +106,7 @@ class AppEvents {
     if (_consent != true) events._write([]);
     events._observer = _Lifecycle(events);
     WidgetsBinding.instance.addObserver(events._observer!);
-    track('app_open');
+    track(AppEventNames.appOpen);
   }
 
   /// One event; never throws.
@@ -123,7 +124,7 @@ class AppEvents {
     }
     self
       .._lastScreen = clean
-      .._add('screen_view', clean);
+      .._add(AppEventNames.screenView, clean);
   }
 
   /// Ids and the query string out, so one screen is one row.

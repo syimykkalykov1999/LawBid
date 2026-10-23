@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -185,6 +187,7 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
             .read(onboardingRepositoryProvider)
             .verifyContact(type: type, value: value, code: code);
         state = state.copyWith(stage: ContactVerificationStage.verified);
+        AppEvents.track(AppEventNames.contactsVerified);
         await ref.read(currentUserControllerProvider.notifier).load();
       });
 

@@ -192,6 +192,9 @@ dev_dependencies:
   golden_toolkit: ^0.15.0
 
   fake_async: any
+  # Owner 2026-10-22: the fake store-review platform in
+  # test/core/platform/review_prompter_test.dart.
+  in_app_review_platform_interface: ^2.0.5
   # Owner 2026-10-22: uploads the release symbols to Sentry (fastlane
   # `sentry_symbols`; config in `sentry:` below).
   sentry_dart_plugin: ^3.4.0

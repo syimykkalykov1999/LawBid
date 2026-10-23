@@ -123,6 +123,7 @@ class _QaFeedScreenState extends ConsumerState<QaFeedScreen> {
       floatingActionButton: attorney
           ? null
           : FloatingActionButton.extended(
+              tooltip: t.t('qa.ask'),
               backgroundColor: colors.accent,
               foregroundColor: colors.onAccent,
               onPressed: () => context.push(LegalQaRoutes.ask),

@@ -10,6 +10,14 @@ const checklistRu = <String, String>{
   'privacy.doNotSell.hint':
       'Закон Калифорнии (CCPA). LawBid не продаёт персональные данные; этот переключатель также запрещает передачу данных для рекламы.',
   'legal.doc.accessibility': 'Заявление о доступности',
+  // Item 5: spoken names of icon-only buttons (VoiceOver / TalkBack).
+  'a11y.mute': 'Выключить звук',
+  'a11y.unmute': 'Включить звук',
+  'a11y.less': 'Меньше',
+  'a11y.more': 'Больше',
+  'a11y.gridView': 'Сеткой',
+  'a11y.listView': 'Списком',
+  'a11y.rateStars': 'Оценка {count}',
 };
 
 const checklistEn = <String, String>{
@@ -17,4 +25,11 @@ const checklistEn = <String, String>{
   'privacy.doNotSell.hint':
       'California law (CCPA). LawBid does not sell personal data; this switch also opts you out of sharing for advertising.',
   'legal.doc.accessibility': 'Accessibility statement',
+  'a11y.mute': 'Mute',
+  'a11y.unmute': 'Unmute',
+  'a11y.less': 'Less',
+  'a11y.more': 'More',
+  'a11y.gridView': 'Grid view',
+  'a11y.listView': 'List view',
+  'a11y.rateStars': 'Rate {count}',
 };
