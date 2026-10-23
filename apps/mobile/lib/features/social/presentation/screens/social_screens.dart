@@ -10,6 +10,7 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
@@ -21,6 +22,7 @@ import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.da
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/fresh_posts_pill.dart';
+import 'package:lawbid/features/social/presentation/widgets/pending_post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
@@ -410,9 +412,7 @@ List<Widget> commentThreadSlivers(
           },
         ),
       ],
-    AsyncError(:final error)
-        when error is ApiException && error.guest =>
-      [
+    AsyncError(:final error) when error is ApiException && error.guest => [
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.xl),
@@ -878,8 +878,12 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
       }
     }
 
+    final ownProfile =
+        ref.watch(currentUserControllerProvider).user?.id == attorneyId;
     return Column(
       children: [
+        // Owner 2026-10-23: the posts being published lead the own profile.
+        if (ownProfile) const PendingPostsStrip(),
         for (final p in pinnedShown)
           PostImpressionTracker(
             key: ValueKey('imp-${p.id}'),

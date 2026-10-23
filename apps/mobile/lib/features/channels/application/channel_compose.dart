@@ -10,6 +10,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/reels/application/video_limits.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 
 /// Uploads one post photo and returns its file id. Overridden in tests.
@@ -30,10 +31,8 @@ int channelMaxPhotos(WidgetRef ref) => ref
     .configInt('channels.max_post_media', kChannelDefaultMaxPostMedia)
     .clamp(1, 10);
 
-/// The longest channel video, in seconds (`video.max_duration_sec`).
-int channelMaxVideoSeconds(WidgetRef ref) => ref
-    .read(featureFlagsControllerProvider)
-    .configInt('video.max_duration_sec', 180);
+/// The longest channel video, in seconds (the reel limit).
+int channelMaxVideoSeconds(WidgetRef ref) => reelMaxSeconds(ref);
 
 /// One photo of the post being written.
 class ChannelPhotoDraft {

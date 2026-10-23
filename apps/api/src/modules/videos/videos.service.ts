@@ -151,9 +151,12 @@ export class VideosService {
         message: 'Your plan does not include video posts.',
       });
     }
-    const maxSec = await this.settings.number('video.max_duration_sec');
+    const isPost = dto.kind === 'post';
+    const reelSec = await this.reelMaxSec();
+    // A video post plays as it is (no cut): its own, longer limit.
+    const maxSec = isPost ? await this.postMaxSec(reelSec) : reelSec;
     const maxMb = await this.settings.number('video.max_size_mb');
-    const sourceSec = await this.sourceLimitSec(maxSec);
+    const sourceSec = isPost ? maxSec : await this.sourceLimitSec(maxSec);
     const trim = reelTrim(dto, maxSec);
     if (
       dto.durationSec > sourceSec ||
@@ -162,7 +165,7 @@ export class VideosService {
     ) {
       throw new UnprocessableEntityException({
         code: ErrorCode.VIDEO_TOO_LONG,
-        message: `Reels are up to ${maxSec} s (cut from a video up to ${sourceSec} s) and ${maxMb} MB.`,
+        message: `${isPost ? 'Video posts' : 'Reels'} are up to ${maxSec} s (cut from a video up to ${sourceSec} s) and ${maxMb} MB.`,
         details: {
           maxDurationSec: maxSec,
           maxSourceDurationSec: sourceSec,
@@ -237,6 +240,9 @@ export class VideosService {
         upload_expires_at: new Date(expire * 1000),
         trim_start_ms: trim?.startMs ?? null,
         trim_end_ms: trim?.endMs ?? null,
+        // The declared length: the check against Bunny's real length
+        // (refresh) picks the reel or the post limit by it.
+        duration_sec: dto.durationSec,
         cover_time_ms: coverMs,
         cover_file_id: coverFileId,
       },
@@ -333,11 +339,16 @@ export class VideosService {
     const next = mapBunnyStatus(v);
     if (next === a.status) return a;
     if (next === 'ready') {
-      const maxSec = await this.settings.number('video.max_duration_sec');
+      const maxSec = await this.reelMaxSec();
       // The phone said how long it was; Bunny is the truth. A trimmed reel
-      // plays ≤ maxSec of a longer source; an untrimmed one is the whole.
+      // plays ≤ maxSec of a longer source; an untrimmed one is the whole;
+      // a video post (declared longer than a reel) has its own limit.
       const limit =
-        a.trim_end_ms != null ? await this.sourceLimitSec(maxSec) : maxSec;
+        a.trim_end_ms != null
+          ? await this.sourceLimitSec(maxSec)
+          : (a.duration_sec ?? 0) > maxSec
+            ? await this.postMaxSec(maxSec)
+            : maxSec;
       if (v.length > limit + 2) {
         return this.prisma.videoAsset.update({
           where: { id: a.id },
@@ -443,6 +454,26 @@ export class VideosService {
       });
     }
     return out;
+  }
+
+  /**
+   * `video.reel_max_duration_sec`; an admin who saved only the old single
+   * `video.max_duration_sec` keeps it as the reel limit.
+   */
+  async reelMaxSec(): Promise<number> {
+    return (
+      (await this.settings.storedNumber('video.reel_max_duration_sec')) ??
+      (await this.settings.storedNumber('video.max_duration_sec')) ??
+      (await this.settings.number('video.reel_max_duration_sec'))
+    );
+  }
+
+  /** `video.post_max_duration_sec`, never below the reel limit. */
+  async postMaxSec(reelSec: number): Promise<number> {
+    return Math.max(
+      reelSec,
+      await this.settings.number('video.post_max_duration_sec'),
+    );
   }
 
   /** `video.max_source_duration_sec`, never below the reel limit. */
