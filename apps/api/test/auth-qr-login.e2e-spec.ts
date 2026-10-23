@@ -1,6 +1,8 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import type { AddressInfo, Server } from 'node:net';
 import request from 'supertest';
+import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 
 /**
@@ -33,10 +35,32 @@ describe('Auth QR login (e2e)', () => {
   });
 
   afterAll(async () => {
+    for (const s of sockets) s.disconnect();
     await app.close();
   });
 
   const api = () => request(app.getHttpServer());
+  const sockets: Socket[] = [];
+
+  /** Owner 2026-10-22: the browser waits on the `/qr` namespace. */
+  function qrSocket(qrId: string): Socket {
+    const port = (app.getHttpServer() as Server).address() as AddressInfo;
+    const s = io(`http://127.0.0.1:${port.port}/qr`, {
+      auth: { qrId },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    sockets.push(s);
+    return s;
+  }
+  const once = <T>(s: Socket, event: string, ms = 5000): Promise<T> =>
+    new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`no ${event}`)), ms);
+      s.once(event, (d: T) => {
+        clearTimeout(t);
+        resolve(d);
+      });
+    });
 
   async function phoneLogin(identifier: string, platform = 'android') {
     await api()
@@ -126,6 +150,61 @@ describe('Auth QR login (e2e)', () => {
     const web = rows.find((s) => s.isCurrent)!;
     expect(web.platform).toBe('web');
     expect(web.deviceName).toBe('Chrome · Windows');
+  });
+
+  it('the browser hears scanned → approved over the socket (status only) and redeems with its secret', async () => {
+    const phone = await phoneLogin('+12025552011');
+    const qr = await newCode();
+    const s = qrSocket(qr.qrId);
+    await once(s, 'connect');
+    const scanned = once<{ qrId: string; status: string }>(
+      s,
+      'auth:qr_scanned',
+    );
+    await api()
+      .get(`/api/v1/auth/qr/${qr.qrId}`)
+      .set('Authorization', `Bearer ${phone}`)
+      .expect(200);
+    expect(await scanned).toEqual({ qrId: qr.qrId, status: 'scanned' });
+
+    const approved = once<Record<string, unknown>>(s, 'auth:qr_approved');
+    await api()
+      .post(`/api/v1/auth/qr/${qr.qrId}/approve`)
+      .set('Authorization', `Bearer ${phone}`)
+      .expect(200);
+    const payload = await approved;
+    expect(payload).toEqual({ qrId: qr.qrId, status: 'approved' });
+    expect(JSON.stringify(payload)).not.toContain('Token');
+    // The tokens still come only with the secret the browser holds.
+    const done = await poll(qr.qrId, qr.pollSecret);
+    expect(done.body.data.status).toBe('approved');
+    expect(done.body.data.accessToken).toEqual(expect.any(String));
+    s.disconnect();
+  });
+
+  it('the socket refuses a malformed id', async () => {
+    const bad = qrSocket('nope');
+    const badError = once<{ code: string }>(bad, 'auth:error');
+    const badGone = once(bad, 'disconnect');
+    expect(await badError).toEqual({ code: 'VALIDATION_ERROR' });
+    await badGone;
+  });
+
+  it('the socket tells an unknown / expired code apart at once', async () => {
+    const unknown = qrSocket('AAAAAAAAAAAAAAAAAAAAAA');
+    const expired = once<{ qrId: string }>(unknown, 'auth:qr_expired');
+    const unknownGone = once(unknown, 'disconnect');
+    expect(await expired).toEqual({ qrId: 'AAAAAAAAAAAAAAAAAAAAAA' });
+    await unknownGone;
+  });
+
+  it('the socket is read-only: any client packet ends it', async () => {
+    const qr = await newCode();
+    const chatty = qrSocket(qr.qrId);
+    await once(chatty, 'connect');
+    const chattyGone = once(chatty, 'disconnect');
+    chatty.emit('conversation:join', { conversationId: 'x' });
+    await chattyGone;
   });
 
   it('a wrong poll secret never collects the tokens', async () => {

@@ -5,6 +5,10 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 
 /** docs/05 §8.5 namespace and rooms. */
 export const REALTIME_NAMESPACE = '/realtime';
+/** Owner 2026-10-22: the unauthenticated namespace the website waits on
+ * for its QR sign-in (QrLoginGateway); one room per code. */
+export const QR_LOGIN_NAMESPACE = '/qr';
+export const qrRoom = (qrId: string) => `qr:${qrId}`;
 export const userRoom = (id: string) => `user:${id}`;
 export const conversationRoom = (id: string) => `conversation:${id}`;
 /** Owner 2026-10-22 (load audit finding 3): the sockets that have this
@@ -120,6 +124,11 @@ export type RealtimeEvent =
   | 'comment:new'
   | 'badge:update';
 
+/** Owner 2026-10-22: QR sign-in status for the waiting browser (never a
+ * token — it redeems through `POST /auth/qr/poll` with its secret). */
+export type QrLoginEvent =
+  'auth:qr_scanned' | 'auth:qr_approved' | 'auth:qr_rejected';
+
 /**
  * Publishes realtime events through Redis (the Socket.IO Redis adapter's
  * channel), so any process — every API instance and the worker — reaches
@@ -129,10 +138,13 @@ export type RealtimeEvent =
 @Injectable()
 export class RealtimePublisher {
   private readonly emitter: ReturnType<Emitter['of']>;
+  private readonly qrEmitter: ReturnType<Emitter['of']>;
   private readonly sharded: boolean;
 
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {
-    this.emitter = new Emitter(redis).of(REALTIME_NAMESPACE);
+    const base = new Emitter(redis);
+    this.emitter = base.of(REALTIME_NAMESPACE);
+    this.qrEmitter = base.of(QR_LOGIN_NAMESPACE);
     // Test doubles of REDIS_CLIENT without SPUBLISH keep the classic path
     // (the gateway stays on the in-memory adapter for them too).
     this.sharded =
@@ -170,6 +182,30 @@ export class RealtimePublisher {
     if (this.redis.status !== 'ready') return;
     try {
       this.emitter.to(room).emit(event, data);
+    } catch {
+      // best-effort (see class doc)
+    }
+  }
+
+  /**
+   * Owner 2026-10-22: the QR sign-in room on the `/qr` namespace (the
+   * browser showing the code). Sharded mode publishes on that room's own
+   * channel, like `toUsers`.
+   */
+  toQr(qrId: string, event: QrLoginEvent, data: unknown): void {
+    if (this.redis.status !== 'ready') return;
+    try {
+      if (this.sharded) {
+        const { channel, message } = shardedBroadcast(
+          QR_LOGIN_NAMESPACE,
+          [qrRoom(qrId)],
+          event,
+          data,
+        );
+        void this.redis.spublish(channel, message).catch(() => undefined);
+        return;
+      }
+      this.qrEmitter.to(qrRoom(qrId)).emit(event, data);
     } catch {
       // best-effort (see class doc)
     }
