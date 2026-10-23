@@ -70,6 +70,7 @@ module "stack" {
   extra_secrets                = var.extra_secrets
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
 
+  cpu_architecture       = var.cpu_architecture
   monthly_budget_usd     = var.monthly_budget_usd
   create_anomaly_monitor = var.create_anomaly_monitor
 

@@ -140,6 +140,10 @@ variable "worker_memory" {
 # Zero maintenance (owner 2026-10-05): e-mails at 50/80/100 % of this, and
 # autoscaling is capped at the minimum when it is reached (switchable in
 # admin Система → Здоровье системы).
+variable "cpu_architecture" {
+  type    = string
+  default = "X86_64"
+}
 variable "monthly_budget_usd" {
   type    = number
   default = 50

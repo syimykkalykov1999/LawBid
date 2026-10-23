@@ -67,7 +67,22 @@ backup_retention_days        = 35
 worker_jobs_per_task = 50
 
 # --- money (zero maintenance) ----------------------------------------------
-monthly_budget_usd = 200 # e-mails at $100 / $160 / $200; at $200 the server stays at the minimum until the next month
+# 200 → 350 (2026-10-22): the launch size is ≈ $150–170; the Redis replica,
+# second TURN and LiveKit below add ≈ $65–110, and at 100 % of the budget
+# autoscaling is held at the minimum, so a budget set right at the bill would
+# throttle growth. E-mails at $175 / $280 / $350.
+monthly_budget_usd = 350
+
+# --- optional extras (owner 2026-10-22, all OFF = today's cost) ----------------
+# Each is a separate `terraform apply`; steps and prices: docs/runbooks/DEPLOY_PROD.md
+# «Отказоустойчивость и звонки».
+# redis_replicas      = 1    # Redis failover replica in the other AZ (+ ≈ $12)
+# turn_second_enabled = true # second coturn in the other AZ (+ ≈ $9)
+# livekit_enabled     = true # own LiveKit SFU for group calls (+ ≈ $35 + traffic)
+# uptime_check        = "route53" # external probe ≈ $2 instead of ≈ $10 (us-east-1)
+# cpu_architecture    = "ARM64"   # Fargate Graviton ≈ −20 %: ONLY after a deploy
+#                                 # built by the multi-arch deploy.yml is the tag
+#                                 # in api_image / admin_image / clamav_image
 
 # Web on lawbid.dev (docs/runbooks/WEB_LAUNCH.md): Terraform asks ACM for the
 # certificate itself; the validation records are added by hand in Namecheap.

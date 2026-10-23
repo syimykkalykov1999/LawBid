@@ -3,6 +3,7 @@
 Without a TURN relay calls between phones behind carrier NAT do not connect
 (STUN alone is not enough). One small coturn on EC2, ≈ $7–8/month
 (t4g.nano ≈ $3 + public IPv4 ≈ $3.6 + traffic). Code: `infra/modules/turn`.
+Second relay in another zone and alarms: section «Два сервера» below.
 The API needs no change: `calls.service.ts` issues short-lived logins from the
 URL list and the secret (admin → Интеграции → TURN).
 
@@ -50,3 +51,48 @@ On a phone over mobile data call a phone on another network. Server side
   is already open. Not required for the first release.
 - Changing the secret or address replaces the instance (Elastic IP stays).
 - Video calls stay off (`video_calls` flag) until TURN is checked.
+
+## Два сервера (2026-10-22): второй TURN в другой зоне
+
+Один сервер TURN = точка отказа: упал, и у людей за мобильным NAT звонки не
+соединяются. `turn_second_enabled = true` создаёт второй coturn в другой
+Availability Zone (отдельный адрес, тот же секрет, та же группа
+безопасности). Значения «urls» и «secret» в админке **не меняются**:
+`turn.lawbid.dev` теперь указывает на оба адреса, а браузер/телефон при
+недоступности первого пробует второй.
+
+Цена: второй t4g.nano ≈ $7.4 (сервер $3 + адрес $3.7 + диск $0.6) +
+проверки Route 53 на оба сервера ≈ $1.5 + сигналы ≈ $0.7 → **≈ +$10 в месяц**
+(включая проверки для первого сервера).
+
+Шаги:
+1. `turn_second_enabled = true` в `terraform.tfvars`.
+2. `terraform plan`, затем `apply`: появятся второй сервер, сигналы в общую
+   тему алертов и проверки Route 53; уничтожений 0.
+3. `terraform output -json stack | jq .turn_public_ips` показывает два
+   адреса. В Namecheap у хоста `turn` должно быть **две** A-записи (старая
+   и новая), TTL Automatic. Если `hosted_zone_id` задан, Terraform ведёт
+   записи сам (multivalue answer: нездоровый сервер сам пропадает из
+   ответа). `dig +short turn.lawbid.dev` показывает оба адреса.
+4. Проверка: звонок по мобильной сети; на каждом сервере (Session Manager)
+   `sudo journalctl -u coturn -n 20`.
+
+Сигналы (в общую тему алертов, на почту):
+- `…-turn-primary|second-health`: проверка Route 53 на порт 3478 не прошла
+  2 минуты (только `us-east-1`; в других регионах проверки отключаются).
+- `…-system-status`: сбой хоста AWS; AWS сам восстанавливает сервер (адрес
+  остаётся) и присылает письмо. `…-instance-status`: не отвечает ОС 5 минут,
+  в Session Manager `sudo systemctl restart coturn`.
+- `…-turn-traffic`: серверы вместе отправили больше
+  `turn_traffic_alarm_gb_per_day` (20 ГБ, ≈ $1.8) за сутки.
+
+### Трафик
+
+Весь голос и видео, которые не нашли прямой путь, идут через TURN и
+оплачиваются ($0.09 за ГБ исходящего, первые 100 ГБ в месяц на аккаунт
+бесплатно). Видеозвонок 720p ≈ 0.7 ГБ в час на одного. Если сигнал
+пришёл без роста числа звонков: в `journalctl -u coturn` ищите один и тот
+же логин с множеством выделений (злоупотребление). Логины живут минуты;
+чтобы отрезать злоумышленника, смените секрет:
+`terraform apply -replace=module.stack.module.turn[0].random_password.secret`
+(серверы пересоздаются, адреса остаются), затем новый секрет в админке. Порог можно поднять, когда звонков станет больше.

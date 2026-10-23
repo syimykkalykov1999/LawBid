@@ -1,0 +1,130 @@
+#!/bin/bash
+# LiveKit SFU for LawBid (infra/modules/livekit). Runs once at first boot.
+# Layout follows LiveKit's own VM guide: livekit-server + Caddy (layer 4),
+# both with host networking, each as a systemd unit around `docker run`.
+set -euo pipefail
+
+dnf install -y docker
+systemctl enable --now docker
+
+get_secret() {
+  aws secretsmanager get-secret-value --region ${region} --secret-id "$1" \
+    --query SecretString --output text
+}
+
+API_KEY="$(get_secret ${key_secret})"
+API_SECRET="$(get_secret ${secret_secret})"
+
+mkdir -p /etc/livekit /var/lib/caddy
+umask 077
+
+cat > /etc/livekit/livekit.yaml <<CONF
+port: 7880
+log_level: info
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: false
+  node_ip: ${external_ip}
+turn:
+  enabled: true
+  domain: ${turn_host}
+  # Caddy terminates TLS on 443 and forwards plain TURN here.
+  tls_port: 5349
+  udp_port: 3478
+  external_tls: true
+keys:
+  $API_KEY: $API_SECRET
+CONF
+
+%{ if use_redis ~}
+REDIS_PASSWORD="$(get_secret ${redis_secret} | sed 's#^rediss://:\([^@]*\)@.*#\1#')"
+cat >> /etc/livekit/livekit.yaml <<CONF
+redis:
+  address: ${redis_endpoint}:6379
+  password: $REDIS_PASSWORD
+  db: 1
+  tls:
+    enabled: true
+    insecure: false
+CONF
+%{ endif ~}
+
+cat > /etc/livekit/caddy.yaml <<CONF
+logging:
+  logs:
+    default:
+      level: INFO
+storage:
+  module: file_system
+  root: /data
+apps:
+  tls:
+    certificates:
+      automate:
+        - ${host}
+        - ${turn_host}
+  layer4:
+    servers:
+      main:
+        listen: [":443"]
+        routes:
+          - match:
+              - tls:
+                  sni:
+                    - ${turn_host}
+            handle:
+              - handler: tls
+              - handler: proxy
+                upstreams:
+                  - dial: ["localhost:5349"]
+          - match:
+              - tls:
+                  sni:
+                    - ${host}
+            handle:
+              - handler: tls
+                connection_policies:
+                  - alpn: ["http/1.1"]
+              - handler: proxy
+                upstreams:
+                  - dial: ["localhost:7880"]
+CONF
+
+cat > /etc/systemd/system/livekit.service <<UNIT
+[Unit]
+Description=LiveKit SFU
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f livekit
+ExecStart=/usr/bin/docker run --rm --name livekit --network host -v /etc/livekit/livekit.yaml:/livekit.yaml:ro ${livekit_image} --config /livekit.yaml
+ExecStop=/usr/bin/docker stop livekit
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+cat > /etc/systemd/system/livekit-caddy.service <<UNIT
+[Unit]
+Description=Caddy (TLS) for LiveKit
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f livekit-caddy
+ExecStart=/usr/bin/docker run --rm --name livekit-caddy --network host -v /etc/livekit/caddy.yaml:/etc/caddy.yaml:ro -v /var/lib/caddy:/data ${caddy_image} run --config /etc/caddy.yaml --adapter yaml
+ExecStop=/usr/bin/docker stop livekit-caddy
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now livekit livekit-caddy
