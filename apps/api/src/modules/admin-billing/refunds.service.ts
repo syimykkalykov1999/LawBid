@@ -272,6 +272,8 @@ export function presentPayment(
     userId: p.user_id,
     user: users.get(p.user_id) ?? null,
     amountCents: p.amount_cents,
+    taxCents: p.tax_cents ?? null,
+    subtotalCents: p.subtotal_cents ?? null,
     currency: p.currency || SUBSCRIPTION_CURRENCY,
     status: p.status,
     paidAt: p.paid_at?.toISOString() ?? null,

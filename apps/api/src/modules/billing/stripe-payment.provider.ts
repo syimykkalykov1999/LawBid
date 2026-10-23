@@ -23,6 +23,8 @@ import {
   type ProviderPriceInput,
   type ProviderSetupIntent,
   type ProviderSubscription,
+  type ProviderTaxCalculation,
+  type ProviderTaxLocation,
   WebhookSignatureError,
 } from './payment-provider';
 import { demoDenyProxy } from '../../common/demo/demo-guards';
@@ -65,15 +67,129 @@ export class StripePaymentProvider implements PaymentProvider {
   async createCustomer(input: {
     userId: string;
     email: string | null;
+    tax?: ProviderTaxLocation | null;
   }): Promise<string> {
     const c = await this.stripe.customers.create(
       {
         ...(input.email ? { email: input.email } : {}),
         metadata: { userId: input.userId },
+        ...taxLocationParams(input.tax ?? null),
       },
       { idempotencyKey: `customer:${input.userId}` },
     );
     return c.id;
+  }
+
+  // ---- Owner 2026-10-22: Stripe Tax ----------------------------------
+
+  /** The buyer's billing address and/or IP on the customer, so
+   * `automatic_tax` can place them (Stripe needs one of the two). */
+  async updateCustomerTaxLocation(
+    customerId: string,
+    location: ProviderTaxLocation,
+  ): Promise<void> {
+    const params = taxLocationParams(location);
+    if (Object.keys(params).length === 0) return;
+    await this.stripe.customers.update(customerId, params);
+  }
+
+  /** `customer.tax.automatic_tax === 'supported'`: Stripe knows where the
+   * customer is and collects there. Anything else = keep automatic tax
+   * off for this customer (Stripe would refuse the subscription). */
+  async customerTaxSupported(customerId: string): Promise<boolean> {
+    try {
+      const c = await this.stripe.customers.retrieve(customerId);
+      if (c.deleted) return false;
+      return c.tax?.automatic_tax === 'supported';
+    } catch {
+      return false;
+    }
+  }
+
+  /** Tax for a one-time amount on our own card page (Tax Calculation
+   * API). The calculation lives 90 days; the webhook turns it into a tax
+   * transaction once the intent succeeded. */
+  async calculateTax(input: {
+    amountCents: number;
+    currency: string;
+    reference: string;
+    customerId?: string | null;
+    location: ProviderTaxLocation;
+  }): Promise<ProviderTaxCalculation> {
+    const address = input.location.address ?? null;
+    const calc = await this.stripe.tax.calculations.create({
+      currency: input.currency,
+      line_items: [
+        {
+          amount: input.amountCents,
+          reference: input.reference,
+          tax_behavior: 'exclusive',
+        },
+      ],
+      ...(input.customerId && !address && !input.location.ip
+        ? { customer: input.customerId }
+        : {
+            customer_details: {
+              ...(address
+                ? {
+                    address: {
+                      country: address.country,
+                      ...(address.postalCode
+                        ? { postal_code: address.postalCode }
+                        : {}),
+                      ...(address.state ? { state: address.state } : {}),
+                      ...(address.city ? { city: address.city } : {}),
+                      ...(address.line1 ? { line1: address.line1 } : {}),
+                    },
+                    address_source: 'billing' as const,
+                  }
+                : {}),
+              ...(input.location.ip ? { ip_address: input.location.ip } : {}),
+            },
+          }),
+    });
+    const taxCents = calc.tax_amount_exclusive ?? 0;
+    return {
+      calculationId: calc.id ?? '',
+      subtotalCents: input.amountCents,
+      taxCents,
+      totalCents: calc.amount_total ?? input.amountCents + taxCents,
+      currency: calc.currency ?? input.currency,
+    };
+  }
+
+  async recordTaxTransaction(
+    calculationId: string,
+    reference: string,
+  ): Promise<string> {
+    const t = await this.stripe.tax.transactions.createFromCalculation(
+      { calculation: calculationId, reference },
+      { idempotencyKey: `tax-tx:${reference}` },
+    );
+    return t.id;
+  }
+
+  async updatePaymentIntent(
+    id: string,
+    patch: { amountCents: number; metadata: Record<string, string> },
+  ): Promise<ProviderPaymentIntent> {
+    return mapPaymentIntent(
+      await this.stripe.paymentIntents.update(id, {
+        amount: patch.amountCents,
+        metadata: patch.metadata,
+      }),
+    );
+  }
+
+  /** `automatic_tax` only when asked AND the customer can be placed. */
+  private async automaticTaxFor(
+    customerId: string,
+    wanted: boolean | undefined,
+  ): Promise<{ automatic_tax: { enabled: true } } | Record<string, never>> {
+    if (!wanted) return {};
+    return (await this.customerTaxSupported(customerId))
+      ? { automatic_tax: { enabled: true } }
+      : {};
   }
 
   async createSetupIntent(
@@ -127,10 +243,16 @@ export class StripePaymentProvider implements PaymentProvider {
     trialDays: number | null;
     metadata: Record<string, string>;
     idempotencyKey: string;
+    automaticTax?: boolean;
   }): Promise<ProviderSubscription> {
+    const tax = await this.automaticTaxFor(
+      input.customerId,
+      input.automaticTax,
+    );
     const sub = await this.stripe.subscriptions.create(
       {
         customer: input.customerId,
+        ...tax,
         items: input.lineItems?.length
           ? input.lineItems.map((l) => ({
               price: l.priceId,
@@ -233,15 +355,22 @@ export class StripePaymentProvider implements PaymentProvider {
    * (docs.stripe.com/billing/subscriptions/prorations#preview-proration).
    */
   async previewSeatIncrease(
-    input: ProviderSeatItemInput & { addSeats: number; prorationDate: number },
+    input: ProviderSeatItemInput & {
+      addSeats: number;
+      prorationDate: number;
+      automaticTax?: boolean;
+    },
   ): Promise<ProviderSeatPreview> {
     const sub = await this.stripe.subscriptions.retrieve(input.subscriptionId);
     const item = seatItemOf(sub, input.seatPriceId, input.knownSeatPriceIds);
     const quantity = (item?.quantity ?? 0) + input.addSeats;
+    const customerId =
+      typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+    const tax = await this.automaticTaxFor(customerId, input.automaticTax);
     const inv = await this.stripe.invoices.createPreview({
-      customer:
-        typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+      customer: customerId,
       subscription: sub.id,
+      ...tax,
       subscription_details: {
         items: item
           ? [{ id: item.id, quantity }]
@@ -261,6 +390,7 @@ export class StripePaymentProvider implements PaymentProvider {
         : inv.amount_due;
     return {
       amountNowCents: Math.max(0, amountNowCents),
+      taxCents: 'automatic_tax' in tax ? invoiceTaxCents(inv) : null,
       currency: inv.currency,
       prorationDate: input.prorationDate,
       periodEnd: mapSubscription(sub).currentPeriodEnd,
@@ -281,13 +411,19 @@ export class StripePaymentProvider implements PaymentProvider {
       quantity: number;
       prorationDate: number;
       idempotencyKey: string;
+      automaticTax?: boolean;
     },
   ): Promise<ProviderSeatCharge> {
     const sub = await this.stripe.subscriptions.retrieve(input.subscriptionId);
     const item = seatItemOf(sub, input.seatPriceId, input.knownSeatPriceIds);
+    const tax = await this.automaticTaxFor(
+      typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+      input.automaticTax,
+    );
     const updated = await this.stripe.subscriptions.update(
       input.subscriptionId,
       {
+        ...tax,
         items: item
           ? [{ id: item.id, quantity: input.quantity }]
           : [{ price: input.seatPriceId, quantity: input.quantity }],
@@ -380,14 +516,20 @@ export class StripePaymentProvider implements PaymentProvider {
   async switchToYearly(
     subscriptionId: string,
     yearlyPriceId: string,
+    automaticTax?: boolean,
   ): Promise<ProviderSubscription> {
     const sub = await this.stripe.subscriptions.retrieve(subscriptionId);
     const items: Stripe.SubscriptionUpdateParams.Item[] = [
       ...sub.items.data.map((i) => ({ id: i.id, deleted: true })),
       { price: yearlyPriceId, quantity: 1 },
     ];
+    const tax = await this.automaticTaxFor(
+      typeof sub.customer === 'string' ? sub.customer : sub.customer.id,
+      automaticTax,
+    );
     return mapSubscription(
       await this.stripe.subscriptions.update(subscriptionId, {
+        ...tax,
         items,
         proration_behavior: 'always_invoice',
       }),
@@ -410,6 +552,10 @@ export class StripePaymentProvider implements PaymentProvider {
         currency: input.currency,
         unit_amount: input.amountCents,
         recurring: { interval: input.interval },
+        // Owner 2026-10-22 (Stripe Tax): the listed price is before tax;
+        // automatic tax adds it on top (a price without tax_behavior
+        // cannot be used with automatic_tax at all).
+        tax_behavior: 'exclusive',
         metadata: input.metadata,
         ...(productId
           ? { product: productId }
@@ -462,10 +608,23 @@ export class StripePaymentProvider implements PaymentProvider {
     cancelUrl: string;
     metadata: Record<string, string>;
     couponId?: string | null;
+    automaticTax?: boolean;
   }): Promise<ProviderCheckoutSession> {
     const s = await this.stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: input.customerId,
+      // Owner 2026-10-22 (Stripe Tax): the hosted page asks for the
+      // billing address, keeps it on the customer and adds the tax.
+      ...(input.automaticTax
+        ? {
+            automatic_tax: { enabled: true },
+            billing_address_collection: 'required' as const,
+            customer_update: {
+              address: 'auto' as const,
+              name: 'auto' as const,
+            },
+          }
+        : {}),
       line_items: input.lineItems.map((l) => ({
         price: l.priceId,
         quantity: l.quantity,
@@ -531,6 +690,12 @@ export class StripePaymentProvider implements PaymentProvider {
         mode: 'payment',
         // Owner 2026-10-16: a card and nothing else.
         payment_method_types: ['card'],
+        ...(input.automaticTax
+          ? {
+              automatic_tax: { enabled: true },
+              billing_address_collection: 'required' as const,
+            }
+          : {}),
         line_items: [
           {
             quantity: 1,
@@ -538,6 +703,9 @@ export class StripePaymentProvider implements PaymentProvider {
               currency: 'usd',
               unit_amount: input.amountCents,
               product_data: { name: input.description },
+              ...(input.automaticTax
+                ? { tax_behavior: 'exclusive' as const }
+                : {}),
             },
           },
         ],
@@ -1131,6 +1299,41 @@ type InvoiceLike = Stripe.Invoice & {
   payment_intent?: string | { id: string } | null;
 };
 
+/** The tax on an invoice: the `total_taxes` lines of the current API,
+ * or the older single `tax` field; null when the invoice has neither. */
+function invoiceTaxCents(inv: Stripe.Invoice): number | null {
+  const i = inv as unknown as {
+    total_taxes?: { amount: number }[] | null;
+    tax?: number | null;
+  };
+  if (Array.isArray(i.total_taxes)) {
+    return i.total_taxes.reduce((sum, t) => sum + (t.amount ?? 0), 0);
+  }
+  return typeof i.tax === 'number' ? i.tax : null;
+}
+
+/** Customer `address` / `tax.ip_address` params from what we know. */
+function taxLocationParams(
+  location: ProviderTaxLocation | null,
+): Stripe.CustomerUpdateParams {
+  if (!location) return {};
+  const a = location.address;
+  return {
+    ...(a
+      ? {
+          address: {
+            country: a.country,
+            ...(a.postalCode ? { postal_code: a.postalCode } : {}),
+            ...(a.state ? { state: a.state } : {}),
+            ...(a.city ? { city: a.city } : {}),
+            ...(a.line1 ? { line1: a.line1 } : {}),
+          },
+        }
+      : {}),
+    ...(location.ip ? { tax: { ip_address: location.ip } } : {}),
+  };
+}
+
 function mapInvoice(inv: Stripe.Invoice): ProviderInvoice {
   const i = inv as InvoiceLike;
   const sub =
@@ -1144,6 +1347,8 @@ function mapInvoice(inv: Stripe.Invoice): ProviderInvoice {
         : (inv.customer?.id ?? null),
     subscriptionId: typeof sub === 'string' ? sub : (sub?.id ?? null),
     amountCents: inv.amount_paid || inv.amount_due,
+    taxCents: invoiceTaxCents(inv),
+    subtotalCents: typeof inv.subtotal === 'number' ? inv.subtotal : null,
     currency: inv.currency,
     status: (inv.status ?? 'open') as ProviderInvoice['status'],
     paidAt: inv.status_transitions?.paid_at ?? null,

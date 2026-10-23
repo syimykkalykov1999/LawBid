@@ -325,6 +325,13 @@ export class PaymentDto {
   @ApiProperty({ type: String, nullable: true }) failureCode!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 
+  /** Owner 2026-10-22 (Stripe Tax): the tax inside amountCents and the
+   * amount before it; null when no tax was computed. */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  taxCents?: number | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  subtotalCents?: number | null;
+
   /** Owner 2026-10-15: what it paid for. */
   @ApiProperty({ enum: ['subscription', 'boost'] })
   kind!: string;
@@ -415,6 +422,13 @@ export class SeatPreviewDto {
     description: 'Charged now: the prorated rest of the current period.',
   })
   amountNowCents!: number;
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Owner 2026-10-22 (Stripe Tax): the tax inside amountNowCents; null = no tax.',
+  })
+  taxCents?: number | null;
   @ApiProperty() currency!: string;
   @ApiProperty({
     type: 'integer',

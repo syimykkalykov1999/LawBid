@@ -501,6 +501,11 @@ export class AdminPaymentDto {
   @ApiProperty({ type: AdminBillingUserDto, nullable: true })
   user!: AdminBillingUserDto | null;
   @ApiProperty({ type: 'integer' }) amountCents!: number;
+  /** Owner 2026-10-22 (Stripe Tax): tax inside amountCents / pre-tax amount. */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  taxCents?: number | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  subtotalCents?: number | null;
   @ApiProperty() currency!: string;
   @ApiProperty({ enum: PAYMENT_STATUSES, enumName: 'PaymentStatus' })
   status!: string;

@@ -118,6 +118,12 @@ const ASYNC_METHODS = new Set([
   'setSubscriptionPaymentMethod',
   'createPrice',
   'replaceItemPrice',
+  // Owner 2026-10-22: Stripe Tax.
+  'updateCustomerTaxLocation',
+  'customerTaxSupported',
+  'calculateTax',
+  'recordTaxTransaction',
+  'updatePaymentIntent',
   // Owner 2026-10-05: Stripe Connect (client → attorney payments).
   'createConnectAccount',
   'createAccountOnboardingLink',

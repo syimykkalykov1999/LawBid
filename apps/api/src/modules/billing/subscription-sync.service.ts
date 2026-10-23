@@ -20,10 +20,12 @@ import { PartnersService } from '../partners/partners.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
 import { PricingService } from './pricing.service';
-import type {
-  PaymentProvider,
-  ProviderEvent,
-  ProviderSubscription,
+import {
+  PI_TAX_CALCULATION_KEY,
+  PI_TAX_CENTS_KEY,
+  type PaymentProvider,
+  type ProviderEvent,
+  type ProviderSubscription,
 } from './payment-provider';
 
 const secs = (unix: number | null): Date | null =>
@@ -142,6 +144,7 @@ export class SubscriptionSyncService {
         } else if (meta?.kind === 'bid_pack') {
           await this.bidPacks?.applyCheckoutById(o.id);
         }
+        await this.recordPaymentIntentTax(o.id, meta ?? {});
         return;
       case 'setup_intent.succeeded':
         // The card is bound; POST /subscriptions/confirm reads it. Nothing
@@ -263,6 +266,48 @@ export class SubscriptionSyncService {
     return row;
   }
 
+  /**
+   * Owner 2026-10-22 (Stripe Tax): a one-time payment on our card page
+   * carried a tax calculation — after the money arrived it becomes a tax
+   * transaction (Stripe's reports) and the Payment row learns its tax.
+   * Idempotent through the webhook event id; a second call for the same
+   * intent is refused by Stripe with the same reference (ignored here).
+   */
+  private async recordPaymentIntentTax(
+    paymentIntentId: string,
+    meta: Record<string, string | undefined>,
+  ): Promise<void> {
+    const calculationId = meta[PI_TAX_CALCULATION_KEY];
+    if (!calculationId) return;
+    const taxCents = Number.parseInt(meta[PI_TAX_CENTS_KEY] ?? '', 10);
+    try {
+      await this.provider.recordTaxTransaction?.(
+        calculationId,
+        paymentIntentId,
+      );
+    } catch (e) {
+      this.logger.warn(
+        { paymentIntentId, err: (e as Error).message },
+        'stripe tax transaction not recorded',
+      );
+    }
+    if (Number.isFinite(taxCents)) {
+      const rows = await this.prisma.payment.findMany({
+        where: { stripe_payment_intent_id: paymentIntentId },
+        select: { id: true, amount_cents: true },
+      });
+      for (const row of rows) {
+        await this.prisma.payment.update({
+          where: { id: row.id },
+          data: {
+            tax_cents: taxCents,
+            subtotal_cents: Math.max(0, row.amount_cents - taxCents),
+          },
+        });
+      }
+    }
+  }
+
   private async onInvoice(invoiceId: string, type: string): Promise<void> {
     const invoice = await this.provider.retrieveInvoice(invoiceId);
     if (!invoice) return;
@@ -305,6 +350,8 @@ export class SubscriptionSyncService {
         stripe_invoice_id: invoice.id,
         stripe_payment_intent_id: invoice.paymentIntentId,
         amount_cents: invoice.amountCents,
+        tax_cents: invoice.taxCents ?? null,
+        subtotal_cents: invoice.subtotalCents ?? null,
         currency: invoice.currency,
         status: paid ? 'succeeded' : 'failed',
         paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
@@ -313,6 +360,8 @@ export class SubscriptionSyncService {
       update: {
         stripe_payment_intent_id: invoice.paymentIntentId,
         amount_cents: invoice.amountCents,
+        tax_cents: invoice.taxCents ?? null,
+        subtotal_cents: invoice.subtotalCents ?? null,
         status: paid ? 'succeeded' : 'failed',
         paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
         failure_code: paid ? null : (invoice.failureCode ?? type),

@@ -3130,6 +3130,10 @@ model Payment {
   stripe_invoice_id        String?       @unique
   stripe_payment_intent_id String?
   amount_cents             Int
+  // Owner 2026-10-22 (Stripe Tax): the tax inside amount_cents and the
+  // amount before it; null = unknown / no tax.
+  tax_cents                Int?
+  subtotal_cents           Int?
   currency                 String        @default("usd")
   status                   PaymentStatus
   paid_at                  DateTime?     @db.Timestamptz

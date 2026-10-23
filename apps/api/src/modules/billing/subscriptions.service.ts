@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { Payment, PromoCode, Subscription } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -113,6 +114,8 @@ export class SubscriptionsService implements OnModuleDestroy {
     private readonly plans: PlansService,
     private readonly entitlements: EntitlementsService,
     @Optional() private readonly referrals?: ReferralsService,
+    // Owner 2026-10-22 (Stripe Tax): the admin switch.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.portalReturnUrl =
       config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
@@ -207,6 +210,7 @@ export class SubscriptionsService implements OnModuleDestroy {
     const session = await this.provider.createCheckoutSession({
       customerId,
       lineItems,
+      automaticTax: await this.stripeTaxEnabled(),
       trialDays: trialDays > 0 ? trialDays : null,
       successUrl: `${base}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${base}/subscription/cancel`,
@@ -687,6 +691,7 @@ export class SubscriptionsService implements OnModuleDestroy {
     await this.provider.switchToYearly(
       row.stripe_subscription_id,
       await this.pricing.requirePriceId(yearlyKind),
+      await this.stripeTaxEnabled(),
     );
     await this.prisma.subscription.update({
       where: { id: row.id },
@@ -774,6 +779,7 @@ export class SubscriptionsService implements OnModuleDestroy {
       trialDays: eligible ? await this.pricing.defaultTrialDays() : null,
       metadata: { userId: user.sub },
       idempotencyKey: subscriptionAttemptKey(si, clientIdempotencyKey),
+      automaticTax: await this.stripeTaxEnabled(),
     });
     const now = new Date();
     await withTxRetry(this.prisma, async (tx) => {
@@ -861,6 +867,7 @@ export class SubscriptionsService implements OnModuleDestroy {
       trialDays: trialDays > 0 ? trialDays : null,
       metadata: { ...meta, userId: user.sub },
       idempotencyKey: subscriptionAttemptKey(si, clientIdempotencyKey),
+      automaticTax: await this.stripeTaxEnabled(),
     });
     await this.applyOrder(remote, { ...meta, userId: user.sub }, user.sub);
     return this.me(user);
@@ -1070,6 +1077,13 @@ export class SubscriptionsService implements OnModuleDestroy {
 
   // ------------------------------------------------------------------
 
+  /** Owner 2026-10-22: admin switch billing.stripe_tax_enabled. */
+  async stripeTaxEnabled(): Promise<boolean> {
+    return (
+      (await this.settings?.boolean('billing.stripe_tax_enabled')) ?? false
+    );
+  }
+
   async customerId(userId: string, email: string | null): Promise<string> {
     const existing = await this.prisma.stripeCustomer.findUnique({
       where: { user_id: userId },
@@ -1224,6 +1238,8 @@ export function presentPayment(p: Payment): PaymentDto {
   return {
     id: p.id,
     amountCents: p.amount_cents,
+    taxCents: p.tax_cents ?? null,
+    subtotalCents: p.subtotal_cents ?? null,
     currency: p.currency || SUBSCRIPTION_CURRENCY,
     status: p.status,
     paidAt: p.paid_at?.toISOString() ?? null,
