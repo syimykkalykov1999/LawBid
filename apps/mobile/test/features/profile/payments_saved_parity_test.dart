@@ -98,7 +98,8 @@ void main() {
       for (final user in [clientMe(), attorneyMe()]) {
         await pumpSettings(tester, user);
         final icons = <IconData, String>{};
-        for (final row in tester.widgetList<AppListRow>(find.byType(AppListRow))) {
+        for (final row
+            in tester.widgetList<AppListRow>(find.byType(AppListRow))) {
           final icon = row.icon;
           if (icon == null) continue;
           final seen = icons[icon];
@@ -143,6 +144,21 @@ void main() {
       await _done(tester);
     });
 
+    // Owner 2026-10-22: every tabbed screen swipes between its tabs.
+    testWidgets('Receipts | Purchases: a swipe turns the page', (tester) async {
+      await _pumpHub(tester, clientMe());
+      final pages = tester.widget<PageView>(find.byType(PageView).first);
+      expect(find.byKey(const ValueKey('payments-client-badge')), findsNothing);
+      await tester.drag(find.byType(PageView).first, const Offset(-400, 0));
+      await tester.pumpAndSettle();
+      expect(pages.controller!.page, 1);
+      expect(
+        find.byKey(const ValueKey('payments-client-badge')),
+        findsOneWidget,
+      );
+      await _done(tester);
+    });
+
     test('an unknown tab opens the receipts', () {
       expect(PaymentsTab.parse('cases'), PaymentsTab.cases);
       expect(PaymentsTab.parse(null), PaymentsTab.receipts);
@@ -167,6 +183,23 @@ void main() {
         await _done(tester);
       }
     });
+
+    testWidgets('Saved: a swipe goes to the next tab', (tester) async {
+      useNarrowPhone(tester);
+      final wrap = await profileWrapper(
+        AppTheme.light(),
+        user: attorneyMe(),
+        overrides: profileOverrides(),
+      );
+      await tester.pumpWidget(wrap(const SavedScreen()));
+      await tester.pumpAndSettle();
+      final pages = tester.widget<PageView>(find.byType(PageView).first);
+      final start = pages.controller!.page!;
+      await tester.drag(find.byType(PageView).first, const Offset(-400, 0));
+      await tester.pumpAndSettle();
+      expect(pages.controller!.page, start + 1);
+      await _done(tester);
+    });
   });
 
   // Overflow: the new page at 360 dp, five long languages, four themes,
@@ -184,8 +217,7 @@ void main() {
   for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
     for (final theme in AppThemeId.values) {
       for (final scale in [1.0, 1.1, 1.3]) {
-        testWidgets(
-            'Payments fits 360 dp ($name, ${theme.name}, x$scale)',
+        testWidgets('Payments fits 360 dp ($name, ${theme.name}, x$scale)',
             (tester) async {
           for (final tab in PaymentsTab.values) {
             await _pumpHub(

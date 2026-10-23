@@ -76,7 +76,8 @@ void main() {
     expect(find.text('open'), findsOneWidget);
   });
 
-  testWidgets('settings page: a swipe from the middle goes back, a vertical '
+  testWidgets(
+      'settings page: a swipe from the middle goes back, a vertical '
       'scroll still scrolls', (tester) async {
     await _open(
       tester,
@@ -96,7 +97,8 @@ void main() {
     expect(find.text('open'), findsOneWidget);
   });
 
-  testWidgets('attorney profile with a carousel: the carousel keeps its '
+  testWidgets(
+      'attorney profile with a carousel: the carousel keeps its '
       'swipe, the rest of the screen goes back', (tester) async {
     final carousel = ScrollController();
     await _open(
@@ -131,7 +133,8 @@ void main() {
     expect(find.text('open'), findsOneWidget);
   });
 
-  testWidgets('tabs on a pushed screen: the first tab hands a right swipe to '
+  testWidgets(
+      'tabs on a pushed screen: the first tab hands a right swipe to '
       'back, the second tab swipes to the first', (tester) async {
     String tab = 'a';
     await _open(
@@ -171,7 +174,8 @@ void main() {
     expect(find.text('open'), findsNothing);
   });
 
-  testWidgets('chat rows: the row edge pins, the middle of the screen goes '
+  testWidgets(
+      'chat rows: the row edge pins, the middle of the screen goes '
       'back (BackSwipeMode.rows)', (tester) async {
     var pinned = 0;
     await _open(
