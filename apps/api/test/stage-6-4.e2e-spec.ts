@@ -519,7 +519,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
       before: { status: 'published', openReports: 1 },
       after: { status: 'hidden', reason: 'Misleading claim' },
     });
-    await redis.del('adm:dashboard');
+    await redis.del('adm:sum:dashboard');
   });
 
   it('comment hide keeps the post comment_count in sync; message hide sets deleted_at', async () => {

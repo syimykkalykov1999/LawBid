@@ -3,6 +3,7 @@
 import { CheckCircle, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useDebounced } from "@/components/legacy/use-debounced";
 import { ErrorNote } from "@/components/page-header";
 import { useReason } from "@/components/reason-dialog";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,9 @@ export function CodesCard({ canEdit }: { canEdit: boolean }) {
   const { ask, dialog } = useReason();
   const [filter, setFilter] = useState("");
   const [draft, setDraft] = useState("");
-  const [search, setSearch] = useState("");
+  const [typed, setSearch] = useState("");
+  // Owner 2026-10-23: one request per pause in typing, not per key.
+  const search = useDebounced(typed);
   const [picked, setPicked] = useState<Picked | null>(null);
   const [code, setCode] = useState("");
 
@@ -111,7 +114,7 @@ export function CodesCard({ canEdit }: { canEdit: boolean }) {
                 <Input
                   id="rc-owner"
                   placeholder="Имя или email"
-                  value={search}
+                  value={typed}
                   onChange={(e) => setSearch(e.target.value.trim())}
                 />
                 {found.data?.length ? (

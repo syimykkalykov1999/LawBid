@@ -1762,6 +1762,9 @@ model Case {
   @@index([deadline_at])
   // Owner 2026-10-22 (client economy plan, package E): GET /users/me/cases?updatedSince.
   @@index([client_id, updated_at(sort: Desc)])
+  // Owner 2026-10-23 (admin economy pass): the admin list pages newest-first by (created_at, id).
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "cases_created_at_id_idx")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "cases_status_created_at_id_idx")
   @@map("cases")
 }
 
@@ -1819,6 +1822,9 @@ model Bid {
   @@index([attorney_id, updated_at(sort: Desc), id(sort: Desc)], map: "bids_attorney_updated_idx")
   // docs/06 §8 business counter (active bids) and the hourly lapse job.
   @@index([status])
+  // Owner 2026-10-23 (admin economy pass): the admin list pages newest-first by (created_at, id).
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "bids_created_at_id_idx")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "bids_status_created_at_id_idx")
   @@map("bids")
 }
 
@@ -1931,6 +1937,7 @@ model CaseDispute {
   updated_at      DateTime      @updatedAt @db.Timestamptz
 
   @@index([case_id])
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "case_disputes_status_created_at_id_idx")
   @@map("case_disputes")
 }
 
@@ -3124,6 +3131,9 @@ model Subscription {
 
   @@index([status, trial_ends_at])
   @@index([current_period_end])
+  // Owner 2026-10-23 (admin economy pass): the admin list pages newest-first by (created_at, id).
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "subscriptions_created_at_id_idx")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "subscriptions_status_created_at_id_idx")
   @@map("subscriptions")
 }
 
@@ -3146,6 +3156,9 @@ model Payment {
   updated_at               DateTime      @updatedAt @db.Timestamptz
 
   @@index([user_id, created_at(sort: Desc)])
+  // Owner 2026-10-23 (admin economy pass): the admin list pages newest-first by (created_at, id).
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "payments_created_at_id_idx")
+  @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "payments_status_created_at_id_idx")
   @@map("payments")
 }
 
@@ -3375,6 +3388,9 @@ model AuditLog {
 
   @@index([admin_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "audit_log_created_at_idx")
+  // Owner 2026-10-23 (admin economy pass): the audit log pages newest-first, filtered by target or action prefix.
+  @@index([created_at(sort: Desc), id(sort: Desc)], map: "audit_log_created_at_id_idx")
+  @@index([target_type, target_id, created_at(sort: Desc)], map: "audit_log_target_idx")
   @@map("audit_log")
 }
 

@@ -48,6 +48,9 @@ import { SearchSynonymsService } from '../modules/search/search-synonyms.service
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import { DashboardService } from '../modules/admin/dashboard.service';
+import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import {
@@ -149,6 +152,10 @@ export class JobsModule {
         CrashReportsService,
         NotificationsRetentionJob,
         OpsMetricsJob,
+        // Owner 2026-10-23: `admin.summaries` (admin economy pass).
+        AdminSummariesJob,
+        DashboardService,
+        BillingOverviewService,
         OpsGuardJob,
         StatusWatchdogJob,
         // Owner 2026-10-05: the planner's reminders and archive cleanup.

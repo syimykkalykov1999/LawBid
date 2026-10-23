@@ -1,6 +1,7 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -213,6 +214,36 @@ type ProfileRow = Prisma.AttorneyProfileGetPayload<{
   select: typeof PROFILE_SELECT;
 }>;
 
+/** The facts that can put an attorney in the staff queue (mirrors
+ * `queueReasonsOf`): a SQL pre-filter, the snapshot still decides. */
+const QUEUE_PREFILTER: Prisma.AttorneyProfileWhereInput = {
+  OR: [
+    { trust: { firm_link_status: FIRM_LINK.pending } },
+    { trust: { name_check: NAME_CHECK.mismatch } },
+    { trust: { payments_hold: HOLD.complaint } },
+    { trust: { bids_hold: HOLD.complaint } },
+    { licenses: { some: { registry_flag: { not: null } } } },
+    {
+      verification_requests: {
+        some: {
+          status: { in: ['submitted', 'in_review'] },
+          documents: { some: {} },
+        },
+      },
+    },
+  ],
+};
+
+/** Attorneys read per query by {@link AttorneyTrustService.scan}. */
+const SCAN_BATCH = 500;
+export const TRUST_SCAN_SUMMARY_KEY = 'trust-scan';
+
+export interface TrustScan {
+  byStatus: Partial<Record<BadgeStatus, number>>;
+  /** Attorneys that need a person's decision («Очередь»). */
+  queueSize: number;
+}
+
 /**
  * Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
  * level is derived — never set by hand — from facts recorded here (a
@@ -232,6 +263,7 @@ export class AttorneyTrustService {
     private readonly blocks: BarNumberBlocksService,
     @InjectPinoLogger(AttorneyTrustService.name)
     private readonly logger: PinoLogger,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   // --- reads -------------------------------------------------------------
@@ -1250,22 +1282,41 @@ export class AttorneyTrustService {
     const rows = await this.prisma.attorneyProfile.findMany({
       where: {
         verification_status: { in: ['verified', 'pending'] },
-        OR: [{ trust: null }, { trust: { staff_cleared_at: null } }],
-        ...(opts.q
-          ? {
-              OR: [
-                { username_lower: { contains: opts.q.toLowerCase() } },
+        AND: [
+          { OR: [{ trust: null }, { trust: { staff_cleared_at: null } }] },
+          // Owner 2026-10-23: only a profile with one of the facts that
+          // queueReasonsOf() looks at can be in the queue — so the database
+          // narrows 100 000 attorneys to the few hundred that need a person
+          // before any snapshot is built.
+          QUEUE_PREFILTER,
+          ...(opts.q
+            ? [
                 {
-                  user: {
-                    OR: [
-                      { first_name: { contains: opts.q, mode: 'insensitive' } },
-                      { last_name: { contains: opts.q, mode: 'insensitive' } },
-                    ],
-                  },
+                  OR: [
+                    { username_lower: { contains: opts.q.toLowerCase() } },
+                    {
+                      user: {
+                        OR: [
+                          {
+                            first_name: {
+                              contains: opts.q,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                          {
+                            last_name: {
+                              contains: opts.q,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  ],
                 },
-              ],
-            }
-          : {}),
+              ]
+            : []),
+        ],
       },
       select: PROFILE_SELECT,
       orderBy: { user_id: 'asc' },
@@ -1324,16 +1375,70 @@ export class AttorneyTrustService {
 
   /** How many attorneys sit in each badge status (for the KPI row). */
   async countByStatus(): Promise<Map<BadgeStatus, number>> {
-    const rows = await this.prisma.attorneyProfile.findMany({
-      select: PROFILE_SELECT,
-      take: 20000,
-    });
-    const counts = new Map<BadgeStatus, number>();
-    for (const row of rows) {
-      const snap = await this.snapshotOf(row);
-      counts.set(snap.badgeStatus, (counts.get(snap.badgeStatus) ?? 0) + 1);
+    const { byStatus } = await this.scan();
+    return new Map(Object.entries(byStatus) as [BadgeStatus, number][]);
+  }
+
+  /**
+   * Owner 2026-10-23 (admin economy pass): ONE pass over every attorney, in
+   * batches of 500 by id (it used to read at most 20 000 profiles with all
+   * their licences in a single query: 3 s at 10 000, and wrong beyond
+   * 20 000): the KPI counts per badge status and the size of the staff
+   * queue. Heavy by nature (a status is derived from the facts, not
+   * stored), so the worker runs it (`admin.summaries`) and the admin reads
+   * {@link scanCached}.
+   */
+  async scan(): Promise<TrustScan> {
+    const byStatus: Partial<Record<BadgeStatus, number>> = {};
+    let queueSize = 0;
+    let last: string | undefined;
+    for (;;) {
+      const rows = await this.prisma.attorneyProfile.findMany({
+        where: last ? { user_id: { gt: last } } : {},
+        select: PROFILE_SELECT,
+        orderBy: { user_id: 'asc' },
+        take: SCAN_BATCH,
+      });
+      if (rows.length === 0) break;
+      for (const row of rows) {
+        const snap = await this.snapshotOf(row);
+        byStatus[snap.badgeStatus] = (byStatus[snap.badgeStatus] ?? 0) + 1;
+        const inQueueScope =
+          (row.verification_status === 'verified' ||
+            row.verification_status === 'pending') &&
+          !row.trust?.staff_cleared_at;
+        if (inQueueScope && snap.staffStatus === 'needs_staff') queueSize++;
+      }
+      last = rows[rows.length - 1].user_id;
+      if (rows.length < SCAN_BATCH) break;
     }
-    return counts;
+    return { byStatus, queueSize };
+  }
+
+  /** {@link scan} from the precomputed summary (recounted by the worker). */
+  async scanCached(): Promise<{ data: TrustScan; computedAt: string }> {
+    if (!this.summary)
+      return { data: await this.scan(), computedAt: new Date().toISOString() };
+    return this.summary.get(TRUST_SCAN_SUMMARY_KEY, () => this.scan(), 600);
+  }
+
+  /**
+   * The sidebar badge: the stored queue size, never a wait — if nothing was
+   * counted yet (a fresh Redis) it answers 0 and starts the count.
+   */
+  async queueSizeCached(): Promise<number> {
+    if (!this.summary) return (await this.scan()).queueSize;
+    const hit = await this.summary.peek<TrustScan>(TRUST_SCAN_SUMMARY_KEY);
+    if (!hit || Date.now() - Date.parse(hit.computedAt) > 600_000) {
+      void this.refreshScan().catch(() => undefined);
+    }
+    return hit?.data.queueSize ?? 0;
+  }
+
+  /** The cron's entry: recount now and store. */
+  async refreshScan(): Promise<void> {
+    if (this.summary)
+      await this.summary.refresh(TRUST_SCAN_SUMMARY_KEY, () => this.scan());
   }
 
   /**

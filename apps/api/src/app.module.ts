@@ -6,8 +6,10 @@ import { LoggerModule } from 'nestjs-pino';
 import { startTime, type Options as PinoHttpOptions } from 'pino-http';
 import { ViewerContextInterceptor } from './common/viewer/viewer-context';
 import { ConfigModule } from './config/config.module';
+import { AdminCacheHeadersMiddleware } from './common/middleware/admin-cache-headers.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { AdminSummaryModule } from './common/admin-summary/admin-summary.module';
 import { OpsModule } from './common/ops/ops.module';
 import { EconomyModule } from './common/economy/economy.module';
 import { ThrottlerModule } from './throttler/throttler.module';
@@ -228,6 +230,8 @@ const isDev =
     LoggerModule.forRoot({ pinoHttp: pinoHttpOptions }),
     PrismaModule,
     RedisModule,
+    // Owner 2026-10-23: the admin's precomputed aggregates (Redis).
+    AdminSummaryModule,
     // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
     OpsModule,
     // Owner 2026-10-05: plans + the entitlements gate (global).
@@ -405,5 +409,7 @@ export class AppModule implements NestModule {
     consumer.apply(RequestIdMiddleware, DemoHeaderMiddleware).forRoutes('*');
     // Owner 2026-10-22: error rate and p95 for «Состояние системы».
     consumer.apply(HttpStatsMiddleware).forRoutes('*');
+    // Owner 2026-10-23: admin GETs are private and revalidated by ETag.
+    consumer.apply(AdminCacheHeadersMiddleware).forRoutes('*');
   }
 }

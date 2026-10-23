@@ -4,6 +4,7 @@ import { Megaphone, Prohibit, ArrowCounterClockwise, EyeSlash } from '@phosphor-
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useDebounced } from '@/components/legacy/use-debounced';
 import { LoadMore } from '@/components/billing/shared';
 import { ErrorNote } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
@@ -35,7 +36,9 @@ export function ChannelsPanel() {
   const canWrite = can(me, 'media', 'manage');
   const { ask, dialog } = useReason();
   const [status, setStatus] = useState<'' | Status>('');
-  const [q, setQ] = useState('');
+  const [typedQ, setQ] = useState('');
+  // Owner 2026-10-23: one request per pause in typing, not per key.
+  const q = useDebounced(typedQ.trim());
   const [openId, setOpenId] = useState<string | null>(null);
 
   const list = useInfiniteQuery({
@@ -119,7 +122,7 @@ export function ChannelsPanel() {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="channel-q">Поиск</Label>
-          <Input id="channel-q" className="w-64" value={q} placeholder="Название или @имя" onChange={(e) => setQ(e.target.value)} />
+          <Input id="channel-q" className="w-64" value={typedQ} placeholder="Название или @имя" onChange={(e) => setQ(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="channel-status">Статус</Label>

@@ -50,6 +50,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.licenseRegistryRecheck,
   CRON_JOBS.opsBusinessMetrics,
   CRON_JOBS.messagesReencrypt,
+  CRON_JOBS.adminSummaries,
 ];
 
 /** Queues paused as a whole (users get their file a little later). */

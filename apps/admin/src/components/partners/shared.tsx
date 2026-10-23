@@ -4,6 +4,7 @@ import { CheckCircle, UserCircleMinus, X } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import { useDebounced } from "@/components/legacy/use-debounced";
 import { Badge } from "@/components/ui/card";
 import { Field, Input, Select } from "@/components/ui/input";
 import { api } from "@/lib/api/client";
@@ -239,7 +240,9 @@ export function UserPicker({
   onPick: (p: Picked | null) => void;
   id: string;
 }) {
-  const [search, setSearch] = useState("");
+  const [typed, setSearch] = useState("");
+  // Owner 2026-10-23: one request per pause in typing, not per key.
+  const search = useDebounced(typed);
   const found = useQuery({
     queryKey: ["partner-user-search", search],
     enabled: !picked && search.length >= 2,
@@ -278,7 +281,7 @@ export function UserPicker({
       <Input
         id={id}
         placeholder="Имя, email или @username"
-        value={search}
+        value={typed}
         onChange={(e) => setSearch(e.target.value.trim())}
       />
       {found.data?.length ? (

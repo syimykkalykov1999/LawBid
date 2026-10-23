@@ -50,7 +50,11 @@ void main() {
     expect(r.headers['X-Sentry-Auth'], contains('sentry_key=abc123'));
     final body = r.data as String;
     expect(body, isNot(contains('jane@firm.com')));
-    expect(body, isNot(contains('555')));
+    // The phone number in any of its spellings, not just "555": the
+    // random event id is hex and can contain those digits.
+    expect(body, isNot(contains('555 2680')));
+    expect(body, isNot(contains('5552680')));
+    expect(body, isNot(contains('+1 415')));
     final event = jsonDecode(body.split('\n')[2]) as Map<String, dynamic>;
     expect(event['level'], 'error');
     expect(event.containsKey('user'), isFalse);

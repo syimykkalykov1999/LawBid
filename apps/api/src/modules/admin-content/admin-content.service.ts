@@ -6,6 +6,8 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { maxAssistantSeats } from '../billing/seat-limit';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -112,6 +114,7 @@ export class AdminContentService {
     private readonly moderation: ModerationService,
     private readonly fanout: BroadcastFanoutRunner,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   /** Audit 2026-10-01: the admin's content actions go through the
@@ -153,8 +156,18 @@ export class AdminContentService {
     onlyVideo = false,
     filter: ContentFilter = {},
   ): Promise<Page<AdminPostRowDto>> {
+    // Owner 2026-10-23: the text search goes through the title / full-text
+    // indexes (see admin-text-search.ts), not ILIKE over every post.
+    const matched = q?.trim()
+      ? await postIdsMatching(this.prisma, q.trim())
+      : null;
+    if (matched && matched.length === 0) return { items: [], nextCursor: null };
+    // `null` with a search term = a word in very many posts: the plain
+    // newest-first scan finds the first page of such matches at once.
+    const common = !!q?.trim() && matched === null;
     const rows = await this.prisma.post.findMany({
       where: {
+        ...(matched ? { id: { in: matched } } : {}),
         ...(kind ? { kind } : {}),
         ...(onlyVideo ? { video_asset_id: { not: null } } : {}),
         ...(filter.contentClass ? { content_class: filter.contentClass } : {}),
@@ -163,11 +176,11 @@ export class AdminContentService {
         // Search and paging both need an OR: AND keeps them from
         // overwriting each other.
         AND: [
-          q
+          common && q
             ? {
                 OR: [
-                  { title: { contains: q, mode: 'insensitive' } },
-                  { body: { contains: q, mode: 'insensitive' } },
+                  { title: { contains: q.trim(), mode: 'insensitive' } },
+                  { body: { contains: q.trim(), mode: 'insensitive' } },
                 ],
               }
             : {},
@@ -390,12 +403,21 @@ export class AdminContentService {
     q?: string,
     cursor?: string,
   ): Promise<Page<AdminBidRowDto>> {
+    // Owner 2026-10-23: the case-title search reads the trigram index.
+    const caseIds = q?.trim()
+      ? await caseIdsByTitle(this.prisma, q.trim())
+      : null;
+    if (caseIds && caseIds.length === 0) return { items: [], nextCursor: null };
+    const commonTitle = !!q?.trim() && caseIds === null;
     const rows = await this.prisma.bid.findMany({
       where: {
         ...(status
           ? { status: status as Prisma.EnumBidStatusFilter['equals'] }
           : {}),
-        ...(q ? { case: { title: { contains: q, mode: 'insensitive' } } } : {}),
+        ...(caseIds ? { case_id: { in: caseIds } } : {}),
+        ...(commonTitle && q
+          ? { case: { title: { contains: q.trim(), mode: 'insensitive' } } }
+          : {}),
         ...keyset(cursor),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -782,7 +804,17 @@ export class AdminContentService {
 
   // --- overview -----------------------------------------------------------------
 
+  /** Owner 2026-10-23 (admin economy pass): 17 counts over the big tables
+   * (messages, calls, cases, bids, posts of the last 7 days…) — recounted
+   * once per 5 minutes for the whole team, not on every open. */
   async overview(): Promise<AdminOverviewDto> {
+    if (!this.summary) return this.computeOverview();
+    return (
+      await this.summary.get('overview', () => this.computeOverview(), 300)
+    ).data;
+  }
+
+  private async computeOverview(): Promise<AdminOverviewDto> {
     const d7 = new Date(Date.now() - 7 * 86400000);
     const d30 = new Date(Date.now() - 30 * 86400000);
     // Audit 2026-10-02: the gate's rule (past_due only while in grace),

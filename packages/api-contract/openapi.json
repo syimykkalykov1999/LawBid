@@ -162599,6 +162599,10 @@
               "$ref": "#/components/schemas/TrustLevelCountDto"
             }
           },
+          "computedAt": {
+            "type": "string",
+            "description": "When the numbers were counted (the worker recounts every few minutes)."
+          },
           "held": {
             "type": "integer",
             "description": "Attorneys with any hold."

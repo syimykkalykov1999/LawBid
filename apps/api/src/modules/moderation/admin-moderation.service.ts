@@ -76,6 +76,14 @@ export class AdminModerationService {
              max(created_at) AS last_at
       FROM reports
       WHERE status = ${status}::report_status
+        ${
+          // Owner 2026-10-23: the open queue is small and read in full; the
+          // «handled» history is a window of the last 180 days, not a scan
+          // of every report ever filed.
+          status === 'open'
+            ? Prisma.empty
+            : Prisma.sql`AND created_at >= now() - interval '180 days'`
+        }
         ${q.targetType ? Prisma.sql`AND target_type = ${q.targetType}::report_target_type` : Prisma.empty}
         ${
           // Owner 2026-10-05: moderators of one country see reports
@@ -93,10 +101,18 @@ export class AdminModerationService {
       ORDER BY first_at ASC, target_id ASC
       LIMIT ${limit + 1}`;
     const page = rows.slice(0, limit);
-    const items: ModerationQueueItemDto[] = [];
-    for (const r of page) {
-      const target = await this.moderation.resolve(r.target_type, r.target_id);
-      items.push({
+    // Owner 2026-10-23 (admin economy pass): the page's targets and authors
+    // are looked up together — one round of parallel reads and two batched
+    // author queries instead of ~4 sequential queries per row.
+    const targets = await Promise.all(
+      page.map((r) => this.moderation.resolve(r.target_type, r.target_id)),
+    );
+    const authors = await this.authors(
+      targets.map((t) => t?.authorId).filter((id): id is string => !!id),
+    );
+    const items: ModerationQueueItemDto[] = page.map((r, i) => {
+      const target = targets[i];
+      return {
         targetType: r.target_type,
         targetId: r.target_id,
         reports: Number(r.reports),
@@ -106,9 +122,11 @@ export class AdminModerationService {
         lastReportedAt: r.last_at.toISOString(),
         targetStatus: target?.status ?? null,
         excerpt: target?.text ? target.text.slice(0, EXCERPT) : null,
-        author: target?.authorId ? await this.author(target.authorId) : null,
-      });
-    }
+        author: target?.authorId
+          ? (authors.get(target.authorId) ?? null)
+          : null,
+      };
+    });
     const last = page[page.length - 1];
     return {
       items,
@@ -267,6 +285,53 @@ export class AdminModerationService {
       status,
       reportsHandled: handled,
     };
+  }
+
+  /** {@link author} for many users: two queries in all. */
+  private async authors(
+    userIds: string[],
+  ): Promise<Map<string, ModerationAuthorDto>> {
+    const ids = [...new Set(userIds)];
+    const out = new Map<string, ModerationAuthorDto>();
+    if (ids.length === 0) return out;
+    const [users, actions] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          role: true,
+          status: true,
+          first_name: true,
+          last_name: true,
+          attorney_profile: { select: { username: true } },
+        },
+      }),
+      this.prisma.moderationAction.groupBy({
+        by: ['target_id', 'action'],
+        where: {
+          target_type: 'user',
+          target_id: { in: ids },
+          action: { in: ['warn', 'suspend'] },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+    const count = (id: string, action: string) =>
+      actions.find((a) => a.target_id === id && a.action === action)?._count
+        ._all ?? 0;
+    for (const u of users) {
+      out.set(u.id, {
+        id: u.id,
+        role: u.role,
+        status: u.status,
+        firstName: u.first_name,
+        lastName: u.last_name,
+        username: u.attorney_profile?.username ?? null,
+        warnings: count(u.id, 'warn'),
+        suspensions: count(u.id, 'suspend'),
+      });
+    }
+    return out;
   }
 
   private async author(userId: string): Promise<ModerationAuthorDto | null> {

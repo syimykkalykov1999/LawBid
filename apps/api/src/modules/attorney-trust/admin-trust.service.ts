@@ -181,9 +181,16 @@ export class AdminTrustService {
     return after;
   }
 
+  /**
+   * Owner 2026-10-23 (admin economy pass): the live parts (holds, the staff
+   * queue — now narrowed in SQL, so cheap — the switches) are read as
+   * before; the per-badge-status counts, which need every attorney's
+   * derived status, come from the worker's precomputed scan
+   * (`computedAt` says when they were counted).
+   */
   async stats(): Promise<TrustStatsDto> {
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const [byLevel, held, withBadge, verified, complaints30d, inQueue] =
+    const [byLevel, held, withBadge, verified, complaints30d, scan] =
       await Promise.all([
         this.prisma.attorneyProfile.groupBy({
           by: ['trust_level'],
@@ -209,13 +216,16 @@ export class AdminTrustService {
             created_at: { gte: since },
           },
         }),
-        this.trust.queue({ limit: 1000 }).then((q) => q.length),
+        this.trust.scanCached(),
       ]);
-    const [rules, byStatus, blockedBarNumbers] = await Promise.all([
+    const inQueue = (await this.trust.queue({ limit: 1000 })).length;
+    const [rules, blockedBarNumbers] = await Promise.all([
       this.trust.rules(),
-      this.trust.countByStatus(),
       this.blocks.countActive(),
     ]);
+    const byStatus = new Map(
+      Object.entries(scan.data.byStatus) as [BadgeStatus, number][],
+    );
     const counts = new Map(byLevel.map((r) => [r.trust_level, r._count._all]));
     return {
       byLevel: TRUST_LEVELS.map((level) => ({
@@ -236,6 +246,7 @@ export class AdminTrustService {
         attorneys: byStatus.get(status) ?? 0,
       })),
       blockedBarNumbers,
+      computedAt: scan.computedAt,
     };
   }
 
