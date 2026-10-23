@@ -142,7 +142,7 @@ variable "worker_memory" {
 # admin Система → Здоровье системы).
 variable "monthly_budget_usd" {
   type    = number
-  default = 200
+  default = 350 # 2026-10-22: 200 → 350, see modules/stack monthly_budget_usd
 }
 variable "create_anomaly_monitor" {
   type        = bool
@@ -250,6 +250,44 @@ variable "turn_enabled" {
   type        = bool
   default     = false
   description = "coturn relay for calls (modules/turn); docs/runbooks/TURN.md."
+}
+variable "turn_second_enabled" {
+  type        = bool
+  default     = false
+  description = "Second coturn in another AZ (≈ $9/month with health checks); needs turn_enabled."
+}
+variable "turn_traffic_alarm_gb_per_day" {
+  type    = number
+  default = 20
+}
+
+# Owner 2026-10-22: self-hosted LiveKit SFU (docs/runbooks/LIVEKIT.md).
+variable "livekit_enabled" {
+  type    = bool
+  default = false
+}
+variable "livekit_instance_type" {
+  type    = string
+  default = "c7g.medium"
+}
+variable "livekit_use_redis" {
+  type    = bool
+  default = true
+}
+variable "livekit_egress_alarm_gb_per_day" {
+  type    = number
+  default = 50
+}
+
+variable "uptime_check" {
+  type        = string
+  default     = "synthetics"
+  description = "synthetics (≈ $10/month) or route53 (≈ $2/month, us-east-1 only)."
+}
+variable "cpu_architecture" {
+  type        = string
+  default     = "X86_64"
+  description = "ARM64 = Graviton, ≈ 20 % cheaper Fargate. Switch only after a deploy built by the multi-arch workflow (deploy.yml) is the image tag in api_image / admin_image (docs/runbooks/DEPLOY_PROD.md)."
 }
 
 # Security research #5 (2026-10-22): WAF, cloud detector, container.

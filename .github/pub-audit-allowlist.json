@@ -1,0 +1,4 @@
+{
+  "_how": "Known vulnerabilities in apps/mobile/pubspec.lock that may stay for now. Gate: scripts/ci/pub-audit-gate.mjs (job dependency-audit in mobile-ci.yml). Each entry needs id (OSV / GHSA / CVE id; an alias of the finding matches too), package, reason and an expiry date (YYYY-MM-DD); an expired entry fails CI again.",
+  "advisories": []
+}

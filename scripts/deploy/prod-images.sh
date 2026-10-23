@@ -14,7 +14,8 @@ aws ecr get-login-password --region "$REGION" \
   | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
 for APP in api admin; do
   echo "Собираю lawbid-$APP:$TAG …"
-  docker buildx build --platform linux/amd64 \
+  # Multi-arch (amd64 + arm64): the same image runs on x86 and Graviton tasks.
+  docker buildx build --platform linux/amd64,linux/arm64 \
     -f "apps/$APP/Dockerfile" --build-arg "APP_VERSION=$TAG" \
     -t "$REGISTRY/lawbid-$APP:$TAG" --push .
 done
@@ -22,8 +23,7 @@ done
 CLAMAV="$REGISTRY/lawbid-clamav:1.4"
 if ! aws ecr describe-images --repository-name lawbid-clamav --image-ids imageTag=1.4 >/dev/null 2>&1; then
   echo "Копирую ClamAV в ECR …"
-  docker pull --platform linux/amd64 clamav/clamav:1.4
-  docker tag clamav/clamav:1.4 "$CLAMAV"
-  docker push "$CLAMAV"
+  # Copies the whole multi-arch manifest (amd64 + arm64), not one platform.
+  docker buildx imagetools create -t "$CLAMAV" clamav/clamav:1.4
 fi
 echo "$TAG"
