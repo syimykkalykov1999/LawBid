@@ -9,6 +9,16 @@ import 'package:lawbid/core/network/api_error.dart';
 /// (TOKEN_EXPIRED -> silent refresh, APP_UPDATE_REQUIRED -> forced-update
 /// screen, INTERNAL_ERROR, ...) fall back to the generic message.
 String apiErrorText(Translator t, ApiException error) {
+  // Owner 2026-10-22 (guest browsing): a request with no token that the API
+  // refused — «sign in to see this» / «try again a little later».
+  if (error.guest) {
+    if (error.code == ApiErrorCodes.unauthorized) {
+      return t.t('guest.error.signIn');
+    }
+    if (error.code == ApiErrorCodes.rateLimited) {
+      return t.t('guest.error.later');
+    }
+  }
   final key = _keys[error.code];
   if (key == null) return t.t('error.default.message');
   if (error.code == ApiErrorCodes.authOtpRequestLimit ||

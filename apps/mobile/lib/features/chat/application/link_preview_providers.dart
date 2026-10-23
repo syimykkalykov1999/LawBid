@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/chat/data/link_preview_repository.dart';
 
 export 'package:lawbid/features/chat/data/link_preview_repository.dart'
@@ -34,5 +35,9 @@ final linkPreviewsEnabledProvider = NotifierProvider<LinkPreviewsEnabled, bool>(
 /// on screen watches it; the repository remembers the answer longer.
 final linkPreviewProvider =
     FutureProvider.autoDispose.family<LinkPreview?, String>(
-  (ref, url) => ref.watch(linkPreviewRepositoryProvider).fetch(url),
+  // Owner 2026-10-22: `GET /link-preview` needs a token — a guest asks
+  // nothing and the card draws nothing.
+  (ref, url) => ref.watch(isGuestProvider)
+      ? Future<LinkPreview?>.value()
+      : ref.watch(linkPreviewRepositoryProvider).fetch(url),
 );

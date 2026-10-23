@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Full-screen error that tells "offline" apart from a server error
 /// (docs/01 §8.3), with Retry either way.
@@ -35,6 +37,12 @@ class CasesErrorView extends StatelessWidget {
           onPressed: onRetry,
         ),
       );
+    }
+    // Owner 2026-10-22 (guest browsing): the API wants an account for this
+    // one (or the guest switch is off) — «sign in», not a broken screen.
+    final e = error;
+    if (e is ApiException && e.guest && e.code == ApiErrorCodes.unauthorized) {
+      return GuestGateView(message: errorText(t, error));
     }
     return AppErrorState(
       message: errorText(t, error),

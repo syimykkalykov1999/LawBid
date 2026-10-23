@@ -792,6 +792,18 @@ function Guide({ it }: { it: Integration }) {
             ))}
           </ol>
           {guide.note ? <p className="break-words rounded-lg bg-accent-soft p-2 text-xs text-ink">{guide.note}</p> : null}
+          {guide.enable?.length ? (
+            <div className="rounded-lg border border-line bg-surface-2 p-2.5" data-testid="guide-enable">
+              <p className="mb-1 text-xs font-semibold text-heading">Как включить</p>
+              <ul className="list-disc space-y-1 pl-4 text-xs text-ink">
+                {guide.enable.map((line) => (
+                  <li key={line} className="break-words">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {guide.webhookPath ? (
             <p className="break-all text-xs text-muted">
               Адрес вебхука: <code className="text-ink">{webhookUrl(guide.webhookPath, {})}</code>

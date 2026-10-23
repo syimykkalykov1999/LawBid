@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/network/request_flags.dart';
 
 /// String constants for EVERY `ErrorCode` value
 /// (apps/api/src/common/errors/error-code.enum.ts — docs/01_FOUNDATION_AUTH.md
@@ -570,12 +571,14 @@ class ApiException implements Exception {
     this.details,
     this.requestId,
     this.statusCode,
+    this.guest = false,
   });
 
   /// Always succeeds — falls back to [networkErrorCode] for anything that
   /// isn't the backend's JSON error envelope, since a thrown [ApiException]
   /// is the one contract every interceptor/repository relies on.
   factory ApiException.fromDioException(DioException e) {
+    final guest = e.requestOptions.extra[RequestFlags.guest] == true;
     final data = e.response?.data;
     if (data is Map<String, dynamic>) {
       final error = data['error'];
@@ -591,6 +594,7 @@ class ApiException implements Exception {
                 : null,
             requestId: error['requestId'] as String?,
             statusCode: e.response?.statusCode,
+            guest: guest,
           );
         }
       }
@@ -599,6 +603,7 @@ class ApiException implements Exception {
       code: networkErrorCode,
       message: e.message ?? 'Network error',
       statusCode: e.response?.statusCode,
+      guest: guest,
     );
   }
 
@@ -614,6 +619,10 @@ class ApiException implements Exception {
   final Map<String, dynamic>? details;
   final String? requestId;
   final int? statusCode;
+
+  /// Owner 2026-10-22 (guest browsing): the request went out with no bearer
+  /// token. A 401 on it means «sign in to see this», a 429 «try later».
+  final bool guest;
 
   bool get isNetworkError => code == networkErrorCode;
 

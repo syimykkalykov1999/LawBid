@@ -6,7 +6,6 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
@@ -65,14 +64,24 @@ class AttorneyProfileBody extends ConsumerWidget {
               ),
             );
           }
-          // Owner 2026-10-22 (guest browsing): `GET /attorneys/:username`
-          // still wants a token — a guest is asked to sign in, not shown
-          // a broken screen (the API opens it to guests next).
-          if (ref.watch(isGuestProvider)) {
-            return GuestGateView(
-              key: const ValueKey('guest'),
-              message: t.t('guest.profile.signIn'),
-            );
+          // Owner 2026-10-22 (guest browsing): the profile is read with no
+          // token. The API says 401 when the guest switch is off, 429 when
+          // this address looked at too much — say that, with a way on.
+          if (error is ApiException && error.guest) {
+            if (error.code == ApiErrorCodes.unauthorized) {
+              return GuestGateView(
+                key: const ValueKey('guest'),
+                message: t.t('guest.profile.signIn'),
+              );
+            }
+            if (error.code == ApiErrorCodes.rateLimited) {
+              return AppErrorState(
+                key: const ValueKey('guest-later'),
+                message: apiErrorText(t, error),
+                retryLabel: t.t('error.retry'),
+                onRetry: retry,
+              );
+            }
           }
           return AppErrorState(
             key: const ValueKey('error'),

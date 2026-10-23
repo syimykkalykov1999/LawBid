@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -59,7 +60,6 @@ bool isGuestRoute(String location) {
   for (final prefix in const [
     '/lawyer/',
     '/u/',
-    '/client/',
     '/post/',
     '/c/',
     '/tag/',
@@ -69,3 +69,13 @@ bool isGuestRoute(String location) {
   }
   return location == '/qr/scan';
 }
+
+/// What a read that needs an account answers for a guest without going to
+/// the network: the same 401 the API would send, flagged as a guest's so the
+/// screens say «sign in» (see `apiErrorText`, `CasesErrorView`).
+ApiException guestSignInRequired() => const ApiException(
+      code: ApiErrorCodes.unauthorized,
+      message: 'Sign in to see this.',
+      statusCode: 401,
+      guest: true,
+    );

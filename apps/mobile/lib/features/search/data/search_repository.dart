@@ -240,11 +240,14 @@ class SearchSuggestion {
 }
 
 class ApiSearchRepository implements SearchRepository {
-  ApiSearchRepository(Dio dio)
+  ApiSearchRepository(Dio dio, {this.guest = false})
       : _dio = dio,
         _search = api.SearchClient(dio);
 
   final Dio _dio;
+
+  /// Owner 2026-10-22 (guest browsing): no account — nothing to record.
+  final bool guest;
 
   @override
   Future<List<SearchSuggestion>> suggest(
@@ -279,7 +282,7 @@ class ApiSearchRepository implements SearchRepository {
   @override
   void opened(String q, SearchOpened type, String id) {
     final query = q.trim();
-    if (query.length < 3) return;
+    if (guest || query.length < 3) return;
     unawaited(
       _search
           .click(

@@ -48,6 +48,7 @@ import 'package:lawbid/features/translation/data/content_translation_repository.
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/attorney_advertising_label.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 
 // Owner 2026-09-30: News — the attorney's news posts, apart.
@@ -431,6 +432,18 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           SizedBox(height: AppSpacing.md),
           ReviewCardSkeleton(),
         ],
+      );
+    } else if (reviews.hasError &&
+        state == null &&
+        reviews.error is ApiException &&
+        (reviews.error! as ApiException).guest) {
+      // Owner 2026-10-22 (guest browsing): reviews are for accounts.
+      reviewsState = _TabMessage(
+        icon: AppIcons.personOutlineRounded,
+        title: t.t('guest.gate.title'),
+        message: t.t('guest.error.signIn'),
+        actionLabel: t.t('guest.signIn'),
+        onAction: () => openSignIn(context, ref),
       );
     } else if (reviews.hasError && state == null) {
       final offline = isOfflineError(reviews.error);
