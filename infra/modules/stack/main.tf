@@ -615,6 +615,7 @@ locals {
     # SECRETS_MASTER_KEYS ("<kid>:kms:<base64 ciphertext>", decrypted once
     # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
     DATA_KEYS_KMS_KEY_ARN = aws_kms_key.data_keys.arn
+    DATA_KEYS_KMS_APP     = local.name
     SES_REGION            = data.aws_region.current.name
     SES_FROM_ADDRESS      = var.ses_from_address
     EMAIL_PROVIDER        = "ses"

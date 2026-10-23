@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
@@ -9,6 +10,7 @@ import { SystemHealthService } from './system-health.service';
 @Module({
   imports: [AdminAccessModule, FeatureFlagsModule, FilesModule],
   controllers: [AdminOpsController],
-  providers: [SystemHealthService],
+  // The re-encryption job here only reads / resets its Redis progress.
+  providers: [SystemHealthService, MessageReencryptJob],
 })
 export class AdminOpsModule {}

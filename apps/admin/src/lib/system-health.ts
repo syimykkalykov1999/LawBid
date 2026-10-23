@@ -128,6 +128,32 @@ export function word(item: HealthItem): Worded {
         runbook: 'backup-failed.md',
       };
     }
+    case 'message_keys': {
+      const byKid = (d.byKid ?? {}) as Record<string, { rewritten?: number; failed?: number }>;
+      const retired = (d.retiredKids as string[] | undefined) ?? [];
+      const stuck = Object.entries(byKid)
+        .filter(([, v]) => (v.failed ?? 0) > 0)
+        .map(([k, v]) => `${k}: ${v.failed}`)
+        .join(', ');
+      const removable = (d.removableKids as string[] | undefined) ?? [];
+      return {
+        title: 'Ключи сообщений',
+        line:
+          s === 'grey'
+            ? 'Шифрование чатов выключено (нет MESSAGE_ENC_KEYS).'
+            : d.phase === null
+              ? `Активный ключ ${String(d.activeKid)}${retired.length ? `, старые: ${retired.join(', ')}` : ''}. Перешифровка ещё не запускалась.`
+              : `Активный ключ ${String(d.activeKid)}. ${d.phase === 'done' ? 'Проход завершён' : `Идёт проход (${d.phase === 'messages' ? 'сообщения' : 'правки'})`}: просмотрено ${n(d.scanned) ?? 0}, переписано ${n(d.rewritten) ?? 0}, ошибок ${n(d.failed) ?? 0}.`,
+        todo:
+          s === 'red'
+            ? `Строки, которые не открываются (${stuck}). Ключ с такими строками удалять нельзя; проверьте, что все старые ключи ещё в MESSAGE_ENC_KEYS, и нажмите «Перешифровать заново».`
+            : s === 'yellow'
+              ? 'Идёт постепенная перешифровка по 500 строк; ничего делать не нужно. Старый ключ убирайте из MESSAGE_ENC_KEYS только когда здесь станет зелёным.'
+              : removable.length
+                ? `Старые ключи ${removable.join(', ')} больше не нужны — их можно убрать из MESSAGE_ENC_KEYS (DEPLOY_PROD.md).`
+                : undefined,
+      };
+    }
     case 'cost': {
       return {
         title: 'Расходы AWS за месяц',

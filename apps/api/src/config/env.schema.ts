@@ -384,6 +384,17 @@ export const envSchema = z
       /-----BEGIN (RSA )?PRIVATE KEY-----/,
       'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',
     ),
+    // Owner 2026-10-22 (SECURITY_TODO «KMS-wrapped keys»): the KMS key and
+    // encryption context used to unwrap `kid:kms:…` entries of
+    // MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS at boot (common/secrets/kms-env.ts).
+    DATA_KEYS_KMS_KEY_ARN: optionalMatching(
+      /^arn:aws:kms:[a-z0-9-]+:\d{12}:key\/[\w-]+$/,
+      'DATA_KEYS_KMS_KEY_ARN must be a KMS key ARN',
+    ),
+    DATA_KEYS_KMS_APP: optionalMatching(
+      /^[\w-]{1,64}$/,
+      'DATA_KEYS_KMS_APP must be the stack name',
+    ),
     // MinIO root user/password locally; on AWS leave empty (IAM role).
     S3_ACCESS_KEY_ID: optionalMatching(
       /^\S{3,}$/,
