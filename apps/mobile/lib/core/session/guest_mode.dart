@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
 /// Owner 2026-10-22 (checklist §7 / §21, decision A1): browsing without an
 /// account, like Instagram's logged-out web. A guest is "no token after the
@@ -22,11 +23,16 @@ final guestBrowsingEnabledProvider = Provider<bool>(
       ),
 );
 
-/// True while the app shows its screens to a person without an account.
+/// True while the app shows its screens to a person without an account:
+/// no token and no `GET /users/me` (a loaded user always came with a
+/// session; tests pin a user without one).
 final isGuestProvider = Provider<bool>((ref) {
   if (!ref.watch(guestBrowsingEnabledProvider)) return false;
   if (ref.watch(appStartupProvider) != StartupStatus.ready) return false;
-  return ref.watch(sessionControllerProvider.select((s) => s == null));
+  if (!ref.watch(sessionControllerProvider.select((s) => s == null))) {
+    return false;
+  }
+  return ref.watch(currentUserControllerProvider.select((s) => s.user == null));
 });
 
 /// Where a guest was when they tapped something that needs an account.
