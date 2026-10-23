@@ -575,6 +575,10 @@ GoRouter appRouter(Ref ref) {
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
+/// The root navigator (pages above the tabs); the system-back guard asks it
+/// first (core/navigation/system_back.dart).
+GlobalKey<NavigatorState> get appRootNavigatorKey => _rootNavigatorKey;
+
 /// Bridges the guard's inputs (Riverpod) to go_router's
 /// `refreshListenable`. Session changes are narrowed to sign-in/sign-out
 /// (`sub`), so the 15-minute access-token rotation doesn't re-run the
