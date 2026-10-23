@@ -85,6 +85,13 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How often the website’s QR sign-in screen asks whether the phone confirmed, seconds.',
   },
+  'client.video_prefetch_ahead': {
+    default: 3,
+    min: 0,
+    max: 6,
+    description:
+      'How many reels ahead the app warms (playlist + first segment, up to 1 MB each) while someone swipes. Video traffic is the biggest cost: lower it to save money, 0 = no warm-up.',
+  },
   'client.resume_refresh_min_away_s': {
     default: 30,
     min: 5,

@@ -21,6 +21,7 @@ abstract final class ClientTuning {
   static int _callSyncS = 30;
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
+  static int _videoPrefetchAhead = 3;
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
 
@@ -47,6 +48,9 @@ abstract final class ClientTuning {
   static Duration get callSync => Duration(seconds: _callSyncS);
   static Duration get qrPoll => Duration(seconds: _qrPollS);
   static Duration get resumeMinAway => Duration(seconds: _resumeMinAwayS);
+
+  /// Reels warmed ahead of the one on screen (`client.video_prefetch_ahead`).
+  static int get videoPrefetchAhead => _videoPrefetchAhead;
 
   /// Longest side / JPEG quality of a photo sent in a chat
   /// (`media.chat_photo_*`; the original stays on the phone).
@@ -81,6 +85,7 @@ abstract final class ClientTuning {
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
+    _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
     _chatPhotoMaxPx =
         pick('media.chat_photo_max_px', 1600, 640, 4096).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);

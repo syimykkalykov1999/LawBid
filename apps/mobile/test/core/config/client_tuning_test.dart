@@ -15,6 +15,7 @@ void main() {
     expect(ClientTuning.qrPoll, const Duration(seconds: 10));
     expect(ClientTuning.eventsFlush, const Duration(seconds: 60));
     expect(ClientTuning.eventsEnabled, isTrue);
+    expect(ClientTuning.videoPrefetchAhead, 3);
     expect(ClientTuning.chatPhotoMaxPx, 1600);
     expect(ClientTuning.chatPhotoQuality, 82);
     final waits = [for (var i = 1; i <= 8; i++) ClientTuning.outboxBackoff(i)];
@@ -28,11 +29,13 @@ void main() {
       'client.outbox_retry_max_s': '120',
       'client.events_enabled': 'false',
       'media.chat_photo_quality': '70',
+      'client.video_prefetch_ahead': '0',
     });
     expect(ClientTuning.retryMax, 0);
     expect(ClientTuning.reconnectMaxMs, 120000);
     expect(ClientTuning.eventsEnabled, isFalse);
     expect(ClientTuning.chatPhotoQuality, 70);
+    expect(ClientTuning.videoPrefetchAhead, 0);
     expect(ClientTuning.outboxBackoff(9).inSeconds, 120);
   });
 
