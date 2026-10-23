@@ -41,7 +41,8 @@ export class SessionController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<SessionView | undefined> {
-    if (notModified(req, res, await this.session.etag(user))) return undefined;
-    return this.session.build(user);
+    const inputs = await this.session.inputs(user);
+    if (notModified(req, res, this.session.etagOf(inputs))) return undefined;
+    return this.session.build(user, inputs);
   }
 }
