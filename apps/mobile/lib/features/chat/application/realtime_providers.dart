@@ -1,6 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/realtime/app_signals.dart';
+import 'package:lawbid/core/realtime/timings_provider.dart';
+import 'package:lawbid/core/session/proactive_refresh_provider.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 
@@ -27,13 +32,44 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
         return null;
       }
     },
+    timings: () => ref.read(realtimeTimingsProvider),
+    // The same catch-up as `sync:since`, over HTTP, when the socket is mute.
+    fetchMissed: (since) async {
+      final r = await ref.read(dioProvider).get<Map<String, dynamic>>(
+        '/realtime/missed',
+        queryParameters: {'since': since},
+      );
+      final data = r.data?['data'];
+      return data is Map ? Map<String, Object?>.from(data) : null;
+    },
+    // Owner 2026-10-23: coming back to the app renews a token that is about
+    // to end BEFORE the socket reconnects with it.
+    ensureFreshToken: () async =>
+        ref.read(proactiveRefresherProvider)?.ensureFresh(),
   );
+  // Owner 2026-10-23 (part C9): background / foreground / network back.
+  final reachability = ref.read(reachabilitySignalProvider);
+  final signals = ref.read(appSignalsProvider).signals.listen((s) {
+    switch (s) {
+      case AppSignal.paused:
+        reachability.setBackground(true);
+        client.pause();
+      case AppSignal.resumed:
+        reachability.setBackground(false);
+        client.resume();
+      case AppSignal.networkBack:
+        client.networkBack();
+    }
+  });
   ref
     ..listen(sessionControllerProvider.select((s) => s?.accessToken),
         (_, token) {
       if (token != null) client.tokenChanged(token);
     })
-    ..onDispose(client.dispose);
+    ..onDispose(() {
+      signals.cancel();
+      client.dispose();
+    });
   client.connect();
   return client;
 });

@@ -94,10 +94,10 @@ class _SessionLoader implements AppSessionLoader {
         'iconBadge': true,
       },
       'bootstrapVersion': '17',
+      'client': {'timings': {'reconnectMinMs': 1500}},
       'flags': {'video_posts': true},
       'unreadSupport': 1,
       'hasOngoingCalls': false,
-      'client': {'timings': <String, num>{}},
     });
   }
 }

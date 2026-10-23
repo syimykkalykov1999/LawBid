@@ -101,11 +101,14 @@ class AppStartupController extends Notifier<StartupStatus> {
     }
   }
 
-  Future<void> _flags(api.AppSessionDto? session) =>
-      ref.read(featureFlagsControllerProvider.notifier).refreshInBackground(
-            knownVersion: session?.bootstrapVersion,
-            flags: session?.flags,
-          );
+  Future<void> _flags(api.AppSessionDto? session) {
+    final controller = ref.read(featureFlagsControllerProvider.notifier)
+      ..applySessionTimings(session?.client.timings);
+    return controller.refreshInBackground(
+      knownVersion: session?.bootstrapVersion,
+      flags: session?.flags,
+    );
+  }
 
   /// Translations: the phone already shows its cached bundle; the delta is
   /// asked for shortly after the first frame.

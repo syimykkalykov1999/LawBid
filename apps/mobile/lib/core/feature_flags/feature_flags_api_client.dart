@@ -51,6 +51,14 @@ class FeatureFlagsBootstrapResult {
       }
     }
 
+    // docs/runbooks/REALTIME_LIFECYCLE.md §3: `client.timings` (connection
+    // timings the admin tunes) is kept as JSON under `client.timings`.
+    final rawClient = json['client'];
+    final rawTimings = rawClient is Map ? rawClient['timings'] : null;
+    if (rawTimings is Map) {
+      appConfig['client.timings'] = jsonEncode(rawTimings);
+    }
+
     final rawDocs = json['legal_documents'];
     final legalDocuments = rawDocs is List
         ? rawDocs

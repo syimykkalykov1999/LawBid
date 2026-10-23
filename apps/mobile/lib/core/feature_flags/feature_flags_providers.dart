@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
@@ -63,6 +64,17 @@ class FeatureFlagsController extends _$FeatureFlagsController {
   /// copy belongs to (`AppSessionDto.bootstrapVersion`).
   static const versionKey = 'bootstrap.version';
 
+  /// `GET /me/session` → `client.timings` (connection timings): kept as
+  /// `client.timings` in the config; a bootstrap that carries its own wins.
+  void applySessionTimings(Map<String, num>? timings) {
+    if (timings == null || timings.isEmpty) return;
+    state = FeatureFlagsState(
+      flags: state.flags,
+      appConfig: {...state.appConfig, 'client.timings': jsonEncode(timings)},
+      legalDocuments: state.legalDocuments,
+    );
+  }
+
   /// Owner 2026-10-22 (package G): with [knownVersion] from `/me/session`
   /// the bootstrap is read from the phone when that version is the one
   /// the copy was made for — no request; [flags] (the session's gated
@@ -96,7 +108,12 @@ class FeatureFlagsController extends _$FeatureFlagsController {
         flags: result.flags.isEmpty
             ? state.flags
             : {...defaultFeatureFlags, ...result.flags},
-        appConfig: result.appConfig,
+        appConfig: {
+          // Session timings stay unless the bootstrap carries its own.
+          if (state.appConfig['client.timings'] != null)
+            'client.timings': state.appConfig['client.timings']!,
+          ...result.appConfig,
+        },
         legalDocuments: result.legalDocuments,
       );
       // Owner 2026-10-15: the admin's character limits for text fields.

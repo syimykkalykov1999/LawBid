@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/connectivity/connectivity_service.dart';
 import 'package:lawbid/core/connectivity/connectivity_status.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
+import 'package:lawbid/core/realtime/realtime_timings.dart';
 
 import '../../helpers/ux_harness.dart';
 
@@ -65,7 +66,10 @@ void main() {
 
   Future<void> startService({bool networkUp = true}) async {
     monitor = FakeNetworkMonitor(up: networkUp);
-    signal = ReachabilitySignal();
+    signal = ReachabilitySignal(
+      timings: () =>
+          const RealtimeTimings(offlineFailures: 1, offlineSeconds: 0),
+    );
     probe = FakeProbe();
     timers = ManualTimers();
     service = ConnectivityService(
@@ -221,7 +225,10 @@ void main() {
 
   test('a throwing probe counts as unreachable, never crashes', () async {
     monitor = FakeNetworkMonitor();
-    signal = ReachabilitySignal();
+    signal = ReachabilitySignal(
+      timings: () =>
+          const RealtimeTimings(offlineFailures: 1, offlineSeconds: 0),
+    );
     probe = FakeProbe();
     timers = ManualTimers();
     service = ConnectivityService(

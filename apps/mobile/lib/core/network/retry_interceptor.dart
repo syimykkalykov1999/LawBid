@@ -110,7 +110,11 @@ class RetryInterceptor extends Interceptor {
         if (status == null || !_retryableStatuses.contains(status)) {
           return false;
         }
-        return !_hasDomainErrorCode(err.response?.data);
+        // 503 SERVER_BUSY (docs/runbooks/REALTIME_LIFECYCLE.md §5.6): the
+        // server sheds load and says when to come back (`Retry-After`) -
+        // repeat, do not give up and do not call it offline.
+        return _isServerBusy(err.response?.data) ||
+            !_hasDomainErrorCode(err.response?.data);
       case DioExceptionType.unknown:
         return err.response == null;
       case DioExceptionType.cancel:
@@ -124,6 +128,12 @@ class RetryInterceptor extends Interceptor {
     if (_idempotentMethods.contains(method)) return true;
     return options.headers.keys
         .any((k) => k.toLowerCase() == 'idempotency-key');
+  }
+
+  static bool _isServerBusy(Object? data) {
+    if (data is! Map<String, dynamic>) return false;
+    final error = data['error'];
+    return error is Map<String, dynamic> && error['code'] == 'SERVER_BUSY';
   }
 
   static bool _hasDomainErrorCode(Object? data) {
