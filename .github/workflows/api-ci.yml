@@ -189,6 +189,11 @@ jobs:
         run: npm run db:erd --workspace apps/api && git diff --exit-code -- docs/db/ERD.md
 
       - name: Lint
+        # Type-aware eslint over the whole API peaks near V8's default
+        # ~4 GB heap (the Prisma $extends types alone cost ~1.4 GB); on the
+        # 16 GB runner a bigger heap is cheaper than a split lint.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: npm run lint --workspace apps/api
 
       - name: Fail if lint --fix changed committed files
