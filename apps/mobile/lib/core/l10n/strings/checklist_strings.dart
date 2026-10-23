@@ -50,6 +50,12 @@ const checklistRu = <String, String>{
   'privacy.linkPreviews.hint':
       'Под ссылкой показывается карточка сайта. Данные берёт наш сервер, а не ваш телефон.',
   'chat.linkPreview.label': 'Ссылка',
+  // Item 2: the API's passkey error codes (docs/runbooks/PASSKEYS.md).
+  'error.api.PASSKEY_INVALID':
+      'Ключ не принят. Попробуйте ещё раз или войдите по коду.',
+  'error.api.PASSKEY_NOT_FOUND': 'Этого ключа больше нет в аккаунте.',
+  'error.api.PASSKEY_LIMIT':
+      'Не больше 10 ключей на аккаунт. Сначала удалите один.',
 };
 
 const checklistEn = <String, String>{
@@ -93,4 +99,9 @@ const checklistEn = <String, String>{
   'privacy.linkPreviews.hint':
       'A site card is shown under a link. Our server fetches it, not your phone.',
   'chat.linkPreview.label': 'Link',
+  'error.api.PASSKEY_INVALID':
+      'The key was not accepted. Try again or sign in with a code.',
+  'error.api.PASSKEY_NOT_FOUND': 'This key is no longer on the account.',
+  'error.api.PASSKEY_LIMIT':
+      'No more than 10 keys per account. Remove one first.',
 };
