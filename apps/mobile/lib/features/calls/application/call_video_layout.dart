@@ -83,6 +83,26 @@ final callVideoLayoutProvider =
   CallVideoLayoutNotifier.new,
 );
 
+/// Owner 2026-10-23 (WhatsApp / FaceTime): which camera our picture comes
+/// from. A call starts on the front camera (and so does a camera turned on
+/// again); every flip toggles it. Only the front picture is mirrored.
+class CallFrontCamera extends Notifier<bool> {
+  // Not watching the controller: it reads this provider, so a watch back
+  // would be a cycle. The controller's _reset() puts it back on the front
+  // camera when a call ends.
+  @override
+  bool build() => true;
+
+  /// The camera was flipped (front <-> rear).
+  void flip() => state = !state;
+
+  /// A camera was opened afresh: that is the front one.
+  void front() => state = true;
+}
+
+final callFrontCameraProvider =
+    NotifierProvider<CallFrontCamera, bool>(CallFrontCamera.new);
+
 /// People in the call whose camera is off (they said so over the call's
 /// signalling): their tile shows the photo and a crossed-out camera instead
 /// of the black picture an off camera still sends.
