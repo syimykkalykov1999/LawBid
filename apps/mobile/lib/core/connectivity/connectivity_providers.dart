@@ -41,6 +41,9 @@ final reachabilityProbeProvider = Provider<ReachabilityProbe>((ref) {
     ref.watch(appEnvironmentProvider).apiBaseUrl,
   ).replace(path: '/health/live');
   return () async {
+    final timeout = Duration(
+      milliseconds: ref.read(realtimeTimingsProvider).probeTimeoutMs,
+    );
     try {
       await dio.getUri<Object?>(
         healthUrl,
@@ -49,8 +52,8 @@ final reachabilityProbeProvider = Provider<ReachabilityProbe>((ref) {
             RequestFlags.skipAuth: true,
             RequestFlags.noRetry: true,
           },
-          sendTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 5),
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
           validateStatus: (_) => true,
         ),
       );

@@ -28,11 +28,13 @@ class RealtimeClient {
     required Future<String?> Function() refreshToken,
     RealtimeTimings Function()? timings,
     Future<void> Function()? ensureFreshToken,
+    Future<Map<String, Object?>?> Function(int since)? fetchMissed,
   })  : _origin = _originOf(apiBaseUrl),
         _token = token,
         _refreshToken = refreshToken,
         _timings = timings ?? (() => const RealtimeTimings()),
-        _ensureFreshToken = ensureFreshToken {
+        _ensureFreshToken = ensureFreshToken,
+        _fetchMissed = fetchMissed {
     _policy = ReconnectController(
       timings: _timings,
       isConnected: () => connected,
@@ -45,6 +47,10 @@ class RealtimeClient {
   final Future<String?> Function() _refreshToken;
   final RealtimeTimings Function() _timings;
   final Future<void> Function()? _ensureFreshToken;
+
+  /// `GET /realtime/missed?since=` (the same answer as `sync:since`), used
+  /// when the socket does not answer.
+  final Future<Map<String, Object?>?> Function(int since)? _fetchMissed;
   late final ReconnectController _policy;
   final _events = StreamController<RealtimeEvent>.broadcast();
   final Set<String> _rooms = {};
@@ -65,8 +71,10 @@ class RealtimeClient {
   Timer? _syncTimer;
 
   /// Owner 2026-10-23: a reconnect tells the screens at most once per this
-  /// long (a flapping network must not make every list re-read each time).
-  static const minReconnectedGap = Duration(seconds: 5);
+  /// long (`reconnectedDebounceSeconds`; a flapping network must not make
+  /// every list re-read each time).
+  Duration get minReconnectedGap =>
+      Duration(seconds: _timings().reconnectedDebounceSeconds);
 
   /// How long the server gets to answer `sync:since` before the screens
   /// are told to catch up over REST instead.
@@ -126,6 +134,7 @@ class RealtimeClient {
   Stream<RealtimeEvent> get events => spreadEvents<RealtimeEvent>(
         _events.stream,
         isTarget: (e) => e.name == RealtimeEvent.reconnected,
+        maxDelay: Duration(milliseconds: _timings().refetchJitterMs),
         random: _random,
       );
 
@@ -197,6 +206,14 @@ class RealtimeClient {
         final ms = data is Map ? data['retryAfterMs'] : null;
         _policy.onGoingAway(Duration(milliseconds: ms is num ? ms.toInt() : 0));
       })
+      // docs/runbooks/REALTIME_LIFECYCLE.md: `{seq, serverTime,
+      // authExpiresAt}` right after every connect; the first seq is the
+      // cursor for the first catch-up.
+      ..on('realtime:ready', (data) {
+        if (data is Map && data['seq'] is int && _lastSeq == null) {
+          _lastSeq = data['seq'] as int;
+        }
+      })
       ..on('auth:expiring', (_) => unawaited(_renewToken()))
       ..on('auth:expired', (_) => _reauth())
       ..on('auth:error', (data) {
@@ -239,10 +256,12 @@ class RealtimeClient {
   }
 
   /// After a reconnect: ask the server for what was missed since the last
-  /// `seq` seen (`sync:since`); events it returns are replayed as if they
-  /// had arrived live. No `seq` known, no answer in [syncTimeout] or a
-  /// `reset` answer: tell the screens to catch up themselves (`reconnected`
-  /// then `updatedSince` deltas).
+  /// `seq` seen (`sync:since {seq}`, else `GET /realtime/missed?since=`).
+  /// The answer `{seq, events: [{seq, event, data, truncated}], complete}`
+  /// is replayed in order as if the events had arrived live (a `seq` at or
+  /// below the cursor is dropped). `complete: false`, a `truncated` event,
+  /// or no answer at all: the screens are told ONCE to catch up themselves
+  /// (`reconnected`, then `updatedSince` deltas).
   void _catchUpAfterReconnect(io.Socket socket) {
     final seq = _lastSeq;
     if (seq == null) {
@@ -250,15 +269,28 @@ class RealtimeClient {
       return;
     }
     var answered = false;
-    _syncTimer?.cancel();
-    _syncTimer = Timer(
-      syncTimeout,
-      () {
-        if (answered || _disposed) return;
-        answered = true;
+    void viaHttp() {
+      final fetch = _fetchMissed;
+      if (fetch == null) {
         _announceReconnected();
-      },
-    );
+        return;
+      }
+      fetch(seq).then((r) {
+        if (_disposed) return;
+        if (r == null) {
+          _announceReconnected();
+        } else {
+          _applyMissed(seq, r);
+        }
+      }).catchError((Object _) => _announceReconnected());
+    }
+
+    _syncTimer?.cancel();
+    _syncTimer = Timer(syncTimeout, () {
+      if (answered || _disposed) return;
+      answered = true;
+      viaHttp();
+    });
     socket.emitWithAck(
       'sync:since',
       {'seq': seq},
@@ -266,25 +298,40 @@ class RealtimeClient {
         if (answered || _disposed) return;
         answered = true;
         _syncTimer?.cancel();
-        final ok = data is Map &&
-            data['ok'] != false &&
-            data['reset'] != true &&
-            data['events'] is List;
-        if (!ok) {
-          _announceReconnected();
-          return;
+        if (data is Map && data['events'] is List && data['ok'] != false) {
+          _applyMissed(seq, Map<String, Object?>.from(data));
+        } else {
+          viaHttp();
         }
-        final answer = data;
-        for (final raw in answer['events'] as List) {
-          if (raw is! Map || raw['name'] is! String) continue;
-          _noteSeq(raw);
-          _noteSeq(raw['data']);
-          _events.add(RealtimeEvent(raw['name'] as String, raw['data']));
-        }
-        final top = answer['seq'];
-        if (top is int && top > (_lastSeq ?? -1)) _lastSeq = top;
       },
     );
+  }
+
+  void _applyMissed(int since, Map<String, Object?> answer) {
+    if (answer['complete'] == false || answer['events'] is! List) {
+      final top = answer['seq'];
+      if (top is int && top > (_lastSeq ?? -1)) _lastSeq = top;
+      _announceReconnected();
+      return;
+    }
+    var refreshAll = false;
+    for (final raw in answer['events']! as List) {
+      if (raw is! Map) continue;
+      final evSeq = raw['seq'];
+      if (evSeq is int && evSeq <= since) continue;
+      final name = raw['event'] ?? raw['name'];
+      if (name is! String) continue;
+      if (raw['truncated'] == true) {
+        refreshAll = true;
+        continue;
+      }
+      _noteSeq(raw);
+      _noteSeq(raw['data']);
+      _events.add(RealtimeEvent(name, raw['data']));
+    }
+    final top = answer['seq'];
+    if (top is int && top > (_lastSeq ?? -1)) _lastSeq = top;
+    if (refreshAll) _announceReconnected();
   }
 
   /// `reconnected` at most once per [minReconnectedGap]; a second one inside

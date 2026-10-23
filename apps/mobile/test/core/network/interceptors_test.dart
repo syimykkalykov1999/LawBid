@@ -174,6 +174,17 @@ void main() {
       expect(adapter.requests, hasLength(1));
     });
 
+    test('retries 503 SERVER_BUSY (the server sheds load, come back)',
+        () async {
+      var calls = 0;
+      adapter.handler = (o) async {
+        calls++;
+        return calls == 1 ? apiError(503, 'SERVER_BUSY') : ok(const {});
+      };
+      await dio.get<dynamic>('/x');
+      expect(calls, 2);
+    });
+
     test('does not retry 4xx or opted-out requests', () async {
       adapter.handler = (o) async => apiError(400, 'VALIDATION_ERROR');
       await expectLater(dio.get<dynamic>('/x'), throwsA(isA<DioException>()));

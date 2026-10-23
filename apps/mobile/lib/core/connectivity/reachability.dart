@@ -13,8 +13,8 @@ import 'package:lawbid/core/realtime/reconnect_controller.dart';
 ///
 /// Owner 2026-10-23 (part C4): a single failed request is not "offline".
 /// The signal turns unreachable only after `offlineFailures` failures in a
-/// row, or when `offlineSeconds` pass after the first failure with no
-/// success in between; the first success turns it back at once. Failures
+/// row AND `offlineSeconds` since the first of them, with no success in
+/// between; the first success turns it back at once. Failures
 /// while the app is in the background are ignored (a sleeping radio is not
 /// a dead server).
 class ReachabilitySignal {
@@ -55,16 +55,19 @@ class ReachabilitySignal {
     _failures++;
     final first = _firstFailureAt ??= _now();
     final t = _timings();
-    if (_failures >= t.offlineFailures) {
+    // Both must hold (docs/runbooks/REALTIME_LIFECYCLE.md §5): enough
+    // failures in a row AND the failing has lasted long enough.
+    if (_failures < t.offlineFailures) return;
+    final left = Duration(seconds: t.offlineSeconds) - _now().difference(first);
+    if (left <= Duration.zero) {
       _resetFailures();
       _set(false);
       return;
     }
     if (_graceTimer?.isActive ?? false) return;
-    final left = Duration(seconds: t.offlineSeconds) - _now().difference(first);
-    _graceTimer = _timer(left.isNegative ? Duration.zero : left, () {
+    _graceTimer = _timer(left, () {
       _graceTimer = null;
-      if (_background || _failures == 0) return;
+      if (_background || _failures < _timings().offlineFailures) return;
       _resetFailures();
       _set(false);
     });

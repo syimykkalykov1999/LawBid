@@ -7,6 +7,7 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/realtime/realtime_timings.dart';
+import 'package:lawbid/core/realtime/timings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fake_http_adapter.dart';
@@ -20,7 +21,8 @@ void main() {
 
     setUp(() {
       signal = ReachabilitySignal(
-        timings: () => const RealtimeTimings(offlineFailures: 1),
+        timings: () =>
+            const RealtimeTimings(offlineFailures: 1, offlineSeconds: 0),
       );
       events = [];
       signal.changes.listen(events.add);
@@ -108,7 +110,12 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          realtimeTimingsProvider.overrideWithValue(
+            const RealtimeTimings(offlineSeconds: 0),
+          ),
+        ],
       );
       addTearDown(container.dispose);
       return container;

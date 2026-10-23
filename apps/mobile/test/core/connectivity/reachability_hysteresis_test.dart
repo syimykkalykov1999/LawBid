@@ -7,57 +7,72 @@ import 'package:lawbid/core/connectivity/reachability.dart';
 void main() {
   final t0 = DateTime(2026, 10, 23, 12);
 
-  test('one failure is not offline; the first success clears it', () {
+  ReachabilitySignal make(FakeAsync async) =>
+      ReachabilitySignal(now: () => async.getClock(t0).now());
+
+  test('one failure is not offline; a success resets the count', () {
     fakeAsync((async) {
       final events = <bool>[];
-      final s = ReachabilitySignal(now: () => async.getClock(t0).now());
+      final s = make(async);
       s.changes.listen(events.add);
       s.markUnreachable();
       expect(s.lastKnown, isNull);
       s.markReachable();
       expect(events, [true]);
       s.markUnreachable();
-      s.markReachable(); // the counter restarted
+      s.markReachable();
+      s.markUnreachable();
+      async.elapse(const Duration(seconds: 60));
+      expect(s.lastKnown, isTrue);
+    });
+  });
+
+  test('two failures alone are not enough: they must last 8 s', () {
+    fakeAsync((async) {
+      final events = <bool>[];
+      final s = make(async);
+      s.changes.listen(events.add);
+      s.markReachable();
+      s.markUnreachable();
       s.markUnreachable();
       expect(s.lastKnown, isTrue);
-      async.elapse(const Duration(seconds: 7));
+      async.elapse(const Duration(seconds: 7, milliseconds: 999));
+      expect(s.lastKnown, isTrue);
+      async.elapse(const Duration(milliseconds: 1));
+      expect(s.lastKnown, isFalse);
+      s.markReachable(); // the first success brings it back at once
+      expect(events, [true, false, true]);
+    });
+  });
+
+  test('a success inside the window cancels the pending offline', () {
+    fakeAsync((async) {
+      final s = make(async);
+      s.markReachable();
+      s.markUnreachable();
+      s.markUnreachable();
+      async.elapse(const Duration(seconds: 5));
       s.markReachable();
       async.elapse(const Duration(seconds: 30));
       expect(s.lastKnown, isTrue);
     });
   });
 
-  test('two failures in a row mean offline, the first success brings back', () {
+  test('a late second failure after 8 s counts at once', () {
     fakeAsync((async) {
-      final events = <bool>[];
-      final s = ReachabilitySignal(now: () => async.getClock(t0).now());
-      s.changes.listen(events.add);
-      s
-        ..markReachable()
-        ..markUnreachable();
-      expect(s.lastKnown, isTrue);
-      s.markUnreachable();
-      expect(s.lastKnown, isFalse);
-      s.markReachable();
-      expect(events, [true, false, true]);
-    });
-  });
-
-  test('8 s after the first failure with no success also means offline', () {
-    fakeAsync((async) {
-      final s = ReachabilitySignal(now: () => async.getClock(t0).now());
+      final s = make(async);
       s.markReachable();
       s.markUnreachable();
-      async.elapse(const Duration(seconds: 7, milliseconds: 999));
+      async.elapse(const Duration(seconds: 9));
       expect(s.lastKnown, isTrue);
-      async.elapse(const Duration(milliseconds: 1));
+      s.markUnreachable();
       expect(s.lastKnown, isFalse);
     });
   });
 
-  test('failures in the background are ignored', () {
+  test('failures in the background are ignored and forgotten', () {
     fakeAsync((async) {
-      final s = ReachabilitySignal(now: () => async.getClock(t0).now());
+      final s = make(async);
       s.markReachable();
       s.setBackground(true);
       s
@@ -67,17 +82,7 @@ void main() {
       async.elapse(const Duration(minutes: 1));
       expect(s.lastKnown, isTrue);
       s.setBackground(false);
-      s.markUnreachable(); // a single one again
-      expect(s.lastKnown, isTrue);
-    });
-  });
-
-  test('a pending failure forgotten on going to the background', () {
-    fakeAsync((async) {
-      final s = ReachabilitySignal(now: () => async.getClock(t0).now());
-      s.markReachable();
       s.markUnreachable();
-      s.setBackground(true);
       async.elapse(const Duration(seconds: 30));
       expect(s.lastKnown, isTrue);
     });

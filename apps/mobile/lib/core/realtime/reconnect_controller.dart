@@ -70,7 +70,12 @@ class ReconnectController {
       _random.nextDouble(),
     );
     if (serverClosed) {
-      final extra = Duration(milliseconds: 1000 + _random.nextInt(14000));
+      final t = _timings();
+      final span = t.serverDisconnectMaxWaitMs - t.serverDisconnectMinWaitMs;
+      final extra = Duration(
+        milliseconds: t.serverDisconnectMinWaitMs +
+            (span > 0 ? _random.nextInt(span + 1) : 0),
+      );
       if (extra > wait) wait = extra;
     }
     _schedule(wait);

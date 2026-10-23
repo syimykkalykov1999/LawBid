@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/realtime/app_signals.dart';
 import 'package:lawbid/core/realtime/timings_provider.dart';
 import 'package:lawbid/core/session/proactive_refresh_provider.dart';
@@ -32,6 +33,15 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
       }
     },
     timings: () => ref.read(realtimeTimingsProvider),
+    // The same catch-up as `sync:since`, over HTTP, when the socket is mute.
+    fetchMissed: (since) async {
+      final r = await ref.read(dioProvider).get<Map<String, dynamic>>(
+        '/realtime/missed',
+        queryParameters: {'since': since},
+      );
+      final data = r.data?['data'];
+      return data is Map ? Map<String, Object?>.from(data) : null;
+    },
     // Owner 2026-10-23: coming back to the app renews a token that is about
     // to end BEFORE the socket reconnects with it.
     ensureFreshToken: () async =>

@@ -22,9 +22,9 @@ class _Fixed implements Random {
 
 void main() {
   group('ReconnectBackoff', () {
-    const t = RealtimeTimings();
+    const t = RealtimeTimings(jitter: 1);
 
-    test('doubles from 1 s up to 30 s without jitter spread (random = 1)', () {
+    test('doubles from 1 s up to 30 s (random = 1)', () {
       final steps = [
         for (var i = 0; i < 8; i++)
           ReconnectBackoff.delay(i, t, 1).inMilliseconds,
@@ -52,7 +52,6 @@ void main() {
       const tuned = RealtimeTimings(
         reconnectMinMs: 2000,
         reconnectMaxMs: 10000,
-        jitter: 0.5,
       );
       // step 10 s at attempt 3; random 0 -> half of it, random 1 -> all.
       expect(ReconnectBackoff.delay(3, tuned, 0).inMilliseconds, 5000);

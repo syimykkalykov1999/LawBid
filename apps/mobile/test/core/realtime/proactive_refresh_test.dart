@@ -54,6 +54,30 @@ void main() {
       expect(t.pollingFallbackAfter, 1);
     });
 
+    test('reads the contract keys of REALTIME_LIFECYCLE.md', () {
+      final t = RealtimeTimings.fromJson({
+        'reconnectJitter': 0.25,
+        'serverDisconnectMinWaitMs': 2000,
+        'serverDisconnectMaxWaitMs': 9000,
+        'probeTimeoutMs': 4000,
+        'tokenRefreshLeadSeconds': 100,
+        'pollingFallbackIntervalSeconds': 45,
+        'reconnectedDebounceSeconds': 7,
+        'refetchJitterMs': 1500,
+        'pingIntervalMs': 25000,
+      });
+      expect(t.jitter, 0.25);
+      expect([t.serverDisconnectMinWaitMs, t.serverDisconnectMaxWaitMs],
+          [2000, 9000]);
+      expect(t.probeTimeoutMs, 4000);
+      expect(t.tokenRefreshLeadSec, 100);
+      expect(t.pollingFallbackIntervalSeconds, 45);
+      expect(t.reconnectedDebounceSeconds, 7);
+      expect(t.refetchJitterMs, 1500);
+      // Server defaults when nothing is sent.
+      expect(const RealtimeTimings().jitter, 0.5);
+    });
+
     test('reads client.timings from app_config, both shapes', () {
       expect(
         RealtimeTimings.fromAppConfig(
