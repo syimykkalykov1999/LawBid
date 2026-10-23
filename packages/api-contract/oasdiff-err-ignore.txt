@@ -341,3 +341,16 @@ POST /legal/accept added the new `accessibility` enum value to the `data/items/d
 POST /users/me/onboarding/complete added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
 POST /users/me/role added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
 PUT /admin/legal/documents/{type}/{locale}/draft added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+# Owner 2026-10-22: theme Blue / Green. Old apps map an unknown ThemePref to $unknown; the API itself reads legacy navy as blue and glass as dark
+GET /users/me added the new `blue` enum value to the `data/theme` response property for the response status `200`
+GET /users/me added the new `green` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me added the new `blue` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me added the new `green` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/role added the new `blue` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/role added the new `green` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me/onboarding added the new `blue` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me/onboarding added the new `green` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `blue` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `green` enum value to the `data/theme` response property for the response status `200`
+GET /me/session added the new `blue` enum value to the `data/me/theme` response property for the response status `200`
+GET /me/session added the new `green` enum value to the `data/me/theme` response property for the response status `200`

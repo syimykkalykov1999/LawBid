@@ -126467,7 +126467,9 @@
           "light",
           "dark",
           "navy",
-          "glass"
+          "glass",
+          "blue",
+          "green"
         ]
       },
       "PendingLegalDocumentDto": {
@@ -126901,7 +126903,9 @@
               "light",
               "dark",
               "navy",
-              "glass"
+              "glass",
+              "blue",
+              "green"
             ]
           },
           "hideLikeCounts": {

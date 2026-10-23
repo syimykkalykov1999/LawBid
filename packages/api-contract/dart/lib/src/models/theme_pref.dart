@@ -16,6 +16,10 @@ enum ThemePref {
   navy('navy'),
   @JsonValue('glass')
   glass('glass'),
+  @JsonValue('blue')
+  blue('blue'),
+  @JsonValue('green')
+  green('green'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

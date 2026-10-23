@@ -40,6 +40,7 @@ import {
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import { demoContext } from '../../../common/demo/demo-context';
+import { normalizeThemePref } from '../dto/theme-pref.util';
 
 /** docs/01_FOUNDATION_AUTH.md §10.2 H: consents that must be granted
  * before anything else in onboarding. */
@@ -221,7 +222,7 @@ export class OnboardingService {
       phone: user.phone_e164,
       phoneVerified: user.phone_verified_at !== null,
       uiLanguage: user.ui_language,
-      theme: user.theme,
+      theme: normalizeThemePref(user.theme),
       hideLikeCounts: user.hide_like_counts,
       avatarFileId: user.avatar_file_id,
       avatarUrl,

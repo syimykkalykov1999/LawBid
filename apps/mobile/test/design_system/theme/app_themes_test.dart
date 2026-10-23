@@ -32,8 +32,9 @@ Future<void> main() async {
       );
       expect(AppThemes.of(AppThemeId.day).serverWire, 'light');
       expect(AppThemes.of(AppThemeId.night).serverWire, 'dark');
-      expect(AppThemes.of(AppThemeId.blue).serverWire, 'navy');
+      expect(AppThemes.of(AppThemeId.blue).serverWire, 'blue');
       expect(AppThemes.of(AppThemeId.green).wire, 'green');
+      expect(AppThemes.of(AppThemeId.green).serverWire, 'green');
     });
 
     test('saved values of older versions still read', () {
@@ -47,6 +48,8 @@ Future<void> main() async {
       expect(AppThemes.fromServer('glass'), AppThemeId.night);
       expect(AppThemes.fromServer('navy'), AppThemeId.blue);
       expect(AppThemes.fromServer('light'), AppThemeId.day);
+      expect(AppThemes.fromServer('blue'), AppThemeId.blue);
+      expect(AppThemes.fromServer('green'), AppThemeId.green);
       expect(AppThemes.fromServer('system'), isNull);
     });
 

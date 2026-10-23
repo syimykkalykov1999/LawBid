@@ -29,7 +29,7 @@ final class AppThemeSpec {
   /// Stored on the phone.
   final String wire;
 
-  /// `users.theme` on the server (`ThemePref`): day = light, night = dark.
+  /// `users.theme` on the server (`ThemePref`): light / dark / blue / green.
   final String serverWire;
 
   /// Material brightness (dark themes use the dark system chrome).
@@ -80,8 +80,7 @@ abstract final class AppThemes {
     AppThemeSpec(
       id: AppThemeId.blue,
       wire: 'blue',
-      // The API's ThemePref has no `blue` yet; its `navy` is this theme.
-      serverWire: 'navy',
+      serverWire: 'blue',
       brightness: Brightness.light,
       nameKey: 'theme.blue.name',
       descKey: 'theme.blue.desc',
@@ -94,8 +93,7 @@ abstract final class AppThemes {
     AppThemeSpec(
       id: AppThemeId.green,
       wire: 'green',
-      // The API's ThemePref has no `green` yet: the account keeps `light`.
-      serverWire: 'light',
+      serverWire: 'green',
       brightness: Brightness.light,
       nameKey: 'theme.green.name',
       descKey: 'theme.green.desc',
@@ -128,11 +126,15 @@ abstract final class AppThemes {
 
   /// `users.theme` → a theme (null = the account follows the system).
   static AppThemeId? fromServer(String? raw) {
-    // First match wins (Green shares `light` with Day: Day comes first).
     for (final s in all) {
       if (s.serverWire == raw) return s.id;
     }
-    return raw == 'glass' ? AppThemeId.night : null;
+    // Rows written by older apps: navy was Blue, glass is Night.
+    return switch (raw) {
+      'navy' => AppThemeId.blue,
+      'glass' => AppThemeId.night,
+      _ => null,
+    };
   }
 
   /// Day or Night by the phone's own brightness (a user who never chose).
