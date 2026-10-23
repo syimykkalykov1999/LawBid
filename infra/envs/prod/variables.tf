@@ -184,6 +184,11 @@ variable "database_instance_class" {
   type    = string
   default = "db.t4g.medium"
 }
+variable "database_max_connections" {
+  type        = number
+  default     = 0
+  description = "0 = estimated from database_instance_class; set it when the database is not ours."
+}
 variable "database_backup_retention_days" {
   type    = number
   default = 14
@@ -303,9 +308,10 @@ variable "waf_bot_control_block" {
   type    = bool
   default = false
 }
+# Scale audit 2026-10-23: a feed screen loads dozens of pictures; see waf_rate_limit_per_5m.
 variable "cdn_waf_rate_limit_per_5m" {
   type    = number
-  default = 2000
+  default = 10000
 }
 variable "security_hub_enabled" {
   type    = bool
