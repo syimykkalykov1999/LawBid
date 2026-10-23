@@ -48,6 +48,6 @@
   /* The engine: Chrome-like browsers get skwasm, Safari / Firefox the
      bigger skwasm_heavy (flutter.js picks by the same test). */
   var engine = window.chrome ? 'skwasm' : 'skwasm_heavy';
-  add('preload', 'canvaskit/' + engine + '.js', 'script');
+  add('modulepreload', 'canvaskit/' + engine + '.js');
   add('preload', 'canvaskit/' + engine + '.wasm', 'fetch', true);
 })();

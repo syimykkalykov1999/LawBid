@@ -1,0 +1,27 @@
+name: passkeys_web
+description: Web implementation of the Corbado passkeys plugin. Manages the creation of passkeys in browsers.
+homepage: https://docs.corbado.com/overview/welcome
+repository: https://github.com/corbado/flutter-passkeys/tree/main/packages/passkeys/passkeys_web
+version: 2.10.1
+publish_to: none
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+  flutter: ">=3.35.0"
+
+flutter:
+  plugin:
+    implements: passkeys
+    platforms:
+      web:
+        pluginClass: PasskeysWeb
+        fileName: passkeys_web.dart
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+  json_annotation: ^4.8.1
+  passkeys_platform_interface: ^2.10.0
+  web: ^1.1.1

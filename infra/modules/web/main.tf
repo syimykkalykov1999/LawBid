@@ -305,6 +305,11 @@ resource "aws_cloudfront_function" "seo_index" {
     var kvs = cf.kvs('${aws_cloudfront_key_value_store.web.id}');
     var PUBLIC = /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/;
     var ROOT_FILES = ['/sitemap.xml', '/robots.txt', '/public-paths.txt'];
+    // Owner 2026-10-23 (web speed pass): the app and the engine have a
+    // brotli twin (<file>.br, uploaded by scripts/deploy/web-gzip-big.sh)
+    // about 27% smaller than the gzip the bucket object carries.
+    var BR = /^\/v\/[^\/]+\/(main\.dart\.(js|wasm)|canvaskit\/([a-z_]+\/)?[a-z_]+\.(js|wasm))$/;
+    var SHA = /^[0-9A-Za-z]{7,64}$/;
     async function get(key) {
       try { return await kvs.get(key); } catch (e) { return ''; }
     }
@@ -352,7 +357,17 @@ resource "aws_cloudfront_function" "seo_index" {
       if (uri === '/') {
         request.uri = base + '/index.html';
       } else if (app) {
-        request.uri = base + uri;
+        // /v/<sha>/...: the files of THAT release (the build puts the app,
+        // the engine and the assets there, immutable). A tab left open
+        // across a deploy still finds its own lazy parts, not the new
+        // release's.
+        var parts = uri.split('/');
+        var rel = (first === 'v' && SHA.test(parts[2] || '')) ? parts[2] : release;
+        request.uri = (first === 'v' ? '/releases/' + rel : base) + uri;
+        var ae = request.headers['accept-encoding'];
+        if (BR.test(uri) && ae && ae.value.indexOf('br') !== -1 && (await get('br_' + rel)) === '1') {
+          request.uri += '.br';
+        }
       } else if (!hasExt) {
         // An app screen: the same page, under a name noindex can tell apart.
         request.uri = base + '/spa.html';

@@ -254,6 +254,14 @@ dependency_overrides:
   flutter_secure_storage_web:
     path: third_party/flutter_secure_storage_web
 
+  # Owner 2026-10-23 (web speed pass): upstream passkeys_web closes the
+  # window / throws at startup when bundle.js is missing, e.g. when the page's
+  # content security policy refuses the github.com script — the web app then
+  # never drew a first frame. Patched copy (BSD-3, Corbado): the app starts,
+  # passkeys are simply unavailable (third_party/passkeys_web/lib).
+  passkeys_web:
+    path: third_party/passkeys_web
+
 # Owner 2026-10-22 (audit #11): `dart run sentry_dart_plugin` after a prod
 # release build (fastlane `sentry_symbols`) uploads the Dart symbols of
 # `--split-debug-info=build/symbols/<platform>` and the native debug files
