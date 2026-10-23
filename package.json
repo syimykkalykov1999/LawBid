@@ -24,5 +24,8 @@
     "apps/api/**/*.ts": [
       "npm run lint --workspace apps/api -- --no-warn-ignored"
     ]
+  },
+  "overrides": {
+    "body-parser": "^2.4.0"
   }
 }
