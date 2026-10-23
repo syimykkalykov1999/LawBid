@@ -7,6 +7,7 @@ import {
 } from '../posts/hidden-tags';
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ftsMatch,
@@ -89,7 +90,14 @@ export class PostgresSearchProvider implements SearchProvider {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-15: everyday words and phrases → topics.
     @Optional() private readonly synonyms?: SearchSynonymsService,
+    // Load audit 6: search tolerates replica lag, so it reads the replica
+    // when DATABASE_REPLICA_URL is set (prisma-read.service.ts).
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
+
+  private get db(): PrismaService {
+    return this.read?.db ?? this.prisma;
+  }
 
   /** Owner 2026-10-18 (speed): practice area id → its name in every
    * language, lower-cased, kept in memory for 10 minutes. The "practice by
@@ -109,7 +117,7 @@ export class PostgresSearchProvider implements SearchProvider {
     ) {
       return cached.byArea;
     }
-    const rows = await this.prisma.$queryRaw<{ id: string; v: string }[]>`
+    const rows = await this.db.$queryRaw<{ id: string; v: string }[]>`
       SELECT pa.id::TEXT AS id, lower(tr.value) AS v
       FROM practice_areas pa
       JOIN i18n_keys k ON k.key = pa.i18n_key
@@ -259,7 +267,7 @@ export class PostgresSearchProvider implements SearchProvider {
           AND c.username_lower IS NOT NULL
         WHERE TRUE ${clientFilters}`
       : Prisma.empty;
-    const rows = await this.prisma.$queryRaw<
+    const rows = await this.db.$queryRaw<
       { id: string; role: PersonRole; tier: number }[]
     >`
       WITH cand AS (
@@ -350,7 +358,7 @@ export class PostgresSearchProvider implements SearchProvider {
     // topic — any qualification (category → its subcategories) in the
     // attorney's licensed states, not only their own practices.
     if (p.practiceCategory) {
-      return this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(
+      return this.db.$queryRaw<{ id: string; created_at: Date }[]>(
         buildPracticeCasesSql({
           attorneyId: p.attorneyId,
           practice: p.practiceCategory,
@@ -365,7 +373,7 @@ export class PostgresSearchProvider implements SearchProvider {
         }),
       );
     }
-    return this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(
+    return this.db.$queryRaw<{ id: string; created_at: Date }[]>(
       buildVisibleCasesSql({
         attorneyId: p.attorneyId,
         practiceAreaId: p.practiceAreaId,
@@ -411,7 +419,7 @@ export class PostgresSearchProvider implements SearchProvider {
         : f.sort === 'popular'
           ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
           : Prisma.sql`${ftsRank('m', q, w.text)} DESC, m.created_at DESC, m.id DESC`;
-    const run = (match: Prisma.Sql) => this.prisma.$queryRaw<{ id: string }[]>`
+    const run = (match: Prisma.Sql) => this.db.$queryRaw<{ id: string }[]>`
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
         WHERE ${match}
@@ -464,7 +472,7 @@ export class PostgresSearchProvider implements SearchProvider {
   ): Promise<{ code: string; nameEn: string; hit: string | null }[]> {
     const norm = parseSearchQuery(q).plain.toLowerCase();
     if (norm.length < 2) return [];
-    const rows = await this.prisma.$queryRaw<
+    const rows = await this.db.$queryRaw<
       { code: string; name_en: string; value: string; lang: string }[]
     >`
       SELECT code, name_en, value, lang FROM (
@@ -519,7 +527,7 @@ export class PostgresSearchProvider implements SearchProvider {
     if (norm.length < 3) return [];
     const hit = this.practiceCache.get(norm);
     if (hit && Date.now() - hit.at < 600_000) return hit.ids;
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const rows = await this.db.$queryRaw<{ id: string }[]>`
       WITH hits AS (
         SELECT DISTINCT pa.id, pa.parent_id
         FROM practice_areas pa
@@ -550,10 +558,10 @@ export class PostgresSearchProvider implements SearchProvider {
     loose = false,
   ): Promise<T[]> {
     try {
-      const [, , result] = await this.prisma.$transaction([
-        this.prisma
+      const [, , result] = await this.db.$transaction([
+        this.db
           .$executeRaw`SELECT set_config('statement_timeout', ${String(Math.floor(ms))}, true)`,
-        this.prisma
+        this.db
           .$executeRaw`SELECT set_config('pg_trgm.word_similarity_threshold', ${loose ? TYPO_THRESHOLD : '0.6'}, true)`,
         query() as unknown as Prisma.PrismaPromise<T[]>,
       ]);
@@ -604,7 +612,7 @@ export class PostgresSearchProvider implements SearchProvider {
     rows = [...new Map([...rows, ...place].map((r) => [r.id, r])).values()];
     const ids = rows.map((r) => r.id);
     if (ids.length > 0) {
-      const ranked = await this.prisma.$queryRaw<{ id: string }[]>`
+      const ranked = await this.db.$queryRaw<{ id: string }[]>`
         SELECT c.id::TEXT AS id FROM cases c
         WHERE c.id = ANY(${ids}::UUID[])
         ORDER BY ${ftsRank('c', q, w.text)} DESC, c.created_at DESC, c.id DESC
@@ -635,13 +643,13 @@ export class PostgresSearchProvider implements SearchProvider {
     const like = `${escapeLike(prefix)}%`;
     const [tags, people, practices] = await Promise.all([
       this.searchTags(prefix, perKind),
-      this.prisma.$queryRaw<{ username: string }[]>`
+      this.db.$queryRaw<{ username: string }[]>`
         SELECT username FROM attorney_profiles
         WHERE username_lower LIKE ${like}
           AND verification_status <> 'suspended'
         ORDER BY rating_count DESC, username_lower
         LIMIT ${perKind}`,
-      this.prisma.$queryRaw<{ name: string }[]>`
+      this.db.$queryRaw<{ name: string }[]>`
         SELECT name_en AS name FROM practice_areas
         WHERE parent_id IS NULL AND lower(name_en) LIKE ${like}
         ORDER BY sort LIMIT ${perKind}`,
@@ -654,7 +662,7 @@ export class PostgresSearchProvider implements SearchProvider {
   }
 
   async searchTags(prefix: string, limit: number): Promise<string[]> {
-    const rows = await this.prisma.tag.findMany({
+    const rows = await this.db.tag.findMany({
       where: {
         tag_lower: { startsWith: prefix },
         NOT: { tag_lower: { startsWith: HIDDEN_TAG_PREFIX } },

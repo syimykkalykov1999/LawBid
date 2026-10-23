@@ -46,7 +46,7 @@ type ExtendedClient = ReturnType<typeof extend>;
 
 const slowLog = new Logger('SlowQuery');
 
-function extend(client: PrismaClient) {
+export function extend(client: PrismaClient) {
   return client
     .$extends(softDeleteExtension())
     .$extends(
@@ -213,6 +213,7 @@ export function routingOf(prisma: PrismaService): PrismaRoutingControl {
 export function withPoolDefaults(
   raw: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
+  poolVar = 'DB_POOL_SIZE',
 ): string | undefined {
   if (!raw) return undefined;
   let url: URL;
@@ -221,7 +222,7 @@ export function withPoolDefaults(
   } catch {
     return raw;
   }
-  const pool = Number(env.DB_POOL_SIZE);
+  const pool = Number(env[poolVar] ?? env.DB_POOL_SIZE);
   const defaults: Record<string, string> = {
     connection_limit: String(Number.isInteger(pool) && pool > 0 ? pool : 10),
     pool_timeout: '10',
