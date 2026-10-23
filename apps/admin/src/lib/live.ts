@@ -7,8 +7,10 @@ import { api, ApiError } from '@/lib/api/client';
  * - live data refreshes at most once a minute (LIVE_MS), and only while
  *   the tab is visible (TanStack's refetchIntervalInBackground: false);
  * - one query key is polled from ONE place: the sidebar badges (shell)
- *   poll dashboard / support stats / trust stats, pages reuse the same
- *   options without their own timer and read the shared cache;
+ *   poll /admin/counts only; heavy aggregates (dashboard, trust stats…) are
+ *   precomputed on the server and revalidated when the tab regains focus
+ *   (owner 2026-10-23: no timers except the live work queues — the support
+ *   inbox and thread, approvals, the system-health board);
  * - a 429 is never retried (providers.tsx) and backs the timer off to
  *   RATE_LIMITED_BACKOFF_MS until a request succeeds again;
  * - pages show «обновлено N с назад» (UpdatedAgo) instead of refetching.
@@ -45,12 +47,14 @@ export const countsQuery = queryOptions({
   queryFn: async () => (await api.GET('/admin/counts')).data!.data,
 });
 
-/** The dashboard aggregate; polled by the dashboard page while it is open
- * (owner 2026-10-22: the shell reads countsQuery instead). */
+/** The dashboard aggregate (server-side precomputed). */
 export const dashboardQuery = queryOptions({
   queryKey: ['dashboard'],
   queryFn: async () => (await api.GET('/admin/dashboard')).data!.data,
-  refetchInterval: livePoll(),
+  // Owner 2026-10-23 (admin economy pass): the server recounts this every
+  // two minutes for the whole team; the page revalidates on focus instead
+  // of running a timer.
+  refetchOnWindowFocus: true,
 });
 
 /** Shared by the dashboard and Поддержка; polled while one of them is open. */
@@ -60,11 +64,12 @@ export const supportStatsQuery = queryOptions({
   refetchInterval: livePoll(),
 });
 
-/** «Борьба с мошенниками» stats; polled while the page is open. */
+/** Attorney-trust stats (server-side precomputed). */
 export const trustStatsQuery = queryOptions({
   queryKey: ['trust-stats'],
   queryFn: async () => (await api.GET('/admin/trust/stats')).data!.data,
-  refetchInterval: livePoll(),
+  // Owner 2026-10-23: counted by the server every few minutes; no timer.
+  refetchOnWindowFocus: true,
 });
 
 /**

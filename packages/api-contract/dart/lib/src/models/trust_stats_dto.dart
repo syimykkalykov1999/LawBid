@@ -23,12 +23,16 @@ class TrustStatsDto {
     required this.manualReview,
     required this.byStatus,
     required this.blockedBarNumbers,
+    this.computedAt,
   });
 
   factory TrustStatsDto.fromJson(Map<String, Object?> json) =>
       _$TrustStatsDtoFromJson(json);
 
   final List<TrustLevelCountDto> byLevel;
+
+  /// When the numbers were counted (the worker recounts every few minutes).
+  final String? computedAt;
 
   /// Attorneys with any hold.
   final int held;

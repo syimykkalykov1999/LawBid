@@ -14,7 +14,6 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { UpdatedAgo } from '@/components/updated-ago';
 import { ApiError, api, errorText } from '@/lib/api/client';
-import { livePoll } from '@/lib/live';
 import { economyLine, usd, type Economy } from '@/lib/economy';
 import { formatDateTime } from '@/lib/utils';
 
@@ -32,7 +31,9 @@ export default function EconomyPage() {
   const q = useQuery({
     queryKey: ['economy'],
     queryFn: async () => (await api.GET('/admin/economy')).data!.data as Economy,
-    refetchInterval: livePoll(),
+    // Owner 2026-10-23 (admin economy pass): no timer — revalidated when
+    // the admin comes back to the tab (stale-while-revalidate).
+    refetchOnWindowFocus: true,
   });
   const set = (r: Economy) => qc.setQueryData(['economy'], r);
   const e = q.data;

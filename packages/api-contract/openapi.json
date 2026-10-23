@@ -126789,7 +126789,9 @@
           "light",
           "dark",
           "navy",
-          "glass"
+          "glass",
+          "blue",
+          "green"
         ]
       },
       "PendingLegalDocumentDto": {
@@ -127223,7 +127225,9 @@
               "light",
               "dark",
               "navy",
-              "glass"
+              "glass",
+              "blue",
+              "green"
             ]
           },
           "hideLikeCounts": {
@@ -162585,6 +162589,10 @@
             "items": {
               "$ref": "#/components/schemas/TrustLevelCountDto"
             }
+          },
+          "computedAt": {
+            "type": "string",
+            "description": "When the numbers were counted (the worker recounts every few minutes)."
           },
           "held": {
             "type": "integer",

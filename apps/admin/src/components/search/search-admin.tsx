@@ -3,6 +3,7 @@
 import { MagnifyingGlass, Plus, Trash, UploadSimple } from '@phosphor-icons/react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useDebounced } from '@/components/legacy/use-debounced';
 import { LoadMore } from '@/components/billing/shared';
 import { ErrorNote } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -95,7 +96,8 @@ function WordsPanel() {
   const canWrite = can(me, 'content', 'manage');
   const [draft, setDraft] = useState('');
   const [q, setQ] = useState('');
-  const [lang, setLang] = useState('');
+  const [typedLang, setLang] = useState('');
+  const lang = useDebounced(typedLang);
   const [editing, setEditing] = useState<Group | 'new' | null>(null);
   const [importing, setImporting] = useState(false);
   const qc = useQueryClient();
@@ -128,7 +130,7 @@ function WordsPanel() {
           <MagnifyingGlass size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
           <Input className="w-full pl-9 sm:w-72" placeholder="Слово или название группы, Enter" value={draft} onChange={(e) => setDraft(e.target.value)} />
         </form>
-        <Input className="w-28" placeholder="Язык: ru" value={lang} onChange={(e) => setLang(e.target.value.trim().toLowerCase())} />
+        <Input className="w-28" placeholder="Язык: ru" value={typedLang} onChange={(e) => setLang(e.target.value.trim().toLowerCase())} />
         <span className="text-sm text-muted">
           Групп: {meta?.total ?? '—'} · слов и фраз: {meta?.terms ?? '—'}
         </span>
@@ -429,7 +431,9 @@ function AddToGroupDialog({ phrase, onClose }: { phrase: string; onClose: () => 
   const toast = useToast();
   const qc = useQueryClient();
   const [lang, setLang] = useState('ru');
-  const [find, setFind] = useState('');
+  const [typedFind, setFind] = useState('');
+  // Owner 2026-10-23: one request per pause in typing, not per key.
+  const find = useDebounced(typedFind);
   const [groupId, setGroupId] = useState('');
   const groups = useQuery({
     queryKey: ['search-synonyms-pick', find],
@@ -457,7 +461,7 @@ function AddToGroupDialog({ phrase, onClose }: { phrase: string; onClose: () => 
           <Input value={lang} onChange={(e) => setLang(e.target.value.trim().toLowerCase())} className="w-28" />
         </Field>
         <Field label="Найти группу">
-          <Input value={find} onChange={(e) => setFind(e.target.value.trim().toLowerCase())} placeholder="divorce, развод…" />
+          <Input value={typedFind} onChange={(e) => setFind(e.target.value.trim().toLowerCase())} placeholder="divorce, развод…" />
         </Field>
         <Select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
           <option value="">— выберите —</option>
