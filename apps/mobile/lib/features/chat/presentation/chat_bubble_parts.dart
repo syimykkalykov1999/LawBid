@@ -137,9 +137,10 @@ class ChatStickerMeta extends StatelessWidget {
 }
 
 /// A text bubble's body with the time on the end of its last line
-/// (WhatsApp): [meta] is laid over the bottom end corner and the text
-/// leaves a gap of [metaWidth] for it after its last word, so it wraps to
-/// a new line only when that line is full.
+/// (WhatsApp): the text is measured, and when the last line leaves room for
+/// [meta] (`metaWidth` wide) it sits there on the same line; otherwise the
+/// bubble grows by one meta row under the text. The text stays a plain
+/// `Text`, so it is still found / read as the message.
 class ChatTextWithMeta extends StatelessWidget {
   const ChatTextWithMeta({
     required this.spans,
@@ -149,27 +150,54 @@ class ChatTextWithMeta extends StatelessWidget {
     super.key,
   });
 
-  /// The message text, WITHOUT the trailing gap (added here).
   final List<InlineSpan> spans;
   final TextStyle style;
   final Widget meta;
   final double metaWidth;
 
+  /// Height of the meta row when it needs a line of its own.
+  static const double metaHeight = 16;
+  static const double gap = 8;
+
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Text.rich(
-          TextSpan(
+    final span = TextSpan(children: spans, style: style);
+    return LayoutBuilder(
+      builder: (context, c) {
+        final max =
+            c.maxWidth.isFinite ? c.maxWidth : MediaQuery.sizeOf(context).width;
+        final tp = TextPainter(
+          text: span,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: max);
+        final lines = tp.computeLineMetrics();
+        final lastW = lines.isEmpty ? 0.0 : lines.last.width;
+        final textW = tp.width;
+        final textH = tp.height;
+        tp.dispose();
+        final fits = lastW + gap + metaWidth <= max;
+        final width = fits
+            ? (textW > lastW + gap + metaWidth
+                ? textW
+                : lastW + gap + metaWidth)
+            : (textW > metaWidth ? textW : metaWidth);
+        final height = fits ? textH : textH + metaHeight;
+        return SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
             children: [
-              ...spans,
-              WidgetSpan(child: SizedBox(width: metaWidth + 6, height: 1)),
+              PositionedDirectional(
+                start: 0,
+                top: 0,
+                child: Text.rich(span),
+              ),
+              PositionedDirectional(end: 0, bottom: 0, child: meta),
             ],
           ),
-          style: style,
-        ),
-        PositionedDirectional(end: 0, bottom: 0, child: meta),
-      ],
+        );
+      },
     );
   }
 }
