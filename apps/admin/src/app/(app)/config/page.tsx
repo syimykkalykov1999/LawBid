@@ -273,6 +273,7 @@ const KEY_TEXT: Record<string, string> = {
   'storage.retention_post_views_days': 'Сколько дней помнить, кто смотрел пост (счётчик просмотров остаётся; 0 — хранить всегда).',
   'storage.retention_app_events_days': 'Сколько дней хранить счётчики событий из приложения (0 — хранить всегда).',
   // Scale audit 2026-10-23: the phone's own traffic, changeable without an app update.
+  'security.anonymous_rate_limit_per_minute': 'Запросов в минуту с одного адреса до входа в аккаунт (гость, экраны входа). За одним адресом оператора связи или офиса — много людей: поднимите, если жалуются «слишком много запросов». Не меньше 100. Ключ: security.anonymous_rate_limit_per_minute.',
   'client.retry_max': 'Сколько раз приложение повторяет неудавшийся запрос (0 — не повторять). Ключ: client.retry_max.',
   'client.retry_base_ms': 'Первая пауза перед повтором, миллисекунды (дальше вдвое дольше). Поднимите, если сервер перегружен. Ключ: client.retry_base_ms.',
   'client.retry_after_max_s': 'Самая долгая пауза «Retry-After», которую приложение соблюдает, секунды. Ключ: client.retry_after_max_s.',

@@ -178,6 +178,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
   };
+  out['security.anonymous_rate_limit_per_minute'] = {
+    ...out['security.anonymous_rate_limit_per_minute'],
+    description:
+      'Requests per minute one address may make before signing in (guest browsing, login screens). Many people share a mobile-carrier or office address: raise it if they report "too many requests". Not below 100.',
+    min: 100,
+    max: 5000,
+  };
   // Owner 2026-10-07: daily cap of sign-in codes per phone / e-mail.
   // At least 1: 0 would lock everyone out of sign-in, it never means
   // "unlimited".

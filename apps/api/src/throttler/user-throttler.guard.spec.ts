@@ -8,6 +8,7 @@ class Route {}
 function setup(
   opts: {
     setting?: number | Error;
+    anonymous?: number;
     routeLimit?: number;
   } = {},
 ) {
@@ -30,10 +31,12 @@ function setup(
     }),
   };
   const settings = {
-    number: jest.fn(() =>
-      opts.setting instanceof Error
-        ? Promise.reject(opts.setting)
-        : Promise.resolve(opts.setting ?? ADMIN_THROTTLE_DEFAULT),
+    number: jest.fn((key: string) =>
+      key === 'security.anonymous_rate_limit_per_minute'
+        ? Promise.resolve(opts.anonymous ?? 100)
+        : opts.setting instanceof Error
+          ? Promise.reject(opts.setting)
+          : Promise.resolve(opts.setting ?? ADMIN_THROTTLE_DEFAULT),
     ),
   };
   const reflector = new Reflector();
@@ -102,6 +105,18 @@ describe('UserThrottlerGuard', () => {
       60_000,
       'default',
     );
+  });
+
+  it('lets the admin raise the anonymous per-address limit (CGNAT), never below 100', async () => {
+    const raised = setup({ anonymous: 900 });
+    await raised.call();
+    expect(raised.storage.increment.mock.calls[0][2]).toBe(900);
+    const lowered = setup({ anonymous: 10 });
+    await lowered.call();
+    expect(lowered.storage.increment.mock.calls[0][2]).toBe(100);
+    const signedIn = setup({ anonymous: 900 });
+    await signedIn.call('Bearer user-u1');
+    expect(signedIn.storage.increment.mock.calls[0][2]).toBe(100);
   });
 
   it('reads the admin limit from Система → Настройки', async () => {
