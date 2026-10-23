@@ -318,3 +318,26 @@ PUT /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum v
 # Client economy plan 2026-10-22 (package D): follow / unfollow answer {following, followersCount} with 200 instead of an empty 204. Older apps call them as void and ignore the body — a 200 is still a success for them.
 POST /attorneys/{id}/follow removed the success response with the status `204`
 DELETE /attorneys/{id}/follow removed the success response with the status `204`
+# Wave 1 (2026-10-23): new enum values (consent do_not_sell, legal doc accessibility, passkey error codes); generated Dart enums fall back to $unknown
+GET /admin/legal/documents added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/system-health added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+GET /legal/documents added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /legal/documents/{type} added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+GET /legal/pending added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /me/session added the new `accessibility` enum value to the `data/me/pendingLegalDocuments/items/docType` response property for the response status `200`
+GET /users/me added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /users/me added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me/onboarding added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+POST /legal/accept added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /users/me/role added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
