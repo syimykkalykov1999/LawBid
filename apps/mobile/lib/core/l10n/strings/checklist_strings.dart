@@ -45,6 +45,11 @@ const checklistRu = <String, String>{
   'passkey.error.noCredentials': 'На этом устройстве нет ключа LawBid',
   'passkey.error.unsupported': 'Ключи входа недоступны на этом устройстве',
   'passkey.error.generic': 'Не удалось войти по ключу',
+  // Item 8: link previews in chats.
+  'privacy.linkPreviews': 'Предпросмотр ссылок в чатах',
+  'privacy.linkPreviews.hint':
+      'Под ссылкой показывается карточка сайта. Данные берёт наш сервер, а не ваш телефон.',
+  'chat.linkPreview.label': 'Ссылка',
 };
 
 const checklistEn = <String, String>{
@@ -84,4 +89,8 @@ const checklistEn = <String, String>{
   'passkey.error.noCredentials': 'No LawBid key on this device',
   'passkey.error.unsupported': 'Sign-in keys are not available on this device',
   'passkey.error.generic': 'Could not sign in with the key',
+  'privacy.linkPreviews': 'Link previews in chats',
+  'privacy.linkPreviews.hint':
+      'A site card is shown under a link. Our server fetches it, not your phone.',
+  'chat.linkPreview.label': 'Link',
 };

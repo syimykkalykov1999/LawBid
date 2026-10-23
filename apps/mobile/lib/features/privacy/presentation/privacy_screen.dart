@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 import 'package:lawbid/features/privacy/data/privacy_repository.dart';
 import 'package:lawbid/features/privacy/privacy_routes.dart';
@@ -133,10 +134,13 @@ class PrivacyScreen extends ConsumerWidget {
                 const _AnalyticsRow(),
                 // Owner 2026-10-22 (CCPA): «Do not sell or share».
                 _DoNotSellRow(value: s.doNotSell),
+                // Owner 2026-10-22: link previews in chats (on the phone).
+                const _LinkPreviewsRow(),
               ],
             ),
             _Hint(text: t.t('privacy.analytics.hint')),
             _Hint(text: t.t('privacy.doNotSell.hint')),
+            _Hint(text: t.t('privacy.linkPreviews.hint')),
           ],
         ),
       ),
@@ -198,9 +202,7 @@ class _DoNotSellRowState extends ConsumerState<_DoNotSellRow> {
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {
-      await ref
-          .read(privacySettingsProvider.notifier)
-          .setDoNotSell(value: on);
+      await ref.read(privacySettingsProvider.notifier).setDoNotSell(value: on);
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {
@@ -218,6 +220,26 @@ class _DoNotSellRowState extends ConsumerState<_DoNotSellRow> {
       value: widget.value,
       busy: _busy,
       onChanged: _toggle,
+    );
+  }
+}
+
+/// Owner 2026-10-22 (link previews): the cards under links in chats; a
+/// device setting (no server), on by default.
+class _LinkPreviewsRow extends ConsumerWidget {
+  const _LinkPreviewsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    return _SwitchRow(
+      rowKey: const ValueKey('privacy-link-previews'),
+      icon: AppIcons.linkRounded,
+      label: t.t('privacy.linkPreviews'),
+      value: ref.watch(linkPreviewsEnabledProvider),
+      busy: false,
+      onChanged: (on) =>
+          ref.read(linkPreviewsEnabledProvider.notifier).set(enabled: on),
     );
   }
 }

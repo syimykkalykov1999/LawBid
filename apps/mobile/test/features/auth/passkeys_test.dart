@@ -11,6 +11,7 @@ import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/auth/application/passkeys_providers.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart';
 import 'package:lawbid/features/auth/data/passkey_authenticator.dart';
 import 'package:lawbid/features/auth/data/passkeys_api_client.dart';
 import 'package:lawbid/features/auth/data/passkeys_repository.dart';
@@ -33,7 +34,7 @@ class _Session extends SessionController {
   SessionState? build() => null;
 
   @override
-  Future<void> applyTokens(tokens) async {
+  Future<void> applyTokens(AuthTokensResult tokens) async {
     applied.add(tokens.accessToken);
     state = SessionState(
       accessToken: tokens.accessToken,
@@ -141,7 +142,9 @@ void main() {
         'cred-1',
       );
       expect(
-          container.read(sessionControllerProvider)?.accessToken, 'at-passkey');
+        container.read(sessionControllerProvider)?.accessToken,
+        'at-passkey',
+      );
     });
 
     test('sign in: the device cancels / has no key / is unsupported', () async {

@@ -12,11 +12,13 @@ import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 import 'package:lawbid/features/privacy/data/privacy_repository.dart';
 import 'package:lawbid/features/privacy/presentation/moderation_notices_screen.dart';
 import 'package:lawbid/features/privacy/presentation/my_reports_screen.dart';
 import 'package:lawbid/features/privacy/presentation/privacy_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 import '../../helpers/long_locale.dart';
@@ -116,9 +118,13 @@ void main() {
     Dio? dio,
   }) async {
     useNarrowPhone(tester);
+    // The link-preview switch is a device setting (SharedPreferences).
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
     final overrides = uxOverrides(
       translator: t ?? const StaticTranslatorEn(),
       extra: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
         privacyRepositoryProvider.overrideWithValue(repo),
         if (dio != null) dioProvider.overrideWithValue(dio),
       ],
@@ -205,6 +211,23 @@ void main() {
     expect(repo.doNotSell, [true]);
     expect(tester.widget<Switch>(toggle).value, isTrue);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('link previews: on by default, the switch is kept on the phone',
+      (tester) async {
+    await pump(tester, const PrivacyScreen(), _FakePrivacy());
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('privacy-link-previews'));
+    await tester.scrollUntilVisible(row, 200);
+    await tester.ensureVisible(row);
+    await tester.pumpAndSettle();
+    final toggle = find.descendant(of: row, matching: find.byType(Switch));
+    expect(tester.widget<Switch>(toggle).value, isTrue);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(toggle).value, isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('chat.linkPreviews.v1'), 'off');
   });
 
   testWidgets('an appeal is sent with the written message', (tester) async {
