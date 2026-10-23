@@ -8,6 +8,11 @@
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:$(DEEP_LINK_HOST)</string>
+		<!-- Owner 2026-10-22 (passkeys): iOS lets the app create and use
+		     passkeys for the domain; the domain's
+		     apple-app-site-association file lists the app under
+		     "webcredentials" (scripts/seo/well-known.mjs). -->
+		<string>webcredentials:$(DEEP_LINK_HOST)</string>
 	</array>
 	<!-- Push (store release 2026-10-06): without aps-environment iOS never
 	     hands the app an APNs token, so FCM has nothing to deliver to.

@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
 import 'package:lawbid/features/settings/active_devices/application/active_devices_controller.dart';
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -272,6 +273,8 @@ class _DevicesList extends StatelessWidget {
         padding: const EdgeInsets.only(top: AppSpacing.sm),
         child: Column(
           children: [
+            // Owner 2026-10-22 (checklist §1): the account's passkeys.
+            const PasskeysSection(),
             // Owner 2026-10-20: sign in on the website by scanning its QR
             // code (the phone only; the website shows the code).
             if (!kIsWeb) ...[

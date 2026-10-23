@@ -161,6 +161,8 @@ dependencies:
   # with the pinned firebase_core.
   firebase_app_check: ^0.4.8
   passkeys: ^2.23.1
+  # Its availability query (features/auth/data/passkey_authenticator.dart).
+  passkeys_platform_interface: ^2.10.0
   in_app_review: ^2.0.12
 dev_dependencies:
   flutter_test:

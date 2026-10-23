@@ -1346,7 +1346,7 @@ packages:
     source: hosted
     version: "1.6.2"
   passkeys_platform_interface:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: passkeys_platform_interface
       sha256: "5fca044a6f1a3c5abff645ca5a5417b613c130d1c4e08513ba9182c7f4834619"

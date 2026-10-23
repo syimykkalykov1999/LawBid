@@ -37,6 +37,8 @@ void main() {
     final entitlements = read('ios/Runner/Runner.entitlements');
     expect(entitlements, contains('com.apple.developer.associated-domains'));
     expect(entitlements, contains(r'applinks:$(DEEP_LINK_HOST)'));
+    // Owner 2026-10-22 (passkeys): the same domain for WebAuthn.
+    expect(entitlements, contains(r'webcredentials:$(DEEP_LINK_HOST)'));
     expect(
       read('ios/Flutter/Common.xcconfig'),
       contains('DEEP_LINK_HOST = lawbid.dev'),

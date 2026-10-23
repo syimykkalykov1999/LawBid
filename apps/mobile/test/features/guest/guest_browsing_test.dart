@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -81,7 +80,8 @@ void main() {
         GoRoute(
           path: '/lawyer/:username',
           builder: (_, state) => Scaffold(
-              body: Text('LAWYER ${state.pathParameters['username']}')),
+            body: Text('LAWYER ${state.pathParameters['username']}'),
+          ),
         ),
       ],
     );
@@ -162,8 +162,10 @@ void main() {
       'zzz',
     );
     await tester.pumpAndSettle();
-    expect(find.text(const StaticTranslatorEn().t('guest.search.empty')),
-        findsOneWidget);
+    expect(
+      find.text(const StaticTranslatorEn().t('guest.search.empty')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the sign-in bar is a plain strip with one button',
