@@ -6,11 +6,13 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
     show GiftHeaderButton;
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Loads `GET /attorneys/:username` and renders every screen state:
 /// skeleton, error + Retry, offline, "Profile unavailable" (404 — unknown,
@@ -61,6 +63,15 @@ class AttorneyProfileBody extends ConsumerWidget {
                 height: AppSizes.touchTarget,
                 onPressed: retry,
               ),
+            );
+          }
+          // Owner 2026-10-22 (guest browsing): `GET /attorneys/:username`
+          // still wants a token — a guest is asked to sign in, not shown
+          // a broken screen (the API opens it to guests next).
+          if (ref.watch(isGuestProvider)) {
+            return GuestGateView(
+              key: const ValueKey('guest'),
+              message: t.t('guest.profile.signIn'),
             );
           }
           return AppErrorState(

@@ -7,6 +7,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
@@ -227,6 +229,42 @@ class WelcomeScreen extends ConsumerWidget {
                                 ),
                               ),
                             const SizedBox(height: 10),
+                            // Owner 2026-10-22 (guest browsing, A1): look
+                            // around first — the feed, search and profiles
+                            // open without an account.
+                            if (ref.watch(guestBrowsingEnabledProvider))
+                              TextButton(
+                                key: const ValueKey('welcome-browse'),
+                                style: TextButton.styleFrom(
+                                  minimumSize: const Size(0, 28),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  if (!_isTopRoute(context)) return;
+                                  // Pushed over the guest's screen: just
+                                  // go back to it; a cold start: the feed.
+                                  if (context.canPop()) {
+                                    context.pop();
+                                  } else {
+                                    context.go(AppRoutes.feed);
+                                  }
+                                },
+                                child: Text(
+                                  t.t('guest.welcome.browse'),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: typography.caption.copyWith(
+                                    color: colors.textSecondary,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
                             // Owner 2026-10-05 (docs/ops/demo-world.md): a blogger
                             // enters the demo with the admin's 8-character code.
                             if (ref

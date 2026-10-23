@@ -533,8 +533,7 @@ class StaticTranslatorRu extends _MapTranslator {
             'Этот способ входа временно недоступен.',
         'error.api.DEVICE_ATTESTATION_REQUIRED':
             'Не удалось проверить устройство. Обновите приложение из App Store или Google Play и попробуйте снова.',
-        'error.api.SYNC_TOO_OLD':
-            'Данные устарели, список обновлён заново.',
+        'error.api.SYNC_TOO_OLD': 'Данные устарели, список обновлён заново.',
         'error.api.AUTH_REFRESH_REUSE_DETECTED':
             'В целях безопасности выполнен выход на всех устройствах. Войдите снова.',
         'error.api.AUTH_SESSION_REVOKED': 'Сеанс завершён. Войдите снова.',

@@ -18,6 +18,18 @@ const checklistRu = <String, String>{
   'a11y.gridView': 'Сеткой',
   'a11y.listView': 'Списком',
   'a11y.rateStars': 'Оценка {count}',
+  // Item 1: guest browsing (no account).
+  'guest.signIn': 'Войти',
+  'guest.bar.text': 'Войдите, чтобы писать, звонить и откликаться',
+  'guest.gate.title': 'Нужен аккаунт',
+  'guest.gate.message': 'Войдите или создайте аккаунт — это бесплатно.',
+  'guest.feed.title': 'Проверенные адвокаты',
+  'guest.feed.hint': 'Посты и видео адвокатов откроются после входа.',
+  'guest.search.hint': 'Имя, область права или штат',
+  'guest.search.empty': 'Никого не найдено',
+  'guest.welcome.browse': 'Посмотреть без входа',
+  'guest.profile.signIn': 'Войдите, чтобы увидеть профиль целиком',
+  'guest.directory.error': 'Не удалось загрузить список',
 };
 
 const checklistEn = <String, String>{
@@ -32,4 +44,15 @@ const checklistEn = <String, String>{
   'a11y.gridView': 'Grid view',
   'a11y.listView': 'List view',
   'a11y.rateStars': 'Rate {count}',
+  'guest.signIn': 'Sign in',
+  'guest.bar.text': 'Sign in to message, call and respond',
+  'guest.gate.title': 'Account needed',
+  'guest.gate.message': 'Sign in or create an account — it is free.',
+  'guest.feed.title': 'Verified attorneys',
+  'guest.feed.hint': 'Attorneys’ posts and videos open after you sign in.',
+  'guest.search.hint': 'Name, practice area or state',
+  'guest.search.empty': 'No one found',
+  'guest.welcome.browse': 'Browse without signing in',
+  'guest.profile.signIn': 'Sign in to see the full profile',
+  'guest.directory.error': 'The list could not be loaded',
 };

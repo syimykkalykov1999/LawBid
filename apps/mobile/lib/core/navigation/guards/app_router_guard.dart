@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -32,9 +33,20 @@ class GuardSnapshot {
     required this.hasSession,
     required this.user,
     this.assistant = AssistantGate.notAssistant,
+    this.guestBrowsing = false,
+    this.returnTo,
   });
 
   final StartupStatus startup;
+
+  /// Owner 2026-10-22 (decision A1): the `guest_browsing` flag — without a
+  /// session the feed, search and public profiles stay open and the splash
+  /// lands on the feed instead of the welcome screen.
+  final bool guestBrowsing;
+
+  /// Where a guest was when they tapped something that needs an account
+  /// (`guestReturnProvider`): the first screen after sign-in + onboarding.
+  final String? returnTo;
 
   /// OQ-048: an assistant's team state (`GET /assistants/me`).
   final AssistantGate assistant;
@@ -52,6 +64,9 @@ class GuardSnapshot {
 ///
 /// ```text
 /// нет токена                      → /welcome
+/// нет токена, guest_browsing      → /feed, /search, /lawyer/*, /u/*,
+///                                   /post/*, /c/* open; всё остальное →
+///                                   /welcome (Owner 2026-10-22, A1)
 /// токен есть, пароль не задан     → /auth/set-password (Owner 2026-10-13)
 /// токен есть, нет согласий/18+    → /onboarding/consents
 /// нет роли                        → /onboarding/role
@@ -106,6 +121,13 @@ abstract final class AppRouterGuard {
           // (`/q/<id>`, and `/qr/<nonce>` since 2026-10-22).
           AppRoutes.isWebLoginLink(location)) {
         return null;
+      }
+      // Owner 2026-10-22 (guest browsing): the public screens stay open;
+      // the splash lands on the feed; an account-only screen asks to sign
+      // in.
+      if (s.guestBrowsing) {
+        if (isGuestRoute(location)) return null;
+        if (location == AppRoutes.splash) return AppRoutes.feed;
       }
       return AuthRoutes.welcome;
     }
@@ -164,7 +186,8 @@ abstract final class AppRouterGuard {
             }
         }
       }
-      if (onEntryRoute) return AppRoutes.feed;
+      // Owner 2026-10-22 (guest browsing): back to where the guest was.
+      if (onEntryRoute) return s.returnTo ?? AppRoutes.feed;
       // docs/03 §6.4 (stage 3.9): "+" is "Post to feed" for attorneys;
       // before verification it opens the "Complete verification" gate.
       if (location == AppRoutes.create && attorneyNeedsVerification(user)) {

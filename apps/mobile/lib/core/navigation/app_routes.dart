@@ -84,8 +84,7 @@ abstract final class AppRoutes {
   /// own camera opens the approval screen. Same screen as [webLogin].
   static const qrLoginPrefix = '/qr/';
   static const qrLoginPattern = '/qr/:nonce';
-  static String qrLogin(String nonce) =>
-      '/qr/${Uri.encodeComponent(nonce)}';
+  static String qrLogin(String nonce) => '/qr/${Uri.encodeComponent(nonce)}';
 
   /// True for the public sign-in-QR pages (`/q/<id>`, `/qr/<nonce>`), never
   /// for the app's own [myQr] / [qrScan] screens.

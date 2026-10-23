@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// OQ-043: "Message" on a profile — opens (or starts) the direct chat
 /// with [userId]; the first messages go to their "Requests".
@@ -15,6 +16,8 @@ Future<void> openDirectChat(
   WidgetRef ref,
   String userId,
 ) async {
+  // Owner 2026-10-22 (guest browsing): a message needs an account.
+  if (!requireSignIn(context, ref)) return;
   final t = ref.read(translatorProvider);
   try {
     final conv = await ref.read(chatRepositoryProvider).startDirect(userId);
