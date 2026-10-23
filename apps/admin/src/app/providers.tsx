@@ -5,7 +5,7 @@ import { MotionConfig } from 'motion/react';
 import { useState } from 'react';
 import { SentryInit } from '@/components/sentry-init';
 import { ToastProvider } from '@/components/ui/toast';
-import { ApiError } from '@/lib/api/client';
+import { queryRetryDelay, shouldRetryQuery } from '@/lib/query-retry';
 import { ThemeProvider } from '@/lib/theme';
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -16,10 +16,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 30_000,
             refetchOnWindowFocus: false,
-            retry: (count, error) =>
-              // Never retry a 4xx (401 redirects, 403 is final, 429 would only
-              // dig the rate-limit hole deeper — lib/live.ts backs off instead).
-              !(error instanceof ApiError && error.status < 500) && count < 2,
+            // Backoff with jitter, never a 4xx (lib/query-retry.ts). A failed
+            // request does not flip the UI to "offline": the query keeps its
+            // previous data and tries again.
+            retry: shouldRetryQuery,
+            retryDelay: (attempt) => queryRetryDelay(attempt),
+            networkMode: 'offlineFirst',
           },
         },
       }),
