@@ -5,7 +5,7 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
 /// Owner 2026-10-15: every colour of the Tasks board — the ring, the pills,
 /// the hero's week bars, the done mark — reads with enough contrast in every
-/// theme (Day, Night, Navy, Glass) and for every practice colour.
+/// theme (Day, Night, Blue, Green) and for every practice colour.
 void main() {
   for (final id in AppThemeId.values) {
     final colors = AppTheme.of(id).extension<AppColorTokens>()!;

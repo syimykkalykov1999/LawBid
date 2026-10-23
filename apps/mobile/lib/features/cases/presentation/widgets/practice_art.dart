@@ -119,13 +119,9 @@ Color readableOn(Color color, Color bg, {double min = 4.5}) {
   return dark ? Colors.white : Colors.black;
 }
 
-/// What a card really looks like on: its surface over the page. The Glass
-/// theme has a translucent surface on a transparent page, so it is judged
-/// over the glass gradient's solid colour.
-Color practiceCardBase(AppColorTokens colors) => Color.alphaBlend(
-      colors.surface,
-      colors.bg.a < 1 ? AppColorsGlass.barSolid : colors.bg,
-    );
+/// What a card really looks like on: its surface over the page.
+Color practiceCardBase(AppColorTokens colors) =>
+    Color.alphaBlend(colors.surface, colors.bg);
 
 /// Legible text on [accent].
 Color onPracticeAccent(Color accent) {

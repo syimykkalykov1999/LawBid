@@ -16,7 +16,7 @@ const _kPendingTheme = 'prefs.sync.pending.theme';
 const _kPendingLanguage = 'prefs.sync.pending.language';
 
 /// `users.theme` wire value (apps/api `ThemePref`: system/light/dark/navy/
-/// glass): Day is `light`, Night `dark`, never chosen `system`.
+/// glass): Day is `light`, Night `dark`, Blue `navy`, never chosen `system`.
 String themeWireName(AppThemeId? theme) =>
     theme == null ? 'system' : AppThemes.of(theme).serverWire;
 

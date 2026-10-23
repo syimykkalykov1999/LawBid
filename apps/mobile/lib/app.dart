@@ -39,7 +39,7 @@ class LawBidApp extends ConsumerWidget {
     ref
       ..watch(cacheEnforcerProvider)
       ..watch(networkUsageTodayProvider);
-    // Owner 2026-10-13: Day, Night, Navy or Glass; never chosen = Day or
+    // Owner 2026-10-13: Day, Night, Blue or Green; never chosen = Day or
     // Night by the phone.
     final chosen = ref.watch(appThemeControllerProvider);
     final spec = chosen == null ? null : AppThemes.of(chosen);
@@ -102,8 +102,7 @@ class LawBidApp extends ConsumerWidget {
                 child: WebConsentNotice(
                   onOpenPrivacy: () =>
                       router.push(AppRoutes.legalDoc('privacy')),
-                  child: AppBackdrop(
-                    child: SystemNavBand(
+                  child: SystemNavBand(
                       child: GestureDetector(
                         behavior: HitTestBehavior.translucent,
                         onTap: dropKeyboard,
@@ -132,7 +131,6 @@ class LawBidApp extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  ),
                 ),
               ),
             ),

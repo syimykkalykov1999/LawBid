@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
 import 'package:lawbid/core/persistence/local_kv_store.dart';
 
@@ -21,7 +23,16 @@ class LocalAppThemeRepository implements AppThemeRepository {
   final LocalKvStore _kv;
 
   @override
-  AppThemeId? read() => AppThemes.fromWire(_kv.getString(_kThemeKey));
+  AppThemeId? read() {
+    final raw = _kv.getString(_kThemeKey);
+    final id = AppThemes.fromWire(raw);
+    // Owner 2026-10-22: the removed Glass theme (and the old `navy`) are
+    // saved again under the new names, once.
+    if (id != null && (raw == 'glass' || raw == 'navy')) {
+      unawaited(_kv.setString(_kThemeKey, AppThemes.of(id).wire));
+    }
+    return id;
+  }
 
   @override
   Future<void> write(AppThemeId? id) => id == null

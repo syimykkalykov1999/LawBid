@@ -13,8 +13,8 @@ void main() {
       final colors = theme.extension<AppColorTokens>()!;
       final chat = ChatColors.forTokens(colors, theme.brightness);
       final plate = Color.alphaBlend(
-        colors.isGlass ? chat.theirs : chat.theirs.withValues(alpha: 0.92),
-        colors.isGlass ? AppColorsGlass.gradient.first : chat.wallpaper,
+        chat.theirs.withValues(alpha: 0.92),
+        chat.wallpaper,
       );
       expect(
         contrastRatio(chat.onTheirs, plate),
