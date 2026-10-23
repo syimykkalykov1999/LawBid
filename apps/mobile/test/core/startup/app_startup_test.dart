@@ -98,7 +98,6 @@ class _SessionLoader implements AppSessionLoader {
       'flags': {'video_posts': true},
       'unreadSupport': 1,
       'hasOngoingCalls': false,
-      'client': {'timings': <String, num>{}},
     });
   }
 }
