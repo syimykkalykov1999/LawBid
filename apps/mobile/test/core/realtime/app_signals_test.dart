@@ -1,3 +1,5 @@
+// ignore_for_file: cascade_invocations, unawaited_futures
+
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -16,7 +18,7 @@ void main() {
   late List<AppSignal> seen;
 
   setUp(() {
-    monitor = FakeNetworkMonitor(up: true);
+    monitor = FakeNetworkMonitor();
     page = StreamController<PageSignal>.broadcast();
     signals = AppSignals(monitor: monitor, pageSignals: page.stream)..start();
     seen = [];

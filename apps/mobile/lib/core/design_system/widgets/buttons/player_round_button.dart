@@ -26,22 +26,22 @@ class PlayerRoundButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final circle = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.82),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: colors.gold.withValues(alpha: 0.7),
-          width: size >= 48 ? 1.5 : 1,
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: colors.surface.withValues(alpha: 0.82),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: colors.gold.withValues(alpha: 0.7),
+            width: size >= 48 ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(color: colors.shadow, blurRadius: size / 4),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(color: colors.shadow, blurRadius: size / 4),
-        ],
-      ),
-      alignment: Alignment.center,
-      child: AppIcon(icon, size: size * 0.5, color: colors.text),
-    );
+        alignment: Alignment.center,
+        child: AppIcon(icon, size: size * 0.5, color: colors.text),
+      );
     final button = onTap == null
         ? circle
         : GestureDetector(

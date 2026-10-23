@@ -3,10 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
-import 'package:lawbid/core/realtime/realtime_timings.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/realtime/realtime_timings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fake_http_adapter.dart';
@@ -20,7 +20,8 @@ void main() {
 
     setUp(() {
       signal = ReachabilitySignal(
-          timings: () => const RealtimeTimings(offlineFailures: 1));
+        timings: () => const RealtimeTimings(offlineFailures: 1),
+      );
       events = [];
       signal.changes.listen(events.add);
       adapter = FakeHttpAdapter((o) async => ok({'x': 1}));

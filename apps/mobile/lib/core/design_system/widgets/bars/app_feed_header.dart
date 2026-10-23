@@ -80,8 +80,9 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
               gradient: colors.headerGradient,
               border: Border(
                 bottom: BorderSide(
-                  color:
-                      colors.hasHeaderWash ? Colors.transparent : colors.border,
+                  color: colors.hasHeaderWash
+                      ? Colors.transparent
+                      : colors.border,
                 ),
               ),
             ),

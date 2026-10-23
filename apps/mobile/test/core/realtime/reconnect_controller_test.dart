@@ -1,3 +1,5 @@
+// ignore_for_file: cascade_invocations, unawaited_futures
+
 import 'dart:async';
 import 'dart:math';
 

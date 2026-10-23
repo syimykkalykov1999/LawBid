@@ -18,55 +18,44 @@ GoRouter _router() => GoRouter(
         StatefulShellRoute.indexedStack(
           builder: (c, s, shell) => Scaffold(body: shell),
           branches: [
-            StatefulShellBranch(
-              routes: [
-                GoRoute(path: '/feed', builder: (c, s) => const Text('feed')),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                    path: '/search', builder: (c, s) => const Text('search')),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(path: '/mine', builder: (c, s) => const Text('mine')),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: '/profile',
-                  builder: (c, s) => Builder(
-                    builder: (c) => Column(
-                      children: [
-                        const Text('profile'),
-                        // The profile grid → the post feed
-                        // (PostsFeedScreen.open).
-                        TextButton(
-                          onPressed: () =>
-                              Navigator.of(c, rootNavigator: true).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const Text('postsFeed'),
-                            ),
-                          ),
-                          child: const Text('imperative'),
-                        ),
-                        TextButton(
-                          onPressed: () => c.push('/post/1'),
-                          child: const Text('pushed'),
-                        ),
-                        TextButton(
-                          onPressed: () => c.push('/profile/settings'),
-                          child: const Text('settings'),
-                        ),
-                      ],
-                    ),
+            StatefulShellBranch(routes: [
+              GoRoute(path: '/feed', builder: (c, s) => const Text('feed')),
+            ],),
+            StatefulShellBranch(routes: [
+              GoRoute(path: '/search', builder: (c, s) => const Text('search')),
+            ],),
+            StatefulShellBranch(routes: [
+              GoRoute(path: '/mine', builder: (c, s) => const Text('mine')),
+            ],),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (c, s) => Builder(
+                  builder: (c) => Column(
+                    children: [
+                      const Text('profile'),
+                      // The profile grid → the post feed
+                      // (PostsFeedScreen.open).
+                      TextButton(
+                        onPressed: () => Navigator.of(c, rootNavigator: true)
+                            .push(MaterialPageRoute<void>(
+                          builder: (_) => const Text('postsFeed'),
+                        ),),
+                        child: const Text('imperative'),
+                      ),
+                      TextButton(
+                        onPressed: () => c.push('/post/1'),
+                        child: const Text('pushed'),
+                      ),
+                      TextButton(
+                        onPressed: () => c.push('/profile/settings'),
+                        child: const Text('settings'),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],),
           ],
         ),
         GoRoute(

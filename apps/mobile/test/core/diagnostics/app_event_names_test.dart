@@ -21,7 +21,8 @@ void main() {
     return out;
   }
 
-  test('every name the app sends is documented, and nothing else is sent', () {
+  test('every name the app sends is documented, and nothing else is sent',
+      () {
     final sections = rowsBySection();
     final notSent = sections['Not sent'] ?? const <String>{};
     final documented = {
@@ -43,7 +44,8 @@ void main() {
     expect(notSent.intersection(AppEventNames.all), isEmpty);
   });
 
-  test('the code only tracks names from AppEventNames (no stray literals)', () {
+  test('the code only tracks names from AppEventNames (no stray literals)',
+      () {
     final literal = RegExp(r"""AppEvents\.track\(\s*'([^']+)'""");
     final bad = <String>[];
     for (final f

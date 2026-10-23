@@ -67,7 +67,8 @@ void main() {
   Future<void> startService({bool networkUp = true}) async {
     monitor = FakeNetworkMonitor(up: networkUp);
     signal = ReachabilitySignal(
-        timings: () => const RealtimeTimings(offlineFailures: 1));
+      timings: () => const RealtimeTimings(offlineFailures: 1),
+    );
     probe = FakeProbe();
     timers = ManualTimers();
     service = ConnectivityService(
@@ -224,7 +225,8 @@ void main() {
   test('a throwing probe counts as unreachable, never crashes', () async {
     monitor = FakeNetworkMonitor();
     signal = ReachabilitySignal(
-        timings: () => const RealtimeTimings(offlineFailures: 1));
+      timings: () => const RealtimeTimings(offlineFailures: 1),
+    );
     probe = FakeProbe();
     timers = ManualTimers();
     service = ConnectivityService(

@@ -1,3 +1,5 @@
+// ignore_for_file: cascade_invocations, unawaited_futures
+
 import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';

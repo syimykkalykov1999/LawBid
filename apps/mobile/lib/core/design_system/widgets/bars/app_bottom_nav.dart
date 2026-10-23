@@ -144,70 +144,71 @@ class AppBottomNav extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppRadii.pill),
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              // Owner 2026-10-12: see-through, the feed shows under it.
-              color: colors.surface.withValues(alpha: 0.96),
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-              border: Border.all(color: colors.border),
-            ),
-            child: SizedBox(
-              height: 46,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-                child: Row(
-                  children: [
-                    buildTab(left[0], 0),
-                    buildTab(left[1], 1),
-                    // Owner 2026-10-19 («кнопки прилипают к плюсу»): the
-                    // "+" takes one fifth of the bar like every tab, so
-                    // the five icons stand at equal distances.
-                    Expanded(
-                      child: Center(
-                        child: AppTapTarget(
-                          child: Semantics(
-                            button: true,
-                            label: createSemanticLabel,
-                            excludeSemantics: true,
-                            child: AppPressable(
-                              onTap: onCreatePressed,
-                              child: Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [colors.goldLight, colors.gold],
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color:
-                                          colors.gold.withValues(alpha: 0.35),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 3),
+              decoration: BoxDecoration(
+                // Owner 2026-10-12: see-through, the feed shows under it.
+                color: colors.surface.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(color: colors.border),
+              ),
+              child: SizedBox(
+                height: 46,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      buildTab(left[0], 0),
+                      buildTab(left[1], 1),
+                      // Owner 2026-10-19 («кнопки прилипают к плюсу»): the
+                      // "+" takes one fifth of the bar like every tab, so
+                      // the five icons stand at equal distances.
+                      Expanded(
+                        child: Center(
+                          child: AppTapTarget(
+                            child: Semantics(
+                              button: true,
+                              label: createSemanticLabel,
+                              excludeSemantics: true,
+                              child: AppPressable(
+                                onTap: onCreatePressed,
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [colors.goldLight, colors.gold],
                                     ),
-                                  ],
-                                ),
-                                alignment: Alignment.center,
-                                child: AppIcon(
-                                  AppIcons.addRounded,
-                                  color: colors.navy,
-                                  size: 22,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            colors.gold.withValues(alpha: 0.35),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: AppIcon(
+                                    AppIcons.addRounded,
+                                    color: colors.navy,
+                                    size: 22,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    buildTab(right[0], 2),
-                    buildTab(right[1], 3),
-                  ],
+                      buildTab(right[0], 2),
+                      buildTab(right[1], 3),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
         ),
       ),
     );
