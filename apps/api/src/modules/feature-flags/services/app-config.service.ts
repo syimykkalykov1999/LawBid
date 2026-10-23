@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { bumpConfigVersion } from './config-version';
 
@@ -65,19 +66,21 @@ export class AppConfigService {
     const cached = await this.redis.get(APP_CONFIG_CACHE_KEY);
     if (cached !== null) return JSON.parse(cached) as Record<string, unknown>;
 
-    const rows = await this.prisma.appConfig.findMany({
-      select: { key: true, value: true },
-    });
-    const config: Record<string, unknown> = {};
-    for (const row of rows) config[row.key] = row.value;
+    return singleFlight(APP_CONFIG_CACHE_KEY, async () => {
+      const rows = await this.prisma.appConfig.findMany({
+        select: { key: true, value: true },
+      });
+      const config: Record<string, unknown> = {};
+      for (const row of rows) config[row.key] = row.value;
 
-    await this.redis.set(
-      APP_CONFIG_CACHE_KEY,
-      JSON.stringify(config),
-      'EX',
-      APP_CONFIG_CACHE_TTL_SECONDS,
-    );
-    return config;
+      await this.redis.set(
+        APP_CONFIG_CACHE_KEY,
+        JSON.stringify(config),
+        'EX',
+        jitterTtl(APP_CONFIG_CACHE_TTL_SECONDS),
+      );
+      return config;
+    });
   }
 
   /** Convenience read for [AppVersionGuard]: the min app version for one

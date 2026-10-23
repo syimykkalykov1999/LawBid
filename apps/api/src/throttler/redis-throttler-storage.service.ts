@@ -27,6 +27,45 @@ import { REDIS_CLIENT } from '../redis/redis.constants';
  * into a full API outage. Paid provider calls stay protected by
  * CostGuardService, which fails closed.
  */
+/**
+ * Load audit 6 (2026-10-23): the check used to be two round trips and six
+ * Redis commands on EVERY request (PTTL block, MULTI, INCR, PEXPIRE, PTTL,
+ * EXEC). One Lua call is one round trip and one command: at 300 000 requests
+ * a second that is 1.8 M fewer Redis commands a second.
+ * KEYS: hits, block. ARGV: ttl ms, limit, blockDuration ms.
+ * Returns {hits, ttlMs, blocked(0/1), blockTtlMs}.
+ */
+const THROTTLE_LUA = `
+local ttl = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+local block = tonumber(ARGV[3])
+local bt = redis.call('PTTL', KEYS[2])
+if bt > math.max(block, ttl) then
+  redis.call('DEL', KEYS[2])
+  bt = 0
+end
+if bt > 0 then
+  return {limit + 1, redis.call('PTTL', KEYS[1]), 1, bt}
+end
+local hits = redis.call('INCR', KEYS[1])
+if redis.call('PTTL', KEYS[1]) < 0 then
+  redis.call('PEXPIRE', KEYS[1], ttl)
+end
+local t = redis.call('PTTL', KEYS[1])
+if hits > limit and block > 0 then
+  redis.call('SET', KEYS[2], '1', 'PX', block)
+  return {hits, t, 1, block}
+end
+return {hits, t, 0, 0}`;
+
+type ThrottleCommand = (
+  hitsKey: string,
+  blockKey: string,
+  ttl: number,
+  limit: number,
+  block: number,
+) => Promise<[number, number, number, number]>;
+
 @Injectable()
 export class RedisThrottlerStorageService implements ThrottlerStorage {
   constructor(
@@ -69,6 +108,21 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
     }
   }
 
+  /** The one-call script; undefined on a client without defineCommand
+   * (the in-memory fake of the unit tests), which then takes the classic
+   * multi-command path below. */
+  private luaCommand(): ThrottleCommand | undefined {
+    const r = this.redis as unknown as {
+      defineCommand?: (n: string, d: object) => void;
+      lbThrottle?: ThrottleCommand;
+    };
+    if (typeof r.defineCommand !== 'function') return undefined;
+    if (!r.lbThrottle) {
+      r.defineCommand('lbThrottle', { numberOfKeys: 2, lua: THROTTLE_LUA });
+    }
+    return r.lbThrottle?.bind(this.redis);
+  }
+
   private async incrementOrThrow(
     key: string,
     ttl: number,
@@ -78,6 +132,23 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
   ): Promise<ThrottlerStorageRecord> {
     const hitsKey = `throttle:${throttlerName}:${key}`;
     const blockKey = `throttle-block:${throttlerName}:${key}`;
+
+    const lua = this.luaCommand();
+    if (lua) {
+      const [hits, ttlMs, blocked, blockTtlMs] = await lua(
+        hitsKey,
+        blockKey,
+        ttl,
+        limit,
+        blockDuration,
+      );
+      return {
+        totalHits: Number(hits),
+        timeToExpire: Math.ceil(Number(ttlMs) / 1000),
+        isBlocked: Number(blocked) === 1,
+        timeToBlockExpire: Math.ceil(Number(blockTtlMs) / 1000),
+      };
+    }
 
     let blockTtlMs = await this.redis.pttl(blockKey);
     if (blockTtlMs > Math.max(blockDuration, ttl)) {

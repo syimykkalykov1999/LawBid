@@ -16,6 +16,18 @@ import { OnboardingService, type MeView } from '../users/users.public';
  * inputs that no stamp below covers (a legal acceptance, an avatar scan). */
 export const SESSION_ETAG_BUCKET_MS = 120_000;
 
+export interface SessionInputs {
+  stamps: {
+    updated_at: Date;
+    attorney_profile: { updated_at: Date } | null;
+    client_profile: { updated_at: Date } | null;
+  } | null;
+  badges: Badges;
+  version: string;
+  support: number;
+  calls: boolean;
+}
+
 export interface SessionView {
   me: MeView;
   badges: Badges;
@@ -78,7 +90,12 @@ export class SessionService {
     return call !== null;
   }
 
-  async etag(user: RequestUser, now: number = Date.now()): Promise<string> {
+  /**
+   * The cheap reads the ETag is made of. Load audit 6: `build` reuses them
+   * instead of asking the same five questions again (a changed session cost
+   * 15 database round trips, 5 of them repeats).
+   */
+  async inputs(user: RequestUser): Promise<SessionInputs> {
     const [stamps, badges, version, support, calls] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: user.sub },
@@ -93,38 +110,42 @@ export class SessionService {
       this.unreadSupport(user.assistant?.userId ?? user.sub),
       this.hasOngoingCalls(user.sub),
     ]);
+    return { stamps, badges, version, support, calls };
+  }
+
+  etagOf(i: SessionInputs, now: number = Date.now()): string {
     return weakEtag(
       'sess',
-      stamps?.updated_at,
-      stamps?.attorney_profile?.updated_at,
-      stamps?.client_profile?.updated_at,
-      badges.chatsUnread,
-      badges.notificationsUnread,
-      badges.iconBadge === false ? 0 : 1,
-      version,
-      support,
-      calls ? 1 : 0,
+      i.stamps?.updated_at,
+      i.stamps?.attorney_profile?.updated_at,
+      i.stamps?.client_profile?.updated_at,
+      i.badges.chatsUnread,
+      i.badges.notificationsUnread,
+      i.badges.iconBadge === false ? 0 : 1,
+      i.version,
+      i.support,
+      i.calls ? 1 : 0,
       Math.floor(now / SESSION_ETAG_BUCKET_MS),
     );
   }
 
-  async build(user: RequestUser): Promise<SessionView> {
-    const [me, badges, boot, version, unreadSupport, hasOngoingCalls] =
-      await Promise.all([
-        this.onboarding.getMe(user.sub),
-        this.badgesOf(user),
-        this.bootstrap.build(),
-        readConfigVersion(this.redis),
-        this.unreadSupport(user.assistant?.userId ?? user.sub),
-        this.hasOngoingCalls(user.sub),
-      ]);
+  async etag(user: RequestUser, now: number = Date.now()): Promise<string> {
+    return this.etagOf(await this.inputs(user), now);
+  }
+
+  async build(user: RequestUser, known?: SessionInputs): Promise<SessionView> {
+    const [me, boot, i] = await Promise.all([
+      this.onboarding.getMe(user.sub),
+      this.bootstrap.build(),
+      known ?? this.inputs(user),
+    ]);
     return {
       me,
-      badges,
-      bootstrapVersion: version,
+      badges: i.badges,
+      bootstrapVersion: i.version,
       flags: boot.flags,
-      unreadSupport,
-      hasOngoingCalls,
+      unreadSupport: i.support,
+      hasOngoingCalls: i.calls,
       client: boot.client,
     };
   }

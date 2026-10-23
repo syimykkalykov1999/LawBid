@@ -7,8 +7,10 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  OnApplicationShutdown,
   Optional,
 } from '@nestjs/common';
+import { WriteBehindCounter } from '../../../common/batch/write-behind-counter';
 import { PrivacySettingsService } from '../../privacy-settings/privacy-settings.service';
 import { ConsultationsService } from '../../consultations/consultations.service';
 import { Prisma } from '@prisma/client';
@@ -86,7 +88,7 @@ const LICENSE_SELECT = {
  * it, so they cannot leak through a later refactor of the DTO.
  */
 @Injectable()
-export class AttorneyProfilesService {
+export class AttorneyProfilesService implements OnApplicationShutdown {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
@@ -305,21 +307,47 @@ export class AttorneyProfilesService {
    * never be reached here. Unverified/pending/rejected profiles are shown
    * without the blue check.
    */
-  /** One more open of the profile today (statistics only; never blocks). */
-  private async recordView(attorneyId: string): Promise<void> {
-    try {
+  /**
+   * Load audit 6: one more open of the profile today (statistics only; never
+   * blocks). Added up in memory and written as ONE multi-row upsert every
+   * 10 s - a profile opened 1 000 times used to be 1 000 writes on one row.
+   */
+  private readonly views = new WriteBehindCounter(
+    async (batch) => {
+      const keys = [...batch.keys()].sort();
+      const ids: string[] = [];
+      const days: string[] = [];
+      const counts: number[] = [];
+      for (const k of keys) {
+        const [id, day] = k.split('|');
+        ids.push(id);
+        days.push(day);
+        counts.push(batch.get(k) ?? 0);
+      }
       await this.prisma.$executeRaw`
         INSERT INTO attorney_profile_views (attorney_id, day, views)
-        VALUES (${attorneyId}::uuid, CURRENT_DATE, 1)
+        SELECT t.a, t.d::date, t.v
+        FROM unnest(${ids}::uuid[], ${days}::text[], ${counts}::int[]) AS t(a, d, v)
         ON CONFLICT (attorney_id, day)
-        DO UPDATE SET views = attorney_profile_views.views + 1`;
-    } catch {
-      /* statistics are best effort */
-    }
+        DO UPDATE SET views = attorney_profile_views.views + EXCLUDED.views`;
+    },
+    { intervalMs: 10_000 },
+  );
+
+  private recordView(attorneyId: string): void {
+    this.views.add(`${attorneyId}|${new Date().toISOString().slice(0, 10)}`);
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    await this.views.stop();
   }
 
   /** The attorney's own numbers for the last 30 days (+ clients all time). */
   async stats(attorneyId: string): Promise<AttorneyStatsDto> {
+    // Views are counted write-behind (one batch per 10 s); the owner asking
+    // for their own numbers is rare, so write the waiting batch first and
+    // the answer is exact.
+    await this.views.flush();
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const [views, sent, accepted, clients] = await Promise.all([
       this.prisma.attorneyProfileView.aggregate({
@@ -457,7 +485,7 @@ export class AttorneyProfilesService {
     ) {
       throw notFound('Profile is unavailable.');
     }
-    if (row.user_id !== viewerId) void this.recordView(row.user_id);
+    if (row.user_id !== viewerId) this.recordView(row.user_id);
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
     // Public photo only (a clean `avatar` file); documents never.

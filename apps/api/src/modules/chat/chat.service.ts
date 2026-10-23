@@ -1567,14 +1567,21 @@ export class ChatService {
     return { lastReadMessageId: result.lastReadMessageId };
   }
 
-  /** Best effort, never blocks or fails the list. */
+  /**
+   * Best effort, never blocks or fails the list. Load audit 6 (2026-10-23):
+   * this used to call `delivered()` for each of up to 20 chats one after the
+   * other (about 6 queries and a SERIALIZABLE transaction each = 120 round
+   * trips on a phone that was offline for a day). Now it is ONE forward-only
+   * UPDATE for all of them; only the chats that really moved are announced.
+   */
   private async deliverListed(
     viewerId: string,
-    convs: { id: string; last_message_id: string | null }[],
+    convs: Conversation[],
     messageOf: Map<string, { id: string; sender_id: string | null }>,
     partOf: Map<string, { last_delivered_message_id: string | null }>,
   ): Promise<void> {
-    let n = 0;
+    const cids: string[] = [];
+    const mids: string[] = [];
     for (const c of convs) {
       const m = c.last_message_id ? messageOf.get(c.last_message_id) : null;
       if (!m || m.sender_id === null || m.sender_id === viewerId) continue;
@@ -1583,12 +1590,47 @@ export class ChatService {
       ) {
         continue;
       }
-      if (++n > 20) return;
-      try {
-        await this.delivered({ sub: viewerId } as RequestUser, c.id, m.id);
-      } catch {
-        // The list is what matters.
+      cids.push(c.id);
+      mids.push(m.id);
+      if (cids.length >= 20) break;
+    }
+    if (cids.length === 0) return;
+    try {
+      const moved = await this.prisma.$queryRaw<
+        { conversation_id: string; last_delivered_message_id: string }[]
+      >`
+        UPDATE conversation_participants cp
+        SET last_delivered_message_id = tm.id,
+            last_delivered_at = now(),
+            updated_at = now()
+        FROM unnest(${cids}::UUID[], ${mids}::UUID[]) AS v(cid, mid)
+        JOIN messages tm ON tm.id = v.mid
+        WHERE cp.conversation_id = v.cid
+          AND cp.user_id = ${viewerId}::UUID
+          AND tm.conversation_id = v.cid
+          AND (cp.last_delivered_message_id IS NULL
+               OR NOT EXISTS (
+                 SELECT 1 FROM messages cm
+                 WHERE cm.id = cp.last_delivered_message_id
+                   AND (cm.created_at, cm.id) >= (tm.created_at, tm.id)))
+        RETURNING cp.conversation_id::TEXT AS conversation_id,
+                  cp.last_delivered_message_id::TEXT AS last_delivered_message_id`;
+      const byId = new Map(convs.map((c) => [c.id, c]));
+      for (const r of moved) {
+        const c = byId.get(r.conversation_id);
+        if (!c) continue;
+        this.realtime.toUsers(
+          [c.client_id === viewerId ? c.attorney_id : c.client_id],
+          'message:delivered',
+          {
+            conversationId: c.id,
+            lastDeliveredMessageId: r.last_delivered_message_id,
+            deliveredAt: new Date().toISOString(),
+          },
+        );
       }
+    } catch {
+      // The list is what matters.
     }
   }
 

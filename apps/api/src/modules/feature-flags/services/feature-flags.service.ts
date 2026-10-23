@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FLAG_CATALOG } from '../flag-catalog';
 import { lockFlags } from '../../../common/feature-flags/locked-flags';
@@ -85,19 +86,23 @@ export class FeatureFlagsService implements OnModuleInit {
     const cached = await this.redis.get(FLAGS_CACHE_KEY);
     if (cached !== null) return JSON.parse(cached) as Record<string, boolean>;
 
-    const rows = await this.prisma.featureFlag.findMany({
-      select: { key: true, enabled: true },
-    });
-    const flags: Record<string, boolean> = {};
-    for (const row of rows) flags[row.key] = row.enabled;
+    // Load audit 6: after an admin edit clears the key every request would
+    // read the table; one refill per pod instead.
+    return singleFlight(FLAGS_CACHE_KEY, async () => {
+      const rows = await this.prisma.featureFlag.findMany({
+        select: { key: true, enabled: true },
+      });
+      const flags: Record<string, boolean> = {};
+      for (const row of rows) flags[row.key] = row.enabled;
 
-    await this.redis.set(
-      FLAGS_CACHE_KEY,
-      JSON.stringify(flags),
-      'EX',
-      FLAGS_CACHE_TTL_SECONDS,
-    );
-    return flags;
+      await this.redis.set(
+        FLAGS_CACHE_KEY,
+        JSON.stringify(flags),
+        'EX',
+        jitterTtl(FLAGS_CACHE_TTL_SECONDS),
+      );
+      return flags;
+    });
   }
 
   /** One flag, for server-side enforcement (login methods, device

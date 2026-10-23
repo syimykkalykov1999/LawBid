@@ -88,6 +88,9 @@ module "stack" {
   guardduty_alert_severity     = var.guardduty_alert_severity
   ecs_readonly_root_filesystem = var.ecs_readonly_root_filesystem
   dmarc_policy                 = var.dmarc_policy
+
+  # Load audit 6: growth switches (growth.tf).
+  growth = var.growth
 }
 
 output "stack" { value = module.stack }

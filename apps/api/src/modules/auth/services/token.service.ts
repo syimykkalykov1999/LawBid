@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, TokenExpiredError } from '@nestjs/jwt';
-import { randomBytes, createHash } from 'node:crypto';
+import {
+  randomBytes,
+  createHash,
+  createSecretKey,
+  type KeyObject,
+} from 'node:crypto';
 import { parseJwtKeys } from './jwt-keys.util';
 import { demoContext } from '../../../common/demo/demo-context';
 
@@ -81,6 +86,10 @@ export class TokenVerifyInvalidError extends Error {}
 @Injectable()
 export class TokenService {
   private readonly keys: Map<string, string>;
+  /** Load audit 6: jsonwebtoken tries createPublicKey(secret) first when it is
+   * handed a string and falls back to an HMAC key after an exception - on every
+   * request. A ready KeyObject skips that (about 4x faster verify). */
+  private readonly keyObjects = new Map<string, KeyObject>();
   private readonly activeKid: string;
   private readonly accessTtlSeconds: number;
   private readonly refreshTtlDays: number;
@@ -91,6 +100,9 @@ export class TokenService {
     private readonly config: ConfigService,
   ) {
     this.keys = parseJwtKeys(this.config.getOrThrow<string>('JWT_KEYS'));
+    for (const [kid, secret] of this.keys) {
+      this.keyObjects.set(kid, createSecretKey(Buffer.from(secret)));
+    }
     this.activeKid = this.config.getOrThrow<string>('JWT_ACTIVE_KID');
     this.accessTtlSeconds = this.config.getOrThrow<number>(
       'JWT_ACCESS_TTL_SECONDS',
@@ -255,7 +267,7 @@ export class TokenService {
     const audience = AUDIENCE[expectedTyp];
     try {
       const claims = this.jwt.verify<Record<string, unknown>>(token, {
-        secret,
+        secret: (this.keyObjects.get(kid as string) ?? secret) as string,
         algorithms: ['HS256'],
         issuer: 'lawbid',
         audience,

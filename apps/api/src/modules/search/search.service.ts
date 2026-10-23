@@ -19,6 +19,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { loadUrgencyThresholds } from '../cases/domain/case-urgency';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { jitterTtl, singleFlight } from '../../common/cache/single-flight';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import type { CaseFeedPage } from '../cases/dto/cases-feed.dto';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -378,14 +379,16 @@ export class SearchService {
         kind: 'tag' | 'person' | 'practice';
         text: string;
       }[];
-    const items = await this.provider.suggest(q, 4);
-    await this.redis.set(
-      `search:suggest:${hash}`,
-      JSON.stringify(items),
-      'EX',
-      60,
-    );
-    return items;
+    return singleFlight(`search:suggest:${hash}`, async () => {
+      const items = await this.provider.suggest(q, 4);
+      await this.redis.set(
+        `search:suggest:${hash}`,
+        JSON.stringify(items),
+        'EX',
+        jitterTtl(60),
+      );
+      return items;
+    });
   }
 
   async postsByText(
@@ -739,9 +742,12 @@ export class SearchService {
   ): Promise<string[]> {
     const hit = await this.redis.get(key);
     if (hit) return JSON.parse(hit) as string[];
-    const ids = await load();
-    await this.redis.set(key, JSON.stringify(ids), 'EX', ttlSec);
-    return ids;
+    // Load audit 6: one refill per pod, expiry spread (cache stampede).
+    return singleFlight(key, async () => {
+      const ids = await load();
+      await this.redis.set(key, JSON.stringify(ids), 'EX', jitterTtl(ttlSec));
+      return ids;
+    });
   }
 
   private pageOf(

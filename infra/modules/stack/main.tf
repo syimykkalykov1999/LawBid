@@ -709,7 +709,7 @@ locals {
     S3_REGION           = data.aws_region.current.name
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
-    MEDIA_CDN_BASE_URL  = "https://${module.s3.media_cdn_domain}"
+    MEDIA_CDN_BASE_URL  = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
     # Owner 2026-10-22: private media through CloudFront signed URLs (empty
     # until the owner supplies documents_cdn_public_key_pem; the private key
     # is the CLOUDFRONT_PRIVATE_KEY_PEM secret in extra_secrets).

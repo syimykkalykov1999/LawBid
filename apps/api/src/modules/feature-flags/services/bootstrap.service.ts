@@ -1,3 +1,4 @@
+import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { I18nLanguage, LegalDocument } from '@prisma/client';
@@ -305,55 +306,58 @@ export class BootstrapService {
       }
     }
 
-    const [languages, bundleVersions, legalDocuments] = await Promise.all([
-      this.prisma.i18nLanguage.findMany({
-        where: { is_active: true },
-        orderBy: { sort: 'asc' },
-      }),
-      this.prisma.i18nBundleVersion.findMany({
-        select: { lang: true, version: true },
-      }),
-      this.prisma.legalDocument.findMany({
-        where: { is_current: true, status: 'published' },
-        select: {
-          id: true,
-          doc_type: true,
-          version: true,
-          locale: true,
-          content_url: true,
-          content_md: true,
-          published_at: true,
-        },
-      }),
-    ]);
+    // Load audit 6: one refill per pod when the key expires or is cleared.
+    return singleFlight(BOOTSTRAP_CACHE_KEY, async () => {
+      const [languages, bundleVersions, legalDocuments] = await Promise.all([
+        this.prisma.i18nLanguage.findMany({
+          where: { is_active: true },
+          orderBy: { sort: 'asc' },
+        }),
+        this.prisma.i18nBundleVersion.findMany({
+          select: { lang: true, version: true },
+        }),
+        this.prisma.legalDocument.findMany({
+          where: { is_current: true, status: 'published' },
+          select: {
+            id: true,
+            doc_type: true,
+            version: true,
+            locale: true,
+            content_url: true,
+            content_md: true,
+            published_at: true,
+          },
+        }),
+      ]);
 
-    const translationsVersion: Record<string, number> = {};
-    for (const row of bundleVersions)
-      translationsVersion[row.lang] = row.version;
+      const translationsVersion: Record<string, number> = {};
+      for (const row of bundleVersions)
+        translationsVersion[row.lang] = row.version;
 
-    const content: CachedBootstrapContent = {
-      languages,
-      translations_version: translationsVersion,
-      legal_documents: legalDocuments.map((doc) => ({
-        ...doc,
-        // Owner 2026-10-05: the newer documents are large and are read
-        // on demand (GET /legal/documents/:type); bootstrap keeps the
-        // text of the four old ones only, as before.
-        content_md: BOOTSTRAP_TEXT_TYPES.has(doc.doc_type)
-          ? doc.content_md
-          : null,
-        published_at: doc.published_at?.toISOString() ?? null,
-      })),
-    };
-    await this.safeRedis(() =>
-      this.redis.set(
-        BOOTSTRAP_CACHE_KEY,
-        JSON.stringify(content),
-        'EX',
-        BOOTSTRAP_CACHE_TTL_SECONDS,
-      ),
-    );
-    return content;
+      const content: CachedBootstrapContent = {
+        languages,
+        translations_version: translationsVersion,
+        legal_documents: legalDocuments.map((doc) => ({
+          ...doc,
+          // Owner 2026-10-05: the newer documents are large and are read
+          // on demand (GET /legal/documents/:type); bootstrap keeps the
+          // text of the four old ones only, as before.
+          content_md: BOOTSTRAP_TEXT_TYPES.has(doc.doc_type)
+            ? doc.content_md
+            : null,
+          published_at: doc.published_at?.toISOString() ?? null,
+        })),
+      };
+      await this.safeRedis(() =>
+        this.redis.set(
+          BOOTSTRAP_CACHE_KEY,
+          JSON.stringify(content),
+          'EX',
+          jitterTtl(BOOTSTRAP_CACHE_TTL_SECONDS),
+        ),
+      );
+      return content;
+    });
   }
 
   /** Bundle versions only ever increase, so the larger of (cached DB

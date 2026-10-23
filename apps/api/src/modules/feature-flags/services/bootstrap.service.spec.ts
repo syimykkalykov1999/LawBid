@@ -131,8 +131,12 @@ describe('BootstrapService.build', () => {
       BOOTSTRAP_CACHE_KEY,
       expect.any(String),
       'EX',
-      BOOTSTRAP_CACHE_TTL_SECONDS,
+      // Jittered +/-20 % (load audit 6).
+      expect.any(Number),
     ]);
+    const ttl = redis.setCalls[0][3] as number;
+    expect(ttl).toBeGreaterThanOrEqual(BOOTSTRAP_CACHE_TTL_SECONDS * 0.8 - 1);
+    expect(ttl).toBeLessThanOrEqual(BOOTSTRAP_CACHE_TTL_SECONDS * 1.2 + 1);
     // Dates survive the JSON round trip as Date instances.
     expect(second).toEqual(first);
     expect(second.legal_documents[0].published_at).toBeInstanceOf(Date);

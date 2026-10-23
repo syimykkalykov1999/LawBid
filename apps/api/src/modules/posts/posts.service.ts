@@ -926,6 +926,10 @@ export class PostsService {
       where: {
         AND: [
           VISIBLE_POST_WHERE,
+          // Load audit 6: the explicit IS NOT NULL lets Postgres use the
+          // partial index posts_reels_created_idx (the relation filter alone
+          // is a LEFT JOIN it cannot see through): reels page 25 ms -> <1 ms.
+          { video_asset_id: { not: null } },
           { video_asset: { status: 'ready', deleted_at: null } },
           // One tag algorithm: the qualification and everything under it.
           practice
