@@ -67,8 +67,8 @@ void main() {
         'pingIntervalMs': 25000,
       });
       expect(t.jitter, 0.25);
-      expect([t.serverDisconnectMinWaitMs, t.serverDisconnectMaxWaitMs],
-          [2000, 9000]);
+      expect(t.serverDisconnectMinWaitMs, 2000);
+      expect(t.serverDisconnectMaxWaitMs, 9000);
       expect(t.probeTimeoutMs, 4000);
       expect(t.tokenRefreshLeadSec, 100);
       expect(t.pollingFallbackIntervalSeconds, 45);
