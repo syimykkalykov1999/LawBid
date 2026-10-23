@@ -100,6 +100,33 @@ void main() {
     }
   }
 
+  // Owner 2026-10-22: Chats | Contacts | Calls swipe like every tab row.
+  testWidgets('a swipe turns Contacts → Calls and back', (tester) async {
+    useNarrowPhone(tester);
+    await tester.pumpWidget(
+      uxApp(
+        const ContactsScreen(initialContacts: true),
+        theme: AppTheme.light(),
+        size: narrowPhone,
+        overrides: uxOverrides(
+          extra: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            phoneContactsProvider.overrideWith((_) async => _data()),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    final pages = tester.widget<PageView>(find.byType(PageView));
+    final start = pages.controller!.page!;
+    await tester.drag(find.byType(PageView), const Offset(-300, 0));
+    await tester.pumpAndSettle();
+    expect(pages.controller!.page, start + 1);
+    await tester.drag(find.byType(PageView), const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(pages.controller!.page, start);
+  });
+
   for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
     testWidgets('the "new on LawBid" switch fits at 360 dp ($name)',
         (tester) async {

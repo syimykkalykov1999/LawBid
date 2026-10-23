@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show MaterialPage;
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/accessibility/reduce_motion.dart';
 
@@ -41,8 +42,11 @@ abstract final class AppPageTransitions {
         ),
       );
     }
+    // Owner 2026-10-22: a MaterialPage takes the theme's page transition
+    // (core/navigation/back_swipe.dart): the Cupertino slide and «back» by a
+    // swipe from the edge or from anywhere no child claims — also on Android.
     if (_cupertino || _swipeBackEverywhere) {
-      return CupertinoPage<void>(
+      return MaterialPage<void>(
         key: state.pageKey,
         name: state.name,
         child: AppBackdrop(

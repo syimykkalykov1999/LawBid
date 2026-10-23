@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
@@ -124,20 +125,25 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         appBar: bar,
         // Owner 2026-10-21: the two sections slide like the other tabs of
         // the app (the same on Android and iOS).
-        body: PageView(
+        // Owner 2026-10-22: the first page's drag to the right is «back».
+        body: BackAwarePages(
           controller: _pages,
-          onPageChanged: (i) => _show(i, slide: false),
-          children: [
-            const ChatsTab(),
-            if (kIsWeb)
-              AppEmptyState(
-                icon: AppIcons.contactPhoneOutlined,
-                message: t.t('phoneContacts.webOnly'),
-              )
-            else
-              _Body(t: t),
-            const CallsTab(),
-          ],
+          child: PageView(
+            controller: _pages,
+            physics: BackAwarePages.physicsFor(context),
+            onPageChanged: (i) => _show(i, slide: false),
+            children: [
+              const ChatsTab(),
+              if (kIsWeb)
+                AppEmptyState(
+                  icon: AppIcons.contactPhoneOutlined,
+                  message: t.t('phoneContacts.webOnly'),
+                )
+              else
+                _Body(t: t),
+              const CallsTab(),
+            ],
+          ),
         ),
       ),
     );

@@ -42,6 +42,8 @@ wants results, not questions. Answer in Russian, short and plain.
     (http://<mac-ip>:8080/LawBid.apk). Build the APK only at the END.
     Samsung wasn't visible over USB (allow USB debugging + File transfer, or
     another cable).
+- Gestures (back by swipe from anywhere, row actions, tabs swipe, Android
+  system back and the exit hint): `docs/ux/GESTURES.md`.
 
 ## Done this session (all committed)
 Chat for everyone; percent (contingency) budgets/bids + admin cap/blocked

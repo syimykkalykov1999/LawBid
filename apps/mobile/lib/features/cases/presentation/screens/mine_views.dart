@@ -64,7 +64,6 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final active = _section == _CaseSection.active;
     Widget pageFor(_ClientTab tab) => switch (tab) {
           // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
           _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
@@ -102,15 +101,25 @@ class _ClientMineViewState extends ConsumerState<ClientMineView> {
                   ),
                 ),
                 Expanded(
-                  child: _ClientCasesGrid(
-                    key: ValueKey(_section),
-                    // Owner 2026-10-15: «Active» = open and in work (the stage
-                    // scale); «Completed» = closed and archived.
-                    filter:
-                        active ? MyCasesFilter.active : MyCasesFilter.completed,
-                    search: _search,
-                    cards: true,
-                    scale: active,
+                  // Owner 2026-10-22: Active | Completed swipe like the tabs.
+                  child: SwipePages<_CaseSection>(
+                    value: _section,
+                    values: _CaseSection.values,
+                    onChanged: (v) => setState(() => _section = v),
+                    pageBuilder: (_, section) {
+                      final isActive = section == _CaseSection.active;
+                      return _ClientCasesGrid(
+                        key: ValueKey(section),
+                        // Owner 2026-10-15: «Active» = open and in work (the
+                        // stage scale); «Completed» = closed and archived.
+                        filter: isActive
+                            ? MyCasesFilter.active
+                            : MyCasesFilter.completed,
+                        search: _search,
+                        cards: true,
+                        scale: isActive,
+                      );
+                    },
                   ),
                 ),
               ],
@@ -237,7 +246,6 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final invites = _section == _BidsSection.bids && _kind == _BidKind.invites;
     final filters = MineActiveFilters(
       search: _search,
       onChanged: (v) => setState(() => _search = v),
@@ -297,6 +305,36 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             ),
           )
         : const SizedBox.shrink();
+    Widget gridFor(_BidsSection section) => switch (section) {
+          // The cases in work.
+          _BidsSection.active => _WorkGrid(
+              key: const ValueKey('active'),
+              filter: WorkFilter.active,
+              search: _search,
+              cards: true,
+            ),
+          // Bids waiting for the client, and the invitations (swipe between).
+          _BidsSection.bids => SwipePages<_BidKind>(
+              value: _kind,
+              values: _BidKind.values,
+              onChanged: (v) => setState(() => _kind = v),
+              pageBuilder: (_, kind) => kind == _BidKind.invites
+                  ? const InvitesList(key: ValueKey('invites'))
+                  : _BidsGrid(
+                      key: const ValueKey('waiting'),
+                      filter: MyBidsFilter.active,
+                      search: _search,
+                    ),
+            ),
+          // Chosen and finished, declined, withdrawn, expired — everything
+          // that is over.
+          _BidsSection.completed => _BidsGrid(
+              key: const ValueKey('completed'),
+              filter: MyBidsFilter.completed,
+              search: _search,
+            ),
+        };
+    // Owner 2026-10-22: Active | Bids | Completed swipe like the tabs.
     final Widget grid = _saved
         ? _AttorneySaved(
             key: const ValueKey('saved'),
@@ -305,30 +343,12 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             kind: _savedKind,
             onKind: (v) => setState(() => _savedKind = v),
           )
-        : switch (_section) {
-            // The cases in work.
-            _BidsSection.active => _WorkGrid(
-                key: const ValueKey('active'),
-                filter: WorkFilter.active,
-                search: _search,
-                cards: true,
-              ),
-            _BidsSection.bids when invites =>
-              const InvitesList(key: ValueKey('invites')),
-            // Bids waiting for the client.
-            _BidsSection.bids => _BidsGrid(
-                key: const ValueKey('waiting'),
-                filter: MyBidsFilter.active,
-                search: _search,
-              ),
-            // Chosen and finished, declined, withdrawn, expired — everything
-            // that is over.
-            _BidsSection.completed => _BidsGrid(
-                key: const ValueKey('completed'),
-                filter: MyBidsFilter.completed,
-                search: _search,
-              ),
-          };
+        : SwipePages<_BidsSection>(
+            value: _section,
+            values: _BidsSection.values,
+            onChanged: (v) => setState(() => _section = v),
+            pageBuilder: (_, section) => gridFor(section),
+          );
     Widget pageFor(_AttorneyTab tab) => switch (tab) {
           _AttorneyTab.cases => Column(
               key: const ValueKey('cases'),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart';
 
 /// Owner 2026-10-19 (Instagram, «вкладки прыгают»): a profile laid out the
 /// way Instagram does it — the header scrolls away, the row of tabs sticks
@@ -86,41 +87,49 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
               ),
             ),
           ],
-          body: PageView.builder(
+          // Owner 2026-10-22: on a pushed profile the first tab's drag to the
+          // right goes «back»; the other tabs swipe as before.
+          body: BackAwarePages(
             controller: _pages,
-            itemCount: widget.pages.length,
-            onPageChanged: widget.onPage,
-            itemBuilder: (context, i) => _KeepAlive(
-              child: Builder(
-                builder: (context) => NotificationListener<ScrollNotification>(
-                  onNotification: (n) {
-                    if (n.depth == 0 &&
-                        n.metrics.axis == Axis.vertical &&
-                        n.metrics.extentAfter < 320) {
-                      widget.onNearEnd?.call(i);
-                    }
-                    return false;
-                  },
-                  child: CustomScrollView(
-                    key: PageStorageKey<int>(i),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    slivers: [
-                      SliverOverlapInjector(
-                        handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
-                          context,
+            child: PageView.builder(
+              controller: _pages,
+              physics: BackAwarePages.physicsFor(context),
+              itemCount: widget.pages.length,
+              onPageChanged: widget.onPage,
+              itemBuilder: (context, i) => _KeepAlive(
+                child: Builder(
+                  builder: (context) =>
+                      NotificationListener<ScrollNotification>(
+                    onNotification: (n) {
+                      if (n.depth == 0 &&
+                          n.metrics.axis == Axis.vertical &&
+                          n.metrics.extentAfter < 320) {
+                        widget.onNearEnd?.call(i);
+                      }
+                      return false;
+                    },
+                    child: CustomScrollView(
+                      key: PageStorageKey<int>(i),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverOverlapInjector(
+                          handle:
+                              NestedScrollView.sliverOverlapAbsorberHandleFor(
+                            context,
+                          ),
                         ),
-                      ),
-                      SliverPadding(
-                        padding: widget.pagePadding?.call(i) ??
-                            const EdgeInsets.fromLTRB(
-                              AppSpacing.screenSide,
-                              AppSpacing.sm,
-                              AppSpacing.screenSide,
-                              AppSpacing.xxl,
-                            ),
-                        sliver: SliverToBoxAdapter(child: widget.pages[i]),
-                      ),
-                    ],
+                        SliverPadding(
+                          padding: widget.pagePadding?.call(i) ??
+                              const EdgeInsets.fromLTRB(
+                                AppSpacing.screenSide,
+                                AppSpacing.sm,
+                                AppSpacing.screenSide,
+                                AppSpacing.xxl,
+                              ),
+                          sliver: SliverToBoxAdapter(child: widget.pages[i]),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

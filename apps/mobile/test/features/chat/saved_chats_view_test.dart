@@ -9,13 +9,17 @@ import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 class _Empty implements ChatExtrasRepository {
+  final tabs = <SavedChatTab>[];
+
   @override
   Future<CursorPage<SavedChatEntry>> saved({
     SavedChatTab tab = SavedChatTab.all,
     String? query,
     String? cursor,
-  }) async =>
-      const CursorPage(items: []);
+  }) async {
+    tabs.add(tab);
+    return const CursorPage(items: []);
+  }
 
   @override
   Future<Set<String>> savedIds() async => {};
@@ -25,12 +29,16 @@ class _Empty implements ChatExtrasRepository {
       throw UnimplementedError('${invocation.memberName}');
 }
 
-Future<void> _pump(WidgetTester tester, SavedChatsView view) async {
+Future<void> _pump(
+  WidgetTester tester,
+  SavedChatsView view, {
+  _Empty? repo,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         translatorProvider.overrideWithValue(const StaticTranslatorEn()),
-        chatExtrasRepositoryProvider.overrideWithValue(_Empty()),
+        chatExtrasRepositoryProvider.overrideWithValue(repo ?? _Empty()),
       ],
       child: MaterialApp(
         theme: AppTheme.light(),
@@ -57,6 +65,15 @@ void main() {
     await _pump(t, const SavedChatsView(query: ''));
     expect(find.byType(TextField), findsNothing);
     expect(find.text('No saved messages yet'), findsOneWidget);
+  });
+
+  // Owner 2026-10-22: All | Media | Files | Links swipe like tabs.
+  testWidgets('a swipe goes to the next tab', (t) async {
+    final repo = _Empty();
+    await _pump(t, const SavedChatsView(), repo: repo);
+    await t.drag(find.byType(PageView), const Offset(-400, 0));
+    await t.pumpAndSettle();
+    expect(repo.tabs, contains(SavedChatTab.media));
   });
 
   testWidgets('a query that finds nothing says so', (t) async {

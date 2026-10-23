@@ -239,6 +239,18 @@ void main() {
     expect(repo.queries.last.mineScope, isFalse);
   });
 
+  // Owner 2026-10-22: every tabbed screen swipes between its tabs.
+  testWidgets('a swipe turns the tab and re-queries with its filter', (
+    tester,
+  ) async {
+    final repo = _Repo();
+    await pump(tester, const QaFeedScreen(), repo);
+    expect(repo.queries.last.filter, QaFilter.all);
+    await tester.drag(find.byType(PageView), const Offset(-400, 0));
+    await tester.pumpAndSettle();
+    expect(repo.queries.last.filter, isNot(QaFilter.all));
+  });
+
   testWidgets('tabs re-query with their filter and keep search and topic', (
     tester,
   ) async {

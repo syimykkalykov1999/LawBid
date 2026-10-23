@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
 import 'package:lawbid/features/chat/presentation/archive_screen.dart';
 import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
@@ -33,15 +34,19 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: ChatRoutes.inbox,
         parentNavigatorKey: root,
+        // Rows with side actions on their edges (docs/ux/GESTURES.md).
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          InboxScreen(
-            initialTab: switch (state.uri.queryParameters['tab']) {
-              'notifications' => InboxTab.notifications,
-              'requests' => InboxTab.requests,
-              'team' => InboxTab.team,
-              _ => InboxTab.chats,
-            },
+          BackSwipe(
+            mode: BackSwipeMode.rows,
+            child: InboxScreen(
+              initialTab: switch (state.uri.queryParameters['tab']) {
+                'notifications' => InboxTab.notifications,
+                'requests' => InboxTab.requests,
+                'team' => InboxTab.team,
+                _ => InboxTab.chats,
+              },
+            ),
           ),
         ),
       ),
@@ -50,7 +55,10 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          const InboxScreen(initialTab: InboxTab.requests),
+          const BackSwipe(
+            mode: BackSwipeMode.rows,
+            child: InboxScreen(initialTab: InboxTab.requests),
+          ),
         ),
       ),
       GoRoute(
