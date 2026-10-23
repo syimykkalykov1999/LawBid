@@ -33,7 +33,7 @@ HERE = Path(__file__).resolve().parent
 CHECKS = {
     "strings": (re.compile(r"""Text(\.rich)?\(\s*['"]"""), lambda p: True),
     "colors": (
-        re.compile(r"Colors\.[a-zA-Z]+|Color\(0x"),
+        re.compile(r"(?<![A-Za-z])Colors\.[a-zA-Z]+|Color\(0x"),  # not ChatColors.
         lambda p: not p.startswith("lib/core/design_system/"),
     ),
 }
