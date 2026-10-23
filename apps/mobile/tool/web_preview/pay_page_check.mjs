@@ -40,7 +40,7 @@ const confirms = { subscription: { status: 'ok' }, seats: { status: 'requires_ac
 
 const b = await chromium.launch();
 let failed = false;
-for (const [kind, w, h, theme] of [['subscription', 390, 844, 'day'], ['seats', 390, 844, 'night'], ['promotion', 1280, 900, 'navy'], ['promotion', 390, 844, 'glass'], ['stars', 390, 844, 'day'], ['client_badge', 390, 844, 'night']]) {
+for (const [kind, w, h, theme] of [['subscription', 390, 844, 'day'], ['seats', 390, 844, 'night'], ['promotion', 1280, 900, 'blue'], ['promotion', 390, 844, 'green'], ['stars', 390, 844, 'day'], ['client_badge', 390, 844, 'night']]) {
   const ctx = await b.newContext({ viewport: { width: w, height: h } });
   const p = await ctx.newPage();
   const errors = [];
