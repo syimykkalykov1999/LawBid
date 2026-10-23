@@ -1,9 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
-import 'package:lawbid/features/social/presentation/screens/post_insights_screen.dart';
+import 'package:lawbid/features/social/presentation/screens/post_insights_screen.dart'
+    deferred as d_post_insights_screen;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 /// docs/05 feed routes. `/post/:id` is also the published deep link
@@ -41,9 +43,13 @@ List<RouteBase> socialRoutes(GlobalKey<NavigatorState> root) => [
           final extra = state.extra;
           return AppPageTransitions.push(
             state,
-            PostInsightsScreen(
-              postId: state.pathParameters['id'] ?? '',
-              post: extra is Post ? extra : null,
+            DeferredScreen(
+              id: 'post_insights_screen',
+              load: d_post_insights_screen.loadLibrary,
+              builder: (_) => d_post_insights_screen.PostInsightsScreen(
+                postId: state.pathParameters['id'] ?? '',
+                post: extra is Post ? extra : null,
+              ),
             ),
           );
         },

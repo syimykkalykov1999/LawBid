@@ -8,7 +8,24 @@ function hideBoot() {
       setTimeout(function () { b.remove(); }, 400);
     }
     window.addEventListener('flutter-first-frame', hideBoot);
-    setTimeout(hideBoot, 30000); // never stays if the event does not come
+    setTimeout(hideBoot, 90000); // never stays if the event does not come
+
+/* Owner 2026-10-23: a slow or broken download (bad network, a release that
+       was switched mid-load) used to leave the logo spinning for ever. After
+       12 s the splash says so and offers a reload. */
+    setTimeout(function () {
+      var b = document.getElementById('boot');
+      if (!b || b.classList.contains('gone')) return;
+      var ru = /^ru/i.test(navigator.language || '');
+      var p = document.createElement('p');
+      p.textContent = ru ? 'Загрузка идёт дольше обычного. Проверьте соединение.' : 'Taking longer than usual. Check your connection.';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = ru ? 'Обновить' : 'Reload';
+      btn.onclick = function () { location.reload(); };
+      b.appendChild(p);
+      b.appendChild(btn);
+    }, 12000);
 
 /* Owner 2026-10-20: a link or QR code for the app (profile, group, case,
        post...) opened in a phone's browser because the app is not installed

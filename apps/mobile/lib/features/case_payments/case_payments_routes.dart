@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/features/case_payments/presentation/payout_account_screen.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/case_payments/presentation/payout_account_screen.dart'
+    deferred as d_payout_account_screen;
 
 /// Owner 2026-10-05: Settings → «Приём оплат» (attorney) and «Платежи по
 /// делам» (both roles), plus the return pages of Stripe's hosted flows
@@ -20,8 +22,14 @@ List<RouteBase> casePaymentsRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: CasePaymentsRoutes.payoutAccount,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const PayoutAccountScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'payout_account_screen',
+            load: d_payout_account_screen.loadLibrary,
+            builder: (_) => d_payout_account_screen.PayoutAccountScreen(),
+          ),
+        ),
       ),
       // Owner 2026-10-22 (audit #4 §1): the case payments are a tab of the
       // one «Платежи» page; old links (pushes, Stripe returns) land there.
