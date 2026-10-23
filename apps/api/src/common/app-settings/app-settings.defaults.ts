@@ -676,6 +676,9 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.retention_snapshots_days': 730,
   'storage.retention_post_views_days': 365,
   'storage.retention_app_events_days': 90,
+  // Scale audit 2026-10-23: the two fastest-growing statistics tables.
+  'storage.retention_post_view_events_days': 730,
+  'storage.retention_user_activity_days': 400,
   'storage.growth_alert_percent': 20,
   // Owner 2026-10-20 (government requests): evidence archives are built one at
   // a time by the worker; the file is removed after `export_ttl_days` (the

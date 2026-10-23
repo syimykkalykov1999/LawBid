@@ -272,6 +272,8 @@ const KEY_TEXT: Record<string, string> = {
   'storage.retention_snapshots_days': 'Сколько дней хранить ежедневные снимки статистики.',
   'storage.retention_post_views_days': 'Сколько дней помнить, кто смотрел пост (счётчик просмотров остаётся; 0 — хранить всегда).',
   'storage.retention_app_events_days': 'Сколько дней хранить счётчики событий из приложения (0 — хранить всегда).',
+  'storage.retention_post_view_events_days': 'Сколько дней хранить показы и просмотры постов для статистики поста (0 — хранить всегда). Ключ: storage.retention_post_view_events_days.',
+  'storage.retention_user_activity_days': 'Сколько дней хранить «кто заходил в какой день» (графики читают последние 60 дней; 0 — хранить всегда). Ключ: storage.retention_user_activity_days.',
   'storage.growth_alert_percent': 'Письмо-предупреждение, если файлы или база выросли за день больше чем на столько процентов.',
   'fraud.enabled': 'Главный выключатель защиты от мошенников-клиентов (выкл. — ничего не проверяется).',
   'fraud.auto': 'Действия применяются сами (выкл. — всё только попадает в очередь сотрудникам).',
