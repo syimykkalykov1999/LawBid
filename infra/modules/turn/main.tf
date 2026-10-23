@@ -20,6 +20,31 @@ variable "subnet_id" {
   description = "A PUBLIC subnet (the relay needs a public address)."
 }
 variable "realm" { type = string }
+variable "secondary_subnet_id" {
+  type        = string
+  default     = null
+  description = "A PUBLIC subnet in ANOTHER Availability Zone. Set = a second coturn there (same secret and security group, own Elastic IP, about $7-8/month). null = one relay."
+}
+variable "alerts_topic_arn" {
+  type        = string
+  default     = null
+  description = "SNS topic for the instance-status, health and traffic alarms; null = no alarms."
+}
+variable "traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 20
+  description = "Alarm when the relays together send more than this many GB in 24 h (outbound traffic is about $0.09/GB; the first 100 GB a month of the whole account are free). 0 = no alarm."
+}
+variable "hosted_zone_id" {
+  type        = string
+  default     = null
+  description = "Route 53 zone of the domain. Set = Terraform creates turn.<realm> (every address, health-checked). null = DNS is kept by hand (Namecheap): one A record `turn` per address in `public_ips`."
+}
+variable "health_checks" {
+  type        = bool
+  default     = true
+  description = "Route 53 TCP health check on port 3478 of each relay (about $0.50-0.75/month each): an unhealthy relay leaves the DNS answer (only with hosted_zone_id) and raises an alarm. Their CloudWatch metric exists in us-east-1 only; set false in other regions."
+}
 variable "instance_type" {
   type    = string
   default = "t4g.nano"
@@ -182,6 +207,10 @@ resource "aws_eip_association" "this" {
 }
 
 output "public_ip" { value = aws_eip.this.public_ip }
+output "public_ips" {
+  value       = [for r in local.relays : r.ip]
+  description = "All relay addresses. Without hosted_zone_id: one A record `turn` per address (Namecheap)."
+}
 output "secret_parameter" { value = aws_ssm_parameter.secret.name }
 output "turn_url" {
   value       = "turn:${var.realm == "" ? aws_eip.this.public_ip : "turn.${var.realm}"}:3478?transport=udp,turn:${var.realm == "" ? aws_eip.this.public_ip : "turn.${var.realm}"}:3478?transport=tcp"

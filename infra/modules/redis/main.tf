@@ -18,8 +18,13 @@ variable "node_type" {
   default = "cache.t4g.medium"
 }
 variable "replicas" {
-  type    = number
-  default = 1
+  type        = number
+  default     = 1
+  description = "Read replicas. 0 = one node (restart = a few minutes of downtime). 1 = Multi-AZ with automatic failover to the replica in the other AZ, usually under 1-2 minutes (docs/runbooks/redis.md «Отказоустойчивость»)."
+  validation {
+    condition     = var.replicas >= 0 && var.replicas <= 5
+    error_message = "replicas must be 0..5."
+  }
 }
 variable "kms_key_arn" { type = string }
 variable "maxmemory_policy" {
@@ -112,6 +117,11 @@ resource "aws_elasticache_replication_group" "this" {
   # one tier up at run time; terraform apply must not undo it.
   lifecycle {
     ignore_changes = [node_type]
+    # Failover needs a second Availability Zone to fail over into.
+    precondition {
+      condition     = var.replicas == 0 || length(var.subnet_ids) >= 2
+      error_message = "redis replicas > 0 needs subnets in at least two Availability Zones."
+    }
   }
 }
 
@@ -129,3 +139,4 @@ resource "aws_secretsmanager_secret_version" "redis_url" {
 output "security_group_id" { value = aws_security_group.redis.id }
 output "primary_endpoint" { value = aws_elasticache_replication_group.this.primary_endpoint_address }
 output "redis_url_secret_arn" { value = aws_secretsmanager_secret.redis_url.arn }
+output "reader_endpoint" { value = aws_elasticache_replication_group.this.reader_endpoint_address }
