@@ -209,4 +209,41 @@ describe('Guest browsing (e2e)', () => {
     await setConfig('guest.browsing_enabled', true);
     await guest().get('/feed').expect(200);
   });
+
+  it('bootstrap tells the app whether guest browsing is on (app off, web on by default)', async () => {
+    await prisma.appConfig.deleteMany({
+      where: {
+        key: {
+          in: [
+            'client.guest_browse_app_enabled',
+            'client.guest_browse_web_enabled',
+          ],
+        },
+      },
+    });
+    await dropAppConfigCache(redis);
+    const first = await guest().get('/config/bootstrap').expect(200);
+    const cfg = (first.body.data ?? first.body).app_config;
+    expect(cfg['client.guest_browse_app_enabled']).toBe(false);
+    expect(cfg['client.guest_browse_web_enabled']).toBe(true);
+
+    await setConfig('client.guest_browse_app_enabled', true);
+    await setConfig('client.guest_browse_web_enabled', false);
+    const second = await guest().get('/config/bootstrap').expect(200);
+    const cfg2 = (second.body.data ?? second.body).app_config;
+    expect(cfg2['client.guest_browse_app_enabled']).toBe(true);
+    expect(cfg2['client.guest_browse_web_enabled']).toBe(false);
+
+    await prisma.appConfig.deleteMany({
+      where: {
+        key: {
+          in: [
+            'client.guest_browse_app_enabled',
+            'client.guest_browse_web_enabled',
+          ],
+        },
+      },
+    });
+    await dropAppConfigCache(redis);
+  });
 });

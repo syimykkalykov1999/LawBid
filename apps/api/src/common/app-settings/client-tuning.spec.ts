@@ -62,4 +62,30 @@ describe('client tuning knobs (scale audit 2026-10-23)', () => {
       validateConfigValue(schema['media.chat_photo_quality'], 82),
     ).toBeNull();
   });
+
+  it('guest browsing: off in the apps, on for the website, both public', () => {
+    // Owner 2026-10-23: no guest browsing in the iOS / Android apps unless
+    // the admin switches it on; the website keeps today's behaviour.
+    expect(CLIENT_TUNING_DEFS['client.guest_browse_app_enabled'].default).toBe(
+      false,
+    );
+    expect(CLIENT_TUNING_DEFS['client.guest_browse_web_enabled'].default).toBe(
+      true,
+    );
+    expect(APP_SETTINGS).toHaveProperty(
+      ['client.guest_browse_app_enabled'],
+      false,
+    );
+    expect(isPublic('client.guest_browse_app_enabled')).toBe(true);
+    expect(isPublic('client.guest_browse_web_enabled')).toBe(true);
+    // Booleans: no numeric bounds, true / false are accepted, text is not.
+    for (const k of [
+      'client.guest_browse_app_enabled',
+      'client.guest_browse_web_enabled',
+    ]) {
+      expect(validateConfigValue(schema[k], true)).toBeNull();
+      expect(validateConfigValue(schema[k], false)).toBeNull();
+      expect(validateConfigValue(schema[k], 'yes')).not.toBeNull();
+    }
+  });
 });

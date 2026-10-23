@@ -7,6 +7,8 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_database.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/auth/application/passkeys_providers.dart';
+import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
@@ -29,16 +31,25 @@ import '../../../helpers/email_flows_overrides.dart';
 void main() {
   final screens = <String, Widget Function()>{
     'welcome': () => const WelcomeScreen(),
+    // Owner 2026-10-23: the Face ID / fingerprint link sits on this screen.
+    'login': () => const LoginScreen(),
     'phone': () => const PhoneScreen(),
     'otp': () => const OtpScreen(),
     'role': () => const RoleScreen(),
   };
 
+  // Owner 2026-10-23: Blue and Green are full-colour dark-style themes now.
+  final themes = <String, ThemeData>{
+    'light': AppTheme.light(),
+    'dark': AppTheme.dark(),
+    'blue': AppTheme.of(AppThemeId.blue),
+    'green': AppTheme.of(AppThemeId.green),
+  };
+
   for (final entry in screens.entries) {
-    for (final brightness in [Brightness.light, Brightness.dark]) {
-      final themeName = brightness == Brightness.light ? 'light' : 'dark';
-      final theme =
-          brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
+    for (final t in themes.entries) {
+      final themeName = t.key;
+      final theme = t.value;
 
       testGoldens('${entry.key} screen - $themeName', (tester) async {
         SharedPreferences.setMockInitialValues({});
@@ -57,6 +68,7 @@ void main() {
               l10nDatabaseProvider.overrideWithValue(l10nDb),
               // The committed images show the e-mail entry points.
               ...emailFlowsOnOverrides(),
+              passkeysAvailableProvider.overrideWith((ref) async => true),
             ],
             child: MaterialApp(theme: theme, home: child),
           ),

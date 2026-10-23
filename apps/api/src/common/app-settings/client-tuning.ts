@@ -99,6 +99,20 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'The app re-reads its screens when it returns from the background after at least this many seconds.',
   },
+  // Owner 2026-10-23: Instagram / WhatsApp / Telegram apps have no guest
+  // browsing. These two are CLIENT gates only: the API stays open for
+  // token-less reads (the website uses them; `guest.browsing_enabled` is the
+  // server-side kill switch).
+  'client.guest_browse_app_enabled': {
+    default: false,
+    description:
+      'Show "Browse without signing in" and open the feed to people with no account in the iOS and Android apps. Off by default (like Instagram, WhatsApp, Telegram). The API itself stays open.',
+  },
+  'client.guest_browse_web_enabled': {
+    default: true,
+    description:
+      'The same for the website. On = a visitor can look around before signing in.',
+  },
 } as const satisfies Record<string, ClientTuningDef>;
 
 export type ClientTuningKey = keyof typeof CLIENT_TUNING_DEFS;

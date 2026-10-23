@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -17,12 +18,30 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 /// no guest token and no guest user — only the absence of a session.
 const kGuestBrowsingFlag = 'guest_browsing';
 
-/// The admin flag; the compiled-in default is in default_feature_flags.dart.
-final guestBrowsingEnabledProvider = Provider<bool>(
-  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled(
-        kGuestBrowsingFlag,
-      ),
-);
+/// Owner 2026-10-23: the iOS / Android apps have no guest browsing (as in
+/// Instagram, WhatsApp, Telegram) unless the admin sets
+/// `client.guest_browse_app_enabled`; the website follows
+/// `client.guest_browse_web_enabled` (on until the admin turns it off).
+/// A server that does not send the key (an older one) means "off" in the
+/// app and "on" on the web: today's behaviour of each.
+const kGuestBrowseAppKey = 'client.guest_browse_app_enabled';
+const kGuestBrowseWebKey = 'client.guest_browse_web_enabled';
+
+/// Whether this build offers guest browsing, from the bootstrap's
+/// `app_config` ([web] picks the website's key; tests pass it).
+bool guestBrowseSwitchOn(Map<String, String> appConfig, {required bool web}) {
+  final raw = appConfig[web ? kGuestBrowseWebKey : kGuestBrowseAppKey];
+  return web ? raw != 'false' : raw == 'true';
+}
+
+/// The admin flag (compiled-in default: on) AND, per platform, the server
+/// key above. The welcome link, the router guard, the deep links and every
+/// guest screen read this one provider.
+final guestBrowsingEnabledProvider = Provider<bool>((ref) {
+  final flags = ref.watch(featureFlagsControllerProvider);
+  return flags.isEnabled(kGuestBrowsingFlag) &&
+      guestBrowseSwitchOn(flags.appConfig, web: kIsWeb);
+});
 
 /// True while the app shows its screens to a person without an account:
 /// no token and no `GET /users/me` (a loaded user always came with a

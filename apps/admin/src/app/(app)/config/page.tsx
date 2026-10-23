@@ -286,6 +286,8 @@ const KEY_TEXT: Record<string, string> = {
   'client.events_flush_s': 'Как часто приложение отправляет события, секунды. Ключ: client.events_flush_s.',
   'client.call_sync_s': 'Как часто идущий звонок сверяется с сервером, секунды. Ключ: client.call_sync_s.',
   'client.qr_poll_s': 'Как часто сайт спрашивает «подтвердили ли вход по QR на телефоне», секунды. Ключ: client.qr_poll_s.',
+  'client.guest_browse_app_enabled': 'Просмотр без входа в приложениях iOS и Android (ссылка «Посмотреть без входа» на первом экране и лента без аккаунта). По умолчанию выключено, как в Instagram, WhatsApp и Telegram. Сервер при этом остаётся открытым. Ключ: client.guest_browse_app_enabled.',
+  'client.guest_browse_web_enabled': 'То же для сайта: посетитель может осмотреться до входа. По умолчанию включено. Ключ: client.guest_browse_web_enabled.',
   'client.resume_refresh_min_away_s': 'После скольких секунд в фоне приложение перечитывает экраны при возврате. Ключ: client.resume_refresh_min_away_s.',
   'media.chat_photo_max_px': 'Фото в чате: длинная сторона, px (уменьшается на телефоне перед отправкой). Ключ: media.chat_photo_max_px.',
   'media.chat_photo_quality': 'Фото в чате: качество JPEG, 50–100. Ключ: media.chat_photo_quality.',

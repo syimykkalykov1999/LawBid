@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/core/diagnostics/app_event_names.dart';
-import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
@@ -13,9 +11,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
-import 'package:lawbid/features/auth/application/passkeys_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
-import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
 import 'package:lawbid/features/demo/presentation/demo_code_sheet.dart';
 
 /// `/welcome` (file 07 §6.1). Layout, 2026-09-22 revision (owner request,
@@ -204,14 +200,6 @@ class WelcomeScreen extends ConsumerWidget {
                                 ),
                               ],
                             ),
-                            // Owner 2026-10-22 (checklist §1, passkeys): one
-                            // tap with Face ID / a fingerprint when the
-                            // device has a LawBid passkey.
-                            if (ref.watch(passkeysAvailableProvider).value ??
-                                false) ...[
-                              const SizedBox(height: 8),
-                              const _PasskeyButton(),
-                            ],
                             // Owner 2026-10-20 (website only, like WhatsApp Web):
                             // sign in by scanning a QR code with the phone.
                             if (kIsWeb)
@@ -333,53 +321,3 @@ class WelcomeScreen extends ConsumerWidget {
 /// second tap (button animation, double tap) can't push the same route twice.
 bool _isTopRoute(BuildContext context) =>
     ModalRoute.of(context)?.isCurrent ?? true;
-
-/// «Sign in with Face ID / fingerprint» (owner 2026-10-22): the system
-/// passkey sheet; a cancel says nothing, every other outcome is one line.
-class _PasskeyButton extends ConsumerStatefulWidget {
-  const _PasskeyButton();
-
-  @override
-  ConsumerState<_PasskeyButton> createState() => _PasskeyButtonState();
-}
-
-class _PasskeyButtonState extends ConsumerState<_PasskeyButton> {
-  bool _busy = false;
-
-  Future<void> _signIn() async {
-    if (_busy || !_isTopRoute(context)) return;
-    final t = ref.read(translatorProvider);
-    setState(() => _busy = true);
-    final result = await ref.read(passkeysRepositoryProvider).signIn();
-    AppEvents.track(
-      result.isSuccess
-          ? AppEventNames.loginSuccess
-          : AppEventNames.loginFailure,
-    );
-    if (!mounted) return;
-    setState(() => _busy = false);
-    if (result.isSuccess || result.status == PasskeySignInStatus.cancelled) {
-      return; // the router guard moves a signed-in person on
-    }
-    final text = switch (result.status) {
-      PasskeySignInStatus.noCredentials => t.t('passkey.error.noCredentials'),
-      PasskeySignInStatus.unsupported => t.t('passkey.error.unsupported'),
-      _ => result.error == null
-          ? t.t('passkey.error.generic')
-          : passkeyErrorText(t, result.error!),
-    };
-    showAppSnackBar(context, text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    return GavelStrikeButton(
-      key: const ValueKey('welcome-passkey'),
-      label: t.t('passkey.signIn'),
-      variant: AppButtonVariant.secondary,
-      isLoading: _busy,
-      onPressed: _signIn,
-    );
-  }
-}

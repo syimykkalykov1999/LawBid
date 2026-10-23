@@ -5,6 +5,7 @@ import type { I18nLanguage, LegalDocument } from '@prisma/client';
 import type Redis from 'ioredis';
 import { weakEtag } from '../../../common/sync/cheap-etag';
 import { OWNER_CACHE_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
+import { CLIENT_TUNING_DEFS } from '../../../common/app-settings/client-tuning';
 import {
   clientTimingsFrom,
   type ClientTimings,
@@ -240,6 +241,13 @@ export class BootstrapService {
         // Owner 2026-10-22 (client economy plan §5): the cache ceilings are
         // always present — the defaults until the admin stores a value.
         ...OWNER_CACHE_SETTINGS,
+        // Owner 2026-10-23: whether the apps / the website offer browsing
+        // without an account; always present (app off, web on) until the
+        // admin stores a value.
+        'client.guest_browse_app_enabled':
+          CLIENT_TUNING_DEFS['client.guest_browse_app_enabled'].default,
+        'client.guest_browse_web_enabled':
+          CLIENT_TUNING_DEFS['client.guest_browse_web_enabled'].default,
         ...Object.fromEntries(
           Object.entries(appConfig).filter(([k]) =>
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
