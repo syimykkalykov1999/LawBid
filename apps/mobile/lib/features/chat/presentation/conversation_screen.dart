@@ -31,11 +31,13 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
+import 'package:lawbid/features/chat/application/send_picked.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/disappearing.dart';
+import 'package:lawbid/features/chat/domain/hold_gesture.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
@@ -48,6 +50,7 @@ import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
+import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
@@ -242,21 +245,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       prepareVideo: _prepareVideo,
     );
     if (files.isEmpty || !mounted) return;
-    final caption = _text.text.trim();
-    if (caption.isNotEmpty) _text.clear();
-    Future<void>? previous;
-    for (var i = 0; i < files.length; i++) {
-      final f = files[i];
-      final last = i == files.length - 1;
-      previous = _thread.sendAttachment(
-        bytes: f.bytes,
-        name: f.name,
-        mime: f.mime,
-        caption: last && caption.isNotEmpty ? caption : null,
-        after: previous,
-      );
-      unawaited(previous);
-    }
+    // Owner 2026-10-22 (WhatsApp): nothing is sent yet - the preview opens
+    // (big picture, thumbnails, caption, rotate / crop); the typed text is
+    // its caption. Backing out keeps the text where it was.
+    final shown = await showMediaPreview(
+      context,
+      files: files,
+      caption: _text.text,
+    );
+    if (shown == null || !mounted) return;
+    if (_text.text.isNotEmpty) _text.clear();
+    unawaited(sendPickedFiles(_thread, shown.files, shown.caption));
   }
 
   /// Owner 2026-10-20: an attorney's card into this chat.
@@ -2103,8 +2102,6 @@ class _Composer extends ConsumerStatefulWidget {
 }
 
 class _ComposerState extends ConsumerState<_Composer> {
-  static const _cancelDx = -110.0;
-  static const _lockDy = -80.0;
 
   bool _recording = false;
   bool _locked = false;
@@ -2364,11 +2361,14 @@ class _ComposerState extends ConsumerState<_Composer> {
   void _onMove(PointerMoveEvent e) {
     if (!_recording || _locked) return;
     setState(() => _drag += e.delta);
-    if (_drag.dx < _cancelDx) {
-      unawaited(_finish(send: false));
-    } else if (_drag.dy < _lockDy) {
-      // No buzz here: the microphone is open and would record it.
-      setState(() => _locked = true);
+    switch (HoldGesture.classify(_drag)) {
+      case HoldOutcome.cancel:
+        unawaited(_finish(send: false));
+      case HoldOutcome.lock:
+        // No buzz here: the microphone is open and would record it.
+        setState(() => _locked = true);
+      case HoldOutcome.none:
+        break;
     }
   }
 
@@ -2463,7 +2463,7 @@ class _ComposerState extends ConsumerState<_Composer> {
           ? 0
           : previewAt.inMilliseconds / _held!.durationMs,
       onSeek: _held == null ? null : _seekPreview,
-      slideOpacity: (1 + _drag.dx / -_cancelDx).clamp(0.2, 1.0),
+      slideOpacity: HoldGesture.slideOpacity(_drag),
       onCancel: () => _finish(send: false),
       onTogglePreview: _togglePreview,
       onPause: _pauseRec,
@@ -2571,8 +2571,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                           Positioned(
                             bottom: AppSizes.touchTarget + 16,
                             child: Opacity(
-                              opacity:
-                                  (0.4 + _drag.dy / _lockDy).clamp(0.4, 1.0),
+                              opacity: HoldGesture.lockHintOpacity(_drag),
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(

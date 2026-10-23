@@ -1015,6 +1015,16 @@ abstract final class AppIcons {
     0xe7a4,
     fontFamily: fillFamily,
   );
+  // Owner 2026-10-22: the media preview before sending (rotate, crop).
+  static const IconData rotateRightRounded = IconData(
+    0xe036,
+    fontFamily: boldFamily,
+  );
+  static const IconData rotateLeftRounded = IconData(
+    0xe038,
+    fontFamily: boldFamily,
+  );
+  static const IconData cropRounded = IconData(0xe1d4, fontFamily: boldFamily);
   static const IconData contentCutRounded = IconData(
     0xeae0,
     fontFamily: boldFamily,
