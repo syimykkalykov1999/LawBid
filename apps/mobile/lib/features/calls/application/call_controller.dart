@@ -1162,6 +1162,7 @@ class CallController extends Notifier<CallSession> {
       );
       try {
         await media.enableVideo();
+        ref.read(callFrontCameraProvider.notifier).front();
       } on Object {
         // No camera, or the camera permission refused: as it was.
         if (!ref.mounted || state.call?.id != call.id) return;
@@ -1283,6 +1284,7 @@ class CallController extends Notifier<CallSession> {
     if (!state.video) return;
     try {
       await _media?.switchCamera();
+      ref.read(callFrontCameraProvider.notifier).flip();
     } on Object {
       // A single camera.
     }
@@ -2061,6 +2063,7 @@ class CallController extends Notifier<CallSession> {
   void _reset() {
     _gen++;
     ref.read(callCamerasOffProvider.notifier).clear();
+    ref.read(callFrontCameraProvider.notifier).front();
     _accepting = null;
     _clearTimers();
     // Audit 2026-10-02: the incoming melody stops with any change.

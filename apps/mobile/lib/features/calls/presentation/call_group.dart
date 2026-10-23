@@ -85,6 +85,7 @@ class CallGroupGrid extends ConsumerWidget {
     final rows = (n / cols).ceil();
     final m = media;
     final focusId = ref.watch(callVideoLayoutProvider).focusId;
+    final frontCamera = ref.watch(callFrontCameraProvider);
     final camerasOff = ref.watch(callCamerasOffProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final focused = session.video
@@ -115,7 +116,10 @@ class CallGroupGrid extends ConsumerWidget {
                       host: call.hostId == member.userId,
                       speaking: false,
                       stream: null,
-                      mirror: isMe,
+                      mirror: callMirrorFor(
+                        isLocal: isMe,
+                        frontCamera: frontCamera,
+                      ),
                       micOff: isMe ? session.muted : member.muted,
                       cameraOff: session.video,
                       onExpand: expand,
@@ -142,7 +146,10 @@ class CallGroupGrid extends ConsumerWidget {
                             isMe ? kSelfSpeaker : member.userId,
                           ),
                           stream: stream,
-                          mirror: isMe,
+                          mirror: callMirrorFor(
+                            isLocal: isMe,
+                            frontCamera: frontCamera,
+                          ),
                           micOff: isMe ? session.muted : member.muted,
                           cameraOff: session.video && stream == null,
                           onExpand: expand,

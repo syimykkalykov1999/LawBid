@@ -46,54 +46,60 @@ Future<List<PickedChatFile>> pickChatFiles(
   /// Owner 2026-10-17: set → "Video" is offered (when a video format is on);
   /// gets the picked video, returns it ready to upload (compressed).
   Future<XFile> Function(XFile video)? prepareVideo,
+
+  /// Owner 2026-10-22 (WhatsApp): the camera button beside the mic skips the
+  /// sheet ('camera'); the shot opens in the media preview like the rest.
+  String? directChoice,
 }) async {
   final videoOn = prepareVideo != null && (limits?.allowsVideo ?? true);
-  final choice = await showAppBottomSheet<String>(
-    context: context,
-    builder: (sheet) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const AppSheetHandle(),
-          // Owner 2026-10-17 (WhatsApp): one gallery for photos and videos.
-          AppListRow(
-            icon: AppIcons.photoLibraryOutlined,
-            label: t.t(videoOn ? 'chat.attach.gallery' : 'chat.attach.photos'),
-            onTap: () => Navigator.of(sheet).pop('photos'),
+  final choice = directChoice ??
+      await showAppBottomSheet<String>(
+        context: context,
+        builder: (sheet) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const AppSheetHandle(),
+              // Owner 2026-10-17 (WhatsApp): one gallery for photos and videos.
+              AppListRow(
+                icon: AppIcons.photoLibraryOutlined,
+                label:
+                    t.t(videoOn ? 'chat.attach.gallery' : 'chat.attach.photos'),
+                onTap: () => Navigator.of(sheet).pop('photos'),
+              ),
+              AppListRow(
+                icon: AppIcons.photoCameraOutlined,
+                label: t.t('chat.attach.camera'),
+                onTap: () => Navigator.of(sheet).pop('camera'),
+              ),
+              AppListRow(
+                icon: AppIcons.descriptionOutlined,
+                label: t.t('chat.attach.files'),
+                onTap: () => Navigator.of(sheet).pop('files'),
+              ),
+              if (onTemplate != null)
+                AppListRow(
+                  icon: AppIcons.descriptionOutlined,
+                  label: t.t('chat.attach.template'),
+                  onTap: () => Navigator.of(sheet).pop('template'),
+                ),
+              if (onContact != null)
+                AppListRow(
+                  icon: AppIcons.person,
+                  label: t.t('card.contact'),
+                  onTap: () => Navigator.of(sheet).pop('contact'),
+                ),
+              if (onPlace != null)
+                AppListRow(
+                  icon: AppIcons.placeOutlined,
+                  label: t.t('card.place'),
+                  onTap: () => Navigator.of(sheet).pop('place'),
+                ),
+              const SizedBox(height: AppSpacing.md),
+            ],
           ),
-          AppListRow(
-            icon: AppIcons.photoCameraOutlined,
-            label: t.t('chat.attach.camera'),
-            onTap: () => Navigator.of(sheet).pop('camera'),
-          ),
-          AppListRow(
-            icon: AppIcons.descriptionOutlined,
-            label: t.t('chat.attach.files'),
-            onTap: () => Navigator.of(sheet).pop('files'),
-          ),
-          if (onTemplate != null)
-            AppListRow(
-              icon: AppIcons.descriptionOutlined,
-              label: t.t('chat.attach.template'),
-              onTap: () => Navigator.of(sheet).pop('template'),
-            ),
-          if (onContact != null)
-            AppListRow(
-              icon: AppIcons.person,
-              label: t.t('card.contact'),
-              onTap: () => Navigator.of(sheet).pop('contact'),
-            ),
-          if (onPlace != null)
-            AppListRow(
-              icon: AppIcons.placeOutlined,
-              label: t.t('card.place'),
-              onTap: () => Navigator.of(sheet).pop('place'),
-            ),
-          const SizedBox(height: AppSpacing.md),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
   if (choice == null) return const [];
   final out = <PickedChatFile>[];
   var skipped = 0;

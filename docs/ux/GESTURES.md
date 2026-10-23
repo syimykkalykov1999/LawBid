@@ -57,6 +57,19 @@ screen, "back". On pushed screens that hold such rows the route uses
 back); the inbox, groups and channels routes do. The two never fight:
 different start zones, and the arena order above.
 
+## Rule 2b - Quoting a message (chat)
+
+Telegram: a message is quoted by dragging it toward the START side
+(left in LTR) past 56 dp. WhatsApp does the opposite direction, but that
+is the direction of "back" here, so we use Telegram's: the reply drag
+(`SwipeToReply`, `features/chat/presentation/reply_swipe.dart`) uses a
+recogniser that REFUSES a pointer that first moves toward the end, so the
+screen's back drag (an ancestor) takes it and a swipe back from the middle
+of a chat works even when the finger lands on a bubble. A mostly vertical
+move scrolls. The bubble follows the finger with growing resistance, a
+reply arrow appears behind it and a haptic ticks at the threshold. RTL is
+mirrored. Test: `test/features/chat/reply_swipe_test.dart`.
+
 ## Rule 3 - Tabs swipe
 
 Every tabbed screen allows a swipe between its tabs: `PillTabs` +

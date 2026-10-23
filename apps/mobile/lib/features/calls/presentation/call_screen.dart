@@ -266,6 +266,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
         s.phase == CallPhase.outgoing || s.phase == CallPhase.incoming;
     final media = c.media;
     final layout = ref.watch(callVideoLayoutProvider);
+    final frontCamera = ref.watch(callFrontCameraProvider);
     final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
     final promptId = s.videoPrompt;
     final promptName = promptId == null
@@ -309,6 +310,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
         promptName: promptName,
         videoLive: videoLive,
         selfBig: selfBig,
+        frontCamera: frontCamera,
         hideChrome: hideChrome,
         bigStream: !videoLive
             ? null
@@ -343,6 +345,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
     required String promptName,
     required bool videoLive,
     required bool selfBig,
+    required bool frontCamera,
     required bool hideChrome,
     required MediaStream? bigStream,
     required MediaStream? smallStream,
@@ -396,7 +399,10 @@ class _CallScreenState extends ConsumerState<CallScreen>
                             : CallVideoView(
                                 key: ValueKey(selfBig),
                                 stream: bigStream,
-                                mirror: selfBig,
+                                mirror: callMirrorFor(
+                                  isLocal: selfBig,
+                                  frontCamera: frontCamera,
+                                ),
                               ),
                       ),
                     ),
@@ -653,7 +659,10 @@ class _CallScreenState extends ConsumerState<CallScreen>
                     Positioned.fill(
                       child: CallPipWindow(
                         stream: smallStream,
-                        mirror: !selfBig,
+                        mirror: callMirrorFor(
+                          isLocal: !selfBig,
+                          frontCamera: frontCamera,
+                        ),
                         topInset:
                             MediaQuery.paddingOf(context).top + AppSpacing.xxl,
                         bottomInset: MediaQuery.paddingOf(context).bottom + 190,

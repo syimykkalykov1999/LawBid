@@ -6,6 +6,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 
+/// Owner 2026-10-23: only OUR picture from the FRONT camera is mirrored, like
+/// a mirror (WhatsApp / FaceTime). A rear camera shows the room as it is,
+/// and a remote picture is never mirrored.
+bool callMirrorFor({required bool isLocal, required bool frontCamera}) =>
+    isLocal && frontCamera;
+
 /// Owner 2026-10-05: one WebRTC picture (ours mirrored, like a mirror).
 class CallVideoView extends StatefulWidget {
   const CallVideoView({required this.stream, this.mirror = false, super.key});
