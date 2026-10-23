@@ -285,9 +285,13 @@ variable "worker_memory" {
   type    = number
   default = 1024
 }
+# Scale audit 2026-10-23: one mobile-carrier (CGNAT) or office address carries
+# thousands of people; 3000 / 5 min (10 per second) cut real users off the
+# moment a city came online. Signed-in users are limited per account by the
+# API itself (100 / min), so this edge rule only has to stop floods.
 variable "waf_rate_limit_per_5m" {
   type    = number
-  default = 3000
+  default = 10000
 }
 # Security research #5 (2026-10-22), A3: the sign-in code / password reset
 # paths get their own, much lower per-IP limit at the WAF (the API's own
@@ -656,9 +660,48 @@ module "secrets" {
   tags        = local.tags
 }
 
+# --- database connection budget (scale audit 2026-10-23) ---------------------
+# Every API / worker task keeps DB_POOL_SIZE connections (Prisma). Before
+# this, the pool was a fixed 10: at 20 API + 10 worker tasks that is 300
+# connections, 600 during a rolling deploy (ECS runs up to 200 % of the
+# tasks) - more than a db.t4g.medium accepts (about 400). The pool is now
+# worked out from the database size and the task ceilings.
+variable "database_max_connections" {
+  type        = number
+  default     = 0
+  description = "max_connections of the database. 0 = estimate from database_instance_class with the RDS default formula (memory / 9531392); set it when the database is not ours (create_database = false) or the parameter group changes it."
+}
+
+locals {
+  db_memory_gib = lookup({
+    "db.t4g.micro" = 1, "db.t4g.small" = 2, "db.t4g.medium" = 4,
+    "db.t4g.large" = 8, "db.t4g.xlarge" = 16, "db.t4g.2xlarge" = 32,
+    "db.t3.medium" = 4, "db.t3.large" = 8,
+    "db.m6g.large" = 8, "db.m6g.xlarge" = 16, "db.m6g.2xlarge" = 32,
+    "db.m7g.large" = 8, "db.m7g.xlarge" = 16, "db.m7g.2xlarge" = 32,
+    "db.r6g.large" = 16, "db.r6g.xlarge" = 32, "db.r6g.2xlarge" = 64,
+    "db.r7g.large" = 16, "db.r7g.xlarge" = 32, "db.r7g.2xlarge" = 64,
+  }, var.database_instance_class, 4)
+  # RDS: LEAST(DBInstanceClassMemory / 9531392, 5000); the usable memory is
+  # about 88 % of the instance memory.
+  db_max_connections = var.database_max_connections > 0 ? var.database_max_connections : min(5000, floor(local.db_memory_gib * 1073741824 * 0.88 / 9531392))
+  # Rolling deploy: up to twice the tasks run together.
+  db_peak_tasks = 2 * (var.api_max_tasks + var.worker_max_tasks)
+  # 80 % of max_connections shared by the peak tasks; 3..10 per task.
+  db_pool_size = max(3, min(10, floor(0.8 * local.db_max_connections / local.db_peak_tasks)))
+}
+
+check "db_connection_budget" {
+  assert {
+    condition     = local.db_pool_size * local.db_peak_tasks <= local.db_max_connections
+    error_message = "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts: lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or put a connection pooler (RDS Proxy / PgBouncer) in front."
+  }
+}
+
 locals {
   api_env = {
     NODE_ENV            = "production"
+    DB_POOL_SIZE        = tostring(local.db_pool_size)
     TRUST_PROXY_HOPS    = "1"
     APP_LINK_BASE_URL   = var.app_link_base_url
     ADMIN_ORIGINS       = "https://${var.admin_host}"
@@ -868,6 +911,8 @@ module "monitoring" {
   worker_service_name         = module.ecs.worker_service_name
   redis_replication_group_id  = "${local.name}-redis"
   redis_replicas              = var.redis_replicas
+  db_instance_id              = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections          = local.db_max_connections
   api_log_group               = module.ecs.log_group_names["api"]
   worker_log_group            = module.ecs.log_group_names["worker"]
   p95_target_ms               = var.p95_target_ms

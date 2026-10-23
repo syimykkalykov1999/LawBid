@@ -71,6 +71,18 @@ export class UserThrottlerGuard extends ThrottlerGuard {
         blockDuration: Math.min(props.blockDuration, ADMIN_BLOCK_MS),
       });
     }
+    if (
+      routeLimit === undefined &&
+      (await this.getTracker(req)).startsWith('ip:')
+    ) {
+      // Scale audit 2026-10-23: anonymous callers share one bucket per
+      // address, and a mobile carrier or an office puts thousands of people
+      // behind one address - the admin may raise it without a release.
+      return super.handleRequest({
+        ...props,
+        limit: await this.anonymousLimit(props.limit),
+      });
+    }
     return super.handleRequest(props);
   }
 
@@ -102,6 +114,17 @@ export class UserThrottlerGuard extends ThrottlerGuard {
     }
     const ip = typeof req.ip === 'string' ? req.ip : 'unknown';
     return `ip:${ip}`;
+  }
+
+  private async anonymousLimit(fallback: number): Promise<number> {
+    try {
+      const v = await this.settings.number(
+        'security.anonymous_rate_limit_per_minute',
+      );
+      return Number.isFinite(v) && v >= fallback ? Math.round(v) : fallback;
+    } catch {
+      return fallback;
+    }
   }
 
   private async adminLimit(): Promise<number> {

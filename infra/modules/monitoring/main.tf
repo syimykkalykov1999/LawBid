@@ -415,6 +415,40 @@ resource "aws_cloudwatch_metric_alarm" "redis_memory" {
   tags                = var.tags
 }
 
+variable "db_instance_id" {
+  type        = string
+  default     = ""
+  description = "RDS instance identifier. Empty = the database is not ours (no connection alarm)."
+}
+variable "db_max_connections" {
+  type        = number
+  default     = 0
+  description = "max_connections of that database (stack estimates it from the instance class)."
+}
+
+# Scale audit 2026-10-23: every API / worker task keeps a small pool of
+# database connections; autoscaling and rolling deploys multiply them. Past
+# 80 % of max_connections new connections start to fail - this alarm comes
+# before that, while there is still time to lower DB_POOL_SIZE or move the
+# database one size up.
+resource "aws_cloudwatch_metric_alarm" "db_connections" {
+  count               = var.db_instance_id != "" && var.db_max_connections > 0 ? 1 : 0
+  alarm_name          = "${var.name}-db-connections"
+  alarm_description   = "LawBid: База данных заполнена соединениями больше чем на 80 % (так бывает при большом числе серверов). Что делать: админка → Здоровье системы → увеличить базу на один размер; если повторяется — напишите Claude «пул соединений». Инструкция: ${var.runbook_base_url}/db-contention.md (EN: RDS DatabaseConnections above 80 % of max_connections.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = floor(var.db_max_connections * 0.8)
+  statistic           = "Maximum"
+  metric_name         = "DatabaseConnections"
+  namespace           = "AWS/RDS"
+  dimensions          = { DBInstanceIdentifier = var.db_instance_id }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 resource "aws_cloudwatch_metric_alarm" "service_cpu" {
   for_each = {
     api    = var.api_service_name

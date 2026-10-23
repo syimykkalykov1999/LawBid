@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
@@ -117,6 +118,8 @@ class FeatureFlagsController extends _$FeatureFlagsController {
       );
       // Owner 2026-10-15: the admin's character limits for text fields.
       TextLimits.apply(state.appConfig);
+      // Scale audit 2026-10-23: retries, reconnects, polling - server-tunable.
+      ClientTuning.apply(state.appConfig);
       // Owner 2026-10-15: kill switches of the app's own diagnostics.
       AppEvents.enabled = state.flags['app_events'] ?? true;
       CrashReporter.enabled = state.flags['crash_reports'] ?? true;

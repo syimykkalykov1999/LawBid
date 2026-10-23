@@ -13,9 +13,13 @@ variable "public_subnet_ids" { type = list(string) }
 variable "certificate_arn" { type = string }
 variable "api_host" { type = string }
 variable "admin_host" { type = string }
+# Scale audit 2026-10-23: one mobile-carrier (CGNAT) or office address carries
+# thousands of people; 3000 / 5 min (10 per second) cut real users off the
+# moment a city came online. Signed-in users are limited per account by the
+# API itself (100 / min), so this edge rule only has to stop floods.
 variable "waf_rate_limit_per_5m" {
   type    = number
-  default = 3000
+  default = 10000
 }
 variable "admin_allowed_cidrs" {
   type    = list(string)
