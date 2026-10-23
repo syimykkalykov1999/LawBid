@@ -105,6 +105,15 @@ final class ChatColors extends ThemeExtension<ChatColors> {
   /// the bottom of a caption-less photo / video under its time and ticks.
   static const Color mediaFade = Color(0x00000000);
 
+  /// Owner 2026-10-22: the full-screen media preview (before sending) is
+  /// always dark, like WhatsApp's: black stage, white ink, a translucent
+  /// bar, and a "nothing" colour for transparent surfaces.
+  static const Color viewerBg = Color(0xFF000000);
+  static const Color viewerBar = Color(0x99000000);
+  static const Color onViewer = Color(0xFFFFFFFF);
+  static const Color onViewerMuted = Color(0xB3FFFFFF);
+  static const Color clear = Colors.transparent;
+
   final Color wallpaper;
   final Color pattern;
   final Color mine;

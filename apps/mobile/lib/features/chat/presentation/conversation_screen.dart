@@ -39,8 +39,10 @@ import 'package:lawbid/features/chat/domain/disappearing.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
+import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
 import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
+import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
@@ -713,14 +715,93 @@ class _Header extends ConsumerWidget {
   }
 }
 
-class _MessageList extends ConsumerWidget {
+class _MessageList extends ConsumerStatefulWidget {
   const _MessageList({required this.state, required this.onMore});
 
   final ChatThreadState state;
-  final VoidCallback onMore;
+  final Future<void> Function() onMore;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MessageList> createState() => _MessageListState();
+}
+
+class _MessageListState extends ConsumerState<_MessageList> {
+  late final ChatListController _c;
+  final _listKey = GlobalKey();
+  List<ChatListEntry> _entries = const [];
+
+  /// New messages that came while the person read above (the pill's badge).
+  int _fresh = 0;
+  String? _newestId;
+  bool _away = false;
+  String? _stickyLabel;
+  bool _stickyShown = false;
+  Timer? _hideSticky;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = ChatListController(
+      indexOfMessage: (id) =>
+          _entries.indexWhere((e) => e.messages.any((m) => m.id == id)),
+      loadOlder: widget.onMore,
+      hasOlder: () => widget.state.nextCursor != null,
+    );
+    _c.scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _hideSticky?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final away = _c.away;
+    if (away != _away || (!away && _fresh != 0)) {
+      setState(() {
+        _away = away;
+        if (!away) _fresh = 0;
+      });
+    }
+    // The date chip follows the scroll and fades out when it stops.
+    final top = _c.topIndex(_listKey.currentContext ?? context);
+    if (top != null && top < _entries.length) {
+      final f = ref.read(l10nFormatsProvider);
+      final label = _dayLabel(
+        ref.read(translatorProvider),
+        f,
+        _entries[top].oldest.createdAt,
+      );
+      if (label != _stickyLabel || !_stickyShown) {
+        setState(() {
+          _stickyLabel = label;
+          _stickyShown = true;
+        });
+      }
+    }
+    _hideSticky?.cancel();
+    _hideSticky = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && _stickyShown) setState(() => _stickyShown = false);
+    });
+  }
+
+  @override
+  void didUpdateWidget(_MessageList old) {
+    super.didUpdateWidget(old);
+    final newest = widget.state.all.firstOrNull;
+    if (newest != null && _newestId != null && newest.id != _newestId) {
+      final me = ref.read(currentUserIdProvider);
+      if (_c.away && newest.senderId != me) _fresh++;
+    }
+    _newestId = newest?.id;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final onMore = widget.onMore;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final me = ref.watch(currentUserIdProvider);
@@ -740,6 +821,8 @@ class _MessageList extends ConsumerWidget {
         : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
     // Owner 2026-10-19: photos / files sent together share one bubble.
     final entries = groupChatMessages(items);
+    _entries = entries;
+    _newestId ??= items.first.id;
     final seenIds = seenIndex < 0
         ? const <String>{}
         : items.skip(seenIndex).map((m) => m.id).toSet();
@@ -753,11 +836,13 @@ class _MessageList extends ConsumerWidget {
         ? const <String>{}
         : items.skip(deliveredIndex).map((m) => m.id).toSet();
 
-    return CustomPaint(
+    final list = CustomPaint(
       // Owner 2026-10-17: a faint pattern of legal signs behind the
       // messages (it stays put while they scroll, like WhatsApp).
       painter: _WallpaperPainter(ChatColors.of(context).pattern),
       child: ListView.builder(
+        key: _listKey,
+        controller: _c.scroll,
         reverse: true,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.screenSide,
@@ -799,12 +884,12 @@ class _MessageList extends ConsumerWidget {
                 entry.oldest.createdAt.toLocal(),
               );
           final seen = seenIds.contains(m.id) && m.senderId == me;
-          return Column(
+          final row = Column(
             // Stretch: a bubble sits at the right (mine) or left (theirs)
             // edge like Telegram, never centered (owner 2026-09-29).
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (newDay) _DaySeparator(label: _dayLabel(t, f, m.createdAt)),
+              if (newDay) ChatDateChip(label: _dayLabel(t, f, m.createdAt)),
               if (state.unreadFromId != null &&
                   entry.messages.any((x) => x.id == state.unreadFromId))
                 UnreadDivider(count: state.unreadCount),
@@ -859,7 +944,68 @@ class _MessageList extends ConsumerWidget {
                 ),
             ],
           );
+          // Keyed by its newest message (jump to a quoted message), and
+          // flashed while it is the jump target.
+          return KeyedSubtree(
+            key: _c.keyFor(m.id),
+            child: ChatHighlight(
+              controller: _c,
+              ids: {for (final x in entry.messages) x.id},
+              child: row,
+            ),
+          );
         },
+      ),
+    );
+    final t2 = t;
+    return ChatListScope(
+      controller: _c,
+      jumpTo: (id) async {
+        final ok = await _c.jumpTo(id, (i) => _entries[i].newest.id);
+        if (!ok && mounted) {
+          // ignore: use_build_context_synchronously
+          showAppSnackBar(this.context, t2.t('chat.jump.gone'));
+        }
+        return ok;
+      },
+      child: Stack(
+        children: [
+          Positioned.fill(child: list),
+          // Owner 2026-10-22 (WhatsApp / Telegram): the day of the top
+          // message follows the scroll, then fades.
+          if (_stickyLabel != null)
+            PositionedDirectional(
+              top: 6,
+              start: 0,
+              end: 0,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _stickyShown ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: ChatDateChip(
+                    key: const ValueKey('sticky-date'),
+                    label: _stickyLabel!,
+                    padded: false,
+                  ),
+                ),
+              ),
+            ),
+          // Owner 2026-10-22: the round "down" button with the count of
+          // messages that came while reading above.
+          PositionedDirectional(
+            end: 10,
+            bottom: 8,
+            child: ScrollToBottomPill(
+              visible: _away,
+              count: _fresh,
+              label: t.t('chat.scrollDown'),
+              onTap: () {
+                setState(() => _fresh = 0);
+                unawaited(_c.toBottom());
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -872,42 +1018,6 @@ class _MessageList extends ConsumerWidget {
       return t.t('chat.yesterday');
     }
     return f.dateLong(d);
-  }
-}
-
-class _DaySeparator extends StatelessWidget {
-  const _DaySeparator({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    // Owner 2026-10-17 (WhatsApp): the day on a small pill in the middle.
-    final chat = ChatColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: chat.theirs.withValues(alpha: colors.isGlass ? 1 : 0.92),
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: chat.theirsBorder),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: type.caption.copyWith(
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -1094,7 +1204,6 @@ class _Bubble extends ConsumerWidget {
     final chat = ChatColors.of(context);
     final fg = mine ? chat.onMine : chat.onTheirs;
     final meta = mine ? chat.mineMeta : chat.theirsMeta;
-    final failed = m.delivery == DeliveryState.failed;
     final selection = ref.watch(chatMsgSelectionProvider(threadId));
     final selecting = selection.isNotEmpty;
     final selected = selection.contains(m.id);
@@ -1119,20 +1228,11 @@ class _Bubble extends ConsumerWidget {
       for (final x in group ?? [m])
         if (x.delivery == DeliveryState.failed) x,
     ];
-    Widget ticks(Color plain) => AppIcon(
-          switch (m.delivery) {
-            DeliveryState.sending => AppIcons.scheduleRounded,
-            DeliveryState.failed => AppIcons.errorOutlineRounded,
-            DeliveryState.sent => seen || delivered
-                ? AppIcons.doneAllRounded
-                : AppIcons.doneRounded,
-          },
-          size: 15,
-          color: failed
-              ? colors.danger
-              : seen
-                  ? chat.tickRead
-                  : plain,
+    Widget ticks(Color plain) => ChatTicks(
+          delivery: m.delivery,
+          seen: seen,
+          delivered: delivered,
+          color: plain,
         );
 
     // Hidden contacts shown as a localized inline marker (§8.3).
@@ -1154,6 +1254,53 @@ class _Bubble extends ConsumerWidget {
       }
     }
 
+    // The time row (pin, "edited", time, ticks).
+    final showTicks = mine && !m.revoked;
+    final metaRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (m.pinned && !m.revoked) ...[
+          AppIcon(AppIcons.pushPin, size: 11, color: meta),
+          const SizedBox(width: 4),
+        ],
+        if (m.editedAt != null && !m.revoked) ...[
+          Text(
+            t.t('chat.edited'),
+            style: type.caption.copyWith(
+              color: meta,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          f.time(m.createdAt),
+          style: type.caption.copyWith(color: meta),
+        ),
+        if (showTicks) ...[
+          const SizedBox(width: 4),
+          ticks(meta),
+        ],
+      ],
+    );
+    // Owner 2026-10-22 (WhatsApp): on a plain text message the time sits
+    // at the end of the last line instead of under the text.
+    final inlineMeta = !m.revoked &&
+        !(m.unreadable && m.body.isEmpty) &&
+        (m.kind == MessageKind.text) &&
+        firstUrlIn(m.body) == null;
+    final metaWidth = inlineMeta
+        ? chatMetaWidth(
+            context,
+            labels: [
+              if (m.editedAt != null) t.t('chat.edited'),
+              f.time(m.createdAt),
+            ],
+            style: type.caption,
+            icons: (showTicks ? 1 : 0) + (m.pinned ? 1 : 0),
+          )
+        : 0.0;
+
     // Owner 2026-10-01: a sticker stands alone, like Telegram — the time
     // and ticks on a small chip under it.
     final sticker = m.kind == MessageKind.sticker ? m.sticker : null;
@@ -1164,104 +1311,29 @@ class _Bubble extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               StickerMessageBody(sticker: sticker),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colors.surface.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(AppRadii.pill),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      f.time(m.createdAt),
-                      style: type.caption.copyWith(
-                        color: colors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                    if (mine) ...[
-                      const SizedBox(width: 4),
-                      ticks(colors.textSecondary),
-                    ],
-                  ],
-                ),
+              ChatStickerMeta(
+                time: f.time(m.createdAt),
+                ticks: mine ? ticks(colors.textSecondary) : null,
               ),
             ],
           )
-        : Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-            ),
-            padding: media
-                ? const EdgeInsets.all(3)
-                : framed
-                    ? const EdgeInsets.fromLTRB(3, 3, 3, AppSpacing.xs)
-                    : const EdgeInsets.fromLTRB(
-                        AppSpacing.md,
-                        AppSpacing.sm,
-                        AppSpacing.md,
-                        AppSpacing.xs,
-                      ),
-            decoration: BoxDecoration(
-              color: mine ? chat.mine : chat.theirs,
-              borderRadius: BorderRadiusDirectional.only(
-                topStart: const Radius.circular(18),
-                topEnd: const Radius.circular(18),
-                bottomStart: Radius.circular(mine ? 18 : 4),
-                bottomEnd: Radius.circular(mine ? 4 : 18),
-              ),
-              border: mine ? null : Border.all(color: chat.theirsBorder),
-            ),
+        : ChatBubbleShell(
+            mine: mine,
+            media: media,
+            framed: framed,
             child: media
                 ? Stack(
                     children: [
                       _attachment(ref, m),
-                      // Owner 2026-10-22 (Instagram / WhatsApp): the time
-                      // and ticks on a soft shade rising from the bottom,
-                      // no box around them.
+                      // Owner 2026-10-22 (WhatsApp): the time and ticks on a
+                      // translucent pill in the photo's corner.
                       PositionedDirectional(
-                        start: 0,
-                        end: 0,
-                        bottom: 0,
+                        end: 6,
+                        bottom: 6,
                         child: IgnorePointer(
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                              bottom: Radius.circular(12),
-                            ),
-                            child: Container(
-                              height: 36,
-                              alignment: AlignmentDirectional.bottomEnd,
-                              padding: const EdgeInsetsDirectional.only(
-                                end: 8,
-                                bottom: 5,
-                              ),
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    ChatColors.mediaFade,
-                                    ChatColors.mediaScrim,
-                                  ],
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    f.time(m.createdAt),
-                                    style: type.caption.copyWith(
-                                      color: ChatColors.onMediaScrim,
-                                    ),
-                                  ),
-                                  if (mine) ...[
-                                    const SizedBox(width: 3),
-                                    ticks(ChatColors.onMediaScrim),
-                                  ],
-                                ],
-                              ),
-                            ),
+                          child: ChatMediaMeta(
+                            time: f.time(m.createdAt),
+                            ticks: mine ? ticks(ChatColors.onMediaScrim) : null,
                           ),
                         ),
                       ),
@@ -1321,6 +1393,10 @@ class _Bubble extends ConsumerWidget {
                               preview: m.replyTo!,
                               conversation: conversation,
                               mine: mine,
+                              onTap: () => unawaited(
+                                ChatListScope.maybeOf(context)
+                                    ?.jumpTo(m.replyTo!.id),
+                              ),
                             ),
                           ),
                         ),
@@ -1399,6 +1475,8 @@ class _Bubble extends ConsumerWidget {
                           message: m,
                           spans: spans,
                           style: type.body.copyWith(color: fg, height: 1.35),
+                          meta: inlineMeta ? metaRow : null,
+                          metaWidth: metaWidth,
                         ),
                       // Owner 2026-10-22 (link previews): the site card
                       // under a text message that carries a web address.
@@ -1407,36 +1485,10 @@ class _Bubble extends ConsumerWidget {
                           !m.contactMasked &&
                           firstUrlIn(m.body) != null)
                         LinkPreviewCard(url: firstUrlIn(m.body)!, mine: mine),
-                      const SizedBox(height: 2),
-                      pad(
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (m.pinned && !m.revoked) ...[
-                              AppIcon(AppIcons.pushPin, size: 11, color: meta),
-                              const SizedBox(width: 4),
-                            ],
-                            if (m.editedAt != null && !m.revoked) ...[
-                              Text(
-                                t.t('chat.edited'),
-                                style: type.caption.copyWith(
-                                  color: meta,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                            Text(
-                              f.time(m.createdAt),
-                              style: type.caption.copyWith(color: meta),
-                            ),
-                            if (mine && !m.revoked) ...[
-                              const SizedBox(width: 4),
-                              ticks(meta),
-                            ],
-                          ],
-                        ),
-                      ),
+                      if (!inlineMeta) ...[
+                        const SizedBox(height: 2),
+                        pad(metaRow),
+                      ],
                     ],
                   ),
           );
@@ -1631,11 +1683,17 @@ class _MessageText extends ConsumerWidget {
     required this.message,
     required this.spans,
     required this.style,
+    this.meta,
+    this.metaWidth = 0,
   });
 
   final ChatMessage message;
   final List<InlineSpan> spans;
   final TextStyle style;
+
+  /// Set: the time row sits at the end of the last line.
+  final Widget? meta;
+  final double metaWidth;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1645,9 +1703,17 @@ class _MessageText extends ConsumerWidget {
     // Owner 2026-10-22 (audit #12): a message follows the phone's font size
     // in full, past the app shell's 1.3x cap.
     return FullTextScale(
-      child: translation == null
-          ? Text.rich(TextSpan(children: spans), style: style)
-          : Text(translation, style: style),
+      child: meta != null
+          ? ChatTextWithMeta(
+              spans:
+                  translation == null ? spans : [TextSpan(text: translation)],
+              style: style,
+              meta: meta!,
+              metaWidth: metaWidth,
+            )
+          : translation == null
+              ? Text.rich(TextSpan(children: spans), style: style)
+              : Text(translation, style: style),
     );
   }
 }
