@@ -48,6 +48,7 @@ import 'package:lawbid/features/team/application/team_providers.dart'
     show isAssistantProvider;
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Owner 2026-09-30: a feed card fills the list viewport down to the nav
 /// bar with no gaps between cards (edge-to-edge list); never
@@ -268,6 +269,9 @@ class PostCard extends ConsumerWidget {
     final actions = ref.read(socialActionsProvider);
 
     Future<void> run(Future<Object?> Function() action) async {
+      // Owner 2026-10-22 (guest browsing): every post action (like, save,
+      // repost, …) asks a guest to sign in and comes back here.
+      if (!requireSignIn(context, ref)) return;
       final error = await action();
       if (error != null && context.mounted) {
         showAppSnackBar(context, errorText(t, error));

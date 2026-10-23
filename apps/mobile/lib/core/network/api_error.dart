@@ -56,6 +56,10 @@ abstract final class ApiErrorCodes {
   static const contactDomainBlocked = 'CONTACT_DOMAIN_BLOCKED';
   static const contactAlreadyExists = 'CONTACT_ALREADY_EXISTS';
   static const reauthRequired = 'REAUTH_REQUIRED';
+  // Owner 2026-10-22 (passkeys, docs/runbooks/PASSKEYS.md).
+  static const passkeyInvalid = 'PASSKEY_INVALID';
+  static const passkeyNotFound = 'PASSKEY_NOT_FOUND';
+  static const passkeyLimit = 'PASSKEY_LIMIT';
   static const reauthInvalid = 'REAUTH_INVALID';
   static const deviceAttestationRequired = 'DEVICE_ATTESTATION_REQUIRED';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
@@ -345,6 +349,9 @@ abstract final class ApiErrorCodes {
     contactAlreadyExists,
     reauthRequired,
     reauthInvalid,
+    passkeyInvalid,
+    passkeyNotFound,
+    passkeyLimit,
     deviceAttestationRequired,
     accountSuspended,
     accountRestricted,

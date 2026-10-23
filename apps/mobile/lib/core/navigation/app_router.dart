@@ -10,6 +10,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/shell/main_shell.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
@@ -114,15 +115,26 @@ GoRouter appRouter(Ref ref) {
     redirect: (context, state) {
       CrashReporter.setRoute(state.matchedLocation);
       AppEvents.screen(state.matchedLocation);
-      return AppRouterGuard.redirect(
+      final returnTo = ref.read(guestReturnProvider);
+      final target = AppRouterGuard.redirect(
         state.matchedLocation,
         GuardSnapshot(
           startup: ref.read(appStartupProvider),
           hasSession: ref.read(sessionControllerProvider) != null,
           user: ref.read(currentUserControllerProvider),
           assistant: _assistantGate(ref),
+          guestBrowsing: ref.read(guestBrowsingEnabledProvider),
+          returnTo: returnTo,
         ),
       );
+      // The guest's remembered screen is used once (after sign-in), then
+      // forgotten — also when the person lands on it by themselves.
+      if (returnTo != null &&
+          (target == returnTo ||
+              (target == null && state.matchedLocation == returnTo))) {
+        ref.read(guestReturnProvider.notifier).clear();
+      }
+      return target;
     },
     routes: [
       GoRoute(
@@ -576,7 +588,9 @@ class _GuardRefresh extends ChangeNotifier {
         (_, __) => notifyListeners(),
       )
       ..listen(currentUserControllerProvider, (_, __) => notifyListeners())
-      ..listen(assistantMeProvider, (_, __) => notifyListeners());
+      ..listen(assistantMeProvider, (_, __) => notifyListeners())
+      // Owner 2026-10-22: the guest flag arrives with the bootstrap.
+      ..listen(guestBrowsingEnabledProvider, (_, __) => notifyListeners());
   }
 }
 

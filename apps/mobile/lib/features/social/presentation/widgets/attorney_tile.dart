@@ -16,6 +16,7 @@ import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_sheet.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// A practice name by its i18n key; a readable fallback while the key is
 /// not in the local bundle yet.
@@ -756,6 +757,8 @@ class FollowButton extends ConsumerWidget {
       excludeSemantics: true,
       child: AppPressable(
         onTap: () async {
+          // Owner 2026-10-22 (guest browsing): following needs an account.
+          if (!requireSignIn(context, ref)) return;
           final error = await ref
               .read(socialActionsProvider)
               .setFollowing(attorneyId, !following);

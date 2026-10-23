@@ -14,6 +14,7 @@ import 'package:lawbid/features/consultations/application/consultations_provider
 import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/consultations/domain/consultation_models.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_widgets.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Owner 2026-10-20 — a client books a consultation on an attorney's
 /// profile: pick a free start, add a note (and one of their cases), send.
@@ -22,14 +23,17 @@ Future<void> showConsultationBooking(
   required String attorneyId,
   required String attorneyName,
 }) =>
-    showAppBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _BookingSheet(
-        attorneyId: attorneyId,
-        attorneyName: attorneyName,
-      ),
-    );
+    // Owner 2026-10-22 (guest browsing): booking needs an account.
+    !requireSignInFromContext(context)
+        ? Future.value()
+        : showAppBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => _BookingSheet(
+              attorneyId: attorneyId,
+              attorneyName: attorneyName,
+            ),
+          );
 
 /// Move an open booking to another free start. Resolves true when moved.
 Future<bool> showConsultationReschedule(

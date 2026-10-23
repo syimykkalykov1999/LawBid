@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/accessibility/reduce_motion.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
@@ -31,6 +32,15 @@ abstract final class AppPageTransitions {
   /// on every platform (Android too) the page slides in from the right and
   /// a swipe from the LEFT edge to the right goes back, like on iPhone.
   static Page<void> push(GoRouterState state, Widget child) {
+    // Owner 2026-10-22 (checklist §17): reduce motion — no slide at all.
+    if (ReduceMotion.enabled.value) {
+      return _still(
+        state,
+        AppBackdrop(
+          child: WebPageFrame(location: state.matchedLocation, child: child),
+        ),
+      );
+    }
     if (_cupertino || _swipeBackEverywhere) {
       return CupertinoPage<void>(
         key: state.pageKey,
@@ -59,6 +69,15 @@ abstract final class AppPageTransitions {
     // pull down from its top, like a sheet.
     // ignore: parameter_assignments
     child = PullDownToClose(threshold: 110, child: child);
+    if (ReduceMotion.enabled.value) {
+      return _still(
+        state,
+        AppBackdrop(
+          child: WebPageFrame(location: state.matchedLocation, child: child),
+        ),
+        fullscreenDialog: true,
+      );
+    }
     if (_cupertino) {
       return CupertinoPage<void>(
         key: state.pageKey,
@@ -84,6 +103,9 @@ abstract final class AppPageTransitions {
 
   /// Tab-root swap (shell → first screen after onboarding): fade only.
   static Page<void> fade(GoRouterState state, Widget child) {
+    if (ReduceMotion.enabled.value) {
+      return _still(state, AppBackdrop(child: child));
+    }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
@@ -105,6 +127,22 @@ abstract final class AppPageTransitions {
       },
     );
   }
+
+  /// A page that appears and leaves at once (reduce motion).
+  static Page<void> _still(
+    GoRouterState state,
+    Widget child, {
+    bool fullscreenDialog = false,
+  }) =>
+      CustomTransitionPage<void>(
+        key: state.pageKey,
+        name: state.name,
+        fullscreenDialog: fullscreenDialog,
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        transitionsBuilder: (_, __, ___, child) => child,
+        child: child,
+      );
 
   static Widget _sharedAxisX(
     BuildContext context,

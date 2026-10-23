@@ -19,6 +19,7 @@ import 'package:lawbid/core/l10n/strings/case_urgency_strings.dart';
 import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
 import 'package:lawbid/core/l10n/strings/channels_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
+import 'package:lawbid/core/l10n/strings/checklist_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
 import 'package:lawbid/core/l10n/strings/consultation_strings.dart';
 import 'package:lawbid/core/l10n/strings/contact_info_strings.dart';
@@ -532,8 +533,7 @@ class StaticTranslatorRu extends _MapTranslator {
             'Этот способ входа временно недоступен.',
         'error.api.DEVICE_ATTESTATION_REQUIRED':
             'Не удалось проверить устройство. Обновите приложение из App Store или Google Play и попробуйте снова.',
-        'error.api.SYNC_TOO_OLD':
-            'Данные устарели, список обновлён заново.',
+        'error.api.SYNC_TOO_OLD': 'Данные устарели, список обновлён заново.',
         'error.api.AUTH_REFRESH_REUSE_DETECTED':
             'В целях безопасности выполнен выход на всех устройствах. Войдите снова.',
         'error.api.AUTH_SESSION_REVOKED': 'Сеанс завершён. Войдите снова.',
@@ -1178,6 +1178,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...staleCaseRu,
         ...usernameRu,
         ...privacyRu,
+        ...checklistRu,
         ...contactInfoRu,
         ...disappearingRu,
         ...forwardRu,
@@ -2626,6 +2627,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...staleCaseEn,
         ...usernameEn,
         ...privacyEn,
+        ...checklistEn,
         ...contactInfoEn,
         ...disappearingEn,
         ...forwardEn,

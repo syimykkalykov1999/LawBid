@@ -7,6 +7,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show commentThreadSlivers;
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Owner 2026-10-07: comments open as a sheet that slides up from the
 /// comment icon (Instagram): drag up for the whole screen, down to close;
@@ -16,6 +17,8 @@ Future<void> showCommentsSheet(
   required String postId,
   required bool commentsEnabled,
 }) {
+  // Owner 2026-10-22 (guest browsing): comments need an account.
+  if (!requireSignInFromContext(context)) return Future.value();
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   return showModalBottomSheet<void>(
     context: context,

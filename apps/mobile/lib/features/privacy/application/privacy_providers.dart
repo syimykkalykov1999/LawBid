@@ -39,6 +39,22 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
       rethrow;
     }
   }
+
+  /// Owner 2026-10-22 (CCPA): the «Do not sell or share» switch, shown at
+  /// once and rolled back when the server refuses.
+  Future<void> setDoNotSell({required bool value}) async {
+    final before = state.value;
+    if (before == null) return;
+    state = AsyncData(before.copyWith(doNotSell: value));
+    try {
+      state = AsyncData(
+        await ref.read(privacyRepositoryProvider).setDoNotSell(value: value),
+      );
+    } on Object {
+      state = AsyncData(before);
+      rethrow;
+    }
+  }
 }
 
 final privacySettingsProvider =

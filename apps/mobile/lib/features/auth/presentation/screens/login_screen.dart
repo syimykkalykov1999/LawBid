@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
+
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
@@ -58,6 +61,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final result = await ref
         .read(authRepositoryProvider)
         .signInWithPassword(identifier: id.value, password: _password.text);
+    AppEvents.track(
+      result.isSuccess
+          ? AppEventNames.loginSuccess
+          : AppEventNames.loginFailure,
+    );
     if (!mounted) return;
     setState(() {
       _busy = false;

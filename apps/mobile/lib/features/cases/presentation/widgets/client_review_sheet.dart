@@ -223,6 +223,7 @@ class _SheetState extends ConsumerState<_Sheet> {
                     selected: i <= _rating,
                     label: '$i',
                     child: IconButton(
+                      tooltip: t.t('a11y.rateStars', {'count': '$i'}),
                       iconSize: 40,
                       onPressed: () => setState(() => _rating = i),
                       icon: AppIcon(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/platform/review_prompter.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
@@ -147,6 +150,11 @@ class _ReviewFormState extends ConsumerState<_ReviewForm> {
           existing == null ? 'reviews.form.published' : 'reviews.form.updated',
         ),
       );
+      // Owner 2026-10-22 (checklist §27): a 5-star review is the moment to
+      // ask for the store rating (at most once in 90 days, behind a flag).
+      if (existing == null && _rating == 5) {
+        unawaited(ref.read(reviewPrompterProvider).maybeAsk());
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     } finally {

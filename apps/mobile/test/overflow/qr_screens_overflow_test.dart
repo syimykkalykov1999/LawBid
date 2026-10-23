@@ -83,6 +83,8 @@ void main() {
           final overrides = <Override>[
             ...uxOverrides(translator: t),
             qrLoginRepositoryProvider.overrideWithValue(_FakeQr()),
+            // No `/qr` socket in a widget test.
+            qrLoginSocketFactoryProvider.overrideWithValue(null),
             sessionControllerProvider.overrideWith(_Session.new),
             currentUserControllerProvider.overrideWith(
               () => FixedUserController(CurrentUserState.ready(attorneyMe())),

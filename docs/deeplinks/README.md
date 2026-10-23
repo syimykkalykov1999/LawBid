@@ -30,6 +30,25 @@ Until the variable exists the Android file is not published (a made-up fingerpri
 
 The intent filter in `apps/mobile/android/app/src/main/AndroidManifest.xml` uses `${deepLinkHost}`. It defaults to `lawbid.dev`, and you can override it with the Gradle property `-Plawbid.deepLinkHost=…`.
 
+## 3. Passkeys (owner 2026-10-22)
+
+The same two files also tell the phones that the app may create and use
+passkeys for `lawbid.dev`:
+
+- iOS: `webcredentials` → `78T56RPM74.com.lawbid.lawbid` in the AASA file,
+  and the app declares `webcredentials:$(DEEP_LINK_HOST)` in
+  `Runner.entitlements` (the Associated Domains capability must stay on in
+  the Apple Developer portal).
+- Android: the relation `delegate_permission/common.get_login_creds` beside
+  `handle_all_urls` in `assetlinks.json` — with the SHA-256 of the Play
+  signing key **and** of the upload key (comma-separated in
+  `ANDROID_APP_SHA256`), otherwise a debug / internal-testing build cannot
+  create passkeys.
+- Web: the passkeys bridge script in `apps/mobile/web/index.html` is loaded
+  from GitHub releases; the web CSP (`infra/modules/web`) must allow that
+  origin in `script-src`, else the browser reports no passkey support and
+  the app hides the button.
+
 ## Using a different domain
 
 Set all three of these to the same host, then host both files there:

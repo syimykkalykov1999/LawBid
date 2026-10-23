@@ -50,7 +50,9 @@
       planTitle: 'LawBid plan', badgeTitle: 'Gold badge',
       monthlyAfter: function (a) { return a + ' a month. Cancel anytime in the app.'; },
       okStars: 'Paid. Your new balance is in the app.', okPlan: 'Your plan is active. Return to the LawBid app.',
-      okBadge: 'Your gold badge is on. Return to the LawBid app.' },
+      okBadge: 'Your gold badge is on. Return to the LawBid app.',
+      subtotal: 'Price', tax: 'Tax', total: 'Total', country: 'Country', zip: 'ZIP',
+      addrHint: 'Needed to work out sales tax; nothing else is done with it.' },
     ru: { secure: 'Безопасная оплата · Stripe', loading: 'Готовим оплату…', number: 'Номер карты', exp: 'Срок', cvc: 'Код безопасности',
       cvchint: '3 или 4 цифры на карте.', trial: function (d) { return d + ' дней бесплатно'; },
       after: function (d, a) { return 'Затем ' + a + ' в месяц. Можно отменить до конца пробного периода и ничего не платить.'; },
@@ -74,7 +76,9 @@
       planTitle: 'План LawBid', badgeTitle: 'Золотой значок',
       monthlyAfter: function (a) { return a + ' в месяц. Отменить можно в приложении.'; },
       okStars: 'Оплачено. Новый баланс — в приложении.', okPlan: 'План активен. Вернитесь в приложение LawBid.',
-      okBadge: 'Золотой значок включён. Вернитесь в приложение LawBid.' }
+      okBadge: 'Золотой значок включён. Вернитесь в приложение LawBid.',
+      subtotal: 'Цена', tax: 'Налог', total: 'Итого', country: 'Страна', zip: 'Индекс',
+      addrHint: 'Нужно для расчёта налога с продаж; больше ни для чего не используется.' }
   };
   var lang = (langParam || navigator.language || 'en').slice(0, 2).toLowerCase();
   var L = T[lang] || T.en;
@@ -82,6 +86,9 @@
   function setText(id, v) { var e = $(id); if (e) e.textContent = v; }
   setText('t-secure', L.secure); setText('t-loading', L.loading); setText('t-number', L.number);
   setText('t-exp', L.exp); setText('t-cvc', L.cvc); setText('t-cvchint', L.cvchint); setText('fine', L.fine);
+  setText('t-subtotal', L.subtotal); setText('t-tax', L.tax); setText('t-total', L.total);
+  setText('t-country', L.country); setText('t-addrhint', L.addrHint);
+  if ($('zip')) $('zip').placeholder = L.zip;
   setText('cancel', L.back); setText('back-bad', L.back); setText('t-ok', L.ok); setText('t-ok2', L.ok2);
   setText('back-ok', L.okBtn); setText('t-bad', L.bad); setText('retry', L.retry); setText('per', L.month);
   setText('t-or', L.or); setText('saved', L.savedCard);
@@ -239,6 +246,8 @@
     opts.locale = lang === 'ru' ? 'ru' : 'en';
     var els;
     try { els = state.stripe.elements(opts); } catch (e) { return; }
+    state.elements = els;
+    state.wallets = els;
     var ece = els.create('expressCheckout', {
       paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never', klarna: 'never' },
       buttonHeight: 50,
@@ -314,10 +323,72 @@
       .then(settle).catch(function () { fail(); });
   });
 
+  // Owner 2026-10-22 (Stripe Tax, docs/runbooks/STRIPE_TAX.md): price,
+  // tax and total when the server computed a tax; the big amount is the
+  // total the card is charged.
+  function paintTax(s) {
+    var box = $('tax');
+    if (!box) return;
+    var has = s.taxCents !== null && s.taxCents !== undefined;
+    box.classList.toggle('hide', !has);
+    if (!has) return;
+    setText('subtotal', money(s.subtotalCents !== null && s.subtotalCents !== undefined ? s.subtotalCents : s.priceCents - s.taxCents));
+    setText('taxv', money(s.taxCents));
+    setText('total', money(s.priceCents));
+  }
+  var COUNTRIES = [['US', 'United States'], ['CA', 'Canada'], ['GB', 'United Kingdom'], ['DE', 'Germany'], ['FR', 'France'],
+    ['ES', 'Spain'], ['IT', 'Italy'], ['NL', 'Netherlands'], ['AU', 'Australia'], ['MX', 'Mexico'], ['BR', 'Brazil'], ['IN', 'India'],
+    ['JP', 'Japan'], ['KR', 'South Korea'], ['AE', 'United Arab Emirates'], ['IL', 'Israel'], ['TR', 'Türkiye'], ['PL', 'Poland'],
+    ['UA', 'Ukraine'], ['KZ', 'Kazakhstan'], ['KG', 'Kyrgyzstan'], ['UZ', 'Uzbekistan'], ['OTHER', '—']];
+  var addrTimer = null;
+  function address() {
+    var c = $('country') && $('country').value;
+    var z = $('zip') && $('zip').value.trim();
+    if (!c || c === 'OTHER') return null;
+    var a = { country: c };
+    if (z) a.postalCode = z;
+    return a;
+  }
+  // The address goes to the server, which recalculates the tax and the
+  // total (same clientSecret) — debounced while the person types.
+  function addressChanged() {
+    clearTimeout(addrTimer);
+    addrTimer = setTimeout(function () {
+      var a = address();
+      if (!a || (a.country === 'US' && !(a.postalCode && a.postalCode.length >= 5))) return;
+      call('/pay/session', { token: token, address: a }).then(function (r) {
+        if (!r.ok) return;
+        var s = r.body.data || r.body;
+        if (s.pageToken) token = s.pageToken;
+        state.session = s;
+        remember();
+        paint();
+        refreshButton();
+        // Apple Pay / Google Pay take the amount from the Elements group.
+        if (state.elements && s.mode === 'payment') {
+          try { state.elements.update({ amount: s.priceCents }); } catch (e) {}
+        }
+      }).catch(function () {});
+    }, 500);
+  }
+  function mountAddress() {
+    var sel = $('country');
+    if (!sel || sel.options.length) return;
+    COUNTRIES.forEach(function (c) {
+      var o = document.createElement('option'); o.value = c[0]; o.textContent = c[1]; sel.appendChild(o);
+    });
+    var guess = ((navigator.language || 'en-US').split('-')[1] || 'US').toUpperCase();
+    sel.value = COUNTRIES.some(function (c) { return c[0] === guess; }) ? guess : 'US';
+    sel.addEventListener('change', addressChanged);
+    $('zip').addEventListener('input', addressChanged);
+  }
+
   function paint() {
     var s = state.session;
     label();
+    mountAddress();
     setText('amount', money(s.priceCents));
+    paintTax(s);
     var t = $('trial');
     t.classList.add('hide');
     $('saved').classList.toggle('hide', s.kind !== 'seats');

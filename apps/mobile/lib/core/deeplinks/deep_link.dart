@@ -69,8 +69,10 @@ final class ProfileDeepLink extends DeepLink {
   int get hashCode => username.hashCode;
 }
 
-/// `…/q/<id>` — the sign-in QR code the website shows (owner 2026-10-20):
-/// the phone asks "Sign in on the web?". The id is public and single use.
+/// `…/q/<id>` (the older payload) or `…/qr/<nonce>` (owner 2026-10-22, the
+/// universal link the website's QR code carries) — the sign-in QR code the
+/// website shows (owner 2026-10-20): the phone asks "Sign in on the web?".
+/// The id is public and single use.
 final class WebLoginDeepLink extends DeepLink {
   const WebLoginDeepLink(this.qrId);
 
@@ -176,6 +178,12 @@ final _idPattern = RegExp(r'^[A-Za-z0-9-]{1,64}$');
 
 /// Ids in `/q/<id>` (16 random bytes, base64url) and `/g/<token>`.
 final _qrIdPattern = RegExp(r'^[A-Za-z0-9_-]{16,64}$');
+
+/// Owner 2026-10-22 (QR login): the nonce in `/qr/<nonce>` — the link the
+/// website's sign-in QR code now carries, so the phone's own camera app
+/// opens the approval screen. Same alphabet as [_qrIdPattern], a little
+/// longer at most (the server chooses the length).
+final _qrNoncePattern = RegExp(r'^[A-Za-z0-9_-]{16,128}$');
 
 /// docs/01_FOUNDATION_AUTH.md §12: "3-30 символов, латиница, цифры, `_` и `.`".
 final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
@@ -302,6 +310,10 @@ DeepLink? parseDeepLink(
             .hasMatch(id.startsWith('@') ? id.substring(1) : id) =>
       ProfileDeepLink(id.startsWith('@') ? id.substring(1) : id),
     'q' when _qrIdPattern.hasMatch(id) => WebLoginDeepLink(id),
+    // Owner 2026-10-22: `/qr/<nonce>` is the same sign-in question as
+    // `/q/<id>` (the older payload); `/qr/my` and `/qr/scan` are app screens,
+    // never links (too short for the pattern).
+    'qr' when _qrNoncePattern.hasMatch(id) => WebLoginDeepLink(id),
     'g' when _qrIdPattern.hasMatch(id) => GroupInviteDeepLink(id),
     'case' when _idPattern.hasMatch(id) =>
       ContentDeepLink(ContentKind.caseItem, id),

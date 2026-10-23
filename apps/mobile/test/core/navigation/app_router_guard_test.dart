@@ -623,6 +623,68 @@ void main() {
     ],
   };
 
+  // Owner 2026-10-22 (guest browsing, decision A1): without a token and
+  // with the flag on, the public screens open; everything else still asks
+  // to sign in; after sign-in the guest comes back where they were.
+  const guest = GuardSnapshot(
+    startup: StartupStatus.ready,
+    hasSession: false,
+    user: CurrentUserState.idle(),
+    guestBrowsing: true,
+  );
+  cases['guest browsing (owner 2026-10-22, A1)'] = [
+    const _Case('splash → feed, not welcome', '/splash', guest, '/feed'),
+    const _Case('feed opens', '/feed', guest, null),
+    const _Case('search opens', '/search', guest, null),
+    const _Case('attorney profile opens', '/lawyer/anna', guest, null),
+    const _Case('profile QR link opens', '/u/anna', guest, null),
+    const _Case('post opens', '/post/abc-1', guest, null),
+    const _Case('channel opens', '/c/tax_news', guest, null),
+    const _Case('legal stays', '/legal/privacy', guest, null),
+    const _Case('welcome stays', '/welcome', guest, null),
+    const _Case('mine → welcome', '/mine', guest, '/welcome'),
+    const _Case('profile tab → welcome', '/profile', guest, '/welcome'),
+    const _Case('settings → welcome', '/profile/settings', guest, '/welcome'),
+    const _Case('chats → welcome', '/inbox', guest, '/welcome'),
+    const _Case('my QR → welcome', '/qr/my', guest, '/welcome'),
+    const _Case('create → welcome', '/create', guest, '/welcome'),
+    const _Case(
+      'flag off: splash → welcome as before',
+      '/splash',
+      _signedOut,
+      '/welcome',
+    ),
+    const _Case('flag off: feed → welcome', '/feed', _signedOut, '/welcome'),
+    _Case(
+      'after sign-in the guest returns where they were',
+      '/welcome',
+      GuardSnapshot(
+        startup: StartupStatus.ready,
+        hasSession: true,
+        user: CurrentUserState.ready(_readyClient(completed: true)),
+        returnTo: '/lawyer/anna',
+      ),
+      '/lawyer/anna',
+    ),
+    _Case(
+      'a returning place is used after onboarding too',
+      '/onboarding/role',
+      GuardSnapshot(
+        startup: StartupStatus.ready,
+        hasSession: true,
+        user: CurrentUserState.ready(_readyClient(completed: true)),
+        returnTo: '/post/abc-1',
+      ),
+      '/post/abc-1',
+    ),
+    _Case(
+      'no returning place: the feed as before',
+      '/welcome',
+      _signedIn(_readyClient(completed: true)),
+      '/feed',
+    ),
+  ];
+
   for (final entry in cases.entries) {
     group(entry.key, () {
       for (final c in entry.value) {

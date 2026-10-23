@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -143,6 +144,7 @@ class OnboardingActions extends Notifier<StepActionState> {
                 documentId: documentIds[type],
               ),
           ]);
+          AppEvents.track(AppEventNames.consentsAccepted);
           return _repo.saveStep(OnboardingStepId.role);
         },
         destination: (user) {
@@ -161,6 +163,7 @@ class OnboardingActions extends Notifier<StepActionState> {
         // Owner 2026-10-15: until onboarding is done the role can be chosen
         // again (the server drops the half-made profile of the other side).
         if (current?.role != role) await _repo.setRole(role);
+        AppEvents.track(AppEventNames.roleSelected);
         final next = OnboardingStepId.role.nextFor(role)!;
         final user = await _repo.saveStep(next);
         unawaited(
@@ -180,9 +183,12 @@ class OnboardingActions extends Notifier<StepActionState> {
         // save it, then finish onboarding.
         if (next == null) {
           await _repo.saveProfileStep(OnboardingStepId.profile, profile);
-          return _repo.completeOnboarding();
+          AppEvents.track(AppEventNames.profileCompleted);
+          return _completeOnboarding();
         }
-        return _repo.saveProfileStep(next, profile);
+        final user = await _repo.saveProfileStep(next, profile);
+        AppEvents.track(AppEventNames.profileCompleted);
+        return user;
       });
 
   /// OQ-048: an assistant only gives their name, then onboarding ends and
@@ -192,7 +198,7 @@ class OnboardingActions extends Notifier<StepActionState> {
           firstName: first.trim(),
           lastName: last.trim(),
         );
-        return _repo.completeOnboarding();
+        return _completeOnboarding();
       });
 
   /// Moves from [from] to its successor, merging [data] into the step
@@ -206,7 +212,16 @@ class OnboardingActions extends Notifier<StepActionState> {
   /// `POST /users/me/onboarding/complete`. On a 403 (`CLIENT_CONTACTS_
   /// INCOMPLETE` / `ONBOARDING_INCOMPLETE`) [_run] re-reads me and moves
   /// the user to whatever is still missing, with the reason shown there.
-  Future<bool> complete() => _run(_repo.completeOnboarding);
+  Future<bool> complete() => _run(_completeOnboarding);
+
+  /// docs/analytics_events.md: `onboarding_completed` and, for the same
+  /// moment, `signup_completed` (every onboarding here is a new account).
+  Future<CurrentUser> _completeOnboarding() async {
+    final user = await _repo.completeOnboarding();
+    AppEvents.track(AppEventNames.onboardingCompleted);
+    AppEvents.track(AppEventNames.signupCompleted);
+    return user;
+  }
 }
 
 final onboardingActionsProvider =

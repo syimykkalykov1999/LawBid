@@ -1,3 +1,5 @@
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -63,6 +65,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       await ref
           .read(authRepositoryProvider)
           .requestOtp(identifier, channel: channel.wireName);
+      AppEvents.track(AppEventNames.otpRequested);
       state = state.copyWith(
         step: OnboardingStep.otp,
         channel: channel,
@@ -90,6 +93,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       await ref
           .read(authRepositoryProvider)
           .requestOtp(identifier, channel: state.channel.wireName);
+      AppEvents.track(AppEventNames.otpRequested);
       return null;
     } catch (e) {
       return errorText(ref.read(translatorProvider), e);
@@ -244,12 +248,15 @@ class OnboardingFlow extends _$OnboardingFlow {
   }
 
   Future<bool> _fail(String message) async {
+    // docs/analytics_events.md: a sign-in attempt that did not succeed.
+    AppEvents.track(AppEventNames.loginFailure);
     state = state.copyWith(isSubmitting: false, errorMessage: message);
     return false;
   }
 
   Future<bool> _afterSignIn({required bool isNewUser}) async {
     _stopSmsListener();
+    AppEvents.track(AppEventNames.loginSuccess);
     // The magic-link verifier is single-use; drop it once signed in.
     try {
       await ref.read(magicLinkVerifierStoreProvider).clear();

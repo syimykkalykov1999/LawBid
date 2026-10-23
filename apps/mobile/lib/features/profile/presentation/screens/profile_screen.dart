@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
@@ -15,6 +16,7 @@ import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
     show GiftHeaderButton;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Profile tab (docs/03 §8 «Профиль»): an attorney sees their own public
 /// profile (§4.2, with Edit/Share and — before verification — a
@@ -34,6 +36,13 @@ class ProfileScreen extends ConsumerWidget {
     final username =
         assistant?.attorneyUsername ?? user?.attorneyProfile?.username;
 
+    // Owner 2026-10-22 (guest browsing): the Profile tab asks to sign in.
+    if (ref.watch(isGuestProvider)) {
+      return Scaffold(
+        backgroundColor: colors.bg,
+        body: const SafeArea(child: GuestGateView()),
+      );
+    }
     final Widget body;
     if (user == null) {
       body = const AttorneyProfileSkeleton();
