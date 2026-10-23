@@ -182,9 +182,10 @@ variable "waf_bot_control_block" {
   type    = bool
   default = false
 }
+# Scale audit 2026-10-23: a feed screen loads dozens of pictures; see waf_rate_limit_per_5m.
 variable "cdn_waf_rate_limit_per_5m" {
   type    = number
-  default = 2000
+  default = 10000
 }
 variable "security_hub_enabled" {
   type    = bool

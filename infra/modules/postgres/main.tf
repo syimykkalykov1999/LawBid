@@ -120,6 +120,25 @@ resource "aws_secretsmanager_secret_version" "master" {
   })
 }
 
+variable "log_retention_days" {
+  type        = number
+  default     = 30
+  description = "Days the exported PostgreSQL logs are kept in CloudWatch."
+}
+
+# Scale audit 2026-10-23: when RDS exports a log it creates the CloudWatch
+# group itself, with retention "never expire" - the slow-query log then
+# grows (and is billed) for ever. Creating the groups first, with a
+# retention, fixes that. An environment applied before this change already
+# has the groups: import them once (docs/perf/SCALE_LIMITS_AUDIT_2026-10-23.md).
+resource "aws_cloudwatch_log_group" "rds" {
+  for_each          = toset(["postgresql", "upgrade"])
+  name              = "/aws/rds/instance/${var.name}-postgres/${each.key}"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_arn
+  tags              = var.tags
+}
+
 resource "aws_db_instance" "this" {
   identifier     = "${var.name}-postgres"
   engine         = "postgres"
@@ -159,6 +178,8 @@ resource "aws_db_instance" "this" {
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
   tags = var.tags
+
+  depends_on = [aws_cloudwatch_log_group.rds]
 
   # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move the
   # database one tier up at run time; terraform apply must not undo it.

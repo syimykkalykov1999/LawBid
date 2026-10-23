@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/video_size.dart';
@@ -455,8 +456,7 @@ class OutboxSender with WidgetsBindingObserver {
   /// The wait before retry number [failures] (1-based).
   @visibleForTesting
   static Duration backoff(int failures) {
-    final s = 1 << (failures - 1).clamp(0, 5);
-    return Duration(seconds: s > 30 ? 30 : s);
+    return ClientTuning.outboxBackoff(failures);
   }
 
   void _scheduleRetry() {

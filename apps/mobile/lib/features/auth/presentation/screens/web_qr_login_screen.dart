@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -27,7 +28,6 @@ class WebQrLoginScreen extends ConsumerStatefulWidget {
 class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
   // Owner 2026-10-22 (package H): every 10 s as the fallback; the `/qr`
   // socket (QR_LOGIN.md) says «approved» the moment the phone answers.
-  static const _pollEvery = Duration(seconds: 10);
   QrLoginSocket? _socket;
   StreamSubscription<QrLoginSocketEvent>? _socketSub;
 
@@ -102,7 +102,7 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
       if (!mounted) return;
       _age = Stopwatch()..start();
       setState(() => _code = code);
-      _timer = Timer.periodic(_pollEvery, (_) => unawaited(_tick()));
+      _timer = Timer.periodic(ClientTuning.qrPoll, (_) => unawaited(_tick()));
       _listen(code);
     } on Object catch (e) {
       if (!mounted) return;
@@ -120,7 +120,8 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
     // person points a phone at a dead one (not when the socket just said
     // «approved»: the tokens are waiting).
     if (!force &&
-        (_age?.elapsed ?? Duration.zero) > code.expiresIn - _pollEvery) {
+        (_age?.elapsed ?? Duration.zero) >
+            code.expiresIn - ClientTuning.qrPoll) {
       unawaited(_newCode());
       return;
     }

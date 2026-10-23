@@ -123,6 +123,12 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // (`cache.limit_mb.*`, `cache.keep_media_days.default`) — the app may
   // lower them, never raise above these.
   'cache.',
+  // Scale audit 2026-10-23: where "Update" opens the store (the iOS App
+  // Store id is unknown until the app is registered), and the knobs of the
+  // phone's own traffic (retries, reconnects, polling, events) that must
+  // change without an app update (api/common/app-settings/client-tuning.ts).
+  'store_url_',
+  'client.',
 ] as const;
 
 @Injectable()

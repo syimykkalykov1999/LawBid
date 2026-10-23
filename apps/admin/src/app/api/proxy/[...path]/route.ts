@@ -6,6 +6,10 @@ import {
   sessionToken,
 } from '@/lib/api/server';
 
+/** The API's own request timeout is REQUEST_TIMEOUT_MS (default 30 s);
+ * 120 s covers the slow admin exports and still ends a hung call. */
+const UPSTREAM_TIMEOUT_MS = 120_000;
+
 /**
  * Forwards `/api/proxy/<path>` to `${API_BASE_URL}/admin/<path>` with the
  * admin JWT from the httpOnly cookie. Only `/admin/*` is reachable this
@@ -34,16 +38,31 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }
-  const upstream = await fetch(url, {
-    method: req.method,
-    headers,
-    body:
-      req.method === 'GET' || req.method === 'HEAD'
-        ? undefined
-        : await req.arrayBuffer(),
-    cache: 'no-store',
-    redirect: 'manual',
-  });
+  // Scale audit 2026-10-23: without a deadline one hung API call keeps the
+  // panel's server (and its memory) busy for ever; exports are the slowest
+  // answers, so the deadline is generous but finite.
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, {
+      method: req.method,
+      headers,
+      body:
+        req.method === 'GET' || req.method === 'HEAD'
+          ? undefined
+          : await req.arrayBuffer(),
+      cache: 'no-store',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (e) {
+    if (e instanceof Error && e.name === 'TimeoutError') {
+      return NextResponse.json(
+        { error: { code: 'UPSTREAM_TIMEOUT', message: 'The API did not answer in time.' } },
+        { status: 504 },
+      );
+    }
+    throw e;
+  }
   const passthrough = new Headers({
     'content-type': upstream.headers.get('content-type') ?? 'application/json',
   });

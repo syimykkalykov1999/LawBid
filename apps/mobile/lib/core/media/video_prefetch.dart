@@ -3,6 +3,7 @@ import 'dart:collection' show Queue;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 
 /// Owner 2026-10-23 (Instagram: "content opens instantly"): how Instagram
 /// and TikTok start a video at once is (1) the poster frame is on screen
@@ -200,7 +201,10 @@ class WarmPlan {
         if (index - 1 >= 0) index - 1,
       },
       prefetch: [
-        for (var i = index + 1; i <= index + prefetchAhead && i < count; i++) i,
+        for (var i = index + 1;
+            i <= index + ClientTuning.videoPrefetchAhead && i < count;
+            i++)
+          i,
       ],
     );
   }
@@ -212,5 +216,7 @@ class WarmPlan {
   final List<int> prefetch;
 
   static const maxPlayers = 2;
+
+  /// Starter value; the server moves it (ClientTuning.videoPrefetchAhead).
   static const prefetchAhead = 3;
 }

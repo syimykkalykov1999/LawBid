@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 
 /// Owner 2026-10-22 (client economy plan, package D): the payment screens
 /// re-read the server when the app comes back to the front — needed after
@@ -10,7 +11,7 @@ mixin ResumeRefreshGate on WidgetsBindingObserver {
   DateTime? _awayAt;
   bool _external = false;
 
-  static const minAway = Duration(seconds: 30);
+  static Duration get minAway => ClientTuning.resumeMinAway;
 
   /// The screen is about to open a payment / onboarding page outside the
   /// app: the next resume refreshes whatever the time away.
