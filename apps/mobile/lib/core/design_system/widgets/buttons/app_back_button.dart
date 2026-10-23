@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/widgets/bars/header_ink.dart';
 import 'package:lawbid/core/design_system/widgets/display/brand_glyphs.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
@@ -54,7 +54,7 @@ class _AppBackButtonState extends State<AppBackButton> {
                 child: ChevronGlyph(
                   direction: ChevronDirection.left,
                   size: 22,
-                  color: colors.text,
+                  color: HeaderInk.resolve(context, colors.text),
                 ),
               ),
             ),

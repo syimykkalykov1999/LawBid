@@ -223,7 +223,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     // The poster is drawn only for a video that cannot play (see build);
     // then it is on screen at once (it is cached by the list).
     final thumb = widget.video.thumbnailUrl;
-    if (thumb != null && !_playable) {
+    if (thumb != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(
@@ -455,23 +455,17 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final thumb = widget.video.thumbnailUrl;
     final c = _c;
-    // Owner 2026-10-18: the cover only when nothing will play over it.
-    final poster = thumb != null && (!_playable || _failed);
+    // Owner 2026-10-23 (Instagram: opens instantly): the poster frame is on
+    // screen from the very first frame of the page and stays over the player
+    // until the video really moves (no black box, no spinner). Without a
+    // backdrop (a grid tile) the tile's own cover is already under it.
+    final poster = thumb != null &&
+        (!_playable || _failed || (widget.backdrop && !_rendered));
     final box = ColoredBox(
       color: widget.backdrop ? Colors.black : Colors.transparent,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (poster)
-            CachedNetworkImage(
-              imageUrl: thumb,
-              cacheKey: stableImageCacheKey(thumb),
-              cacheManager: AppImageCaches.feed,
-              memCacheWidth: kReelPosterDecodeWidth,
-              fit: BoxFit.cover,
-              fadeInDuration: Duration.zero,
-              errorWidget: (_, __, ___) => const SizedBox.shrink(),
-            ),
           if (c != null && _ready && (widget.backdrop || _rendered))
             FittedBox(
               fit: BoxFit.cover,
@@ -480,6 +474,21 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
                 width: c.value.size.width,
                 height: c.value.size.height,
                 child: VideoPlayer(c),
+              ),
+            ),
+          if (poster)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CachedNetworkImage(
+                  key: const ValueKey('reel-poster'),
+                  imageUrl: thumb,
+                  cacheKey: stableImageCacheKey(thumb),
+                  cacheManager: AppImageCaches.feed,
+                  memCacheWidth: kReelPosterDecodeWidth,
+                  fit: BoxFit.cover,
+                  fadeInDuration: Duration.zero,
+                  errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                ),
               ),
             ),
           if (widget.active &&

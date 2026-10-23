@@ -28,6 +28,7 @@ import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart'
     show formatReelDuration;
 import 'package:lawbid/features/reels/presentation/video_editor_screen.dart';
+import 'package:lawbid/features/social/application/pending_posts.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/post_text.dart';
@@ -591,37 +592,38 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         Navigator.of(context).pop();
         return;
       }
-      final post = await ref.read(socialRepositoryProvider).createPost(
-            PostDraft(
-              title: _parts.$1,
-              body: _parts.$2,
-              practiceCode: _practice,
-              isNews: _news,
-              markedLegal: _markedLegal,
-              mediaFileIds: [for (final p in _photos) p.fileId!],
-              attachments: _docs.refs,
-            ),
-          );
-      if (!mounted) return;
-      ref.read(feedProvider.notifier).prepend(post);
-      // The author's profile grids and post counters follow at once.
-      ref
-        ..invalidate(attorneyPostsProvider(post.author.id))
-        ..invalidate(attorneyNewsProvider(post.author.id))
-        ..invalidate(attorneyPhotoPostsProvider(post.author.id))
-        ..invalidate(attorneyReelsProvider(post.author.id))
-        ..invalidate(publicAttorneyProfileProvider)
-        ..invalidate(publicClientProfileProvider);
-      // ignore: unawaited_futures
-      HapticFeedback.mediumImpact();
-      showAppSnackBar(
-        context,
-        t.t(
-          _news
-              ? 'post.news.published'
-              : (_hasFiles ? 'post.published' : 'post.brief.published'),
+      // Owner 2026-10-23 (Instagram): the form closes at once; the post is a
+      // «Publishing…» card at the top of the feed (thin line, «Retry» on a
+      // failure) and swaps to the live post when the server has it.
+      final container = ProviderScope.containerOf(context, listen: false);
+      ref.read(pendingPostsProvider.notifier).submit(
+        PostDraft(
+          title: _parts.$1,
+          body: _parts.$2,
+          practiceCode: _practice,
+          isNews: _news,
+          markedLegal: _markedLegal,
+          mediaFileIds: [for (final p in _photos) p.fileId!],
+          attachments: _docs.refs,
         ),
+        thumbnail: _photos.firstOrNull?.bytes,
+        onPublished: (post) {
+          // The author's profile grids and post counters follow at
+          // once (the screen is gone; its container is not).
+          container
+            ..invalidate(attorneyPostsProvider(post.author.id))
+            ..invalidate(attorneyNewsProvider(post.author.id))
+            ..invalidate(attorneyPhotoPostsProvider(post.author.id))
+            ..invalidate(attorneyReelsProvider(post.author.id))
+            ..invalidate(publicAttorneyProfileProvider)
+            ..invalidate(publicClientProfileProvider);
+          // ignore: unawaited_futures
+          HapticFeedback.mediumImpact();
+        },
       );
+      // ignore: unawaited_futures
+      HapticFeedback.lightImpact();
+      if (!mounted) return;
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (mounted) {

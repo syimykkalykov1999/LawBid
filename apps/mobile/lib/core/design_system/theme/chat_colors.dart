@@ -25,19 +25,34 @@ final class ChatColors extends ThemeExtension<ChatColors> {
 
   /// Picks the palette of the theme [c] belongs to.
   factory ChatColors.forTokens(AppColorTokens c, Brightness brightness) {
-    if (c.isGlass) {
+    if (c.bg == AppColorsGreen.bg) {
       return ChatColors(
-        wallpaper: Colors.transparent,
-        pattern: Colors.white.withValues(alpha: 0.05),
-        mine: const Color(0x38FFFFFF),
+        wallpaper: const Color(0xFFDDF0E4),
+        pattern: AppColorsGreen.brand.withValues(alpha: 0.06),
+        mine: const Color(0xFFBFEBD0),
         onMine: c.text,
-        mineMeta: c.text.withValues(alpha: 0.7),
+        mineMeta: c.textSecondary,
         theirs: c.surface,
-        theirsBorder: Colors.white.withValues(alpha: 0.12),
+        theirsBorder: c.border,
         onTheirs: c.text,
         theirsMeta: c.textSecondary,
-        tick: c.text.withValues(alpha: 0.7),
-        tickRead: const Color(0xFF7FD6FF),
+        tick: c.textSecondary,
+        tickRead: const Color(0xFF2F80ED),
+      );
+    }
+    if (c.bg == AppColorsBlue.bg) {
+      return ChatColors(
+        wallpaper: AppColorsBlue.chatWallpaper,
+        pattern: c.accent.withValues(alpha: 0.05),
+        mine: AppColorsBlue.chatMine,
+        onMine: c.text,
+        mineMeta: c.textSecondary,
+        theirs: c.surface,
+        theirsBorder: c.border,
+        onTheirs: c.text,
+        theirsMeta: c.textSecondary,
+        tick: c.textSecondary,
+        tickRead: const Color(0xFF2F80ED),
       );
     }
     if (brightness == Brightness.light) {
@@ -53,21 +68,6 @@ final class ChatColors extends ThemeExtension<ChatColors> {
         theirsMeta: c.textSecondary,
         tick: c.textSecondary,
         tickRead: const Color(0xFF2F80ED),
-      );
-    }
-    if (c.bg == AppColorsNavy.bg) {
-      return ChatColors(
-        wallpaper: const Color(0xFF0A0F1D),
-        pattern: Colors.white.withValues(alpha: 0.035),
-        mine: const Color(0xFF253B6E),
-        onMine: c.text,
-        mineMeta: c.text.withValues(alpha: 0.65),
-        theirs: c.surface,
-        theirsBorder: c.border,
-        onTheirs: c.text,
-        theirsMeta: c.textSecondary,
-        tick: c.text.withValues(alpha: 0.65),
-        tickRead: const Color(0xFF53BDEB),
       );
     }
     // Night: black with gold.
