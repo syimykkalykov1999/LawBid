@@ -314,6 +314,11 @@ variable "clamav_image" {
   default     = "clamav/clamav:1.4"
   description = "Antivirus sidecar image; prod uses the ECR copy (scripts/deploy/prod-images.sh)."
 }
+variable "documents_cdn_public_key_pem" {
+  type        = string
+  default     = ""
+  description = "Owner 2026-10-22: PEM public key for CloudFront signed URLs on private media (docs/runbooks/DEPLOY_PROD.md «CloudFront для приватных файлов»). Empty = presigned S3 links as before. Pair it with CLOUDFRONT_PRIVATE_KEY_PEM in extra_secrets."
+}
 variable "extra_secrets" {
   type        = list(string)
   default     = []
@@ -368,6 +373,22 @@ module "kms_replica" {
   tags      = local.tags
 }
 
+# Owner 2026-10-22: a separate key for wrapping application data keys
+# (MESSAGE_ENC_KEYS, SECRETS_MASTER_KEYS). The task role may only Decrypt
+# with it; the owner (account admin) encrypts new data keys with
+# `aws kms encrypt --encryption-context app=<name>`.
+resource "aws_kms_key" "data_keys" {
+  description             = "${local.name}: wraps the app data keys (messages, admin key store)"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+  tags                    = local.tags
+}
+
+resource "aws_kms_alias" "data_keys" {
+  name          = "alias/${local.name}-data-keys"
+  target_key_id = aws_kms_key.data_keys.key_id
+}
+
 module "network" {
   source              = "../network"
   name                = local.name
@@ -398,8 +419,9 @@ module "s3" {
   replica_kms_key_arn = module.kms_replica.key_arn
   tags                = local.tags
 
-  cors_allowed_origins = var.s3_cors_allowed_origins
-  media_web_acl_arn    = module.cdn_waf.web_acl_arn
+  cors_allowed_origins         = var.s3_cors_allowed_origins
+  media_web_acl_arn            = module.cdn_waf.web_acl_arn
+  documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
 }
 
 # Security research #5 (2026-10-22), A3: one WAF for both CloudFront
@@ -584,16 +606,25 @@ locals {
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
     MEDIA_CDN_BASE_URL  = "https://${module.s3.media_cdn_domain}"
-    SES_REGION          = data.aws_region.current.name
-    SES_FROM_ADDRESS    = var.ses_from_address
-    EMAIL_PROVIDER      = "ses"
-    SMS_PROVIDER        = "twilio"
-    STRIPE_PRICE_ID     = var.stripe_price_id
-    FCM_PROJECT_ID      = var.fcm_project_id
-    FCM_CLIENT_EMAIL    = var.fcm_client_email
-    GOOGLE_CLIENT_IDS   = var.google_client_ids
-    APPLE_BUNDLE_IDS    = var.apple_bundle_ids
-    APPLE_TEAM_ID       = var.apple_team_id
+    # Owner 2026-10-22: private media through CloudFront signed URLs (empty
+    # until the owner supplies documents_cdn_public_key_pem; the private key
+    # is the CLOUDFRONT_PRIVATE_KEY_PEM secret in extra_secrets).
+    CLOUDFRONT_PRIVATE_DOMAIN = module.s3.documents_cdn_domain == null ? "" : module.s3.documents_cdn_domain
+    CLOUDFRONT_PRIVATE_KEY_ID = module.s3.documents_cdn_key_pair_id == null ? "" : module.s3.documents_cdn_key_pair_id
+    # KMS key that wraps the data keys inside MESSAGE_ENC_KEYS /
+    # SECRETS_MASTER_KEYS ("<kid>:kms:<base64 ciphertext>", decrypted once
+    # at boot — src/common/secrets/kms-env.ts). Owner steps: DEPLOY_PROD.md.
+    DATA_KEYS_KMS_KEY_ARN = aws_kms_key.data_keys.arn
+    SES_REGION            = data.aws_region.current.name
+    SES_FROM_ADDRESS      = var.ses_from_address
+    EMAIL_PROVIDER        = "ses"
+    SMS_PROVIDER          = "twilio"
+    STRIPE_PRICE_ID       = var.stripe_price_id
+    FCM_PROJECT_ID        = var.fcm_project_id
+    FCM_CLIENT_EMAIL      = var.fcm_client_email
+    GOOGLE_CLIENT_IDS     = var.google_client_ids
+    APPLE_BUNDLE_IDS      = var.apple_bundle_ids
+    APPLE_TEAM_ID         = var.apple_team_id
     # Key ids inside the two key secrets above (rotation: add k2/m2 to
     # the secret, then switch these).
     JWT_ACTIVE_KID         = "j1"
@@ -693,6 +724,17 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
     resources = [module.kms.key_arn]
+  }
+  # Owner 2026-10-22 (SECURITY_TODO «KMS-wrapped keys»): the task may only
+  # unwrap the message / key-store data keys, nothing else on this key.
+  statement {
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.data_keys.arn]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:app"
+      values   = [local.name]
+    }
   }
   statement {
     actions   = ["ses:SendEmail", "ses:SendRawEmail"]
@@ -802,6 +844,10 @@ output "alb_dns_name" { value = module.alb.dns_name }
 output "cluster_name" { value = module.ecs.cluster_name }
 output "migrate_task_definition_arn" { value = module.ecs.migrate_task_definition_arn }
 output "media_cdn_domain" { value = module.s3.media_cdn_domain }
+output "documents_cdn_domain" { value = module.s3.documents_cdn_domain }
+output "documents_cdn_key_pair_id" { value = module.s3.documents_cdn_key_pair_id }
+output "data_keys_kms_key_arn" { value = aws_kms_key.data_keys.arn }
+output "data_keys_kms_alias" { value = aws_kms_alias.data_keys.name }
 output "web_bucket" { value = module.web.web_bucket }
 output "web_certificate_validation" { value = module.web.web_certificate_validation }
 output "web_distribution_id" { value = module.web.web_distribution_id }

@@ -369,6 +369,21 @@ export const envSchema = z
       /^https:\/\/[^\s/]+$/,
       'MEDIA_CDN_BASE_URL must be an https origin without a path',
     ),
+    // Owner 2026-10-22 (systems checklist §22): private media (documents
+    // bucket) through CloudFront signed URLs. The three go together; unset
+    // keeps presigned S3 GET links. The PEM may be pasted with literal \n.
+    CLOUDFRONT_PRIVATE_DOMAIN: optionalMatching(
+      /^[a-z0-9.-]+\.[a-z]{2,}$/i,
+      'CLOUDFRONT_PRIVATE_DOMAIN must be a host name (no scheme, no path)',
+    ),
+    CLOUDFRONT_PRIVATE_KEY_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'CLOUDFRONT_PRIVATE_KEY_ID must be a CloudFront public key id',
+    ),
+    CLOUDFRONT_PRIVATE_KEY_PEM: optionalMatching(
+      /-----BEGIN (RSA )?PRIVATE KEY-----/,
+      'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',
+    ),
     // MinIO root user/password locally; on AWS leave empty (IAM role).
     S3_ACCESS_KEY_ID: optionalMatching(
       /^\S{3,}$/,
@@ -883,6 +898,11 @@ export const envSchema = z
       ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'],
       ['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'],
       ['APNS_KEY_ID', 'APNS_TEAM_ID', 'APNS_PRIVATE_KEY'],
+      [
+        'CLOUDFRONT_PRIVATE_DOMAIN',
+        'CLOUDFRONT_PRIVATE_KEY_ID',
+        'CLOUDFRONT_PRIVATE_KEY_PEM',
+      ],
     ] as const;
     for (const group of groups) {
       const present = group.filter((key) => env[key] !== undefined);

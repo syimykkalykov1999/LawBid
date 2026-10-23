@@ -1,0 +1,109 @@
+import { ConfigService } from '@nestjs/config';
+import { generateKeyPairSync } from 'node:crypto';
+import {
+  IMMUTABLE_CACHE_CONTROL,
+  S3StorageService,
+  signCloudFrontUrl,
+} from './s3-storage.service';
+
+const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }) as string;
+
+const logger = { setContext: jest.fn(), warn: jest.fn() };
+
+function service(env: Record<string, string | undefined>): S3StorageService {
+  return new S3StorageService(
+    new ConfigService({
+      S3_REGION: 'us-east-1',
+      S3_BUCKET_DOCUMENTS: 'lawbid-documents',
+      S3_BUCKET_MEDIA: 'lawbid-media',
+      S3_ACCESS_KEY_ID: 'AKIAEXAMPLEEXAMPLE',
+      S3_SECRET_ACCESS_KEY: 'secret-secret-secret-secret',
+      ...env,
+    }),
+    logger as never,
+  );
+}
+
+describe('signCloudFrontUrl', () => {
+  const cdn = {
+    domain: 'd1.cloudfront.net',
+    keyPairId: 'K2JCJMDEHXQW5F',
+    privateKey: PEM,
+  };
+
+  it('signs the full URL with the immutable cache header and the download name', () => {
+    const url = new URL(
+      signCloudFrontUrl(
+        cdn,
+        'chat_attachment/u1/f1',
+        60,
+        'Договор №1.pdf',
+        1_700_000_000_000,
+      ),
+    );
+    expect(url.host).toBe('d1.cloudfront.net');
+    expect(url.pathname).toBe('/chat_attachment/u1/f1');
+    expect(url.searchParams.get('response-cache-control')).toBe(
+      IMMUTABLE_CACHE_CONTROL,
+    );
+    expect(url.searchParams.get('response-content-disposition')).toContain(
+      "filename*=UTF-8''%D0%94%D0%BE%D0%B3%D0%BE%D0%B2%D0%BE%D1%80",
+    );
+    expect(url.searchParams.get('Key-Pair-Id')).toBe('K2JCJMDEHXQW5F');
+    expect(url.searchParams.get('Expires')).toBe(String(1_700_000_000 + 60));
+    expect(url.searchParams.get('Signature')).toMatch(/^[A-Za-z0-9~_-]+$/);
+    expect(url.searchParams.has('X-Amz-Signature')).toBe(false);
+  });
+
+  it('percent-encodes key segments', () => {
+    const url = new URL(signCloudFrontUrl(cdn, 'a b/c#d', 5));
+    expect(url.pathname).toBe('/a%20b/c%23d');
+  });
+});
+
+describe('S3StorageService.signedGetUrl', () => {
+  it('uses CloudFront for the documents bucket only when the three values are set', async () => {
+    const s = service({
+      CLOUDFRONT_PRIVATE_DOMAIN: 'd1.cloudfront.net',
+      CLOUDFRONT_PRIVATE_KEY_ID: 'K2JCJMDEHXQW5F',
+      CLOUDFRONT_PRIVATE_KEY_PEM: PEM,
+    });
+    expect(s.privateCdnEnabled).toBe(true);
+    const doc = await s.signedGetUrl(
+      'lawbid-documents',
+      'case_photo/u1/f1',
+      300,
+    );
+    expect(doc.startsWith('https://d1.cloudfront.net/case_photo/u1/f1?')).toBe(
+      true,
+    );
+    expect(doc).toContain('Signature=');
+    // The media bucket keeps the presigned S3 GET (its public CDN is separate).
+    const media = await s.signedGetUrl('lawbid-media', 'avatar/u1/f1', 300);
+    expect(media).toContain('X-Amz-Signature=');
+    expect(media).toContain('lawbid-media');
+  });
+
+  it('falls back to presigned S3 links without the key (and warns on a partial set)', async () => {
+    const s = service({ CLOUDFRONT_PRIVATE_DOMAIN: 'd1.cloudfront.net' });
+    expect(s.privateCdnEnabled).toBe(false);
+    expect(logger.warn).toHaveBeenCalled();
+    const doc = await s.signedGetUrl(
+      'lawbid-documents',
+      'case_photo/u1/f1',
+      300,
+    );
+    expect(doc).toContain('X-Amz-Signature=');
+    expect(doc).toContain('response-cache-control=');
+  });
+
+  it('accepts a PEM pasted with literal \\n', () => {
+    const s = service({
+      CLOUDFRONT_PRIVATE_DOMAIN: 'd1.cloudfront.net',
+      CLOUDFRONT_PRIVATE_KEY_ID: 'K2JCJMDEHXQW5F',
+      CLOUDFRONT_PRIVATE_KEY_PEM: PEM.replace(/\n/g, '\\n'),
+    });
+    expect(s.privateCdnEnabled).toBe(true);
+  });
+});

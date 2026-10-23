@@ -622,6 +622,39 @@ export const PROVIDERS: ProviderDefinition[] = [
         patternHint: 'https://media.lawbid.app',
         env: 'MEDIA_CDN_BASE_URL',
       },
+      // Owner 2026-10-22 (systems checklist §22): private media (chat
+      // photos/voice/files, case files, documents) through CloudFront
+      // signed URLs. All three or none; empty = presigned S3 links.
+      {
+        name: 'privateCdnDomain',
+        label: 'Private media CDN domain (CloudFront, signed URLs)',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9.-]+\.[a-z]{2,}$/,
+        patternHint: 'd1234abcd.cloudfront.net',
+        env: 'CLOUDFRONT_PRIVATE_DOMAIN',
+        normalize: hostOnly,
+      },
+      {
+        name: 'privateCdnKeyId',
+        label: 'CloudFront public key ID (key group)',
+        secret: false,
+        required: false,
+        pattern: /^[A-Z0-9]{10,20}$/,
+        patternHint: 'K2JCJMDEHXQW5F',
+        env: 'CLOUDFRONT_PRIVATE_KEY_ID',
+      },
+      {
+        name: 'privateCdnPrivateKey',
+        label: 'CloudFront signing private key (PEM)',
+        secret: true,
+        required: false,
+        pattern:
+          /^-----BEGIN (RSA )?PRIVATE KEY-----[\s\S]+-----END (RSA )?PRIVATE KEY-----\s*$/,
+        patternHint: '-----BEGIN PRIVATE KEY-----…',
+        env: 'CLOUDFRONT_PRIVATE_KEY_PEM',
+        normalize: normalizePem,
+      },
     ],
   },
   {

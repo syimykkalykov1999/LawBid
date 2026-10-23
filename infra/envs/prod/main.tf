@@ -53,6 +53,7 @@ module "stack" {
   slack_webhook_url              = var.slack_webhook_url
   stripe_price_id                = var.stripe_price_id
   extra_secrets                  = var.extra_secrets
+  documents_cdn_public_key_pem   = var.documents_cdn_public_key_pem
   clamav_image                   = var.clamav_image
   fcm_project_id                 = var.fcm_project_id
   fcm_client_email               = var.fcm_client_email

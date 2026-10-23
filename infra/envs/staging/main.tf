@@ -66,7 +66,9 @@ module "stack" {
   interface_endpoints = var.interface_endpoints
   admin_allowed_cidrs = var.admin_allowed_cidrs
 
-  s3_cors_allowed_origins = var.s3_cors_allowed_origins
+  s3_cors_allowed_origins      = var.s3_cors_allowed_origins
+  extra_secrets                = var.extra_secrets
+  documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
 
   monthly_budget_usd     = var.monthly_budget_usd
   create_anomaly_monitor = var.create_anomaly_monitor

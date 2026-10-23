@@ -74,3 +74,11 @@ monthly_budget_usd = 200 # e-mails at $100 / $160 / $200; at $200 the server sta
 web_host               = "lawbid.dev"
 web_extra_hosts        = ["www.lawbid.dev"]
 web_create_certificate = true
+
+# --- private media through CloudFront (owner 2026-10-22, optional) ---------
+# Chat photos/voice/files, case files and documents are served through a
+# CloudFront distribution with signed URLs once the owner creates a signing
+# key pair (DEPLOY_PROD.md «CloudFront для приватных файлов»). Leave both
+# lines out and the API keeps presigned S3 links.
+# documents_cdn_public_key_pem = file("cloudfront-signing.pub.pem")
+# extra_secrets                = ["CLOUDFRONT_PRIVATE_KEY_PEM"]

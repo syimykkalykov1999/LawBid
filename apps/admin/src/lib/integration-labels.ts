@@ -84,6 +84,9 @@ const FIELD_BY_NAME: Record<string, string> = {
   bucketDocuments: 'Бакет документов',
   bucketMedia: 'Бакет медиа',
   cdnBaseUrl: 'Базовый адрес CDN для медиа',
+  privateCdnDomain: 'Домен CloudFront для приватных файлов',
+  privateCdnKeyId: 'ID публичного ключа CloudFront',
+  privateCdnPrivateKey: 'Закрытый ключ подписи CloudFront (PEM)',
   dsn: 'Адрес для отчётов',
 };
 
@@ -155,6 +158,9 @@ const FIELD_EN: Record<string, string> = {
   'storage.accessKeyId': 'Access key ID',
   'storage.secretAccessKey': 'Secret access key',
   'storage.cdnBaseUrl': 'Distribution domain name',
+  'storage.privateCdnDomain': 'Distribution domain name',
+  'storage.privateCdnKeyId': 'Public key ID',
+  'storage.privateCdnPrivateKey': 'Private key (PEM)',
   'sentry.dsn': 'DSN',
   'cockroach_cloud.apiKey': 'API key',
   'cockroach_cloud.clusterId': 'Cluster ID',
