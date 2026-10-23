@@ -212,6 +212,7 @@ class ScrollToBottomPill extends StatelessWidget {
   const ScrollToBottomPill({
     required this.visible,
     required this.count,
+    required this.countLabel,
     required this.onTap,
     required this.label,
     super.key,
@@ -219,6 +220,9 @@ class ScrollToBottomPill extends StatelessWidget {
 
   final bool visible;
   final int count;
+
+  /// The count as the person's digits (the caller formats it).
+  final String countLabel;
   final VoidCallback onTap;
   final String label;
 
@@ -285,10 +289,9 @@ class ScrollToBottomPill extends StatelessWidget {
                             borderRadius: BorderRadius.circular(9),
                           ),
                           child: Text(
-                            count > 99 ? '99+' : '$count',
+                            countLabel,
                             style: type.caption.copyWith(
                               color: colors.onAccent,
-                              fontSize: 11,
                               fontWeight: FontWeight.w700,
                               height: 1,
                             ),

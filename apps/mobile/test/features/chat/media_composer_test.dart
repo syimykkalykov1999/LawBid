@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
@@ -156,6 +157,7 @@ ProviderContainer _queueContainer(_Chat chat) {
 }
 
 void main() {
+  setUpAll(initializeDateFormatting);
   test('the preview result goes to the upload queue in order, caption last',
       () async {
     final chat = _Chat();

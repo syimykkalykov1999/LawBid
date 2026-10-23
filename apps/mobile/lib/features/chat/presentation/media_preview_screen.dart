@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/text/byte_size.dart';
@@ -289,11 +290,12 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
-                                    '${_files.length}',
+                                    ref
+                                        .watch(l10nFormatsProvider)
+                                        .digits(_files.length),
                                     style: type.caption.copyWith(
                                       color: ChatColors.viewerBg,
                                       fontWeight: FontWeight.w700,
-                                      fontSize: 11,
                                       height: 1,
                                     ),
                                   ),

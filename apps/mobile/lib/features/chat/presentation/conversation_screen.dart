@@ -1006,6 +1006,9 @@ class _MessageListState extends ConsumerState<_MessageList> {
             child: ScrollToBottomPill(
               visible: _away,
               count: _fresh,
+              countLabel: _fresh > 99
+                  ? '${ref.watch(l10nFormatsProvider).digits(99)}+'
+                  : ref.watch(l10nFormatsProvider).digits(_fresh),
               label: t.t('chat.scrollDown'),
               onTap: () {
                 setState(() => _fresh = 0);

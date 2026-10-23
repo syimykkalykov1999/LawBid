@@ -91,7 +91,6 @@ class ChatMediaMeta extends StatelessWidget {
             time,
             style: type.caption.copyWith(
               color: ChatColors.onMediaScrim,
-              fontSize: 11,
               height: 1.2,
             ),
           ),
@@ -126,7 +125,6 @@ class ChatStickerMeta extends StatelessWidget {
             time,
             style: type.caption.copyWith(
               color: colors.textSecondary,
-              fontSize: 11,
             ),
           ),
           if (ticks != null) ...[const SizedBox(width: 4), ticks!],
