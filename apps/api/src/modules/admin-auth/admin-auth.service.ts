@@ -24,11 +24,8 @@ import type {
   AuthenticationResponseJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server';
-import { PasskeyService } from '../auth/passkeys/passkey.service';
-import type {
-  AuthenticationChallenge,
-  PasskeyView,
-} from '../auth/passkeys/passkey.service';
+import { PasskeyService } from '../auth/auth.public';
+import type { AuthenticationChallenge, PasskeyView } from '../auth/auth.public';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { TokenService } from '../auth/services/token.service';
 import type { AdminActor } from './admin-auth.decorators';

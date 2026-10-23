@@ -4,8 +4,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import type { Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { QR_LOGIN_TTL_SEC } from '../auth/services/qr-login.service';
-import { RateLimitService } from '../auth/services/rate-limit.service';
+import { QR_LOGIN_TTL_SEC, RateLimitService } from '../auth/auth.public';
 import { QR_LOGIN_NAMESPACE, qrRoom } from './realtime-publisher.service';
 
 /** Same shape as the REST DTO (`qrId`: 16–64 URL-safe chars). */

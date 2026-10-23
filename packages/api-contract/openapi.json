@@ -12683,6 +12683,215 @@
         "tags": [
           "privacy"
         ]
+      },
+      "patch": {
+        "operationId": "patchPrivacySettings",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrivacySettingsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySettingsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Change my privacy settings (any subset), incl. the CCPA «Do not sell or share» switch",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/admin/analytics": {
+      "get": {
+        "operationId": "getAnalytics",
+        "parameters": [
+          {
+            "name": "days",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 7,
+              "maximum": 90,
+              "default": 30,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "DAU/MAU, the sign-up funnel, retention, churn and purchases by day",
+        "tags": [
+          "admin-analytics"
+        ]
+      }
+    },
+    "/app-events": {
+      "post": {
+        "operationId": "reportEvents",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppEventBatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The app reports events (batch of up to 50)",
+        "tags": [
+          "app-events"
+        ]
       }
     },
     "/cases/{caseId}/conflict-check": {
@@ -29730,140 +29939,6 @@
         "summary": "Rate-limited: an enumeration aid otherwise.",
         "tags": [
           "usernames"
-        ]
-      }
-    },
-    "/admin/analytics": {
-      "get": {
-        "operationId": "getAnalytics",
-        "parameters": [
-          {
-            "name": "days",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "minimum": 7,
-              "maximum": 90,
-              "default": 30,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AnalyticsEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "DAU/MAU, the sign-up funnel, retention, churn and purchases by day",
-        "tags": [
-          "admin-analytics"
-        ]
-      }
-    },
-    "/app-events": {
-      "post": {
-        "operationId": "reportEvents",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AppEventBatchDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": ""
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "summary": "The app reports events (batch of up to 50)",
-        "tags": [
-          "app-events"
         ]
       }
     },
@@ -73771,7 +73846,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -74310,7 +74386,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           }
@@ -74420,7 +74497,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -74538,7 +74616,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -74664,7 +74743,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -74785,7 +74865,8 @@
                 "cookies",
                 "third_party_services",
                 "partner_terms",
-                "dmca_policy"
+                "dmca_policy",
+                "accessibility"
               ]
             }
           },
@@ -110805,7 +110886,8 @@
           "cookies",
           "third_party_services",
           "partner_terms",
-          "dmca_policy"
+          "dmca_policy",
+          "accessibility"
         ]
       },
       "BootstrapLegalDocumentDto": {
@@ -116429,6 +116511,10 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "doNotSell": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22 (CCPA/CPRA): «Do not sell or share my personal information» — true = opted out. Stored as a do_not_sell consent (in the data export), honoured by the analytics gate."
           }
         },
         "required": [
@@ -116498,8 +116584,270 @@
                 "$ref": "#/components/schemas/PrivacyAudience"
               }
             ]
+          },
+          "doNotSell": {
+            "type": "boolean",
+            "description": "CCPA/CPRA «Do not sell or share my personal information»: true = opt out, false = allow again."
           }
         }
+      },
+      "AnalyticsStepDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "signed_up",
+              "verified",
+              "role_chosen",
+              "onboarded",
+              "first_action",
+              "paid"
+            ]
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ]
+      },
+      "AnalyticsRetentionDto": {
+        "type": "object",
+        "properties": {
+          "cohort": {
+            "type": "number",
+            "description": "People who joined 7–14 days ago."
+          },
+          "d1Percent": {
+            "type": "number",
+            "description": "Came back after day 1."
+          },
+          "d7Percent": {
+            "type": "number",
+            "description": "Came back after day 7."
+          }
+        },
+        "required": [
+          "cohort",
+          "d1Percent",
+          "d7Percent"
+        ]
+      },
+      "AnalyticsChurnPartDto": {
+        "type": "object",
+        "properties": {
+          "before": {
+            "type": "number",
+            "description": "Active 30–60 days ago."
+          },
+          "lost": {
+            "type": "number",
+            "description": "Of them, not seen in the last 30 days."
+          }
+        },
+        "required": [
+          "before",
+          "lost"
+        ]
+      },
+      "AnalyticsChurnDto": {
+        "type": "object",
+        "properties": {
+          "clients": {
+            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
+          },
+          "attorneys": {
+            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
+          }
+        },
+        "required": [
+          "clients",
+          "attorneys"
+        ]
+      },
+      "AnalyticsDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "active": {
+            "type": "number",
+            "description": "People who opened the app."
+          },
+          "signups": {
+            "type": "number"
+          },
+          "subscriptionCents": {
+            "type": "number"
+          },
+          "boostCents": {
+            "type": "number"
+          },
+          "purchases": {
+            "type": "number",
+            "description": "Subscription payments and Boosts bought."
+          }
+        },
+        "required": [
+          "day",
+          "active",
+          "signups",
+          "subscriptionCents",
+          "boostCents",
+          "purchases"
+        ]
+      },
+      "AppEventCountDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "screen": {
+            "type": "string",
+            "description": "Empty when the event has no screen."
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "screen",
+          "count"
+        ]
+      },
+      "AnalyticsEventsDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "The app sends events (flag app_events)."
+          },
+          "topEvents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventCountDto"
+            }
+          },
+          "topScreens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventCountDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "topEvents",
+          "topScreens"
+        ]
+      },
+      "AnalyticsDto": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "number"
+          },
+          "dau": {
+            "type": "number"
+          },
+          "wau": {
+            "type": "number"
+          },
+          "mau": {
+            "type": "number"
+          },
+          "stickinessPercent": {
+            "type": "number",
+            "description": "DAU as a share of MAU, in percent."
+          },
+          "funnel": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsStepDto"
+            }
+          },
+          "retention": {
+            "$ref": "#/components/schemas/AnalyticsRetentionDto"
+          },
+          "churn": {
+            "$ref": "#/components/schemas/AnalyticsChurnDto"
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDayDto"
+            }
+          },
+          "events": {
+            "$ref": "#/components/schemas/AnalyticsEventsDto"
+          }
+        },
+        "required": [
+          "days",
+          "dau",
+          "wau",
+          "mau",
+          "stickinessPercent",
+          "funnel",
+          "retention",
+          "churn",
+          "daily",
+          "events"
+        ]
+      },
+      "AnalyticsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AnalyticsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AppEventInDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9_.]{1,40}$",
+            "example": "screen_view"
+          },
+          "screen": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_:/.-]{0,80}$",
+            "example": "/cases/:id",
+            "description": "Screen route."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "AppEventBatchDto": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppEventInDto"
+            }
+          }
+        },
+        "required": [
+          "events"
+        ]
       },
       "ConflictMatchDto": {
         "type": "object",
@@ -120405,6 +120753,11 @@
             "type": "integer",
             "description": "Charged now: the prorated rest of the current period."
           },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (Stripe Tax): the tax inside amountNowCents; null = no tax."
+          },
           "currency": {
             "type": "string"
           },
@@ -120774,6 +121127,15 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (Stripe Tax): the tax inside amountCents and the\namount before it; null when no tax was computed."
+          },
+          "subtotalCents": {
+            "type": "integer",
+            "nullable": true
           },
           "kind": {
             "type": "string",
@@ -126129,7 +126491,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -126980,7 +127343,8 @@
               "analytics",
               "attorney_agreement",
               "client_agreement",
-              "eula"
+              "eula",
+              "do_not_sell"
             ]
           },
           "granted": {
@@ -127116,264 +127480,6 @@
         },
         "required": [
           "data"
-        ]
-      },
-      "AnalyticsStepDto": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "enum": [
-              "signed_up",
-              "verified",
-              "role_chosen",
-              "onboarded",
-              "first_action",
-              "paid"
-            ]
-          },
-          "count": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "key",
-          "count"
-        ]
-      },
-      "AnalyticsRetentionDto": {
-        "type": "object",
-        "properties": {
-          "cohort": {
-            "type": "number",
-            "description": "People who joined 7–14 days ago."
-          },
-          "d1Percent": {
-            "type": "number",
-            "description": "Came back after day 1."
-          },
-          "d7Percent": {
-            "type": "number",
-            "description": "Came back after day 7."
-          }
-        },
-        "required": [
-          "cohort",
-          "d1Percent",
-          "d7Percent"
-        ]
-      },
-      "AnalyticsChurnPartDto": {
-        "type": "object",
-        "properties": {
-          "before": {
-            "type": "number",
-            "description": "Active 30–60 days ago."
-          },
-          "lost": {
-            "type": "number",
-            "description": "Of them, not seen in the last 30 days."
-          }
-        },
-        "required": [
-          "before",
-          "lost"
-        ]
-      },
-      "AnalyticsChurnDto": {
-        "type": "object",
-        "properties": {
-          "clients": {
-            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
-          },
-          "attorneys": {
-            "$ref": "#/components/schemas/AnalyticsChurnPartDto"
-          }
-        },
-        "required": [
-          "clients",
-          "attorneys"
-        ]
-      },
-      "AnalyticsDayDto": {
-        "type": "object",
-        "properties": {
-          "day": {
-            "type": "string"
-          },
-          "active": {
-            "type": "number",
-            "description": "People who opened the app."
-          },
-          "signups": {
-            "type": "number"
-          },
-          "subscriptionCents": {
-            "type": "number"
-          },
-          "boostCents": {
-            "type": "number"
-          },
-          "purchases": {
-            "type": "number",
-            "description": "Subscription payments and Boosts bought."
-          }
-        },
-        "required": [
-          "day",
-          "active",
-          "signups",
-          "subscriptionCents",
-          "boostCents",
-          "purchases"
-        ]
-      },
-      "AppEventCountDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "screen": {
-            "type": "string",
-            "description": "Empty when the event has no screen."
-          },
-          "count": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "name",
-          "screen",
-          "count"
-        ]
-      },
-      "AnalyticsEventsDto": {
-        "type": "object",
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "description": "The app sends events (flag app_events)."
-          },
-          "topEvents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AppEventCountDto"
-            }
-          },
-          "topScreens": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AppEventCountDto"
-            }
-          }
-        },
-        "required": [
-          "enabled",
-          "topEvents",
-          "topScreens"
-        ]
-      },
-      "AnalyticsDto": {
-        "type": "object",
-        "properties": {
-          "days": {
-            "type": "number"
-          },
-          "dau": {
-            "type": "number"
-          },
-          "wau": {
-            "type": "number"
-          },
-          "mau": {
-            "type": "number"
-          },
-          "stickinessPercent": {
-            "type": "number",
-            "description": "DAU as a share of MAU, in percent."
-          },
-          "funnel": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AnalyticsStepDto"
-            }
-          },
-          "retention": {
-            "$ref": "#/components/schemas/AnalyticsRetentionDto"
-          },
-          "churn": {
-            "$ref": "#/components/schemas/AnalyticsChurnDto"
-          },
-          "daily": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AnalyticsDayDto"
-            }
-          },
-          "events": {
-            "$ref": "#/components/schemas/AnalyticsEventsDto"
-          }
-        },
-        "required": [
-          "days",
-          "dau",
-          "wau",
-          "mau",
-          "stickinessPercent",
-          "funnel",
-          "retention",
-          "churn",
-          "daily",
-          "events"
-        ]
-      },
-      "AnalyticsEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AnalyticsDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AppEventInDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[a-z0-9_.]{1,40}$",
-            "example": "screen_view"
-          },
-          "screen": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_:/.-]{0,80}$",
-            "example": "/cases/:id",
-            "description": "Screen route."
-          }
-        },
-        "required": [
-          "name"
-        ]
-      },
-      "AppEventBatchDto": {
-        "type": "object",
-        "properties": {
-          "events": {
-            "maxItems": 50,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AppEventInDto"
-            }
-          }
-        },
-        "required": [
-          "events"
         ]
       },
       "CommentAuthorDto": {
@@ -134992,6 +135098,15 @@
           },
           "amountCents": {
             "type": "integer"
+          },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-22 (Stripe Tax): tax inside amountCents / pre-tax amount."
+          },
+          "subtotalCents": {
+            "type": "integer",
+            "nullable": true
           },
           "currency": {
             "type": "string"
@@ -149786,7 +149901,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -149864,7 +149980,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -150053,7 +150170,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "titleEn": {
@@ -150114,7 +150232,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "locale": {
@@ -150297,7 +150416,8 @@
               "cookies",
               "third_party_services",
               "partner_terms",
-              "dmca_policy"
+              "dmca_policy",
+              "accessibility"
             ]
           },
           "titleEn": {

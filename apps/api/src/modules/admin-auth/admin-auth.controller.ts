@@ -31,7 +31,7 @@ import {
   PasskeyListDto,
   PasskeyRegistrationOptionsDto,
   PasskeyRemovedDto,
-} from '../auth/passkeys/passkey.dto';
+} from '../auth/auth.public';
 import {
   ALL_ADMIN_ROLES,
   AdminEndpoint,

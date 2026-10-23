@@ -27,6 +27,7 @@ UpdatePrivacySettingsDto _$UpdatePrivacySettingsDtoFromJson(
   groupAddFrom: json['groupAddFrom'] == null
       ? null
       : PrivacyAudience.fromJson(json['groupAddFrom'] as String),
+  doNotSell: json['doNotSell'] as bool?,
 );
 
 Map<String, dynamic> _$UpdatePrivacySettingsDtoToJson(
@@ -38,4 +39,5 @@ Map<String, dynamic> _$UpdatePrivacySettingsDtoToJson(
   'photoFrom': ?instance.photoFrom?.toJson(),
   'aboutFrom': ?instance.aboutFrom?.toJson(),
   'groupAddFrom': ?instance.groupAddFrom?.toJson(),
+  'doNotSell': ?instance.doNotSell,
 };

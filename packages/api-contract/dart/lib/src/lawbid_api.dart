@@ -17,6 +17,8 @@ import 'clients/verification_client.dart';
 import 'clients/admin_verification_client.dart';
 import 'clients/files_client.dart';
 import 'clients/privacy_client.dart';
+import 'clients/admin_analytics_client.dart';
+import 'clients/app_events_client.dart';
 import 'clients/bids_client.dart';
 import 'clients/firms_client.dart';
 import 'clients/admin_sanctions_client.dart';
@@ -38,8 +40,6 @@ import 'clients/profiles_client.dart';
 import 'clients/clients_client.dart';
 import 'clients/users_client.dart';
 import 'clients/usernames_client.dart';
-import 'clients/admin_analytics_client.dart';
-import 'clients/app_events_client.dart';
 import 'clients/comments_client.dart';
 import 'clients/case_comments_client.dart';
 import 'clients/cases_client.dart';
@@ -150,6 +150,8 @@ class LawbidApi {
   AdminVerificationClient? _adminVerification;
   FilesClient? _files;
   PrivacyClient? _privacy;
+  AdminAnalyticsClient? _adminAnalytics;
+  AppEventsClient? _appEvents;
   BidsClient? _bids;
   FirmsClient? _firms;
   AdminSanctionsClient? _adminSanctions;
@@ -171,8 +173,6 @@ class LawbidApi {
   ClientsClient? _clients;
   UsersClient? _users;
   UsernamesClient? _usernames;
-  AdminAnalyticsClient? _adminAnalytics;
-  AppEventsClient? _appEvents;
   CommentsClient? _comments;
   CaseCommentsClient? _caseComments;
   CasesClient? _cases;
@@ -295,6 +295,12 @@ class LawbidApi {
   PrivacyClient get privacy =>
       _privacy ??= PrivacyClient(_dio, baseUrl: _baseUrl);
 
+  AdminAnalyticsClient get adminAnalytics =>
+      _adminAnalytics ??= AdminAnalyticsClient(_dio, baseUrl: _baseUrl);
+
+  AppEventsClient get appEvents =>
+      _appEvents ??= AppEventsClient(_dio, baseUrl: _baseUrl);
+
   BidsClient get bids => _bids ??= BidsClient(_dio, baseUrl: _baseUrl);
 
   FirmsClient get firms => _firms ??= FirmsClient(_dio, baseUrl: _baseUrl);
@@ -350,12 +356,6 @@ class LawbidApi {
 
   UsernamesClient get usernames =>
       _usernames ??= UsernamesClient(_dio, baseUrl: _baseUrl);
-
-  AdminAnalyticsClient get adminAnalytics =>
-      _adminAnalytics ??= AdminAnalyticsClient(_dio, baseUrl: _baseUrl);
-
-  AppEventsClient get appEvents =>
-      _appEvents ??= AppEventsClient(_dio, baseUrl: _baseUrl);
 
   CommentsClient get comments =>
       _comments ??= CommentsClient(_dio, baseUrl: _baseUrl);

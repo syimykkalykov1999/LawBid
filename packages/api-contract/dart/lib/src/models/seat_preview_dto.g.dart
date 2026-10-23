@@ -19,6 +19,7 @@ SeatPreviewDto _$SeatPreviewDtoFromJson(Map<String, dynamic> json) =>
       seatCents: (json['seatCents'] as num).toInt(),
       monthlyIncreaseCents: (json['monthlyIncreaseCents'] as num).toInt(),
       nextChargeCents: (json['nextChargeCents'] as num).toInt(),
+      taxCents: (json['taxCents'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$SeatPreviewDtoToJson(SeatPreviewDto instance) =>
@@ -26,6 +27,7 @@ Map<String, dynamic> _$SeatPreviewDtoToJson(SeatPreviewDto instance) =>
       'seats': instance.seats,
       'currentSeats': instance.currentSeats,
       'amountNowCents': instance.amountNowCents,
+      'taxCents': ?instance.taxCents,
       'currency': instance.currency,
       'prorationDate': instance.prorationDate,
       'periodEnd': ?instance.periodEnd?.toIso8601String(),

@@ -25,6 +25,8 @@ AdminPaymentDto _$AdminPaymentDtoFromJson(Map<String, dynamic> json) =>
       refundedCents: (json['refundedCents'] as num).toInt(),
       refundableCents: (json['refundableCents'] as num).toInt(),
       createdAt: DateTime.parse(json['createdAt'] as String),
+      taxCents: (json['taxCents'] as num?)?.toInt(),
+      subtotalCents: (json['subtotalCents'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$AdminPaymentDtoToJson(AdminPaymentDto instance) =>
@@ -33,6 +35,8 @@ Map<String, dynamic> _$AdminPaymentDtoToJson(AdminPaymentDto instance) =>
       'userId': instance.userId,
       'user': ?instance.user?.toJson(),
       'amountCents': instance.amountCents,
+      'taxCents': ?instance.taxCents,
+      'subtotalCents': ?instance.subtotalCents,
       'currency': instance.currency,
       'status': instance.status.toJson(),
       'paidAt': ?instance.paidAt?.toIso8601String(),

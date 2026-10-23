@@ -8,3 +8,19 @@
 export { SessionRevocationService } from './services/session-revocation.service';
 export { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 export { TokenService } from './services/token.service';
+// Owner 2026-10-22: passkeys for the admin panel (second factor / step-up)
+// and the QR sign-in socket namespace (realtime).
+export { PasskeyService } from './passkeys/passkey.service';
+export type {
+  AuthenticationChallenge,
+  PasskeyView,
+} from './passkeys/passkey.service';
+export {
+  PasskeyAuthenticationOptionsDto,
+  PasskeyDto,
+  PasskeyListDto,
+  PasskeyRegistrationOptionsDto,
+  PasskeyRemovedDto,
+} from './passkeys/passkey.dto';
+export { RateLimitService } from './services/rate-limit.service';
+export { QR_LOGIN_TTL_SEC } from './services/qr-login.service';

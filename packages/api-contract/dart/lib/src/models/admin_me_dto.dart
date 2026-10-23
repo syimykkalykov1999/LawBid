@@ -30,6 +30,7 @@ class AdminMeDto {
     required this.countryTabs,
     required this.securityQuestion,
     required this.reasonRequiredAreas,
+    this.passkeyCount,
   });
 
   factory AdminMeDto.fromJson(Map<String, Object?> json) =>
@@ -39,6 +40,9 @@ class AdminMeDto {
   final String email;
   final AdminMeDtoRole role;
   final bool totpEnabled;
+
+  /// Owner 2026-10-22: passkeys enrolled for the admin sign-in.
+  final int? passkeyCount;
   final DateTime? lastLoginAt;
 
   /// Login, if set.

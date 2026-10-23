@@ -20,6 +20,8 @@ class PaymentDto {
     required this.failureCode,
     required this.createdAt,
     required this.kind,
+    this.taxCents,
+    this.subtotalCents,
     this.boostTarget,
     this.boostDays,
   });
@@ -34,6 +36,11 @@ class PaymentDto {
   final DateTime? paidAt;
   final String? failureCode;
   final DateTime createdAt;
+
+  /// Owner 2026-10-22 (Stripe Tax): the tax inside amountCents and the.
+  /// amount before it; null when no tax was computed.
+  final int? taxCents;
+  final int? subtotalCents;
 
   /// Owner 2026-10-15: what it paid for.
   final PaymentDtoKind kind;

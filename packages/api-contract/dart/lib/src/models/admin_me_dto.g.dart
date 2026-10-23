@@ -34,6 +34,7 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
   reasonRequiredAreas: (json['reasonRequiredAreas'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
+  passkeyCount: (json['passkeyCount'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$AdminMeDtoToJson(
@@ -43,6 +44,7 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'email': instance.email,
   'role': instance.role.toJson(),
   'totpEnabled': instance.totpEnabled,
+  'passkeyCount': ?instance.passkeyCount,
   'lastLoginAt': ?instance.lastLoginAt?.toIso8601String(),
   'login': ?instance.login,
   'hasPassword': instance.hasPassword,

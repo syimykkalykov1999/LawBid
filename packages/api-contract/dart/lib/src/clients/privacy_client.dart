@@ -26,4 +26,11 @@ abstract class PrivacyClient {
     @Body() required UpdatePrivacySettingsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
+
+  /// Change my privacy settings (any subset), incl. the CCPA «Do not sell or share» switch
+  @PATCH('/users/me/privacy')
+  Future<PrivacySettingsEnvelope> patchPrivacySettings({
+    @Body() required UpdatePrivacySettingsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
 }
