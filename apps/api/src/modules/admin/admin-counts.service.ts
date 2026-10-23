@@ -36,7 +36,9 @@ export class AdminCountsService {
       this.prisma.supportTicket.count({
         where: { unread_by_admin: true, status: { not: 'closed' } },
       }),
-      this.trust.queue({ limit: 1000 }).then((q) => q.length),
+      // Owner 2026-10-23: the stored queue size (recounted by the worker);
+      // it used to build up to 1000 trust snapshots on every poll.
+      this.trust.queueSizeCached(),
       this.approvals.pendingCount(admin),
     ]);
     return {

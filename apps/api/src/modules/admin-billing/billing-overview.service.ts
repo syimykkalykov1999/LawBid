@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { maxAssistantSeats } from '../billing/seat-limit';
 import type { Prisma } from '@prisma/client';
@@ -28,6 +29,7 @@ import {
 import { LIVE_REFUND_STATUSES } from './refunds.service';
 
 const DAY = 86_400_000;
+export const BILLING_OVERVIEW_SUMMARY_KEY = 'billing-overview';
 
 /** Statuses that bill (MRR). Trials count, but at $0. */
 export const MRR_STATUSES = ['active', 'past_due'] as const;
@@ -58,9 +60,32 @@ export class BillingOverviewService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
+  /** Owner 2026-10-23 (admin economy pass): the totals are a group-by over
+   * every live subscription plus two 30-day sums — counted by the worker's
+   * `admin.summaries` cron, read from Redis here (`generatedAt` = when). */
   async overview(): Promise<BillingOverviewDto> {
+    if (!this.summary) return this.computeOverview();
+    return (
+      await this.summary.get(
+        BILLING_OVERVIEW_SUMMARY_KEY,
+        () => this.computeOverview(),
+        150,
+      )
+    ).data;
+  }
+
+  /** The cron's entry: recount now and store. */
+  async refreshOverview(): Promise<void> {
+    if (this.summary)
+      await this.summary.refresh(BILLING_OVERVIEW_SUMMARY_KEY, () =>
+        this.computeOverview(),
+      );
+  }
+
+  private async computeOverview(): Promise<BillingOverviewDto> {
     const now = new Date();
     const d30 = new Date(now.getTime() - 30 * DAY);
     const [groups, grants, gross, refunds, redemptions] = await Promise.all([

@@ -3,7 +3,9 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import type { Prisma, SupportMessage, SupportTicket } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -64,6 +66,7 @@ export class AdminSupportService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly desk: SupportDeskService,
     private readonly attachments: SupportFilesService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async list(
@@ -122,7 +125,17 @@ export class AdminSupportService {
     return activityPage(rows, PAGE, (r) => this.row(r, people));
   }
 
+  /** Owner 2026-10-23 (admin economy pass): ticket counts by status, SLA
+   * and the average first answer are read from Redis (recounted at most
+   * once per minute for the whole team). */
   async stats(): Promise<AdminSupportStatsDto> {
+    if (!this.summary) return this.computeStats();
+    return (
+      await this.summary.get('support-stats', () => this.computeStats(), 60)
+    ).data;
+  }
+
+  private async computeStats(): Promise<AdminSupportStatsDto> {
     const [
       grouped,
       openUnassigned,

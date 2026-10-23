@@ -1,41 +1,46 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type Redis from 'ioredis';
+import { Injectable, Optional } from '@nestjs/common';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { DashboardDto } from './admin.dto';
 import {
   liveSubscriptionWhere,
   monthlyRevenueCents,
   payingSubscriptionWhere,
 } from './subscription-metrics';
-const CACHE_KEY = 'adm:dashboard';
-const CACHE_TTL_SECONDS = 60;
+export const DASHBOARD_SUMMARY_KEY = 'dashboard';
+/** Older than this, a read still answers at once and one process recounts. */
+const FRESH_SECONDS = 150;
 const DAY_MS = 86_400_000;
 
 /**
- * docs/06 §2.3 item 1. Fourteen cheap indexed counts, computed at most
- * once a minute for the whole admin team (Redis cache) — the dashboard is
- * the page every admin lands on, and none of these numbers needs to be
- * fresher than that.
+ * docs/06 §2.3 item 1. Fourteen counts. Owner 2026-10-23 (admin economy
+ * pass): they are no longer counted on request — the worker's
+ * `admin.summaries` cron recounts them every two minutes into Redis
+ * (AdminSummaryService) and a request only reads the stored value (a
+ * stale one is still served at once while one process recounts).
  */
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async get(): Promise<DashboardDto> {
-    const cached = await this.redis.get(CACHE_KEY);
-    if (cached) return JSON.parse(cached) as DashboardDto;
-    const fresh = await this.compute();
-    await this.redis.set(
-      CACHE_KEY,
-      JSON.stringify(fresh),
-      'EX',
-      CACHE_TTL_SECONDS,
-    );
-    return fresh;
+    if (!this.summary) return this.compute();
+    return (
+      await this.summary.get(
+        DASHBOARD_SUMMARY_KEY,
+        () => this.compute(),
+        FRESH_SECONDS,
+      )
+    ).data;
+  }
+
+  /** The cron's entry: recount now and store. */
+  async refresh(): Promise<void> {
+    if (this.summary)
+      await this.summary.refresh(DASHBOARD_SUMMARY_KEY, () => this.compute());
   }
 
   private async compute(): Promise<DashboardDto> {

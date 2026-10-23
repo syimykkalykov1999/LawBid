@@ -6,6 +6,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
+import { AdminSummaryModule } from '../common/admin-summary/admin-summary.module';
 import { OpsModule } from '../common/ops/ops.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { EconomyModule } from '../common/economy/economy.module';
@@ -51,6 +52,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     }),
     PrismaModule,
     RedisModule,
+    // Owner 2026-10-23: the admin's precomputed aggregates (Redis).
+    AdminSummaryModule,
     // Owner 2026-10-05: ops guard (DB probe, budget, backups) + heartbeat.
     OpsModule,
     // LicenseExpiryJob: typed app_config reads + the notifications seam.

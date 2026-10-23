@@ -241,7 +241,8 @@ describe('JobsRunner', () => {
     // Security research #5 (A7): + contacts.pepper-backfill (every 5 min).
     // Owner 2026-10-22 (SECURITY_TODO): + messages.reencrypt (every 5 min);
     // + ops.status-watchdog (every minute).
-    expect(upserts).toHaveLength(62);
+    // Owner 2026-10-23: + admin.summaries (every 2 minutes).
+    expect(upserts).toHaveLength(63);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

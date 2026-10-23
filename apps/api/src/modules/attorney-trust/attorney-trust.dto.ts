@@ -537,6 +537,12 @@ export class TrustStatsDto {
   @ApiProperty({ type: [TrustLevelCountDto] })
   byLevel!: TrustLevelCountDto[];
 
+  @ApiPropertyOptional({
+    description:
+      'When the numbers were counted (the worker recounts every few minutes).',
+  })
+  computedAt?: string;
+
   @ApiProperty({ type: 'integer', description: 'Attorneys with any hold.' })
   held!: number;
 

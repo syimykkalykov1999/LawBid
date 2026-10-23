@@ -141,6 +141,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-05 «Прибыль и резерв»: payout statuses, a change of the
    * banks in Stripe, and the monthly split on its payout day. */
   treasuryDaily: 'treasury.daily',
+  /** Owner 2026-10-23 (admin economy pass): the admin's heavy aggregates
+   * (dashboard, billing overview, trust scan) counted once into Redis. */
+  adminSummaries: 'admin.summaries',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -231,6 +234,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.economyGuard, pattern: '*/5 * * * *' },
   // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
+  // Every second minute: a 1-minute cron would hold consecutive runs.
+  { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

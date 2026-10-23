@@ -31,6 +31,7 @@ import { SearchSynonymsService } from '../modules/search/search-synonyms.service
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
+import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
@@ -135,6 +136,8 @@ export class CronProcessor {
     @Optional() private readonly messagesReencrypt?: MessageReencryptJob,
     // Owner 2026-10-22: one queued job per account to anonymize.
     @Optional() private readonly accountDeletion?: AccountDeletionRunner,
+    // Owner 2026-10-23: `admin.summaries`.
+    @Optional() private readonly adminSummaries?: AdminSummariesJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -203,6 +206,8 @@ export class CronProcessor {
         return this.exportsCleanup.run();
       case CRON_JOBS.opsQueueMetrics:
         return this.opsMetrics.queueDepths();
+      case CRON_JOBS.adminSummaries:
+        return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:

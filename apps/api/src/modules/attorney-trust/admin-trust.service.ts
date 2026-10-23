@@ -1,5 +1,11 @@
 import { type CountryScope, userInScope } from '../countries/country-scope';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -82,6 +88,8 @@ const LICENSE_SELECT = {
   orderBy: { state_code: 'asc' },
 } as const;
 
+export const TRUST_STATS_SUMMARY_KEY = 'trust-stats';
+
 /** Admin → Верификация → «Уровни доверия». */
 @Injectable()
 export class AdminTrustService {
@@ -92,6 +100,7 @@ export class AdminTrustService {
     private readonly config: AdminConfigService,
     private readonly audit: AuditLogService,
     private readonly blocks: BarNumberBlocksService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async settingsDto(): Promise<TrustSettingsDto> {
@@ -181,9 +190,23 @@ export class AdminTrustService {
     return after;
   }
 
+  /** Owner 2026-10-23 (admin economy pass): the KPI row is read from Redis
+   * (one recount per 5 minutes for the whole team; the heavy part — the
+   * per-status scan — comes from the worker's `admin.summaries` run);
+   * `computedAt` says when. */
   async stats(): Promise<TrustStatsDto> {
+    if (!this.summary) return this.computeStats();
+    const s = await this.summary.get(
+      TRUST_STATS_SUMMARY_KEY,
+      () => this.computeStats(),
+      300,
+    );
+    return { ...s.data, computedAt: s.computedAt };
+  }
+
+  private async computeStats(): Promise<TrustStatsDto> {
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
-    const [byLevel, held, withBadge, verified, complaints30d, inQueue] =
+    const [byLevel, held, withBadge, verified, complaints30d, scan] =
       await Promise.all([
         this.prisma.attorneyProfile.groupBy({
           by: ['trust_level'],
@@ -209,13 +232,16 @@ export class AdminTrustService {
             created_at: { gte: since },
           },
         }),
-        this.trust.queue({ limit: 1000 }).then((q) => q.length),
+        this.trust.scanCached(),
       ]);
-    const [rules, byStatus, blockedBarNumbers] = await Promise.all([
+    const inQueue = scan.data.queueSize;
+    const [rules, blockedBarNumbers] = await Promise.all([
       this.trust.rules(),
-      this.trust.countByStatus(),
       this.blocks.countActive(),
     ]);
+    const byStatus = new Map(
+      Object.entries(scan.data.byStatus) as [BadgeStatus, number][],
+    );
     const counts = new Map(byLevel.map((r) => [r.trust_level, r._count._all]));
     return {
       byLevel: TRUST_LEVELS.map((level) => ({

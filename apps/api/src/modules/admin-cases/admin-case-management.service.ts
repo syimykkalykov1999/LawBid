@@ -1,3 +1,4 @@
+import { caseIdsByTitle } from '../admin-content/admin-text-search';
 import type { CountryScope } from '../countries/country-scope';
 import { urgencyFields } from '../cases/domain/case-urgency';
 import { statusOf } from '../cases/case-invites/case-invites.service';
@@ -128,7 +129,13 @@ export class AdminCaseManagementService {
       and.push({ primary_state: { country_code: { in: countries } } });
     }
     if (q.status) and.push({ status: q.status });
-    if (q.q) and.push({ title: { contains: q.q, mode: 'insensitive' } });
+    if (q.q?.trim()) {
+      // Owner 2026-10-23: the title search reads the trigram index
+      // (admin-text-search.ts), not ILIKE over every case.
+      const ids = await caseIdsByTitle(this.prisma, q.q.trim());
+      if (ids.length === 0) return { items: [], nextCursor: null };
+      and.push({ id: { in: ids } });
+    }
     if (q.clientId) and.push({ client_id: q.clientId });
     if (q.practiceAreaId) and.push({ practice_area_id: q.practiceAreaId });
     if (q.stateCode) {
