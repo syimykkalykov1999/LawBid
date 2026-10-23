@@ -302,7 +302,7 @@ export class RealtimeGateway
     if (this.draining) return 0;
     this.draining = true;
     let sent = 0;
-    for (const socket of this.nsp?.sockets.values() ?? []) {
+    for (const socket of this.nsp?.sockets?.values() ?? []) {
       this.sendGoingAway(socket);
       sent += 1;
     }
