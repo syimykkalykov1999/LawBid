@@ -46,6 +46,9 @@ export function shedReason(
  * admin retry with backoff. Limits live in app_config (0 = off), so they
  * are changed in the admin without a release.
  */
+/** No shedding this long after start: JIT, cold caches, first connections. */
+const WARMUP_MS = 60_000;
+
 @Injectable()
 export class LoadSheddingService
   implements OnModuleInit, OnApplicationShutdown
@@ -63,10 +66,25 @@ export class LoadSheddingService
 
   onModuleInit(): void {
     this.histogram.enable();
+    // Under jest the event loop is late because of the test runner (GC of a
+    // 4 GB heap, compilation, parallel suites), not because of traffic: a
+    // CI run turned real e2e requests into 503s. The sampler stays inert
+    // there unless a test opts in with LOAD_SHEDDING=1.
+    if (process.env.JEST_WORKER_ID && process.env.LOAD_SHEDDING !== '1') {
+      return;
+    }
+    const startedAt = Date.now();
+    let previous = 0;
     const lag = setInterval(() => {
       const p99 = this.histogram.percentile(99) / 1e6;
-      this.lagMs = Number.isFinite(p99) ? p99 : 0;
+      const sample = Number.isFinite(p99) ? p99 : 0;
       this.histogram.reset();
+      // Warm-up (JIT, cold caches, first connections) is not overload, and
+      // one GC pause is not either: the published lag is the smaller of the
+      // last two one-second samples, so only sustained lag sheds.
+      const warmingUp = Date.now() - startedAt < WARMUP_MS;
+      this.lagMs = warmingUp ? 0 : Math.min(previous, sample);
+      previous = sample;
     }, 1000);
     const cfg = setInterval(() => void this.loadLimits(), 30_000);
     lag.unref();
