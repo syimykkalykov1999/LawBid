@@ -23,6 +23,9 @@ import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stars/presentation/low_stars_sheet.dart';
 
+export 'package:lawbid/features/chat/presentation/reply_swipe.dart'
+    show SwipeToReply;
+
 /// Owner 2026-10-20 (WhatsApp / Telegram): what you can do with a message —
 /// reply, copy, forward, pin, edit (inside the admin's window), select,
 /// delete for me / for everyone (inside the admin's window), react.
@@ -1124,92 +1127,6 @@ class SelectionBar extends ConsumerWidget implements PreferredSizeWidget {
                 },
         ),
       ],
-    );
-  }
-}
-
-/// Drag a bubble toward the middle to quote it (WhatsApp / Telegram).
-class SwipeToReply extends StatefulWidget {
-  const SwipeToReply({required this.child, required this.onReply, super.key});
-
-  final Widget child;
-  final VoidCallback onReply;
-
-  @override
-  State<SwipeToReply> createState() => _SwipeToReplyState();
-}
-
-class _SwipeToReplyState extends State<SwipeToReply>
-    with SingleTickerProviderStateMixin {
-  static const _trigger = 56.0;
-  double _dx = 0;
-  bool _fired = false;
-  late final AnimationController _back = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 160),
-  )..addListener(() => setState(() => _dx *= 1 - _back.value));
-
-  @override
-  void dispose() {
-    _back.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    final shift = rtl ? -_dx : _dx;
-    final progress = (_dx / _trigger).clamp(0.0, 1.0);
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragStart: (_) {
-        _back.stop();
-        _fired = false;
-      },
-      onHorizontalDragUpdate: (d) {
-        final delta = rtl ? -d.delta.dx : d.delta.dx;
-        final next = (_dx + delta).clamp(0.0, _trigger * 1.4);
-        setState(() => _dx = next);
-        if (!_fired && next >= _trigger) {
-          _fired = true;
-          HapticFeedback.selectionClick();
-        }
-      },
-      onHorizontalDragEnd: (_) {
-        if (_fired) widget.onReply();
-        _back
-          ..reset()
-          ..forward();
-      },
-      onHorizontalDragCancel: () => _back
-        ..reset()
-        ..forward(),
-      child: Stack(
-        alignment: AlignmentDirectional.centerStart,
-        children: [
-          if (_dx > 4)
-            Opacity(
-              opacity: progress,
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: colors.surface,
-                ),
-                child: Center(
-                  child: AppIcon(
-                    AppIcons.replyRounded,
-                    size: 18,
-                    color: colors.iconTint,
-                  ),
-                ),
-              ),
-            ),
-          Transform.translate(offset: Offset(shift, 0), child: widget.child),
-        ],
-      ),
     );
   }
 }
