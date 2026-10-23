@@ -160,6 +160,8 @@ dependencies:
   # docs/runbooks/APP_CHECK.md). Official FlutterFire; the version pairs
   # with the pinned firebase_core.
   firebase_app_check: ^0.4.8
+  passkeys: ^2.23.1
+  in_app_review: ^2.0.12
 dev_dependencies:
   flutter_test:
     sdk: flutter

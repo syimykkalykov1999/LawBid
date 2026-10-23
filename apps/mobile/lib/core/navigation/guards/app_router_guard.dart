@@ -102,8 +102,9 @@ abstract final class AppRouterGuard {
       if (isLegal ||
           publicAuthRoutes.contains(location) ||
           // Owner 2026-10-20: the website's sign-in QR opened by an
-          // ordinary camera shows the "open the app" page without a login.
-          location.startsWith(AppRoutes.webLoginPrefix)) {
+          // ordinary camera shows the "open the app" page without a login
+          // (`/q/<id>`, and `/qr/<nonce>` since 2026-10-22).
+          AppRoutes.isWebLoginLink(location)) {
         return null;
       }
       return AuthRoutes.welcome;

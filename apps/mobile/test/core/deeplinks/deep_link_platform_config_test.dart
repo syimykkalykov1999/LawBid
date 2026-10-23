@@ -18,7 +18,7 @@ void main() {
     expect(manifest, contains('<data android:scheme="lawbid" />'));
     expect(manifest, contains('android:autoVerify="true"'));
     expect(manifest, contains(r'<data android:host="${deepLinkHost}" />'));
-    for (final p in ['/case/', '/lawyer/', '/post/', '/g/', '/c/']) {
+    for (final p in ['/case/', '/lawyer/', '/post/', '/g/', '/c/', '/qr/']) {
       expect(manifest, contains('<data android:pathPrefix="$p" />'));
     }
     expect(manifest, contains('<data android:path="/auth/email-code" />'));
@@ -77,10 +77,16 @@ void main() {
         '/post/*',
         '/u/*',
         '/q/*',
+        '/qr/*',
         '/g/*',
         '/c/*',
         '/auth/email-code',
       },
+    );
+    // Owner 2026-10-22 (passkeys): iOS lets the app use lawbid.dev passkeys.
+    expect(
+      (aasa['webcredentials'] as Map<String, dynamic>)['apps'],
+      ['78T56RPM74.com.lawbid.lawbid'],
     );
 
     final assetlinks =
@@ -93,7 +99,11 @@ void main() {
         .toSet();
     expect(packages, {'com.lawbid.lawbid'});
     for (final e in assetlinks.cast<Map<String, dynamic>>()) {
-      expect(e['relation'], ['delegate_permission/common.handle_all_urls']);
+      expect(e['relation'], [
+        'delegate_permission/common.handle_all_urls',
+        // Owner 2026-10-22 (passkeys): Android passkeys for lawbid.dev.
+        'delegate_permission/common.get_login_creds',
+      ]);
     }
   });
 
@@ -107,6 +117,7 @@ void main() {
       '/post/*': 'post/7b1f2c3d-0000-4000-8000-000000000002',
       '/u/*': 'u/jane_doe',
       '/q/*': 'q/Xk3_aB-9Qz1LmN4pR7sT0w',
+      '/qr/*': 'qr/Xk3_aB-9Qz1LmN4pR7sT0wXk3_aB-9Qz1LmN4pR7sT0w',
       '/g/*': 'g/Xk3_aB-9Qz1LmN4pR7sT0w',
       '/c/*': 'c/tax_news',
     };

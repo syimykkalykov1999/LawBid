@@ -129,9 +129,14 @@ class PrivacyScreen extends ConsumerWidget {
             // consent — off until the person turns it on (opt-in).
             AppListSection(
               title: t.t('privacy.section.data'),
-              children: const [_AnalyticsRow()],
+              children: [
+                const _AnalyticsRow(),
+                // Owner 2026-10-22 (CCPA): «Do not sell or share».
+                _DoNotSellRow(value: s.doNotSell),
+              ],
             ),
             _Hint(text: t.t('privacy.analytics.hint')),
+            _Hint(text: t.t('privacy.doNotSell.hint')),
           ],
         ),
       ),
@@ -164,20 +169,92 @@ class _AnalyticsRowState extends ConsumerState<_AnalyticsRow> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
+    return _SwitchRow(
+      rowKey: const ValueKey('privacy-analytics'),
+      icon: AppIcons.insightsOutlined,
+      label: t.t('privacy.analytics'),
+      value: ref.watch(analyticsConsentProvider),
+      busy: _busy,
+      onChanged: _toggle,
+    );
+  }
+}
+
+/// Owner 2026-10-22 (CCPA, checklist §26): «Do not sell or share my personal
+/// information» — `PATCH /users/me/privacy { doNotSell }`.
+class _DoNotSellRow extends ConsumerStatefulWidget {
+  const _DoNotSellRow({required this.value});
+
+  final bool value;
+
+  @override
+  ConsumerState<_DoNotSellRow> createState() => _DoNotSellRowState();
+}
+
+class _DoNotSellRowState extends ConsumerState<_DoNotSellRow> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool on) async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(privacySettingsProvider.notifier)
+          .setDoNotSell(value: on);
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    return _SwitchRow(
+      rowKey: const ValueKey('privacy-do-not-sell'),
+      icon: AppIcons.blockRounded,
+      label: t.t('privacy.doNotSell'),
+      value: widget.value,
+      busy: _busy,
+      onChanged: _toggle,
+    );
+  }
+}
+
+/// A list row whose whole width toggles one switch (one semantics node:
+/// the label, the state and the tap).
+class _SwitchRow extends StatelessWidget {
+  const _SwitchRow({
+    required this.rowKey,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.busy,
+    required this.onChanged,
+  });
+
+  final Key rowKey;
+  final IconData icon;
+  final String label;
+  final bool value;
+  final bool busy;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final on = ref.watch(analyticsConsentProvider);
-    final label = t.t('privacy.analytics');
     return Semantics(
-      toggled: on,
-      enabled: !_busy,
+      toggled: value,
+      enabled: !busy,
       label: label,
       excludeSemantics: true,
-      onTap: _busy ? null : () => _toggle(!on),
+      onTap: busy ? null : () => onChanged(!value),
       child: GestureDetector(
-        key: const ValueKey('privacy-analytics'),
+        key: rowKey,
         behavior: HitTestBehavior.opaque,
-        onTap: _busy ? null : () => _toggle(!on),
+        onTap: busy ? null : () => onChanged(!value),
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             minHeight: AppSizes.touchTarget + AppSpacing.sm,
@@ -189,7 +266,7 @@ class _AnalyticsRowState extends ConsumerState<_AnalyticsRow> {
             ),
             child: Row(
               children: [
-                const AppIconMedallion(icon: AppIcons.insightsOutlined),
+                AppIconMedallion(icon: icon),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
@@ -203,8 +280,8 @@ class _AnalyticsRowState extends ConsumerState<_AnalyticsRow> {
                 const SizedBox(width: AppSpacing.sm),
                 ExcludeSemantics(
                   child: Switch(
-                    value: on,
-                    onChanged: _busy ? null : _toggle,
+                    value: value,
+                    onChanged: busy ? null : onChanged,
                     activeTrackColor: colors.accent,
                     activeThumbColor: colors.onAccent,
                   ),

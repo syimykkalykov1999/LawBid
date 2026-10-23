@@ -1,4 +1,9 @@
 {
+  "webcredentials": {
+    "apps": [
+      "78T56RPM74.com.lawbid.lawbid"
+    ]
+  },
   "applinks": {
     "details": [
       {
@@ -29,6 +34,10 @@
           {
             "/": "/q/*",
             "comment": "Website sign-in QR code"
+          },
+          {
+            "/": "/qr/*",
+            "comment": "Website sign-in QR code (universal link, 2026-10-22)"
           },
           {
             "/": "/g/*",

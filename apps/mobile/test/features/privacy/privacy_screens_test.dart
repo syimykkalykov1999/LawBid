@@ -31,9 +31,16 @@ class _FakePrivacy implements PrivacyRepository {
     callFrom: Audience.contacts,
   );
   final changes = <(PrivacyField, Audience)>[];
+  final doNotSell = <bool>[];
 
   @override
   Future<PrivacySettings> settings() async => current;
+
+  @override
+  Future<PrivacySettings> setDoNotSell({required bool value}) async {
+    doNotSell.add(value);
+    return current = current.copyWith(doNotSell: value);
+  }
 
   @override
   Future<PrivacySettings> change(PrivacyField field, Audience value) async {
@@ -182,6 +189,22 @@ void main() {
     expect(AppEvents.consent, isTrue);
     expect(tester.widget<Switch>(toggle).value, isTrue);
     AppEvents.setConsent(granted: null);
+  });
+
+  testWidgets('CCPA: «do not sell or share» goes to PATCH /users/me/privacy',
+      (tester) async {
+    final repo = _FakePrivacy();
+    await pump(tester, const PrivacyScreen(), repo);
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('privacy-do-not-sell'));
+    await tester.scrollUntilVisible(row, 200);
+    final toggle = find.descendant(of: row, matching: find.byType(Switch));
+    expect(tester.widget<Switch>(toggle).value, isFalse);
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+    expect(repo.doNotSell, [true]);
+    expect(tester.widget<Switch>(toggle).value, isTrue);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('an appeal is sent with the written message', (tester) async {

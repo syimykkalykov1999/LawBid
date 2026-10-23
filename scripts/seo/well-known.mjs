@@ -29,6 +29,7 @@ export const APP_PATHS = [
   ['/post/*', 'Post'],
   ['/u/*', 'Profile QR code: a user by @username'],
   ['/q/*', 'Website sign-in QR code'],
+  ['/qr/*', 'Website sign-in QR code (universal link, 2026-10-22)'],
   ['/g/*', 'Group invitation'],
   ['/c/*', 'Channel (lawbid.dev/c/<username>)'],
   ['/auth/email-code', 'Email magic sign-in link'],
@@ -36,6 +37,9 @@ export const APP_PATHS = [
 
 export function appleAppSiteAssociation() {
   return {
+    // Owner 2026-10-22 (passkeys): iOS asks the domain whether the app may
+    // use its passkeys (webcredentials:lawbid.dev in Runner.entitlements).
+    webcredentials: { apps: [`${TEAM_ID}.${BUNDLE_ID}`] },
     applinks: {
       details: [
         {
@@ -71,7 +75,12 @@ export function parseFingerprints(list) {
 export function assetLinks(fingerprints) {
   return [
     {
-      relation: ['delegate_permission/common.handle_all_urls'],
+      // handle_all_urls: App Links. get_login_creds (owner 2026-10-22):
+      // Android lets the app create and use passkeys for lawbid.dev.
+      relation: [
+        'delegate_permission/common.handle_all_urls',
+        'delegate_permission/common.get_login_creds',
+      ],
       target: {
         namespace: 'android_app',
         package_name: ANDROID_PACKAGE,
