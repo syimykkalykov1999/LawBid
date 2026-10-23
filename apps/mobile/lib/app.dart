@@ -8,12 +8,14 @@ import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/available_languages.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/material_locale.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:lawbid/core/navigation/system_back.dart';
 import 'package:lawbid/core/permissions/permission_primer_host.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_safe_area.dart';
@@ -124,7 +126,17 @@ class LawBidApp extends ConsumerWidget {
                                       // Owner 2026-10-05 (docs/CLIENT_FRAUD.md).
                                       child: AccountRestrictedHost(
                                         router: router,
-                                        child: child,
+                                        // Owner 2026-10-22: system back never
+                                        // closes the app from a deep screen.
+                                        child: SystemBackGuard(
+                                          router: router,
+                                          rootNavigatorKey:
+                                              appRootNavigatorKey,
+                                          exitHint: () => ref
+                                              .read(translatorProvider)
+                                              .t('nav.backAgainToExit'),
+                                          child: child,
+                                        ),
                                       ),
                                     ),
                             ),
