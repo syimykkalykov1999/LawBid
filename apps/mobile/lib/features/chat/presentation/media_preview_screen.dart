@@ -161,7 +161,7 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
                     ViewerButton(
                       key: const ValueKey('preview-remove'),
                       icon: AppIcons.deleteOutlineRounded,
-                      label: t.t('chat.preview.remove'),
+                      label: t.t('common.remove'),
                       onTap: _remove,
                     ),
                 ],
@@ -249,7 +249,7 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
                   const SizedBox(width: 8),
                   Semantics(
                     button: true,
-                    label: t.t('chat.preview.send'),
+                    label: t.t('chat.forward.send'),
                     child: GestureDetector(
                       key: const ValueKey('preview-send'),
                       onTap: _send,

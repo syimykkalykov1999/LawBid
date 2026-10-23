@@ -154,7 +154,7 @@ class _ImageCropScreenState extends ConsumerState<ImageCropScreen> {
                   _RoundButton(
                     key: const ValueKey('crop-done'),
                     icon: AppIcons.checkRounded,
-                    label: t.t('chat.preview.done'),
+                    label: t.t('common.done'),
                     onTap: () => Navigator.of(context).pop(
                       ImageEdit(
                         crop: _crop,

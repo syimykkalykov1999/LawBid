@@ -233,11 +233,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   /// OQ-047: pick photos / documents and send each; the typed text goes
   /// with the last as its caption. Owner 2026-10-19 (albums): they upload
   /// together but are sent in the picked order (one album bubble).
-  Future<void> _attach() async {
+  Future<void> _attach({bool camera = false}) async {
     final t = ref.read(translatorProvider);
     final files = await pickChatFiles(
       context,
       t,
+      directChoice: camera ? 'camera' : null,
       onTemplate: ref.read(templatesEnabledProvider) ? _sendTemplate : null,
       onContact: () => unawaited(_sendContact()),
       onPlace: () => unawaited(_sendPlace()),
@@ -596,6 +597,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                               ),
                                             )
                                         ? _attach
+                                        : null,
+                                    onCamera: c.contactsUnlocked &&
+                                            ref.watch(
+                                              canDoProvider(
+                                                AssistantDuty.files,
+                                              ),
+                                            )
+                                        ? () => unawaited(_attach(camera: true))
                                         : null,
                                     onVoice: (r) => _thread.sendVoice(
                                       path: r.path,
@@ -2074,6 +2083,7 @@ class _Composer extends ConsumerStatefulWidget {
     required this.onVoice,
     required this.draftKey,
     this.onAttach,
+    this.onCamera,
     this.onStickers,
     this.onFieldTap,
     this.stickersOpen = false,
@@ -2086,6 +2096,10 @@ class _Composer extends ConsumerStatefulWidget {
 
   /// OQ-047: photos and documents — only once the bid is accepted.
   final VoidCallback? onAttach;
+
+  /// Owner 2026-10-22 (WhatsApp): a camera button beside the mic while the
+  /// field is empty; the shot opens in the same preview as the gallery.
+  final VoidCallback? onCamera;
 
   final TextEditingController controller;
   final FocusNode focusNode;
@@ -2562,7 +2576,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                       );
                     }
                     // Hold-to-record mic; a lock hint floats above it.
-                    return Stack(
+                    final mic = Stack(
                       clipBehavior: Clip.none,
                       alignment: Alignment.bottomCenter,
                       children: [
@@ -2613,6 +2627,24 @@ class _ComposerState extends ConsumerState<_Composer> {
                             ),
                           ),
                         ),
+                      ],
+                    );
+                    // Owner 2026-10-22 (WhatsApp): the camera beside the mic
+                    // while the field is empty.
+                    if (widget.onCamera == null || _recording) return mic;
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AppIconButton(
+                          key: const ValueKey('chat-camera'),
+                          icon: AppIcon(
+                            AppIcons.photoCameraOutlined,
+                            color: colors.iconTint,
+                          ),
+                          semanticLabel: t.t('chat.attach.camera'),
+                          onPressed: widget.onCamera,
+                        ),
+                        mic,
                       ],
                     );
                   },
