@@ -609,6 +609,8 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * signed in, per address (CGNAT / office addresses carry many people).
    * Never below the default limit (100). */
   'security.anonymous_rate_limit_per_minute': 100,
+  /** Scale audit 2026-10-23: live connections of one person per server. */
+  'realtime.max_sockets_per_user': 10,
   /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
    * may ask for in a rolling 24 h, on top of the hourly limit. Range
    * 1…1000 (config-schema); 0 is refused, never "unlimited". Not seeded:

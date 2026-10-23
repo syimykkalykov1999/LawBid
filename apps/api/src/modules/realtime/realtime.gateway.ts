@@ -1,4 +1,5 @@
-import { Inject, OnApplicationShutdown } from '@nestjs/common';
+import { Inject, OnApplicationShutdown, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   ConnectedSocket,
   MessageBody,
@@ -49,6 +50,8 @@ const VIEW_TTL_SEC = 3600;
 const TYPING_MIN_GAP_MS = 1000;
 /** OQ-041: one signaling payload (SDP / ICE candidate) at most. */
 const SIGNAL_MAX_BYTES = 64 * 1024;
+/** Sockets of one person per API instance (setting `realtime.max_sockets_per_user`). */
+const DEFAULT_MAX_SOCKETS_PER_USER = 10;
 /** How often a live socket refreshes its presence (and an assistant's
  * socket re-checks its duties). Owner 2026-10-22 (server load audit,
  * finding 5): no longer the session blacklist — a revoked session's
@@ -128,6 +131,13 @@ export class RealtimeGateway
    * instance's sockets by session chain id (`sid`), for the
    * `session:revoked` message. */
   private readonly bySession = new Map<string, Set<Socket>>();
+  /** Scale audit 2026-10-23: this instance's sockets per person, oldest
+   * first - a client stuck in a reconnect loop (or a hostile one with a
+   * valid token) must not pile up sockets, timers and Redis work. */
+  private readonly byUser = new Map<string, Set<Socket>>();
+  /** The key a socket was counted under (an assistant's socket later acts as
+   * its attorney, so the claims' id is remembered here). */
+  private readonly capKeys = new WeakMap<Socket, string>();
 
   constructor(
     private readonly tokens: TokenService,
@@ -137,6 +147,7 @@ export class RealtimeGateway
     private readonly logger: PinoLogger,
     private readonly assistants: AssistantContextService,
     private readonly presence: PresenceService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -204,12 +215,43 @@ export class RealtimeGateway
     set.add(socket);
   }
 
+  /** Keeps at most `realtime.max_sockets_per_user` sockets of one person on
+   * this instance: the oldest ones are closed (the server's disconnect
+   * does not trigger the client's automatic reconnect). */
+  private async capUserSockets(socket: Socket, userId: string): Promise<void> {
+    this.capKeys.set(socket, userId);
+    let set = this.byUser.get(userId);
+    if (!set) this.byUser.set(userId, (set = new Set()));
+    set.add(socket);
+    let max = DEFAULT_MAX_SOCKETS_PER_USER;
+    try {
+      const v = await this.settings?.number('realtime.max_sockets_per_user');
+      if (v !== undefined && Number.isFinite(v) && v >= 1) max = Math.round(v);
+    } catch {
+      // Settings cache unreachable: keep the default.
+    }
+    while (set.size > max) {
+      const oldest = set.values().next().value as Socket;
+      set.delete(oldest);
+      oldest.emit('auth:error', { code: 'TOO_MANY_CONNECTIONS' });
+      oldest.disconnect(true);
+    }
+  }
+
   private unindex(socket: Socket, sid: string | undefined): void {
     if (!sid) return;
     const set = this.bySession.get(sid);
     if (!set) return;
     set.delete(socket);
     if (set.size === 0) this.bySession.delete(sid);
+  }
+
+  private dropUserSocket(socket: Socket): void {
+    const userId = this.capKeys.get(socket);
+    const set = userId === undefined ? undefined : this.byUser.get(userId);
+    if (userId === undefined || !set) return;
+    set.delete(socket);
+    if (set.size === 0) this.byUser.delete(userId);
   }
 
   /** After Nest has closed the socket server (app.close() disposes it
@@ -280,6 +322,7 @@ export class RealtimeGateway
     // The session was checked at the handshake (verify); from now on a
     // revocation reaches this socket as a `session:revoked` message.
     this.index(socket, claims.sid);
+    await this.capUserSockets(socket, claims.sub);
     this.armExpiry(socket, token);
     state(socket).heartbeatTimer = setInterval(() => {
       // Audit 2026-10-02: an assistant removed, stripped of "chats"/"calls"
@@ -379,6 +422,7 @@ export class RealtimeGateway
     clearTimeout(s.expiryTimer);
     clearInterval(s.heartbeatTimer);
     this.unindex(socket, s.user.sid);
+    this.dropUserSocket(socket);
     if (!s.selfId && s.user.role !== 'assistant') {
       try {
         if (await this.presence.leave(s.user.sub, socket.id)) {

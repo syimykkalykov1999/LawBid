@@ -178,6 +178,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
   };
+  out['realtime.max_sockets_per_user'] = {
+    ...out['realtime.max_sockets_per_user'],
+    description:
+      'Most live (socket) connections one person may hold on one API server; the oldest are closed beyond it. Several devices and browser tabs are normal: keep it at 10 or more.',
+    min: 1,
+    max: 100,
+  };
   out['security.anonymous_rate_limit_per_minute'] = {
     ...out['security.anonymous_rate_limit_per_minute'],
     description:
