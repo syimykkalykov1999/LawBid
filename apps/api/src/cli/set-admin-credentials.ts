@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import { AppModule } from '../app.module';
 import { AdminAuthService } from '../modules/admin-auth/admin-auth.service';
 
@@ -10,6 +11,9 @@ import { AdminAuthService } from '../modules/admin-auth/admin-auth.service';
 //   SEED_ADMIN_EMAIL picks the account when there is more than one super admin.
 // The values are never printed.
 async function run(): Promise<void> {
+  // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
+  // in memory, before any module reads the config.
+  await unwrapKmsWrappedKeys();
   const login = process.env.ADMIN_SET_LOGIN ?? '';
   const password = process.env.ADMIN_SET_PASSWORD ?? '';
   if (!login || !password) {

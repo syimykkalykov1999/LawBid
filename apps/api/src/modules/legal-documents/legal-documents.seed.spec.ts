@@ -14,6 +14,7 @@ const SEEDED = [
   'third_party_services',
   'partner_terms',
   'dmca_policy',
+  'accessibility',
 ];
 
 describe('default legal texts', () => {
@@ -87,9 +88,9 @@ describe('LegalDocumentsSeed', () => {
       'refund.ru': [{ content_md: '# Черновик', status: 'draft' }],
     });
     const created = await seed.seed();
-    // 10 types x 2 languages + disclaimer.en, minus the real eula.en and the
-    // refund.ru draft.
-    expect(created).toBe(19);
+    // 11 types x 2 languages + disclaimer.en, minus the real eula.en and the
+    // refund.ru draft (owner 2026-10-22: + accessibility).
+    expect(created).toBe(21);
     const calls = (
       prisma.legalDocument.create.mock.calls as [
         { data: Record<string, unknown> },

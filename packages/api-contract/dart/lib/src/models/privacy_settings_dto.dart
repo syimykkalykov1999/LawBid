@@ -17,6 +17,7 @@ class PrivacySettingsDto {
     required this.photoFrom,
     required this.aboutFrom,
     required this.groupAddFrom,
+    this.doNotSell,
   });
 
   factory PrivacySettingsDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +29,9 @@ class PrivacySettingsDto {
   final PrivacyAudience photoFrom;
   final PrivacyAudience aboutFrom;
   final PrivacyAudience groupAddFrom;
+
+  /// Owner 2026-10-22 (CCPA/CPRA): «Do not sell or share my personal information» — true = opted out. Stored as a do_not_sell consent (in the data export), honoured by the analytics gate.
+  final bool? doNotSell;
 
   Map<String, Object?> toJson() => _$PrivacySettingsDtoToJson(this);
 }

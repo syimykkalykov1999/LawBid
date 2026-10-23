@@ -5,6 +5,7 @@ startTelemetry('api');
 
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
@@ -13,6 +14,9 @@ import { configureApp } from './app.setup';
 const ALB_IDLE_TIMEOUT_S = 300;
 
 async function bootstrap(): Promise<void> {
+  // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
+  // in memory, before any module reads the config.
+  await unwrapKmsWrappedKeys();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true, // needed later for Stripe webhook signature verification (docs/06_PRODUCTION.md §1.5)
     bufferLogs: true,

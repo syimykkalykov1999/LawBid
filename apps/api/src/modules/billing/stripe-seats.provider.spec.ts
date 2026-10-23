@@ -82,6 +82,7 @@ describe('StripePaymentProvider seats', () => {
     });
     expect(r).toEqual({
       amountNowCents: 3_300,
+      taxCents: null,
       currency: 'usd',
       prorationDate: 1_500,
       periodEnd: 2_000,

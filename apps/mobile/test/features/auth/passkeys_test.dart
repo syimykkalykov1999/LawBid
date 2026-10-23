@@ -73,9 +73,11 @@ const _requestOptions = {
 Map<String, Object?> _key(String id, {String name = 'iPhone'}) => {
       'id': id,
       'name': name,
+      'deviceType': 'multiDevice',
+      'backedUp': true,
+      'transports': ['internal'],
       'createdAt': '2026-10-22T10:00:00Z',
       'lastUsedAt': null,
-      'backedUp': true,
     };
 
 void main() {
@@ -91,22 +93,33 @@ void main() {
       requests.add(o);
       switch ((o.method, o.path)) {
         case ('POST', '/auth/passkeys/register/options'):
-          return ok(_creationOptions);
-        case ('POST', '/auth/passkeys/register/verify'):
+          return ok({'options': _creationOptions});
+        case ('POST', '/auth/passkeys/register'):
           return jsonBody({'data': _key('k-new', name: 'Pixel')}, 201);
         case ('POST', '/auth/passkeys/login/options'):
-          return ok(_requestOptions);
-        case ('POST', '/auth/passkeys/login/verify'):
+          return ok({'challengeId': 'ch-1', 'options': _requestOptions});
+        case ('POST', '/auth/passkeys/login'):
+          return jsonBody(
+            {
+              'data': {
+                'accessToken': 'at-passkey',
+                'refreshToken': 'rt',
+                'accessTokenExpiresIn': 900,
+                'isNewUser': false,
+              },
+            },
+            201,
+          );
+        case ('POST', '/auth/passkeys/reauth/options'):
+          return ok({'challengeId': 'ch-2', 'options': _requestOptions});
+        case ('POST', '/auth/passkeys/reauth'):
+          return ok({'reauthToken': 'reauth-1'});
+        case ('GET', '/auth/passkeys'):
           return ok({
-            'accessToken': 'at-passkey',
-            'refreshToken': 'rt',
-            'accessTokenExpiresIn': 900,
-            'isNewUser': false,
+            'passkeys': [_key('k-1'), _key('k-2', name: 'YubiKey')],
           });
-        case ('GET', '/users/me/passkeys'):
-          return ok([_key('k-1'), _key('k-2', name: 'YubiKey')]);
         case ('DELETE', _):
-          return jsonBody(null, 204);
+          return ok({'removed': true});
       }
       return apiError(404, 'NOT_FOUND');
     });
@@ -134,9 +147,10 @@ void main() {
       expect(r.isSuccess, isTrue);
       expect(auth.authenticateOptions.single['rpId'], 'lawbid.dev');
       final verify = requests.last;
-      expect(verify.path, '/auth/passkeys/login/verify');
+      expect(verify.path, '/auth/passkeys/login');
       // No bearer header on the token-issuing calls.
       expect(verify.extra['skipAuth'], isTrue);
+      expect(body(verify)['challengeId'], 'ch-1');
       expect(
         (body(verify)['response']! as Map)['id'],
         'cred-1',
@@ -187,20 +201,23 @@ void main() {
         'id': 'lawbid.dev',
       });
       final verify = requests.last;
-      expect(verify.path, '/auth/passkeys/register/verify');
+      expect(verify.path, '/auth/passkeys/register');
       expect(body(verify)['name'], 'Pixel');
       expect((body(verify)['response']! as Map)['type'], 'public-key');
       final keys = await repo.list();
       expect(keys.map((k) => k.name), ['iPhone', 'YubiKey']);
       await repo.remove('k-2');
       expect(requests.last.method, 'DELETE');
-      expect(requests.last.path, '/users/me/passkeys/k-2');
+      expect(requests.last.path, '/auth/passkeys/k-2');
+      // Reauth with the key: a single-use token for a sensitive action.
+      expect(await repo.reauth(), 'reauth-1');
+      expect(body(requests.last)['challengeId'], 'ch-2');
     });
 
-    test('options under data.options are read too', () async {
-      adapter.handler = (o) async => ok({'options': _requestOptions});
-      final options = await PasskeysApiClient(dio).loginOptions();
-      expect(options['rpId'], 'lawbid.dev');
+    test('login options carry the challenge id', () async {
+      final c = await PasskeysApiClient(dio).loginOptions();
+      expect(c.challengeId, 'ch-1');
+      expect(c.options['rpId'], 'lawbid.dev');
     });
   });
 
@@ -238,7 +255,10 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('passkey-add')));
       await tester.pumpAndSettle();
       expect(find.text('Pixel'), findsOneWidget);
-      expect(requests.any((r) => r.path.endsWith('/register/verify')), isTrue);
+      expect(
+        requests.any((r) => r.path.endsWith('/passkeys/register')),
+        isTrue,
+      );
 
       await tester.tap(
         find.descendant(

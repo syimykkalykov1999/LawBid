@@ -21,7 +21,12 @@ import {
   type PayPayload,
   payKindOf,
 } from './pay-link.service';
-import type { PaymentProvider } from './payment-provider';
+import {
+  PI_TAX_CALCULATION_KEY,
+  PI_TAX_CENTS_KEY,
+  type PaymentProvider,
+  type ProviderTaxAddress,
+} from './payment-provider';
 import { SeatsService } from './seats.service';
 import {
   OWN_PAGE_SESSION_PREFIX,
@@ -40,7 +45,13 @@ export interface PayPageSession {
   clientSecret: string | null;
   /** subscription: the SetupIntent the card is saved on. */
   setupIntentId?: string;
+  /** What the card is charged (one-time: incl. tax when Stripe Tax is on). */
   priceCents: number;
+  /** Owner 2026-10-22 (Stripe Tax): the tax inside priceCents; null when
+   * no tax applies / could not be placed yet (send `address` to place). */
+  taxCents?: number | null;
+  /** The pre-tax amount the page may show as the line price. */
+  subtotalCents?: number;
   currency: string;
   /** subscription */
   trialDays?: number;
@@ -156,8 +167,80 @@ export class PayPageService {
     return { url: l.url, id: l.id };
   }
 
-  async session(token: string): Promise<PayPageSession> {
+  /**
+   * Owner 2026-10-22 (Stripe Tax): the page's answer with the tax, when
+   * the admin switch is on. One-time kinds get a Tax calculation for the
+   * amount at the buyer's address / IP and the PaymentIntent is raised to
+   * the total; card-saving kinds get the address stored on the customer so
+   * the subscription (created at confirm) can carry `automatic_tax`.
+   */
+  async session(
+    token: string,
+    where: { ip?: string | null; address?: ProviderTaxAddress | null } = {},
+  ): Promise<PayPageSession> {
+    const { session: s, payload } = await this.baseSession(token);
+    const taxOn = await this.subscriptions.stripeTaxEnabled();
+    if (!taxOn || !this.provider) return s;
+    const location = { ip: where.ip ?? null, address: where.address ?? null };
+    try {
+      if (
+        s.mode === 'payment' &&
+        s.clientSecret &&
+        this.provider.calculateTax
+      ) {
+        const piId = s.clientSecret.split('_secret')[0];
+        const current = await this.provider.retrievePaymentIntent?.(piId);
+        const subtotal = s.priceCents;
+        const calc = await this.provider.calculateTax({
+          amountCents: subtotal,
+          currency: s.currency,
+          reference: piId,
+          location,
+        });
+        if (
+          current &&
+          (current.amountCents !== calc.totalCents ||
+            current.metadata[PI_TAX_CALCULATION_KEY] !== calc.calculationId)
+        ) {
+          await this.provider.updatePaymentIntent?.(piId, {
+            amountCents: calc.totalCents,
+            metadata: {
+              ...current.metadata,
+              [PI_TAX_CALCULATION_KEY]: calc.calculationId,
+              [PI_TAX_CENTS_KEY]: String(calc.taxCents),
+            },
+          });
+        }
+        return {
+          ...s,
+          priceCents: calc.totalCents,
+          subtotalCents: subtotal,
+          taxCents: calc.taxCents,
+        };
+      }
+      if (s.mode === 'setup' && (location.ip || location.address)) {
+        const user = await this.userOf(payload, 'any');
+        const customerId = await this.subscriptions.customerId(user.sub, null);
+        await this.provider.updateCustomerTaxLocation?.(customerId, location);
+      }
+    } catch {
+      // Tax is best effort on the page: Stripe adds it on the invoice when
+      // the customer could be placed; the page shows the listed price.
+    }
+    return s;
+  }
+
+  private async baseSession(
+    token: string,
+  ): Promise<{ session: PayPageSession; payload: PayPayload }> {
     const { payload: p, page } = await this.links.open(token);
+    return { session: await this.sessionOf(p, page), payload: p };
+  }
+
+  private async sessionOf(
+    p: PayPayload,
+    page: string,
+  ): Promise<PayPageSession> {
     const key = await this.links.publishableKey();
     if (!key) {
       throw new BadRequestException({
@@ -241,6 +324,7 @@ export class PayPageService {
         clientSecret: si.clientSecret,
         setupIntentId: si.id,
         priceCents: preview.amountNowCents,
+        taxCents: this.seatTax(preview),
         currency: preview.currency,
         seats: preview.seats,
         currentSeats: preview.currentSeats,
@@ -261,6 +345,11 @@ export class PayPageService {
       trialDays: started.trialDays,
       trialEligible: started.trialEligible,
     };
+  }
+
+  /** seats: the preview already carries the tax (SeatPreviewDto). */
+  private seatTax(preview: { taxCents?: number | null }): number | null {
+    return preview.taxCents ?? null;
   }
 
   async confirm(token: string, input: PayConfirmInput): Promise<PayPageResult> {

@@ -17,6 +17,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { getSignedUrl as cloudFrontSignedUrl } from '@aws-sdk/cloudfront-signer';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
@@ -35,6 +36,20 @@ export interface PresignedPost {
   fields: Record<string, string>;
 }
 
+/**
+ * Owner 2026-10-22 (systems checklist §22): private media (the documents
+ * bucket — chat photos/voice/files, case files, documents) is served
+ * through a CloudFront distribution with a trusted key group. The API
+ * signs each link with the private key; CloudFront checks the signature
+ * and reads S3 through OAC. Without the three values the links stay
+ * presigned S3 GETs (same shape for the app: an https URL that expires).
+ */
+export interface PrivateCdn {
+  domain: string;
+  keyPairId: string;
+  privateKey: string;
+}
+
 export interface ObjectHead {
   size: number;
   contentType?: string;
@@ -50,6 +65,7 @@ export interface ObjectHead {
 export class S3StorageService implements OnModuleDestroy {
   private client?: S3Client;
   private buckets?: Record<BucketKind, string>;
+  private privateCdn?: PrivateCdn;
   private fingerprint = '';
 
   constructor(
@@ -64,8 +80,19 @@ export class S3StorageService implements OnModuleDestroy {
       bucketMedia: config.get<string>('S3_BUCKET_MEDIA'),
       accessKeyId: config.get<string>('S3_ACCESS_KEY_ID'),
       secretAccessKey: config.get<string>('S3_SECRET_ACCESS_KEY'),
+      ...this.envPrivateCdn(),
     });
     this.fingerprint = 'env';
+  }
+
+  private envPrivateCdn(): Record<string, string | undefined> {
+    return {
+      privateCdnDomain: this.config.get<string>('CLOUDFRONT_PRIVATE_DOMAIN'),
+      privateCdnKeyId: this.config.get<string>('CLOUDFRONT_PRIVATE_KEY_ID'),
+      privateCdnPrivateKey: this.config.get<string>(
+        'CLOUDFRONT_PRIVATE_KEY_PEM',
+      ),
+    };
   }
 
   private build(f: Record<string, string | undefined>): void {
@@ -74,7 +101,18 @@ export class S3StorageService implements OnModuleDestroy {
     this.client?.destroy();
     this.client = undefined;
     this.buckets = undefined;
+    this.privateCdn = undefined;
     if (!documents || !media) return;
+    const domain = f.privateCdnDomain?.trim().toLowerCase();
+    const keyPairId = f.privateCdnKeyId?.trim();
+    const privateKey = f.privateCdnPrivateKey?.replace(/\\n/g, '\n').trim();
+    if (domain && keyPairId && privateKey) {
+      this.privateCdn = { domain, keyPairId, privateKey };
+    } else if (domain || keyPairId || privateKey) {
+      this.logger.warn(
+        'CloudFront private media needs domain, key id and private key together; using presigned S3 links',
+      );
+    }
     const endpoint = this.config.get<string>('S3_ENDPOINT');
     this.buckets = { documents, media };
     this.client = new S3Client({
@@ -107,6 +145,7 @@ export class S3StorageService implements OnModuleDestroy {
         bucketMedia: this.config.get<string>('S3_BUCKET_MEDIA'),
         accessKeyId: this.config.get<string>('S3_ACCESS_KEY_ID'),
         secretAccessKey: this.config.get<string>('S3_SECRET_ACCESS_KEY'),
+        ...this.envPrivateCdn(),
       });
       this.fingerprint = 'env';
     }
@@ -215,7 +254,16 @@ export class S3StorageService implements OnModuleDestroy {
     );
   }
 
-  /** Short-lived signed GET link. */
+  /** True when private media goes through CloudFront signed URLs. */
+  get privateCdnEnabled(): boolean {
+    return this.privateCdn !== undefined;
+  }
+
+  /**
+   * Short-lived signed GET link. The documents bucket goes through the
+   * CloudFront key group when configured (the edge caches the immutable
+   * bytes, the signature expires); otherwise a presigned S3 GET.
+   */
   async signedGetUrl(
     bucket: string,
     key: string,
@@ -224,7 +272,11 @@ export class S3StorageService implements OnModuleDestroy {
     downloadName?: string,
   ): Promise<string> {
     await this.refresh();
-    const { client } = this.require();
+    const { client, buckets } = this.require();
+    const ttl = Math.max(1, Math.floor(expiresSec));
+    if (this.privateCdn && bucket === buckets.documents) {
+      return signCloudFrontUrl(this.privateCdn, key, ttl, downloadName);
+    }
     return getSignedUrl(
       client,
       new GetObjectCommand({
@@ -237,7 +289,7 @@ export class S3StorageService implements OnModuleDestroy {
           ? { ResponseContentDisposition: contentDisposition(downloadName) }
           : {}),
       }),
-      { expiresIn: Math.max(1, Math.floor(expiresSec)) },
+      { expiresIn: ttl },
     );
   }
 
@@ -281,6 +333,38 @@ function isNotFound(err: unknown): boolean {
     e?.name === 'NoSuchBucket' ||
     e?.$metadata?.httpStatusCode === 404
   );
+}
+
+/**
+ * CloudFront canned-policy signature over the full URL. The response-*
+ * query parameters are part of the cache key and forwarded to S3 (OAC
+ * signs them), so the download name and the immutable Cache-Control
+ * survive the CDN exactly as with a presigned S3 GET.
+ */
+export function signCloudFrontUrl(
+  cdn: PrivateCdn,
+  key: string,
+  ttlSec: number,
+  downloadName?: string,
+  now: number = Date.now(),
+): string {
+  const path = key.split('/').map(encodeURIComponent).join('/');
+  const params = new URLSearchParams({
+    'response-cache-control': IMMUTABLE_CACHE_CONTROL,
+  });
+  if (downloadName) {
+    params.set(
+      'response-content-disposition',
+      contentDisposition(downloadName),
+    );
+  }
+  const url = `https://${cdn.domain}/${path}?${params.toString()}`;
+  return cloudFrontSignedUrl({
+    url,
+    keyPairId: cdn.keyPairId,
+    privateKey: cdn.privateKey,
+    dateLessThan: new Date(now + ttlSec * 1000).toISOString(),
+  });
 }
 
 /** RFC 6266 attachment header: an ASCII fallback plus the UTF-8 name. */

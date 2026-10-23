@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-236 tables.
+237 tables.
 
 ```mermaid
 erDiagram
@@ -992,6 +992,8 @@ erDiagram
     String stripe_invoice_id UK "nullable"
     String stripe_payment_intent_id "nullable"
     Int amount_cents
+    Int tax_cents "nullable"
+    Int subtotal_cents "nullable"
     String currency
     enum_PaymentStatus status
     DateTime paid_at "nullable"
@@ -1170,6 +1172,20 @@ erDiagram
     String security_answer_hash "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  webauthn_credentials {
+    String id PK
+    String user_id FK
+    String scope
+    String credential_id UK
+    Bytes public_key
+    BigInt counter
+    String device_type
+    Boolean backed_up
+    String aaguid "nullable"
+    String name
+    DateTime created_at
+    DateTime last_used_at "nullable"
   }
   data_export_jobs {
     String id PK
@@ -3051,6 +3067,7 @@ erDiagram
   admin_approvals }o--o| users : "approved_by"
   admin_approvals }o--o| users : "rejected_by"
   admin_credentials |o--|| users : "user_id"
+  webauthn_credentials }o--|| users : "user_id"
   data_export_jobs }o--|| users : "user_id"
   data_export_jobs }o--o| files : "file_id"
   case_comments }o--|| cases : "case_id"

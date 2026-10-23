@@ -93,6 +93,41 @@ describe('RealtimePublisher.toUsers', () => {
     expect(r.publish).toHaveBeenCalledTimes(1);
   });
 
+  it('toQr: the /qr namespace, one room per code (sharded and classic)', () => {
+    delete process.env.SOCKET_IO_ADAPTER;
+    const r = redis();
+    new RealtimePublisher(r as unknown as Redis).toQr(
+      'abc',
+      'auth:qr_approved',
+      {
+        qrId: 'abc',
+        status: 'approved',
+      },
+    );
+    const [channel, message] = r.spublish.mock.calls[0] as [string, string];
+    expect(channel).toBe('socket.io#/qr#qr:abc#');
+    const parsed = JSON.parse(message) as {
+      nsp: string;
+      data: { opts: { rooms: string[] }; packet: { data: unknown[] } };
+    };
+    expect(parsed.nsp).toBe('/qr');
+    expect(parsed.data.opts.rooms).toEqual(['qr:abc']);
+    expect(parsed.data.packet.data).toEqual([
+      'auth:qr_approved',
+      { qrId: 'abc', status: 'approved' },
+    ]);
+
+    process.env.SOCKET_IO_ADAPTER = 'classic';
+    const c = redis();
+    new RealtimePublisher(c as unknown as Redis).toQr(
+      'abc',
+      'auth:qr_scanned',
+      {},
+    );
+    expect(c.publish).toHaveBeenCalledTimes(1);
+    expect(String(c.publish.mock.calls[0][0])).toContain('/qr');
+  });
+
   it('nothing while Redis is not ready, nothing for nobody', () => {
     const r = { ...redis(), status: 'reconnecting' };
     const pub = new RealtimePublisher(r as unknown as Redis);

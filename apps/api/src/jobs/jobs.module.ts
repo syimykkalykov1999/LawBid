@@ -12,6 +12,7 @@ import { StorageCoreModule } from '../modules/storage/storage.module';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
+import { MessageReencryptJob } from './handlers/message-reencrypt.job';
 import { ContactsSyncModule } from '../modules/contacts-sync/contacts-sync.module';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
@@ -125,6 +126,7 @@ export class JobsModule {
         // Owner 2026-10-22: `contacts.joined`.
         ContactsJoinedJob,
         ContactsPepperBackfillJob,
+        MessageReencryptJob,
         OtpCleanupJob,
         DisposableDomainsRefreshJob,
         ReviewReminderJob,

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Put } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Patch, Put } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -6,7 +6,7 @@ import {
   ApiPropertyOptional,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -40,6 +40,12 @@ export class PrivacySettingsDto {
 
   @ApiProperty({ enum: AUDIENCES, enumName: 'PrivacyAudience' })
   groupAddFrom!: Audience;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-22 (CCPA/CPRA): «Do not sell or share my personal information» — true = opted out. Stored as a do_not_sell consent (in the data export), honoured by the analytics gate.',
+  })
+  doNotSell?: boolean;
 }
 
 export class UpdatePrivacySettingsDto {
@@ -72,6 +78,14 @@ export class UpdatePrivacySettingsDto {
   @IsOptional()
   @IsEnum(AUDIENCES)
   groupAddFrom?: Audience;
+
+  @ApiPropertyOptional({
+    description:
+      'CCPA/CPRA «Do not sell or share my personal information»: true = opt out, false = allow again.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  doNotSell?: boolean;
 }
 
 /** Owner 2026-10-20: Settings → Privacy (who sees last seen, writes, calls). */
@@ -99,7 +113,25 @@ export class PrivacySettingsController {
   updatePrivacySettings(
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdatePrivacySettingsDto,
+    @Ip() ip: string,
   ): Promise<PrivacySettingsDto> {
-    return this.privacy.update(user.sub, dto);
+    return this.privacy.update(user.sub, dto, { ip: ip || undefined });
+  }
+
+  /** Owner 2026-10-22: the same partial update under the verb the
+   * settings screen uses (CCPA «Do not sell or share» lives here too). */
+  @Patch()
+  @AssistantSelf()
+  @ApiOperation({
+    summary:
+      'Change my privacy settings (any subset), incl. the CCPA «Do not sell or share» switch',
+  })
+  @ApiEnvelopeResponse(PrivacySettingsDto)
+  patchPrivacySettings(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdatePrivacySettingsDto,
+    @Ip() ip: string,
+  ): Promise<PrivacySettingsDto> {
+    return this.privacy.update(user.sub, dto, { ip: ip || undefined });
   }
 }

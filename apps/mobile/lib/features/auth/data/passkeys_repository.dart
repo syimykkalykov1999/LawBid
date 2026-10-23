@@ -20,6 +20,11 @@ abstract interface class PasskeysRepository {
 
   /// «Sign in with Face ID / fingerprint» on the welcome screen.
   Future<PasskeySignInResult> signIn();
+
+  /// A single-use `X-Reauth-Token` from a passkey assertion (instead of an
+  /// OTP) for a sensitive action; null when the person cancelled. Throws
+  /// `ApiException` / [PasskeyAuthenticatorException] otherwise.
+  Future<String?> reauth();
 }
 
 class ApiPasskeysRepository implements PasskeysRepository {
@@ -57,9 +62,10 @@ class ApiPasskeysRepository implements PasskeysRepository {
   @override
   Future<PasskeySignInResult> signIn() async {
     try {
-      final options = await _client.loginOptions();
-      final response = await _authenticator.authenticate(options);
+      final challenge = await _client.loginOptions(deviceInfo: _deviceInfo);
+      final response = await _authenticator.authenticate(challenge.options);
       final tokens = await _client.loginVerify(
+        challengeId: challenge.challengeId,
         response: response,
         deviceInfo: _deviceInfo,
       );
@@ -77,6 +83,21 @@ class ApiPasskeysRepository implements PasskeysRepository {
       );
     } catch (e) {
       return PasskeySignInResult(PasskeySignInStatus.failed, e);
+    }
+  }
+
+  @override
+  Future<String?> reauth() async {
+    final challenge = await _client.reauthOptions();
+    try {
+      final response = await _authenticator.authenticate(challenge.options);
+      return await _client.reauthVerify(
+        challengeId: challenge.challengeId,
+        response: response,
+      );
+    } on PasskeyAuthenticatorException catch (e) {
+      if (e.failure == PasskeyFailure.cancelled) return null;
+      rethrow;
     }
   }
 }

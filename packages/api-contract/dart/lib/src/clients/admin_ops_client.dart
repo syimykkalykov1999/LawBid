@@ -28,6 +28,12 @@ abstract class AdminOpsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Start a new message re-encryption pass (needs step-up)
+  @POST('/admin/system-health/message-reencrypt/restart')
+  Future<SystemHealthEnvelope> restartMessageReencrypt({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Pause / resume heavy background jobs
   @POST('/admin/system-health/heavy-jobs')
   Future<SystemHealthEnvelope> setHeavyJobsPaused({

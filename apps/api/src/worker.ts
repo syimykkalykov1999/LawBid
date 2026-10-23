@@ -5,6 +5,7 @@ startTelemetry('worker');
 
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import { Logger } from 'nestjs-pino';
 import { scrubSentryEvent } from './app.setup';
 import { WorkerModule } from './jobs/worker.module';
@@ -18,6 +19,9 @@ import { startSentry } from './telemetry/sentry';
  * JOBS_ENABLED=false on the API service.
  */
 async function bootstrap(): Promise<void> {
+  // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
+  // in memory, before any module reads the config.
+  await unwrapKmsWrappedKeys();
   const app = await NestFactory.createApplicationContext(WorkerModule, {
     bufferLogs: true,
   });

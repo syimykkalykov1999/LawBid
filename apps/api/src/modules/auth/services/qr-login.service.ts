@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
@@ -12,6 +13,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
 import { AuthService } from '../auth.service';
 import { AuthEventService, AUTH_EVENT_TYPES } from './auth-event.service';
 import { RateLimitService } from './rate-limit.service';
@@ -96,6 +98,10 @@ export class QrLoginService {
     private readonly rateLimit: RateLimitService,
     private readonly authEvents: AuthEventService,
     private readonly auth: AuthService,
+    // Owner 2026-10-22: tells the waiting browser (socket `/qr`, room
+    // `qr:<id>`) that the code was scanned / approved / rejected, so it
+    // stops polling; the status only, the tokens still come from poll.
+    @Optional() private readonly realtime?: RealtimePublisher,
   ) {}
 
   private async limit(
@@ -243,6 +249,7 @@ export class QrLoginService {
     if (!raw) this.notFound();
     const st = JSON.parse(raw) as QrState;
     const ttl = await this.redis.ttl(KEY(qrId));
+    this.realtime?.toQr(qrId, 'auth:qr_scanned', { qrId, status: 'scanned' });
     return {
       deviceName: st.device.deviceName ?? null,
       platform: st.device.platform ?? null,
@@ -289,6 +296,11 @@ export class QrLoginService {
         phoneSessionId: sid,
       },
     });
+    this.realtime?.toQr(
+      qrId,
+      approve ? 'auth:qr_approved' : 'auth:qr_rejected',
+      { qrId, status: approve ? 'approved' : 'rejected' },
+    );
   }
 }
 

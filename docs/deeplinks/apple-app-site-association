@@ -36,10 +36,6 @@
             "comment": "Website sign-in QR code"
           },
           {
-            "/": "/qr/*",
-            "comment": "Website sign-in QR code (universal link, 2026-10-22)"
-          },
-          {
             "/": "/g/*",
             "comment": "Group invitation"
           },

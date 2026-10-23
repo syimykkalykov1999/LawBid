@@ -36,6 +36,11 @@ export class SecretEnvelope {
     }
   }
 
+  /** Every key id this envelope can decrypt with. */
+  get kids(): string[] {
+    return [...this.keys.keys()];
+  }
+
   encrypt(plain: string, aad: string): string {
     const key = this.keys.get(this.activeKid)!;
     const iv = randomBytes(12);

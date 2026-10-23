@@ -91,6 +91,10 @@ enum ConsentType {
   attorney_agreement
   client_agreement
   eula
+  // Owner 2026-10-22 (CCPA/CPRA): «Do not sell or share my personal
+  // information» — granted = opted out. Latest row wins; honoured by the
+  // analytics gate and exported with the data export.
+  do_not_sell
 
   @@map("consent_type")
 }
@@ -110,6 +114,8 @@ enum LegalDocType {
   third_party_services
   partner_terms
   dmca_policy
+  // Owner 2026-10-22 (systems checklist §26): accessibility statement.
+  accessibility
 
   @@map("legal_doc_type")
 }
@@ -900,6 +906,7 @@ model User {
   moderation_actions          ModerationAction[]             @relation("ModerationAdmin")
   admin_profile               AdminProfile?
   admin_credential            AdminCredential?
+  webauthn_credentials        WebauthnCredential[]
   data_export_jobs            DataExportJob[]
   audit_entries               AuditLog[]                     @relation("AuditAdmin")
   admin_approvals_requested   AdminApproval[]                @relation("AdminApprovalRequester")
@@ -3123,6 +3130,10 @@ model Payment {
   stripe_invoice_id        String?       @unique
   stripe_payment_intent_id String?
   amount_cents             Int
+  // Owner 2026-10-22 (Stripe Tax): the tax inside amount_cents and the
+  // amount before it; null = unknown / no tax.
+  tax_cents                Int?
+  subtotal_cents           Int?
   currency                 String        @default("usd")
   status                   PaymentStatus
   paid_at                  DateTime?     @db.Timestamptz
@@ -3456,6 +3467,32 @@ model AdminCredential {
   updated_at           DateTime  @updatedAt @db.Timestamptz
 
   @@map("admin_credentials")
+}
+
+/// Owner 2026-10-22 (systems checklist §1): WebAuthn passkeys. One row per
+/// authenticator; `scope` says which sign-in it serves — the app (`user`:
+/// sign-in option and step-up) or the admin panel (`admin`: second factor
+/// next to TOTP, step-up). `credential_id` is the base64url credential id
+/// the browser / platform sends; `public_key` the COSE key; `counter` the
+/// signature counter (clone detection).
+model WebauthnCredential {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  scope         String    @db.VarChar(8)
+  credential_id String    @unique @db.VarChar(1024)
+  public_key    Bytes
+  counter       BigInt    @default(0)
+  transports    String[]  @default([])
+  device_type   String    @db.VarChar(16)
+  backed_up     Boolean   @default(false)
+  aaguid        String?   @db.VarChar(36)
+  name          String    @db.VarChar(80)
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  last_used_at  DateTime? @db.Timestamptz
+
+  @@index([user_id, scope, created_at])
+  @@map("webauthn_credentials")
 }
 
 enum DataExportType {

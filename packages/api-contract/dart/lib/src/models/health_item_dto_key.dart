@@ -24,6 +24,8 @@ enum HealthItemDtoKey {
   backup('backup'),
   @JsonValue('cost')
   cost('cost'),
+  @JsonValue('message_keys')
+  messageKeys('message_keys'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

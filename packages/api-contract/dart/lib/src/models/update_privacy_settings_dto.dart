@@ -17,6 +17,7 @@ class UpdatePrivacySettingsDto {
     this.photoFrom,
     this.aboutFrom,
     this.groupAddFrom,
+    this.doNotSell,
   });
 
   factory UpdatePrivacySettingsDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +29,9 @@ class UpdatePrivacySettingsDto {
   final PrivacyAudience? photoFrom;
   final PrivacyAudience? aboutFrom;
   final PrivacyAudience? groupAddFrom;
+
+  /// CCPA/CPRA «Do not sell or share my personal information»: true = opt out, false = allow again.
+  final bool? doNotSell;
 
   Map<String, Object?> toJson() => _$UpdatePrivacySettingsDtoToJson(this);
 }

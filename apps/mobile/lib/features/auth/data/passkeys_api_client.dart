@@ -5,31 +5,35 @@ import 'package:lawbid/features/auth/data/auth_dtos.dart';
 import 'package:lawbid/features/auth/domain/passkey.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-/// Owner 2026-10-22 (checklist §1): the passkey endpoints the API worker
-/// adds with `@simplewebauthn/server` (hand-written on dio until the
-/// contract is regenerated — swap for the generated client then):
+/// Owner 2026-10-22 (checklist §1, docs/runbooks/PASSKEYS.md): the passkey
+/// endpoints, through the generated `AuthClient` (PR #262's contract):
 ///
-/// - `POST /auth/passkeys/register/options` (signed in) →
-///   `PublicKeyCredentialCreationOptionsJSON`
-/// - `POST /auth/passkeys/register/verify { response, name? }` → the key
-/// - `POST /auth/passkeys/login/options {}` (no token) →
-///   `PublicKeyCredentialRequestOptionsJSON`
-/// - `POST /auth/passkeys/login/verify { response, deviceInfo }` (no
-///   token) → tokens, like otp/verify
-/// - `GET /users/me/passkeys`, `DELETE /users/me/passkeys/:id`
+/// - `POST /auth/passkeys/register/options` (bearer; a sign-in ≤ 10 min
+///   old or `X-Reauth-Token`) → `{options}`
+/// - `POST /auth/passkeys/register { response, name? }` → `PasskeyDto`
+/// - `GET /auth/passkeys` → `{passkeys}`; `DELETE /auth/passkeys/{id}`
+/// - `POST /auth/passkeys/login/options { deviceInfo? }` (no token) →
+///   `{challengeId, options}`
+/// - `POST /auth/passkeys/login { challengeId, response, deviceInfo }` (no
+///   token) → tokens, like `otp/verify`
+/// - `POST /auth/passkeys/reauth/options` → `{challengeId, options}`;
+///   `POST /auth/passkeys/reauth { challengeId, response }` → `{reauthToken}`
 ///
-/// Every answer is the usual `{ data }` envelope; the options may sit in
-/// `data` itself or under `data.options` — both are read.
+/// `options` / `response` are plain WebAuthn JSON, passed through as the
+/// `passkeys` plugin produces and consumes them.
 class PasskeysApiClient {
-  PasskeysApiClient(this._dio);
+  PasskeysApiClient(Dio dio) : _auth = api.AuthClient(dio);
 
-  final Dio _dio;
+  final api.AuthClient _auth;
 
   static const _skipAuth = {RequestFlags.skipAuth: true};
 
+  /// Without a sign-in ≤ 10 minutes old the server answers
+  /// `REAUTH_REQUIRED` (the generated method carries no `X-Reauth-Token`
+  /// parameter yet; the person is shown the usual text).
   Future<Map<String, dynamic>> registerOptions() => guardApiCall(() async {
-        final r = await _dio.post<Object?>('/auth/passkeys/register/options');
-        return _options(r.data);
+        final r = await _auth.passkeyRegisterOptions();
+        return _map(r.data.options);
       });
 
   Future<PasskeyInfo> registerVerify({
@@ -37,77 +41,87 @@ class PasskeysApiClient {
     String? name,
   }) =>
       guardApiCall(() async {
-        final r = await _dio.post<Object?>(
-          '/auth/passkeys/register/verify',
-          data: {
-            'response': response,
-            if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
-          },
-          options: Options(extra: const {RequestFlags.createsResource: true}),
+        final r = await _auth.passkeyRegister(
+          body: api.PasskeyRegisterDto(
+            response: response,
+            name: name != null && name.trim().isNotEmpty ? name.trim() : null,
+          ),
+          extras: const {RequestFlags.createsResource: true},
         );
-        return _passkey(_data(r.data));
+        return _passkey(r.data);
       });
 
-  Future<Map<String, dynamic>> loginOptions() => guardApiCall(() async {
-        final r = await _dio.post<Object?>(
-          '/auth/passkeys/login/options',
-          data: const <String, Object?>{},
-          options: Options(extra: _skipAuth),
+  /// `{challengeId, options}` for the sign-in.
+  Future<PasskeyChallenge> loginOptions({DeviceInfo? deviceInfo}) =>
+      guardApiCall(() async {
+        final r = await _auth.passkeyLoginOptions(
+          body: api.PasskeyLoginOptionsDto(deviceInfo: deviceInfo),
+          extras: _skipAuth,
         );
-        return _options(r.data);
+        return PasskeyChallenge(r.data.challengeId, _map(r.data.options));
       });
 
   Future<AuthTokensResult> loginVerify({
+    required String challengeId,
     required Map<String, dynamic> response,
     DeviceInfo? deviceInfo,
   }) =>
       guardApiCall(() async {
-        final r = await _dio.post<Object?>(
-          '/auth/passkeys/login/verify',
-          data: {
-            'response': response,
-            if (deviceInfo != null) 'deviceInfo': deviceInfo.toJson(),
-          },
-          options: Options(extra: _skipAuth),
+        final r = await _auth.passkeyLogin(
+          body: api.PasskeyLoginDto(
+            challengeId: challengeId,
+            response: response,
+            deviceInfo: deviceInfo,
+          ),
+          extras: _skipAuth,
         );
-        return api.AuthTokensDto.fromJson(_data(r.data));
+        return r.data;
+      });
+
+  Future<PasskeyChallenge> reauthOptions() => guardApiCall(() async {
+        final r = await _auth.passkeyReauthOptions();
+        return PasskeyChallenge(r.data.challengeId, _map(r.data.options));
+      });
+
+  /// The single-use `X-Reauth-Token` (like `POST /auth/reauth`).
+  Future<String> reauthVerify({
+    required String challengeId,
+    required Map<String, dynamic> response,
+  }) =>
+      guardApiCall(() async {
+        final r = await _auth.passkeyReauth(
+          body: api.PasskeyAssertDto(
+            challengeId: challengeId,
+            response: response,
+          ),
+        );
+        return r.data.reauthToken;
       });
 
   Future<List<PasskeyInfo>> list() => guardApiCall(() async {
-        final r = await _dio.get<Object?>('/users/me/passkeys');
-        final body = r.data;
-        final data = body is Map ? body['data'] : null;
-        if (data is! List) return const [];
-        return [
-          for (final e in data)
-            if (e is Map) _passkey(Map<String, Object?>.from(e)),
-        ];
+        final r = await _auth.passkeyList();
+        return r.data.passkeys.map(_passkey).toList(growable: false);
       });
 
-  Future<void> delete(String id) => guardApiCall(
-        () => _dio.delete<void>(
-          '/users/me/passkeys/${Uri.encodeComponent(id)}',
-        ),
+  Future<void> delete(String id) =>
+      guardApiCall(() => _auth.passkeyRemove(id: id));
+
+  static Map<String, dynamic> _map(Object? v) =>
+      v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+
+  static PasskeyInfo _passkey(api.PasskeyDto d) => PasskeyInfo(
+        id: d.id,
+        name: d.name,
+        createdAt: d.createdAt,
+        lastUsedAt: d.lastUsedAt,
+        backedUp: d.backedUp,
       );
+}
 
-  static Map<String, Object?> _data(Object? body) {
-    final data = body is Map ? body['data'] : null;
-    if (data is! Map) throw const FormatException('passkeys: no data');
-    return Map<String, Object?>.from(data);
-  }
+/// A server challenge and the WebAuthn request options that go with it.
+class PasskeyChallenge {
+  const PasskeyChallenge(this.challengeId, this.options);
 
-  static Map<String, dynamic> _options(Object? body) {
-    final data = _data(body);
-    final inner = data['options'];
-    return Map<String, dynamic>.from(inner is Map ? inner : data);
-  }
-
-  static PasskeyInfo _passkey(Map<String, Object?> m) => PasskeyInfo(
-        id: '${m['id'] ?? m['credentialId'] ?? ''}',
-        name: '${m['name'] ?? m['deviceName'] ?? ''}',
-        createdAt: DateTime.tryParse('${m['createdAt'] ?? ''}') ??
-            DateTime.fromMillisecondsSinceEpoch(0),
-        lastUsedAt: DateTime.tryParse('${m['lastUsedAt'] ?? ''}'),
-        backedUp: m['backedUp'] == true,
-      );
+  final String challengeId;
+  final Map<String, dynamic> options;
 }

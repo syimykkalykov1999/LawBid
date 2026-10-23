@@ -17,14 +17,14 @@
 | Вход по SMS-коду (WhatsApp, Telegram) | OTP по SMS и e-mail, HMAC-хранение, 5 попыток, лестница блокировок 1/3/30 мин, лимиты на номер/IP/устройство/сутки | ✅ | `api/src/modules/auth/otp-limits.ts`, `otp.service.ts` |
 | Вход через Google / Apple (Instagram, TikTok) | Google и Apple id-token с проверкой `aud` + `nonce` | ✅ | `auth/social/*` |
 | Пароль (необязательный, как Telegram «облачный пароль») | Пароль после OTP теперь необязателен; «Требовать пароль при входе с нового устройства» — настройка | ✅ | `mobile/lib/core/navigation/guards/app_router_guard.dart:127`, `password-auth.service.ts` |
-| Вход по QR с другого устройства (WhatsApp Web, Telegram) | QR-вход есть; подтверждение — опрос раз в 10 с (не socket) | 🟡 | `auth/services/qr-login.service.ts`; `auth:qr_approved` по socket — после security-работы над gateway |
+| Вход по QR с другого устройства (WhatsApp Web, Telegram) | QR-вход есть; сайт ждёт на socket `/qr` (`auth:qr_scanned/approved/rejected`), опрос раз в 10 с — запасной путь | ✅ (API 2026-10-22) | `realtime/qr-login.gateway.ts`, `docs/runbooks/QR_LOGIN.md`; веб-клиент — 📱 |
 | Магическая ссылка в письме | Есть, привязана к verifier на устройстве | ✅ | `auth.service.ts:351` |
 | Короткий access-токен + ротация refresh с детектором повторного использования | access 15 мин, refresh 60 дней, ротация, reuse-detection, чёрный список сессий | ✅ | `auth.service.ts:747-867`, `token.service.ts` |
 | Список устройств, «выйти везде», уведомление о новом устройстве | Есть все три | ✅ | `GET/DELETE /auth/sessions`, `POST /auth/logout-all`, `new-device-notifier.service.ts` |
 | Разлогин остальных устройств при смене телефона/пароля | Сделано (PR #242) | ✅ | `users/services/contacts.service.ts`, `password-auth.service.ts` |
 | Повторная проверка (reauth) перед сменой e-mail/пароля/телефона; биометрия в приложении | `@ReauthRequired` на identifiers/password/contacts; Face ID / отпечаток | ✅ | `auth.controller.ts:414`, `mobile/lib/core/session/biometric_auth_service.dart` |
 | Ассистент не может трогать вход хозяина | Весь `AuthController` под `@AssistantSelf` | ✅ | `auth.controller.ts:123` |
-| Второй фактор для пользователей (Telegram: пароль; банки: passkeys) | Только SMS/e-mail-код + необязательный пароль. Passkeys (WebAuthn) нет ни у пользователей, ни в админке | ❌ | Шаг 1 — переключатель «пароль с нового устройства» ✅; шаг 2 — `@simplewebauthn/server` + плагин passkeys (research #5 B3) |
+| Второй фактор для пользователей (Telegram: пароль; банки: passkeys) | Passkeys (WebAuthn, `@simplewebauthn/server`): вход, подтверждение действий, управление ключами — API готов; в админке — второй фактор рядом с TOTP и step-up | ✅ (API 2026-10-22) | `auth/passkeys/*`, `docs/runbooks/PASSKEYS.md`; экраны приложения — 📱 |
 | Приложение доказывает, что оно настоящее (App Attest / Play Integrity) | App Check: сервер проверяет заголовок на OTP-ручках в режиме `monitor`; приложение шлёт токен | 🟡 | `auth/app-check/*`, `firebase_app_check` в pubspec. 👤 Зарегистрировать приложения в Firebase App Check, через неделю `enforce` (`docs/runbooks/APP_CHECK.md`) |
 | Хранение токенов: только Keychain/Keystore, web — HttpOnly cookie | Так и сделано | ✅ | `token_secure_store.dart`, `auth/web-session-cookie.ts` |
 | Защита от SMS-pumping в кабинете оператора | Код: US-only, лимиты, fail-closed. Кабинет Twilio — не подтверждён | 🟡 | 👤 Twilio: Geo Permissions только US, SMS Pumping Protection, auto-recharge OFF, Usage Triggers (`docs/COST_PROTECTION.md §1`) |
@@ -45,7 +45,7 @@
 | Сообщения лежат на телефоне, открываются с диска, догрузка `afterId` | Drift-хранилище сообщений, лимит 50 МБ | ✅ (economy-mobile) | `chat/data/message_store.dart`, пакет C |
 | Исходящие не теряются при закрытии приложения (текст + медиа) | Текст — Drift outbox; медиа — постоянная очередь загрузки с повтором | ✅ | `social_local_database.dart`, PR #244 «persistent media upload queue» |
 | Превью ссылок (og:title/картинка) | Нет | ❌ | Небольшая серверная ручка `GET /link-preview` с allow-list и лимитом (SSRF-безопасно) |
-| Сквозное шифрование (WhatsApp) | Нет (осознанно): тела зашифрованы на сервере своим ключом, `enc:v3` с AAD на id | 🟡 | `common/secrets/message-body-cipher.ts`; KMS-обёртка ключей и job пере-шифрования — `docs/SECURITY_TODO.md` |
+| Сквозное шифрование (WhatsApp) | Нет (осознанно): тела зашифрованы на сервере своим ключом, `enc:v3` с AAD на id; ключи могут быть обёрнуты KMS (`kid:kms:…`), job `messages.reencrypt` переписывает старые строки | ✅ (2026-10-22) | `common/secrets/kms-env.ts`, `jobs/handlers/message-reencrypt.job.ts`; 👤 DEPLOY_PROD.md «Ключи шифрования через KMS» |
 | Пуши без текста (device fetch) | Текст уходит в FCM/APNs в маскированном виде | 🟡 | «data-only pushes» — позже (SECURITY_TODO) |
 | Геолокация / контакт-карточка в чате | Нет | ❌ | Низкий приоритет; тип сообщения `location`/`contact` |
 
@@ -164,7 +164,7 @@
 | Промокоды с атомарным лимитом, аудитория по роли | Исправлено в PR #242 | ✅ | `promotions.service.ts` |
 | Пакеты ставок, продвижение (boost), звёзды/подарки, рефералы, награды | Всё есть; ассистент не тратит деньги хозяина | ✅ | `bid-packs`, `promotions`, `stars`, `referrals`, `rewards` |
 | Выплаты адвокатам/партнёрам (payroll, treasury) со step-up и maker-checker | Есть: step-up на bulk payouts, потолок суммы, approvals | ✅ | `admin-payroll.service.ts:207`, admin `approvals` |
-| Налоги (Stripe Tax) | Нет | ❌ | `automatic_tax` в Checkout/Subscription при выходе за один штат |
+| Налоги (Stripe Tax) | `automatic_tax` на подписках/местах/Checkout, расчёт на своей странице оплаты, налог в чеках — за переключателем `billing.stripe_tax_enabled` (выкл.) | ✅ (API 2026-10-22) | `docs/runbooks/STRIPE_TAX.md`; 👤 включить Stripe Tax в кабинете; адрес на странице оплаты — 📱 |
 | Radar / защита от card-testing | Лимит на создание checkout в коде; Radar-правила в кабинете не подтверждены | 🟡 | 👤 Stripe Radar: block highest, review elevated, 3DS (`COST_PROTECTION.md §3`) |
 | StoreKit / Google Play Billing для цифровой подписки | Нет (выбран web-link-out) | ❌ (осознанно) | Если Apple отклонит — StoreKit 2 (аудит #2 §3) |
 
@@ -199,10 +199,10 @@
 | Экспорт данных (GDPR Art. 20) | Есть, со сроком жизни файла | ✅ | `privacy/data-export.*`, `exports-cleanup.service.ts` |
 | Удаление аккаунта с грейсом 14 дней, покрывающее ВСЕ файлы, Bunny, Stripe Customer | Да (PR #243): все purposes, `videos.markDeleted`, `deleteCustomer`, stories | ✅ | `account-anonymization.service.ts:153-283` |
 | Страница удаления аккаунта для магазинов | `https://lawbid.dev/delete-account` | ✅ | `docs/runbooks/STORE_RELEASE.md` |
-| CCPA «Do not sell/share» переключатель | В политике написано, что данные не продаются; отдельного переключателя нет | 🟡 | Добавить строку в Settings → Приватность (лог согласия `do_not_sell`) |
+| CCPA «Do not sell/share» переключатель | `PATCH /users/me/privacy {doNotSell}` → согласие `do_not_sell` (в экспорте, глушит аналитику) | ✅ (API 2026-10-22) | `privacy-settings`; строка в Settings → Приватность — 📱 (ключи `privacy.doNotSell*`) |
 | Приватность: last seen, кто пишет/звонит/добавляет, фото, «о себе» | Есть | ✅ | `UserPrivacySettings` |
 | Ретенция: журнал дел, экспорты, стори, загруженные книги | Есть job-ы | ✅ | `journal-retention.service.ts`, `exports-cleanup.service.ts` |
-| Заявление о доступности | Нет типа документа | ❌ | `LegalDocType` + `assets/legal/accessibility.*.md` |
+| Заявление о доступности | `LegalDocType.accessibility`, черновики en+ru | ✅ (2026-10-22) | `assets/legal/accessibility.*.md`; 👤 перевод и публикация в админке; экран «Документы» — 📱 |
 
 ### 16. Языки (i18n)
 
@@ -247,7 +247,7 @@
 | Данные на телефоне: сообщения, списки, переводы, HTTP-кэш на диске | Drift: сообщения 50 МБ, HTTP 32 МБ, лента 8 МБ, картинки 500 МБ, чат-медиа 300 МБ, файлы 200 МБ, видео 300 МБ; `keep_media_days` | ✅ (economy) | §5 плана, `core/media/app_image_cache.dart` |
 | Экран «Данные и память» (как в Telegram) с «Очистить кэш» и «хранить медиа N дней» | Есть; потолки из `app_config`, на телефоне только понижать | ✅ | `app_routes.dart` → «Данные и память» |
 | Медиа с `immutable`, кэш по URL без подписи | `Cache-Control: public, max-age=31536000, immutable` на каждом объекте | ✅ | пакет I |
-| Приватное медиа через CDN с подписанными ссылками (не прямой S3) | Чат/голос/файлы дел — прямые presigned S3-ссылки на 1 ч | ❌ | 👤 CloudFront key group + `cdnBaseUrl` для приватных бакетов (infra), затем `files.service.ts` подпись CloudFront |
+| Приватное медиа через CDN с подписанными ссылками (не прямой S3) | CloudFront с key group для бакета documents, подпись в `S3StorageService.signedGetUrl`; без ключа — presigned S3 | ✅ (код 2026-10-22) | 👤 пара ключей + tfvars — DEPLOY_PROD.md «CloudFront для приватных файлов» |
 | Фоновые загрузки iOS URLSession / Android WorkManager | Постоянная очередь в приложении с повтором (не системная) | 🟡 | PR #244; системные фоновые загрузки — позже |
 | Архитектурный тест «списки не перезагружаются целиком» | Есть | ✅ | economy-mobile «architecture test for list reloads» |
 | Трафик за день показывается пользователю | Счётчик трафика дня | ✅ | economy-mobile `9d1ed0178` |
@@ -257,7 +257,7 @@
 | Что есть у больших сервисов (Stripe Dashboard, Slack admin) | У нас | Статус | Где в коде / что сделать |
 |---|---|---|---|
 | Обязательный второй фактор для всех админов | TOTP обязателен (enrol при первом входе, recovery-коды) | ✅ | `admin-auth.service.ts:937,972`. 👤 Сохранить recovery-коды (`OWNER.md`) |
-| Passkeys для админов | Нет | ❌ | research #5 B3/B4 |
+| Passkeys для админов | Второй фактор рядом с TOTP, step-up, Профиль → «Ключи доступа» | ✅ (2026-10-22) | `admin-auth` `/login/passkey*`, `/step-up/passkey*` |
 | Step-up на деньги/телефон/bulk; maker-checker на выплаты | Есть + потолок суммы bulk-выплат + очередь approvals | ✅ | `admin-payroll.controller.ts:147,187,242`, admin `approvals` |
 | Журнал действий с обоснованием (`X-Justification`) | Есть | ✅ | `admin-access/audit-log.service.ts`, admin `audit-log` |
 | Фичефлаги, конфиг, лимиты, интеграции (ключи шифруются) | 35 флагов, `app_config`, cost-guard, `SecretEnvelope` | ✅ | `feature-flags/flag-catalog.ts`, `admin-config`, `admin-integrations` |
@@ -292,7 +292,7 @@
 | Учебное восстановление из бэкапа | Скрипт готов, ни одного прогона в журнале | ❌ | 👤 `scripts/ops/restore-drill.sh` (≈ 40 мин, $0.10) — до релиза |
 | Redis: TLS, auth, отдельные узлы для очередей и кэша, реплика | TLS+auth ✅; один `cache.t4g.micro`, replicas=0, `noeviction`; отдельный cache-узел — переменной | 🟡 | `launch.tfvars.example:47-48`, `variables.tf:231`; при росте: `redis_replicas=1`, `redis_cache_node=true` |
 | S3: block-public, SSE-KMS, versioning, репликация, CloudFront OAC | Есть | ✅ | `infra/modules/s3`, `main.tf:309` |
-| Подписанные CloudFront-ссылки для приватного медиа | Нет (presigned S3) | ❌ | см. §19 |
+| Подписанные CloudFront-ссылки для приватного медиа | Есть (после ключа владельца) | ✅ | см. §19 |
 | WAF: managed rules, rate-limit, OTP-правило, Bot Control, WAF на CloudFront | Есть (Bot Control — опционально, платный) | ✅ | `alb/main.tf:216-369`, `cdn-waf`. 👤 `apply`; решить про Bot Control (~$10/мес) |
 | VPC endpoints (ECR, logs, secrets, S3) — без NAT | Есть в tfvars | ✅ | `launch.tfvars.example:54` |
 | KMS на базу, S3, Redis, логи, секреты; ключи сообщений под KMS | Инфра ✅; `MESSAGE_ENC_KEYS`/`SECRETS_MASTER_KEYS` — сырые env | 🟡 | `docs/SECURITY_TODO.md` (KMS data key + job пере-шифрования) |
@@ -389,13 +389,13 @@
 ## (a) ❌ / 🟡 — что ещё сделать, по приоритету
 
 ### API-работник
-1. ❌ CloudFront signed URLs для приватного медиа (чат, голос, файлы дел) вместо прямого S3 — после ключей владельца (§19, §22).
-2. 🟡 KMS-обёртка `MESSAGE_ENC_KEYS` + job пере-шифрования `enc:v2→v3`; data-only пуши (§2, §22).
-3. ❌ Passkeys: `@simplewebauthn/server`, сначала для админки, потом пользователям (§1, §20).
-4. 🟡 `auth:qr_approved` по socket вместо опроса (§1).
+1. ✅ CloudFront signed URLs для приватного медиа (чат, голос, файлы дел) — код готов, 👤 ключи владельца (§19, §22).
+2. ✅ KMS-обёртка `MESSAGE_ENC_KEYS` + job пере-шифрования `enc:v2→v3` (§2, §22); 🟡 data-only пуши — позже.
+3. ✅ Passkeys: `@simplewebauthn/server` для админки и пользователей (API); 📱 экраны (§1, §20).
+4. ✅ `auth:qr_approved` по socket (§1); 📱 веб-клиент.
 5. ❌ `GET /link-preview` с allow-list (§2).
-6. 🟡 CCPA «do not sell» согласие + `LegalDocType.accessibility` (§15, §26).
-7. ❌ Stripe Tax (`automatic_tax`) — когда выйдем за один штат (§12).
+6. ✅ CCPA «do not sell» согласие + `LegalDocType.accessibility` (§15, §26); 📱 строка в настройках.
+7. ✅ Stripe Tax (`automatic_tax`) за переключателем (§12); 👤 включить в кабинете Stripe.
 8. 🟡 Полная модерация видео через S3-копию (§13) — решение позже.
 9. ❌ E-mail-дайджесты (§10) — позже.
 

@@ -259,3 +259,87 @@ Multi-AZ ≈ ×2 цены базы, копии ≈ $3–6, VPC endpoints ≈ $29
 (passkey или аппаратный ключ) и ни одного access key; для людей — IAM
 Identity Center (SSO) вместо IAM-пользователей; подтвердить подписку на
 e-mail алармов (письмо от SNS после apply).
+
+## CloudFront для приватных файлов (2026-10-22, чеклист систем §22)
+
+Фото, голосовые и файлы в чатах, файлы дел и документы лежат в бакете
+`documents`. Раньше каждая ссылка подписывалась самим S3 (presigned GET).
+Теперь их может отдавать CloudFront с «подписанными URL»: API подписывает
+ссылку своим ключом, CloudFront проверяет подпись и кэширует байты на
+краю (файлы неизменяемые, `Cache-Control: immutable` сохраняется). Пока
+ключа нет — всё работает по-старому, ничего делать не обязательно.
+
+Включить (один раз, ~10 минут):
+
+1. Сделать пару ключей RSA-2048 на своём компьютере (приватный ключ никуда
+   не отправлять, кроме Secrets Manager):
+   ```sh
+   openssl genrsa -out cloudfront-signing.pem 2048
+   openssl rsa -pubout -in cloudfront-signing.pem -out cloudfront-signing.pub.pem
+   ```
+2. Положить приватный ключ в Secrets Manager и сразу «импортировать» его в
+   Terraform (иначе apply скажет, что секрет уже есть):
+   ```sh
+   aws secretsmanager create-secret --name lawbid-prod/CLOUDFRONT_PRIVATE_KEY_PEM \
+     --secret-string file://cloudfront-signing.pem
+   cd infra/envs/prod
+   terraform import 'module.stack.module.secrets.aws_secretsmanager_secret.this["CLOUDFRONT_PRIVATE_KEY_PEM"]' lawbid-prod/CLOUDFRONT_PRIVATE_KEY_PEM
+   ```
+3. В `terraform.tfvars` добавить две строки и применить
+   (`terraform plan` → `plan-guard.sh` → `apply`):
+   ```hcl
+   documents_cdn_public_key_pem = file("cloudfront-signing.pub.pem")
+   extra_secrets                = ["CLOUDFRONT_PRIVATE_KEY_PEM"]   # к уже перечисленным
+   ```
+   Terraform создаст: публичный ключ и группу ключей CloudFront, дистрибутив
+   с OAC к бакету `documents`, политику бакета (читать может только этот
+   дистрибутив). В переменные API попадут `CLOUDFRONT_PRIVATE_DOMAIN`,
+   `CLOUDFRONT_PRIVATE_KEY_ID` (из `terraform output documents_cdn_domain`
+   / `documents_cdn_key_pair_id`) и секрет `CLOUDFRONT_PRIVATE_KEY_PEM`.
+4. После выкладки открыть в приложении любой чат с фото: ссылка на файл
+   должна начинаться с `https://d….cloudfront.net/…?…&Signature=…`.
+   В админке → Безопасность → Ключи и сервисы → «File storage» видны те же
+   три поля; их можно заполнить и там вместо переменных (приоритет у
+   админки), а очистив — вернуться к ссылкам S3.
+
+Выключить: убрать `documents_cdn_public_key_pem` из tfvars и применить
+(дистрибутив удалится, ссылки снова подпишет S3). Сменить ключ: новая пара
+→ шаги 2–3 с новым публичным ключом; старые ссылки живут не дольше часа.
+
+## Ключи шифрования через KMS (2026-10-22, SECURITY_TODO «KMS-wrapped keys»)
+
+Секреты `MESSAGE_ENC_KEYS` (тексты чатов) и `SECRETS_MASTER_KEYS`
+(хранилище ключей админки) до сих пор хранят «сырые» ключи. Теперь любой
+элемент может быть зашифрован ключом KMS: `m2:kms:<base64 шифротекста>`.
+API расшифровывает его один раз при старте (`kms:Decrypt`), держит только
+в памяти; сырые записи `m1:<секрет>` продолжают работать, поэтому переход
+постепенный. Terraform создал отдельный ключ `alias/lawbid-prod-data-keys`
+(`terraform output data_keys_kms_key_arn`); роль задач может им только
+расшифровывать, и только с контекстом `app=lawbid-prod`.
+
+Перейти на обёрнутый ключ для чатов:
+
+1. Сделать новый ключ и зашифровать его:
+   ```sh
+   RAW=$(openssl rand -hex 32)
+   aws kms encrypt --key-id alias/lawbid-prod-data-keys \
+     --encryption-context app=lawbid-prod \
+     --plaintext "fileb://<(printf %s "$RAW")" \
+     --query CiphertextBlob --output text
+   ```
+   (команда печатает base64 — это и есть `<шифротекст>`).
+2. Дописать его в секрет, НЕ удаляя старый `m1:…`:
+   `aws secretsmanager put-secret-value --secret-id lawbid-prod/MESSAGE_ENC_KEYS --secret-string "m1:<старое>,m2:kms:<шифротекст>"`.
+3. В `infra/modules/stack/main.tf` переключить `MESSAGE_ENC_ACTIVE_KID = "m2"`,
+   `terraform apply`, дождаться новых задач.
+4. Админка → Система → Здоровье системы → плитка «Ключи сообщений»: задача
+   `messages.reencrypt` каждые 5 минут переписывает старые строки
+   (`enc:v2…` и строки под `m1`) на новый ключ; счётчики «переписано /
+   ошибок / осталось». Когда для `m1` показано 0 строк и проход завершён —
+   `m1` можно убрать из секрета. Раньше — нельзя: старые чаты станут
+   нечитаемыми.
+
+Для `SECRETS_MASTER_KEYS` — то же самое с `k2:kms:…` и
+`SECRETS_ACTIVE_KID = "k2"`, после чего в админке → Ключи и сервисы нажать
+«Перешифровать» (кнопка уже есть). Локально и в тестах ничего не меняется:
+без префикса `kms:` KMS не вызывается.

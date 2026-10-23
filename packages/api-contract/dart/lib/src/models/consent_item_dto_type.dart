@@ -28,6 +28,8 @@ enum ConsentItemDtoType {
   clientAgreement('client_agreement'),
   @JsonValue('eula')
   eula('eula'),
+  @JsonValue('do_not_sell')
+  doNotSell('do_not_sell'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

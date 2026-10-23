@@ -46,6 +46,9 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   gifts: 'the gift catalog (admin); sent_count reset to 0',
   admin_profiles: 'admin accounts (their users rows are kept)',
   admin_credentials: 'admin logins / passwords / 2FA',
+  // Owner 2026-10-22: admins' passkeys stay; testers' rows go with their
+  // users (FK ON DELETE CASCADE from the users filter).
+  webauthn_credentials: 'passkeys (admins stay; user rows go with their users)',
   admin_role_templates: 'admin role presets',
   integration_credentials: 'API keys entered in the admin (encrypted)',
   integration_custom_providers: 'custom services added in the admin',

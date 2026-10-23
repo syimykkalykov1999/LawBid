@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -24,9 +25,11 @@ class WebQrLoginScreen extends ConsumerStatefulWidget {
 }
 
 class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
-  // Owner 2026-10-22 (package H): every 10 s, not 2 (the socket answer
-  // `auth:qr_approved` is still to come from the API).
+  // Owner 2026-10-22 (package H): every 10 s as the fallback; the `/qr`
+  // socket (QR_LOGIN.md) says «approved» the moment the phone answers.
   static const _pollEvery = Duration(seconds: 10);
+  QrLoginSocket? _socket;
+  StreamSubscription<QrLoginSocketEvent>? _socketSub;
 
   WebLoginCode? _code;
   WebLoginStatus _status = WebLoginStatus.pending;
@@ -44,11 +47,52 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _closeSocket();
     super.dispose();
+  }
+
+  void _closeSocket() {
+    unawaited(_socketSub?.cancel());
+    _socketSub = null;
+    _socket?.dispose();
+    _socket = null;
+  }
+
+  /// The `/qr` socket for this code: approved → poll now; rejected → the
+  /// refusal; expired → a new code. A socket that never connects changes
+  /// nothing — the 10-second poll carries on.
+  void _listen(WebLoginCode code) {
+    _closeSocket();
+    final open = ref.read(qrLoginSocketFactoryProvider);
+    if (open == null) return;
+    try {
+      final socket =
+          open(ref.read(appEnvironmentProvider).apiBaseUrl, code.qrId);
+      _socket = socket;
+      _socketSub = socket.events.listen((e) {
+        if (!mounted || _code?.qrId != code.qrId) return;
+        switch (e) {
+          case QrLoginSocketEvent.scanned:
+            if (_status == WebLoginStatus.pending) {
+              setState(() => _status = WebLoginStatus.scanned);
+            }
+          case QrLoginSocketEvent.approved:
+            unawaited(_tick(force: true));
+          case QrLoginSocketEvent.rejected:
+            _timer?.cancel();
+            setState(() => _status = WebLoginStatus.rejected);
+          case QrLoginSocketEvent.expired:
+            unawaited(_newCode());
+        }
+      });
+    } catch (_) {
+      _closeSocket();
+    }
   }
 
   Future<void> _newCode() async {
     _timer?.cancel();
+    _closeSocket();
     setState(() {
       _error = null;
       _status = WebLoginStatus.pending;
@@ -59,6 +103,7 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
       _age = Stopwatch()..start();
       setState(() => _code = code);
       _timer = Timer.periodic(_pollEvery, (_) => unawaited(_tick()));
+      _listen(code);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
@@ -68,12 +113,14 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
     }
   }
 
-  Future<void> _tick() async {
+  Future<void> _tick({bool force = false}) async {
     final code = _code;
     if (code == null || _polling || !mounted) return;
     // The code is about to expire anyway: show a fresh one before the
-    // person points a phone at a dead one.
-    if ((_age?.elapsed ?? Duration.zero) > code.expiresIn - _pollEvery) {
+    // person points a phone at a dead one (not when the socket just said
+    // «approved»: the tokens are waiting).
+    if (!force &&
+        (_age?.elapsed ?? Duration.zero) > code.expiresIn - _pollEvery) {
       unawaited(_newCode());
       return;
     }

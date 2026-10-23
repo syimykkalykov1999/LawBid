@@ -37,6 +37,7 @@ import { OpsStateService } from '../common/ops/ops-state.service';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
+import { MessageReencryptJob } from './handlers/message-reencrypt.job';
 import { ConsultationRemindersJob } from '../modules/consultations/consultation-reminders.job';
 import {
   TaskArchivePurgeJob,
@@ -129,6 +130,7 @@ export class CronProcessor {
     @Optional() private readonly contactsJoined?: ContactsJoinedJob,
     @Optional()
     private readonly contactsPepperBackfill?: ContactsPepperBackfillJob,
+    @Optional() private readonly messagesReencrypt?: MessageReencryptJob,
     // Owner 2026-10-22: one queued job per account to anonymize.
     @Optional() private readonly accountDeletion?: AccountDeletionRunner,
   ) {}
@@ -219,6 +221,8 @@ export class CronProcessor {
         return this.contactsJoined?.run() ?? null;
       case CRON_JOBS.contactsPepperBackfill:
         return this.contactsPepperBackfill?.run() ?? null;
+      case CRON_JOBS.messagesReencrypt:
+        return this.messagesReencrypt?.run() ?? null;
       case CRON_JOBS.consultationsSweep:
         return this.consultationSweep?.run() ?? null;
       case CRON_JOBS.taskReminders:

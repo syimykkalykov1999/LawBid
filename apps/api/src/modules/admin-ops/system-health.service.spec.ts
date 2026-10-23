@@ -17,8 +17,14 @@ jest.mock('bullmq', () => ({
 }));
 
 function build(
-  over: { dbFails?: boolean; heartbeatAgoSec?: number | null } = {},
+  over: {
+    dbFails?: boolean;
+    heartbeatAgoSec?: number | null;
+    cipher?: { enabled: boolean; activeKid: string | null; kids: string[] };
+    reencryptState?: Record<string, unknown> | null;
+  } = {},
 ) {
+  const opts = over;
   const now = new Date('2026-10-05T12:00:00Z');
   const prisma = {
     $queryRaw: jest.fn(() =>
@@ -63,6 +69,11 @@ function build(
   const secrets = { get: jest.fn(() => Promise.resolve(null)) };
   const flags = { isEnabled: jest.fn(() => Promise.resolve(false)) };
   const storage = { head: jest.fn(), bucket: jest.fn(() => 'media') };
+  const cipher = opts.cipher ?? { enabled: false, activeKid: null, kids: [] };
+  const reencrypt = {
+    state: jest.fn(() => Promise.resolve(opts.reencryptState ?? null)),
+    fingerprint: jest.fn(() => 'fp1'),
+  };
   const svc = new SystemHealthService(
     prisma as never,
     redis as never,
@@ -73,9 +84,26 @@ function build(
     secrets as never,
     flags as never,
     storage as never,
+    cipher as never,
+    reencrypt as never,
   );
   return { svc, now };
 }
+
+const keysOn = { enabled: true, activeKid: 'm2', kids: ['m1', 'm2'] };
+const pass = (phase: string, failed: number) => ({
+  fingerprint: 'fp1',
+  activeKid: 'm2',
+  phase,
+  cursor: '',
+  scanned: 10,
+  rewritten: 9,
+  failed,
+  byKid: { m1: { rewritten: 9, failed } },
+  startedAt: 'x',
+  updatedAt: 'x',
+  finishedAt: phase === 'done' ? 'x' : null,
+});
 
 describe('SystemHealthService', () => {
   it('everything up: green parts, grey for what is not connected yet, DLQ makes queues yellow', async () => {
@@ -91,6 +119,7 @@ describe('SystemHealthService', () => {
       video: 'grey',
       queues: 'yellow',
       backup: 'grey',
+      message_keys: 'grey',
       cost: 'grey',
     });
     expect(r.overall).toBe('yellow');
@@ -105,5 +134,39 @@ describe('SystemHealthService', () => {
     expect(by.worker).toBe('red');
     expect(by.redis).toBe('green');
     expect(r.overall).toBe('red');
+  });
+
+  it('message keys: yellow while a pass runs, red with stuck rows, green when done and names removable kids', async () => {
+    const running = build({
+      cipher: keysOn,
+      reencryptState: pass('messages', 0),
+    });
+    const r1 = await running.svc.report(running.now);
+    expect(r1.items.find((i) => i.key === 'message_keys')?.status).toBe(
+      'yellow',
+    );
+
+    const stuck = build({ cipher: keysOn, reencryptState: pass('done', 1) });
+    const r2 = await stuck.svc.report(stuck.now);
+    const t2 = r2.items.find((i) => i.key === 'message_keys');
+    expect(t2?.status).toBe('red');
+    expect(t2?.detail.removableKids).toEqual([]);
+
+    const done = build({ cipher: keysOn, reencryptState: pass('done', 0) });
+    const r3 = await done.svc.report(done.now);
+    const t3 = r3.items.find((i) => i.key === 'message_keys');
+    expect(t3?.status).toBe('green');
+    expect(t3?.detail).toMatchObject({
+      activeKid: 'm2',
+      retiredKids: ['m1'],
+      removableKids: ['m1'],
+    });
+
+    // A retired kid without any pass yet: yellow (the job has not run).
+    const idle = build({ cipher: keysOn });
+    const r4 = await idle.svc.report(idle.now);
+    expect(r4.items.find((i) => i.key === 'message_keys')?.status).toBe(
+      'yellow',
+    );
   });
 });

@@ -189,6 +189,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Only a verified attorney can buy offer packs and Boost. Off: anyone can (rollback).',
   };
+  out['billing.stripe_tax_enabled'] = {
+    ...out['billing.stripe_tax_enabled'],
+    description:
+      'Stripe Tax: sales tax / VAT is computed and added by Stripe on subscriptions, seat purchases and one-time payments (the buyer sees it before paying; receipts show it). Turn on only after enabling Stripe Tax in the Stripe Dashboard and setting the origin address and registrations (docs/runbooks/STRIPE_TAX.md). Off: prices are charged as listed, no tax line.',
+  };
   out['payments.own_page_enabled'] = {
     ...out['payments.own_page_enabled'],
     description:

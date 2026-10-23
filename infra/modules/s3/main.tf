@@ -26,6 +26,11 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "documents_cdn_public_key_pem" {
+  type        = string
+  default     = ""
+  description = "Owner 2026-10-22 (systems checklist §22): PEM public key of the CloudFront signing key pair for private media (chat photos/voice/files, case files, documents). Empty = no documents CloudFront; the API keeps presigned S3 GET links. The private key goes to Secrets Manager as CLOUDFRONT_PRIVATE_KEY_PEM (extra_secrets)."
+}
 variable "cors_allowed_origins" {
   type        = list(string)
   default     = ["https://syimykkalykov1999.github.io"]
@@ -33,8 +38,9 @@ variable "cors_allowed_origins" {
 }
 
 locals {
-  documents = "${var.name}-documents"
-  media     = "${var.name}-media"
+  documents     = "${var.name}-documents"
+  media         = "${var.name}-media"
+  documents_cdn = var.documents_cdn_public_key_pem != "" ? 1 : 0
 }
 
 # --- documents (verification files, exports; never public) -------------
@@ -387,8 +393,136 @@ resource "aws_s3_bucket_policy" "media" {
   policy = data.aws_iam_policy_document.media_cf.json
 }
 
+# --- documents behind CloudFront with signed URLs (owner 2026-10-22) ------
+# Private media (chat photos/voice/files, case files, documents) is served
+# through CloudFront with a trusted key group: the API signs each link with
+# the private key (@aws-sdk/cloudfront-signer), CloudFront checks the
+# signature and reads the bucket through OAC. Objects are immutable, so the
+# edge may cache them for a day; the link itself lives as long as the API
+# says (minutes). Nothing is created until the owner supplies the public key.
+resource "aws_cloudfront_public_key" "documents" {
+  count       = local.documents_cdn
+  name        = "${var.name}-documents-signing"
+  comment     = "${var.name}: public key of the private-media signing pair"
+  encoded_key = var.documents_cdn_public_key_pem
+  lifecycle { create_before_destroy = true }
+}
+
+resource "aws_cloudfront_key_group" "documents" {
+  count   = local.documents_cdn
+  name    = "${var.name}-documents-signers"
+  comment = "${var.name}: trusted signers for private media"
+  items   = [aws_cloudfront_public_key.documents[0].id]
+}
+
+resource "aws_cloudfront_origin_access_control" "documents" {
+  count                             = local.documents_cdn
+  name                              = "${var.name}-documents"
+  origin_access_control_origin_type = "s3"
+  signing_behavior                  = "always"
+  signing_protocol                  = "sigv4"
+}
+
+# The API asks S3 for a download name / Cache-Control through the
+# response-* query parameters; they must reach the origin and be part of
+# the cache key (S3 honours them only on signed requests — OAC signs).
+resource "aws_cloudfront_cache_policy" "documents" {
+  count       = local.documents_cdn
+  name        = "${var.name}-documents-signed"
+  comment     = "Immutable private media: cache a day, key on the response-* params"
+  default_ttl = 86400
+  max_ttl     = 86400
+  min_ttl     = 0
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+    cookies_config { cookie_behavior = "none" }
+    headers_config { header_behavior = "none" }
+    query_strings_config {
+      query_string_behavior = "whitelist"
+      query_strings { items = ["response-content-disposition", "response-cache-control", "response-content-type"] }
+    }
+  }
+}
+
+resource "aws_cloudfront_response_headers_policy" "documents_cors" {
+  count   = local.documents_cdn
+  name    = "${var.name}-documents-cors"
+  comment = "CORS for the web app (s3_cors_allowed_origins), no sniffing"
+  cors_config {
+    access_control_allow_credentials = false
+    access_control_allow_origins { items = var.cors_allowed_origins }
+    access_control_allow_methods { items = ["GET", "HEAD", "OPTIONS"] }
+    access_control_allow_headers { items = ["*"] }
+    access_control_expose_headers { items = ["ETag", "Content-Disposition"] }
+    access_control_max_age_sec = 3000
+    origin_override            = false
+  }
+  security_headers_config {
+    content_type_options { override = true }
+  }
+}
+
+resource "aws_cloudfront_distribution" "documents" {
+  count           = local.documents_cdn
+  enabled         = true
+  comment         = "${var.name} private media (signed URLs)"
+  price_class     = "PriceClass_100"
+  is_ipv6_enabled = true
+  web_acl_id      = var.media_web_acl_arn == "" ? null : var.media_web_acl_arn
+
+  origin {
+    domain_name              = aws_s3_bucket.documents.bucket_regional_domain_name
+    origin_id                = "documents"
+    origin_access_control_id = aws_cloudfront_origin_access_control.documents[0].id
+  }
+
+  default_cache_behavior {
+    target_origin_id           = "documents"
+    viewer_protocol_policy     = "https-only"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = false
+    cache_policy_id            = aws_cloudfront_cache_policy.documents[0].id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.documents_cors[0].id
+    trusted_key_groups         = [aws_cloudfront_key_group.documents[0].id]
+  }
+
+  restrictions {
+    geo_restriction { restriction_type = "none" }
+  }
+
+  viewer_certificate { cloudfront_default_certificate = true }
+  tags = var.tags
+}
+
+data "aws_iam_policy_document" "documents_cf" {
+  count = local.documents_cdn
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.documents.arn}/*"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceArn"
+      values   = [aws_cloudfront_distribution.documents[0].arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "documents" {
+  count  = local.documents_cdn
+  bucket = aws_s3_bucket.documents.id
+  policy = data.aws_iam_policy_document.documents_cf[0].json
+}
+
 output "documents_bucket" { value = aws_s3_bucket.documents.bucket }
 output "documents_bucket_arn" { value = aws_s3_bucket.documents.arn }
 output "media_bucket" { value = aws_s3_bucket.media.bucket }
 output "media_bucket_arn" { value = aws_s3_bucket.media.arn }
 output "media_cdn_domain" { value = aws_cloudfront_distribution.media.domain_name }
+output "documents_cdn_domain" { value = one(aws_cloudfront_distribution.documents[*].domain_name) }
+output "documents_cdn_key_pair_id" { value = one(aws_cloudfront_public_key.documents[*].id) }

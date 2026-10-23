@@ -1,7 +1,8 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
 import type { Prisma, PrismaClient, PrivacyAudience } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsConsentService } from '../analytics/analytics-consent.service';
 
 type Db = Prisma.TransactionClient | PrismaClient;
 
@@ -12,6 +13,11 @@ export interface PrivacySettings {
   photoFrom: PrivacyAudience;
   aboutFrom: PrivacyAudience;
   groupAddFrom: PrivacyAudience;
+  /** Owner 2026-10-22 (CCPA/CPRA «Do not sell or share my personal
+   * information»): true = opted out. Stored as an append-only
+   * `do_not_sell` consent row (latest wins), so the choice is in the data
+   * export and the journal. */
+  doNotSell: boolean;
 }
 
 export const DEFAULT_PRIVACY: PrivacySettings = {
@@ -21,7 +27,12 @@ export const DEFAULT_PRIVACY: PrivacySettings = {
   photoFrom: 'everyone',
   aboutFrom: 'everyone',
   groupAddFrom: 'everyone',
+  doNotSell: false,
 };
+
+export interface PrivacyPatchMeta {
+  ip?: string;
+}
 
 /**
  * Owner 2026-10-20: who may see my "last seen", write to me first and call
@@ -31,12 +42,18 @@ export const DEFAULT_PRIVACY: PrivacySettings = {
  */
 @Injectable()
 export class PrivacySettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly analyticsConsent?: AnalyticsConsentService,
+  ) {}
 
   async get(userId: string): Promise<PrivacySettings> {
-    const row = await this.prisma.userPrivacySettings.findUnique({
-      where: { user_id: userId },
-    });
+    const [row, doNotSell] = await Promise.all([
+      this.prisma.userPrivacySettings.findUnique({
+        where: { user_id: userId },
+      }),
+      this.doNotSell(userId),
+    ]);
     return row
       ? {
           lastSeen: row.last_seen,
@@ -45,11 +62,46 @@ export class PrivacySettingsService {
           photoFrom: row.photo_from,
           aboutFrom: row.about_from,
           groupAddFrom: row.group_add_from,
+          doNotSell,
         }
-      : DEFAULT_PRIVACY;
+      : { ...DEFAULT_PRIVACY, doNotSell };
+  }
+
+  /** The latest `do_not_sell` answer (false when never set). */
+  async doNotSell(userId: string): Promise<boolean> {
+    const row = await this.prisma.userConsent.findFirst({
+      where: { user_id: userId, consent_type: 'do_not_sell' },
+      orderBy: { created_at: 'desc' },
+      select: { granted: true },
+    });
+    return row?.granted ?? false;
   }
 
   async update(
+    userId: string,
+    patch: Partial<PrivacySettings>,
+    meta: PrivacyPatchMeta = {},
+  ): Promise<PrivacySettings> {
+    if (typeof patch.doNotSell === 'boolean') {
+      // Append-only, like every consent; the analytics gate reads the
+      // latest row (cached), so drop that cache at once.
+      await this.prisma.userConsent.create({
+        data: {
+          user_id: userId,
+          consent_type: 'do_not_sell',
+          granted: patch.doNotSell,
+          ip: meta.ip,
+        },
+      });
+      await this.analyticsConsent?.invalidate(userId);
+    }
+    const audience = { ...patch };
+    delete audience.doNotSell;
+    if (Object.keys(audience).length === 0) return this.get(userId);
+    return this.updateAudiences(userId, audience);
+  }
+
+  private async updateAudiences(
     userId: string,
     patch: Partial<PrivacySettings>,
   ): Promise<PrivacySettings> {

@@ -15,6 +15,15 @@ import '../models/otp_request_dto.dart';
 import '../models/otp_sent_envelope.dart';
 import '../models/otp_verify_dto.dart';
 import '../models/otp_verify_link_dto.dart';
+import '../models/passkey_assert_dto.dart';
+import '../models/passkey_authentication_options_envelope.dart';
+import '../models/passkey_envelope.dart';
+import '../models/passkey_list_envelope.dart';
+import '../models/passkey_login_dto.dart';
+import '../models/passkey_login_options_dto.dart';
+import '../models/passkey_register_dto.dart';
+import '../models/passkey_registration_options_envelope.dart';
+import '../models/passkey_removed_envelope.dart';
 import '../models/password_login_dto.dart';
 import '../models/password_reset_confirm_dto.dart';
 import '../models/password_reset_request_dto.dart';
@@ -198,6 +207,59 @@ abstract class AuthClient {
   @POST('/auth/qr/{qrId}/reject')
   Future<QrLoginAnsweredEnvelope> qrReject({
     @Path('qrId') required String qrId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Options to create a passkey for this account
+  @POST('/auth/passkeys/register/options')
+  Future<PasskeyRegistrationOptionsEnvelope> passkeyRegisterOptions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Store the passkey the authenticator created
+  @POST('/auth/passkeys/register')
+  Future<PasskeyEnvelope> passkeyRegister({
+    @Body() required PasskeyRegisterDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The passkeys of this account
+  @GET('/auth/passkeys')
+  Future<PasskeyListEnvelope> passkeyList({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a passkey (recent sign-in or reauth token)
+  @DELETE('/auth/passkeys/{id}')
+  Future<PasskeyRemovedEnvelope> passkeyRemove({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Options to sign in with a passkey (no identifier: the authenticator offers the saved accounts)
+  @POST('/auth/passkeys/login/options')
+  Future<PasskeyAuthenticationOptionsEnvelope> passkeyLoginOptions({
+    @Body() required PasskeyLoginOptionsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Sign in with the passkey assertion
+  @POST('/auth/passkeys/login')
+  Future<AuthTokensEnvelope> passkeyLogin({
+    @Body() required PasskeyLoginDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Options to confirm a sensitive action with a passkey
+  @POST('/auth/passkeys/reauth/options')
+  Future<PasskeyAuthenticationOptionsEnvelope> passkeyReauthOptions({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A single-use X-Reauth-Token from the passkey assertion (instead of an OTP)
+  @POST('/auth/passkeys/reauth')
+  Future<ReauthTokenEnvelope> passkeyReauth({
+    @Body() required PasskeyAssertDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 }

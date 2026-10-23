@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { NestFactory } from '@nestjs/core';
+import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import { AppModule } from '../app.module';
 import { I18nImportService } from '../modules/i18n/services/i18n-import.service';
 
@@ -12,6 +13,9 @@ import { I18nImportService } from '../modules/i18n/services/i18n-import.service'
 // only adds what the database lacks; never overwrites texts already there,
 // such as the owner's uploads in Admin → Localization.
 async function run(): Promise<void> {
+  // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
+  // in memory, before any module reads the config.
+  await unwrapKmsWrappedKeys();
   const path = process.argv[2];
   const options = { missingOnly: process.argv.includes('--missing-only') };
   if (!path) throw new Error('Usage: npm run i18n:import -- <file>');

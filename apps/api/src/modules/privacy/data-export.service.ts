@@ -54,6 +54,7 @@ export class DataExportService {
       clientProfile,
       attorneyProfile,
       consents,
+      privacySettings,
       sessions,
       cases,
       bids,
@@ -88,6 +89,7 @@ export class DataExportService {
         include: { licenses: true, practice_areas: true },
       }),
       p.userConsent.findMany({ where: { user_id: userId } }),
+      p.userPrivacySettings.findUnique({ where: { user_id: userId } }),
       p.session.findMany({
         where: { user_id: userId },
         select: {
@@ -130,6 +132,16 @@ export class DataExportService {
     return {
       'profile.json': { user, clientProfile, attorneyProfile },
       'consents.json': consents,
+      // Owner 2026-10-22 (CCPA): the audience settings and the current
+      // «Do not sell or share» answer (the history is in consents.json).
+      'privacy.json': {
+        settings: privacySettings,
+        doNotSell:
+          [...consents]
+            .filter((c) => c.consent_type === 'do_not_sell')
+            .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())[0]
+            ?.granted ?? false,
+      },
       'devices.json': sessions,
       'cases.json': cases,
       'bids.json': bids,

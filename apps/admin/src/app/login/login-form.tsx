@@ -1,19 +1,21 @@
 'use client';
 
+import { Fingerprint } from '@phosphor-icons/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ErrorNote } from '@/components/page-header';
 import { RecoveryCodes, TotpQr } from '@/components/totp-qr';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { ApiError, errorText, publicApi } from '@/lib/api/client';
 import { safeNextPath } from '@/lib/safe-next';
+import { PASSKEY_CANCELLED_TEXT, passkeyCancelled, passkeysSupported, signWithPasskey } from '@/lib/webauthn';
 
 type Step =
   | { kind: 'password' }
   | { kind: 'forgot-login' }
   | { kind: 'forgot-answer'; login: string; question: string }
-  | { kind: 'totp'; ticket: string; useRecovery: boolean }
+  | { kind: 'totp'; ticket: string; useRecovery: boolean; passkey: boolean }
   | { kind: 'setup'; ticket: string; secret: string | null; uri: string | null }
   | { kind: 'codes'; codes: string[] };
 
@@ -23,7 +25,9 @@ type Step =
  * yet sets it up right here (QR + ten recovery codes) before the panel
  * opens. The old "code from the email" sign-in is gone. The super admin
  * can reset a forgotten password by answering the security question (the
- * authenticator is still asked afterwards).
+ * authenticator is still asked afterwards). Owner 2026-10-22: an admin
+ * who added a passkey (Face ID / Touch ID / Windows Hello / hardware key)
+ * can pass step 2 with it instead of the code.
  *
  * A finished sign-in puts the admin JWT in an httpOnly cookie — set by
  * app/api/auth/session, never by JS.
@@ -40,6 +44,9 @@ export function LoginForm() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set after mount: the server render must not differ from the browser's.
+  const [canPasskey, setCanPasskey] = useState(false);
+  useEffect(() => setCanPasskey(passkeysSupported()), []);
 
   // Only same-site paths: `//evil.com` or `/\evil.com` would be an open redirect.
   const next = params.get('next');
@@ -71,7 +78,7 @@ export function LoginForm() {
       setNotice(null);
       if (!d.ticket) throw new ApiError(401, 'ADMIN_TICKET_INVALID', '');
       if (!d.totpSetupRequired) {
-        setStep({ kind: 'totp', ticket: d.ticket, useRecovery: false });
+        setStep({ kind: 'totp', ticket: d.ticket, useRecovery: false, passkey: d.passkeyAvailable === true });
         return;
       }
       // First sign-in without an authenticator: set it up now.
@@ -135,6 +142,40 @@ export function LoginForm() {
       const codes = body.data?.recoveryCodes;
       if (mode === 'setup' && codes?.length) setStep({ kind: 'codes', codes });
       else go();
+    });
+
+  /** Step 2 with the passkey: options bound to the ticket → the browser prompt → the session cookie. */
+  const finishWithPasskey = (ticket: string) =>
+    run(async () => {
+      const { data } = await publicApi.POST('/admin/auth/login/passkey/options', { body: { ticket } });
+      const { challengeId, options } = data!.data;
+      let response;
+      try {
+        response = await signWithPasskey(options);
+      } catch (e) {
+        if (passkeyCancelled(e)) {
+          setError(PASSKEY_CANCELLED_TEXT);
+          return;
+        }
+        throw e;
+      }
+      const res = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ticket, passkey: { challengeId, response } }),
+      });
+      const body = (await res.json()) as {
+        error?: { code: string; message: string; details?: Record<string, unknown> };
+      };
+      if (!res.ok) {
+        throw new ApiError(
+          res.status,
+          body.error?.code ?? 'INTERNAL_ERROR',
+          body.error?.message ?? '',
+          body.error?.details,
+        );
+      }
+      go();
     });
 
   if (step.kind === 'setup') {
@@ -372,6 +413,17 @@ export function LoginForm() {
         <Button type="submit" className="w-full" disabled={busy}>
           Войти
         </Button>
+        {step.passkey && canPasskey ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={busy}
+            onClick={() => void finishWithPasskey(step.ticket)}
+          >
+            <Fingerprint size={16} /> Войти с ключом доступа
+          </Button>
+        ) : null}
         <button
           type="button"
           className="w-full text-sm text-muted underline-offset-2 hover:underline"

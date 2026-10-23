@@ -29,7 +29,6 @@ export const APP_PATHS = [
   ['/post/*', 'Post'],
   ['/u/*', 'Profile QR code: a user by @username'],
   ['/q/*', 'Website sign-in QR code'],
-  ['/qr/*', 'Website sign-in QR code (universal link, 2026-10-22)'],
   ['/g/*', 'Group invitation'],
   ['/c/*', 'Channel (lawbid.dev/c/<username>)'],
   ['/auth/email-code', 'Email magic sign-in link'],
@@ -37,8 +36,8 @@ export const APP_PATHS = [
 
 export function appleAppSiteAssociation() {
   return {
-    // Owner 2026-10-22 (passkeys): iOS asks the domain whether the app may
-    // use its passkeys (webcredentials:lawbid.dev in Runner.entitlements).
+    // Owner 2026-10-22: passkeys (WebAuthn) — the iOS app may create and
+    // use passkeys for the relying party lawbid.dev (API: auth/passkeys).
     webcredentials: { apps: [`${TEAM_ID}.${BUNDLE_ID}`] },
     applinks: {
       details: [

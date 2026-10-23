@@ -68,6 +68,12 @@ enum ErrorCode {
   reauthRequired('REAUTH_REQUIRED'),
   @JsonValue('REAUTH_INVALID')
   reauthInvalid('REAUTH_INVALID'),
+  @JsonValue('PASSKEY_INVALID')
+  passkeyInvalid('PASSKEY_INVALID'),
+  @JsonValue('PASSKEY_NOT_FOUND')
+  passkeyNotFound('PASSKEY_NOT_FOUND'),
+  @JsonValue('PASSKEY_LIMIT')
+  passkeyLimit('PASSKEY_LIMIT'),
   @JsonValue('DEVICE_ATTESTATION_REQUIRED')
   deviceAttestationRequired('DEVICE_ATTESTATION_REQUIRED'),
   @JsonValue('ACCOUNT_SUSPENDED')
