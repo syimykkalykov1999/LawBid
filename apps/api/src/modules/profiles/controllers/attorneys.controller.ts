@@ -9,6 +9,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { OptionalAuth } from '../../auth/decorators/optional-auth.decorator';
 import type { Request, Response } from 'express';
 import { notModified } from '../../../common/sync/cheap-etag';
 import { Throttle } from '@nestjs/throttler';
@@ -152,6 +153,7 @@ export class AttorneysController {
     };
   }
 
+  @OptionalAuth()
   @Get(':username')
   @ApiEnvelopeResponse(PublicAttorneyProfileDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })

@@ -20,6 +20,9 @@ export interface Me {
   countryPartnerId?: string | null;
   /** The country partner themself. */
   partnerLead?: boolean;
+  /** Owner 2026-10-22: may get system alerts, and the admin's own switch. */
+  onCallAvailable?: boolean;
+  onCallEnabled?: boolean;
   hasSecurityQuestion: boolean;
   securityQuestion: string | null;
   /** Owner 2026-10-05: sections where this admin must write a reason. */

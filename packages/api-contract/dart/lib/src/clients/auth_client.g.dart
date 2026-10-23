@@ -771,13 +771,15 @@ class _AuthClient implements AuthClient {
 
   @override
   Future<PasskeyRegistrationOptionsEnvelope> passkeyRegisterOptions({
+    String? xReauthToken,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Reauth-Token': xReauthToken};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<PasskeyRegistrationOptionsEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
@@ -803,13 +805,15 @@ class _AuthClient implements AuthClient {
   @override
   Future<PasskeyEnvelope> passkeyRegister({
     required PasskeyRegisterDto body,
+    String? xReauthToken,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Reauth-Token': xReauthToken};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<PasskeyEnvelope>(
@@ -867,13 +871,15 @@ class _AuthClient implements AuthClient {
   @override
   Future<PasskeyRemovedEnvelope> passkeyRemove({
     required String id,
+    String? xReauthToken,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Reauth-Token': xReauthToken};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<PasskeyRemovedEnvelope>(
       Options(method: 'DELETE', headers: _headers, extra: _extra)

@@ -31,6 +31,8 @@ class AdminMeDto {
     required this.securityQuestion,
     required this.reasonRequiredAreas,
     this.passkeyCount,
+    this.onCallAvailable,
+    this.onCallEnabled,
   });
 
   factory AdminMeDto.fromJson(Map<String, Object?> json) =>
@@ -50,6 +52,12 @@ class AdminMeDto {
 
   /// A password is set.
   final bool hasPassword;
+
+  /// Owner 2026-10-22: the admin may get system alerts (owner, or holds the «Дежурный» right).
+  final bool? onCallAvailable;
+
+  /// Owner 2026-10-22: the admin’s own switch for those alerts.
+  final bool? onCallEnabled;
 
   /// Area toggles (empty for the super admin, who reaches everything).
   final Map<String, PermissionsPermissions> permissions;

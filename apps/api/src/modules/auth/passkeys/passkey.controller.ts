@@ -14,7 +14,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import type {
   AuthenticationResponseJSON,
   RegistrationResponseJSON,
@@ -57,6 +62,14 @@ import {
 import { PasskeyService } from './passkey.service';
 
 const E = ErrorCode;
+/** Optional: a recent sign-in is enough; otherwise the single-use token
+ * from POST /auth/reauth (or /auth/passkeys/reauth) lets the call through. */
+const ReauthTokenHeader = ApiHeader({
+  name: 'X-Reauth-Token',
+  required: false,
+  description:
+    'Single-use reauthToken (5 min). Needed only when the sign-in is not recent.',
+});
 const BEARER_401 = [E.UNAUTHORIZED, E.TOKEN_EXPIRED, E.AUTH_SESSION_REVOKED];
 const PASSKEY_LOGIN_PER_IP_PER_HOUR = 120;
 const PASSKEY_REAUTH_PER_USER_PER_HOUR = 60;
@@ -91,6 +104,7 @@ export class PasskeyController {
   // ---- enrolment --------------------------------------------------------
 
   @ApiBearerAuth()
+  @ReauthTokenHeader
   @Post('register/options')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Options to create a passkey for this account' })
@@ -115,6 +129,7 @@ export class PasskeyController {
   }
 
   @ApiBearerAuth()
+  @ReauthTokenHeader
   @Post('register')
   @ApiOperation({ summary: 'Store the passkey the authenticator created' })
   @ApiEnvelopeResponse(PasskeyDto, { status: HttpStatus.CREATED })
@@ -153,6 +168,7 @@ export class PasskeyController {
   }
 
   @ApiBearerAuth()
+  @ReauthTokenHeader
   @Delete(':id')
   @ApiOperation({
     summary: 'Remove a passkey (recent sign-in or reauth token)',

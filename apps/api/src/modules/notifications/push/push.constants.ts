@@ -96,7 +96,24 @@ export interface GroupMessagesJobData {
 /** Members per `group_messages` job (FCM's multicast size). */
 export const GROUP_PUSH_BATCH = 500;
 
+/** Owner 2026-10-22: an on-call alert about an incident of «Состояние
+ * системы». Push-only (never stored), never held by quiet hours or the
+ * category switches; optionally mailed too. */
+export interface OpsAlertJobData {
+  kind: 'ops_alert';
+  recipientId: string;
+  title: string;
+  body: string;
+  incidentId: string;
+  /** opened | reminder | resolved */
+  event: string;
+  /** Also e-mail it (the dispatcher looks up the address). */
+  email?: boolean;
+  deferred?: boolean;
+}
+
 export type PushJobData =
+  | OpsAlertJobData
   | NotificationJobData
   | MessageJobData
   | CallJobData

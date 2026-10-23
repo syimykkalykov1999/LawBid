@@ -226,6 +226,41 @@ export class PushQueueService
   }
 
   /** Re-queue after the recipient's quiet hours. */
+  /** Owner 2026-10-22: one on-call alert (push, optionally e-mail). The job
+   * id carries the incident, the event and its number, so a retried watchdog
+   * never alerts twice. */
+  async enqueueOpsAlert(data: {
+    recipientId: string;
+    title: string;
+    body: string;
+    incidentId: string;
+    event: string;
+    seq: number;
+    email?: boolean;
+  }): Promise<void> {
+    if (!this.queue) return;
+    const { seq, ...job } = data;
+    try {
+      await this.queue.add(
+        PUSH_JOB,
+        { kind: 'ops_alert', ...job },
+        {
+          ...PUSH_JOB_OPTS,
+          delay: 0,
+          jobId: `ops-${data.incidentId}-${data.event}-${seq}-${data.recipientId}`,
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        {
+          incidentId: data.incidentId,
+          err: error instanceof Error ? error.message : error,
+        },
+        'ops alert enqueue failed',
+      );
+    }
+  }
+
   async defer(data: PushJobData, until: Date, jobId: string): Promise<void> {
     if (!this.queue) return;
     await this.queue.add(

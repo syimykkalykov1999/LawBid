@@ -13,7 +13,7 @@ export type VideoCallUnavailableReason = 'flag_off' | 'provider_not_configured';
  * SFU) would implement this and be picked here.
  */
 export interface VideoCallProvider {
-  readonly name: 'webrtc';
+  readonly name: 'webrtc' | 'livekit';
   /** Keys present (Admin → Integrations, or the server env). */
   isConfigured(): Promise<boolean>;
 }

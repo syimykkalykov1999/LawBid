@@ -125,6 +125,9 @@ export const CRON_JOBS = {
   fraudSweep: 'fraud.sweep',
   /** Owner 2026-10-05 zero maintenance: DB probe + auto pause of heavy jobs. */
   opsGuard: 'ops.guard',
+  /** Owner 2026-10-22: «Состояние системы» watchdog — opens / closes
+   * incidents and alerts the on-call admins. */
+  statusWatchdog: 'ops.status-watchdog',
   /** AWS spend vs the monthly budget; scale to the minimum at 100 %. */
   opsCostCheck: 'ops.cost-check',
   /** Newest database backup (provider API) is fresh. */
@@ -221,6 +224,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.storageSnapshot, pattern: '55 4 * * *' },
   { name: CRON_JOBS.fraudSweep, pattern: '55 3 * * *' },
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
+  { name: CRON_JOBS.statusWatchdog, pattern: '* * * * *' },
   { name: CRON_JOBS.opsCostCheck, pattern: '7 * * * *' },
   { name: CRON_JOBS.opsBackupCheck, pattern: '12 * * * *' },
   { name: CRON_JOBS.costAutoscale, pattern: '17 * * * *' },

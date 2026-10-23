@@ -42,6 +42,7 @@ import {
   PUSH_QUEUE,
   PUSH_SENDER,
   type GroupMessagesJobData,
+  type OpsAlertJobData,
   type MessageJobData,
   type PushMessage,
   type CallJobData,
@@ -172,6 +173,7 @@ export class PushDispatcher
 
   /** Returns what happened (tests, dashboards). */
   async dispatch(data: PushJobData, jobId: string): Promise<DispatchResult> {
+    if (data.kind === 'ops_alert') return this.dispatchOpsAlert(data);
     if (data.kind === 'call') return this.dispatchCall(data);
     if (data.kind === 'call_end') {
       // Never held by settings or quiet hours: it only silences a ring.
@@ -195,6 +197,57 @@ export class PushDispatcher
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);
+  }
+
+  /** Owner 2026-10-22: an on-call alert. An admin who switched «дежурный»
+   * on wants it at night too, so no quiet hours and no category switch; the
+   * e-mail leg counts against the e-mail budget like any other mail. */
+  private async dispatchOpsAlert(
+    data: OpsAlertJobData,
+  ): Promise<DispatchResult> {
+    await this.sender.send(
+      {
+        userId: data.recipientId,
+        title: data.title,
+        body: data.body,
+        data: {
+          type: 'ops_alert',
+          incidentId: data.incidentId,
+          event: data.event,
+        },
+        sound: 'notification',
+        collapseKey: `ops:${data.incidentId}`,
+      },
+      `ops:${data.incidentId}:${data.event}:${data.recipientId}`,
+    );
+    if (data.email) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: data.recipientId },
+        select: { email: true, ui_language: true },
+      });
+      if (user?.email) {
+        try {
+          await this.costGuard?.consume('email');
+          await this.email.sendEmail(
+            buildNotificationEmail({
+              email: user.email,
+              title: data.title,
+              body: data.body,
+              locale: user.ui_language,
+            }),
+          );
+        } catch (error) {
+          this.logger.warn(
+            {
+              incidentId: data.incidentId,
+              err: error instanceof Error ? error.message : error,
+            },
+            'ops alert email skipped',
+          );
+        }
+      }
+    }
+    return 'sent';
   }
 
   /** OQ-041: ring the callee while the call is still ringing. Calls ring

@@ -13,6 +13,7 @@ import '../models/admin_login_verify_result_envelope.dart';
 import '../models/admin_logout_result_envelope.dart';
 import '../models/admin_me_envelope.dart';
 import '../models/admin_ok_envelope.dart';
+import '../models/admin_on_call_dto.dart';
 import '../models/admin_passkey_login_dto.dart';
 import '../models/admin_passkey_options_dto.dart';
 import '../models/admin_passkey_register_dto.dart';
@@ -173,6 +174,13 @@ abstract class AdminAuthClient {
   @POST('/admin/auth/recover/password')
   Future<AdminOkEnvelope> adminRecoverPassword({
     @Body() required AdminRecoverPasswordDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Switch my system alerts (push + e-mail) on or off
+  @PUT('/admin/auth/me/on-call')
+  Future<AdminOkEnvelope> adminSetOnCall({
+    @Body() required AdminOnCallDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

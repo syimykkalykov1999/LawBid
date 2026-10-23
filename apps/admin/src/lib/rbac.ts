@@ -52,6 +52,8 @@ export const GRANTABLE_AREAS: readonly { key: string; label: string; hint: strin
   { key: 'budget_limits', label: 'Лимиты расходов', hint: 'потолки на SMS, видео, хранилище и переводы в Настройках', ownerGrants: true },
   { key: 'audit', label: 'Журнал аудита', hint: 'кто что сделал; без этого права админ видит только свои действия', ownerGrants: true },
   { key: 'chats', label: 'Чаты поддержки', hint: 'переписки с пользователями в поддержке' },
+  // Owner 2026-10-22: gets the system alerts; each admin can still mute them in Профиль.
+  { key: 'on_call', label: 'Дежурный', hint: 'пуш и письмо при сбое системы (база, платежи, пуши, звонки); сам сбой смотрит только владелец' },
 ];
 
 /** Never grantable — shown locked so nobody wonders where they are. */

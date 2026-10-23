@@ -35,6 +35,8 @@ AdminMeDto _$AdminMeDtoFromJson(Map<String, dynamic> json) => AdminMeDto(
       .map((e) => e as String)
       .toList(),
   passkeyCount: (json['passkeyCount'] as num?)?.toInt(),
+  onCallAvailable: json['onCallAvailable'] as bool?,
+  onCallEnabled: json['onCallEnabled'] as bool?,
 );
 
 Map<String, dynamic> _$AdminMeDtoToJson(
@@ -48,6 +50,8 @@ Map<String, dynamic> _$AdminMeDtoToJson(
   'lastLoginAt': ?instance.lastLoginAt?.toIso8601String(),
   'login': ?instance.login,
   'hasPassword': instance.hasPassword,
+  'onCallAvailable': ?instance.onCallAvailable,
+  'onCallEnabled': ?instance.onCallEnabled,
   'permissions': instance.permissions.map((k, e) => MapEntry(k, e.toJson())),
   'hasSecurityQuestion': instance.hasSecurityQuestion,
   'canManageAdmins': instance.canManageAdmins,

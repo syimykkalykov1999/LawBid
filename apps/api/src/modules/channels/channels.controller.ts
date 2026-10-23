@@ -13,6 +13,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -133,6 +134,7 @@ export class ChannelsController {
     return this.channels.createVideoUpload(user, dto);
   }
 
+  @OptionalAuth()
   @Get(':ref')
   @ApiOperation({ summary: 'A channel by id or @username' })
   @ApiEnvelopeResponse(ChannelDto)
@@ -249,6 +251,7 @@ export class ChannelsController {
     return this.channels.removeAdmin(user, p.id, p.userId);
   }
 
+  @OptionalAuth()
   @Get(':id/posts')
   @ApiOperation({ summary: 'Posts of a channel, newest first' })
   @ApiEnvelopeResponse(ChannelPostDto, { isArray: true })
@@ -306,6 +309,7 @@ export class ChannelsController {
     return this.channels.sharePost(user, p.id, p.postId);
   }
 
+  @OptionalAuth()
   @Get(':id/posts/:postId')
   @ApiOperation({ summary: 'One post of a channel' })
   @ApiEnvelopeResponse(ChannelPostDto)

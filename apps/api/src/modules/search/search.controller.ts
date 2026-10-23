@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -63,6 +64,7 @@ export class SearchController {
   // the whole table; 30 a minute per person is a human searching, not a
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @OptionalAuth()
   @Get('search/attorneys')
   @ApiOperation({ summary: 'Attorneys / people (docs/05 §7.3)' })
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
@@ -77,6 +79,7 @@ export class SearchController {
     return this.search.attorneys(user, q);
   }
 
+  @OptionalAuth()
   @Get('search/suggest')
   @ApiOperation({ summary: 'Type-ahead: topics, handles, practices by prefix' })
   @ApiEnvelopeResponse(SuggestionDto, { isArray: true })
@@ -88,6 +91,7 @@ export class SearchController {
     return this.search.suggest(user, q.q);
   }
 
+  @OptionalAuth()
   @Get('search/practices')
   @ApiOperation({
     summary: 'Practices whose name in any language starts with the query',
@@ -144,6 +148,7 @@ export class SearchController {
   // the whole table; 30 a minute per person is a human searching, not a
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @OptionalAuth()
   @Get('search/posts')
   @ApiOperation({ summary: 'Posts, full text (docs/05 §7.5)' })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
@@ -162,6 +167,7 @@ export class SearchController {
   // the whole table; 30 a minute per person is a human searching, not a
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @OptionalAuth()
   @Get('search/tags')
   @ApiOperation({ summary: 'Hashtags by prefix (docs/05 §7.5)' })
   @ApiEnvelopeResponse(TagDto, { isArray: true })
@@ -176,6 +182,7 @@ export class SearchController {
     return this.search.tags(user, q.q);
   }
 
+  @OptionalAuth()
   @Get('search/trending-tags')
   @ApiOperation({ summary: 'Top hashtags of 7 days (docs/05 §7.2)' })
   @ApiEnvelopeResponse(TagDto, { isArray: true })
@@ -187,6 +194,7 @@ export class SearchController {
   // the whole table; 30 a minute per person is a human searching, not a
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @OptionalAuth()
   @Get('tags/:tag/posts')
   @ApiOperation({ summary: 'Posts of a hashtag, top or new (docs/05 §7.5)' })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
@@ -229,6 +237,7 @@ export class SearchController {
   // the whole table; 30 a minute per person is a human searching, not a
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @OptionalAuth()
   @Get('search/latest-posts')
   @ApiOperation({
     summary:

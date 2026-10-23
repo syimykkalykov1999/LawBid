@@ -16,6 +16,10 @@ export class HealthItemDto {
       'backup',
       'cost',
       'message_keys',
+      'stripe_webhooks',
+      'push',
+      'turn',
+      'http',
     ],
   })
   key!: string;
@@ -28,6 +32,24 @@ export class HealthItemDto {
     additionalProperties: true,
     description: 'Numbers behind the status (the admin words them).',
   })
+  detail!: Record<string, unknown>;
+}
+
+/** Owner 2026-10-22: one outage on the status board (last 24 h). */
+export class IncidentDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ description: 'The board item key: database, redis, push …' })
+  component!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  openedAt!: string;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  closedAt!: string | null;
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
   detail!: Record<string, unknown>;
 }
 
@@ -76,6 +98,12 @@ export class SystemHealthDto {
 
   @ApiProperty({ type: [HealthItemDto] })
   items!: HealthItemDto[];
+
+  @ApiPropertyOptional({
+    type: [IncidentDto],
+    description: 'Incidents opened in the last 24 hours, or still open.',
+  })
+  incidents?: IncidentDto[];
 
   @ApiPropertyOptional({ type: HeavyPauseDto, nullable: true })
   heavyPause!: HeavyPauseDto | null;

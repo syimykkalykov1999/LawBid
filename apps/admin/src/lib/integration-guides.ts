@@ -187,6 +187,27 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  livekit: {
+    steps: [
+      'Поднимите LiveKit: свой сервер (бесплатно, open-source, livekit.io/self-hosting) или аккаунт LiveKit Cloud (cloud.livekit.io) — платный, включайте, когда появится выручка.',
+      'LiveKit Cloud: Settings → Keys → Create key. Скопируйте три значения: адрес проекта (wss://…livekit.cloud) — это LIVEKIT_URL, API Key — LIVEKIT_API_KEY, API Secret — LIVEKIT_API_SECRET (секрет показывается один раз).',
+      'Свой сервер: адрес wss://ваш-домен, а ключ и секрет — из файла livekit.yaml, раздел keys («ключ: секрет»).',
+      'Вставьте три значения в поля ниже и нажмите «Сохранить» (потребуется код 2FA). «Проверка» ничего не включает.',
+      'Вебхук: в LiveKit (Settings → Webhooks / параметр webhook в livekit.yaml) добавьте адрес из блока ниже — так LawBid узнаёт, что человек вышел из звонка.',
+      'Включение: Админка → Настройки → calls.video_provider = livekit. Пока ключей нет, система не даст выбрать livekit. Звонки до 9 человек отлично работают и без LiveKit (p2p).',
+    ],
+    links: [
+      { label: 'LiveKit Cloud', url: 'https://cloud.livekit.io/' },
+      { label: 'Свой сервер', url: 'https://docs.livekit.io/home/self-hosting/deployment/' },
+    ],
+    webhookPath: '/api/v1/webhooks/livekit',
+    fields: {
+      url: { how: 'LIVEKIT_URL: адрес сервера, начинается с wss://.', example: 'wss://lawbid-abc123.livekit.cloud' },
+      apiKey: { how: 'LIVEKIT_API_KEY: LiveKit Cloud → Settings → Keys → API Key.', example: 'APIxxxxxxxx' },
+      apiSecret: { how: 'LIVEKIT_API_SECRET: там же, Secret (показывается один раз).', example: 'длинная строка' },
+    },
+  },
+
   persona: {
     steps: ['Откройте app.withpersona.com → API → API Keys → создайте или скопируйте ключ.'],
     links: [{ label: 'Persona', url: 'https://app.withpersona.com/' }],

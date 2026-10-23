@@ -8,6 +8,8 @@ import 'package:json_annotation/json_annotation.dart';
 enum VideoCallConfigDtoProvider {
   @JsonValue('webrtc')
   webrtc('webrtc'),
+  @JsonValue('livekit')
+  livekit('livekit'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

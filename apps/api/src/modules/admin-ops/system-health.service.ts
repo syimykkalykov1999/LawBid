@@ -1,7 +1,9 @@
-import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import type Redis from 'ioredis';
+import { IncidentsService } from '../../common/ops/status/incidents.service';
+import { StatusProbesService } from '../../common/ops/status/status-probes.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
@@ -61,6 +63,9 @@ export class SystemHealthService implements OnModuleDestroy {
     private readonly storage: S3StorageService,
     private readonly cipher: MessageBodyCipher,
     private readonly reencrypt: MessageReencryptJob,
+    // Owner 2026-10-22: the status board's extra probes and incident list.
+    @Optional() private readonly probes?: StatusProbesService,
+    @Optional() private readonly incidents?: IncidentsService,
   ) {}
 
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
@@ -76,6 +81,17 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('cost', () => this.cost()),
       this.safe('message_keys', () => this.messageKeys()),
     ]);
+    const extra = this.probes ? await this.probes.extra() : [];
+    items.push(...extra.filter((e) => !items.some((i) => i.key === e.key)));
+    const incidents = this.incidents
+      ? (await this.incidents.recent(24, now).catch(() => [])).map((i) => ({
+          id: i.id,
+          component: i.component,
+          openedAt: i.openedAt.toISOString(),
+          closedAt: i.closedAt?.toISOString() ?? null,
+          detail: i.detail,
+        }))
+      : [];
     const [
       heavyPause,
       scaleMode,
@@ -102,6 +118,7 @@ export class SystemHealthService implements OnModuleDestroy {
       overall,
       generatedAt: now.toISOString(),
       items,
+      incidents,
       heavyPause,
       scaleMode,
       actions: { onAws: this.aws.available, budget: this.aws.budgetAvailable },

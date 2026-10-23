@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'health_item_dto.dart';
 import 'heavy_pause_dto.dart';
+import 'incident_dto.dart';
 import 'ops_actions_dto.dart';
 import 'ops_settings_dto.dart';
 import 'scale_mode_dto.dart';
@@ -21,6 +22,7 @@ class SystemHealthDto {
     required this.items,
     required this.actions,
     required this.settings,
+    this.incidents,
     this.heavyPause,
     this.scaleMode,
   });
@@ -31,6 +33,9 @@ class SystemHealthDto {
   final SystemHealthDtoOverall overall;
   final String generatedAt;
   final List<HealthItemDto> items;
+
+  /// Incidents opened in the last 24 hours, or still open.
+  final List<IncidentDto>? incidents;
   final HeavyPauseDto? heavyPause;
   final ScaleModeDto? scaleMode;
   final OpsActionsDto actions;

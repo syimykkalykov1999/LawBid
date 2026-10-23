@@ -8,6 +8,7 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
+import { Switch } from '@/components/ui/switch';
 import { Input, Label } from '@/components/ui/input';
 import { TwoFactorCard } from '@/components/two-factor-card';
 import { useToast } from '@/components/ui/toast';
@@ -57,9 +58,48 @@ export default function ProfilePage() {
         {me.role === 'super_admin' ? <CredentialsCard hasPassword={me.hasPassword} login={me.login} /> : null}
         <TwoFactorCard enabled={me.totpEnabled} />
         <PasskeysCard />
+        {me.onCallAvailable ? <OnCallCard enabled={me.onCallEnabled ?? true} /> : null}
         {me.role === 'super_admin' ? <QuestionCard question={me.securityQuestion} /> : null}
       </div>
     </>
+  );
+}
+
+/** Owner 2026-10-22: «Дежурный» — system alerts (push + e-mail) for this admin. */
+function OnCallCard({ enabled }: { enabled: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const save = useMutation({
+    mutationFn: async (value: boolean) => {
+      await api.PUT('/admin/auth/me/on-call', { body: { enabled: value } });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['me'] });
+      toast.success('Сохранено');
+    },
+    onError: (e) => toast.error(e),
+  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck size={16} weight="light" /> Дежурный
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex items-start gap-4 text-sm">
+        <p className="min-w-0 flex-1 text-muted">
+          Когда в системе сбой (база, Redis, очереди, платежи Stripe, пуши, звонки, ошибки API), вам приходит
+          пуш в приложение и письмо; пока сбой идёт, напоминание каждые 15 минут, а потом сообщение «восстановлено».
+          Выключите, если вы в отпуске.
+        </p>
+        <Switch
+          label="Получать сообщения о сбоях системы"
+          checked={enabled}
+          disabled={save.isPending}
+          onChange={(v) => save.mutate(v)}
+        />
+      </CardContent>
+    </Card>
   );
 }
 

@@ -14,6 +14,7 @@ import '../models/hidden_calls_envelope.dart';
 import '../models/hide_calls_dto.dart';
 import '../models/ice_servers_envelope.dart';
 import '../models/invite_call_dto.dart';
+import '../models/live_kit_join_envelope.dart';
 import '../models/ongoing_group_call_list_envelope.dart';
 import '../models/start_call_dto.dart';
 import '../models/start_call_vote_dto.dart';
@@ -103,6 +104,13 @@ abstract class CallsClient {
   /// Whether video calls are available now
   @GET('/calls/video')
   Future<VideoCallConfigEnvelope> callVideoConfig({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// LiveKit room access for this call (only while calls run on LiveKit)
+  @POST('/calls/{id}/livekit-token')
+  Future<LiveKitJoinEnvelope> livekitToken({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

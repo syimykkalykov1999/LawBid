@@ -29,6 +29,7 @@ import {
   EndCallDto,
   IceServersDto,
   InviteCallDto,
+  LiveKitJoinDto,
   GroupCallParamDto,
   StartCallDto,
   StartCallVoteDto,
@@ -170,6 +171,24 @@ export class CallsController {
   @ApiEnvelopeResponse(VideoCallConfigDto)
   callVideoConfig(): Promise<VideoCallConfigDto> {
     return this.calls.videoConfig();
+  }
+
+  @Post('calls/:id/livekit-token')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'LiveKit room access for this call (only while calls run on LiveKit)',
+  })
+  @ApiEnvelopeResponse(LiveKitJoinDto)
+  @ApiErrors({
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+  })
+  livekitToken(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+  ): Promise<LiveKitJoinDto> {
+    return this.calls.livekitToken(user, p.id);
   }
 
   @Get('calls/ice-servers')

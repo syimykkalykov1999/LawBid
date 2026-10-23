@@ -40,6 +40,23 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     if (key.startsWith('treasury.')) continue;
     out[key] = inferred(def);
   }
+  // Owner 2026-10-22: calls. The provider switch is checked again on save
+  // (livekit needs LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET).
+  out['calls.video_provider'] = {
+    type: 'string',
+    defaultValue: 'p2p',
+    description:
+      'Who carries video calls: p2p (device to device, up to 9 people) or livekit (media server; needs the LiveKit keys in Integrations).',
+    pattern: /^(p2p|livekit)$/,
+  };
+  out['calls.max_participants'] = {
+    type: 'integer',
+    defaultValue: 9,
+    description:
+      'Most people in one group call. With p2p the effective cap is 9 whatever is set here.',
+    min: 2,
+    max: 50,
+  };
   for (const provider of COST_PROVIDERS) {
     for (const window of ['per_minute_max', 'daily_max', 'monthly_max']) {
       out[`budget.${provider}.${window}`] = {

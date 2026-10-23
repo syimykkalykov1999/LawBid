@@ -965,7 +965,8 @@ export class PostsService {
     hidden: string[],
   ): Promise<PostDto[]> {
     const delivery = this.promoDelivery;
-    if (!delivery || items.length === 0) return items;
+    // Guests see no paid slots (frequency caps are per person).
+    if (!delivery || items.length === 0 || user.guest) return items;
     try {
       const s = await delivery.settings();
       if (!s.postsEnabled || !s.reelsEnabled) return items;

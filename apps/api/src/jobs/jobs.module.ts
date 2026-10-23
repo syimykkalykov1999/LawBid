@@ -49,6 +49,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
+import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -149,6 +150,7 @@ export class JobsModule {
         NotificationsRetentionJob,
         OpsMetricsJob,
         OpsGuardJob,
+        StatusWatchdogJob,
         // Owner 2026-10-05: the planner's reminders and archive cleanup.
         TaskRemindersJob,
         TaskArchivePurgeJob,
