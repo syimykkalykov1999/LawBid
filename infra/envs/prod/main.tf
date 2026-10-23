@@ -32,6 +32,7 @@ module "stack" {
   # Owner 2026-10-16: the launch database is RDS PostgreSQL in our AWS.
   create_database                 = var.create_database
   database_instance_class         = var.database_instance_class
+  database_max_connections        = var.database_max_connections
   database_backup_retention_days  = var.database_backup_retention_days
   azs                             = var.azs
   vpc_cidr                        = var.vpc_cidr

@@ -6,13 +6,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -141,14 +140,14 @@ Future<List<PickedChatFile>> pickChatFiles(
       // a phone; the original stays on the device.
       final picked = videoOn
           ? await ImagePicker().pickMultipleMedia(
-              maxWidth: kChatPhotoMaxPx,
-              maxHeight: kChatPhotoMaxPx,
-              imageQuality: kChatPhotoQuality,
+              maxWidth: ClientTuning.chatPhotoMaxPx,
+              maxHeight: ClientTuning.chatPhotoMaxPx,
+              imageQuality: ClientTuning.chatPhotoQuality,
             )
           : await ImagePicker().pickMultiImage(
-              maxWidth: kChatPhotoMaxPx,
-              maxHeight: kChatPhotoMaxPx,
-              imageQuality: kChatPhotoQuality,
+              maxWidth: ClientTuning.chatPhotoMaxPx,
+              maxHeight: ClientTuning.chatPhotoMaxPx,
+              imageQuality: ClientTuning.chatPhotoQuality,
             );
       for (final f in picked) {
         // Too big: said at once, never read whole into the page's memory
@@ -170,9 +169,9 @@ Future<List<PickedChatFile>> pickChatFiles(
     case 'camera':
       final f = await ImagePicker().pickImage(
         source: ImageSource.camera,
-        maxWidth: 2560,
-        maxHeight: 2560,
-        imageQuality: 90,
+        maxWidth: ClientTuning.chatPhotoMaxPx,
+        maxHeight: ClientTuning.chatPhotoMaxPx,
+        imageQuality: ClientTuning.chatPhotoQuality,
       );
       if (f != null) add(await f.readAsBytes(), f.name);
     case 'files':

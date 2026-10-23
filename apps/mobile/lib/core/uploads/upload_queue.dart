@@ -5,6 +5,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -268,8 +269,7 @@ class UploadQueue with WidgetsBindingObserver {
   /// The wait before retry number [failures] (1-based): 1, 2, 4 … 30 s.
   @visibleForTesting
   static Duration backoff(int failures) {
-    final s = 1 << (failures - 1).clamp(0, 5);
-    return Duration(seconds: s > 30 ? 30 : s);
+    return ClientTuning.outboxBackoff(failures);
   }
 
   /// Refusals that no repeat can change.

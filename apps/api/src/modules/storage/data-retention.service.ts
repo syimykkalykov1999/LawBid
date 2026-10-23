@@ -17,6 +17,10 @@ export interface RetentionResult {
   snapshots: number;
   postViews: number;
   appEvents: number;
+  /** Scale audit 2026-10-23: one row per impression / view of a post. */
+  postViewEvents: number;
+  /** Scale audit 2026-10-23: one row per active person per day. */
+  userActivityDays: number;
 }
 
 /**
@@ -31,6 +35,12 @@ export interface RetentionResult {
  * - post_views (`storage.retention_post_views_days`, 365): the who-viewed
  *   rows only dedupe a viewer; the post's own view_count stays. Without
  *   this the table grows with every user x post for ever.
+ * - post_view_events (`storage.retention_post_view_events_days`, 730): one
+ *   row per impression / view of a post, the fastest-growing table after
+ *   messages; only a post's own insights read it;
+ * - user_activity_days (`storage.retention_user_activity_days`, 400): one
+ *   row per active person per day (1M daily users = 365M rows a year); the
+ *   admin charts read at most the last 60 days.
  * 0 days = keep forever. Already handled elsewhere: notifications
  * (notifications.retention_days), sessions, OTP, processed Stripe webhooks
  * (30 days), the case journal (5 years), archived tasks. Never touched:
@@ -51,14 +61,23 @@ export class DataRetentionService implements OnModuleDestroy {
 
   async run(now: Date = new Date()): Promise<RetentionResult | null> {
     if (!(await this.settings.boolean('storage.auto_retention'))) return null;
-    const [authDays, activityDays, snapshotDays, viewsDays, eventsDays] =
-      await Promise.all([
-        this.settings.number('storage.retention_auth_events_days'),
-        this.settings.number('storage.retention_assistant_activity_days'),
-        this.settings.number('storage.retention_snapshots_days'),
-        this.settings.number('storage.retention_post_views_days'),
-        this.settings.number('storage.retention_app_events_days'),
-      ]);
+    const [
+      authDays,
+      activityDays,
+      snapshotDays,
+      viewsDays,
+      eventsDays,
+      viewEventsDays,
+      activeDaysDays,
+    ] = await Promise.all([
+      this.settings.number('storage.retention_auth_events_days'),
+      this.settings.number('storage.retention_assistant_activity_days'),
+      this.settings.number('storage.retention_snapshots_days'),
+      this.settings.number('storage.retention_post_views_days'),
+      this.settings.number('storage.retention_app_events_days'),
+      this.settings.number('storage.retention_post_view_events_days'),
+      this.settings.number('storage.retention_user_activity_days'),
+    ]);
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
     const result: RetentionResult = {
       authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
@@ -99,6 +118,28 @@ export class DataRetentionService implements OnModuleDestroy {
                 where: { day: { lt: before(eventsDays) } },
               })
             ).count
+          : 0,
+      postViewEvents:
+        viewEventsDays > 0
+          ? await this.batched(
+              (limit) => this.prisma.$executeRaw`
+                DELETE FROM post_view_events
+                WHERE ctid IN (
+                  SELECT ctid FROM post_view_events
+                  WHERE created_at < ${before(viewEventsDays)}
+                  LIMIT ${limit})`,
+            )
+          : 0,
+      userActivityDays:
+        activeDaysDays > 0
+          ? await this.batched(
+              (limit) => this.prisma.$executeRaw`
+                DELETE FROM user_activity_days
+                WHERE ctid IN (
+                  SELECT ctid FROM user_activity_days
+                  WHERE day < ${before(activeDaysDays)}::DATE
+                  LIMIT ${limit})`,
+            )
           : 0,
     };
     if (Object.values(result).some((n) => n > 0)) {

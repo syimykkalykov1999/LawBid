@@ -1,6 +1,10 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
 import { TEXT_LIMIT_DEFS } from '../../common/app-settings/text-limits';
+import {
+  CLIENT_TUNING_DEFS,
+  type ClientTuningDef,
+} from '../../common/app-settings/client-tuning';
 import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
 import { ADMIN_AREAS } from '../admin-auth/admin-permissions';
@@ -184,6 +188,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Requests per minute one signed-in admin may make (users stay at 100); ADMIN_THROTTLE_LIMIT in the env overrides it.',
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
+  };
+  out['realtime.max_sockets_per_user'] = {
+    ...out['realtime.max_sockets_per_user'],
+    description:
+      'Most live (socket) connections one person may hold on one API server; the oldest are closed beyond it. Several devices and browser tabs are normal: keep it at 10 or more.',
+    min: 1,
+    max: 100,
+  };
+  out['security.anonymous_rate_limit_per_minute'] = {
+    ...out['security.anonymous_rate_limit_per_minute'],
+    description:
+      'Requests per minute one address may make before signing in (guest browsing, login screens). Many people share a mobile-carrier or office address: raise it if they report "too many requests". Not below 100.',
+    min: 100,
+    max: 5000,
   };
   // Owner 2026-10-07: daily cap of sign-in codes per phone / e-mail.
   // At least 1: 0 would lock everyone out of sign-in, it never means
@@ -377,7 +395,42 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description: 'ISO-3166 alpha-2 countries SMS codes may be sent to.',
     pattern: /^[A-Z]{2}$/,
   };
+  // Scale audit 2026-10-23: bounds and English descriptions for the knobs of
+  // the phone's own traffic (client.*) and the chat photo size.
+  for (const [key, def] of Object.entries(CLIENT_TUNING_DEFS) as [
+    string,
+    ClientTuningDef,
+  ][]) {
+    out[key] = {
+      ...out[key],
+      description: def.description,
+      ...(def.min !== undefined ? { min: def.min } : {}),
+      ...(def.max !== undefined ? { max: def.max } : {}),
+    };
+  }
+  out['media.chat_photo_max_px'] = {
+    ...out['media.chat_photo_max_px'],
+    description:
+      'Longest side (px) of a photo sent in a chat, shrunk on the phone before upload.',
+    min: 640,
+    max: 4096,
+  };
+  out['media.chat_photo_quality'] = {
+    ...out['media.chat_photo_quality'],
+    description: 'JPEG quality (50–100) of a photo sent in a chat.',
+    min: 50,
+    max: 100,
+  };
   for (const platform of ['ios', 'android']) {
+    // The "Update" button of the forced / soft update screen. Needed for
+    // iOS before the first release: the App Store id exists only after the
+    // app is registered, and the app cannot learn it any other way.
+    out[`store_url_${platform}`] = {
+      type: 'string',
+      defaultValue: null,
+      description: `Store page of the ${platform} app (https link) opened by the "Update" button of the update screen.`,
+      pattern: /^https:\/\/[^\s]+$/,
+    };
     out[`min_app_version_${platform}`] = {
       type: 'string',
       defaultValue: null,

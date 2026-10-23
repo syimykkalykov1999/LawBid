@@ -7,7 +7,7 @@ import {
 } from '@/lib/api/server';
 
 /** How long the API may take to start answering. */
-const UPSTREAM_TIMEOUT_MS = 15_000;
+const UPSTREAM_TIMEOUT_MS = 120_000;
 const RETRY_AFTER_SEC = 2;
 
 /**

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 /// A server event (docs/05 §8.5): `message:new`, `message:read`, `typing`,
@@ -111,8 +112,8 @@ class RealtimeClient {
           .setAuth({'token': token})
           .disableAutoConnect()
           .enableReconnection()
-          .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(10000)
+          .setReconnectionDelay(ClientTuning.reconnectMinMs)
+          .setReconnectionDelayMax(ClientTuning.reconnectMaxMs)
           .setRandomizationFactor(0.5)
           .build(),
     );

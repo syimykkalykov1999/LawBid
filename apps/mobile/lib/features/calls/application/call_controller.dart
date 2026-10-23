@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -1577,7 +1578,7 @@ class CallController extends Notifier<CallSession> {
 
   void _startSync() {
     _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(kCallSyncInterval, (_) {
+    _syncTimer = Timer.periodic(ClientTuning.callSync, (_) {
       final id = state.call?.id;
       if (id != null && state.busy) unawaited(_resync(id));
     });
