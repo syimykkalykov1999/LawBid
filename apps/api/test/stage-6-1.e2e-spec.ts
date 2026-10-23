@@ -93,6 +93,23 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     expect(r.headers['access-control-allow-credentials']).toBe('true');
   });
 
+  // Owner 2026-10-23 (web pass): the web app revalidates with If-None-Match
+  // and reads the tag from ETag, both cross-origin.
+  it('CORS: the web origin may send If-None-Match and read ETag', async () => {
+    const pre = await request(baseUrl)
+      .options('/api/v1/countries')
+      .set('Origin', 'https://lawbid.dev')
+      .set('Access-Control-Request-Method', 'GET')
+      .set('Access-Control-Request-Headers', 'if-none-match');
+    expect(pre.headers['access-control-allow-headers']).toMatch(
+      /If-None-Match/i,
+    );
+    const get = await request(baseUrl)
+      .get('/api/v1/countries')
+      .set('Origin', 'https://lawbid.dev');
+    expect(get.headers['access-control-expose-headers']).toMatch(/ETag/i);
+  });
+
   it('logs never contain phones, emails or tokens (pino redact + serializer)', () => {
     const lines: string[] = [];
     const sink = new Writable({
