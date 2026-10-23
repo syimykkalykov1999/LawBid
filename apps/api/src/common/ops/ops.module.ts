@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { AwsCapacityService } from './aws-capacity.service';
 import { AwsOpsService } from './aws-ops.service';
 import { HttpStatsService } from './http-stats.service';
+import { RealtimeStatsService } from './realtime-stats.service';
 import { OpsStateService } from './ops-state.service';
 import { IncidentsService } from './status/incidents.service';
 import { StatusProbesService } from './status/status-probes.service';
@@ -15,6 +16,7 @@ import { StatusProbesService } from './status/status-probes.service';
     AwsCapacityService,
     OpsStateService,
     HttpStatsService,
+    RealtimeStatsService,
     StatusProbesService,
     IncidentsService,
   ],
@@ -23,6 +25,7 @@ import { StatusProbesService } from './status/status-probes.service';
     AwsCapacityService,
     OpsStateService,
     HttpStatsService,
+    RealtimeStatsService,
     StatusProbesService,
     IncidentsService,
   ],

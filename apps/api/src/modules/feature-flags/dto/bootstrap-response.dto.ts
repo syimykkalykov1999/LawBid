@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { LegalDocType } from '@prisma/client';
+import { ClientTimingsDto } from '../../../common/dto/client-timings.dto';
 import { I18nLanguageDto } from '../../i18n/dto/i18n-responses.dto';
 
 /**
@@ -60,4 +61,10 @@ export class BootstrapDto {
 
   @ApiProperty({ type: [BootstrapLegalDocumentDto] })
   legal_documents!: BootstrapLegalDocumentDto[];
+
+  @ApiProperty({
+    type: ClientTimingsDto,
+    description: 'Server-driven client behaviour (connection timings).',
+  })
+  client!: ClientTimingsDto;
 }

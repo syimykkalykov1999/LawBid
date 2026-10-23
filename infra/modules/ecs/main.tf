@@ -295,7 +295,12 @@ resource "aws_ecs_task_definition" "api" {
       retries     = 3
       startPeriod = 30
     }
-    stopTimeout      = 30
+    # Owner 2026-10-23 («связь пропала»): on SIGTERM the API sends every
+    # socket `server:going-away` with a random 0-20 s retry and serves the
+    # existing ones until they leave (up to ~35 s, realtime.gateway.ts
+    # drainBudgetMs). SIGKILL must come after that: 60 s (Fargate max 120).
+    # Keep >= the ALB deregistration_delay of the api target group.
+    stopTimeout      = 60
     logConfiguration = local.log_config["api"]
   }])
   tags = var.tags
@@ -606,6 +611,11 @@ resource "aws_appautoscaling_policy" "cpu" {
   target_tracking_scaling_policy_configuration {
     target_value = 60
     # Out fast (60 s), in slowly (10 min): no flapping on short spikes.
+    # Owner 2026-10-23: every scale-in is a deploy for the sockets on the
+    # stopped task (they drain, see stopTimeout), so scale-in is slow on
+    # purpose; do not shorten scale_in_cooldown. Peak hours: raise
+    # min_tasks with a scheduled action (the night_end_cron pattern above)
+    # instead of letting the policy shrink the service before the peak.
     scale_in_cooldown  = 600
     scale_out_cooldown = 60
     predefined_metric_specification {

@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BadgesDto } from '../notifications/notifications-api.dto';
 import { MeDto } from '../users/users.public';
+import { ClientTimingsDto } from '../../common/dto/client-timings.dto';
 
 /**
  * Owner 2026-10-22 (client economy plan, package G): everything the app
@@ -39,4 +40,11 @@ export class AppSessionDto {
       'A call is running now in one of my groups — only then ask GET /calls/ongoing.',
   })
   hasOngoingCalls!: boolean;
+
+  @ApiProperty({
+    type: ClientTimingsDto,
+    description:
+      'The same `client.timings` GET /config/bootstrap answers (connection timings).',
+  })
+  client!: ClientTimingsDto;
 }

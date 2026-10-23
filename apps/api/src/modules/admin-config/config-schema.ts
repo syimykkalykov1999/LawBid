@@ -1,4 +1,5 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
+import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
 import { TEXT_LIMIT_DEFS } from '../../common/app-settings/text-limits';
 import { COST_PROVIDERS } from '../../common/cost-guard/cost-guard.constants';
 import type { ConfigValueType } from './admin-config.dto';
@@ -101,6 +102,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       ...out[key],
       type: 'integer',
       description: `${def.label}: most characters (${def.min}–${def.max}). The app shows a counter and stops at the same number.`,
+      min: def.min,
+      max: def.max,
+    };
+  }
+  // Owner 2026-10-23: the live-connection timings (Russian label + key).
+  for (const def of REALTIME_SETTING_DEFS) {
+    out[def.key] = {
+      type: def.fraction ? 'number' : 'integer',
+      defaultValue: def.default,
+      description: `${def.labelRu} (${def.key}). По умолчанию ${def.default}.`,
       min: def.min,
       max: def.max,
     };

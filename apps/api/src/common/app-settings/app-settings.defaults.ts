@@ -792,6 +792,7 @@ export const OWNER_BOOKING_QA_SETTINGS = {
 };
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
+import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
 
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -832,6 +833,7 @@ export const APP_SETTINGS = {
   ...OWNER_BOOKING_QA_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
+  ...OWNER_REALTIME_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

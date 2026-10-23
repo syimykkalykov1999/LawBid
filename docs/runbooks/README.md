@@ -27,6 +27,7 @@ On-call: the owner until a rotation exists (docs/06 §11.1 "дежурный
 | DB / Redis unavailable (`/health/ready` 503), `db-down` | [db-redis-unavailable.md](db-redis-unavailable.md) |
 | `db-slow` (DB probe > 1 s) | [db-contention.md](db-contention.md) |
 | `aws-budget-reached`, AWS Budgets / Cost Anomaly e-mails | [cost.md](cost.md) |
+| `ws-reconnect-storm` (> 1500 reconnects / 5 min) | [REALTIME_LIFECYCLE.md](REALTIME_LIFECYCLE.md) |
 | `backup-stale` (newest database backup too old) | [backup-failed.md](backup-failed.md) |
 | `ses-bounce-rate` / `ses-complaint-rate` | [ses.md](ses.md) |
 | `api-no-running-tasks` / `worker-no-running-tasks` | [ecs-capacity.md](ecs-capacity.md) |

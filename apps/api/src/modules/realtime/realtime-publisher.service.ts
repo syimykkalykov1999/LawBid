@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { Emitter } from '@socket.io/redis-emitter';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { EVENT_LOG_MAX_FANOUT, RealtimeEventLog } from './realtime-event-log';
 
 /** docs/05 §8.5 namespace and rooms. */
 export const REALTIME_NAMESPACE = '/realtime';
@@ -140,9 +141,11 @@ export class RealtimePublisher {
   private readonly emitter: ReturnType<Emitter['of']>;
   private readonly qrEmitter: ReturnType<Emitter['of']>;
   private readonly sharded: boolean;
+  private readonly eventLog: RealtimeEventLog;
 
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {
     const base = new Emitter(redis);
+    this.eventLog = new RealtimeEventLog(redis);
     this.emitter = base.of(REALTIME_NAMESPACE);
     this.qrEmitter = base.of(QR_LOGIN_NAMESPACE);
     // Test doubles of REDIS_CLIENT without SPUBLISH keep the classic path
@@ -153,12 +156,40 @@ export class RealtimePublisher {
   }
 
   /** One publish for all [userIds] (each socket gets it once), however
-   * many people — callers never loop per member. */
+   * many people — callers never loop per member.
+   *
+   * Owner 2026-10-23: an object payload also carries `seq` (the cursor of
+   * realtime-event-log.ts) and is kept 5 minutes per person, so a client
+   * that reconnects fetches only what it missed. */
   toUsers(userIds: string[], event: RealtimeEvent, data: unknown): void {
     if (userIds.length === 0) return;
     // The emitter publishes through ioredis and drops the returned
     // promise; on a closing connection that would surface as an unhandled
     // rejection. Best-effort delivery: skip when Redis isn't ready.
+    if (this.redis.status !== 'ready') return;
+    const loggable =
+      this.eventLog.available &&
+      userIds.length <= EVENT_LOG_MAX_FANOUT &&
+      typeof data === 'object' &&
+      data !== null &&
+      !Array.isArray(data);
+    if (!loggable) {
+      this.send(userIds, event, data);
+      return;
+    }
+    void this.eventLog
+      .nextSeq()
+      .then(async (seq) => {
+        const withSeq = { ...(data as Record<string, unknown>), seq };
+        // Log first: a client that reconnects between the publish and the
+        // log write would otherwise never see this event.
+        await this.eventLog.append(userIds, seq, event, withSeq);
+        this.send(userIds, event, withSeq);
+      })
+      .catch(() => this.send(userIds, event, data));
+  }
+
+  private send(userIds: string[], event: RealtimeEvent, data: unknown): void {
     if (this.redis.status !== 'ready') return;
     try {
       if (this.sharded) {

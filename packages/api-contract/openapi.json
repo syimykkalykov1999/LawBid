@@ -85308,6 +85308,83 @@
         ]
       }
     },
+    "/realtime/missed": {
+      "get": {
+        "operationId": "missed",
+        "parameters": [
+          {
+            "name": "since",
+            "required": true,
+            "in": "query",
+            "description": "The `seq` of the last realtime event the app saw (or of `realtime:ready`). 0 = nothing seen: the answer is `complete: false`.",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissedEventsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Realtime events missed since a cursor (last 5 minutes, at most 200)",
+        "tags": [
+          "realtime"
+        ]
+      }
+    },
     "/conversations": {
       "get": {
         "operationId": "listConversations",
@@ -111237,6 +111314,21 @@
           "published_at"
         ]
       },
+      "ClientTimingsDto": {
+        "type": "object",
+        "properties": {
+          "timings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Live-connection timings the app must use (set in the admin, Config → realtime.*): reconnectMinMs, reconnectMaxMs, reconnectJitter (0–1), serverDisconnectMinWaitMs, serverDisconnectMaxWaitMs, offlineFailures, offlineSeconds, probeTimeoutMs, tokenRefreshLeadSeconds, pollingFallbackIntervalSeconds, reconnectedDebounceSeconds, refetchJitterMs, pingIntervalMs, pingTimeoutMs. See docs/runbooks/REALTIME_LIFECYCLE.md."
+          }
+        },
+        "required": [
+          "timings"
+        ]
+      },
       "BootstrapDto": {
         "type": "object",
         "properties": {
@@ -111270,6 +111362,14 @@
             "items": {
               "$ref": "#/components/schemas/BootstrapLegalDocumentDto"
             }
+          },
+          "client": {
+            "description": "Server-driven client behaviour (connection timings).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ClientTimingsDto"
+              }
+            ]
           }
         },
         "required": [
@@ -111277,7 +111377,8 @@
           "app_config",
           "languages",
           "translations_version",
-          "legal_documents"
+          "legal_documents",
+          "client"
         ]
       },
       "ResponseMetaDto": {
@@ -146387,7 +146488,8 @@
               "stripe_webhooks",
               "push",
               "turn",
-              "http"
+              "http",
+              "realtime"
             ]
           },
           "status": {
@@ -157021,6 +157123,70 @@
           }
         }
       },
+      "MissedEventDto": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "number",
+            "description": "Cursor of the event (increasing, not contiguous)."
+          },
+          "event": {
+            "type": "string",
+            "description": "The realtime event name, e.g. message:new."
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The payload the socket event carried (including `seq`)."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "true: the payload was too big to keep — refetch that screen."
+          }
+        },
+        "required": [
+          "seq",
+          "event"
+        ]
+      },
+      "MissedEventsDto": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "number",
+            "description": "Newest cursor; continue from it."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MissedEventDto"
+            }
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "false: events are gone (gap over 5 minutes or over 200 events) — do one full refresh, then continue from `seq`."
+          }
+        },
+        "required": [
+          "seq",
+          "events",
+          "complete"
+        ]
+      },
+      "MissedEventsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MissedEventsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "ConversationCounterpartDto": {
         "type": "object",
         "properties": {
@@ -161988,6 +162154,14 @@
           "hasOngoingCalls": {
             "type": "boolean",
             "description": "A call is running now in one of my groups — only then ask GET /calls/ongoing."
+          },
+          "client": {
+            "description": "The same `client.timings` GET /config/bootstrap answers (connection timings).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ClientTimingsDto"
+              }
+            ]
           }
         },
         "required": [
@@ -161996,7 +162170,8 @@
           "bootstrapVersion",
           "flags",
           "unreadSupport",
-          "hasOngoingCalls"
+          "hasOngoingCalls",
+          "client"
         ]
       },
       "AppSessionEnvelope": {
