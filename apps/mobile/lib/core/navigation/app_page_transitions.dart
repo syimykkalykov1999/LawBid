@@ -37,9 +37,7 @@ abstract final class AppPageTransitions {
     if (ReduceMotion.enabled.value) {
       return _still(
         state,
-        AppBackdrop(
-          child: WebPageFrame(location: state.matchedLocation, child: child),
-        ),
+        WebPageFrame(location: state.matchedLocation, child: child),
       );
     }
     // Owner 2026-10-22: a MaterialPage takes the theme's page transition
@@ -49,17 +47,13 @@ abstract final class AppPageTransitions {
       return MaterialPage<void>(
         key: state.pageKey,
         name: state.name,
-        child: AppBackdrop(
-          child: WebPageFrame(location: state.matchedLocation, child: child),
-        ),
+        child: WebPageFrame(location: state.matchedLocation, child: child),
       );
     }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: AppBackdrop(
-        child: WebPageFrame(location: state.matchedLocation, child: child),
-      ),
+      child: WebPageFrame(location: state.matchedLocation, child: child),
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
       transitionsBuilder: _sharedAxisX,
@@ -76,9 +70,7 @@ abstract final class AppPageTransitions {
     if (ReduceMotion.enabled.value) {
       return _still(
         state,
-        AppBackdrop(
-          child: WebPageFrame(location: state.matchedLocation, child: child),
-        ),
+        WebPageFrame(location: state.matchedLocation, child: child),
         fullscreenDialog: true,
       );
     }
@@ -87,17 +79,13 @@ abstract final class AppPageTransitions {
         key: state.pageKey,
         name: state.name,
         fullscreenDialog: true,
-        child: AppBackdrop(
-          child: WebPageFrame(location: state.matchedLocation, child: child),
-        ),
+        child: WebPageFrame(location: state.matchedLocation, child: child),
       );
     }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: AppBackdrop(
-        child: WebPageFrame(location: state.matchedLocation, child: child),
-      ),
+      child: WebPageFrame(location: state.matchedLocation, child: child),
       fullscreenDialog: true,
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
@@ -108,14 +96,14 @@ abstract final class AppPageTransitions {
   /// Tab-root swap (shell → first screen after onboarding): fade only.
   static Page<void> fade(GoRouterState state, Widget child) {
     if (ReduceMotion.enabled.value) {
-      return _still(state, AppBackdrop(child: child));
+      return _still(state, child);
     }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
       // The splash and the main shell: the shell draws its own menu and
       // column, so no frame here.
-      child: AppBackdrop(child: child),
+      child: child,
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {

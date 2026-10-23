@@ -11,8 +11,12 @@ import path from 'node:path';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const XLSX = path.join(ROOT, 'apps/api/prisma/seed/translations_seed.xlsx');
 
+// `--remove=key1,key2` drops those rows (keys the code no longer uses).
+const remove = new Set(
+  process.argv.filter((a) => a.startsWith('--remove=')).flatMap((a) => a.slice(9).split(',')),
+);
 const add = {};
-for (const f of process.argv.slice(2)) {
+for (const f of process.argv.slice(2).filter((a) => !a.startsWith('--'))) {
   for (const [k, langs] of Object.entries(JSON.parse(fs.readFileSync(f, 'utf8')))) {
     add[k] = { ...(add[k] ?? {}), ...langs };
   }
@@ -32,6 +36,7 @@ ws.eachRow((r, n) => {
   );
   rows.push(v);
 });
+for (let i = rows.length - 1; i >= 0; i--) if (remove.has(rows[i][0])) rows.splice(i, 1);
 const byKey = new Map(rows.map((r) => [r[0], r]));
 let added = 0;
 let changed = 0;

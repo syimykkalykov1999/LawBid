@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -64,6 +63,17 @@ class _FakePlayer extends VideoPlayerController {
   Future<void> dispose() async {
     disposed = true;
     await super.dispose();
+  }
+}
+
+class _SlowPlayer extends _FakePlayer {
+  _SlowPlayer(this._gate);
+  final Future<void> _gate;
+
+  @override
+  Future<void> initialize() async {
+    await _gate;
+    await super.initialize();
   }
 }
 
@@ -224,10 +234,41 @@ void main() {
     expect(_player.disposed, isTrue);
   });
 
-  testWidgets('a playable reel draws no cover before its video',
-      (tester) async {
-    await _pump(tester);
-    expect(find.byType(CachedNetworkImage), findsNothing);
+  testWidgets(
+      'a playable reel shows its poster at once and hands over to the '
+      'video when the first frame moves', (tester) async {
+    // Time to first frame, measured in pumped frames: the stream is slow
+    // (initialize never completes), yet the poster is already on screen in
+    // the very first frame — no black box, no spinner before 1.2 s.
+    final gate = Completer<void>();
+    debugReelPlayerFactory = (_, __) {
+      final p = _SlowPlayer(gate.future);
+      _players.add(p);
+      return p;
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: const ReelVideo(video: _video, active: true),
+      ),
+    );
+    expect(find.byKey(const ValueKey('reel-poster')), findsOneWidget);
+    expect(find.byType(VideoPlayer), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    // Initialized and playing, but not moved yet: the poster still covers.
+    expect(find.byType(VideoPlayer), findsOneWidget);
+    expect(find.byKey(const ValueKey('reel-poster')), findsOneWidget);
+
+    // The first frame moves: the poster leaves.
+    _player.value = _player.value.copyWith(
+      position: const Duration(milliseconds: 80),
+    );
+    await tester.pump();
+    expect(find.byKey(const ValueKey('reel-poster')), findsNothing);
     expect(find.byType(VideoPlayer), findsOneWidget);
   });
 

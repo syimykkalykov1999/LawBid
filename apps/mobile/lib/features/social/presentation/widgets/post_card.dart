@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
+import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -2576,7 +2577,13 @@ class _PostMediaCarouselState extends State<PostMediaCarousel>
                         ),
                         ColoredBox(color: Colors.black.withValues(alpha: 0.18)),
                       ],
-                      img(_frontFit, m.mediumUrl, '${m.fileId}:1080', 1080),
+                      // Owner 2026-10-23: the soft 320 px copy shows at once,
+                      // the sharp one fades in over it.
+                      ProgressivePhoto(
+                        fileId: m.fileId,
+                        previewUrl: m.previewUrl,
+                        url: m.mediumUrl,
+                      ),
                     ],
                   ),
                 ),

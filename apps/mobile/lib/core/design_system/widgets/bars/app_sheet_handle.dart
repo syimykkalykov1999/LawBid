@@ -4,7 +4,6 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
-import 'package:lawbid/core/design_system/widgets/display/glass_panel.dart';
 import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 
 /// Drag handle at the top of modal bottom sheets (decorative).
@@ -62,14 +61,9 @@ Future<T?> showAppBottomSheet<T>({
     builder: (ctx) => ContentColumnFrame(
       surface: colors.sheet,
       radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-      child: GlassPanel(
-        radius: const BorderRadius.vertical(
-          top: Radius.circular(AppRadii.sheet),
-        ),
-        child: closeByHandleOnly
+      child: closeByHandleOnly
             ? builder(ctx)
             : PullDownToClose(child: builder(ctx)),
-      ),
     ),
   );
 }

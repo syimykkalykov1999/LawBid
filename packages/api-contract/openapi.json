@@ -125327,6 +125327,15 @@
             "type": "string",
             "description": "Owner 2026-10-15: or a cover picked from the gallery (the id of the\nowner's uploaded `post_image` file). Wins over [coverTimeMs].",
             "format": "uuid"
+          },
+          "kind": {
+            "description": "Owner 2026-10-23: `reel` (default, up to `video.reel_max_duration_sec`)\nor `post` (a longer video post, up to `video.post_max_duration_sec`).",
+            "enum": [
+              "reel",
+              "post"
+            ],
+            "type": "string",
+            "default": "reel"
           }
         },
         "required": [

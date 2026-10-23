@@ -128,7 +128,12 @@ export const FILE_06_SETTINGS = {
 // owner changes from the admin panel without a release.
 export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-14: reels as long as Instagram's (up to 3 minutes).
+  // Legacy single limit: kept as the fallback for the two keys below
+  // (an admin who saved only this one keeps working).
   'video.max_duration_sec': 180,
+  // Owner 2026-10-23: a reel is up to 3 minutes, a video post up to an hour.
+  'video.reel_max_duration_sec': 180,
+  'video.post_max_duration_sec': 3600,
   'video.max_size_mb': 1000,
   'video.upload_ttl_min': 60,
   'video.playback_ttl_sec': 21600,

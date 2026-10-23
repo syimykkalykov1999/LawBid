@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
-import 'package:lawbid/core/design_system/widgets/display/glass_panel.dart';
 
 /// Owner 2026-10-19 («кнопки динамика и плей стилизуйте под наш стиль»):
 /// the round button over a video — play / pause, sound on / off — in the
@@ -26,9 +25,7 @@ class PlayerRoundButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final circle = GlassPanel(
-      radius: BorderRadius.circular(size / 2),
-      child: Container(
+    final circle = Container(
         width: size,
         height: size,
         decoration: BoxDecoration(
@@ -44,8 +41,7 @@ class PlayerRoundButton extends StatelessWidget {
         ),
         alignment: Alignment.center,
         child: AppIcon(icon, size: size * 0.5, color: colors.text),
-      ),
-    );
+      );
     final button = onTap == null
         ? circle
         : GestureDetector(

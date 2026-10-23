@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.da
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
@@ -90,6 +92,17 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       _counted = true;
       Future.microtask(_open.opened);
     }
+  }
+
+  /// Owner 2026-10-23 (Instagram): the first bytes of the next three reels
+  /// are fetched before the finger gets to them (the players of the two
+  /// neighbours are already open — see WarmPlan).
+  void _warmAhead(List<Post> items, int index) {
+    if (kIsWeb) return;
+    HlsPrefetcher.instance.prefetchAll([
+      for (final i in WarmPlan.at(index, items.length).prefetch)
+        if (items[i].video?.ready ?? false) items[i].video!.playbackUrl!,
+    ]);
   }
 
   @override
@@ -251,6 +264,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     onPageChanged: (i) {
                       setState(() => _index = i);
                       if (i >= items.length - 3) _load();
+                      _warmAhead(items, i);
                     },
                     itemBuilder: (_, i) => WebReelFrame(
                       child: _ReelPage(
@@ -317,6 +331,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     onPageChanged: (i) {
                       setState(() => _index = i);
                       if (i >= items.length - 3) _load();
+                      _warmAhead(items, i);
                     },
                     itemBuilder: (_, i) => WebReelFrame(
                       child: _ReelPage(

@@ -8,7 +8,7 @@
 <title>LawBid · Secure payment</title>
 <!--
   Owner 2026-10-16: our own card page (variant B) for the attorney subscription.
-  The app opens  /pay.html#t=<signed token>&api=<api base>&theme=day|night|navy|glass.
+  The app opens  /pay.html#t=<signed token>&api=<api base>&theme=day|night|blue|green.
   Card numbers never touch our servers: Stripe.js renders the three fields
   (cardNumber / cardExpiry / cardCvc) inside Stripe-hosted iframes that sit on
   top of the artwork; we only get a SetupIntent back and ask the API to create
@@ -33,15 +33,15 @@ html[data-theme="night"]{
   --gold:#d9ad4f; --gold-ink:#f0cd84; --accent:#d9ad4f; --accent-ink:#14213d;
   --card-a:#26324f; --card-b:#4a3f77; --shadow:0 18px 40px rgba(0,0,0,.5);
 }
-html[data-theme="navy"]{
-  --bg:#0f2347; --surface:#16305e; --ink:#f3f6fc; --muted:#a9b9d6; --line:#2b4a82;
-  --gold:#e0b45a; --gold-ink:#f2d089; --accent:#e0b45a; --accent-ink:#0f2347;
-  --card-a:#0a1a38; --card-b:#2b5aa8; --shadow:0 18px 40px rgba(0,0,0,.45);
+html[data-theme="blue"]{
+  --bg:#eaf2fb; --surface:#ffffff; --ink:#0a2f66; --muted:#47608c; --line:#c9dcf2;
+  --gold:#a67a22; --gold-ink:#6d4f10; --accent:#0a5ab5; --accent-ink:#ffffff;
+  --card-a:#04397a; --card-b:#1f78d1; --shadow:0 18px 40px rgba(4,57,122,.18);
 }
-html[data-theme="glass"]{
-  --bg:#dfe7f5; --surface:rgba(255,255,255,.62); --ink:#14213d; --muted:#4d5d7a; --line:rgba(255,255,255,.7);
-  --gold:#a67a22; --gold-ink:#6d4f10; --accent:#14213d; --accent-ink:#fff;
-  --card-a:#3a5a9a; --card-b:#7a5fb0; --shadow:0 18px 40px rgba(40,60,110,.25);
+html[data-theme="green"]{
+  --bg:#e6f5ec; --surface:#f7fdf9; --ink:#0b3d24; --muted:#3f6350; --line:#bfe3ce;
+  --gold:#a67a22; --gold-ink:#6d4f10; --accent:#087f47; --accent-ink:#ffffff;
+  --card-a:#0b6b3a; --card-b:#08874c; --shadow:0 18px 40px rgba(11,107,58,.16);
 }
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
@@ -49,15 +49,13 @@ html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
   -webkit-text-size-adjust:100%}
 body{padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
   display:flex;justify-content:center}
-html[data-theme="glass"] body{background:radial-gradient(1200px 600px at 20% -10%,#c9d8f5,transparent),
-  radial-gradient(900px 500px at 100% 10%,#e6d9f7,transparent),var(--bg)}
 main{width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
 header{display:flex;align-items:center;justify-content:space-between;padding:4px 2px}
 .brand{font:700 20px/1 Georgia,"Times New Roman",serif;letter-spacing:.2px}
 .brand b{color:var(--gold)}
 .lock{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:12.5px}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;
-  box-shadow:var(--shadow);backdrop-filter:blur(14px)}
+  box-shadow:var(--shadow)}
 .summary h1{margin:0 0 4px;font-size:18px}
 .summary .price{font-size:30px;font-weight:700;letter-spacing:-.5px}
 .summary .price small{font-size:14px;color:var(--muted);font-weight:500}

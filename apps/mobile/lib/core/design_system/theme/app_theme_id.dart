@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_colors.dart';
 
-/// The themes a user can pick (owner 2026-10-13). Adding a theme = one new
+/// The themes a user can pick (owner 2026-10-22). Adding a theme = one new
 /// value here + one [AppThemeSpec] in [AppThemes] + its tokens in
 /// [AppColorTokens]; the pickers read the registry, nothing else changes.
-enum AppThemeId { day, night, navy, glass }
+enum AppThemeId { day, night, blue, green }
 
 /// One theme: how it is stored, shown and built.
 @immutable
@@ -29,7 +29,7 @@ final class AppThemeSpec {
   /// Stored on the phone.
   final String wire;
 
-  /// `users.theme` on the server (`ThemePref`): day = light, night = dark.
+  /// `users.theme` on the server (`ThemePref`): light / dark / blue / green.
   final String serverWire;
 
   /// Material brightness (dark themes use the dark system chrome).
@@ -78,30 +78,30 @@ abstract final class AppThemes {
       previewAccent: AppColorsDark.gold,
     ),
     AppThemeSpec(
-      id: AppThemeId.navy,
-      wire: 'navy',
-      serverWire: 'navy',
-      brightness: Brightness.dark,
-      nameKey: 'theme.navy.name',
-      descKey: 'theme.navy.desc',
-      tokens: AppColorTokens.navy,
-      previewBg: AppColorsNavy.bg,
-      previewBgGradient: null,
-      previewTitle: AppColorsNavy.text,
-      previewAccent: AppColorsNavy.gold,
+      id: AppThemeId.blue,
+      wire: 'blue',
+      serverWire: 'blue',
+      brightness: Brightness.light,
+      nameKey: 'theme.blue.name',
+      descKey: 'theme.blue.desc',
+      tokens: AppColorTokens.blue,
+      previewBg: AppColorsBlue.bg,
+      previewBgGradient: AppColorsBlue.headerGradient,
+      previewTitle: AppColorsBlue.onHeader,
+      previewAccent: AppColorsBlue.bg,
     ),
     AppThemeSpec(
-      id: AppThemeId.glass,
-      wire: 'glass',
-      serverWire: 'glass',
-      brightness: Brightness.dark,
-      nameKey: 'theme.glass.name',
-      descKey: 'theme.glass.desc',
-      tokens: AppColorTokens.glass,
-      previewBg: AppColorsGlass.barSolid,
-      previewBgGradient: AppColorsGlass.gradient,
-      previewTitle: AppColorsGlass.text,
-      previewAccent: AppColorsGlass.gold,
+      id: AppThemeId.green,
+      wire: 'green',
+      serverWire: 'green',
+      brightness: Brightness.light,
+      nameKey: 'theme.green.name',
+      descKey: 'theme.green.desc',
+      tokens: AppColorTokens.green,
+      previewBg: AppColorsGreen.bg,
+      previewBgGradient: AppColorsGreen.headerGradient,
+      previewTitle: AppColorsGreen.onHeader,
+      previewAccent: AppColorsGreen.bg,
     ),
   ];
 
@@ -116,6 +116,10 @@ abstract final class AppThemes {
     return switch (raw) {
       'light' => AppThemeId.day,
       'dark' => AppThemeId.night,
+      // Owner 2026-10-22: the old Navy is the Blue theme; the removed
+      // Glass theme becomes Night.
+      'navy' => AppThemeId.blue,
+      'glass' => AppThemeId.night,
       _ => null,
     };
   }
@@ -125,7 +129,12 @@ abstract final class AppThemes {
     for (final s in all) {
       if (s.serverWire == raw) return s.id;
     }
-    return null;
+    // Rows written by older apps: navy was Blue, glass is Night.
+    return switch (raw) {
+      'navy' => AppThemeId.blue,
+      'glass' => AppThemeId.night,
+      _ => null,
+    };
   }
 
   /// Day or Night by the phone's own brightness (a user who never chose).

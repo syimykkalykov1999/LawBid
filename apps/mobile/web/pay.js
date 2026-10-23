@@ -18,7 +18,10 @@
   var native = (params.get('native') || (saved && saved.native)) === '1';
   var theme = (params.get('theme') || (saved && saved.theme) || '').toLowerCase();
   var langParam = params.get('lang') || (saved && saved.lang) || '';
-  if (!/^(day|night|navy|glass)$/.test(theme)) {
+  // Owner 2026-10-22: Glass is gone (Night), Navy is Blue.
+  if (theme === 'navy') theme = 'blue';
+  if (theme === 'glass') theme = 'night';
+  if (!/^(day|night|blue|green)$/.test(theme)) {
     theme = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
   }
   document.documentElement.setAttribute('data-theme', theme);
@@ -251,7 +254,7 @@
     var ece = els.create('expressCheckout', {
       paymentMethods: { applePay: 'auto', googlePay: 'auto', link: 'never', paypal: 'never', amazonPay: 'never', klarna: 'never' },
       buttonHeight: 50,
-      buttonTheme: { applePay: theme === 'day' || theme === 'glass' ? 'black' : 'white-outline', googlePay: theme === 'day' || theme === 'glass' ? 'black' : 'white' }
+      buttonTheme: { applePay: theme === 'day' || theme === 'blue' || theme === 'green' ? 'black' : 'white-outline', googlePay: theme === 'day' || theme === 'blue' || theme === 'green' ? 'black' : 'white' }
     });
     ece.on('ready', function (ev) {
       var any = ev && ev.availablePaymentMethods && (ev.availablePaymentMethods.applePay || ev.availablePaymentMethods.googlePay);

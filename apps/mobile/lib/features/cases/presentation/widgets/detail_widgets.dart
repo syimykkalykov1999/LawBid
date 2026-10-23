@@ -146,8 +146,7 @@ class BottomActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     if (children.isEmpty) return const SizedBox.shrink();
-    return GlassPanel(
-      child: DecoratedBox(
+    return DecoratedBox(
         decoration: BoxDecoration(
           color: colors.barFill,
           border: Border(top: BorderSide(color: colors.border)),
@@ -180,8 +179,7 @@ class BottomActionBar extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 

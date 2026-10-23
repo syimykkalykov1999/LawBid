@@ -128,78 +128,86 @@ abstract final class AppColorsDark {
   static const Color dangerText = Color(0xFFE36464);
 }
 
-/// Navy theme raw palette (owner 2026-10-13, artifact "LawBid Themes"):
-/// a dark blue night with the same gold. Everything not listed there is
-/// derived from [AppColorsDark] with the same alpha rules.
-abstract final class AppColorsNavy {
-  static const Color bg = Color(0xFF0B1020);
-  static const Color surface = Color(0xFF121A33);
-  static const Color text = Color(0xFFEEF0F4);
-  static const Color textSecondary = Color(0xFF9AA3B8);
-  static const Color border = Color(0xFF232C4A);
-  static const Color chip = Color(0xFF1B2440);
-  static const Color gold = Color(0xFFDCC08A);
-  static const Color goldStroke = Color(0xFFDCC08A);
-  static const Color goldLight = Color(0xFFEEDBB2);
-  static const Color goldDark = Color(0xFFA28245);
+/// Blue theme raw palette (owner 2026-10-22, the Citi bank-app look): the
+/// top bar is a wash from deep Citi navy [deep] (#002D72-ish) to a lighter
+/// sky blue with white ink; below it a light blue-grey page, white cards
+/// with deep-blue ink, light-blue chips, a brand blue (#0A5AB5, near Citi's
+/// #056DAE) primary button with a white label.
+abstract final class AppColorsBlue {
+  static const Color bg = Color(0xFFEAF2FB);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color deep = Color(0xFF04397A);
+  static const List<Color> headerGradient = [
+    Color(0xFF04397A),
+    Color(0xFF0A58B0),
+    Color(0xFF1F78D1),
+  ];
+  static const Color onHeader = Color(0xFFFFFFFF);
+  static const Color text = Color(0xFF0A2F66);
+  static const Color textSecondary = Color(0xFF47608C);
+  static const Color border = Color(0xFFC9DCF2);
+  static const Color chip = Color(0xFFDCEBFA);
+  static const Color accent = Color(0xFF0A5AB5);
+  static const Color onAccent = Color(0xFFFFFFFF);
+
+  /// Chat: my bubble and wallpaper.
+  static const Color chatMine = Color(0xFFCFE3F8);
+  static const Color chatWallpaper = Color(0xFFDCEAF8);
+  static const Color gold = Color(0xFFC8A765);
+  static const Color goldStroke = Color(0xFFB39350);
+  static const Color goldLight = Color(0xFFE6D3A3);
+  static const Color goldDark = Color(0xFF806128);
   static const Color navy = Color(0xFF0A1A3F);
-  static const double watermarkOpacity = 0.10;
-  static const Color shadow = Color(0x66000000);
-  static const Color goldTint = Color(0x26DCC08A);
-  static const Color dangerTint = Color(0x26D64545);
-  static const Color successTint = Color(0x261F9D67);
-  static const Color infoTint = Color(0x262F80ED);
-  static const Color skeletonBase = Color(0xFF1B2440);
-  static const Color skeletonHighlight = Color(0xFF232C4A);
-  static const Color dangerText = Color(0xFFE36464);
+  static const double watermarkOpacity = 0.07;
+  static const Color shadow = Color(0x1A04397A);
+  static const Color goldTint = Color(0x1FC8A765);
+  static const Color dangerTint = Color(0x1AD64545);
+  static const Color successTint = Color(0x1A1F9D67);
+  static const Color infoTint = Color(0x1A2F80ED);
+  static const Color skeletonBase = Color(0xFFDCEBFA);
+  static const Color skeletonHighlight = Color(0xFFF2F7FD);
+  static const Color dangerText = Color(0xFFC53A3A);
+  static const Color successText = Color(0xFF0B6A3F);
 }
 
-/// Glass ("wet glass") theme raw palette (owner 2026-10-13): a deep teal
-/// gradient behind blurred translucent panels (white at 10%).
-abstract final class AppColorsGlass {
-  /// Transparent: screens sit on the gradient (AppBackdrop); [barSolid] is the
-  /// opaque colour for the system strip.
-  static const Color bg = Color(0x00000000);
-  static const Color barSolid = Color(0xFF0D2A33);
-  static const Color bar = Color(0x14FFFFFF);
-  static const List<Color> gradient = [
-    Color(0xFF16364A),
-    Color(0xFF0B1A28),
-    Color(0xFF0D2A33),
+/// Green theme raw palette (owner 2026-10-22, the Credit Karma look): a
+/// light, fresh page with soft green cards, deep-green ink and a green
+/// primary button with a white label. Brand green #0BA360 is for icons and
+/// big marks; the button is the darker [accent] so its white label is AA.
+abstract final class AppColorsGreen {
+  static const Color bg = Color(0xFFE6F5EC);
+  static const Color surface = Color(0xFFF7FDF9);
+  static const Color deep = Color(0xFF0B6B3A);
+
+  /// The top-bar wash: deep green to the brand green.
+  static const List<Color> headerGradient = [
+    Color(0xFF0B6B3A),
+    Color(0xFF088048),
+    Color(0xFF08874C),
   ];
-
-  /// Soft light spots drawn over the gradient (fraction of the screen).
-  static const Color spotBlue = Color(0x3A78BEDC);
-  static const Color spotIndigo = Color(0x3A4678BE);
-  static const Color spotTeal = Color(0x3828969A);
-  static const Color surface = Color(0x1AFFFFFF);
-
-  /// A sheet / dialog over the glass (artifact `--shb`).
-  static const Color sheet = Color(0xFF142C3C);
-  static const Color text = Color(0xFFF4F8FB);
-  static const Color textSecondary = Color(0xEBE2ECF4);
-  static const Color border = Color(0x2EFFFFFF);
-  static const Color chip = Color(0x24FFFFFF);
-  static const Color gold = Color(0xFFE8D2A0);
-  static const Color goldStroke = Color(0xFFE8D2A0);
-  static const Color goldLight = Color(0xFFF2E3C0);
-  static const Color goldDark = Color(0xFFB8995A);
-  static const Color cta = Color(0xEBFFFFFF);
-  static const Color onCta = Color(0xFF0E1E2B);
+  static const Color onHeader = Color(0xFFFFFFFF);
+  static const Color text = Color(0xFF0B3D24);
+  static const Color textSecondary = Color(0xFF3F6350);
+  static const Color border = Color(0xFFBFE3CE);
+  static const Color chip = Color(0xFFD3EEDD);
+  static const Color brand = Color(0xFF0BA360);
+  static const Color accent = Color(0xFF087F47);
+  static const Color onAccent = Color(0xFFFFFFFF);
+  static const Color gold = Color(0xFFC8A765);
+  static const Color goldStroke = Color(0xFFB39350);
+  static const Color goldLight = Color(0xFFE6D3A3);
+  static const Color goldDark = Color(0xFF806128);
   static const Color navy = Color(0xFF0A1A3F);
-  static const double watermarkOpacity = 0.08;
-  static const Color shadow = Color(0x40000000);
-  static const Color goldTint = Color(0x29E8D2A0);
-  static const Color dangerTint = Color(0x29D64545);
-  static const Color successTint = Color(0x291F9D67);
-  static const Color infoTint = Color(0x292F80ED);
-  static const Color skeletonBase = Color(0x1AFFFFFF);
-  static const Color skeletonHighlight = Color(0x33FFFFFF);
-  static const Color dangerText = Color(0xFFFF8A8A);
-  static const Color successText = Color(0xFF8CF0BE);
-
-  /// Blur radius of a glass panel.
-  static const double blur = 18;
+  static const double watermarkOpacity = 0.07;
+  static const Color shadow = Color(0x140B6B3A);
+  static const Color goldTint = Color(0x1FC8A765);
+  static const Color dangerTint = Color(0x1AD64545);
+  static const Color successTint = Color(0x1A0BA360);
+  static const Color infoTint = Color(0x1A2F80ED);
+  static const Color skeletonBase = Color(0xFFD3EEDD);
+  static const Color skeletonHighlight = Color(0xFFEAF8EF);
+  static const Color dangerText = Color(0xFFC53A3A);
+  static const Color focusRingGlow = Color(0x400BA360);
 }
 
 /// Status colors, shared by both themes: file 07 §2 says `danger`,

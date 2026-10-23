@@ -198,6 +198,28 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       missing: ['email', 'state'],
     });
 
+    // Owner 2026-10-22: Blue / Green are stored as sent; the legacy navy /
+    // glass of old apps are accepted and read back as blue / dark.
+    for (const [sent, read] of [
+      ['green', 'green'],
+      ['blue', 'blue'],
+      ['navy', 'blue'],
+      ['glass', 'dark'],
+    ] as const) {
+      await api()
+        .patch('/api/v1/users/me')
+        .set(auth)
+        .send({ theme: sent })
+        .expect(200);
+      const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+      expect(me.body.data.theme).toBe(read);
+    }
+    await api()
+      .patch('/api/v1/users/me')
+      .set(auth)
+      .send({ theme: 'dark' })
+      .expect(200);
+
     // The profile step persists into client_profiles (§11 3A).
     await api()
       .patch('/api/v1/users/me/onboarding')

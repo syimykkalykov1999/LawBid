@@ -93,7 +93,7 @@ class AppSideNav extends StatelessWidget {
       width: widthFor(extended: extended),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.isGlass ? colors.sheet : colors.bg,
+          color: colors.bg,
           border: BorderDirectional(end: BorderSide(color: colors.border)),
         ),
         child: SafeArea(

@@ -29,12 +29,7 @@ Future<void> showPostTextSheet(BuildContext context, Post post) {
     builder: (_) => ContentColumnFrame(
       surface: colors.sheet,
       radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
-      child: GlassPanel(
-        radius: const BorderRadius.vertical(
-          top: Radius.circular(AppRadii.sheet),
-        ),
-        child: PostTextSheet(post: post),
-      ),
+      child: PostTextSheet(post: post),
     ),
   );
 }

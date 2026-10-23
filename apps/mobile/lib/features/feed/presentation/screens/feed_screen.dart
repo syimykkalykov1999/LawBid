@@ -20,6 +20,7 @@ import 'package:lawbid/features/reels/presentation/reel_publish_card.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/social/presentation/widgets/pending_post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show feedCardHeight;
 import 'package:lawbid/features/stories/presentation/stories_tray.dart';
@@ -370,6 +371,8 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
         // Owner 2026-10-21 (like Instagram): the reel being published is a
         // card at the top of the feed, not a bar over the app.
         const ReelPublishCard(),
+        // Owner 2026-10-23: posts and briefs being published, same place.
+        const PendingPostsStrip(),
         Expanded(
           // Owner 2026-09-30: News, or one qualification (with its
           // subcategories), optionally in states.

@@ -1198,7 +1198,6 @@ class _DaySeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chat = ChatColors.of(context);
     return Padding(
@@ -1207,9 +1206,7 @@ class _DaySeparator extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
-            color: colors.isGlass
-                ? chat.theirs
-                : chat.theirs.withValues(alpha: 0.92),
+            color: chat.theirs.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(AppRadii.pill),
             border: Border.all(color: chat.theirsBorder),
           ),
