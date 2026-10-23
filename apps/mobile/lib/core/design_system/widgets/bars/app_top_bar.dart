@@ -35,43 +35,43 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
     // while it is shown, so the bar never double-pads.
     final topInset = MediaQuery.paddingOf(context).top;
     final bar = Container(
-        decoration: headerDecoration(
-          fill: colors.headerBg,
-          gradient: colors.headerGradient,
-        ),
-        // Owner 2026-09-30: the back arrow and the right-hand icons sit near
-        // the edges (their 48 pt tap targets already give breathing room);
-        // a bare title keeps the screen margin.
-        padding: EdgeInsetsDirectional.fromSTEB(
-          leading != null ? AppSpacing.xs : AppSpacing.screenSide,
-          topInset,
-          actions != null && actions!.isNotEmpty
-              ? AppSpacing.xs
-              : AppSpacing.screenSide,
-          0,
-        ),
-        height: preferredSize.height + topInset,
-        child: Row(
-          children: [
-            if (leading != null) ...[
-              leading!,
-              const SizedBox(width: AppSpacing.xs),
-            ],
-            Expanded(
-              child: DefaultTextStyle(
-                style: typography.titleMedium.copyWith(color: colors.headerInk),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                child: Semantics(
-                  header: true,
-                  child: title ?? const SizedBox.shrink(),
-                ),
+      decoration: headerDecoration(
+        fill: colors.headerBg,
+        gradient: colors.headerGradient,
+      ),
+      // Owner 2026-09-30: the back arrow and the right-hand icons sit near
+      // the edges (their 48 pt tap targets already give breathing room);
+      // a bare title keeps the screen margin.
+      padding: EdgeInsetsDirectional.fromSTEB(
+        leading != null ? AppSpacing.xs : AppSpacing.screenSide,
+        topInset,
+        actions != null && actions!.isNotEmpty
+            ? AppSpacing.xs
+            : AppSpacing.screenSide,
+        0,
+      ),
+      height: preferredSize.height + topInset,
+      child: Row(
+        children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: AppSpacing.xs),
+          ],
+          Expanded(
+            child: DefaultTextStyle(
+              style: typography.titleMedium.copyWith(color: colors.headerInk),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              child: Semantics(
+                header: true,
+                child: title ?? const SizedBox.shrink(),
               ),
             ),
-            if (actions != null) ...actions!,
-          ],
-        ),
-      );
+          ),
+          if (actions != null) ...actions!,
+        ],
+      ),
+    );
     if (!colors.hasHeaderWash) return bar;
     // Blue / Green: white ink on the wash, light status-bar icons.
     return AnnotatedRegion<SystemUiOverlayStyle>(

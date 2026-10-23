@@ -38,7 +38,11 @@ class AppSignals with WidgetsBindingObserver {
   void start() {
     if (_started) return;
     _started = true;
-    WidgetsBinding.instance.addObserver(this);
+    try {
+      WidgetsBinding.instance.addObserver(this);
+    } on Object {
+      // No Flutter binding (a plain unit test): the other signals remain.
+    }
     _netSub = _monitor.changes.listen((up) {
       if (up) _emit(AppSignal.networkBack);
     });
@@ -79,7 +83,13 @@ class AppSignals with WidgetsBindingObserver {
   void emitForTest(AppSignal s) => _emit(s);
 
   void dispose() {
-    if (_started) WidgetsBinding.instance.removeObserver(this);
+    if (_started) {
+      try {
+        WidgetsBinding.instance.removeObserver(this);
+      } on Object {
+        // See [start].
+      }
+    }
     unawaited(_netSub?.cancel());
     unawaited(_pageSub?.cancel());
     unawaited(_controller.close());

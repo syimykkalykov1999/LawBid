@@ -26,7 +26,8 @@ const checklistRu = <String, String>{
   'guest.welcome.browse': 'Посмотреть без входа',
   'guest.profile.signIn': 'Войдите, чтобы увидеть профиль целиком',
   'guest.error.signIn': 'Войдите, чтобы это увидеть.',
-  'guest.error.later': 'Сейчас слишком много просмотров. Попробуйте чуть позже или войдите.',
+  'guest.error.later':
+      'Сейчас слишком много просмотров. Попробуйте чуть позже или войдите.',
   'call.updateApp': 'Обновите приложение, чтобы звонить и отвечать на звонки.',
   // Item 2: passkeys.
   'passkey.signIn': 'Войти по Face ID / отпечатку',
@@ -35,8 +36,10 @@ const checklistRu = <String, String>{
   'passkey.added': 'Ключ добавлен',
   'passkey.added.on': 'Добавлен {date}',
   'passkey.lastUsed': 'Использован {date}',
-  'passkey.empty': 'Ключей пока нет. Ключ входа хранится в Связке ключей iCloud или в Google-менеджере паролей.',
-  'passkey.hint': 'Вход по Face ID, отпечатку или коду экрана — без пароля и SMS.',
+  'passkey.empty':
+      'Ключей пока нет. Ключ входа хранится в Связке ключей iCloud или в Google-менеджере паролей.',
+  'passkey.hint':
+      'Вход по Face ID, отпечатку или коду экрана — без пароля и SMS.',
   'passkey.remove.title': 'Удалить ключ?',
   'passkey.remove.body': 'Ключ «{name}» больше не откроет аккаунт.',
   'passkey.error.cancelled': 'Вход отменён',
@@ -75,7 +78,8 @@ const checklistEn = <String, String>{
   'guest.welcome.browse': 'Browse without signing in',
   'guest.profile.signIn': 'Sign in to see the full profile',
   'guest.error.signIn': 'Sign in to see this.',
-  'guest.error.later': 'Too many views right now. Try again a little later, or sign in.',
+  'guest.error.later':
+      'Too many views right now. Try again a little later, or sign in.',
   'call.updateApp': 'Update the app to make and answer calls.',
   'passkey.signIn': 'Sign in with Face ID / fingerprint',
   'passkey.section': 'Sign-in keys',
@@ -83,8 +87,10 @@ const checklistEn = <String, String>{
   'passkey.added': 'Key added',
   'passkey.added.on': 'Added {date}',
   'passkey.lastUsed': 'Used {date}',
-  'passkey.empty': 'No keys yet. A sign-in key lives in iCloud Keychain or Google Password Manager.',
-  'passkey.hint': 'Sign in with Face ID, a fingerprint or your screen code — no password, no SMS.',
+  'passkey.empty':
+      'No keys yet. A sign-in key lives in iCloud Keychain or Google Password Manager.',
+  'passkey.hint':
+      'Sign in with Face ID, a fingerprint or your screen code — no password, no SMS.',
   'passkey.remove.title': 'Delete the key?',
   'passkey.remove.body': 'The key “{name}” will no longer open the account.',
   'passkey.error.cancelled': 'Sign-in cancelled',

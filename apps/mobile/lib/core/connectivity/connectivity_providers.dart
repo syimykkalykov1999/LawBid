@@ -9,14 +9,27 @@ import 'package:lawbid/core/connectivity/network_interface_monitor.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/realtime/app_signals.dart';
+import 'package:lawbid/core/realtime/timings_provider.dart';
 
 /// Dependency-free reachability signal, fed by `ReachabilityInterceptor`
 /// in `dioProvider`'s chain. Separate from [connectivityServiceProvider]
 /// so building dio never builds the service (no provider cycle, and no
 /// platform channel in tests that only use dio).
 final reachabilitySignalProvider = Provider<ReachabilitySignal>((ref) {
-  final signal = ReachabilitySignal();
-  ref.onDispose(signal.dispose);
+  // The timings are read at the moment of a failure (lazily), so building
+  // dio never builds the feature flags that themselves use dio.
+  final signal = ReachabilitySignal(
+    timings: () => ref.read(realtimeTimingsProvider),
+  );
+  final sub = ref.read(appSignalsProvider).signals.listen((s) {
+    if (s == AppSignal.paused) signal.setBackground(true);
+    if (s == AppSignal.resumed) signal.setBackground(false);
+  });
+  ref.onDispose(() {
+    sub.cancel();
+    signal.dispose();
+  });
   return signal;
 });
 
