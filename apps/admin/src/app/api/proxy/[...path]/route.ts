@@ -6,9 +6,9 @@ import {
   sessionToken,
 } from '@/lib/api/server';
 
-/** The API's own request timeout is REQUEST_TIMEOUT_MS (default 30 s);
- * 120 s covers the slow admin exports and still ends a hung call. */
+/** How long the API may take to start answering. */
 const UPSTREAM_TIMEOUT_MS = 120_000;
+const RETRY_AFTER_SEC = 2;
 
 /**
  * Forwards `/api/proxy/<path>` to `${API_BASE_URL}/admin/<path>` with the
@@ -38,9 +38,16 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
     const v = req.headers.get(h);
     if (v) headers.set(h, v);
   }
-  // Scale audit 2026-10-23: without a deadline one hung API call keeps the
-  // panel's server (and its memory) busy for ever; exports are the slowest
-  // answers, so the deadline is generous but finite.
+  // Owner 2026-10-23 ("связь пропала"): an API that restarts or hangs must
+  // reach the browser as a clear JSON 502/504 the client can retry, never
+  // as Next's HTML 500. The timer covers the wait for the response head;
+  // a long download (export) streams on after it.
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, UPSTREAM_TIMEOUT_MS);
   let upstream: Response;
   try {
     upstream = await fetch(url, {
@@ -52,16 +59,33 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
           : await req.arrayBuffer(),
       cache: 'no-store',
       redirect: 'manual',
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      signal: controller.signal,
     });
   } catch (e) {
-    if (e instanceof Error && e.name === 'TimeoutError') {
-      return NextResponse.json(
-        { error: { code: 'UPSTREAM_TIMEOUT', message: 'The API did not answer in time.' } },
-        { status: 504 },
-      );
-    }
-    throw e;
+    // Our own deadline, or a TimeoutError from the runtime's fetch.
+    const timeout =
+      timedOut || (e instanceof Error && e.name === 'TimeoutError');
+    return NextResponse.json(
+      timeout
+        ? {
+            error: {
+              code: 'UPSTREAM_TIMEOUT',
+              message: 'The server did not answer in time.',
+            },
+          }
+        : {
+            error: {
+              code: 'UPSTREAM_UNAVAILABLE',
+              message: 'The server is not reachable right now.',
+            },
+          },
+      {
+        status: timeout ? 504 : 502,
+        headers: { 'retry-after': String(RETRY_AFTER_SEC) },
+      },
+    );
+  } finally {
+    clearTimeout(timer);
   }
   const passthrough = new Headers({
     'content-type': upstream.headers.get('content-type') ?? 'application/json',

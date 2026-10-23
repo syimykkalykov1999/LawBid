@@ -21,6 +21,7 @@ function fakeSocket(id: string, token: string) {
     data: {} as Record<string, unknown>,
     handshake: { auth: { token }, headers: {} },
     use: jest.fn(),
+    on: jest.fn(),
     join: jest.fn().mockResolvedValue(undefined),
     emit: jest.fn(),
     disconnect: jest.fn(),
@@ -60,6 +61,7 @@ function setup(maxSockets?: number) {
     } as unknown as PinoLogger,
     { resolve: jest.fn() } as unknown as AssistantContextService,
     presence as unknown as PresenceService,
+    undefined,
     {
       number: jest.fn().mockResolvedValue(maxSockets ?? 10),
     } as unknown as AppSettingsService,

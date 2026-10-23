@@ -110,12 +110,15 @@ resource "aws_lb" "this" {
 }
 
 resource "aws_lb_target_group" "api" {
-  name                 = "${var.name}-api"
-  port                 = 3000
-  protocol             = "HTTP"
-  target_type          = "ip"
-  vpc_id               = var.vpc_id
-  deregistration_delay = 30
+  name        = "${var.name}-api"
+  port        = 3000
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = var.vpc_id
+  # Owner 2026-10-23: a stopping task is taken out of rotation at once but
+  # keeps its open connections for this long while its sockets drain
+  # (`server:going-away`); must be <= the container stopTimeout (60 s).
+  deregistration_delay = 60
   # Liveness, not readiness: ECS replaces tasks the ALB marks unhealthy, so a
   # DB/Redis blip on /health/ready would kill every API task at once.
   health_check {

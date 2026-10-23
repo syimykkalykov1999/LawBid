@@ -543,6 +543,57 @@ resource "aws_cloudwatch_log_metric_filter" "ws_connections" {
   }
 }
 
+# Owner 2026-10-23 («связь пропала»): how often live connections drop and
+# come back. The API logs one line per event (realtime.gateway.ts); the
+# board «Состояние системы» shows the same numbers per minute.
+resource "aws_cloudwatch_log_metric_filter" "ws_events" {
+  for_each = {
+    ws_disconnect = "WebSocketDisconnects"
+    ws_reconnect  = "WebSocketReconnects"
+  }
+  name           = "${var.name}-${replace(each.key, "_", "-")}"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"${each.key}\" }"
+  metric_transformation {
+    name          = each.value
+    namespace     = local.ns
+    value         = "1"
+    default_value = "0"
+    unit          = "Count"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "ws_going_away" {
+  name           = "${var.name}-ws-going-away"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"ws_going_away\" }"
+  metric_transformation {
+    name      = "WebSocketGoingAway"
+    namespace = local.ns
+    value     = "$.count"
+    unit      = "Count"
+  }
+}
+
+# A reconnect wave that is not a deploy: the apps lose their live
+# connection and come back in numbers (token expiry bug, network, a dying
+# instance). Busy-day baseline is far below this.
+resource "aws_cloudwatch_metric_alarm" "ws_reconnect_storm" {
+  alarm_name          = "${var.name}-ws-reconnect-storm"
+  alarm_description   = "LawBid: Много людей теряют и восстанавливают связь (более 1500 переподключений за 5 минут). Что делать: если только что был выкат — подождите 10 минут, это нормально. Иначе откройте админку → Состояние системы → «Живое соединение» и посмотрите причины разрывов. Инструкция: ${var.runbook_base_url}/REALTIME_LIFECYCLE.md (EN: websocket reconnects > 1500 per 5 min.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = 1500
+  statistic           = "Sum"
+  metric_name         = "WebSocketReconnects"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 resource "aws_cloudwatch_log_metric_filter" "business" {
   for_each = toset([
     "registrations24h",
