@@ -57,8 +57,21 @@ HlsPrefetcher _make(_Net net, {int concurrent = 2, int remembered = 16}) =>
       maxRemembered: remembered,
     );
 
-Future<void> _settle() =>
-    Future<void>.delayed(const Duration(milliseconds: 20));
+/// Lets queued fetches run. A fixed 20 ms was too short on a loaded CI
+/// runner, so this also waits (up to 2 s) until the fake network has been
+/// quiet for a tick.
+Future<void> _settle([_Net? net]) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 2));
+  var seen = net?.requests.length ?? -1;
+  while (true) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final now = net?.requests.length ?? -1;
+    if (net == null || now == seen || DateTime.now().isAfter(deadline)) {
+      return;
+    }
+    seen = now;
+  }
+}
 
 void main() {
   test('picks the lowest-bandwidth rendition and its first segment', () {
@@ -76,7 +89,7 @@ void main() {
   test('fetches master, lowest playlist and only the first segment', () async {
     final net = _Net();
     final p = _make(net)..prefetch('https://cdn.test/abc/playlist.m3u8');
-    await _settle();
+    await _settle(net);
     expect(net.requests, [
       'https://cdn.test/abc/playlist.m3u8',
       'https://cdn.test/abc/240p/playlist.m3u8',
@@ -85,7 +98,7 @@ void main() {
     expect(p.warmed('https://cdn.test/abc/playlist.m3u8'), isTrue);
     // A second wish for the same stream costs nothing.
     p.prefetch('https://cdn.test/abc/playlist.m3u8');
-    await _settle();
+    await _settle(net);
     expect(net.requests, hasLength(3));
   });
 
