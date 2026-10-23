@@ -1,3 +1,4 @@
+import { RuntimeStatsModule } from '../common/ops/runtime-stats.service';
 import { SloMetricsModule } from '../common/ops/slo-metrics.service';
 import { ServerTextsModule } from '../common/i18n/server-texts.service';
 import { CountriesCoreModule } from '../modules/countries/countries.module';
@@ -90,6 +91,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     ServerTextsModule,
     // Owner 2026-10-22 (audit #4 §7): push SLO counters.
     SloMetricsModule,
+    // Load audit 6: event-loop delay + heap as CloudWatch EMF metrics.
+    RuntimeStatsModule,
     // Audit 2026-10-02: admin broadcast fan-out (`admin-broadcast` queue).
     BroadcastFanoutModule.register({ mode: 'worker' }),
     // Owner 2026-10-22 (server load audit, finding 7): group messages

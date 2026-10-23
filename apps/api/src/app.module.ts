@@ -1,3 +1,4 @@
+import { RuntimeStatsModule } from './common/ops/runtime-stats.service';
 import { SloMetricsModule } from './common/ops/slo-metrics.service';
 import { ServerTextsModule } from './common/i18n/server-texts.service';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
@@ -287,6 +288,8 @@ const isDev =
     ServerTextsModule,
     // Owner 2026-10-22 (audit #4 §7): business SLO counters.
     SloMetricsModule,
+    // Load audit 6: event-loop delay + heap as CloudWatch EMF metrics.
+    RuntimeStatsModule,
     UsersModule,
     I18nModule,
     CasesModule,
