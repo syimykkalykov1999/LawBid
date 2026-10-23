@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
@@ -45,10 +47,16 @@ void prefetchPost(BuildContext context, Post p) {
   // screen's pixel ratio), so the warm decode is the one found on screen.
   // Owner 2026-10-18: a playable video draws no poster in the feed (no
   // cover flash before the video), so only a not-ready one's is warmed.
+  // Owner 2026-10-23 (instant start): the poster of a playable video is
+  // shown over the player until its first frame moves, so it is warmed
+  // too — and the first bytes of its stream (lowest rendition) are
+  // fetched ahead.
   final thumb = p.video?.thumbnailUrl;
-  if (thumb != null && p.video?.ready != true) {
+  if (thumb != null) {
     precacheImage(reelPosterProvider(thumb), context, onError: (_, __) {});
   }
+  final stream = (p.video?.ready ?? false) ? p.video?.playbackUrl : null;
+  if (stream != null && !kIsWeb) HlsPrefetcher.instance.prefetch(stream);
   final avatar = p.author.avatarUrl;
   if (avatar != null) {
     // The feed card's author row: a 32 dp IdentityAvatar; the gold ring

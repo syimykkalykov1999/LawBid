@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -74,6 +75,13 @@ export class CreateVideoUploadDto {
   @IsOptional()
   @IsUUID()
   coverFileId?: string;
+
+  /** Owner 2026-10-23: `reel` (default, up to `video.reel_max_duration_sec`)
+   * or `post` (a longer video post, up to `video.post_max_duration_sec`). */
+  @ApiPropertyOptional({ enum: ['reel', 'post'], default: 'reel' })
+  @IsOptional()
+  @IsIn(['reel', 'post'])
+  kind?: 'reel' | 'post';
 }
 
 /** TUS credentials for one direct upload to Bunny. */
