@@ -1,10 +1,10 @@
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
-
 import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart';
-import 'package:lawbid/features/auth/presentation/screens/change_password_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/change_password_screen.dart'
+    deferred as d_change_password_screen;
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
@@ -117,8 +117,14 @@ List<RouteBase> authRoutes() => [
       ),
       GoRoute(
         path: AuthRoutes.changePassword,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const ChangePasswordScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'change_password_screen',
+            load: d_change_password_screen.loadLibrary,
+            builder: (_) => d_change_password_screen.ChangePasswordScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: AuthRoutes.setPassword,

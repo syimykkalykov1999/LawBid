@@ -1,9 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
-import 'package:lawbid/features/stories/presentation/story_archive_screen.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/stories/presentation/story_archive_screen.dart'
+    deferred as d_story_archive_screen;
 import 'package:lawbid/features/stories/presentation/story_creator_screen.dart';
-import 'package:lawbid/features/stories/presentation/story_settings_screen.dart';
+import 'package:lawbid/features/stories/presentation/story_settings_screen.dart'
+    deferred as d_story_settings_screen;
 import 'package:lawbid/features/stories/presentation/story_viewer_screen.dart';
 
 /// Owner 2026-10-20: stories — the viewer, the creator, the privacy
@@ -45,13 +48,25 @@ List<RouteBase> storiesRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: StoriesRoutes.settings,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const StorySettingsScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'story_settings_screen',
+            load: d_story_settings_screen.loadLibrary,
+            builder: (_) => d_story_settings_screen.StorySettingsScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: StoriesRoutes.archive,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const StoryArchiveScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'story_archive_screen',
+            load: d_story_archive_screen.loadLibrary,
+            builder: (_) => d_story_archive_screen.StoryArchiveScreen(),
+          ),
+        ),
       ),
     ];

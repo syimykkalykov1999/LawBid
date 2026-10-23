@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
-import 'package:lawbid/features/deadlines/presentation/deadline_calculator_screen.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/deadlines/presentation/deadline_calculator_screen.dart'
+    deferred as d_deadline_calculator_screen;
 
 /// Owner 2026-10-20: the deadline calculator, `/deadlines?state=NY&
 /// practice=personal_injury&caseId=…&kind=statute`.
@@ -26,11 +28,16 @@ List<RouteBase> deadlinesRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeadlineCalculatorScreen(
-            state: state.uri.queryParameters['state'],
-            practice: state.uri.queryParameters['practice'],
-            caseId: state.uri.queryParameters['caseId'],
-            kind: state.uri.queryParameters['kind'],
+          DeferredScreen(
+            id: 'deadline_calculator_screen',
+            load: d_deadline_calculator_screen.loadLibrary,
+            builder: (_) =>
+                d_deadline_calculator_screen.DeadlineCalculatorScreen(
+              state: state.uri.queryParameters['state'],
+              practice: state.uri.queryParameters['practice'],
+              caseId: state.uri.queryParameters['caseId'],
+              kind: state.uri.queryParameters['kind'],
+            ),
           ),
         ),
       ),

@@ -20,3 +20,34 @@
         setTimeout(function () { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); }, 60);
       });
     })();
+
+/* Owner 2026-10-23 (web speed pass): start the app's download while the
+   browser is still reading the page. Without this the app (3 MB
+   compressed) starts only after flutter_bootstrap.js ran and asked for it.
+   The deploy (scripts/deploy/web-immutable.py) fills in the folder that
+   holds the app; a local build leaves the placeholder and nothing is
+   preloaded. Only for browsers that run the WebAssembly build (WasmGC);
+   the others get the JS build, which the loader picks by itself. */
+(function () {
+  var V = '__LB_V__';
+  if (V.indexOf('__') === 0) return;
+  try {
+    // A tiny module with a GC struct type: valid only with WasmGC.
+    if (!WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0]))) return;
+  } catch (e) { return; }
+  function add(rel, href, as, cors) {
+    var l = document.createElement('link');
+    l.rel = rel;
+    l.href = V + '/' + href;
+    if (as) l.as = as;
+    if (cors) l.crossOrigin = 'anonymous';
+    document.head.appendChild(l);
+  }
+  add('modulepreload', 'main.dart.mjs');
+  add('preload', 'main.dart.wasm', 'fetch', true);
+  /* The engine: Chrome-like browsers get skwasm, Safari / Firefox the
+     bigger skwasm_heavy (flutter.js picks by the same test). */
+  var engine = window.chrome ? 'skwasm' : 'skwasm_heavy';
+  add('modulepreload', 'canvaskit/' + engine + '.js');
+  add('preload', 'canvaskit/' + engine + '.wasm', 'fetch', true);
+})();

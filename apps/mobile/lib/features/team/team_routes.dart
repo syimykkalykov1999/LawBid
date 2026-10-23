@@ -1,14 +1,16 @@
 import 'package:flutter/widgets.dart';
-
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/presentation/assistant_join_screen.dart';
-import 'package:lawbid/features/team/presentation/assistant_roles_screen.dart';
+import 'package:lawbid/features/team/presentation/assistant_join_screen.dart'
+    deferred as d_assistant_join_screen;
+import 'package:lawbid/features/team/presentation/assistant_roles_screen.dart'
+    deferred as d_assistant_roles_screen;
 import 'package:lawbid/features/team/presentation/planner_task_sheet.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
-import 'package:lawbid/features/team/presentation/team_screen.dart';
+import 'package:lawbid/features/team/presentation/team_screen.dart'
+    deferred as d_team_screen;
 
 /// OQ-048 routes: the attorney's Team, a new task, an assistant joining.
 abstract final class TeamRoutes {
@@ -56,14 +58,26 @@ List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: TeamRoutes.team,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const TeamScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'team_screen',
+            load: d_team_screen.loadLibrary,
+            builder: (_) => d_team_screen.TeamScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: TeamRoutes.roles,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const AssistantRolesScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'assistant_roles_screen',
+            load: d_assistant_roles_screen.loadLibrary,
+            builder: (_) => d_assistant_roles_screen.AssistantRolesScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: TeamRoutes.newTask,
@@ -111,8 +125,14 @@ List<RouteBase> teamRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: TeamRoutes.assistantJoin,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const AssistantJoinScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'assistant_join_screen',
+            load: d_assistant_join_screen.loadLibrary,
+            builder: (_) => d_assistant_join_screen.AssistantJoinScreen(),
+          ),
+        ),
       ),
     ];
 

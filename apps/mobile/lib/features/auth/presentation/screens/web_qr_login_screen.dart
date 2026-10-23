@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/features/auth/application/qr_login_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/shared/presentation/qr_code_view.dart';
@@ -42,10 +43,18 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
   void initState() {
     super.initState();
     unawaited(_newCode());
+    // Owner 2026-10-23 (web economy): no polling from a hidden tab; one
+    // poll the moment the person comes back.
+    _visible = WebLifecycle.events.listen((e) {
+      if (e.isComingBack) unawaited(_tick());
+    });
   }
+
+  StreamSubscription<WebLifecycleEvent>? _visible;
 
   @override
   void dispose() {
+    unawaited(_visible?.cancel());
     _timer?.cancel();
     _closeSocket();
     super.dispose();
@@ -116,6 +125,9 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
   Future<void> _tick({bool force = false}) async {
     final code = _code;
     if (code == null || _polling || !mounted) return;
+    // A hidden tab asks nothing (the socket may still say «approved»; its
+    // `force` poll goes through).
+    if (!force && !WebLifecycle.isVisible) return;
     // The code is about to expire anyway: show a fresh one before the
     // person points a phone at a dead one (not when the socket just said
     // «approved»: the tokens are waiting).

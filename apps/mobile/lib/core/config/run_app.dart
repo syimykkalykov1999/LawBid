@@ -17,6 +17,7 @@ import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
+import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/core/security/app_check.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
@@ -44,6 +45,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // `/#/lawyer/anna` — links, reload and the back button all work. A no-op
   // on the phone.
   usePathUrlStrategy();
+  // Owner 2026-10-23: tab visibility / online / page freeze events for the
+  // connectivity and realtime code (core/platform/web_lifecycle.dart).
+  if (kIsWeb) WebLifecycle.attach();
   // Web is closed until it is switched on (see web_gate.dart).
   if (kIsWeb && !kWebEnabled) {
     runApp(const WebGateApp());

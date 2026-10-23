@@ -2,11 +2,16 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
-import 'package:lawbid/features/channels/presentation/channel_admins_screen.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/channels/presentation/channel_admins_screen.dart'
+    deferred as d_channel_admins_screen;
 import 'package:lawbid/features/channels/presentation/channel_composer_screen.dart';
-import 'package:lawbid/features/channels/presentation/channel_form_screen.dart';
-import 'package:lawbid/features/channels/presentation/channel_screen.dart';
-import 'package:lawbid/features/channels/presentation/channels_screen.dart';
+import 'package:lawbid/features/channels/presentation/channel_form_screen.dart'
+    deferred as d_channel_form_screen;
+import 'package:lawbid/features/channels/presentation/channel_screen.dart'
+    deferred as d_channel_screen;
+import 'package:lawbid/features/channels/presentation/channels_screen.dart'
+    deferred as d_channels_screen;
 import 'package:lawbid/features/channels/presentation/sections_archive.dart';
 
 /// Owner 2026-10-20: channels routes. `/c/:username` is the public link
@@ -47,9 +52,13 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          const BackSwipe(
+          BackSwipe(
             mode: BackSwipeMode.rows,
-            child: ChannelsScreen(),
+            child: DeferredScreen(
+              id: 'channels_screen',
+              load: d_channels_screen.loadLibrary,
+              builder: (_) => d_channels_screen.ChannelsScreen(),
+            ),
           ),
         ),
       ),
@@ -57,8 +66,14 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: ChannelsRoutes.newChannel,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const ChannelFormScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'channel_form_screen',
+            load: d_channel_form_screen.loadLibrary,
+            builder: (_) => d_channel_form_screen.ChannelFormScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: ChannelsRoutes.archive,
@@ -71,9 +86,13 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          ChannelScreen(
-            channelRef: state.pathParameters['id'] ?? '',
-            focusPostId: state.uri.queryParameters['post'],
+          DeferredScreen(
+            id: 'channel_screen',
+            load: d_channel_screen.loadLibrary,
+            builder: (_) => d_channel_screen.ChannelScreen(
+              channelRef: state.pathParameters['id'] ?? '',
+              focusPostId: state.uri.queryParameters['post'],
+            ),
           ),
         ),
       ),
@@ -82,9 +101,13 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          ChannelScreen(
-            channelRef: state.pathParameters['username'] ?? '',
-            focusPostId: state.uri.queryParameters['post'],
+          DeferredScreen(
+            id: 'channel_screen',
+            load: d_channel_screen.loadLibrary,
+            builder: (_) => d_channel_screen.ChannelScreen(
+              channelRef: state.pathParameters['username'] ?? '',
+              focusPostId: state.uri.queryParameters['post'],
+            ),
           ),
         ),
       ),
@@ -93,7 +116,13 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          ChannelFormScreen(channelRef: state.pathParameters['id']),
+          DeferredScreen(
+            id: 'channel_form_screen',
+            load: d_channel_form_screen.loadLibrary,
+            builder: (_) => d_channel_form_screen.ChannelFormScreen(
+              channelRef: state.pathParameters['id'],
+            ),
+          ),
         ),
       ),
       GoRoute(
@@ -101,7 +130,13 @@ List<RouteBase> channelsRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          ChannelAdminsScreen(channelId: state.pathParameters['id'] ?? ''),
+          DeferredScreen(
+            id: 'channel_admins_screen',
+            load: d_channel_admins_screen.loadLibrary,
+            builder: (_) => d_channel_admins_screen.ChannelAdminsScreen(
+              channelId: state.pathParameters['id'] ?? '',
+            ),
+          ),
         ),
       ),
       GoRoute(
