@@ -46,8 +46,11 @@ class RealtimeTimings {
     );
   }
 
-  /// From the bootstrap's `app_config` (object values arrive JSON-encoded):
-  /// either a `client.timings` key or a `client` object holding `timings`.
+  /// From the bootstrap's `app_config` (object values arrive JSON-encoded).
+  /// Order: the admin panel's flat knobs `client.realtime_reconnect_min_ms` /
+  /// `client.realtime_reconnect_max_ms` (shared with `ClientTuning`), then
+  /// the `client.timings` object (or a `client` object holding `timings`)
+  /// which may carry every key and wins where it speaks.
   factory RealtimeTimings.fromAppConfig(Map<String, String> config) {
     Object? decode(String? raw) {
       if (raw == null) return null;
@@ -58,11 +61,26 @@ class RealtimeTimings {
       }
     }
 
+    final merged = <String, Object?>{};
+    final flatMin =
+        num.tryParse(config['client.realtime_reconnect_min_ms'] ?? '');
+    final flatMax =
+        num.tryParse(config['client.realtime_reconnect_max_ms'] ?? '');
+    if (flatMin != null) merged['reconnectMinMs'] = flatMin;
+    if (flatMax != null) merged['reconnectMaxMs'] = flatMax;
     final direct = decode(config['client.timings']);
-    if (direct is Map) return RealtimeTimings.fromJson(direct);
     final client = decode(config['client']);
-    if (client is Map) return RealtimeTimings.fromJson(client['timings']);
-    return const RealtimeTimings();
+    final obj = direct is Map
+        ? direct
+        : (client is Map && client['timings'] is Map
+            ? client['timings']
+            : null);
+    if (obj is Map) {
+      for (final e in obj.entries) {
+        merged['${e.key}'] = e.value;
+      }
+    }
+    return RealtimeTimings.fromJson(merged);
   }
 
   final int reconnectMinMs;

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/realtime/app_signals.dart';
 import 'package:lawbid/core/realtime/timings_provider.dart';
 import 'package:lawbid/core/session/proactive_refresh_provider.dart';
@@ -37,11 +38,14 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
         ref.read(proactiveRefresherProvider)?.ensureFresh(),
   );
   // Owner 2026-10-23 (part C9): background / foreground / network back.
+  final reachability = ref.read(reachabilitySignalProvider);
   final signals = ref.read(appSignalsProvider).signals.listen((s) {
     switch (s) {
       case AppSignal.paused:
+        reachability.setBackground(true);
         client.pause();
       case AppSignal.resumed:
+        reachability.setBackground(false);
         client.resume();
       case AppSignal.networkBack:
         client.networkBack();

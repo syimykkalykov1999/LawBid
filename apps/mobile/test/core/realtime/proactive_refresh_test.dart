@@ -73,6 +73,17 @@ void main() {
         1000,
       );
       expect(RealtimeTimings.fromAppConfig({}).offlineSeconds, 8);
+      // The admin panel's flat knobs, overridden by the object where given.
+      final flat = RealtimeTimings.fromAppConfig({
+        'client.realtime_reconnect_min_ms': '2000',
+        'client.realtime_reconnect_max_ms': '60000',
+      });
+      expect([flat.reconnectMinMs, flat.reconnectMaxMs], [2000, 60000]);
+      final both = RealtimeTimings.fromAppConfig({
+        'client.realtime_reconnect_max_ms': '60000',
+        'client.timings': '{"reconnectMaxMs":20000}',
+      });
+      expect(both.reconnectMaxMs, 20000);
     });
   });
 
