@@ -1,11 +1,5 @@
 import { type CountryScope, userInScope } from '../countries/country-scope';
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
-import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -88,8 +82,6 @@ const LICENSE_SELECT = {
   orderBy: { state_code: 'asc' },
 } as const;
 
-export const TRUST_STATS_SUMMARY_KEY = 'trust-stats';
-
 /** Admin → Верификация → «Уровни доверия». */
 @Injectable()
 export class AdminTrustService {
@@ -100,7 +92,6 @@ export class AdminTrustService {
     private readonly config: AdminConfigService,
     private readonly audit: AuditLogService,
     private readonly blocks: BarNumberBlocksService,
-    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async settingsDto(): Promise<TrustSettingsDto> {
@@ -190,21 +181,14 @@ export class AdminTrustService {
     return after;
   }
 
-  /** Owner 2026-10-23 (admin economy pass): the KPI row is read from Redis
-   * (one recount per 5 minutes for the whole team; the heavy part — the
-   * per-status scan — comes from the worker's `admin.summaries` run);
-   * `computedAt` says when. */
+  /**
+   * Owner 2026-10-23 (admin economy pass): the live parts (holds, the staff
+   * queue — now narrowed in SQL, so cheap — the switches) are read as
+   * before; the per-badge-status counts, which need every attorney's
+   * derived status, come from the worker's precomputed scan
+   * (`computedAt` says when they were counted).
+   */
   async stats(): Promise<TrustStatsDto> {
-    if (!this.summary) return this.computeStats();
-    const s = await this.summary.get(
-      TRUST_STATS_SUMMARY_KEY,
-      () => this.computeStats(),
-      300,
-    );
-    return { ...s.data, computedAt: s.computedAt };
-  }
-
-  private async computeStats(): Promise<TrustStatsDto> {
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const [byLevel, held, withBadge, verified, complaints30d, scan] =
       await Promise.all([
@@ -234,7 +218,7 @@ export class AdminTrustService {
         }),
         this.trust.scanCached(),
       ]);
-    const inQueue = scan.data.queueSize;
+    const inQueue = (await this.trust.queue({ limit: 1000 })).length;
     const [rules, blockedBarNumbers] = await Promise.all([
       this.trust.rules(),
       this.blocks.countActive(),
@@ -262,6 +246,7 @@ export class AdminTrustService {
         attorneys: byStatus.get(status) ?? 0,
       })),
       blockedBarNumbers,
+      computedAt: scan.computedAt,
     };
   }
 

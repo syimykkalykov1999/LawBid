@@ -133,8 +133,13 @@ export class AdminCaseManagementService {
       // Owner 2026-10-23: the title search reads the trigram index
       // (admin-text-search.ts), not ILIKE over every case.
       const ids = await caseIdsByTitle(this.prisma, q.q.trim());
-      if (ids.length === 0) return { items: [], nextCursor: null };
-      and.push({ id: { in: ids } });
+      if (ids && ids.length === 0) return { items: [], nextCursor: null };
+      // `null` = a word in very many titles: the plain newest-first scan.
+      and.push(
+        ids
+          ? { id: { in: ids } }
+          : { title: { contains: q.q.trim(), mode: 'insensitive' } },
+      );
     }
     if (q.clientId) and.push({ client_id: q.clientId });
     if (q.practiceAreaId) and.push({ practice_area_id: q.practiceAreaId });

@@ -101,11 +101,12 @@ const ENDPOINTS: [string, string][] = [
       '|---|---|---|---|---|---|---|',
     ];
     for (const [label, path] of ENDPOINTS) {
+      if (process.env.PERF_ONLY && !path.includes(process.env.PERF_ONLY))
+        continue;
       // Empty every admin cache so the first call is a real cold one.
       // (Only the aggregate caches: `adm:*` also holds the admin sessions.)
       const keys = [
         ...(await redis.keys('adm:sum:*')),
-        ...(await redis.keys('adm:dashboard')),
         ...(await redis.keys('adm:counts:*')),
       ];
       if (keys.length) await redis.del(...keys);

@@ -594,7 +594,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
   });
 
   it('dashboard returns every §2.3.1 number and is cached for the team', async () => {
-    await redis.del('adm:dashboard');
+    await redis.del('adm:sum:dashboard');
     const s = await adminSession(baseUrl, prisma, 'support');
     const r = await api()
       .get('/api/v1/admin/dashboard')
@@ -638,7 +638,9 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .set(s.auth)
       .expect(200);
     expect((again.body as Body).data.computedAt).toBe(d.computedAt);
-    expect(await redis.ttl('adm:dashboard')).toBeGreaterThan(0);
+    // Owner 2026-10-23: kept in the precomputed-summary store (a day, the
+    // worker's `admin.summaries` recounts it every 2 minutes).
+    expect(await redis.ttl('adm:sum:dashboard')).toBeGreaterThan(0);
   });
 
   it('audit log: only the super admin reads it (filters, paging); other admins get 404', async () => {

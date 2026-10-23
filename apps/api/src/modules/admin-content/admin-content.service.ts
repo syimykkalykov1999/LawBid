@@ -162,6 +162,9 @@ export class AdminContentService {
       ? await postIdsMatching(this.prisma, q.trim())
       : null;
     if (matched && matched.length === 0) return { items: [], nextCursor: null };
+    // `null` with a search term = a word in very many posts: the plain
+    // newest-first scan finds the first page of such matches at once.
+    const common = !!q?.trim() && matched === null;
     const rows = await this.prisma.post.findMany({
       where: {
         ...(matched ? { id: { in: matched } } : {}),
@@ -172,7 +175,17 @@ export class AdminContentService {
         ...createdWindow(filter),
         // Search and paging both need an OR: AND keeps them from
         // overwriting each other.
-        AND: [keyset(cursor)],
+        AND: [
+          common && q
+            ? {
+                OR: [
+                  { title: { contains: q.trim(), mode: 'insensitive' } },
+                  { body: { contains: q.trim(), mode: 'insensitive' } },
+                ],
+              }
+            : {},
+          keyset(cursor),
+        ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
@@ -395,12 +408,16 @@ export class AdminContentService {
       ? await caseIdsByTitle(this.prisma, q.trim())
       : null;
     if (caseIds && caseIds.length === 0) return { items: [], nextCursor: null };
+    const commonTitle = !!q?.trim() && caseIds === null;
     const rows = await this.prisma.bid.findMany({
       where: {
         ...(status
           ? { status: status as Prisma.EnumBidStatusFilter['equals'] }
           : {}),
         ...(caseIds ? { case_id: { in: caseIds } } : {}),
+        ...(commonTitle && q
+          ? { case: { title: { contains: q.trim(), mode: 'insensitive' } } }
+          : {}),
         ...keyset(cursor),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
