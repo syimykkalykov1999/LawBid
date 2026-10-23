@@ -46,6 +46,7 @@ import {
   AdminInviteAcceptResultDto,
   AdminInvitePreviewDto,
   AdminOkDto,
+  AdminOnCallDto,
   AdminPasskeyLoginDto,
   AdminPasskeyOptionsDto,
   AdminPasskeyRegisterDto,
@@ -443,6 +444,21 @@ export class AdminAuthController {
       dto.newPassword,
       ip || null,
     );
+    return { ok: true };
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Put('me/on-call')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary: 'Switch my system alerts (push + e-mail) on or off',
+  })
+  @ApiEnvelopeResponse(AdminOkDto)
+  async adminSetOnCall(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminOnCallDto,
+  ): Promise<AdminOkDto> {
+    await this.auth.setOnCall(admin, dto.enabled);
     return { ok: true };
   }
 

@@ -11,6 +11,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { CallHistoryController } from './call-history.controller';
 import { CallHistoryService } from './call-history.service';
 import { CallsController } from './calls.controller';
+import { LiveKitWebhookController } from './livekit-webhook.controller';
 import { CallsService } from './calls.service';
 
 /** OQ-041: in-app audio calls; owner 2026-10-05: video calls. */
@@ -28,7 +29,11 @@ import { CallsService } from './calls.service';
     PrivacySettingsModule,
   ],
   // CallHistoryController first: `calls/history` must not match `calls/:id`.
-  controllers: [CallHistoryController, CallsController],
+  controllers: [
+    CallHistoryController,
+    CallsController,
+    LiveKitWebhookController,
+  ],
   providers: [CallsService, CallHistoryService],
   exports: [CallsService],
 })

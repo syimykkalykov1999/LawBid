@@ -45,6 +45,9 @@ export const ADMIN_AREAS = [
   'chats',
   // …the audit log: everybody's rows instead of only one's own.
   'audit',
+  // Owner 2026-10-22: «Дежурный» — gets the system alerts (push + e-mail)
+  // from the watchdog; each admin can still switch it off in Профиль.
+  'on_call',
 ] as const;
 export type AdminArea = (typeof ADMIN_AREAS)[number];
 

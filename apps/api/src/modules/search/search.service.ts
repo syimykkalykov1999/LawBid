@@ -161,6 +161,13 @@ export class SearchService {
     return mode === 'legal_only' ? 'legal' : undefined;
   }
 
+  /** The per-person search budget. A guest has none of their own: the
+   * per-IP guest budget of JwtAuthGuard stands in for it. */
+  private async consumeSearch(user: RequestUser): Promise<void> {
+    if (user.guest) return;
+    await this.limits.consume('search', user.sub);
+  }
+
   /**
    * GET /search/people (OQ-026): attorneys and clients by @username and
    * name in one ranked list. The shared ranked cache stores "role:id"
@@ -170,7 +177,7 @@ export class SearchService {
     user: RequestUser,
     dto: SearchPeopleQueryDto,
   ): Promise<PeoplePage> {
-    await this.limits.consume('search', user.sub);
+    await this.consumeSearch(user);
     const q = textQuery(dto.q);
     const filters = {
       practiceAreaId: dto.practiceAreaId,
@@ -255,7 +262,7 @@ export class SearchService {
     user: RequestUser,
     dto: SearchAttorneysQueryDto,
   ): Promise<AttorneyListPage> {
-    await this.limits.consume('search', user.sub);
+    await this.consumeSearch(user);
     const q = textQuery(dto.q);
     const filters = {
       practiceAreaId: dto.practiceAreaId,
@@ -267,7 +274,7 @@ export class SearchService {
       this.provider.searchAttorneys(q, filters, RANKED_MAX),
     );
     const { slice, next } = this.pageOf(ids, dto.cursor);
-    if (!dto.cursor)
+    if (!dto.cursor && !user.guest)
       this.queryLog?.logQuery(user.sub, 'people', q, slice.length);
     return {
       items: await this.follows.present(slice, user.sub),
@@ -285,7 +292,7 @@ export class SearchService {
         message: 'Only attorneys search cases.',
       });
     }
-    await this.limits.consume('search', user.sub);
+    await this.consumeSearch(user);
     const q = textQuery(dto.q);
     if (!(await this.casesFeed.isVerifiedAttorney(user.sub))) {
       return { items: [], nextCursor: null };
@@ -350,7 +357,7 @@ export class SearchService {
     user: RequestUser,
     rawQ: string,
   ): Promise<{ code: string; nameEn: string; hit: string | null }[]> {
-    await this.limits.consume('search', user.sub);
+    await this.consumeSearch(user);
     const q = normalizeQuery(rawQ);
     if (q.length < 2) return [];
     return this.provider.practiceMatches(q, 25);
@@ -361,7 +368,7 @@ export class SearchService {
     user: RequestUser,
     rawQ: string,
   ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]> {
-    await this.limits.consume('search', user.sub);
+    await this.consumeSearch(user);
     const q = normalizeQuery(rawQ);
     if (q.length < 1) return [];
     const hash = createHash('sha256').update(q).digest('base64url');
@@ -387,7 +394,7 @@ export class SearchService {
     cursor?: string,
     dto?: SearchPostsQueryDto,
   ): Promise<PostPage> {
-    await this.limits.consume('search', user.sub);
+    await this.consumeSearch(user);
     const q = textQuery(rawQ);
     const span = PERIOD_MS[dto?.period ?? 'all'];
     const filters = {
@@ -406,7 +413,8 @@ export class SearchService {
       () => this.provider.searchPosts(q, RANKED_MAX, filters),
     );
     const { slice, next } = this.pageOf(ids, cursor);
-    if (!cursor) this.queryLog?.logQuery(user.sub, 'posts', q, slice.length);
+    if (!cursor && !user.guest)
+      this.queryLog?.logQuery(user.sub, 'posts', q, slice.length);
     return {
       items: await this.presentPosts(slice, user.sub),
       nextCursor: next,
@@ -414,7 +422,7 @@ export class SearchService {
   }
 
   async tags(user: RequestUser, rawQ: string): Promise<TagDto[]> {
-    await this.limits.consume('search', user.sub);
+    await this.consumeSearch(user);
     const prefix = normalizeQuery(rawQ);
     if (prefix.length < 1) throw invalid('q', 'Empty tag.');
     const tags = await this.provider.searchTags(prefix, PAGE);
@@ -476,7 +484,8 @@ export class SearchService {
     const popular = filter.sort === 'popular';
     // Owner 2026-10-13: for_you = ranked for this viewer (same candidates
     // and filters, paged by position like popular).
-    const forYou = filter.sort === 'for_you' && !!this.recommendations;
+    const forYou =
+      filter.sort === 'for_you' && !!this.recommendations && !user.guest;
     // Popular and for_you page by offset; newest keeps the keyset cursor.
     // Owner 2026-10-14: popular pages by a keyset cursor too (a numeric one
     // from an older app still means an offset).

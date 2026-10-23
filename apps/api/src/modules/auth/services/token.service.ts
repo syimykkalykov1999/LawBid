@@ -19,6 +19,9 @@ export interface AccessTokenClaims {
    * the demo database (src/common/demo). Signed into the token, and every
    * request with it must carry `X-LawBid-Demo: 1` (JwtAuthGuard). */
   demo?: boolean;
+  /** Owner 2026-10-22: set by JwtAuthGuard (never signed into a token) for
+   * a token-less request on an `@OptionalAuth()` route. */
+  guest?: boolean;
   /** OQ-048: set by JwtAuthGuard (never signed into a token) when an
    * assistant acts inside the attorney's account — `sub` is then the
    * attorney. */

@@ -300,10 +300,10 @@ describe('CostGuardService money budgets', () => {
       'money:{m}:20260927:p:sms',
       'money:{m}:20260927:u:u1',
     ]);
-    // amount 830 (one US SMS), 3 counters; caps: $500, 300 SMS × 830, $5.
+    // amount 1150 (one US SMS), 3 counters; caps: $500, 300 SMS × 1150, $5.
     expect(args.slice(11)).toEqual([
-      830, 3, 50_000_000, 172800, 40_000_000, 249_000, 172800, 199_200, 500_000,
-      172800, 400_000,
+      1150, 3, 50_000_000, 172800, 40_000_000, 345_000, 172800, 276_000,
+      500_000, 172800, 400_000,
     ]);
   });
 
@@ -373,8 +373,8 @@ describe('CostGuardService money budgets', () => {
       eval: jest.fn().mockResolvedValue([0, 2, 300, 1]),
     });
     await expectBudgetError(service.consume('sms', 1, { country: 'US' }));
-    expect(decrby).toHaveBeenCalledWith('money:{m}:20260927:all:all', 830);
-    expect(decrby).toHaveBeenCalledWith('money:{m}:20260927:p:sms', 830);
+    expect(decrby).toHaveBeenCalledWith('money:{m}:20260927:all:all', 1150);
+    expect(decrby).toHaveBeenCalledWith('money:{m}:20260927:p:sms', 1150);
   });
 
   it('admin cents in app_config win over env', async () => {

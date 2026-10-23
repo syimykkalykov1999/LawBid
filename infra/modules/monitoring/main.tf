@@ -24,6 +24,11 @@ variable "cluster_name" { type = string }
 variable "api_service_name" { type = string }
 variable "worker_service_name" { type = string }
 variable "redis_replication_group_id" { type = string }
+variable "redis_replicas" {
+  type        = number
+  default     = 0
+  description = "Replicas of the main Redis (modules/redis). > 0 adds a replication-lag alarm per replica."
+}
 variable "api_log_group" { type = string }
 variable "worker_log_group" { type = string }
 variable "runbook_base_url" {
@@ -827,5 +832,27 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
   alarm_actions       = local.ops
+  tags                = var.tags
+}
+
+# Owner 2026-10-22: Redis with a replica. A replica that falls behind cannot
+# take over without losing writes. Node ids of a replication group are
+# <group>-001 (first primary) and <group>-002 ...; after a failover the
+# roles swap but the ids stay, so every replica node gets an alarm.
+resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
+  for_each            = toset([for i in range(2, var.redis_replicas + 2) : format("%03d", i)])
+  alarm_name          = "${var.name}-redis-replication-lag-${each.key}"
+  alarm_description   = "LawBid: Запасная копия быстрой памяти (Redis) отстаёт больше 30 секунд. Что делать: ничего срочного, приложение работает; если не проходит за час — это нужно проверить. Инструкция: ${var.runbook_base_url}/redis.md (EN: ElastiCache ReplicationLag > 30 s on replica ${each.key}.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 300
+  threshold           = 30
+  statistic           = "Maximum"
+  metric_name         = "ReplicationLag"
+  namespace           = "AWS/ElastiCache"
+  dimensions          = { CacheClusterId = "${var.redis_replication_group_id}-${each.key}" }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
   tags                = var.tags
 }

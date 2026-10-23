@@ -154,6 +154,60 @@ export function word(item: HealthItem): Worded {
                 : undefined,
       };
     }
+    case 'stripe_webhooks':
+      return {
+        title: 'Платежи Stripe (вебхуки)',
+        line:
+          d.error
+            ? 'Очередь платежей недоступна.'
+            : `Самое старое событие ждёт ${ago(n(d.lagSec) ?? 0)}, в очереди ${n(d.waiting) ?? 0}, сбойных ${n(d.failed) ?? 0}, в «мёртвой» очереди ${n(d.dlq) ?? 0}.`,
+        todo:
+          s === 'green'
+            ? undefined
+            : 'Платежи Stripe обрабатываются с задержкой. Обычно рассасывается само; если не прошло за 15 минут — «Перезапустить фоновые задачи».',
+        runbook: 'stripe-webhooks.md',
+      };
+    case 'push':
+      return {
+        title: 'Доставка пушей',
+        line: d.error
+          ? 'Не удалось проверить пуши.'
+          : n(d.ok) === 0 && n(d.failed) === 0
+            ? `За 15 минут пушей не было; очередь ждёт ${ago(n(d.queueOldestSec) ?? 0)}.`
+            : `За 15 минут доставлено ${n(d.ok) ?? 0}, не доставлено ${n(d.failed) ?? 0} (${n(d.failedPct) ?? 0} %); очередь ждёт ${ago(n(d.queueOldestSec) ?? 0)}.`,
+        todo:
+          s === 'green'
+            ? undefined
+            : 'Много пушей не доходит. Проверьте Безопасность → Ключи и сервисы → Firebase Cloud Messaging, кнопка «Проверить».',
+      };
+    case 'turn':
+      return {
+        title: 'Сервер звонков (TURN)',
+        line:
+          s === 'grey'
+            ? 'TURN не настроен: звонки идут напрямую, за NAT могут не соединяться.'
+            : d.error
+              ? `TURN-сервер ${String(d.host ?? '')} не отвечает.`
+              : `Отвечает, соединение за ${n(d.connectMs) ?? '—'} мс.`,
+        todo:
+          s === 'red'
+            ? 'Звонки через сложные сети не соединятся. Проверьте, что сервер coturn запущен и порт открыт, а адрес в Ключи и сервисы → TURN верный.'
+            : undefined,
+        runbook: 'TURN.md',
+      };
+    case 'http':
+      return {
+        title: 'Ошибки и скорость API',
+        line:
+          n(d.requests5m) === 0
+            ? 'За 5 минут запросов не было.'
+            : `За 5 минут ${n(d.requests5m) ?? 0} запросов, ошибок сервера ${n(d.errorRatePct) ?? 0} %, медленнейшие 5 % дольше ${n(d.p95Ms) ?? '—'} мс. За час: ${n(d.errorRate1hPct) ?? 0} % ошибок, p95 ${n(d.p95Ms1h) ?? '—'} мс.`,
+        todo:
+          s === 'green'
+            ? undefined
+            : 'Растёт доля ошибок или ответы замедлились. Посмотрите «Здоровье» базы и очередей выше; если всё зелёное — напишите Claude «API красный».',
+        runbook: 'api-5xx.md',
+      };
     case 'cost': {
       return {
         title: 'Расходы AWS за месяц',
@@ -173,6 +227,18 @@ export function word(item: HealthItem): Worded {
     default:
       return { title: item.key, line: d.error ? String(d.error) : '' };
   }
+}
+
+/** Component key → the plain name used in the incident list. */
+export function componentTitle(key: string): string {
+  return word({ key, status: 'green', detail: {} } as HealthItem).title;
+}
+
+/** «длился 12 мин» / «идёт 3 ч». */
+export function incidentSpan(openedAt: string, closedAt: string | null, now = Date.now()): string {
+  const end = closedAt ? Date.parse(closedAt) : now;
+  const sec = Math.max(0, Math.round((end - Date.parse(openedAt)) / 1000));
+  return `${closedAt ? 'длился' : 'идёт'} ${ago(sec)}`;
 }
 
 export const LIGHT_TONE: Record<Light, 'success' | 'warning' | 'danger' | 'neutral'> = {

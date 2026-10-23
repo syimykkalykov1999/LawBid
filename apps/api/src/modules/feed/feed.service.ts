@@ -8,6 +8,11 @@ import {
 import type { Post, Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  decodeCursor as decodeKeyset,
+  encodeCursor as encodeKeyset,
+} from '../../common/pagination/cursor.util';
+import { GUEST_USER_ID } from '../../common/viewer/guest';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -83,6 +88,7 @@ export class FeedService implements FeedProvider {
     rawCursor: string | undefined,
     limit: number,
   ): Promise<PostPage> {
+    if (viewer.guest) return this.guestPage(rawCursor, limit);
     const organic = await this.organicPage(viewer, rawCursor, limit);
     return this.withPromoted(viewer, organic);
   }
@@ -148,6 +154,53 @@ export class FeedService implements FeedProvider {
       this.log.warn({ err: String(e) }, 'promoted posts skipped');
       return page;
     }
+  }
+
+  /**
+   * Owner 2026-10-22 (guest browsing): what someone without an account
+   * sees on the feed's public tab: the newest posts of active attorneys, no
+   * follows, no "seen" memory, no paid slots. Same PostDto as the signed-in
+   * feed; every viewer field (liked, saved, following) comes out false.
+   */
+  private async guestPage(
+    rawCursor: string | undefined,
+    limit: number,
+  ): Promise<PostPage> {
+    let c: { createdAt: Date; id: string } | undefined;
+    if (rawCursor) {
+      try {
+        c = decodeKeyset(rawCursor);
+      } catch {
+        throw badCursor();
+      }
+    }
+    const rows = await this.prisma.post.findMany({
+      where: {
+        AND: [
+          VISIBLE_POST_WHERE,
+          { author: { role: 'attorney' } },
+          c
+            ? {
+                OR: [
+                  { created_at: { lt: c.createdAt } },
+                  { created_at: c.createdAt, id: { lt: c.id } },
+                ],
+              }
+            : {},
+        ],
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      items: await this.presenter.present(page, GUEST_USER_ID),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeKeyset({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
   }
 
   private async organicPage(

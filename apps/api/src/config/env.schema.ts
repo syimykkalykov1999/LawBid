@@ -493,7 +493,7 @@ export const envSchema = z
       .nonnegative()
       .default(30),
     BUDGET_SMS_DAILY_MAX: z.coerce.number().int().nonnegative().default(300),
-    BUDGET_SMS_MONTHLY_MAX: z.coerce.number().int().nonnegative().default(5000),
+    BUDGET_SMS_MONTHLY_MAX: z.coerce.number().int().nonnegative().default(9000),
     BUDGET_EMAIL_PER_MINUTE_MAX: z.coerce
       .number()
       .int()
@@ -504,7 +504,7 @@ export const envSchema = z
       .number()
       .int()
       .nonnegative()
-      .default(30000),
+      .default(60000),
     BUDGET_ID_CHECK_PER_MINUTE_MAX: z.coerce
       .number()
       .int()
@@ -758,6 +758,12 @@ export const envSchema = z
     STUN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-22: LiveKit (open-source SFU) for big calls; used only
+    // when `calls.video_provider` = livekit (admin → Settings). Also
+    // settable in admin → Integrations → LiveKit.
+    LIVEKIT_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    LIVEKIT_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
+    LIVEKIT_API_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
     // docs/06 §2.1 (stage 6.2): encrypts admin TOTP secrets at rest
     // (admin_credentials.totp_secret_enc). Admin sign-in is 503 until set.
     ADMIN_TOTP_ENC_KEY: z.preprocess(

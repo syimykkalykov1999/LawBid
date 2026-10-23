@@ -24,6 +24,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description: 'Ретрансляторы для звонков, когда телефоны не могут соединиться напрямую.',
     warning: 'Смените секрет и на TURN-сервере (coturn) одновременно, иначе звонки через TURN перестанут работать.',
   },
+  livekit: {
+    label: 'LiveKit (большие видеозвонки)',
+    description:
+      'Медиасервер для групповых звонков и звонков каналов. Работает только когда в Настройках «calls.video_provider» = livekit; по умолчанию звонки идут напрямую между телефонами (p2p).',
+  },
   persona: { label: 'Persona (проверка личности)', description: 'Проверка личности адвокатов.' },
   google_signin: { label: 'Вход через Google', description: 'OAuth-идентификаторы приложений iOS, Android и веба.' },
   apple_signin: { label: 'Вход через Apple', description: 'Вход через Apple на iPhone (bundle id приложений).' },
@@ -91,6 +96,9 @@ const FIELD_BY_NAME: Record<string, string> = {
 };
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
+  'livekit.url': 'Адрес сервера — LIVEKIT_URL',
+  'livekit.apiKey': 'Ключ API — LIVEKIT_API_KEY',
+  'livekit.apiSecret': 'Секрет API — LIVEKIT_API_SECRET',
   'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
   'bunny_stream.apiKey': 'API-ключ библиотеки',

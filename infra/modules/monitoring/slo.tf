@@ -39,6 +39,16 @@ variable "canary_url" {
   default     = null
 }
 
+variable "uptime_check" {
+  description = "How `canary_url` is watched from outside: \"synthetics\" (CloudWatch Synthetics canary, about $10 a month at one run per 5 minutes) or \"route53\" (Route 53 HTTPS health check, about $2 a month, every 30 seconds; its CloudWatch metric exists in us-east-1 only, so use it only when the stack runs there)."
+  type        = string
+  default     = "synthetics"
+  validation {
+    condition     = contains(["synthetics", "route53"], var.uptime_check)
+    error_message = "uptime_check must be synthetics or route53."
+  }
+}
+
 variable "canary_runtime" {
   description = "CloudWatch Synthetics runtime (aws synthetics describe-runtime-versions)."
   type        = string
@@ -208,7 +218,45 @@ resource "aws_cloudwatch_metric_alarm" "signups_low" {
 # HTTPS health check (~$2.50 a month, metrics only in us-east-1) is the
 # cheaper alternative if the region allows it.
 locals {
-  canary_on = var.canary_url != null
+  canary_on = var.canary_url != null && var.uptime_check == "synthetics"
+  r53_on    = var.canary_url != null && var.uptime_check == "route53"
+  # https://host/path -> host, /path
+  r53_parts = local.r53_on ? regex("^https://([^/]+)(/.*)?$", var.canary_url) : [null, null]
+}
+
+# Cheaper alternative (uptime_check = "route53"): a Route 53 HTTPS health
+# check from several AWS regions, every 30 s; three failures in a row fail it.
+resource "aws_route53_health_check" "uptime" {
+  count             = local.r53_on ? 1 : 0
+  type              = "HTTPS"
+  fqdn              = local.r53_parts[0]
+  port              = 443
+  resource_path     = coalesce(local.r53_parts[1], "/")
+  request_interval  = 30
+  failure_threshold = 3
+  measure_latency   = false
+  tags              = merge(var.tags, { Name = "${var.name}-uptime" })
+}
+
+resource "aws_cloudwatch_metric_alarm" "uptime_r53" {
+  count               = local.r53_on ? 1 : 0
+  alarm_name          = "${var.name}-uptime-canary"
+  alarm_description   = "LawBid: Сервер не отвечает снаружи (проверка Route 53 каждые 30 секунд). Что делать: открыть ${var.canary_url}; если не открывается — смотреть ECS-задачи API, базу и Redis. Инструкция: ${var.runbook_base_url}/api-unhealthy.md (EN: The Route 53 health check of the API failed for 2 minutes.)"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+  period              = 60
+  threshold           = 1
+  statistic           = "Minimum"
+  metric_name         = "HealthCheckStatus"
+  namespace           = "AWS/Route53"
+  dimensions = {
+    HealthCheckId = aws_route53_health_check.uptime[0].id
+  }
+  treat_missing_data = "breaching"
+  alarm_actions      = local.ops
+  ok_actions         = local.ops
+  tags               = var.tags
 }
 
 data "aws_region" "current" {}

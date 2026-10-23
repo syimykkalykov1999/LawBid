@@ -28,4 +28,4 @@ Every API and worker process writes one log line a minute: `{"metric":"slo","sig
 
 ## Uptime canary
 
-`<env>-up` (CloudWatch Synthetics) GETs `https://<api_host>/health/ready` every 5 minutes; two failed runs in a row page `<env>-uptime-canary`. Cost: about **$10 a month** ($0.0012 a run × 8 640 runs) plus a few cents of S3 and Lambda. Turn it off with `uptime_canary_enabled = false`; a Route 53 HTTPS health check (~$2.50 a month, metrics in us-east-1 only) is the cheaper alternative.
+`<env>-up` (CloudWatch Synthetics) GETs `https://<api_host>/health/ready` every 5 minutes; two failed runs in a row page `<env>-uptime-canary`. Cost: about **$10 a month** ($0.0012 a run × 8 640 runs) plus a few cents of S3 and Lambda. Turn it off with `uptime_canary_enabled = false`; `uptime_check = "route53"` switches to a Route 53 HTTPS health check (~$2 a month, every 30 s, metrics in us-east-1 only) instead of the Synthetics canary; the alarm name stays `<env>-uptime-canary`.

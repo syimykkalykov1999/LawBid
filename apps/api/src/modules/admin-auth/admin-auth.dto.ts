@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsObject,
   IsOptional,
   IsString,
@@ -276,6 +277,17 @@ export class AdminMeDto {
   @ApiProperty({ description: 'A password is set.' })
   hasPassword!: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-22: the admin may get system alerts (owner, or holds the «Дежурный» right).',
+  })
+  onCallAvailable?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Owner 2026-10-22: the admin’s own switch for those alerts.',
+  })
+  onCallEnabled?: boolean;
+
   @ApiProperty({
     type: 'object',
     additionalProperties: { type: 'string', enum: ['view', 'manage'] },
@@ -337,6 +349,12 @@ export class AdminMeDto {
       'Sections where this admin must write a reason (always empty for the super admin).',
   })
   reasonRequiredAreas!: string[];
+}
+
+export class AdminOnCallDto {
+  @ApiProperty({ description: 'Get push + e-mail when the system breaks.' })
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 export class AdminSessionDto {

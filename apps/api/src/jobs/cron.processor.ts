@@ -32,6 +32,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
+import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
@@ -113,6 +114,7 @@ export class CronProcessor {
     @Optional() private readonly dataRetention?: DataRetentionService,
     @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
+    @Optional() private readonly statusWatchdog?: StatusWatchdogJob,
     @Optional() private readonly opsState?: OpsStateService,
     @Optional() private readonly costAutoscale?: CostAutoscaleService,
     @Optional() private readonly treasury?: TreasuryService,
@@ -259,6 +261,8 @@ export class CronProcessor {
         return this.outreachRetention?.run();
       case CRON_JOBS.opsGuard:
         return this.opsGuard?.guard();
+      case CRON_JOBS.statusWatchdog:
+        return this.statusWatchdog?.run();
       case CRON_JOBS.opsCostCheck:
         return this.opsGuard?.costCheck();
       case CRON_JOBS.opsBackupCheck:

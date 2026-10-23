@@ -26,6 +26,8 @@ import { PostsModule } from './modules/posts/posts.module';
 import { StickersModule } from './modules/stickers/stickers.module';
 import { StoriesModule } from './modules/stories/stories.module';
 import { UsernamesModule } from './modules/usernames/usernames.module';
+import { HttpStatsMiddleware } from './common/ops/http-stats.service';
+import { LinkPreviewModule } from './modules/link-preview/link-preview.module';
 import { ChannelsModule } from './modules/channels/channels.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
@@ -297,6 +299,7 @@ const isDev =
     StoriesModule,
     ChannelsModule,
     UsernamesModule,
+    LinkPreviewModule,
     FeedModule,
     CommentsModule,
     CaseCommentsModule,
@@ -400,5 +403,7 @@ export class AppModule implements NestModule {
     // Demo mode (owner 2026-10-05): the demo header decides the database
     // for the whole request; it must wrap everything that follows.
     consumer.apply(RequestIdMiddleware, DemoHeaderMiddleware).forRoutes('*');
+    // Owner 2026-10-22: error rate and p95 for «Состояние системы».
+    consumer.apply(HttpStatsMiddleware).forRoutes('*');
   }
 }

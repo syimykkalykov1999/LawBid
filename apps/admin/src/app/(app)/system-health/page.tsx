@@ -13,7 +13,16 @@ import { useToast } from '@/components/ui/toast';
 import { UpdatedAgo } from '@/components/updated-ago';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import { livePoll } from '@/lib/live';
-import { LIGHT_LABEL, LIGHT_TONE, RUNBOOK_BASE, word, type SystemHealth } from '@/lib/system-health';
+import {
+  LIGHT_LABEL,
+  LIGHT_TONE,
+  RUNBOOK_BASE,
+  componentTitle,
+  incidentSpan,
+  word,
+  type SystemHealth,
+} from '@/lib/system-health';
+import { formatDateTime } from '@/lib/utils';
 
 type Action = { kind: 'restart' } | { kind: 'scale'; mode: 'min' | 'normal' } | { kind: 'reencrypt' };
 
@@ -150,6 +159,31 @@ export default function SystemHealthPage() {
               );
             })}
           </div>
+
+          <SectionTitle>Сбои за последние 24 часа</SectionTitle>
+          <Card className="mb-6 divide-y divide-line">
+            {(h.incidents ?? []).length === 0 ? (
+              <p className="p-4 text-sm text-muted">Сбоев не было. Проверка идёт каждую минуту.</p>
+            ) : (
+              (h.incidents ?? []).map((i) => (
+                <div key={i.id} className="flex flex-wrap items-center gap-3 p-4 text-sm">
+                  <Badge tone={i.closedAt ? 'success' : 'danger'} dot className="shrink-0">
+                    {i.closedAt ? 'Устранён' : 'Идёт сейчас'}
+                  </Badge>
+                  <span className="min-w-0 flex-1 break-words font-medium text-heading">
+                    {componentTitle(i.component)}
+                  </span>
+                  <span className="text-xs text-muted">
+                    с {formatDateTime(i.openedAt)}, {incidentSpan(i.openedAt, i.closedAt)}
+                  </span>
+                </div>
+              ))
+            )}
+            <p className="p-4 text-xs text-muted">
+              Дежурные (право «Дежурный» и включённый переключатель в Профиле) получают пуш и письмо при сбое,
+              напоминание каждые 15 минут, пока сбой идёт, и сообщение, когда всё починилось.
+            </p>
+          </Card>
 
           <SectionTitle>Кнопки на крайний случай</SectionTitle>
           {!onAws ? (

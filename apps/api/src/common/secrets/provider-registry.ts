@@ -479,6 +479,40 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'livekit',
+    label: 'LiveKit (big video calls)',
+    description:
+      'Open-source media server for group and channel calls. Used only when «calls.video_provider» is set to livekit in Settings.',
+    fields: [
+      {
+        name: 'url',
+        label: 'Server address (LIVEKIT_URL)',
+        secret: false,
+        required: true,
+        pattern: /^wss?:\/\/[^\s]+$/,
+        patternHint: 'wss://your-project.livekit.cloud',
+        env: 'LIVEKIT_URL',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'apiKey',
+        label: 'API key (LIVEKIT_API_KEY)',
+        secret: true,
+        required: true,
+        pattern: /^[\w-]{6,}$/,
+        env: 'LIVEKIT_API_KEY',
+      },
+      {
+        name: 'apiSecret',
+        label: 'API secret (LIVEKIT_API_SECRET)',
+        secret: true,
+        required: true,
+        pattern: /^.{16,}$/,
+        env: 'LIVEKIT_API_SECRET',
+      },
+    ],
+  },
+  {
     id: 'persona',
     label: 'Persona (ID checks)',
     description: 'Identity verification of attorneys.',

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, type Channel, type ChannelPost } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { isGuestId } from '../../common/viewer/guest';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -1116,6 +1117,11 @@ export class ChannelsService {
       where: UUID.test(key) ? { id: key } : { username: key.toLowerCase() },
     });
     if (!ch) throw notFound();
+    // Owner 2026-10-22 (guest browsing): without an account only an active,
+    // not deleted channel is readable.
+    if (isGuestId(userId) && (ch.status !== 'active' || ch.deleted_at)) {
+      throw notFound();
+    }
     if (ch.status === 'banned' && !(await this.roleOf(userId, ch.id))) {
       throw notFound();
     }
