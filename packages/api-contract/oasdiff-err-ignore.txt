@@ -379,3 +379,9 @@ POST /admin/system-health/scale added the new `http` enum value to the `data/ite
 POST /admin/system-health/scale added the new `push` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/scale added the new `stripe_webhooks` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/scale added the new `turn` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
