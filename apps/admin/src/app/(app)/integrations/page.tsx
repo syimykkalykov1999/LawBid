@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
-import { fieldHint, fieldLabel, providerDescription, providerLabel, providerWarning } from '@/lib/integration-labels';
+import { fieldHint, fieldLabelWithKey, providerDescription, providerLabel, providerWarning } from '@/lib/integration-labels';
 
 /** Russian service / field texts (keys stay as the server sends them). */
 function localize(it: Integration): Integration {
@@ -26,7 +26,7 @@ function localize(it: Integration): Integration {
     warning: providerWarning(it.provider, it.warning),
     fields: it.fields.map((f) => ({
       ...f,
-      label: fieldLabel(it.provider, f.name, f.label),
+      label: fieldLabelWithKey(it.provider, f.name, f.label),
       hint: fieldHint(f.hint) ?? f.hint,
     })),
   };

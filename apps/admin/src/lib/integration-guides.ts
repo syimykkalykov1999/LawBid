@@ -24,6 +24,9 @@ export interface ProviderGuide {
   links: { label: string; url: string }[];
   /** Extra word of advice under the steps. */
   note?: string;
+  /** «Как включить»: what to do once the values are in, and what switches
+   * the service on (owner 2026-10-22: a short block on every card). */
+  enable?: string[];
   fields: Record<string, FieldGuide>;
   /** «Загрузить файл .json»: JSON key → field name (filled in the browser). */
   jsonFile?: { button: string; map: Record<string, string> };
@@ -46,10 +49,18 @@ export const GUIDES: Record<string, ProviderGuide> = {
     ],
     note: 'Пока сервер не на AWS, у вебхука нет адреса: нажмите «Сгенерировать временный» у секрета вебхука, а после переезда на AWS замените его настоящим.',
     webhookPath: '/api/v1/webhooks/stripe',
+    enable: [
+      'Заполните STRIPE_SECRET_KEY и STRIPE_WEBHOOK_SECRET (остальное необязательно). Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Платежи работают, как только ключ включён. Нашу страницу оплаты картой включает настройка payments.own_page_enabled (нужен ещё STRIPE_PUBLISHABLE_KEY).',
+    ],
     fields: {
       secretKey: {
         how: 'Developers → API keys → Secret key → Reveal. Начинается с sk_test_ или sk_live_.',
         example: 'sk_test_51Ab…',
+      },
+      publishableKey: {
+        how: 'Developers → API keys → Publishable key (pk_…). Нужен для нашей страницы оплаты картой; можно оставить пустым, пока она выключена.',
+        example: 'pk_test_51Ab…',
       },
       webhookSecret: {
         how: 'Developers → Webhooks → ваш вебхук → Signing secret → Reveal. Начинается с whsec_. До AWS — «Сгенерировать временный».',
@@ -79,6 +90,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
     ],
     links: [{ label: 'Bunny Stream', url: 'https://dash.bunny.net/stream' }],
     webhookPath: '/api/v1/webhooks/bunny/{webhookToken}',
+    enable: [
+      'Заполните BUNNY_LIBRARY_ID, BUNNY_CDN_HOSTNAME, BUNNY_API_KEY, BUNNY_TOKEN_AUTH_KEY и BUNNY_WEBHOOK_TOKEN. Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Видео и рилсы начинают загружаться сразу после «Включить», без обновления приложения.',
+    ],
     fields: {
       libraryId: { how: 'Stream → библиотека → вкладка API → «Video Library ID». Только цифры.', example: '768949' },
       cdnHostname: {
@@ -114,6 +129,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       button: 'Загрузить файл .json',
       map: { project_id: 'projectId', client_email: 'clientEmail', private_key: 'privateKey' },
     },
+    enable: [
+      'Загрузите .json или вставьте три значения (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) → «Сохранить» → «Проверить» → «Включить».',
+      'В приложении пуши включаются сами. Для iPhone ещё загрузите ключ APNs в Firebase: Project settings → Cloud Messaging → Apple app configuration → APNs Authentication Key.',
+    ],
     fields: {
       projectId: { how: 'Из файла .json: строка "project_id".', example: 'lawbid-6e5ff' },
       clientEmail: {
@@ -136,6 +155,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Messaging service: Messaging → Services → ваш сервис → SID (начинается с MG).',
     ],
     links: [{ label: 'Twilio Console', url: 'https://console.twilio.com/' }],
+    enable: [
+      'Заполните TWILIO_ACCOUNT_SID и TWILIO_AUTH_TOKEN и укажите отправителя: номер (TWILIO_FROM_NUMBER) или службу сообщений (TWILIO_MESSAGING_SERVICE_SID). Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Лимиты и страны для SMS — в Настройках (sms.*) и в «Лимитах расходов».',
+    ],
     fields: {
       accountSid: { how: 'Главная → Account Info → Account SID. Начинается с AC, 34 символа.', example: 'AC…' },
       authToken: { how: 'Главная → Account Info → Auth Token → Show. 32 символа.' },
@@ -155,6 +178,11 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Ключи доступа AWS на сервере в AWS не нужны — оставьте пустыми.',
     ],
     links: [{ label: 'Amazon SES', url: 'https://console.aws.amazon.com/ses/home' }],
+    enable: [
+      'Заполните SES_REGION и SES_FROM_ADDRESS: почта переключается с «заглушки» на Amazon SES сама, как только оба поля заполнены.',
+      'В Amazon SES подтвердите домен или адрес отправителя («Verified identity»). Новый аккаунт Amazon в «песочнице» пишет только на подтверждённые адреса: на странице SES → Account dashboard запросите «Production access».',
+      'Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+    ],
     fields: {
       region: { how: 'AWS → SES → регион сверху справа.', example: 'us-east-1' },
       fromAddress: { how: 'Имя и адрес на вашем домене.', example: 'LawBid <no-reply@lawbid.dev>' },
@@ -171,6 +199,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Нажмите на ключ → API restrictions → «Cloud Translation API» → Save.',
     ],
     links: [{ label: 'Google Cloud Credentials', url: 'https://console.cloud.google.com/apis/credentials' }],
+    enable: [
+      'Вставьте ключ (GOOGLE_TRANSLATE_API_KEY). Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Кнопка «Перевести» в чате появится, когда включён и ключ, и флаг «Перевод в чате» (Админка → Флаги).',
+    ],
     fields: { apiKey: { how: 'Credentials → API key. Начинается с AIza.', example: 'AIza…' } },
   },
 
@@ -180,6 +212,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Новый секрет можно сгенерировать здесь, но тот же секрет нужно записать и на сервер coturn.',
     ],
     links: [],
+    enable: [
+      'Заполните TURN_URLS и TURN_SECRET (и STUN_URLS, если нужно) → «Сохранить» → «Проверить» → «Включить». Тот же секрет должен стоять на TURN-сервере (coturn).',
+      'Видеозвонки включаются отдельно: Админка → Флаги → video_calls (без TURN кнопка видео не работает).',
+    ],
     fields: {
       urls: { how: 'Через запятую.', example: 'turn:turn.lawbid.dev:3478,turns:turn.lawbid.dev:5349' },
       secret: { how: 'static-auth-secret из coturn, 16+ символов.', generate: 'token' },
@@ -201,6 +237,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       { label: 'Свой сервер', url: 'https://docs.livekit.io/home/self-hosting/deployment/' },
     ],
     webhookPath: '/api/v1/webhooks/livekit',
+    enable: [
+      'Заполните LIVEKIT_URL, LIVEKIT_API_KEY и LIVEKIT_API_SECRET. Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Сам ключ звонки не переключает: Админка → Настройки → calls.video_provider = livekit. Старые версии приложения тогда увидят «Обновите приложение».',
+    ],
     fields: {
       url: { how: 'LIVEKIT_URL: адрес сервера, начинается с wss://.', example: 'wss://lawbid-abc123.livekit.cloud' },
       apiKey: { how: 'LIVEKIT_API_KEY: LiveKit Cloud → Settings → Keys → API Key.', example: 'APIxxxxxxxx' },
@@ -211,6 +251,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
   persona: {
     steps: ['Откройте app.withpersona.com → API → API Keys → создайте или скопируйте ключ.'],
     links: [{ label: 'Persona', url: 'https://app.withpersona.com/' }],
+    enable: [
+      'Вставьте ключ (PERSONA_API_KEY) → «Сохранить» → «Проверить»: Persona должна принять ключ. persona_sandbox_… — тестовый, persona_production_… — боевой.',
+      'Ключ можно сохранить заранее: он понадобится, когда начнёте проверять личность адвокатов через Persona.',
+    ],
     fields: {
       apiKey: { how: 'Начинается с persona_sandbox_ (тест) или persona_production_.', example: 'persona_production_…' },
     },
@@ -223,6 +267,11 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Вставьте их через запятую.',
     ],
     links: [{ label: 'Google Cloud Credentials', url: 'https://console.cloud.google.com/apis/credentials' }],
+    enable: [
+      'В Google Cloud создайте три OAuth-клиента: iOS (Bundle ID com.lawbid.lawbid), Android (имя пакета и SHA-1 подписи приложения) и Web.',
+      'Вставьте их Client ID через запятую в GOOGLE_CLIENT_IDS → «Сохранить» → «Проверить» → «Включить».',
+      'Пока поле пустое, вход через Google отвечает «способ выключен»: ничего не ломается.',
+    ],
     fields: {
       clientIds: {
         how: 'Через запятую, каждый заканчивается на .apps.googleusercontent.com.',
@@ -237,6 +286,11 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Team ID: developer.apple.com → Account → Membership details → Team ID (10 символов).',
     ],
     links: [{ label: 'Apple Developer', url: 'https://developer.apple.com/account' }],
+    enable: [
+      'На developer.apple.com → Certificates, Identifiers & Profiles → Identifiers → приложение → включите «Sign in with Apple».',
+      'Вставьте Bundle ID в APPLE_BUNDLE_IDS (и Team ID в APPLE_TEAM_ID) → «Сохранить» → «Проверить» → «Включить».',
+      'Пока поле пустое, вход через Apple отвечает «способ выключен»: ничего не ломается.',
+    ],
     fields: {
       bundleIds: { how: 'Через запятую.', example: 'com.lawbid.lawbid' },
       teamId: { how: 'Membership details → Team ID, 10 букв и цифр.', example: 'ABCDE12345' },
@@ -249,6 +303,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'data.ny.gov → Sign In / Sign Up → Developer Settings → Create New App Token → скопируйте App Token.',
     ],
     links: [{ label: 'data.ny.gov', url: 'https://data.ny.gov/profile/edit/developer_settings' }],
+    enable: [
+      'Ничего включать не нужно: проверка лицензий Нью-Йорка работает и без ключа.',
+      'Ключ (NY_OPEN_DATA_APP_TOKEN) нужен только если проверок станет много и data.ny.gov начнёт отказывать по лимиту.',
+    ],
     fields: { appToken: { how: 'Developer Settings → App Token. Можно оставить пустым.' } },
   },
 
@@ -258,6 +316,11 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Ключи доступа на AWS оставьте пустыми (используется роль сервера).',
     ],
     links: [{ label: 'Amazon S3', url: 'https://s3.console.aws.amazon.com/s3/buckets' }],
+    enable: [
+      'На AWS всё заполняется при установке сервера — обычно ничего включать не нужно.',
+      'Меняйте поля только при переезде (новые бакеты, регион, CDN). Три поля CloudFront заполняйте все сразу или ни одного.',
+      'Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+    ],
     fields: {
       region: { how: 'Регион бакетов.', example: 'us-east-1' },
       bucketDocuments: { how: 'Имя бакета документов в S3.' },
@@ -278,6 +341,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Приложение и админка подхватывают DSN сами, при следующем запуске, без перезапуска сервера и без новой сборки.',
     ],
     links: [{ label: 'Sentry', url: 'https://sentry.io/settings/' }],
+    enable: [
+      'SENTRY_DSN сервера читается при запуске: после «Сохранить» → «Включить» перезапустите API.',
+      'DSN приложения и админки подхватываются сами при следующем запуске — перезапуск и новая сборка не нужны.',
+    ],
     fields: {
       dsn: {
         how: 'Client Keys (DSN). Начинается с https:// и заканчивается числом.',
@@ -301,9 +368,93 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'ID базы или кластера: он в адресе страницы базы в кабинете хостинга.',
     ],
     links: [],
+    enable: [
+      'Пока не выбран боевой хостинг PostgreSQL — ничего не заполняйте: проверка свежести бэкапа просто не работает.',
+      'После выбора хостинга: ключ «только чтение» (COCKROACH_CLOUD_API_KEY) и ID базы (COCKROACH_CLUSTER_ID) → «Сохранить» → «Проверить» → «Включить».',
+    ],
     fields: {
       apiKey: { how: 'Кабинет хостинга → API key (только чтение).' },
       clusterId: { how: 'Из адреса страницы базы в кабинете хостинга.', example: '00000000-0000-0000-0000-000000000000' },
+    },
+  },
+
+  apns: {
+    steps: [
+      'Откройте developer.apple.com → Account → Certificates, Identifiers & Profiles → Keys → кнопка «+».',
+      'Назовите ключ, отметьте «Apple Push Notifications service (APNs)» → Continue → Register.',
+      'Нажмите Download: скачается файл AuthKey_XXXXXXXXXX.p8 (скачать можно только один раз — сохраните его).',
+      'Key ID — 10 символов на странице ключа (и в имени файла). Team ID — Account → Membership details.',
+      'Откройте .p8 в любом текстовом редакторе и вставьте всё содержимое в последнее поле.',
+    ],
+    links: [{ label: 'Apple Developer: Keys', url: 'https://developer.apple.com/account/resources/authkeys/list' }],
+    enable: [
+      'Заполните APNS_KEY_ID, APNS_TEAM_ID и APNS_PRIVATE_KEY → «Сохранить» → «Проверить» → «Включить».',
+      'В приложении ничего включать не нужно: входящий звонок начнёт звонить на закрытом iPhone сам.',
+    ],
+    fields: {
+      keyId: { how: 'Страница ключа в Apple Developer → Key ID. 10 заглавных букв и цифр.', example: 'ABC123DEFG' },
+      teamId: { how: 'Account → Membership details → Team ID. 10 заглавных букв и цифр.', example: 'ABCDE12345' },
+      privateKey: {
+        how: 'Содержимое файла .p8 целиком, от -----BEGIN PRIVATE KEY----- до END.',
+        example: '-----BEGIN PRIVATE KEY-----…',
+        multiline: true,
+      },
+    },
+  },
+
+  aws_rekognition: {
+    steps: [
+      'На AWS ключи не нужны: сервер использует свою роль. Оставьте поля ключей пустыми.',
+      'Регион — тот же, где лежит бакет медиа (например, us-east-1).',
+      'Ключи IAM нужны только вне AWS: IAM → Users → пользователь с правом rekognition:DetectModerationLabels → Security credentials → Create access key.',
+    ],
+    links: [{ label: 'Amazon Rekognition', url: 'https://console.aws.amazon.com/rekognition/home' }],
+    enable: [
+      'Заполните регион (REKOGNITION_REGION) → «Сохранить» → «Проверить» → «Включить».',
+      'Сама проверка фото управляется в Настройках: moderation.image.enabled (вкл/выкл), hide_confidence и review_confidence (пороги).',
+    ],
+    fields: {
+      region: { how: 'Регион бакета медиа.', example: 'us-east-1' },
+      accessKeyId: { how: 'На AWS оставьте пустым (роль сервера).', example: 'AKIA…' },
+      secretAccessKey: { how: 'На AWS оставьте пустым.' },
+    },
+  },
+
+  photodna: {
+    steps: [
+      'Доступ к Microsoft PhotoDNA Cloud Service выдаётся по заявке: подайте её на microsoft.com/photodna (нужен юридический адрес компании).',
+      'После одобрения в кабинете PhotoDNA откройте свою подписку и скопируйте ключ (Ocp-Apim-Subscription-Key).',
+      'Адрес проверки (Endpoint) оставьте пустым: используется стандартный адрес Microsoft.',
+    ],
+    links: [{ label: 'Microsoft PhotoDNA', url: 'https://www.microsoft.com/en-us/photodna' }],
+    enable: [
+      'Вставьте ключ (PHOTODNA_SUBSCRIPTION_KEY) → «Сохранить» → «Проверить» → «Включить».',
+      'С этого момента каждое публичное изображение сверяется с базой; совпадение скрывает файл и открывает отчёт для NCMEC (подаётся автоматически, если заполнены поля NCMEC).',
+    ],
+    fields: {
+      subscriptionKey: { how: 'Кабинет PhotoDNA → ваша подписка → Ocp-Apim-Subscription-Key.' },
+      endpoint: {
+        how: 'Можно оставить пустым (стандартный адрес Microsoft).',
+        example: 'https://api.microsoftmoderator.com/photodna/v1.0/Match',
+      },
+    },
+  },
+
+  ncmec: {
+    steps: [
+      'Зарегистрируйте компанию как Electronic Service Provider (ESP) в NCMEC CyberTipline: report.cybertip.org → «ESP registration».',
+      'NCMEC выдаст логин и пароль сначала для тестового режима, после проверки — для боевого.',
+      'Режим: сначала test, после проверки и боевых данных — production.',
+    ],
+    links: [{ label: 'NCMEC CyberTipline', url: 'https://report.cybertip.org/' }],
+    enable: [
+      'Заполните NCMEC_USERNAME и NCMEC_PASSWORD (режим NCMEC_ENVIRONMENT: test или production) → «Сохранить» → «Проверить» → «Включить».',
+      'Пока полей нет, отчёты ждут в Модерация → Медиа с пометкой «подать вручную». Начните с test, затем переключите на production.',
+    ],
+    fields: {
+      username: { how: 'Логин ESP из письма NCMEC.' },
+      password: { how: 'Пароль ESP из письма NCMEC.' },
+      environment: { how: 'test (пробный) или production (боевой). Пусто = test.', example: 'test' },
     },
   },
 };
