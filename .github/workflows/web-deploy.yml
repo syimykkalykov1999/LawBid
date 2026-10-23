@@ -140,6 +140,8 @@ jobs:
           # .wasm must be served as application/wasm.
           aws s3 sync . "$DEST" --exclude "*" --include "*.wasm" \
             --content-type application/wasm --cache-control "$CC"
+          # Big files gzip-compressed (CloudFront does not compress >10 MB).
+          "$GITHUB_WORKSPACE/scripts/deploy/web-gzip-big.sh" "$DEST" "$CC"
           # index.html last: a release without it is never switched to.
           aws s3 cp index.html "$DEST/index.html" --cache-control "$CC"
 
@@ -231,6 +233,8 @@ jobs:
             --recursive --exclude "*" --include "*.wasm" --exclude "releases/*" \
             --content-type application/wasm --metadata-directive REPLACE \
             --cache-control "no-cache"
+          # Big files gzip-compressed (CloudFront does not compress >10 MB).
+          "$GITHUB_WORKSPACE/scripts/deploy/web-gzip-big.sh" "s3://${{ secrets.WEB_BUCKET }}" "no-cache"
 
       - name: Reset the CDN cache for the page and the app
         if: steps.store.outputs.arn == ''
