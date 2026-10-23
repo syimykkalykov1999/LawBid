@@ -20,6 +20,15 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AuditLogService } from '../admin-access/audit-log.service';
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/server';
+import { PasskeyService } from '../auth/passkeys/passkey.service';
+import type {
+  AuthenticationChallenge,
+  PasskeyView,
+} from '../auth/passkeys/passkey.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { TokenService } from '../auth/services/token.service';
 import type { AdminActor } from './admin-auth.decorators';
@@ -79,6 +88,8 @@ export const ADMIN_AUDIT = {
   recoveryUsed: 'admin.recovery_code_used',
   stepUp: 'admin.step_up',
   stepUpFailed: 'admin.step_up_failed',
+  passkeyAdded: 'admin.passkey_added',
+  passkeyRemoved: 'admin.passkey_removed',
   passwordLogin: 'admin.login_password',
   credentialsChanged: 'admin.credentials_changed',
   securityQuestionSet: 'admin.security_question_set',
@@ -145,6 +156,9 @@ export class AdminAuthService {
     private readonly audit: AuditLogService,
     config: ConfigService,
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-22: passkeys as a second factor next to the
+    // authenticator code (recovery codes stay valid) and for the step-up.
+    @Optional() private readonly passkeys?: PasskeyService,
   ) {
     const key = config.get<string>('ADMIN_TOTP_ENC_KEY');
     this.cipher = key ? new SecretCipher(key) : null;
@@ -228,7 +242,190 @@ export class AdminAuthService {
     const jti = randomUUID();
     await this.redis.set(this.ticketKey(jti), '0', 'EX', ttl);
     const ticket = this.tokens.signAdminTicket({ sub: adminId, jti }, ttl);
-    return { ticket, session: null, totpSetupRequired: setup };
+    const passkeyAvailable =
+      !setup && ((await this.passkeys?.count(adminId, 'admin')) ?? 0) > 0;
+    return {
+      ticket,
+      session: null,
+      totpSetupRequired: setup,
+      passkeyAvailable,
+    };
+  }
+
+  // ---- passkeys (owner 2026-10-22) -------------------------------------
+
+  /** Step 2 with a passkey instead of the code: the assertion options,
+   * bound to this ticket. Only once the authenticator is set up (the
+   * recovery codes come from that setup). */
+  async passkeyLoginOptions(ticket: string): Promise<AuthenticationChallenge> {
+    this.assertConfigured();
+    const passkeys = this.requirePasskeys();
+    const { admin, jti, cred } = await this.openTicket(ticket);
+    if (!cred.totp_enabled_at) throw ticketInvalid();
+    return passkeys.authenticationOptions('admin', admin.id, jti);
+  }
+
+  async passkeyLogin(
+    ticket: string,
+    challengeId: string,
+    response: AuthenticationResponseJSON,
+    ip: string | null,
+    userAgent: string | null = null,
+  ): Promise<AdminSessionDto> {
+    this.assertConfigured();
+    const passkeys = this.requirePasskeys();
+    const { admin, jti, cred } = await this.openTicket(ticket);
+    if (!cred.totp_enabled_at) throw ticketInvalid();
+    try {
+      await passkeys.verifyAuthentication('admin', challengeId, response, {
+        userId: admin.id,
+        bind: jti,
+      });
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        await this.failAttempt(jti, ErrorCode.PASSKEY_INVALID);
+      }
+      throw err;
+    }
+    await this.consumeTicket(jti);
+    await this.prisma.adminCredential.update({
+      where: { user_id: admin.id },
+      data: { last_login_at: new Date() },
+    });
+    return this.issueSession(admin, ip, userAgent, 'passkey');
+  }
+
+  /** Step-up with a passkey: options bound to this admin session. */
+  async stepUpPasskeyOptions(
+    adminId: string,
+    sessionId: string,
+  ): Promise<AuthenticationChallenge> {
+    return this.requirePasskeys().authenticationOptions(
+      'admin',
+      adminId,
+      sessionId,
+    );
+  }
+
+  async stepUpPasskey(
+    adminId: string,
+    sessionId: string,
+    challengeId: string,
+    response: AuthenticationResponseJSON,
+    ip: string | null = null,
+  ): Promise<{ validForSeconds: number }> {
+    const passkeys = this.requirePasskeys();
+    const r = await this.rateLimit.consumeFixedWindow(
+      ['admin-stepup', adminId],
+      5,
+      900,
+    );
+    if (!r.allowed) {
+      throw new HttpException(
+        {
+          code: ErrorCode.AUTH_OTP_REQUEST_LIMIT,
+          message: 'Too many attempts. Try again later.',
+          details: { retryAfterSeconds: r.retryAfterSeconds },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    let ok = true;
+    try {
+      await passkeys.verifyAuthentication('admin', challengeId, response, {
+        userId: adminId,
+        bind: sessionId,
+      });
+    } catch (err) {
+      if (!(err instanceof UnauthorizedException)) throw err;
+      ok = false;
+    }
+    await this.audit.record({
+      adminId,
+      action: ok ? ADMIN_AUDIT.stepUp : ADMIN_AUDIT.stepUpFailed,
+      targetType: 'admin',
+      targetId: adminId,
+      after: ok
+        ? { validForSeconds: STEP_UP_TTL_SECONDS, method: 'passkey' }
+        : { method: 'passkey' },
+      ip,
+    });
+    if (!ok) {
+      throw new ForbiddenException({
+        code: ErrorCode.PASSKEY_INVALID,
+        message: 'The passkey could not be verified.',
+      });
+    }
+    await this.redis.set(stepUpKey(sessionId), '1', 'EX', STEP_UP_TTL_SECONDS);
+    return { validForSeconds: STEP_UP_TTL_SECONDS };
+  }
+
+  async passkeyRegistrationOptions(
+    adminId: string,
+  ): Promise<Record<string, unknown>> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: adminId },
+      select: { email: true },
+    });
+    const options = await this.requirePasskeys().registrationOptions(
+      adminId,
+      'admin',
+      { userName: user.email ?? adminId, displayName: 'LawBid Admin' },
+    );
+    return options as unknown as Record<string, unknown>;
+  }
+
+  async passkeyRegister(
+    adminId: string,
+    response: RegistrationResponseJSON,
+    name: string | undefined,
+    ip: string | null,
+  ): Promise<PasskeyView> {
+    const view = await this.requirePasskeys().verifyRegistration(
+      adminId,
+      'admin',
+      response,
+      name,
+    );
+    await this.audit.record({
+      adminId,
+      action: ADMIN_AUDIT.passkeyAdded,
+      targetType: 'admin',
+      targetId: adminId,
+      after: { passkeyId: view.id, name: view.name },
+      ip,
+    });
+    return view;
+  }
+
+  passkeyList(adminId: string): Promise<PasskeyView[]> {
+    return this.requirePasskeys().list(adminId, 'admin');
+  }
+
+  async passkeyRemove(
+    adminId: string,
+    id: string,
+    ip: string | null,
+  ): Promise<void> {
+    await this.requirePasskeys().remove(adminId, 'admin', id);
+    await this.audit.record({
+      adminId,
+      action: ADMIN_AUDIT.passkeyRemoved,
+      targetType: 'admin',
+      targetId: adminId,
+      after: { passkeyId: id },
+      ip,
+    });
+  }
+
+  private requirePasskeys(): PasskeyService {
+    if (!this.passkeys) {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.ADMIN_AUTH_NOT_CONFIGURED,
+        message: 'Passkeys are not available here.',
+      });
+    }
+    return this.passkeys;
   }
 
   /**
@@ -421,6 +618,7 @@ export class AdminAuthService {
       email: user.email ?? '',
       role,
       totpEnabled: Boolean(c?.totp_enabled_at),
+      passkeyCount: (await this.passkeys?.count(user.id, 'admin')) ?? 0,
       lastLoginAt: c?.last_login_at?.toISOString() ?? null,
       login: c?.login ?? null,
       hasPassword: Boolean(c?.password_hash),
@@ -843,7 +1041,7 @@ export class AdminAuthService {
     admin: AdminRow,
     ip: string | null,
     userAgent: string | null,
-    method: 'totp' | 'totp_setup' | 'recovery_code',
+    method: 'totp' | 'totp_setup' | 'recovery_code' | 'passkey',
   ): Promise<AdminSessionDto> {
     const jti = randomUUID();
     await this.sessions.create(admin.id, jti, { ip, userAgent });

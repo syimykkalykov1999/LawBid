@@ -900,6 +900,7 @@ model User {
   moderation_actions          ModerationAction[]             @relation("ModerationAdmin")
   admin_profile               AdminProfile?
   admin_credential            AdminCredential?
+  webauthn_credentials        WebauthnCredential[]
   data_export_jobs            DataExportJob[]
   audit_entries               AuditLog[]                     @relation("AuditAdmin")
   admin_approvals_requested   AdminApproval[]                @relation("AdminApprovalRequester")
@@ -3456,6 +3457,32 @@ model AdminCredential {
   updated_at           DateTime  @updatedAt @db.Timestamptz
 
   @@map("admin_credentials")
+}
+
+/// Owner 2026-10-22 (systems checklist §1): WebAuthn passkeys. One row per
+/// authenticator; `scope` says which sign-in it serves — the app (`user`:
+/// sign-in option and step-up) or the admin panel (`admin`: second factor
+/// next to TOTP, step-up). `credential_id` is the base64url credential id
+/// the browser / platform sends; `public_key` the COSE key; `counter` the
+/// signature counter (clone detection).
+model WebauthnCredential {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  scope         String    @db.VarChar(8)
+  credential_id String    @unique @db.VarChar(1024)
+  public_key    Bytes
+  counter       BigInt    @default(0)
+  transports    String[]  @default([])
+  device_type   String    @db.VarChar(16)
+  backed_up     Boolean   @default(false)
+  aaguid        String?   @db.VarChar(36)
+  name          String    @db.VarChar(80)
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  last_used_at  DateTime? @db.Timestamptz
+
+  @@index([user_id, scope, created_at])
+  @@map("webauthn_credentials")
 }
 
 enum DataExportType {

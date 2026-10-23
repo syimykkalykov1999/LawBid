@@ -10,6 +10,9 @@ const ALLOWED = new Set([
   'login/password',
   // Owner 2026-10-22: the forced first setup of the authenticator.
   'login/totp-setup',
+  // Owner 2026-10-22: step 2 with a passkey — the options only; the
+  // assertion itself goes through app/api/auth/session (it sets the cookie).
+  'login/passkey/options',
   'recover/question',
   'recover/password',
   // Owner 2026-10-16: the invited admin picks a login and password.

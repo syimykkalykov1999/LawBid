@@ -384,6 +384,19 @@ export const envSchema = z
       /-----BEGIN (RSA )?PRIVATE KEY-----/,
       'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',
     ),
+    // Owner 2026-10-22 (passkeys): the WebAuthn relying party. Defaults:
+    // RP ID = host of APP_LINK_BASE_URL (lawbid.dev, which also covers
+    // admin.lawbid.dev and both native apps), origins = web.allowed_origins
+    // + ADMIN_ORIGINS + https://<rpId>. WEBAUTHN_ORIGINS adds the Android
+    // apps (`android:apk-key-hash:<base64url sha256 of the signing cert>`).
+    WEBAUTHN_RP_ID: optionalMatching(
+      /^[a-z0-9.-]+$/i,
+      'WEBAUTHN_RP_ID must be a bare domain (no scheme, no port)',
+    ),
+    WEBAUTHN_ORIGINS: optionalMatching(
+      /^(https?:\/\/[^\s,]+|android:apk-key-hash:[A-Za-z0-9_-]+)(,(https?:\/\/[^\s,]+|android:apk-key-hash:[A-Za-z0-9_-]+))*$/,
+      'WEBAUTHN_ORIGINS must be a comma-separated list of https origins or android:apk-key-hash:… values',
+    ),
     // Owner 2026-10-22 (SECURITY_TODO «KMS-wrapped keys»): the KMS key and
     // encryption context used to unwrap `kid:kms:…` entries of
     // MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS at boot (common/secrets/kms-env.ts).

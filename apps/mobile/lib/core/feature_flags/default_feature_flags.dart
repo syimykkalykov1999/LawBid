@@ -55,5 +55,6 @@ const Map<String, bool> defaultFeatureFlags = {
   'email_login': false,
   'apple_login': true,
   'google_login': true,
+  'passkey_login': true,
   // <flags:end>
 };

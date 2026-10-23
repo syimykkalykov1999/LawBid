@@ -36,6 +36,9 @@ export const APP_PATHS = [
 
 export function appleAppSiteAssociation() {
   return {
+    // Owner 2026-10-22: passkeys (WebAuthn) — the iOS app may create and
+    // use passkeys for the relying party lawbid.dev (API: auth/passkeys).
+    webcredentials: { apps: [`${TEAM_ID}.${BUNDLE_ID}`] },
     applinks: {
       details: [
         {

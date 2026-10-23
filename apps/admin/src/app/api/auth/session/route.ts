@@ -10,9 +10,9 @@ import {
 /**
  * The second sign-in step runs here, not in the browser (owner 2026-10-22:
  * it is mandatory for every admin): the authenticator code, a recovery
- * code, or the first code of the forced authenticator setup is forwarded
- * to the API, and the returned admin JWT goes straight into the httpOnly
- * cookie. The response passes the rest through (admin; after the setup
+ * code, the first code of the forced authenticator setup, or the passkey
+ * assertion is forwarded to the API, and the returned admin JWT goes
+ * straight into the httpOnly cookie. The response passes the rest through (admin; after the setup
  * also the ten recovery codes, shown once).
  */
 export async function POST(req: Request): Promise<Response> {
@@ -21,12 +21,19 @@ export async function POST(req: Request): Promise<Response> {
     code?: string;
     recoveryCode?: string;
     setupCode?: string;
+    /** Owner 2026-10-22: the passkey assertion instead of a code. */
+    passkey?: { challengeId: string; response: Record<string, unknown> };
   };
-  const [path, sent] = body.setupCode
-    ? ['/admin/auth/login/totp-confirm', { ticket: body.ticket, code: body.setupCode }]
-    : body.recoveryCode
-      ? ['/admin/auth/recovery', { ticket: body.ticket, recoveryCode: body.recoveryCode }]
-      : ['/admin/auth/totp', { ticket: body.ticket, code: body.code }];
+  const [path, sent] = body.passkey
+    ? [
+        '/admin/auth/login/passkey',
+        { ticket: body.ticket, challengeId: body.passkey.challengeId, response: body.passkey.response },
+      ]
+    : body.setupCode
+      ? ['/admin/auth/login/totp-confirm', { ticket: body.ticket, code: body.setupCode }]
+      : body.recoveryCode
+        ? ['/admin/auth/recovery', { ticket: body.ticket, recoveryCode: body.recoveryCode }]
+        : ['/admin/auth/totp', { ticket: body.ticket, code: body.code }];
   const upstream = await fetch(`${apiBaseUrl()}${path}`, {
     method: 'POST',
     headers: {

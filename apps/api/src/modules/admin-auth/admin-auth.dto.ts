@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsObject,
   IsOptional,
   IsString,
   Length,
@@ -151,6 +152,72 @@ export class AdminLoginVerifyResultDto {
       'This admin has no authenticator yet: set it up now (QR + recovery codes) before anything else.',
   })
   totpSetupRequired!: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-22: this admin has a passkey — step 2 may be /login/passkey/options + /login/passkey instead of the code.',
+  })
+  passkeyAvailable?: boolean;
+}
+
+// ---- Owner 2026-10-22: passkeys (WebAuthn) ------------------------------
+
+export class AdminPasskeyOptionsDto {
+  @ApiProperty({ description: 'Ticket from login/password (5 minutes).' })
+  @IsString()
+  @Length(20, 2000)
+  ticket!: string;
+}
+
+export class AdminPasskeyLoginDto {
+  @ApiProperty({ description: 'Ticket from login/password (5 minutes).' })
+  @IsString()
+  @Length(20, 2000)
+  ticket!: string;
+
+  @ApiProperty({ description: 'challengeId from /login/passkey/options.' })
+  @IsString()
+  @Length(16, 64)
+  challengeId!: string;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'AuthenticationResponseJSON from the authenticator.',
+  })
+  @IsObject()
+  response!: Record<string, unknown>;
+}
+
+export class AdminPasskeyStepUpDto {
+  @ApiProperty({ description: 'challengeId from /step-up/passkey/options.' })
+  @IsString()
+  @Length(16, 64)
+  challengeId!: string;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'AuthenticationResponseJSON from the authenticator.',
+  })
+  @IsObject()
+  response!: Record<string, unknown>;
+}
+
+export class AdminPasskeyRegisterDto {
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: true,
+    description: 'RegistrationResponseJSON from the authenticator.',
+  })
+  @IsObject()
+  response!: Record<string, unknown>;
+
+  @ApiPropertyOptional({ maxLength: 80 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  name?: string;
 }
 
 /** Forced first setup of the authenticator, step A. */
@@ -193,6 +260,12 @@ export class AdminMeDto {
 
   @ApiProperty()
   totpEnabled!: boolean;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description: 'Owner 2026-10-22: passkeys enrolled for the admin sign-in.',
+  })
+  passkeyCount?: number;
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLoginAt!: string | null;

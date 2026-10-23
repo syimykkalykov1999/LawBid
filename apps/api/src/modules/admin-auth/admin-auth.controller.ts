@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Ip,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Req,
@@ -17,8 +19,19 @@ import {
   ApiErrors,
   COMMON_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import type {
+  AuthenticationResponseJSON,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/server';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { Public } from '../auth/decorators/public.decorator';
+import {
+  PasskeyAuthenticationOptionsDto,
+  PasskeyDto,
+  PasskeyListDto,
+  PasskeyRegistrationOptionsDto,
+  PasskeyRemovedDto,
+} from '../auth/passkeys/passkey.dto';
 import {
   ALL_ADMIN_ROLES,
   AdminEndpoint,
@@ -33,6 +46,10 @@ import {
   AdminInviteAcceptResultDto,
   AdminInvitePreviewDto,
   AdminOkDto,
+  AdminPasskeyLoginDto,
+  AdminPasskeyOptionsDto,
+  AdminPasskeyRegisterDto,
+  AdminPasskeyStepUpDto,
   AdminPasswordLoginDto,
   AdminRecoverPasswordDto,
   AdminRecoverQuestionDto,
@@ -182,6 +199,150 @@ export class AdminAuthController {
     @Body() dto: AdminStepUpDto,
   ): Promise<AdminStepUpResultDto> {
     return this.auth.stepUp(admin.id, admin.sessionId, dto.code, admin.ip);
+  }
+
+  // ---- Owner 2026-10-22: passkeys (WebAuthn) ----------------------------
+
+  @Public()
+  @Post('login/passkey/options')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Step 2 with a passkey: assertion options bound to the ticket (only when passkeyAvailable)',
+  })
+  @ApiEnvelopeResponse(PasskeyAuthenticationOptionsDto)
+  @ApiErrors({
+    ...SECOND_FACTOR_ERRORS,
+    404: [E.PASSKEY_NOT_FOUND],
+  })
+  adminPasskeyLoginOptions(
+    @Body() dto: AdminPasskeyOptionsDto,
+  ): Promise<PasskeyAuthenticationOptionsDto> {
+    return this.auth.passkeyLoginOptions(dto.ticket);
+  }
+
+  @Public()
+  @Post('login/passkey')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Step 2 with a passkey: the assertion → an admin session',
+  })
+  @ApiEnvelopeResponse(AdminSessionDto)
+  @ApiErrors({
+    ...SECOND_FACTOR_ERRORS,
+    401: [E.ADMIN_TICKET_INVALID, E.PASSKEY_INVALID],
+  })
+  adminPasskeyLogin(
+    @Body() dto: AdminPasskeyLoginDto,
+    @Ip() ip: string,
+    @Req() req: Request,
+  ): Promise<AdminSessionDto> {
+    return this.auth.passkeyLogin(
+      dto.ticket,
+      dto.challengeId,
+      dto.response as unknown as AuthenticationResponseJSON,
+      ip || null,
+      req.header('user-agent') ?? null,
+    );
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Post('step-up/passkey/options')
+  @HttpCode(200)
+  @SkipAutoAudit()
+  @ApiOperation({ summary: 'Step-up with a passkey: assertion options' })
+  @ApiEnvelopeResponse(PasskeyAuthenticationOptionsDto)
+  @ApiErrors({ 404: [E.PASSKEY_NOT_FOUND] })
+  adminStepUpPasskeyOptions(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<PasskeyAuthenticationOptionsDto> {
+    return this.auth.stepUpPasskeyOptions(admin.id, admin.sessionId);
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Post('step-up/passkey')
+  @HttpCode(200)
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary:
+      'Confirm with a passkey for 5 minutes before a sensitive change (every try is audited)',
+  })
+  @ApiEnvelopeResponse(AdminStepUpResultDto)
+  @ApiErrors({ 403: [E.PASSKEY_INVALID] })
+  adminStepUpPasskey(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminPasskeyStepUpDto,
+  ): Promise<AdminStepUpResultDto> {
+    return this.auth.stepUpPasskey(
+      admin.id,
+      admin.sessionId,
+      dto.challengeId,
+      dto.response as unknown as AuthenticationResponseJSON,
+      admin.ip,
+    );
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Post('passkeys/options')
+  @HttpCode(200)
+  @SkipAutoAudit()
+  @ApiOperation({ summary: 'Options to enrol a passkey (needs step-up)' })
+  @ApiEnvelopeResponse(PasskeyRegistrationOptionsDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 409: [E.PASSKEY_LIMIT] })
+  async adminPasskeyOptions(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<PasskeyRegistrationOptionsDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    return { options: await this.auth.passkeyRegistrationOptions(admin.id) };
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Post('passkeys')
+  @HttpCode(201)
+  @SkipAutoAudit()
+  @ApiOperation({ summary: 'Store the enrolled passkey (needs step-up)' })
+  @ApiEnvelopeResponse(PasskeyDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.PASSKEY_INVALID],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+  })
+  async adminPasskeyRegister(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminPasskeyRegisterDto,
+  ): Promise<PasskeyDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    return this.auth.passkeyRegister(
+      admin.id,
+      dto.response as unknown as RegistrationResponseJSON,
+      dto.name,
+      admin.ip,
+    );
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Get('passkeys')
+  @ApiOperation({ summary: 'The passkeys of the signed-in admin' })
+  @ApiEnvelopeResponse(PasskeyListDto)
+  async adminPasskeys(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<PasskeyListDto> {
+    return { passkeys: await this.auth.passkeyList(admin.id) };
+  }
+
+  @AdminEndpoint(...ALL_ADMIN_ROLES)
+  @Delete('passkeys/:id')
+  @SkipAutoAudit()
+  @ApiOperation({ summary: 'Remove a passkey (needs step-up)' })
+  @ApiEnvelopeResponse(PasskeyRemovedDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.PASSKEY_NOT_FOUND] })
+  async adminPasskeyRemove(
+    @CurrentAdmin() admin: AdminActor,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PasskeyRemovedDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    await this.auth.passkeyRemove(admin.id, id, admin.ip);
+    return { removed: true };
   }
 
   @AdminEndpoint(...ALL_ADMIN_ROLES)

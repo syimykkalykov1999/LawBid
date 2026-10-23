@@ -17,6 +17,7 @@ test('iOS file: team + bundle id and the QR, sign-in and group paths', () => {
   const j = appleAppSiteAssociation();
   const d = j.applinks.details[0];
   assert.deepEqual(d.appIDs, ['78T56RPM74.com.lawbid.lawbid']);
+  assert.deepEqual(j.webcredentials, { apps: ['78T56RPM74.com.lawbid.lawbid'] });
   const paths = d.components.map((c) => c['/']);
   for (const p of ['/u/*', '/q/*', '/g/*', '/lawyer/*', '/case/*', '/post/*', '/r/*', '/auth/email-code']) {
     assert.ok(paths.includes(p), p);
