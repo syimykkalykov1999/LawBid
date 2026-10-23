@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -136,7 +136,7 @@ void main() {
   testWidgets(
       'tabs on a pushed screen: the first tab hands a right swipe to '
       'back, the second tab swipes to the first', (tester) async {
-    String tab = 'a';
+    var tab = 'a';
     await _open(
       tester,
       StatefulBuilder(
