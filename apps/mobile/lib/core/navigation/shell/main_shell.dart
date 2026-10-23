@@ -15,6 +15,7 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
+import 'package:lawbid/core/session/proactive_refresh_provider.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -125,6 +126,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     if (!guest) {
       ref
         ..listen(realtimeClientProvider, (_, __) {})
+        ..listen(proactiveRefresherProvider, (_, __) {})
         ..listen(badgesProvider, (_, __) {})
         ..listen(sessionServicesProvider, (_, __) {});
     }
