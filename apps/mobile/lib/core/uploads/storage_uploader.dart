@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
@@ -65,8 +66,7 @@ class DioStorageTransport implements StorageTransport {
 
   /// 1 s, 2 s, 4 s … up to 30 s.
   static Duration defaultBackoff(int failures) {
-    final s = 1 << (failures - 1).clamp(0, 5);
-    return Duration(seconds: s > 30 ? 30 : s);
+    return ClientTuning.outboxBackoff(failures);
   }
 
   static bool _temporary(DioException e) {
