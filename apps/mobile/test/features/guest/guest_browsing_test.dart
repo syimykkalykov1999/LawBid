@@ -6,23 +6,23 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/auth_interceptor.dart';
-import 'package:lawbid/core/session/guest_mode.dart';
-import 'package:lawbid/features/auth/auth_routes.dart';
-import 'package:lawbid/features/chat/application/link_preview_providers.dart';
-import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
-import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/channels/presentation/channel_screen.dart';
+import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 import '../../helpers/long_locale.dart';
@@ -87,8 +87,9 @@ void main() {
       ProviderScope(
         overrides: [
           translatorProvider.overrideWithValue(const StaticTranslatorEn()),
-          networkInterfaceMonitorProvider
-              .overrideWithValue(FakeNetworkMonitor()),
+          networkInterfaceMonitorProvider.overrideWithValue(
+            FakeNetworkMonitor(),
+          ),
           reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
           appStartupProvider.overrideWith(_ReadyStartup.new),
           dioProvider.overrideWith((ref) {
@@ -120,8 +121,8 @@ void main() {
     if (r.method != 'GET') return false;
     final p = r.path;
     return RegExp(
-          r'^/(feed|reels|practice-areas|posts/[^/]+|attorneys/[^/]+/posts|'
-          r'search/(attorneys|suggest|practices|posts|tags|trending-tags|latest-posts)|'
+          '^/(feed|reels|practice-areas|posts/[^/]+|attorneys/[^/]+/posts|'
+          'search/(attorneys|suggest|practices|posts|tags|trending-tags|latest-posts)|'
           r'tags/[^/]+/posts|channels/[^/]+|channels/[^/]+/posts(/[^/]+)?)$',
         ).hasMatch(p) ||
         (RegExp(r'^/attorneys/[^/]+$').hasMatch(p) &&
@@ -137,8 +138,9 @@ void main() {
     }
   }
 
-  testWidgets('feed: real posts, no token, no chats, only guest calls',
-      (tester) async {
+  testWidgets('feed: real posts, no token, no chats, only guest calls', (
+    tester,
+  ) async {
     final a = await pump(tester, '/feed', _server);
     expect(find.text('Hello world'), findsWidgets);
     expect(a.requests.map((r) => r.path), contains('/feed'));
@@ -149,8 +151,9 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('feed: the Reels tab reads GET /reels with no token',
-      (tester) async {
+  testWidgets('feed: the Reels tab reads GET /reels with no token', (
+    tester,
+  ) async {
     final a = await pump(tester, '/feed', _server);
     await tester.tap(find.text('Reels'));
     for (var i = 0; i < 6; i++) {
@@ -161,8 +164,9 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('feed: a 401 says «sign in», a 429 says «try later»',
-      (tester) async {
+  testWidgets('feed: a 401 says «sign in», a 429 says «try later»', (
+    tester,
+  ) async {
     final a = await pump(
       tester,
       '/feed',
@@ -181,17 +185,16 @@ void main() {
           : ok(<Object>[]),
     );
     expect(
-      find.text(
-        const StaticTranslatorEn().t('guest.error.later'),
-      ),
+      find.text(const StaticTranslatorEn().t('guest.error.later')),
       findsWidgets,
     );
     expectOnlyGuestCalls(b);
     await close(tester);
   });
 
-  testWidgets('search: the People tab uses the attorney search, no clicks',
-      (tester) async {
+  testWidgets('search: the People tab uses the attorney search, no clicks', (
+    tester,
+  ) async {
     final a = await pump(tester, '/search', _server);
     await tester.enterText(find.byType(TextField).first, 'divorce');
     await tester.pump(const Duration(seconds: 1));
@@ -203,8 +206,9 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('profile: posts load, reviews and Follow ask to sign in',
-      (tester) async {
+  testWidgets('profile: posts load, reviews and Follow ask to sign in', (
+    tester,
+  ) async {
     final a = await pump(tester, '/lawyer/anna', _server);
     expect(find.text('Anna Lee'), findsWidgets);
     final paths = a.requests.map((r) => r.path).toList();
@@ -215,8 +219,9 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('profile: 401 shows the sign-in gate, 429 the try-later note',
-      (tester) async {
+  testWidgets('profile: 401 shows the sign-in gate, 429 the try-later note', (
+    tester,
+  ) async {
     await pump(
       tester,
       '/lawyer/anna',
@@ -233,27 +238,32 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('post: the post loads, the comments ask to sign in',
-      (tester) async {
+  testWidgets('post: the post loads, the comments ask to sign in', (
+    tester,
+  ) async {
     final a = await pump(tester, '/post/p1', _server);
     expect(find.text('Hello world'), findsWidgets);
     expect(
-        a.requests.map((r) => r.path), isNot(contains('/posts/p1/comments')));
+      a.requests.map((r) => r.path),
+      isNot(contains('/posts/p1/comments')),
+    );
     expect(find.text('Sign in to see this.'), findsWidgets);
     expectOnlyGuestCalls(a);
     await close(tester);
   });
 
-  testWidgets('tag page reads GET /tags/:tag/posts with no token',
-      (tester) async {
+  testWidgets('tag page reads GET /tags/:tag/posts with no token', (
+    tester,
+  ) async {
     final a = await pump(tester, '/tag/divorce', _server);
     expect(a.requests.map((r) => r.path), contains('/tags/divorce/posts'));
     expectOnlyGuestCalls(a);
     await close(tester);
   });
 
-  testWidgets('an action (follow) asks a guest to sign in, nothing is sent',
-      (tester) async {
+  testWidgets('an action (follow) asks a guest to sign in, nothing is sent', (
+    tester,
+  ) async {
     final a = await pump(tester, '/follow', _server);
     await tester.tap(find.byType(FollowButton));
     await tester.pumpAndSettle();
@@ -262,8 +272,9 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('the sign-in bar is a plain strip with one button',
-      (tester) async {
+  testWidgets('the sign-in bar is a plain strip with one button', (
+    tester,
+  ) async {
     await pump(tester, '/bar', _server);
     await tester.tap(find.byKey(const ValueKey('guest-sign-in')));
     await tester.pumpAndSettle();
@@ -274,63 +285,71 @@ void main() {
   testWidgets('a link preview is never asked for by a guest', (tester) async {
     final a = await pump(tester, '/bar', _server);
     final c = ProviderScope.containerOf(tester.element(find.byType(Scaffold)));
-    expect(await c.read(linkPreviewProvider('https://example.com').future),
-        isNull);
+    expect(
+      await c.read(linkPreviewProvider('https://example.com').future),
+      isNull,
+    );
     expect(a.requests, isEmpty);
     await close(tester);
   });
 
-  test('a guest request is stamped, a signed-in one carries the bearer',
-      () async {
-    final adapter = FakeHttpAdapter((o) async => apiError(401, 'UNAUTHORIZED'));
-    late Dio dio;
-    final container = ProviderContainer(
-      overrides: [
-        dioProvider.overrideWith((ref) {
-          dio = Dio(BaseOptions(baseUrl: 'http://test'))
-            ..httpClientAdapter = adapter;
-          dio.interceptors.add(AuthInterceptor(ref, dio));
-          return dio;
-        }),
-      ],
-    );
-    addTearDown(container.dispose);
-    Object? error;
-    try {
-      await container.read(dioProvider).get<dynamic>('/feed');
-    } on DioException catch (e) {
-      error = ApiException.fromDioException(e);
-    }
-    expect(error, isA<ApiException>());
-    final e = error! as ApiException;
-    expect(e.guest, isTrue);
-    expect(e.code, 'UNAUTHORIZED');
-    // No refresh attempt, no second request.
-    expect(adapter.requests, hasLength(1));
-    expect(
-        adapter.requests.single.headers.containsKey('Authorization'), isFalse);
-    const t = StaticTranslatorEn();
-    expect(apiErrorText(t, e), t.t('guest.error.signIn'));
-    expect(
-      apiErrorText(
-        t,
-        const ApiException(
-          code: ApiErrorCodes.rateLimited,
-          message: 'x',
-          guest: true,
+  test(
+    'a guest request is stamped, a signed-in one carries the bearer',
+    () async {
+      final adapter = FakeHttpAdapter(
+        (o) async => apiError(401, 'UNAUTHORIZED'),
+      );
+      late Dio dio;
+      final container = ProviderContainer(
+        overrides: [
+          dioProvider.overrideWith((ref) {
+            dio = Dio(BaseOptions(baseUrl: 'http://test'))
+              ..httpClientAdapter = adapter;
+            dio.interceptors.add(AuthInterceptor(ref, dio));
+            return dio;
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+      Object? error;
+      try {
+        await container.read(dioProvider).get<dynamic>('/feed');
+      } on DioException catch (e) {
+        error = ApiException.fromDioException(e);
+      }
+      expect(error, isA<ApiException>());
+      final e = error! as ApiException;
+      expect(e.guest, isTrue);
+      expect(e.code, 'UNAUTHORIZED');
+      // No refresh attempt, no second request.
+      expect(adapter.requests, hasLength(1));
+      expect(
+        adapter.requests.single.headers.containsKey('Authorization'),
+        isFalse,
+      );
+      const t = StaticTranslatorEn();
+      expect(apiErrorText(t, e), t.t('guest.error.signIn'));
+      expect(
+        apiErrorText(
+          t,
+          const ApiException(
+            code: ApiErrorCodes.rateLimited,
+            message: 'x',
+            guest: true,
+          ),
         ),
-      ),
-      t.t('guest.error.later'),
-    );
-    // The same 401 for an account is not a guest note.
-    expect(
-      apiErrorText(
-        t,
-        const ApiException(code: ApiErrorCodes.unauthorized, message: 'x'),
-      ),
-      isNot(t.t('guest.error.signIn')),
-    );
-  });
+        t.t('guest.error.later'),
+      );
+      // The same 401 for an account is not a guest note.
+      expect(
+        apiErrorText(
+          t,
+          const ApiException(code: ApiErrorCodes.unauthorized, message: 'x'),
+        ),
+        isNot(t.t('guest.error.signIn')),
+      );
+    },
+  );
 
   test('guest routes: public screens only', () {
     for (final ok in [
@@ -356,8 +375,9 @@ void main() {
     }
   });
 
-  testWidgets('channel page reads GET /channels/:ref with no token',
-      (tester) async {
+  testWidgets('channel page reads GET /channels/:ref with no token', (
+    tester,
+  ) async {
     final a = await pump(tester, '/c/news', _server);
     expect(a.requests.map((r) => r.path), contains('/channels/news'));
     expectOnlyGuestCalls(a);
@@ -366,40 +386,40 @@ void main() {
 }
 
 Map<String, Object?> _post(String id) => {
-      'id': id,
-      'commentsEnabled': true,
-      'likesHidden': false,
-      'viewsHidden': false,
-      'kind': 'post',
-      'contentClass': 'legal',
-      'author': {
-        'id': 'a1',
-        'role': 'attorney',
-        'username': 'anna',
-        'verifiedBadge': true,
-        'isFollowing': false,
-        'trustLevel': 1,
-        'practiceI18nKeys': <Object?>[],
-        'advertisingLabel': false,
-      },
-      'body': 'Hello world',
-      'media': <Object?>[],
-      'attachments': <Object?>[],
-      'tags': <Object?>[],
-      'mentions': <Object?>[],
-      'status': 'published',
-      'likeCount': 0,
-      'commentCount': 0,
-      'saveCount': 0,
-      'shareCount': 0,
-      'viewCount': 0,
-      'repostCount': 0,
-      'createdAt': '2026-10-01T10:00:00.000Z',
-      'savedByMe': false,
-      'repostedByMe': false,
-      'likedByMe': false,
-      'isMine': false,
-    };
+  'id': id,
+  'commentsEnabled': true,
+  'likesHidden': false,
+  'viewsHidden': false,
+  'kind': 'post',
+  'contentClass': 'legal',
+  'author': {
+    'id': 'a1',
+    'role': 'attorney',
+    'username': 'anna',
+    'verifiedBadge': true,
+    'isFollowing': false,
+    'trustLevel': 1,
+    'practiceI18nKeys': <Object?>[],
+    'advertisingLabel': false,
+  },
+  'body': 'Hello world',
+  'media': <Object?>[],
+  'attachments': <Object?>[],
+  'tags': <Object?>[],
+  'mentions': <Object?>[],
+  'status': 'published',
+  'likeCount': 0,
+  'commentCount': 0,
+  'saveCount': 0,
+  'shareCount': 0,
+  'viewCount': 0,
+  'repostCount': 0,
+  'createdAt': '2026-10-01T10:00:00.000Z',
+  'savedByMe': false,
+  'repostedByMe': false,
+  'likedByMe': false,
+  'isMine': false,
+};
 
 const _profile = {
   'id': 'a1',
