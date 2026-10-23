@@ -26,8 +26,8 @@ export class VideoCallConfigDto {
   @ApiProperty()
   available!: boolean;
 
-  @ApiProperty({ enum: ['webrtc'] })
-  provider!: 'webrtc';
+  @ApiProperty({ enum: ['webrtc', 'livekit'] })
+  provider!: 'webrtc' | 'livekit';
 
   @ApiPropertyOptional({
     enum: ['flag_off', 'provider_not_configured'],
@@ -354,4 +354,25 @@ export class IceServersDto {
     description: 'Seconds the TURN login lives.',
   })
   ttlSec!: number;
+}
+
+/** POST /calls/:id/livekit-token — what the app hands to the LiveKit SDK. */
+export class LiveKitJoinDto {
+  @ApiProperty({ description: 'wss:// address of the LiveKit server.' })
+  url!: string;
+
+  @ApiProperty({ description: 'Access token (JWT); identity = your user id.' })
+  token!: string;
+
+  @ApiProperty({ description: 'Room name = the call id.' })
+  room!: string;
+
+  @ApiProperty()
+  identity!: string;
+
+  @ApiProperty({ enum: ['host', 'speaker', 'listener'] })
+  role!: 'host' | 'speaker' | 'listener';
+
+  @ApiProperty({ format: 'date-time' })
+  expiresAt!: string;
 }

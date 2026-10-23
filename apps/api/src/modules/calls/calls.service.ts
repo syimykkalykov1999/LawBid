@@ -47,10 +47,13 @@ import type {
   EndCallDto,
   InviteCallDto,
   IceServersDto,
+  LiveKitJoinDto,
   StartCallDto,
   StartGroupCallDto,
   VideoCallConfigDto,
 } from './calls.dto';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   VIDEO_CALLS_FLAG,
   WebRtcVideoProvider,
@@ -150,8 +153,11 @@ export class CallsService {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // Owner 2026-10-22 (audit #4 §7): call connect SLO.
     @Optional() private readonly slo?: SloMetricsService,
+    // Owner 2026-10-22: `calls.max_participants`, `calls.video_provider`.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
+    this.livekit = new LiveKitVideoProvider(secrets, config);
     // Someone left / was removed from a group: out of its running call too.
     this.groups?.membershipEnded$.subscribe((e) => {
       void this.dropFromGroupCall(e).catch(() => undefined);
@@ -183,12 +189,117 @@ export class CallsService {
   }
 
   private readonly videoProvider: VideoCallProvider;
+  private readonly livekit: LiveKitVideoProvider;
+
+  /** `calls.video_provider`: p2p (default) or livekit — livekit only while
+   * its keys exist, so a removed key can never leave calls without media. */
+  private async activeVideoProvider(): Promise<VideoCallProvider> {
+    const choice = this.settings
+      ? await this.settings.string('calls.video_provider')
+      : 'p2p';
+    if (choice === 'livekit' && (await this.livekit.isConfigured())) {
+      return this.livekit;
+    }
+    return this.videoProvider;
+  }
 
   /** GET /calls/video — owner 2026-10-05: flag on AND provider keys set. */
   async videoConfig(): Promise<VideoCallConfigDto> {
     const flagOn = await this.flags.isEnabled(VIDEO_CALLS_FLAG, false);
-    const a = await videoCallAvailability(flagOn, this.videoProvider);
-    return { ...a, provider: this.videoProvider.name };
+    const provider = await this.activeVideoProvider();
+    const a = await videoCallAvailability(flagOn, provider);
+    return { ...a, provider: provider.name };
+  }
+
+  /**
+   * POST /calls/:id/livekit-token — owner 2026-10-22. A room per call id and
+   * an access token (identity = user id, TTL = the call's longest life).
+   * Hosts and channel admins publish; a channel call's other members only
+   * listen; everyone else in a normal call speaks.
+   */
+  async livekitToken(user: RequestUser, id: string): Promise<LiveKitJoinDto> {
+    const call = await this.prisma.call.findUnique({ where: { id } });
+    if (!call) throw notFound();
+    const row = await this.rowOf(call.id, user.sub);
+    const member =
+      call.caller_id === user.sub ||
+      call.callee_id === user.sub ||
+      row?.status === 'joined';
+    if (!member) throw notFound();
+    if (!LIVE.includes(call.status)) throw conflict();
+    if ((await this.activeVideoProvider()).name !== 'livekit') {
+      throw new ConflictException({
+        code: ErrorCode.CALL_STATE_CONFLICT,
+        message: 'Calls run peer to peer now; LiveKit is not switched on.',
+      });
+    }
+    const keys = await this.livekit.keys();
+    if (!keys) throw conflict();
+    let role: LiveKitRole = 'speaker';
+    if (call.channel_id) {
+      role = (await this.isCallAdmin(call, user.sub)) ? 'host' : 'listener';
+    } else if (call.caller_id === user.sub) {
+      role = 'host';
+    }
+    await this.livekit.ensureRoom(
+      keys,
+      call.id,
+      await this.capacity(call.video),
+    );
+    const join = await this.livekit.issueToken(keys, call.id, user.sub, role);
+    return { ...join, expiresAt: join.expiresAt.toISOString() };
+  }
+
+  /** The webhook's door: signature (JWT + body hash) first, then the event.
+   * Any failure is a plain 404, like the other webhooks. */
+  async receiveLivekitWebhook(
+    rawBody: string,
+    authorization: string | undefined,
+  ): Promise<void> {
+    const keys = await this.livekit.keys();
+    if (!keys || !authorization) throw notFound();
+    let event;
+    try {
+      event = await this.livekit.verifyWebhook(keys, rawBody, authorization);
+    } catch {
+      throw notFound();
+    }
+    await this.onLivekitEvent(event);
+  }
+
+  /**
+   * LiveKit webhook → the existing call lifecycle. `participant_left` is the
+   * same as hanging up; `room_finished` ends the call for everyone. Unknown
+   * rooms and repeated events are ignored (LiveKit retries).
+   */
+  async onLivekitEvent(event: {
+    event: string;
+    room?: { name?: string } | null;
+    participant?: { identity?: string } | null;
+  }): Promise<void> {
+    const callId = event.room?.name ?? '';
+    if (!/^[0-9a-f-]{36}$/i.test(callId)) return;
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    if (!call || !LIVE.includes(call.status)) return;
+    if (event.event === 'room_finished') {
+      await this.finish(
+        call,
+        call.status === 'active' ? 'ended' : 'missed',
+        null,
+      );
+      return;
+    }
+    if (event.event !== 'participant_left') return;
+    const identity = event.participant?.identity ?? '';
+    if (!identity) return;
+    const user = { sub: identity } as RequestUser;
+    if (call.is_group) {
+      const row = await this.rowOf(call.id, identity);
+      if (row?.status === 'joined') await this.leaveGroup(user, call, row);
+      return;
+    }
+    // Two-person call: one side left the room = hung up.
+    if (call.status === 'active') await this.finish(call, 'ended', identity);
   }
 
   /** POST /conversations/:id/calls */
@@ -667,8 +778,15 @@ export class CallsService {
   // --- Calls from a group chat (owner 2026-10-20) ---------------------------
 
   /** Audio / video of one call: 9 / 9 (mesh). */
-  private capacity(video: boolean): number {
-    return video ? GROUP_MAX_VIDEO : GROUP_MAX_AUDIO;
+  private async capacity(video: boolean): Promise<number> {
+    // Owner 2026-10-22: `calls.max_participants` (admin → Settings), 9 by
+    // default; peer to peer never goes above 9 whatever is set.
+    const set = this.settings
+      ? await this.settings.number('calls.max_participants')
+      : 9;
+    const p2p = (await this.activeVideoProvider()).name === 'webrtc';
+    const base = video ? GROUP_MAX_VIDEO : GROUP_MAX_AUDIO;
+    return p2p ? Math.min(set, base) : set;
   }
 
   /** POST /groups/:id/calls — the phone / video buttons of a group chat. The
@@ -725,8 +843,9 @@ export class CallsService {
       (id) => id !== user.sub && members.has(id),
     );
     const invitees: string[] = [];
+    const cap = await this.capacity(video);
     for (const id of wanted) {
-      if (invitees.length >= this.capacity(video) - 1) break;
+      if (invitees.length >= cap - 1) break;
       // Blocked, "who can call me" closed or already talking: skipped.
       // Owner 2026-10-21 (inbox 20, WhatsApp): the group itself is the
       // accepted «Request» — members ring without a 1:1 chat.
@@ -1062,7 +1181,7 @@ export class CallsService {
       });
     }
     const inCall = rows.filter((r) => r.status === 'joined').length;
-    if (inCall >= this.capacity(fresh.video)) {
+    if (inCall >= (await this.capacity(fresh.video))) {
       throw new ConflictException({
         code: ErrorCode.CALL_STATE_CONFLICT,
         message: 'The call is full.',
@@ -1266,7 +1385,7 @@ export class CallsService {
       ? rows.filter((r) => IN_CALL.includes(r.status))
       : [];
     const size = call.is_group ? current.length : 2;
-    const max = call.video ? GROUP_MAX_VIDEO : GROUP_MAX_AUDIO;
+    const max = await this.capacity(call.video);
     if (current.some((r) => r.user_id === targetId))
       return this.toDto(call, user.sub);
     if (

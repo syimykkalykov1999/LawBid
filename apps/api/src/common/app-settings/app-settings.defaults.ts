@@ -639,6 +639,16 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'chat.delete_for_all_hours': 48,
   /** Pinned messages per chat (WhatsApp: 3). */
   'chat.max_pins': 3,
+  /** Owner 2026-10-22: link cards under messages. Kill switch + domains
+   * (and their subdomains) that are never fetched. */
+  /** Owner 2026-10-22: calls. Group calls up to this many people (peer to
+   * peer holds about 9); `video_provider` p2p | livekit (livekit needs the
+   * LIVEKIT_* keys); big-audience channel calls come next release. */
+  'calls.max_participants': 9,
+  'calls.video_provider': 'p2p',
+  'calls.channel_live_enabled': false,
+  'chat.link_preview_enabled': true,
+  'chat.link_preview_denylist': [] as string[],
 };
 
 export const OWNER_STORAGE_SETTINGS = {

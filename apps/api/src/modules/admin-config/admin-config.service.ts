@@ -237,6 +237,28 @@ export class AdminConfigService {
       });
   }
 
+  /** Owner 2026-10-22: livekit cannot be switched on without its keys. */
+  private async assertLivekitReady(key: string, value: unknown): Promise<void> {
+    const needs =
+      (key === 'calls.video_provider' && value === 'livekit') ||
+      (key === 'calls.channel_live_enabled' && value === true);
+    if (!needs) return;
+    const f = (await this.secrets?.get('livekit'))?.fields ?? {};
+    const has = (name: string, env: string) =>
+      Boolean((f[name] ?? this.config.get<string>(env) ?? '').trim());
+    const missing = [
+      has('url', 'LIVEKIT_URL') ? null : 'LIVEKIT_URL',
+      has('apiKey', 'LIVEKIT_API_KEY') ? null : 'LIVEKIT_API_KEY',
+      has('apiSecret', 'LIVEKIT_API_SECRET') ? null : 'LIVEKIT_API_SECRET',
+    ].filter((x): x is string => x !== null);
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `LiveKit is not configured: add ${missing.join(', ')} in Integrations → LiveKit first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
   async updateConfig(
     admin: AdminActor,
     key: string,
@@ -258,6 +280,7 @@ export class AdminConfigService {
         details: { field: 'value', type: schema.type },
       });
     }
+    await this.assertLivekitReady(key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });

@@ -1,11 +1,19 @@
 import {
   Global,
+  Inject,
   Injectable,
   Module,
+  Optional,
   OnApplicationShutdown,
   OnModuleInit,
 } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+
+/** Owner 2026-10-22: the minute's counts are also kept in Redis (26 h) so the
+ * status board can read the push success rate without a log service. */
+export const SLO_REDIS_PREFIX = 'ops:slo:';
 
 /**
  * Owner 2026-10-22 (audit #4 §7, Google SRE "Alerting on SLOs"): the
@@ -33,7 +41,10 @@ export class SloMetricsService implements OnModuleInit, OnApplicationShutdown {
   private counts = new Map<SloCounter, number>();
   private timer?: NodeJS.Timeout;
 
-  constructor(private readonly logger: PinoLogger) {
+  constructor(
+    private readonly logger: PinoLogger,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+  ) {
     this.logger.setContext(SloMetricsService.name);
   }
 
@@ -55,6 +66,15 @@ export class SloMetricsService implements OnModuleInit, OnApplicationShutdown {
     ) as Record<SloCounter, number>;
     this.counts = new Map();
     this.logger.info({ metric: 'slo', ...line }, 'slo counters');
+    if (this.redis) {
+      const key = SLO_REDIS_PREFIX + Math.floor(Date.now() / 60_000);
+      const pipe = this.redis.pipeline();
+      for (const [k, n] of Object.entries(line)) {
+        if (n > 0) pipe.hincrby(key, k, n);
+      }
+      pipe.expire(key, 26 * 3600);
+      void pipe.exec().catch(() => undefined);
+    }
     return line;
   }
 

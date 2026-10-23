@@ -138,6 +138,13 @@ interface AdminRow {
  * step that matters is an audit_log row; the mobile session/refresh
  * machinery is not involved (admin JWT + Redis session only).
  */
+/** The `on_call` level inside `admin_profiles.permissions` ('' when none). */
+function onCallLevel(raw: unknown): string {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return '';
+  const v = (raw as Record<string, unknown>).on_call;
+  return typeof v === 'string' ? v : '';
+}
+
 @Injectable()
 export class AdminAuthService {
   private readonly cipher: SecretCipher | null;
@@ -587,7 +594,13 @@ export class AdminAuthService {
       select: {
         id: true,
         email: true,
-        admin_profile: { select: { admin_role: true, permissions: true } },
+        admin_profile: {
+          select: {
+            admin_role: true,
+            permissions: true,
+            on_call_enabled: true,
+          },
+        },
         admin_credential: {
           select: {
             totp_enabled_at: true,
@@ -619,6 +632,12 @@ export class AdminAuthService {
       lastLoginAt: c?.last_login_at?.toISOString() ?? null,
       login: c?.login ?? null,
       hasPassword: Boolean(c?.password_hash),
+      onCallAvailable:
+        role === 'super_admin' ||
+        ['view', 'manage'].includes(
+          onCallLevel(user.admin_profile?.permissions),
+        ),
+      onCallEnabled: user.admin_profile?.on_call_enabled ?? true,
       permissions:
         role === 'super_admin'
           ? {}
@@ -647,6 +666,14 @@ export class AdminAuthService {
       securityQuestion:
         role === 'super_admin' ? (c?.security_question ?? null) : null,
     };
+  }
+
+  /** Owner 2026-10-22: the admin's own «дежурный» switch (Профиль). */
+  async setOnCall(actor: AdminActor, enabled: boolean): Promise<void> {
+    await this.prisma.adminProfile.update({
+      where: { user_id: actor.id },
+      data: { on_call_enabled: enabled },
+    });
   }
 
   // ---- login + password management -------------------------------------

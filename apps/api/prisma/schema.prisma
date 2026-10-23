@@ -3302,14 +3302,17 @@ enum ModerationAppealStatus {
 }
 
 model AdminProfile {
-  user_id     String    @id @db.Uuid
-  user        User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
-  admin_role  AdminRole
+  user_id         String    @id @db.Uuid
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Restrict)
+  admin_role      AdminRole
   // Per-area access for non-super admins: {"users":"view","support":"manage"}.
   // Money and API keys are never grantable (hard-denied in the API).
-  permissions Json      @default("{}")
-  created_at  DateTime  @default(now()) @db.Timestamptz
-  updated_at  DateTime  @updatedAt @db.Timestamptz
+  permissions     Json      @default("{}")
+  /// Owner 2026-10-22: the admin's own switch for system alerts (push + e-mail)
+  /// when they hold the on_call right (the owner always may).
+  on_call_enabled Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @updatedAt @db.Timestamptz
 
   @@map("admin_profiles")
 }
@@ -6933,4 +6936,23 @@ model CsamReport {
   @@index([status, created_at], map: "csam_reports_status_idx")
   @@index([check_id], map: "csam_reports_check_idx")
   @@map("csam_reports")
+}
+
+/// Owner 2026-10-22: «Состояние системы». One row per outage of a component
+/// (api, database, redis, queues, ...). The watchdog opens it after two red
+/// checks in a row and closes it after two good ones; a partial unique index
+/// (component WHERE closed_at IS NULL, in SQL only) keeps one open at a time.
+model SystemIncident {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  component        String    @db.VarChar(40)
+  severity         String    @default("red") @db.VarChar(8)
+  title            String    @db.VarChar(200)
+  detail           Json      @default("{}")
+  opened_at        DateTime  @default(now()) @db.Timestamptz
+  closed_at        DateTime? @db.Timestamptz
+  last_notified_at DateTime? @db.Timestamptz
+  notify_count     Int       @default(0)
+
+  @@index([opened_at(sort: Desc)])
+  @@map("system_incidents")
 }
