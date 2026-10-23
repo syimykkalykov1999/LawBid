@@ -20,13 +20,13 @@ GoRouter _router() => GoRouter(
           branches: [
             StatefulShellBranch(routes: [
               GoRoute(path: '/feed', builder: (c, s) => const Text('feed')),
-            ]),
+            ],),
             StatefulShellBranch(routes: [
               GoRoute(path: '/search', builder: (c, s) => const Text('search')),
-            ]),
+            ],),
             StatefulShellBranch(routes: [
               GoRoute(path: '/mine', builder: (c, s) => const Text('mine')),
-            ]),
+            ],),
             StatefulShellBranch(routes: [
               GoRoute(
                 path: '/profile',
@@ -40,7 +40,7 @@ GoRouter _router() => GoRouter(
                         onPressed: () => Navigator.of(c, rootNavigator: true)
                             .push(MaterialPageRoute<void>(
                           builder: (_) => const Text('postsFeed'),
-                        )),
+                        ),),
                         child: const Text('imperative'),
                       ),
                       TextButton(
@@ -55,7 +55,7 @@ GoRouter _router() => GoRouter(
                   ),
                 ),
               ),
-            ]),
+            ],),
           ],
         ),
         GoRoute(

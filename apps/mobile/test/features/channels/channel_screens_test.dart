@@ -167,7 +167,7 @@ void main() {
 
       await swipeLeft();
       expect(
-          find.byKey(const ValueKey('channels-list-channels')), findsWidgets);
+          find.byKey(const ValueKey('channels-list-channels')), findsWidgets,);
       await tester.drag(
         find.byKey(const ValueKey('channels-list-channels')).first,
         const Offset(-400, 0),
