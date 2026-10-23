@@ -14,7 +14,6 @@ import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/feed/application/feed_content.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/application/news_flag.dart';
-import 'package:lawbid/features/feed/presentation/screens/guest_feed_screen.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart';
 import 'package:lawbid/features/reels/presentation/reel_publish_card.dart';
@@ -107,8 +106,10 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Owner 2026-10-22 (guest browsing): no account — the public screen.
-    if (ref.watch(isGuestProvider)) return const GuestFeedScreen();
+    // Owner 2026-10-22 (guest browsing): the same feed and reels as an
+    // account sees, read with no token; Chats (and the chats icon) are for
+    // accounts only.
+    final guest = ref.watch(isGuestProvider);
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     // Audit 2026-10-02: an assistant sees the Cases tab only with "cases".
@@ -168,17 +169,18 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
             onChanged: _go,
           ),
           trailing: [
-            _FloatDisc(
-              forceDark: onDark,
-              icon: ({required dark}) => ChatsIconButton(
-                onDark: dark,
-                onOpen: () => _go(_FeedTab.chats),
+            if (!guest)
+              _FloatDisc(
+                forceDark: onDark,
+                icon: ({required dark}) => ChatsIconButton(
+                  onDark: dark,
+                  onOpen: () => _go(_FeedTab.chats),
+                ),
               ),
-            ),
           ],
         );
 
-    final pages = [...tabs, _FeedTab.chats];
+    final pages = [...tabs, if (!guest) _FeedTab.chats];
     final topInset = MediaQuery.paddingOf(context).top;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
@@ -226,8 +228,9 @@ class _FeedScreenState extends ConsumerState<FeedScreen> {
         values: pages,
         onChanged: _go,
         // The bottom bar slides down as Chats slides in.
-        onPosition: (page) =>
-            _setNavAway((page - (pages.length - 2)).clamp(0.0, 1.0)),
+        onPosition: (page) => _setNavAway(
+          guest ? 0 : (page - (pages.length - 2)).clamp(0.0, 1.0),
+        ),
         pageBuilder: (_, tab) => pageFor(tab),
       ),
     );
@@ -323,8 +326,11 @@ class _TopicFeedState extends ConsumerState<_TopicFeed> {
   void initState() {
     super.initState();
     // Owner 2026-10-05: the "Content" setting as the server has it.
+    // A guest has no setting on the server (and no token to read it with).
     Future.microtask(() {
-      if (mounted) ref.read(feedContentModeProvider.notifier).sync();
+      if (mounted && !ref.read(isGuestProvider)) {
+        ref.read(feedContentModeProvider.notifier).sync();
+      }
     });
   }
 

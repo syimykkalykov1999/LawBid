@@ -274,6 +274,10 @@ const kCallRingTimeout = Duration(seconds: 60);
 /// [CallSession.errorCode] when the microphone permission was refused.
 const kMicDenied = 'MIC_DENIED';
 
+/// Owner 2026-10-22 (wave 2): the server runs calls on a media server this
+/// build has no client for (LiveKit) — «update the app», no call started.
+const kCallUpdateApp = 'CALL_UPDATE_APP';
+
 /// [CallSession.errorCode] when the host removed us from a group call.
 const kRemovedFromCall = 'REMOVED_FROM_CALL';
 
@@ -385,6 +389,29 @@ class CallController extends Notifier<CallSession> {
 
   Future<List<IceServer>>? _ice;
   DateTime? _iceAt;
+
+  Future<bool>? _providerOk;
+  DateTime? _providerAt;
+
+  /// Throws [kCallUpdateApp] when calls run on a media server this build
+  /// cannot use. Asked once per few minutes; a failed ask counts as fine.
+  Future<void> _requireSupportedProvider() async {
+    final at = _providerAt;
+    var ask = _providerOk;
+    if (ask == null ||
+        at == null ||
+        DateTime.now().difference(at) > const Duration(minutes: 5)) {
+      ask = _repo.providerSupported();
+      _providerOk = ask;
+      _providerAt = DateTime.now();
+    }
+    if (!await ask) {
+      throw const ApiException(
+        code: kCallUpdateApp,
+        message: 'Calls need a newer version of the app.',
+      );
+    }
+  }
 
   /// Owner 2026-10-15: calls connected slowly — the relay (TURN) list was
   /// fetched only after the mic was asked for, one request behind the
@@ -548,6 +575,8 @@ class CallController extends Notifier<CallSession> {
       }
       if (gen != _gen || !ref.mounted) return;
       unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
+      await _requireSupportedProvider();
+      if (gen != _gen || !ref.mounted) return;
       final call = await _repo.start(conversationId, video: video);
       if (!ref.mounted) return;
       if (gen != _gen) {
@@ -643,6 +672,8 @@ class CallController extends Notifier<CallSession> {
         me != null &&
         call.participants.any((m) => m.userId == me && m.ringing);
     try {
+      await _requireSupportedProvider();
+      if (!ref.mounted || gen != _gen) return;
       // The answer to the server and the mic/connection run side by side:
       // the caller's offer waits in [_earlySignals] until the media is open.
       final acceptF = _repo.accept(call.id);
@@ -672,6 +703,12 @@ class CallController extends Notifier<CallSession> {
       if (gen != _gen) return;
       state = state.copyWith(errorCode: e.code);
       _finish(CallStatus.failed);
+      if (e.code == kCallUpdateApp) {
+        // Cannot take it here: let the caller know rather than ring on.
+        unawaited(
+          _repo.decline(call.id).then<void>((_) {}, onError: (Object _) {}),
+        );
+      }
     } on Object catch (e) {
       callTrace('accept ${call.id}: failed: $e');
       if (gen != _gen) return;
@@ -823,6 +860,8 @@ class CallController extends Notifier<CallSession> {
         _finish(CallStatus.failed);
         return kMicDenied;
       }
+      if (gen != _gen || !ref.mounted) return null;
+      await _requireSupportedProvider();
       if (gen != _gen || !ref.mounted) return null;
       final call = await open();
       if (!ref.mounted) return null;

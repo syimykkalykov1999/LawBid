@@ -43,6 +43,13 @@ abstract interface class CallsRepository {
   Future<AppCall> get(String callId);
   Future<List<IceServer>> iceServers();
 
+  /// Owner 2026-10-22 (wave 2): which media server the calls run on —
+  /// `GET /calls/video`. False when it is one this build cannot talk to
+  /// (`livekit` before the LiveKit client is in the app, or a value newer
+  /// than the app knows): the call is not started, the person is told to
+  /// update. Any failure to ask answers true (the old behaviour).
+  Future<bool> providerSupported();
+
   /// Group calls: adds a person (by id or @username) to the running call.
   Future<AppCall> invite(String callId, {String? userId, String? username});
 
@@ -258,6 +265,16 @@ class ApiCallsRepository implements CallsRepository {
         body: api.CallMuteDto(muted: muted),
       ),
     );
+  }
+
+  @override
+  Future<bool> providerSupported() async {
+    try {
+      final config = (await guardApiCall(_api.callVideoConfig)).data;
+      return config.provider == api.VideoCallConfigDtoProvider.webrtc;
+    } on Object {
+      return true;
+    }
   }
 
   @override

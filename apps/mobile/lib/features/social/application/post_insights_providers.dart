@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/event_queue_store.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show currentUserIdProvider;
 import 'package:lawbid/features/social/data/post_insights_repository.dart';
@@ -181,7 +182,9 @@ final postEventsQueueProvider = Provider<PostEventsQueue>((ref) {
   final owner = ref.watch(currentUserIdProvider);
   final q = PostEventsQueue(
     send: repo.record,
-    enabled: !ref.watch(isAssistantProvider),
+    // Owner 2026-10-22: a guest's looks are not counted (the write routes
+    // need an account).
+    enabled: !ref.watch(isAssistantProvider) && !ref.watch(isGuestProvider),
     store: owner == null
         ? null
         : DriftEventQueueStore(ref.watch(cacheDatabaseProvider), owner),

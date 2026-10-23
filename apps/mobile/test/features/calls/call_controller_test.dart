@@ -85,6 +85,7 @@ Map<String, Object?> _event(AppCall c) => {
 class _FakeRepo implements CallsRepository {
   CallStatus startStatus = CallStatus.ringing;
   ApiException? refuse;
+  bool providerOk = true;
   final ends = <CallEndReason>[];
   final endedIds = <String>[];
   final accepted = <String>[];
@@ -240,6 +241,9 @@ class _FakeRepo implements CallsRepository {
   @override
   Future<void> setMuteState(String callId, {required bool muted}) async =>
       muteStates.add(muted);
+
+  @override
+  Future<bool> providerSupported() async => providerOk;
 
   @override
   Future<List<IceServer>> iceServers() async => const [
@@ -981,6 +985,16 @@ void main() {
     await refused.c.call('conv');
     expect(refused.s.phase, CallPhase.ended);
     expect(refused.s.errorCode, 'CALL_NOT_ALLOWED');
+  });
+
+  test('a server on a media server this build lacks: update the app, no call',
+      () async {
+    final h = _Harness()..repo.providerOk = false;
+    addTearDown(h.dispose);
+    await h.c.call('conv');
+    expect(h.s.phase, CallPhase.ended);
+    expect(h.s.errorCode, kCallUpdateApp);
+    expect(h.repo.startedVideo, isEmpty);
   });
 
   test('a second ring while calling is ignored', () async {

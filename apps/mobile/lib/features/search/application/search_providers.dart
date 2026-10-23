@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
@@ -12,7 +12,10 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 Duration? _noRetry(int retryCount, Object error) => null;
 
 final searchRepositoryProvider = Provider<SearchRepository>(
-  (ref) => ApiSearchRepository(ref.watch(dioProvider)),
+  (ref) => ApiSearchRepository(
+    ref.watch(dioProvider),
+    guest: ref.watch(isGuestProvider),
+  ),
 );
 
 /// docs/05 §7.1: at least 2 characters (a tag prefix needs 1 after '#').
@@ -87,9 +90,20 @@ class PeopleSearchNotifier extends PagedNotifier<PersonRow> {
   final SearchKey key;
 
   @override
-  Future<CursorPage<PersonRow>> fetch(String? cursor) => ref
-      .read(searchRepositoryProvider)
-      .people(key.q, key.filters, cursor: cursor);
+  Future<CursorPage<PersonRow>> fetch(String? cursor) async {
+    final repo = ref.read(searchRepositoryProvider);
+    // Owner 2026-10-22 (guest browsing): `GET /search/people` needs an
+    // account; the attorney search is open to a guest (clients are never
+    // listed to one).
+    if (ref.read(isGuestProvider)) {
+      final page = await repo.attorneys(key.q, key.filters, cursor: cursor);
+      return CursorPage(
+        items: [for (final a in page.items) PersonRow.attorney(a)],
+        nextCursor: page.nextCursor,
+      );
+    }
+    return repo.people(key.q, key.filters, cursor: cursor);
+  }
 
   @override
   Object idOf(PersonRow item) => item.id;

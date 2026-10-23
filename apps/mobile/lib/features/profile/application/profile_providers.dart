@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -110,7 +111,9 @@ final ownCaseReviewProvider =
 
 final reviewSummaryProvider =
     FutureProvider.autoDispose.family<ReviewSummary, String>(
-  (ref, attorneyId) => ref.watch(reviewsRepositoryProvider).summary(attorneyId),
+  (ref, attorneyId) => ref.watch(isGuestProvider)
+      ? Future<ReviewSummary>.error(guestSignInRequired())
+      : ref.watch(reviewsRepositoryProvider).summary(attorneyId),
   retry: (_, __) => null,
 );
 
@@ -206,6 +209,9 @@ class ReviewsListController extends AsyncNotifier<ReviewsListState> {
   Future<ReviewsListState> build() => _firstPage();
 
   Future<ReviewsListState> _firstPage() async {
+    // Owner 2026-10-22 (guest browsing): reviews are read with an account
+    // (the API does not open them to a guest) — no request, a «sign in».
+    if (ref.read(isGuestProvider)) throw guestSignInRequired();
     final page = await ref
         .read(reviewsRepositoryProvider)
         .list(attorneyId, rating: key.rating, sort: key.sort);
