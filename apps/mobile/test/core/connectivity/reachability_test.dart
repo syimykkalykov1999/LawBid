@@ -6,6 +6,8 @@ import 'package:lawbid/core/connectivity/reachability.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/realtime/realtime_timings.dart';
+import 'package:lawbid/core/realtime/timings_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fake_http_adapter.dart';
@@ -18,7 +20,10 @@ void main() {
     late List<bool> events;
 
     setUp(() {
-      signal = ReachabilitySignal();
+      signal = ReachabilitySignal(
+        timings: () =>
+            const RealtimeTimings(offlineFailures: 1, offlineSeconds: 0),
+      );
       events = [];
       signal.changes.listen(events.add);
       adapter = FakeHttpAdapter((o) async => ok({'x': 1}));
@@ -105,7 +110,12 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          realtimeTimingsProvider.overrideWithValue(
+            const RealtimeTimings(offlineSeconds: 0),
+          ),
+        ],
       );
       addTearDown(container.dispose);
       return container;
@@ -116,13 +126,17 @@ void main() {
       final container = await appContainer();
       final dio = container.read(dioProvider)
         ..httpClientAdapter = FakeHttpAdapter(throwConnectionError);
-      await expectLater(
-        dio.get<Object?>(
-          '/auth/sessions',
-          options: Options(extra: const {RequestFlags.noRetry: true}),
-        ),
-        throwsA(isA<DioException>()),
-      );
+      Future<void> fail() => expectLater(
+            dio.get<Object?>(
+              '/auth/sessions',
+              options: Options(extra: const {RequestFlags.noRetry: true}),
+            ),
+            throwsA(isA<DioException>()),
+          );
+      // Owner 2026-10-23: one failure is a blip, the second is "offline".
+      await fail();
+      expect(container.read(reachabilitySignalProvider).lastKnown, isNull);
+      await fail();
       expect(container.read(reachabilitySignalProvider).lastKnown, isFalse);
     });
 

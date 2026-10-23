@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'badges_dto.dart';
+import 'client_timings_dto.dart';
 import 'me_dto.dart';
 
 part 'app_session_dto.g.dart';
@@ -18,6 +19,7 @@ class AppSessionDto {
     required this.flags,
     required this.unreadSupport,
     required this.hasOngoingCalls,
+    required this.client,
   });
 
   factory AppSessionDto.fromJson(Map<String, Object?> json) =>
@@ -37,6 +39,9 @@ class AppSessionDto {
 
   /// A call is running now in one of my groups — only then ask GET /calls/ongoing.
   final bool hasOngoingCalls;
+
+  /// The same `client.timings` GET /config/bootstrap answers (connection timings).
+  final ClientTimingsDto client;
 
   Map<String, Object?> toJson() => _$AppSessionDtoToJson(this);
 }

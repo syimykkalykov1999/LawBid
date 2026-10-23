@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/diagnostics/app_event_names.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,7 +30,6 @@ class AppEvents {
   static const _maxQueue = 200;
   static const _batch = 50;
   static const _flushAt = 20;
-  static const _every = Duration(seconds: 60);
 
   static AppEvents? instance;
 
@@ -43,7 +43,8 @@ class AppEvents {
   static bool? get consent => _consent;
   static bool? _consent;
 
-  static bool get _allowed => enabled && (_consent ?? false);
+  static bool get _allowed =>
+      enabled && ClientTuning.eventsEnabled && (_consent ?? false);
 
   /// Records the answer (kept for the next start). A "no" also drops what
   /// was waiting in the queue; a "yes" starts counting from now on.
@@ -188,7 +189,7 @@ class AppEvents {
 
   void _schedule() {
     if (_timer?.isActive ?? false) return;
-    _timer = Timer(_every, () => unawaited(flush()));
+    _timer = Timer(ClientTuning.eventsFlush, () => unawaited(flush()));
   }
 
   /// Sends up to one batch; what the server did not take stays queued.

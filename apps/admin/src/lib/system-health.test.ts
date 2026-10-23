@@ -14,6 +14,14 @@ describe('status board wording', () => {
     expect(word({ key: 'turn', status: 'grey', detail: {} } as never).line).toContain('не настроен');
     expect(componentTitle('stripe_webhooks')).toContain('Stripe');
     expect(componentTitle('http')).toContain('API');
+    const ws = word({
+      key: 'realtime',
+      status: 'yellow',
+      detail: { connects5m: 10, reconnects5m: 200, reconnectsPerMin: 40, authRefreshed5m: 3, authExpiringSent5m: 4 },
+    } as never);
+    expect(ws.title).toContain('соединение');
+    expect(ws.line).toContain('200');
+    expect(ws.todo).toBeTruthy();
   });
 
   it('says how long an incident lasts', () => {

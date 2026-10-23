@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
@@ -62,6 +64,17 @@ class FeatureFlagsController extends _$FeatureFlagsController {
   /// copy belongs to (`AppSessionDto.bootstrapVersion`).
   static const versionKey = 'bootstrap.version';
 
+  /// `GET /me/session` → `client.timings` (connection timings): kept as
+  /// `client.timings` in the config; a bootstrap that carries its own wins.
+  void applySessionTimings(Map<String, num>? timings) {
+    if (timings == null || timings.isEmpty) return;
+    state = FeatureFlagsState(
+      flags: state.flags,
+      appConfig: {...state.appConfig, 'client.timings': jsonEncode(timings)},
+      legalDocuments: state.legalDocuments,
+    );
+  }
+
   /// Owner 2026-10-22 (package G): with [knownVersion] from `/me/session`
   /// the bootstrap is read from the phone when that version is the one
   /// the copy was made for — no request; [flags] (the session's gated
@@ -95,11 +108,18 @@ class FeatureFlagsController extends _$FeatureFlagsController {
         flags: result.flags.isEmpty
             ? state.flags
             : {...defaultFeatureFlags, ...result.flags},
-        appConfig: result.appConfig,
+        appConfig: {
+          // Session timings stay unless the bootstrap carries its own.
+          if (state.appConfig['client.timings'] != null)
+            'client.timings': state.appConfig['client.timings']!,
+          ...result.appConfig,
+        },
         legalDocuments: result.legalDocuments,
       );
       // Owner 2026-10-15: the admin's character limits for text fields.
       TextLimits.apply(state.appConfig);
+      // Scale audit 2026-10-23: retries, reconnects, polling - server-tunable.
+      ClientTuning.apply(state.appConfig);
       // Owner 2026-10-15: kill switches of the app's own diagnostics.
       AppEvents.enabled = state.flags['app_events'] ?? true;
       CrashReporter.enabled = state.flags['crash_reports'] ?? true;

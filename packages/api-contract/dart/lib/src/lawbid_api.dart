@@ -102,6 +102,7 @@ import 'clients/case_payments_client.dart';
 import 'clients/admin_case_payments_client.dart';
 import 'clients/client_badge_client.dart';
 import 'clients/admin_client_badge_client.dart';
+import 'clients/realtime_client.dart';
 import 'clients/chat_client.dart';
 import 'clients/chat_saved_client.dart';
 import 'clients/translations_client.dart';
@@ -236,6 +237,7 @@ class LawbidApi {
   AdminCasePaymentsClient? _adminCasePayments;
   ClientBadgeClient? _clientBadge;
   AdminClientBadgeClient? _adminClientBadge;
+  RealtimeClient? _realtime;
   ChatClient? _chat;
   ChatSavedClient? _chatSaved;
   TranslationsClient? _translations;
@@ -542,6 +544,9 @@ class LawbidApi {
 
   AdminClientBadgeClient get adminClientBadge =>
       _adminClientBadge ??= AdminClientBadgeClient(_dio, baseUrl: _baseUrl);
+
+  RealtimeClient get realtime =>
+      _realtime ??= RealtimeClient(_dio, baseUrl: _baseUrl);
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
 

@@ -1,13 +1,17 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
-import 'package:lawbid/features/calls/presentation/call_screen.dart';
-import 'package:lawbid/features/chat/presentation/archive_screen.dart';
-import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/calls/presentation/call_screen.dart'
+    deferred as d_call_screen;
+import 'package:lawbid/features/chat/presentation/archive_screen.dart'
+    deferred as d_archive_screen;
+import 'package:lawbid/features/chat/presentation/conversation_screen.dart'
+    deferred as d_conversation_screen;
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
-import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart';
+import 'package:lawbid/features/notifications/presentation/notification_settings_screen.dart'
+    deferred as d_notification_settings_screen;
 
 /// docs/05 §8–§9 routes: the Chats/Notifications screen, one chat, and
 /// Settings → Notifications.
@@ -64,29 +68,52 @@ List<RouteBase> chatRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: ChatRoutes.archive,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const ArchiveScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'archive_screen',
+            load: d_archive_screen.loadLibrary,
+            builder: (_) => d_archive_screen.ArchiveScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: ChatRoutes.conversationPattern,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          ConversationScreen(conversationId: state.pathParameters['id'] ?? ''),
+          DeferredScreen(
+            id: 'conversation_screen',
+            load: d_conversation_screen.loadLibrary,
+            builder: (_) => d_conversation_screen.ConversationScreen(
+              conversationId: state.pathParameters['id'] ?? '',
+            ),
+          ),
         ),
       ),
       GoRoute(
         path: ChatRoutes.call,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.modal(state, const CallScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.modal(
+          state,
+          DeferredScreen(
+            id: 'call_screen',
+            load: d_call_screen.loadLibrary,
+            builder: (_) => d_call_screen.CallScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: ChatRoutes.notificationSettings,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          const NotificationSettingsScreen(),
+          DeferredScreen(
+            id: 'notification_settings_screen',
+            load: d_notification_settings_screen.loadLibrary,
+            builder: (_) =>
+                d_notification_settings_screen.NotificationSettingsScreen(),
+          ),
         ),
       ),
     ];

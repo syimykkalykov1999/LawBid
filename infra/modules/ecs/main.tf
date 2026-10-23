@@ -250,7 +250,19 @@ resource "aws_iam_role" "task_minimal" {
 # --- task definitions ----------------------------------------------------
 locals {
   api_environment = [for k, v in var.api_env : { name = k, value = v }]
-  api_secrets     = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
+  # Scale audit 2026-10-23: Node sizes its heap at about a quarter of the
+  # container memory (1 GiB API task = a 256 MB heap) and the image sets no
+  # limit at run time, so a busy task hit "heap out of memory" with most of
+  # its RAM unused. The V8 heap is set to 70 % of what the container owns
+  # (the rest is buffers: image processing, sockets, native code). The
+  # worker task shares its memory with the ClamAV sidecar.
+  heap_mb = {
+    api    = floor(var.api_memory * 0.7)
+    worker = floor(max(var.worker_memory - var.clamav_memory, 512) * 0.7)
+    admin  = floor(var.admin_memory * 0.7)
+  }
+  node_options = { for k, mb in local.heap_mb : k => { name = "NODE_OPTIONS", value = "--max-old-space-size=${mb}" } }
+  api_secrets  = [for k, arn in var.secret_arns : { name = k, valueFrom = arn }]
   log_config = { for svc in ["api", "worker", "clamav", "admin", "migrate"] : svc => {
     logDriver = "awslogs"
     options = {
@@ -280,7 +292,7 @@ resource "aws_ecs_task_definition" "api" {
     essential    = true
     command      = ["node", "dist/src/main.js"]
     portMappings = [{ containerPort = 3000, protocol = "tcp" }]
-    environment  = concat(local.api_environment, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }])
+    environment  = concat(local.api_environment, [{ name = "PORT", value = "3000" }, { name = "JOBS_ENABLED", value = "false" }, local.node_options["api"]])
     secrets      = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -295,7 +307,12 @@ resource "aws_ecs_task_definition" "api" {
       retries     = 3
       startPeriod = 30
     }
-    stopTimeout      = 30
+    # Owner 2026-10-23 («связь пропала»): on SIGTERM the API sends every
+    # socket `server:going-away` with a random 0-20 s retry and serves the
+    # existing ones until they leave (up to ~35 s, realtime.gateway.ts
+    # drainBudgetMs). SIGKILL must come after that: 60 s (Fargate max 120).
+    # Keep >= the ALB deregistration_delay of the api target group.
+    stopTimeout      = 60
     logConfiguration = local.log_config["api"]
   }])
   tags = var.tags
@@ -321,7 +338,7 @@ resource "aws_ecs_task_definition" "worker" {
     command   = ["node", "dist/src/worker.js"]
     # Uploads are scanned by the clamd sidecar below (same task, localhost):
     # without a scanner every photo/document stays scan_status=pending.
-    environment = concat(local.api_environment, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }])
+    environment = concat(local.api_environment, [{ name = "CLAMAV_HOST", value = "127.0.0.1" }, local.node_options["worker"]])
     secrets     = local.api_secrets
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
@@ -381,7 +398,7 @@ resource "aws_ecs_task_definition" "admin" {
     image        = var.admin_image
     essential    = true
     portMappings = [{ containerPort = 3001, protocol = "tcp" }]
-    environment  = [for k, v in var.admin_env : { name = k, value = v }]
+    environment  = concat([for k, v in var.admin_env : { name = k, value = v }], [local.node_options["admin"]])
     # Security research #5 (2026-10-22), A8: the container's file system is
     # read-only; only the volumes below are writable. `init` reaps zombies
     # and forwards signals.
@@ -606,6 +623,11 @@ resource "aws_appautoscaling_policy" "cpu" {
   target_tracking_scaling_policy_configuration {
     target_value = 60
     # Out fast (60 s), in slowly (10 min): no flapping on short spikes.
+    # Owner 2026-10-23: every scale-in is a deploy for the sockets on the
+    # stopped task (they drain, see stopTimeout), so scale-in is slow on
+    # purpose; do not shorten scale_in_cooldown. Peak hours: raise
+    # min_tasks with a scheduled action (the night_end_cron pattern above)
+    # instead of letting the policy shrink the service before the peak.
     scale_in_cooldown  = 600
     scale_out_cooldown = 60
     predefined_metric_specification {

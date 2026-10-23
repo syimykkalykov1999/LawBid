@@ -208,6 +208,19 @@ export function word(item: HealthItem): Worded {
             : 'Растёт доля ошибок или ответы замедлились. Посмотрите «Здоровье» базы и очередей выше; если всё зелёное — напишите Claude «API красный».',
         runbook: 'api-5xx.md',
       };
+    case 'realtime':
+      return {
+        title: 'Живое соединение (сокеты)',
+        line:
+          s === 'grey'
+            ? 'Нет данных.'
+            : `За 5 минут: подключений ${n(d.connects5m) ?? 0}, возвратов связи ${n(d.reconnects5m) ?? 0} (${n(d.reconnectsPerMin) ?? 0} в минуту), разрывов ${n(d.disconnects5m) ?? 0}. Токенов продлено ${n(d.authRefreshed5m) ?? 0} из ${n(d.authExpiringSent5m) ?? 0} напоминаний; закрыто по истечении токена ${n(d.authExpiredDisconnects5m) ?? 0}; «уходим» разослано ${n(d.goingAwaySent5m) ?? 0}.`,
+        todo:
+          s === 'green'
+            ? undefined
+            : 'Много возвратов связи. Если только что был выкат — подождите 10 минут. Иначе смотрите причины разрывов в журнале API (ws_disconnect) и напишите Claude «сокеты красные».',
+        runbook: 'REALTIME_LIFECYCLE.md',
+      };
     case 'cost': {
       return {
         title: 'Расходы AWS за месяц',

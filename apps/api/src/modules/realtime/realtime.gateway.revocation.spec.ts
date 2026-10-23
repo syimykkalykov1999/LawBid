@@ -5,6 +5,7 @@ import type { AssistantContextService } from '../auth/assistant/assistant-contex
 import type { SessionRevocationService } from '../auth/services/session-revocation.service';
 import type { TokenService } from '../auth/services/token.service';
 import type { PresenceService } from '../presence/presence.service';
+import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { SESSION_REVOKED_CHANNEL } from '../../redis/session-revoked';
 import { RealtimeGateway } from './realtime.gateway';
@@ -20,13 +21,14 @@ function fakeSocket(id: string, token: string) {
     data: {} as Record<string, unknown>,
     handshake: { auth: { token }, headers: {} },
     use: jest.fn(),
+    on: jest.fn(),
     join: jest.fn().mockResolvedValue(undefined),
     emit: jest.fn(),
     disconnect: jest.fn(),
   };
 }
 
-function setup() {
+function setup(maxSockets?: number) {
   const claimsByToken: Record<string, { sub: string; sid: string }> = {
     'tok-a1': { sub: 'u1', sid: 'chain-a' },
     'tok-a2': { sub: 'u1', sid: 'chain-a' },
@@ -59,6 +61,10 @@ function setup() {
     } as unknown as PinoLogger,
     { resolve: jest.fn() } as unknown as AssistantContextService,
     presence as unknown as PresenceService,
+    undefined,
+    {
+      number: jest.fn().mockResolvedValue(maxSockets ?? 10),
+    } as unknown as AppSettingsService,
   );
   return { gateway, revocation, presence };
 }
@@ -131,6 +137,29 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
     // The presence heartbeat still runs.
     expect(presence.touch.mock.calls.length).toBeGreaterThanOrEqual(10);
     await gateway.handleDisconnect(s as unknown as Socket);
+  });
+
+  it('caps the sockets of one person on this instance, oldest closed first (scale audit 2026-10-23)', async () => {
+    const { gateway } = setup(2);
+    const first = fakeSocket('s1', 'tok-a1');
+    const second = fakeSocket('s2', 'tok-a2');
+    const third = fakeSocket('s3', 'tok-c');
+    const other = fakeSocket('s4', 'tok-b');
+    for (const s of [first, second, third, other]) {
+      await gateway.handleConnection(s as unknown as Socket);
+    }
+    expect(first.emit).toHaveBeenCalledWith('auth:error', {
+      code: 'TOO_MANY_CONNECTIONS',
+    });
+    expect(first.disconnect).toHaveBeenCalledWith(true);
+    expect(second.disconnect).not.toHaveBeenCalled();
+    expect(third.disconnect).not.toHaveBeenCalled();
+    expect(other.disconnect).not.toHaveBeenCalled();
+    // A closed socket frees its place.
+    await gateway.handleDisconnect(second as unknown as Socket);
+    const fourth = fakeSocket('s5', 'tok-a1');
+    await gateway.handleConnection(fourth as unknown as Socket);
+    expect(third.disconnect).not.toHaveBeenCalled();
   });
 
   it('listens on the session:revoked channel', () => {

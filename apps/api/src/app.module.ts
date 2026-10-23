@@ -2,6 +2,10 @@ import { RuntimeStatsModule } from './common/ops/runtime-stats.service';
 import { SloMetricsModule } from './common/ops/slo-metrics.service';
 import { ServerTextsModule } from './common/i18n/server-texts.service';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  LoadSheddingMiddleware,
+  LoadSheddingService,
+} from './common/resilience/load-shedding';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { startTime, type Options as PinoHttpOptions } from 'pino-http';
@@ -398,6 +402,7 @@ const isDev =
     DeadlinesModule,
   ],
   providers: [
+    LoadSheddingService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },
@@ -410,6 +415,9 @@ export class AppModule implements NestModule {
     // Demo mode (owner 2026-10-05): the demo header decides the database
     // for the whole request; it must wrap everything that follows.
     consumer.apply(RequestIdMiddleware, DemoHeaderMiddleware).forRoutes('*');
+    // Owner 2026-10-23: an overloaded instance answers 503 + Retry-After
+    // instead of timing out (limits in app_config, 0 = off).
+    consumer.apply(LoadSheddingMiddleware).forRoutes('*');
     // Owner 2026-10-22: error rate and p95 for «Состояние системы».
     consumer.apply(HttpStatsMiddleware).forRoutes('*');
     // Owner 2026-10-23: admin GETs are private and revalidated by ETag.

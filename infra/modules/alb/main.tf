@@ -13,9 +13,13 @@ variable "public_subnet_ids" { type = list(string) }
 variable "certificate_arn" { type = string }
 variable "api_host" { type = string }
 variable "admin_host" { type = string }
+# Scale audit 2026-10-23: one mobile-carrier (CGNAT) or office address carries
+# thousands of people; 3000 / 5 min (10 per second) cut real users off the
+# moment a city came online. Signed-in users are limited per account by the
+# API itself (100 / min), so this edge rule only has to stop floods.
 variable "waf_rate_limit_per_5m" {
   type    = number
-  default = 3000
+  default = 10000
 }
 variable "admin_allowed_cidrs" {
   type    = list(string)
@@ -106,12 +110,15 @@ resource "aws_lb" "this" {
 }
 
 resource "aws_lb_target_group" "api" {
-  name                 = "${var.name}-api"
-  port                 = 3000
-  protocol             = "HTTP"
-  target_type          = "ip"
-  vpc_id               = var.vpc_id
-  deregistration_delay = 30
+  name        = "${var.name}-api"
+  port        = 3000
+  protocol    = "HTTP"
+  target_type = "ip"
+  vpc_id      = var.vpc_id
+  # Owner 2026-10-23: a stopping task is taken out of rotation at once but
+  # keeps its open connections for this long while its sockets drain
+  # (`server:going-away`); must be <= the container stopTimeout (60 s).
+  deregistration_delay = 60
   # Liveness, not readiness: ECS replaces tasks the ALB marks unhealthy, so a
   # DB/Redis blip on /health/ready would kill every API task at once.
   health_check {

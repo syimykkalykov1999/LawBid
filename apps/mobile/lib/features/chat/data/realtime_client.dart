@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:lawbid/core/realtime/realtime_timings.dart';
+import 'package:lawbid/core/realtime/reconnect_controller.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 /// A server event (docs/05 §8.5): `message:new`, `message:read`, `typing`,
@@ -24,13 +26,32 @@ class RealtimeClient {
     required String apiBaseUrl,
     required Future<String?> Function() token,
     required Future<String?> Function() refreshToken,
+    RealtimeTimings Function()? timings,
+    Future<void> Function()? ensureFreshToken,
+    Future<Map<String, Object?>?> Function(int since)? fetchMissed,
   })  : _origin = _originOf(apiBaseUrl),
         _token = token,
-        _refreshToken = refreshToken;
+        _refreshToken = refreshToken,
+        _timings = timings ?? (() => const RealtimeTimings()),
+        _ensureFreshToken = ensureFreshToken,
+        _fetchMissed = fetchMissed {
+    _policy = ReconnectController(
+      timings: _timings,
+      isConnected: () => connected,
+      attempt: () => unawaited(_reopen()),
+    );
+  }
 
   final String _origin;
   final Future<String?> Function() _token;
   final Future<String?> Function() _refreshToken;
+  final RealtimeTimings Function() _timings;
+  final Future<void> Function()? _ensureFreshToken;
+
+  /// `GET /realtime/missed?since=` (the same answer as `sync:since`), used
+  /// when the socket does not answer.
+  final Future<Map<String, Object?>?> Function(int since)? _fetchMissed;
+  late final ReconnectController _policy;
   final _events = StreamController<RealtimeEvent>.broadcast();
   final Set<String> _rooms = {};
   final Set<String> _watched = {};
@@ -40,8 +61,24 @@ class RealtimeClient {
   bool _everConnected = false;
   bool _disposed = false;
   int _rateLimitStrikes = 0;
-  Timer? _rateLimitTimer;
   final Random _random = Random();
+  bool _socketPolling = false;
+  bool _reauthing = false;
+  String? _lastSentToken;
+  int? _lastSeq;
+  DateTime? _lastReconnectedAt;
+  Timer? _trailingReconnected;
+  Timer? _syncTimer;
+
+  /// Owner 2026-10-23: a reconnect tells the screens at most once per this
+  /// long (`reconnectedDebounceSeconds`; a flapping network must not make
+  /// every list re-read each time).
+  Duration get minReconnectedGap =>
+      Duration(seconds: _timings().reconnectedDebounceSeconds);
+
+  /// How long the server gets to answer `sync:since` before the screens
+  /// are told to catch up over REST instead.
+  static const syncTimeout = Duration(seconds: 3);
 
   static const _serverEvents = [
     'message:new',
@@ -91,7 +128,15 @@ class RealtimeClient {
     'comment:new',
   ];
 
-  Stream<RealtimeEvent> get events => _events.stream;
+  /// Owner 2026-10-23 (part C2): `reconnected` reaches each listener after
+  /// its own random 0-3 s, so a dozen screens do not all hit the server in
+  /// the same instant after a break.
+  Stream<RealtimeEvent> get events => spreadEvents<RealtimeEvent>(
+        _events.stream,
+        isTarget: (e) => e.name == RealtimeEvent.reconnected,
+        maxDelay: Duration(milliseconds: _timings().refetchJitterMs),
+        random: _random,
+      );
 
   bool get connected => _socket?.connected ?? false;
 
@@ -102,23 +147,38 @@ class RealtimeClient {
 
   Future<void> connect() async {
     if (_disposed || _socket != null) return;
+    await _open();
+  }
+
+  /// Builds the socket (a fresh one each time the transport set changes).
+  /// Socket.IO's own reconnection is off: [_policy] decides when to retry
+  /// (backoff with jitter, going-away, resume, network back).
+  Future<void> _open() async {
     final token = await _token();
     if (token == null || _disposed) return;
+    final old = _socket;
+    if (old != null) {
+      old
+        ..clearListeners()
+        ..dispose();
+    }
+    final polling = _policy.usePolling;
+    _socketPolling = polling;
     final socket = io.io(
       '$_origin/realtime',
       io.OptionBuilder()
-          .setTransports(['websocket'])
+          .setTransports(polling ? ['polling', 'websocket'] : ['websocket'])
           .setAuth({'token': token})
           .disableAutoConnect()
-          .enableReconnection()
-          .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(10000)
-          .setRandomizationFactor(0.5)
+          .disableReconnection()
+          .enableForceNew()
           .build(),
     );
     _socket = socket;
     socket
       ..onConnect((_) {
+        _policy.onConnected();
+        _reauthing = false;
         for (final id in _rooms) {
           _join(id);
         }
@@ -131,12 +191,30 @@ class RealtimeClient {
         for (final id in _posts) {
           socket.emit('post:watch', {'postId': id});
         }
-        if (_everConnected) {
-          _events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
-        }
+        if (_everConnected) _catchUpAfterReconnect(socket);
         _everConnected = true;
         _rateLimitStrikes = 0;
       })
+      ..onDisconnect((reason) {
+        if (reason == 'io client disconnect' || _reauthing) return;
+        _policy.onFailure(serverClosed: reason == 'io server disconnect');
+      })
+      ..onConnectError((_) {
+        if (!_reauthing) _policy.onFailure();
+      })
+      ..on('server:going-away', (data) {
+        final ms = data is Map ? data['retryAfterMs'] : null;
+        _policy.onGoingAway(Duration(milliseconds: ms is num ? ms.toInt() : 0));
+      })
+      // docs/runbooks/REALTIME_LIFECYCLE.md: `{seq, serverTime,
+      // authExpiresAt}` right after every connect; the first seq is the
+      // cursor for the first catch-up.
+      ..on('realtime:ready', (data) {
+        if (data is Map && data['seq'] is int && _lastSeq == null) {
+          _lastSeq = data['seq'] as int;
+        }
+      })
+      ..on('auth:expiring', (_) => unawaited(_renewToken()))
       ..on('auth:expired', (_) => _reauth())
       ..on('auth:error', (data) {
         if (isRateLimited(data)) {
@@ -146,9 +224,169 @@ class RealtimeClient {
         }
       });
     for (final name in _serverEvents) {
-      socket.on(name, (data) => _events.add(RealtimeEvent(name, data)));
+      socket.on(name, (data) {
+        _noteSeq(data);
+        _events.add(RealtimeEvent(name, data));
+      });
     }
     socket.connect();
+  }
+
+  /// The policy's "try now": a socket with the other transport set is
+  /// rebuilt, otherwise the same one reconnects with the newest token.
+  Future<void> _reopen() async {
+    if (_disposed) return;
+    final s = _socket;
+    if (s == null || _socketPolling != _policy.usePolling) {
+      await _open();
+      return;
+    }
+    final token = await _token();
+    if (_disposed || s != _socket || s.connected) return;
+    if (token != null) s.auth = {'token': token};
+    s.connect();
+  }
+
+  // --- sequence / catch-up (part C2) ---------------------------------------
+
+  void _noteSeq(Object? data) {
+    if (data is! Map) return;
+    final seq = data['seq'];
+    if (seq is int && seq > (_lastSeq ?? -1)) _lastSeq = seq;
+  }
+
+  /// After a reconnect: ask the server for what was missed since the last
+  /// `seq` seen (`sync:since {seq}`, else `GET /realtime/missed?since=`).
+  /// The answer `{seq, events: [{seq, event, data, truncated}], complete}`
+  /// is replayed in order as if the events had arrived live (a `seq` at or
+  /// below the cursor is dropped). `complete: false`, a `truncated` event,
+  /// or no answer at all: the screens are told ONCE to catch up themselves
+  /// (`reconnected`, then `updatedSince` deltas).
+  void _catchUpAfterReconnect(io.Socket socket) {
+    final seq = _lastSeq;
+    if (seq == null) {
+      _announceReconnected();
+      return;
+    }
+    var answered = false;
+    void viaHttp() {
+      final fetch = _fetchMissed;
+      if (fetch == null) {
+        _announceReconnected();
+        return;
+      }
+      fetch(seq).then((r) {
+        if (_disposed) return;
+        if (r == null) {
+          _announceReconnected();
+        } else {
+          _applyMissed(seq, r);
+        }
+      }).catchError((Object _) => _announceReconnected());
+    }
+
+    _syncTimer?.cancel();
+    _syncTimer = Timer(syncTimeout, () {
+      if (answered || _disposed) return;
+      answered = true;
+      viaHttp();
+    });
+    socket.emitWithAck(
+      'sync:since',
+      {'seq': seq},
+      ack: (Object? data) {
+        if (answered || _disposed) return;
+        answered = true;
+        _syncTimer?.cancel();
+        if (data is Map && data['events'] is List && data['ok'] != false) {
+          _applyMissed(seq, Map<String, Object?>.from(data));
+        } else {
+          viaHttp();
+        }
+      },
+    );
+  }
+
+  void _applyMissed(int since, Map<String, Object?> answer) {
+    if (answer['complete'] == false || answer['events'] is! List) {
+      final top = answer['seq'];
+      if (top is int && top > (_lastSeq ?? -1)) _lastSeq = top;
+      _announceReconnected();
+      return;
+    }
+    var refreshAll = false;
+    for (final raw in answer['events']! as List) {
+      if (raw is! Map) continue;
+      final evSeq = raw['seq'];
+      if (evSeq is int && evSeq <= since) continue;
+      final name = raw['event'] ?? raw['name'];
+      if (name is! String) continue;
+      if (raw['truncated'] == true) {
+        refreshAll = true;
+        continue;
+      }
+      _noteSeq(raw);
+      _noteSeq(raw['data']);
+      _events.add(RealtimeEvent(name, raw['data']));
+    }
+    final top = answer['seq'];
+    if (top is int && top > (_lastSeq ?? -1)) _lastSeq = top;
+    if (refreshAll) _announceReconnected();
+  }
+
+  /// `reconnected` at most once per [minReconnectedGap]; a second one inside
+  /// the gap becomes one trailing event at its end.
+  void _announceReconnected() {
+    if (_disposed) return;
+    final last = _lastReconnectedAt;
+    final now = DateTime.now();
+    if (last != null && now.difference(last) < minReconnectedGap) {
+      if (_trailingReconnected?.isActive ?? false) return;
+      _trailingReconnected = Timer(
+        minReconnectedGap - now.difference(last),
+        _announceReconnected,
+      );
+      return;
+    }
+    _lastReconnectedAt = now;
+    _events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));
+  }
+
+  // --- lifecycle / network (part C9) ---------------------------------------
+
+  /// The app went to the background: keep the socket, stop the timers.
+  void pause() => _policy.pause();
+
+  /// The app came back: renew the token if it is about to end, then
+  /// reconnect at once when the socket is down.
+  Future<void> resume() async {
+    if (_disposed) return;
+    try {
+      await _ensureFreshToken?.call();
+    } on Object {
+      // The reconnect below still tries with whatever token there is.
+    }
+    if (_disposed) return;
+    if (_socket == null) {
+      await connect();
+      return;
+    }
+    _policy.resume();
+  }
+
+  /// The network came back: reconnect at once when the socket is down.
+  Future<void> networkBack() async {
+    if (_disposed) return;
+    if (_socket == null) {
+      await connect();
+      return;
+    }
+    _policy.networkBack();
+  }
+
+  Future<void> _renewToken() async {
+    final token = await _refreshToken();
+    if (token != null && !_disposed) tokenChanged(token);
   }
 
   /// The access token rotated: re-check it on the live socket.
@@ -157,8 +395,16 @@ class RealtimeClient {
     if (s == null) return;
     s.auth = {'token': token};
     if (s.connected) {
-      s.emit('auth:refresh', {'token': token});
-    } else if (!s.active) {
+      if (token == _lastSentToken) return;
+      _lastSentToken = token;
+      // Owner 2026-10-23: the server may answer or not (an older one just
+      // keeps its `auth:expired` path); nothing waits on the answer.
+      s.emitWithAck(
+        'auth:refresh',
+        {'accessToken': token, 'token': token},
+        ack: (Object? _) {},
+      );
+    } else if (!s.active && !_policy.paused) {
       s.connect();
     }
   }
@@ -187,21 +433,23 @@ class RealtimeClient {
       jitter: _random.nextDouble() * 2 - 1,
     );
     _rateLimitStrikes++;
-    _rateLimitTimer?.cancel();
-    _rateLimitTimer = Timer(delay, () {
-      if (_disposed || s != _socket || s.connected) return;
-      s.connect();
-    });
+    // The policy holds every other retry until this wait is over.
+    _policy.onGoingAway(delay);
   }
 
   Future<void> _reauth() async {
     final s = _socket;
     if (s == null || _disposed) return;
+    _reauthing = true;
     final token = await _refreshToken();
-    if (token == null || _disposed) return;
-    s
-      ..auth = {'token': token}
-      ..connect();
+    if (token == null || _disposed) {
+      _reauthing = false;
+      if (!_disposed) _policy.onFailure();
+      return;
+    }
+    s.auth = {'token': token};
+    _reauthing = false;
+    if (!s.connected) s.connect();
   }
 
   void join(String conversationId) {
@@ -327,7 +575,9 @@ class RealtimeClient {
 
   void dispose() {
     _disposed = true;
-    _rateLimitTimer?.cancel();
+    _trailingReconnected?.cancel();
+    _syncTimer?.cancel();
+    _policy.dispose();
     _socket
       ?..clearListeners()
       ..dispose();

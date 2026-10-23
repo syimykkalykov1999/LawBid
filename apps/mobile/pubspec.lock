@@ -1386,12 +1386,11 @@ packages:
     source: hosted
     version: "2.10.0"
   passkeys_web:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: passkeys_web
-      sha256: "5a02f256914eeb5d06d1b5a8e552c6a2837a7364d7591c14b06a992fcc4da051"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/passkeys_web"
+      relative: true
+    source: path
     version: "2.10.1"
   passkeys_windows:
     dependency: transitive

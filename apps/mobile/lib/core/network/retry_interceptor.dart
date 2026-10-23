@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:dio/dio.dart';
 
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 
 /// Retries transient failures with exponential backoff + jitter
@@ -25,18 +26,27 @@ import 'package:lawbid/core/network/request_flags.dart';
 class RetryInterceptor extends Interceptor {
   RetryInterceptor(
     this._dio, {
-    this.maxRetries = 2,
-    this.baseDelay = const Duration(seconds: 1),
-    this.maxRetryAfter = const Duration(seconds: 10),
+    int? maxRetries,
+    Duration? baseDelay,
+    Duration? maxRetryAfter,
     Future<void> Function(Duration)? sleep,
     Random? random,
-  })  : _sleep = sleep ?? Future<void>.delayed,
+  })  : _maxRetries = maxRetries,
+        _baseDelay = baseDelay,
+        _maxRetryAfter = maxRetryAfter,
+        _sleep = sleep ?? Future<void>.delayed,
         _random = random ?? Random();
 
   final Dio _dio;
-  final int maxRetries;
-  final Duration baseDelay;
-  final Duration maxRetryAfter;
+  final int? _maxRetries;
+  final Duration? _baseDelay;
+  final Duration? _maxRetryAfter;
+
+  /// Scale audit 2026-10-23: unless a test pins them, the server decides
+  /// (`client.retry_*`, core/config/client_tuning.dart).
+  int get maxRetries => _maxRetries ?? ClientTuning.retryMax;
+  Duration get baseDelay => _baseDelay ?? ClientTuning.retryBase;
+  Duration get maxRetryAfter => _maxRetryAfter ?? ClientTuning.retryAfterMax;
   final Future<void> Function(Duration) _sleep;
   final Random _random;
 
@@ -100,7 +110,11 @@ class RetryInterceptor extends Interceptor {
         if (status == null || !_retryableStatuses.contains(status)) {
           return false;
         }
-        return !_hasDomainErrorCode(err.response?.data);
+        // 503 SERVER_BUSY (docs/runbooks/REALTIME_LIFECYCLE.md §5.6): the
+        // server sheds load and says when to come back (`Retry-After`) -
+        // repeat, do not give up and do not call it offline.
+        return _isServerBusy(err.response?.data) ||
+            !_hasDomainErrorCode(err.response?.data);
       case DioExceptionType.unknown:
         return err.response == null;
       case DioExceptionType.cancel:
@@ -114,6 +128,12 @@ class RetryInterceptor extends Interceptor {
     if (_idempotentMethods.contains(method)) return true;
     return options.headers.keys
         .any((k) => k.toLowerCase() == 'idempotency-key');
+  }
+
+  static bool _isServerBusy(Object? data) {
+    if (data is! Map<String, dynamic>) return false;
+    final error = data['error'];
+    return error is Map<String, dynamic> && error['code'] == 'SERVER_BUSY';
   }
 
   static bool _hasDomainErrorCode(Object? data) {

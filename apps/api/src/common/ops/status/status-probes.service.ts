@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import type Redis from 'ioredis';
@@ -9,6 +9,7 @@ import { AppSettingsService } from '../../app-settings/app-settings.service';
 import { SecretsService } from '../../secrets/secrets.service';
 import { OpsStateService } from '../ops-state.service';
 import { HttpStatsService } from '../http-stats.service';
+import { RealtimeStatsService } from '../realtime-stats.service';
 import { SLO_REDIS_PREFIX } from '../slo-metrics.service';
 
 export type ProbeStatus = 'green' | 'yellow' | 'red' | 'grey';
@@ -108,6 +109,7 @@ export class StatusProbesService implements OnModuleDestroy {
     private readonly settings: AppSettingsService,
     private readonly secrets: SecretsService,
     private readonly http: HttpStatsService,
+    @Optional() private readonly realtime?: RealtimeStatsService,
   ) {}
 
   private queue(name: string): Queue {
@@ -139,6 +141,7 @@ export class StatusProbesService implements OnModuleDestroy {
       this.safe('push', () => this.pushDelivery()),
       this.safe('turn', () => this.turn()),
       this.safe('http', () => this.httpErrors()),
+      this.safe('realtime', () => this.realtimeHealth()),
     ]);
   }
 
@@ -318,6 +321,34 @@ export class StatusProbesService implements OnModuleDestroy {
         requests1h: day.requests,
         errorRate1hPct: day.errorRatePct,
         p95Ms1h: day.p95Ms,
+      },
+    };
+  }
+
+  /** Owner 2026-10-23: how often live connections drop and come back.
+   * Never watched by the watchdog (a reconnect wave is not an outage). */
+  private async realtimeHealth(): Promise<Omit<ProbeResult, 'key'>> {
+    if (!this.realtime) return { status: 'grey', detail: {} };
+    const w = await this.realtime.window(5);
+    const status: ProbeStatus =
+      w.reconnectsPerMin >= 300
+        ? 'red'
+        : w.reconnectsPerMin >= 30
+          ? 'yellow'
+          : 'green';
+    return {
+      status,
+      detail: {
+        connects5m: w.connects,
+        reconnects5m: w.reconnects,
+        reconnectsPerMin: w.reconnectsPerMin,
+        disconnects5m: w.disconnects,
+        disconnectReasons: w.disconnectReasons,
+        authExpiringSent5m: w.authExpiringSent,
+        authRefreshed5m: w.authRefreshed,
+        authExpiredDisconnects5m: w.authExpiredDisconnects,
+        goingAwaySent5m: w.goingAwaySent,
+        syncs5m: w.syncs,
       },
     };
   }

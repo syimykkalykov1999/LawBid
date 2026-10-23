@@ -1,10 +1,13 @@
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/cases/presentation/screens/case_route_screens.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_public_profile_screen.dart';
-import 'package:lawbid/features/profile/presentation/screens/profile_by_username_screen.dart';
-import 'package:lawbid/features/qr/presentation/web_login_link_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/profile_by_username_screen.dart'
+    deferred as d_profile_by_username_screen;
+import 'package:lawbid/features/qr/presentation/web_login_link_screen.dart'
+    deferred as d_web_login_link_screen;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 /// Routes the §12 content deep links land on (docs/01_FOUNDATION_AUTH.md:
@@ -52,8 +55,13 @@ List<RouteBase> deepLinkRoutes() => [
         path: DeepLinkRoutes.profilePath,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          ProfileByUsernameScreen(
-            username: state.pathParameters['username'] ?? '',
+          DeferredScreen(
+            id: 'profile_by_username_screen',
+            load: d_profile_by_username_screen.loadLibrary,
+            builder: (_) =>
+                d_profile_by_username_screen.ProfileByUsernameScreen(
+              username: state.pathParameters['username'] ?? '',
+            ),
           ),
         ),
       ),
@@ -61,14 +69,26 @@ List<RouteBase> deepLinkRoutes() => [
         path: DeepLinkRoutes.webLoginPath,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          WebLoginLinkScreen(qrId: state.pathParameters['id'] ?? ''),
+          DeferredScreen(
+            id: 'web_login_link_screen',
+            load: d_web_login_link_screen.loadLibrary,
+            builder: (_) => d_web_login_link_screen.WebLoginLinkScreen(
+              qrId: state.pathParameters['id'] ?? '',
+            ),
+          ),
         ),
       ),
       GoRoute(
         path: DeepLinkRoutes.qrLoginPath,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          WebLoginLinkScreen(qrId: state.pathParameters['nonce'] ?? ''),
+          DeferredScreen(
+            id: 'web_login_link_screen',
+            load: d_web_login_link_screen.loadLibrary,
+            builder: (_) => d_web_login_link_screen.WebLoginLinkScreen(
+              qrId: state.pathParameters['nonce'] ?? '',
+            ),
+          ),
         ),
       ),
       GoRoute(

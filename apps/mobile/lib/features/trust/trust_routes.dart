@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
-import 'package:lawbid/features/trust/presentation/my_trust_screen.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/trust/presentation/my_trust_screen.dart'
+    deferred as d_my_trust_screen;
 
 /// Owner 2026-10-05 — attorney trust levels: the attorney's own «Мой
 /// уровень доверия» screen (Settings → next to Subscription; trust
@@ -14,7 +16,13 @@ List<RouteBase> trustRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: TrustRoutes.me,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const MyTrustScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'my_trust_screen',
+            load: d_my_trust_screen.loadLibrary,
+            builder: (_) => d_my_trust_screen.MyTrustScreen(),
+          ),
+        ),
       ),
     ];

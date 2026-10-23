@@ -605,6 +605,12 @@ export const OWNER_COUNTRY_SETTINGS = {
  * ADMIN_THROTTLE_LIMIT in the env wins (src/throttler/throttle-limits.ts). */
 export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.admin_rate_limit_per_minute': 600,
+  /** Scale audit 2026-10-23: requests per minute for callers who are not
+   * signed in, per address (CGNAT / office addresses carry many people).
+   * Never below the default limit (100). */
+  'security.anonymous_rate_limit_per_minute': 100,
+  /** Scale audit 2026-10-23: live connections of one person per server. */
+  'realtime.max_sockets_per_user': 10,
   /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
    * may ask for in a rolling 24 h, on top of the hourly limit. Range
    * 1…1000 (config-schema); 0 is refused, never "unlimited". Not seeded:
@@ -676,6 +682,9 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.retention_snapshots_days': 730,
   'storage.retention_post_views_days': 365,
   'storage.retention_app_events_days': 90,
+  // Scale audit 2026-10-23: the two fastest-growing statistics tables.
+  'storage.retention_post_view_events_days': 730,
+  'storage.retention_user_activity_days': 400,
   'storage.growth_alert_percent': 20,
   // Owner 2026-10-20 (government requests): evidence archives are built one at
   // a time by the worker; the file is removed after `export_ttl_days` (the
@@ -792,6 +801,11 @@ export const OWNER_BOOKING_QA_SETTINGS = {
 };
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
+import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
+import {
+  OWNER_CHAT_PHOTO_SETTINGS,
+  OWNER_CLIENT_TUNING_SETTINGS,
+} from './client-tuning';
 
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -832,6 +846,9 @@ export const APP_SETTINGS = {
   ...OWNER_BOOKING_QA_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
+  ...OWNER_REALTIME_SETTINGS,
+  ...OWNER_CLIENT_TUNING_SETTINGS,
+  ...OWNER_CHAT_PHOTO_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

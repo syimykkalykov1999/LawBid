@@ -415,6 +415,40 @@ resource "aws_cloudwatch_metric_alarm" "redis_memory" {
   tags                = var.tags
 }
 
+variable "db_instance_id" {
+  type        = string
+  default     = ""
+  description = "RDS instance identifier. Empty = the database is not ours (no connection alarm)."
+}
+variable "db_max_connections" {
+  type        = number
+  default     = 0
+  description = "max_connections of that database (stack estimates it from the instance class)."
+}
+
+# Scale audit 2026-10-23: every API / worker task keeps a small pool of
+# database connections; autoscaling and rolling deploys multiply them. Past
+# 80 % of max_connections new connections start to fail - this alarm comes
+# before that, while there is still time to lower DB_POOL_SIZE or move the
+# database one size up.
+resource "aws_cloudwatch_metric_alarm" "db_connections" {
+  count               = var.db_instance_id != "" && var.db_max_connections > 0 ? 1 : 0
+  alarm_name          = "${var.name}-db-connections"
+  alarm_description   = "LawBid: База данных заполнена соединениями больше чем на 80 % (так бывает при большом числе серверов). Что делать: админка → Здоровье системы → увеличить базу на один размер; если повторяется — напишите Claude «пул соединений». Инструкция: ${var.runbook_base_url}/db-contention.md (EN: RDS DatabaseConnections above 80 % of max_connections.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = floor(var.db_max_connections * 0.8)
+  statistic           = "Maximum"
+  metric_name         = "DatabaseConnections"
+  namespace           = "AWS/RDS"
+  dimensions          = { DBInstanceIdentifier = var.db_instance_id }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 resource "aws_cloudwatch_metric_alarm" "service_cpu" {
   for_each = {
     api    = var.api_service_name
@@ -507,6 +541,57 @@ resource "aws_cloudwatch_log_metric_filter" "ws_connections" {
     value     = "$.count"
     unit      = "Count"
   }
+}
+
+# Owner 2026-10-23 («связь пропала»): how often live connections drop and
+# come back. The API logs one line per event (realtime.gateway.ts); the
+# board «Состояние системы» shows the same numbers per minute.
+resource "aws_cloudwatch_log_metric_filter" "ws_events" {
+  for_each = {
+    ws_disconnect = "WebSocketDisconnects"
+    ws_reconnect  = "WebSocketReconnects"
+  }
+  name           = "${var.name}-${replace(each.key, "_", "-")}"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"${each.key}\" }"
+  metric_transformation {
+    name          = each.value
+    namespace     = local.ns
+    value         = "1"
+    default_value = "0"
+    unit          = "Count"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "ws_going_away" {
+  name           = "${var.name}-ws-going-away"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"ws_going_away\" }"
+  metric_transformation {
+    name      = "WebSocketGoingAway"
+    namespace = local.ns
+    value     = "$.count"
+    unit      = "Count"
+  }
+}
+
+# A reconnect wave that is not a deploy: the apps lose their live
+# connection and come back in numbers (token expiry bug, network, a dying
+# instance). Busy-day baseline is far below this.
+resource "aws_cloudwatch_metric_alarm" "ws_reconnect_storm" {
+  alarm_name          = "${var.name}-ws-reconnect-storm"
+  alarm_description   = "LawBid: Много людей теряют и восстанавливают связь (более 1500 переподключений за 5 минут). Что делать: если только что был выкат — подождите 10 минут, это нормально. Иначе откройте админку → Состояние системы → «Живое соединение» и посмотрите причины разрывов. Инструкция: ${var.runbook_base_url}/REALTIME_LIFECYCLE.md (EN: websocket reconnects > 1500 per 5 min.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = 1500
+  statistic           = "Sum"
+  metric_name         = "WebSocketReconnects"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
 }
 
 resource "aws_cloudwatch_log_metric_filter" "business" {

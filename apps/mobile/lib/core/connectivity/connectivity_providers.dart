@@ -9,13 +9,18 @@ import 'package:lawbid/core/connectivity/network_interface_monitor.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/realtime/timings_provider.dart';
 
 /// Dependency-free reachability signal, fed by `ReachabilityInterceptor`
 /// in `dioProvider`'s chain. Separate from [connectivityServiceProvider]
 /// so building dio never builds the service (no provider cycle, and no
 /// platform channel in tests that only use dio).
 final reachabilitySignalProvider = Provider<ReachabilitySignal>((ref) {
-  final signal = ReachabilitySignal();
+  // The timings are read at the moment of a failure (lazily), so building
+  // dio never builds the feature flags that themselves use dio.
+  final signal = ReachabilitySignal(
+    timings: () => ref.read(realtimeTimingsProvider),
+  );
   ref.onDispose(signal.dispose);
   return signal;
 });
@@ -36,6 +41,9 @@ final reachabilityProbeProvider = Provider<ReachabilityProbe>((ref) {
     ref.watch(appEnvironmentProvider).apiBaseUrl,
   ).replace(path: '/health/live');
   return () async {
+    final timeout = Duration(
+      milliseconds: ref.read(realtimeTimingsProvider).probeTimeoutMs,
+    );
     try {
       await dio.getUri<Object?>(
         healthUrl,
@@ -44,8 +52,8 @@ final reachabilityProbeProvider = Provider<ReachabilityProbe>((ref) {
             RequestFlags.skipAuth: true,
             RequestFlags.noRetry: true,
           },
-          sendTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 5),
+          sendTimeout: timeout,
+          receiveTimeout: timeout,
           validateStatus: (_) => true,
         ),
       );
