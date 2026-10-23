@@ -9,7 +9,7 @@ vi.mock('@/lib/api/server', () => ({
   sessionToken: async () => 'tok',
 }));
 
-const UPSTREAM_TIMEOUT_MS = 15_000;
+const UPSTREAM_TIMEOUT_MS = 120_000;
 const { GET, POST } = await import('./route');
 
 const req = (method = 'GET') =>

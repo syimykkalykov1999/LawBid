@@ -61,9 +61,12 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
       redirect: 'manual',
       signal: controller.signal,
     });
-  } catch {
+  } catch (e) {
+    // Our own deadline, or a TimeoutError from the runtime's fetch.
+    const timeout =
+      timedOut || (e instanceof Error && e.name === 'TimeoutError');
     return NextResponse.json(
-      timedOut
+      timeout
         ? {
             error: {
               code: 'UPSTREAM_TIMEOUT',
@@ -77,7 +80,7 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
             },
           },
       {
-        status: timedOut ? 504 : 502,
+        status: timeout ? 504 : 502,
         headers: { 'retry-after': String(RETRY_AFTER_SEC) },
       },
     );
