@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -8,13 +9,13 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:lawbid/features/chat/presentation/reply_swipe.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_rich_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
-import 'package:lawbid/features/groups/presentation/widgets/group_swipe_to_reply.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
@@ -348,10 +349,15 @@ class GroupMessageBubble extends ConsumerWidget {
               : null,
       child: onReply == null || m.deleted
           ? row
-          : GroupSwipeToReply(
-              onReply: onReply!,
-              semanticLabel: t.t('group.conv.reply'),
-              child: row,
+          : Semantics(
+              // Screen readers: the reply is an action, not only a drag.
+              customSemanticsActions: {
+                CustomSemanticsAction(label: t.t('group.conv.reply')): onReply!,
+              },
+              child: SwipeToReply(
+                onReply: onReply!,
+                child: row,
+              ),
             ),
     );
   }
