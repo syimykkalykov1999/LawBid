@@ -343,3 +343,53 @@ API расшифровывает его один раз при старте (`km
 `SECRETS_ACTIVE_KID = "k2"`, после чего в админке → Ключи и сервисы нажать
 «Перешифровать» (кнопка уже есть). Локально и в тестах ничего не меняется:
 без префикса `kms:` KMS не вызывается.
+
+## Отказоустойчивость и звонки (2026-10-22): реплика Redis, второй TURN, LiveKit, ARM
+
+Всё ниже **выключено** и не стоит денег, пока вы не добавите строку в
+`terraform.tfvars`. Каждый пункт независим; применяйте по одному
+(`terraform plan`, смотрим «0 to destroy», `apply`). Заходить:
+`cd ~/Desktop/LawBid/infra/envs/prod && eval "$(aws configure export-credentials --format env)" && terraform init -backend-config=backend.hcl`.
+
+| Что | Строка в tfvars | Добавка в месяц | Подробности |
+|---|---|---|---|
+| Реплика Redis с автопереключением | `redis_replicas = 1` | ≈ **+$12** (`cache.t4g.micro`) | [redis.md](redis.md) |
+| Второй сервер TURN в другой зоне, проверки, сигналы | `turn_second_enabled = true` | ≈ **+$10** | [TURN.md](TURN.md) |
+| Свой сервер групповых звонков LiveKit | `livekit_enabled = true` | ≈ **+$32** + трафик | [LIVEKIT.md](LIVEKIT.md) |
+| Проверка «жив ли сервер» дешевле | `uptime_check = "route53"` | ≈ **−$8** | [slo.md](slo.md) |
+| Серверы Fargate на Graviton | `cpu_architecture = "ARM64"` | ≈ **−20 %** платы за Fargate (−$10…15 на старте) | ниже |
+
+Реплика Redis + второй TURN = ≈ **+$22** (в рамках утверждённых $30–60).
+Все платные пункты вместе ≈ +$55 + трафик звонков.
+
+**Бюджет.** `monthly_budget_usd` по умолчанию теперь **350** (было 200):
+запуск ≈ $150–170, добавки выше ≈ $55, и при 100 % бюджета система держит
+сервер на минимуме, то есть слишком низкий бюджет сам тормозит рост. Письма
+придут на $175 / $280 / $350. Если в вашем `terraform.tfvars` стоит своя
+цифра, она важнее: замените 200 на 350 там.
+
+**Шаги.**
+1. `redis_replicas = 1`: `plan` покажет одно изменение Redis (реплика) и новый
+   сигнал; `apply`. Приложение ничего не заметит.
+2. `turn_second_enabled = true`: `apply`, затем в Namecheap вторая A-запись
+   `turn` (адрес из `terraform output -json stack | jq .turn_public_ips`).
+3. `livekit_enabled = true`: `apply`, затем две A-записи `livekit` и
+   `livekit-turn` на адрес `livekit_public_ip` (шаги в LIVEKIT.md). В `plan`
+   будет и новая ревизия задач API/worker: туда добавляются три переменные
+   `LIVEKIT_*`.
+4. **ARM64** (порядок важен, иначе задачи не запустятся):
+   a. Смёржить изменение `deploy.yml`: образы собираются под `linux/amd64` и
+      `linux/arm64`. Любой деплой после этого даёт multi-arch образы.
+   b. Образ ClamAV в ECR старый (только amd64): удалить тег и скопировать
+      заново: `aws ecr batch-delete-image --repository-name lawbid-clamav --image-ids imageTag=1.4`,
+      затем `scripts/deploy/prod-images.sh` (копирует все платформы).
+   c. Убедиться, что в `api_image` / `admin_image` стоит тег, собранный
+      **после** (a): `docker buildx imagetools inspect <образ>` показывает
+      `linux/arm64`. Старый тег = только amd64.
+   d. `cpu_architecture = "ARM64"`, `apply`: Fargate заменит задачи по очереди.
+      Откат: `cpu_architecture = "X86_64"`, `apply`.
+   Сборка arm64 в GitHub Actions идёт через эмуляцию (QEMU), деплой-сборка
+   станет заметно дольше (минуты). Если мешает, перейти на arm-раннеры.
+
+**Проверка расходов через месяц:** Billing → Cost Explorer → по сервисам;
+сравнить с таблицей выше.

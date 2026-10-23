@@ -26,6 +26,17 @@ subset of §7.2's eventual PR-check list it covers today.
   advisory that cannot be fixed yet goes in `.github/npm-audit-allowlist.json`
   with a GHSA id, a reason and an expiry date (an expired entry fails again).
   See the header of `scripts/ci/npm-audit-gate.mjs`.
+- Mobile dependency audit (`dependency-audit` job in `mobile-ci.yml`) is
+  **blocking**: `google/osv-scanner-action` scans `apps/mobile/pubspec.lock`
+  and `scripts/ci/pub-audit-gate.mjs` fails on any finding that is not in
+  `.github/pub-audit-allowlist.json`. An entry needs `id` (OSV/GHSA; a CVE
+  alias also matches), `package`, `reason` and an `expires` date
+  (YYYY-MM-DD); an expired entry fails again. Prefer upgrading the package
+  (`flutter pub upgrade <name>`); allow only when no fixed release exists
+  or the code is a build-time tool. The same job posts `dart pub outdated
+  --json` (outdated / discontinued packages) to the job summary, as
+  information only. It runs on Ubuntu because the OSV action is a Docker
+  action (no macOS runners).
 - `analyze-and-test` in `mobile-ci.yml` runs on `macos-latest`, not the
   usual `ubuntu-latest`, because this repo's golden tests render real
   embedded fonts and were generated on macOS — see the in-file comment.
