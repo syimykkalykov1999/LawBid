@@ -107,6 +107,9 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'soft_update_version_',
   'files.',
   'video.max_',
+  // Owner 2026-10-23: reel / video post length limits.
+  'video.reel_max_',
+  'video.post_max_',
   'posts.attachments_',
   // Text limits the app shows as counters (admin: Config → Лимиты ввода).
   'limits.',

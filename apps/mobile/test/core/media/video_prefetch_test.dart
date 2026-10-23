@@ -75,8 +75,7 @@ void main() {
 
   test('fetches master, lowest playlist and only the first segment', () async {
     final net = _Net();
-    final p = _make(net);
-    p.prefetch('https://cdn.test/abc/playlist.m3u8');
+    final p = _make(net)..prefetch('https://cdn.test/abc/playlist.m3u8');
     await _settle();
     expect(net.requests, [
       'https://cdn.test/abc/playlist.m3u8',
@@ -115,13 +114,13 @@ void main() {
 
   test('cancelAll drops waiting wishes', () async {
     final net = _Net()..gate = Completer<void>();
-    final p = _make(net, concurrent: 1);
-    p.prefetchAll([
-      'https://cdn.test/a/playlist.m3u8',
-      'https://cdn.test/b/playlist.m3u8',
-      'https://cdn.test/c/playlist.m3u8',
-    ]);
-    p.cancelAll();
+    final p = _make(net, concurrent: 1)
+      ..prefetchAll([
+        'https://cdn.test/a/playlist.m3u8',
+        'https://cdn.test/b/playlist.m3u8',
+        'https://cdn.test/c/playlist.m3u8',
+      ])
+      ..cancelAll();
     expect(p.queued, 0);
     net.gate!.complete();
   });

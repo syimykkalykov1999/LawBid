@@ -2215,6 +2215,7 @@ export 'models/post_reposter_dto_role.dart';
 export 'models/post_promotion_cta_dto_type.dart';
 export 'models/post_event_item_dto_kind.dart';
 export 'models/attorney_list_item_dto_reason.dart';
+export 'models/create_video_upload_dto_kind.dart';
 export 'models/update_attorney_profile_dto_languages.dart';
 export 'models/update_client_profile_dto_languages.dart';
 export 'models/update_client_profile_dto_contact_method.dart';
