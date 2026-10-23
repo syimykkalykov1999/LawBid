@@ -45,7 +45,7 @@ worker_spot = true
 api_spot    = true
 
 redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
-redis_replicas  = 0                 # 1 → 0 (no failover replica)
+redis_replicas  = 1                 # owner 2026-10-23: failover replica in the other AZ (+ ≈ $12)
 
 nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
 # Owner 2026-10-22: image pulls, logs and secrets go through VPC endpoints,
@@ -76,10 +76,9 @@ monthly_budget_usd = 350
 # --- optional extras (owner 2026-10-22, all OFF = today's cost) ----------------
 # Each is a separate `terraform apply`; steps and prices: docs/runbooks/DEPLOY_PROD.md
 # «Отказоустойчивость и звонки».
-# redis_replicas      = 1    # Redis failover replica in the other AZ (+ ≈ $12)
-# turn_second_enabled = true # second coturn in the other AZ (+ ≈ $9)
+turn_second_enabled = true # owner 2026-10-23: second coturn in the other AZ (+ ≈ $9)
 # livekit_enabled     = true # own LiveKit SFU for group calls (+ ≈ $35 + traffic)
-# uptime_check        = "route53" # external probe ≈ $2 instead of ≈ $10 (us-east-1)
+uptime_check        = "route53" # owner 2026-10-23: external probe ≈ $2 instead of ≈ $10
 # cpu_architecture    = "ARM64"   # Fargate Graviton ≈ −20 %: ONLY after a deploy
 #                                 # built by the multi-arch deploy.yml is the tag
 #                                 # in api_image / admin_image / clamav_image
