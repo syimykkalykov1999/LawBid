@@ -91,6 +91,10 @@ enum ConsentType {
   attorney_agreement
   client_agreement
   eula
+  // Owner 2026-10-22 (CCPA/CPRA): «Do not sell or share my personal
+  // information» — granted = opted out. Latest row wins; honoured by the
+  // analytics gate and exported with the data export.
+  do_not_sell
 
   @@map("consent_type")
 }
@@ -110,6 +114,8 @@ enum LegalDocType {
   third_party_services
   partner_terms
   dmca_policy
+  // Owner 2026-10-22 (systems checklist §26): accessibility statement.
+  accessibility
 
   @@map("legal_doc_type")
 }

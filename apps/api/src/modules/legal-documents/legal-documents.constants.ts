@@ -15,6 +15,8 @@ export const LEGAL_DOC_TYPE_LIST = [
   'third_party_services',
   'partner_terms',
   'dmca_policy',
+  // Owner 2026-10-22 (systems checklist §26): accessibility statement.
+  'accessibility',
 ] as const satisfies readonly LegalDocType[];
 
 /** Owner 2026-10-22 (audit #4 §4): the ten most used app languages (the
@@ -73,6 +75,10 @@ export const LEGAL_DOC_TITLES: Record<
   dmca_policy: {
     en: 'Copyright (DMCA) Policy',
     ru: 'Политика авторских прав (DMCA)',
+  },
+  accessibility: {
+    en: 'Accessibility Statement',
+    ru: 'Заявление о доступности',
   },
 };
 

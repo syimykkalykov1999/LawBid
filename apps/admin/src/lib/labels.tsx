@@ -296,6 +296,7 @@ export const LEGAL_DOC_TYPE: Record<string, string> = {
   third_party_services: 'Сторонние сервисы',
   partner_terms: 'Условия для партнёров',
   dmca_policy: 'Политика DMCA',
+  accessibility: 'Заявление о доступности',
 };
 
 export const DATA_REQUEST_TYPE: Record<string, string> = {
