@@ -20,6 +20,7 @@ export class HealthItemDto {
       'push',
       'turn',
       'http',
+      'realtime',
     ],
   })
   key!: string;

@@ -1,4 +1,9 @@
-import { Inject, OnApplicationShutdown } from '@nestjs/common';
+import {
+  BeforeApplicationShutdown,
+  Inject,
+  OnApplicationShutdown,
+  Optional,
+} from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -13,6 +18,8 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
@@ -35,6 +42,7 @@ import {
   viewingKey,
 } from './realtime-publisher.service';
 import { demoContext } from '../../common/demo/demo-context';
+import { RealtimeEventLog } from './realtime-event-log';
 import {
   newSocketEventBucket,
   takeSocketEvent,
@@ -54,12 +62,35 @@ const SIGNAL_MAX_BYTES = 64 * 1024;
  * finding 5): no longer the session blacklist — a revoked session's
  * sockets are dropped by the `session:revoked` message instead. */
 const HEARTBEAT_MS = 45_000;
+/** A person back within this long after a drop counts as a reconnect. */
+const RECONNECT_WINDOW_SEC = 120;
+const goneKey = (userId: string) => `rt:gone:${userId}`;
+
+/**
+ * How long a shutting-down instance waits for its clients to move away
+ * (REALTIME_DRAIN_MAX_MS overrides). Production stays under the ECS
+ * `stopTimeout` (60 s, infra/modules/ecs) so SIGKILL never cuts it; dev
+ * restarts (`nest start --watch`) and tests do not wait.
+ */
+export function drainBudgetMs(env: NodeJS.ProcessEnv = process.env): number {
+  const set = Number(env.REALTIME_DRAIN_MAX_MS);
+  if (env.REALTIME_DRAIN_MAX_MS !== undefined && Number.isFinite(set)) {
+    return Math.max(0, set);
+  }
+  return env.NODE_ENV === 'production' ? 35_000 : 0;
+}
 
 interface SocketState {
   user: AccessTokenClaims;
   /** OQ-048: an assistant's own id while `user.sub` is the attorney. */
   selfId?: string;
+  /** Owner 2026-10-23: `auth:expiring` goes out `auth_expiring_lead`
+   * before the token ends; `expiryTimer` closes the socket only after the
+   * grace period (a refreshed token re-arms both). */
+  expiringTimer?: NodeJS.Timeout;
   expiryTimer?: NodeJS.Timeout;
+  /** `exp` of the access token the socket is running on (ms). */
+  expiresAtMs?: number;
   /** Presence heartbeat and the assistant's duty re-check. */
   heartbeatTimer?: NodeJS.Timeout;
   lastTypingAt?: number;
@@ -115,6 +146,7 @@ export class RealtimeGateway
     OnGatewayInit,
     OnGatewayConnection,
     OnGatewayDisconnect,
+    BeforeApplicationShutdown,
     OnApplicationShutdown
 {
   private pub?: Redis;
@@ -137,8 +169,44 @@ export class RealtimeGateway
     private readonly logger: PinoLogger,
     private readonly assistants: AssistantContextService,
     private readonly presence: PresenceService,
+    @Optional() private readonly stats?: RealtimeStatsService,
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly eventLog?: RealtimeEventLog,
   ) {
     this.logger.setContext(RealtimeGateway.name);
+  }
+
+  /** Owner 2026-10-23: the lifecycle timings (app_config `realtime.server.*`),
+   * refreshed every 30 s — sockets arm timers synchronously from this. */
+  private timing = {
+    expiringLeadMs: 120_000,
+    graceMs: 120_000,
+    goingAwaySpreadMs: 20_000,
+  };
+  private timingTimer?: NodeJS.Timeout;
+  /** SIGTERM / `startDraining()`: no new sockets, going-away sent. */
+  private draining = false;
+
+  private async loadTiming(): Promise<void> {
+    if (!this.settings) return;
+    try {
+      const [lead, grace, spread] = await Promise.all([
+        this.settings.number('realtime.server.auth_expiring_lead_seconds'),
+        this.settings.number('realtime.server.auth_grace_seconds'),
+        this.settings.number('realtime.server.going_away_spread_ms'),
+      ]);
+      this.timing = {
+        expiringLeadMs: lead * 1000,
+        graceMs: grace * 1000,
+        goingAwaySpreadMs: spread,
+      };
+    } catch {
+      // keep the previous values
+    }
+  }
+
+  get isDraining(): boolean {
+    return this.draining;
   }
 
   /** docs/06 §8 "число активных WebSocket-соединений": a gauge line per
@@ -151,6 +219,9 @@ export class RealtimeGateway
 
   afterInit(nsp: Namespace): void {
     this.nsp = nsp;
+    void this.loadTiming();
+    this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
+    this.timingTimer.unref();
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
@@ -212,9 +283,56 @@ export class RealtimeGateway
     if (set.size === 0) this.bySession.delete(sid);
   }
 
+  /**
+   * Owner 2026-10-23 (graceful draining): on SIGTERM — before Nest
+   * disposes the socket server — every connected socket gets
+   * `server:going-away {retryAfterMs}` (a random 0..spread each, so the
+   * herd does not come back in one second), no new socket is accepted,
+   * and the existing ones are served until they leave or the drain
+   * budget ends (the ECS stop timeout is 60 s). Old apps ignore the
+   * event and are dropped at the end exactly as before.
+   */
+  async beforeApplicationShutdown(): Promise<void> {
+    await this.startDraining();
+    await this.waitForDrain();
+  }
+
+  /** Marks the instance as draining and tells every socket to leave. */
+  async startDraining(): Promise<number> {
+    if (this.draining) return 0;
+    this.draining = true;
+    let sent = 0;
+    for (const socket of this.nsp?.sockets.values() ?? []) {
+      this.sendGoingAway(socket);
+      sent += 1;
+    }
+    this.logger.info({ metric: 'ws_going_away', count: sent }, 'draining');
+    await this.stats?.flush();
+    return sent;
+  }
+
+  private sendGoingAway(socket: Socket): void {
+    const retryAfterMs = Math.floor(
+      Math.random() * (this.timing.goingAwaySpreadMs + 1),
+    );
+    socket.emit('server:going-away', { retryAfterMs, reason: 'deploy' });
+    this.stats?.record('going_away');
+  }
+
+  /** Waits (bounded) for the clients to move away on their own. */
+  private async waitForDrain(): Promise<void> {
+    const budget = drainBudgetMs();
+    const deadline = Date.now() + budget;
+    while (Date.now() < deadline && (this.nsp?.sockets.size ?? 0) > 0) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    await this.stats?.flush();
+  }
+
   /** After Nest has closed the socket server (app.close() disposes it
    * before the shutdown hooks), so the adapter sends nothing more. */
   async onApplicationShutdown(): Promise<void> {
+    if (this.timingTimer) clearInterval(this.timingTimer);
     await Promise.all(
       [this.pub, this.sub, this.revocations].map(async (c) => {
         try {
@@ -227,6 +345,13 @@ export class RealtimeGateway
   }
 
   async handleConnection(socket: Socket): Promise<void> {
+    // Owner 2026-10-23: a draining instance takes no new sockets — the
+    // client waits the given time and lands on a healthy instance.
+    if (this.draining) {
+      this.sendGoingAway(socket);
+      socket.disconnect(true);
+      return;
+    }
     const auth = socket.handshake.auth as { token?: unknown } | undefined;
     const header = socket.handshake.headers.authorization;
     const token =
@@ -281,6 +406,10 @@ export class RealtimeGateway
     // revocation reaches this socket as a `session:revoked` message.
     this.index(socket, claims.sid);
     this.armExpiry(socket, token);
+    socket.on('disconnect', (reason: string) => {
+      this.stats?.recordDisconnect(reason);
+      this.logger.info({ metric: 'ws_disconnect', reason }, 'ws disconnect');
+    });
     state(socket).heartbeatTimer = setInterval(() => {
       // Audit 2026-10-02: an assistant removed, stripped of "chats"/"calls"
       // or whose attorney's subscription lapsed stops hearing the
@@ -332,6 +461,47 @@ export class RealtimeGateway
       }
     }
     this.gauge();
+    await this.markConnected(socket, claims.sub);
+  }
+
+  /**
+   * Owner 2026-10-23: counts connects and recognises a reconnect (the same
+   * person dropped less than 2 minutes ago, see [markGone]) for the board,
+   * then tells the client where its event cursor is (`realtime:ready`).
+   */
+  private async markConnected(socket: Socket, userId: string): Promise<void> {
+    this.stats?.record('connect');
+    try {
+      if ((await this.redis.del(goneKey(userId))) > 0) {
+        this.stats?.record('reconnect');
+      }
+    } catch {
+      // statistics only
+    }
+    let seq: number | null = null;
+    try {
+      seq = (await this.eventLog?.currentSeq()) ?? null;
+    } catch {
+      // the client then simply has no cursor and refreshes fully
+    }
+    socket.emit('realtime:ready', {
+      seq,
+      serverTime: new Date().toISOString(),
+      authExpiresAt: this.expiryOfSocket(socket),
+    });
+  }
+
+  private async markGone(userId: string): Promise<void> {
+    try {
+      await this.redis.set(goneKey(userId), '1', 'EX', RECONNECT_WINDOW_SEC);
+    } catch {
+      // statistics only
+    }
+  }
+
+  private expiryOfSocket(socket: Socket): string | null {
+    const exp = state(socket)?.expiresAtMs;
+    return exp ? new Date(exp).toISOString() : null;
   }
 
   /** Tells the watchers of [userId] (open chats with them) — only when
@@ -376,10 +546,12 @@ export class RealtimeGateway
     this.gauge();
     const s = state(socket);
     if (!s?.user) return;
+    clearTimeout(s.expiringTimer);
     clearTimeout(s.expiryTimer);
     clearInterval(s.heartbeatTimer);
     this.unindex(socket, s.user.sid);
     if (!s.selfId && s.user.role !== 'assistant') {
+      void this.markGone(s.user.sub);
       try {
         if (await this.presence.leave(s.user.sub, socket.id)) {
           await this.announce(s.user.sub, false, new Date());
@@ -397,13 +569,20 @@ export class RealtimeGateway
     }
   }
 
-  /** §8.5 "повторная проверка при обновлении токена". */
+  /**
+   * §8.5 "повторная проверка при обновлении токена". Owner 2026-10-23: the
+   * answer to `auth:expiring` — the new access token arrives as
+   * `{accessToken}` (the older apps' `{token}` works too), is verified
+   * like at the handshake and moves the expiry; the socket is never
+   * closed for being refreshed. A bad or revoked token still ends it.
+   */
   @SubscribeMessage('auth:refresh')
   async refresh(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() body: { token?: unknown },
-  ): Promise<{ ok: boolean }> {
-    const token = typeof body?.token === 'string' ? body.token : '';
+    @MessageBody() body: { accessToken?: unknown; token?: unknown },
+  ): Promise<{ ok: boolean; expiresAt?: string }> {
+    const raw = body?.accessToken ?? body?.token;
+    const token = typeof raw === 'string' ? raw : '';
     const claims = token ? await this.verify(token) : null;
     const s = state(socket);
     if (!claims || claims.sub !== (s.selfId ?? s.user.sub)) {
@@ -417,7 +596,43 @@ export class RealtimeGateway
     }
     s.user = s.selfId ? { ...claims, sub: s.user.sub } : claims;
     this.armExpiry(socket, token);
-    return { ok: true };
+    this.stats?.record('auth_refresh');
+    return {
+      ok: true,
+      expiresAt: s.expiresAtMs
+        ? new Date(s.expiresAtMs).toISOString()
+        : undefined,
+    };
+  }
+
+  /**
+   * Owner 2026-10-23: after a reconnect the client sends the `seq` of the
+   * last event it saw and gets only what it missed (5-minute window, at
+   * most 200 events). `complete: false` = something is gone — refresh
+   * once, then continue from the returned `seq`. Same data as
+   * `GET /realtime/missed`.
+   */
+  @SubscribeMessage('sync:since')
+  async syncSince(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { seq?: unknown },
+  ): Promise<
+    | { ok: true; seq: number; events: unknown[]; complete: boolean }
+    | { ok: false }
+  > {
+    const s = state(socket);
+    const since = typeof body?.seq === 'number' ? body.seq : Number(body?.seq);
+    if (!s?.user || !this.eventLog || !Number.isFinite(since)) {
+      return { ok: false };
+    }
+    try {
+      const ids = s.selfId ? [s.user.sub, s.selfId] : [s.user.sub];
+      const missed = await this.eventLog.since(ids, since);
+      this.stats?.record('sync');
+      return { ok: true, ...missed };
+    } catch {
+      return { ok: false };
+    }
   }
 
   @SubscribeMessage('conversation:join')
@@ -723,18 +938,42 @@ export class RealtimeGateway
     }
   }
 
-  /** An expired access token ends the socket unless refreshed first. */
+  /**
+   * Owner 2026-10-23 (Slack/Discord style): the access token ending no
+   * longer cuts the socket at once. `auth:expiring` goes out
+   * `expiringLeadMs` before the end (the client answers `auth:refresh`
+   * with a new token); only when none arrives within the grace period
+   * after the end does the socket get `auth:expired` and close — exactly
+   * what apps that never send `auth:refresh` always saw, just later.
+   * Revocation is separate and immediate (`session:revoked`).
+   */
   private armExpiry(socket: Socket, token: string): void {
     const s = state(socket);
+    clearTimeout(s.expiringTimer);
     clearTimeout(s.expiryTimer);
     const exp = expiryOf(token);
+    s.expiresAtMs = exp ?? undefined;
     if (exp === null) return;
+    const { expiringLeadMs, graceMs } = this.timing;
+    s.expiringTimer = setTimeout(
+      () => {
+        socket.emit('auth:expiring', {
+          expiresAt: new Date(exp).toISOString(),
+          expiresInMs: Math.max(0, exp - Date.now()),
+          graceMs,
+        });
+        this.stats?.record('auth_expiring');
+      },
+      Math.max(0, exp - expiringLeadMs - Date.now()),
+    );
+    s.expiringTimer.unref?.();
     s.expiryTimer = setTimeout(
       () => {
+        this.stats?.record('auth_expired');
         socket.emit('auth:expired', {});
         socket.disconnect(true);
       },
-      Math.max(0, exp - Date.now()),
+      Math.max(0, exp + graceMs - Date.now()),
     );
     s.expiryTimer.unref?.();
   }

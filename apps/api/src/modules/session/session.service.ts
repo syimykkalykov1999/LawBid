@@ -23,6 +23,7 @@ export interface SessionView {
   flags: Record<string, boolean>;
   unreadSupport: number;
   hasOngoingCalls: boolean;
+  client: { timings: Record<string, number> };
 }
 
 /**
@@ -124,6 +125,7 @@ export class SessionService {
       flags: boot.flags,
       unreadSupport,
       hasOngoingCalls,
+      client: boot.client,
     };
   }
 }

@@ -33,6 +33,16 @@ export class BootstrapLegalDocumentDto {
   published_at!: string | null;
 }
 
+export class ClientTimingsDto {
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'number' },
+    description:
+      'Live-connection timings the app must use (set in the admin, Config → realtime.*): reconnectMinMs, reconnectMaxMs, reconnectJitter (0–1), serverDisconnectMinWaitMs, serverDisconnectMaxWaitMs, offlineFailures, offlineSeconds, probeTimeoutMs, tokenRefreshLeadSeconds, pollingFallbackIntervalSeconds, reconnectedDebounceSeconds, refetchJitterMs, pingIntervalMs, pingTimeoutMs. See docs/runbooks/REALTIME_LIFECYCLE.md.',
+  })
+  timings!: Record<string, number>;
+}
+
 export class BootstrapDto {
   @ApiProperty({
     type: 'object',
@@ -60,4 +70,10 @@ export class BootstrapDto {
 
   @ApiProperty({ type: [BootstrapLegalDocumentDto] })
   legal_documents!: BootstrapLegalDocumentDto[];
+
+  @ApiProperty({
+    type: ClientTimingsDto,
+    description: 'Server-driven client behaviour (connection timings).',
+  })
+  client!: ClientTimingsDto;
 }
