@@ -210,16 +210,22 @@ abstract class AuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Options to create a passkey for this account
+  /// Options to create a passkey for this account.
+  ///
+  /// [xReauthToken] - Single-use reauthToken (5 min). Needed only when the sign-in is not recent.
   @POST('/auth/passkeys/register/options')
   Future<PasskeyRegistrationOptionsEnvelope> passkeyRegisterOptions({
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Store the passkey the authenticator created
+  /// Store the passkey the authenticator created.
+  ///
+  /// [xReauthToken] - Single-use reauthToken (5 min). Needed only when the sign-in is not recent.
   @POST('/auth/passkeys/register')
   Future<PasskeyEnvelope> passkeyRegister({
     @Body() required PasskeyRegisterDto body,
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -229,10 +235,13 @@ abstract class AuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Remove a passkey (recent sign-in or reauth token)
+  /// Remove a passkey (recent sign-in or reauth token).
+  ///
+  /// [xReauthToken] - Single-use reauthToken (5 min). Needed only when the sign-in is not recent.
   @DELETE('/auth/passkeys/{id}')
   Future<PasskeyRemovedEnvelope> passkeyRemove({
     @Path('id') required String id,
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 

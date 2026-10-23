@@ -2548,7 +2548,17 @@
     "/auth/passkeys/register/options": {
       "post": {
         "operationId": "passkeyRegisterOptions",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use reauthToken (5 min). Needed only when the sign-in is not recent.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -2635,7 +2645,17 @@
     "/auth/passkeys/register": {
       "post": {
         "operationId": "passkeyRegister",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use reauthToken (5 min). Needed only when the sign-in is not recent.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2794,6 +2814,15 @@
             "name": "id",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "Single-use reauthToken (5 min). Needed only when the sign-in is not recent.",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -4996,6 +5025,93 @@
           }
         },
         "summary": "Super admin forgot the password: answer the question, set a new one (sessions end)",
+        "tags": [
+          "admin-auth"
+        ]
+      }
+    },
+    "/admin/auth/me/on-call": {
+      "put": {
+        "operationId": "adminSetOnCall",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminOnCallDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOkEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Switch my system alerts (push + e-mail) on or off",
         "tags": [
           "admin-auth"
         ]
@@ -64260,6 +64376,95 @@
         ]
       }
     },
+    "/link-preview": {
+      "get": {
+        "operationId": "linkPreview",
+        "parameters": [
+          {
+            "name": "url",
+            "required": true,
+            "in": "query",
+            "description": "The link as pasted (https://…).",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 2048,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Preview card of a link (Open Graph), fetched safely by the server",
+        "tags": [
+          "link-preview"
+        ]
+      }
+    },
     "/feed": {
       "get": {
         "operationId": "getFeed",
@@ -89044,6 +89249,103 @@
         ]
       }
     },
+    "/calls/{id}/livekit-token": {
+      "post": {
+        "operationId": "livekitToken",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveKitJoinEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "LiveKit room access for this call (only while calls run on LiveKit)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
     "/calls/ice-servers": {
       "get": {
         "operationId": "callIceServers",
@@ -112206,6 +112508,14 @@
             "type": "boolean",
             "description": "A password is set."
           },
+          "onCallAvailable": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22: the admin may get system alerts (owner, or holds the «Дежурный» right)."
+          },
+          "onCallEnabled": {
+            "type": "boolean",
+            "description": "Owner 2026-10-22: the admin’s own switch for those alerts."
+          },
           "permissions": {
             "type": "object",
             "additionalProperties": {
@@ -112798,6 +113108,18 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "AdminOnCallDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Get push + e-mail when the system breaks."
+          }
+        },
+        "required": [
+          "enabled"
         ]
       },
       "AdminChangeOwnCredentialsDto": {
@@ -144642,6 +144964,51 @@
           "data"
         ]
       },
+      "LinkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "siteName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "url",
+          "title",
+          "description",
+          "imageUrl",
+          "siteName"
+        ]
+      },
+      "LinkPreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LinkPreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "FeedContentMode": {
         "type": "string",
         "enum": [
@@ -146003,7 +146370,11 @@
               "queues",
               "backup",
               "cost",
-              "message_keys"
+              "message_keys",
+              "stripe_webhooks",
+              "push",
+              "turn",
+              "http"
             ]
           },
           "status": {
@@ -146024,6 +146395,39 @@
         "required": [
           "key",
           "status",
+          "detail"
+        ]
+      },
+      "IncidentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "component": {
+            "type": "string",
+            "description": "The board item key: database, redis, push …"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "id",
+          "component",
+          "openedAt",
+          "closedAt",
           "detail"
         ]
       },
@@ -146135,6 +146539,13 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/HealthItemDto"
+            }
+          },
+          "incidents": {
+            "description": "Incidents opened in the last 24 hours, or still open.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentDto"
             }
           },
           "heavyPause": {
@@ -158563,10 +158974,11 @@
             "type": "boolean"
           },
           "provider": {
-            "type": "string",
             "enum": [
-              "webrtc"
-            ]
+              "webrtc",
+              "livekit"
+            ],
+            "type": "string"
           },
           "reason": {
             "nullable": true,
@@ -158588,6 +159000,60 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/VideoCallConfigDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "LiveKitJoinDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "wss:// address of the LiveKit server."
+          },
+          "token": {
+            "type": "string",
+            "description": "Access token (JWT); identity = your user id."
+          },
+          "room": {
+            "type": "string",
+            "description": "Room name = the call id."
+          },
+          "identity": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "host",
+              "speaker",
+              "listener"
+            ],
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "url",
+          "token",
+          "room",
+          "identity",
+          "role",
+          "expiresAt"
+        ]
+      },
+      "LiveKitJoinEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LiveKitJoinDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

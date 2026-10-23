@@ -26,6 +26,14 @@ enum HealthItemDtoKey {
   cost('cost'),
   @JsonValue('message_keys')
   messageKeys('message_keys'),
+  @JsonValue('stripe_webhooks')
+  stripeWebhooks('stripe_webhooks'),
+  @JsonValue('push')
+  push('push'),
+  @JsonValue('turn')
+  turn('turn'),
+  @JsonValue('http')
+  http('http'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

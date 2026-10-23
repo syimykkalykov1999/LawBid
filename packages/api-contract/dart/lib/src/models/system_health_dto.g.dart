@@ -17,6 +17,9 @@ SystemHealthDto _$SystemHealthDtoFromJson(Map<String, dynamic> json) =>
       settings: OpsSettingsDto.fromJson(
         json['settings'] as Map<String, dynamic>,
       ),
+      incidents: (json['incidents'] as List<dynamic>?)
+          ?.map((e) => IncidentDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       heavyPause: json['heavyPause'] == null
           ? null
           : HeavyPauseDto.fromJson(json['heavyPause'] as Map<String, dynamic>),
@@ -30,6 +33,7 @@ Map<String, dynamic> _$SystemHealthDtoToJson(SystemHealthDto instance) =>
       'overall': instance.overall.toJson(),
       'generatedAt': instance.generatedAt,
       'items': instance.items.map((e) => e.toJson()).toList(),
+      'incidents': ?instance.incidents?.map((e) => e.toJson()).toList(),
       'heavyPause': ?instance.heavyPause?.toJson(),
       'scaleMode': ?instance.scaleMode?.toJson(),
       'actions': instance.actions.toJson(),

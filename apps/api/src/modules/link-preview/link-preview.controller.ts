@@ -33,7 +33,7 @@ export class LinkPreviewController {
     400: [ErrorCode.VALIDATION_ERROR],
     429: [ErrorCode.RATE_LIMITED],
   })
-  get(
+  linkPreview(
     @CurrentUser() user: RequestUser,
     @Query() q: LinkPreviewQueryDto,
   ): Promise<LinkPreviewDto> {
