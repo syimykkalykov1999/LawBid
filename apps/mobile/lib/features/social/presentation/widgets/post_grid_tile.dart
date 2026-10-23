@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
+import 'package:lawbid/features/social/application/grid_video_coordinator.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
@@ -22,8 +26,15 @@ class PostGridTile extends StatelessWidget {
     required this.semanticLabel,
     this.showPin = true,
     this.autoplay = false,
+    this.index = 0,
+    this.warmAhead = const [],
     super.key,
   });
+
+  /// Search grid: the tile's place in the list and the next posts below it
+  /// (their posters and first video bytes are warmed ahead of the scroll).
+  final int index;
+  final List<Post> warmAhead;
 
   /// Owner 2026-10-13 (Search): no pin; videos play on their own, muted and
   /// looping, with the view count small at the bottom left.
@@ -39,19 +50,14 @@ class PostGridTile extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final p = post;
     Widget cover() => PostTextCover(post: p, density: PostCoverDensity.compact);
-    return Semantics(
-      button: true,
-      label: semanticLabel,
-      child: AppPressable(
-        onTap: onTap,
-        child: Stack(
+    Widget body({required bool previewing}) => Stack(
           fit: StackFit.expand,
           children: [
             _tile(colors, p, cover),
             if (autoplay &&
                 p.video?.status == 'ready' &&
                 p.video?.playbackUrl != null)
-              _AutoplayVideo(post: p),
+              _PreviewVideo(post: p, previewing: previewing),
             // Owner 2026-10-12: a pinned post wears a pin (Instagram).
             if (showPin && p.pinSlot != null)
               const PositionedDirectional(
@@ -64,7 +70,20 @@ class PostGridTile extends StatelessWidget {
                 ),
               ),
           ],
-        ),
+        );
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: AppPressable(
+        onTap: onTap,
+        child: autoplay
+            ? GridTileProbe(
+                post: p,
+                index: index,
+                warmAhead: warmAhead,
+                builder: body,
+              )
+            : body(previewing: false),
       ),
     );
   }
@@ -80,15 +99,15 @@ class PostGridTile extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 CachedNetworkImage(
-                  imageUrl: p.media.isNotEmpty
-                      ? p.media.first.previewUrl
-                      : p.video!.thumbnailUrl!,
-                  cacheKey: p.media.isNotEmpty
-                      ? '${p.media.first.fileId}:320'
-                      : p.video!.thumbnailUrl,
+                  imageUrl: _posterUrl(p)!,
+                  cacheKey: _posterKey(p),
                   cacheManager: AppImageCaches.feed,
                   fit: BoxFit.cover,
-                  memCacheWidth: 400,
+                  memCacheWidth: kGridPosterWidth,
+                  // Owner 2026-10-23: the poster is there in the first
+                  // frame (a warmed one is found in memory), no fade.
+                  fadeInDuration: Duration.zero,
+                  fadeOutDuration: Duration.zero,
                   placeholder: (_, __) =>
                       ColoredBox(color: colors.skeletonBase),
                   errorWidget: (_, __, ___) => cover(),
@@ -128,80 +147,183 @@ SliverGridDelegate profileGridDelegate() => webWideWindow
       )
     : kPostGridDelegate;
 
-/// A video tile that plays by itself (muted, looping) while at least 60 % of
-/// it is on screen, and lets go of the player when it leaves — at most a
-/// handful of players run at once.
-class _AutoplayVideo extends ConsumerStatefulWidget {
-  const _AutoplayVideo({required this.post});
+/// Owner 2026-10-23: the width a grid tile's poster is decoded at.
+const int kGridPosterWidth = 400;
 
-  final Post post;
+String? _posterUrl(Post p) =>
+    p.media.isNotEmpty ? p.media.first.previewUrl : p.video?.thumbnailUrl;
 
-  @override
-  ConsumerState<_AutoplayVideo> createState() => _AutoplayVideoState();
+String? _posterKey(Post p) =>
+    p.media.isNotEmpty ? '${p.media.first.fileId}:320' : p.video?.thumbnailUrl;
+
+/// The tile's poster exactly as [PostGridTile] draws it (cache key and
+/// decode size), for warming it before the tile is on screen.
+ImageProvider? gridPosterProvider(Post p) {
+  final url = _posterUrl(p);
+  if (url == null) return null;
+  return ResizeImage.resizeIfNeeded(
+    kGridPosterWidth,
+    null,
+    CachedNetworkImageProvider(
+      url,
+      cacheKey: _posterKey(p),
+      cacheManager: AppImageCaches.feed,
+    ),
+  );
 }
 
-class _AutoplayVideoState extends ConsumerState<_AutoplayVideo> {
-  static const _maxPlayers = 6;
-  static final _playing = <Object>{};
-  bool _on = false;
+final _postersWarmed = <String>{};
 
-  void _set(bool want) {
-    if (want == _on) return;
-    if (want) {
-      if (_playing.length >= _maxPlayers) return;
-      _playing.add(this);
-    } else {
-      _playing.remove(this);
-    }
-    if (mounted) setState(() => _on = want);
+void _warmPosters(BuildContext context, Iterable<Post> posts) {
+  for (final p in posts) {
+    final provider = gridPosterProvider(p);
+    if (provider == null || !_postersWarmed.add(_posterKey(p)!)) continue;
+    if (_postersWarmed.length > 600) _postersWarmed.clear();
+    unawaited(precacheImage(provider, context, onError: (_, __) {}));
+  }
+}
+
+/// Search grid: reports how much of the tile is on screen to the
+/// [GridVideoCoordinator] (prefetch + the muted previews), warms the
+/// posters of this tile and of the next screen's worth, and tells its
+/// [builder] whether this tile is one of the (at most two) previewing.
+class GridTileProbe extends ConsumerStatefulWidget {
+  const GridTileProbe({
+    required this.post,
+    required this.index,
+    required this.warmAhead,
+    required this.builder,
+    super.key,
+  });
+
+  final Post post;
+  final int index;
+  final List<Post> warmAhead;
+  final Widget Function({required bool previewing}) builder;
+
+  @override
+  ConsumerState<GridTileProbe> createState() => _GridTileProbeState();
+}
+
+class _GridTileProbeState extends ConsumerState<GridTileProbe>
+    with PlaybackVisibility {
+  late final GridVideoCoordinator _coordinator =
+      ref.read(gridVideoCoordinatorProvider);
+  double _fraction = 0;
+
+  @override
+  void didChangePlaybackVisibility({required bool visible}) => _report();
+
+  /// Playlists of the videos among the next posts.
+  List<String> get _ahead => [
+        for (final p in widget.warmAhead)
+          if (p.video?.ready ?? false) p.video!.playbackUrl!,
+      ];
+
+  void _report() {
+    if (!mounted) return;
+    final v = widget.post.video;
+    _coordinator.report(
+      widget.post.id,
+      GridTileState(
+        index: widget.index,
+        fraction: _fraction,
+        visible: playbackVisible,
+        url: (v?.ready ?? false) ? v!.playbackUrl : null,
+        ahead: _ahead,
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _playing.remove(this);
+    _coordinator.remove(widget.post.id);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final v = widget.post.video!;
-    final f = ref.watch(l10nFormatsProvider);
     return VisibilityDetector(
       key: ValueKey('grid-video-${widget.post.id}'),
-      onVisibilityChanged: (i) => _set(i.visibleFraction >= 0.6),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Owner 2026-10-18: no black box over the tile — its cover stays
-          // until the video's first frame is drawn over it.
-          if (_on) ReelVideo(video: v, active: _on, backdrop: false),
-          if (widget.post.viewCount > 0)
-            PositionedDirectional(
-              start: 6,
-              bottom: 5,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const AppIcon(
-                    AppIcons.playArrowRounded,
-                    size: 14,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 2),
-                  Text(
-                    SocialFormat.count(f, widget.post.viewCount),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
+      onVisibilityChanged: (i) {
+        _fraction = i.visibleFraction;
+        if (_fraction > 0 && playbackVisible) {
+          _warmPosters(context, [widget.post, ...widget.warmAhead]);
+        }
+        _report();
+      },
+      child: ListenableBuilder(
+        listenable: _coordinator,
+        builder: (_, __) => widget.builder(
+          previewing: _coordinator.isPreviewing(widget.post.id),
+        ),
       ),
+    );
+  }
+}
+
+/// How long a muted preview plays before it loops back.
+const kGridPreviewLength = Duration(seconds: 6);
+
+/// The muted preview of a video tile (its poster stays under it until the
+/// first frame moves) and the view count at the bottom left.
+class _PreviewVideo extends ConsumerWidget {
+  const _PreviewVideo({required this.post, required this.previewing});
+
+  final Post post;
+  final bool previewing;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final v = post.video!;
+    final f = ref.watch(l10nFormatsProvider);
+    // A few seconds from where the author's clip starts, looping.
+    final end = v.playStart + kGridPreviewLength;
+    final clip = (v.playEnd == null || v.playEnd! > end)
+        ? PostVideo(
+            status: v.status,
+            playbackUrl: v.playbackUrl,
+            fallbackUrl: v.fallbackUrl,
+            thumbnailUrl: v.thumbnailUrl,
+            durationSec: v.durationSec,
+            width: v.width,
+            height: v.height,
+            trimStartMs: v.trimStartMs,
+            trimEndMs: end.inMilliseconds,
+          )
+        : v;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Owner 2026-10-18: no black box over the tile — its cover stays
+        // until the video's first frame is drawn over it.
+        if (previewing) ReelVideo(video: clip, active: true, backdrop: false),
+        if (post.viewCount > 0)
+          PositionedDirectional(
+            start: 6,
+            bottom: 5,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AppIcon(
+                  AppIcons.playArrowRounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  SocialFormat.count(f, post.viewCount),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

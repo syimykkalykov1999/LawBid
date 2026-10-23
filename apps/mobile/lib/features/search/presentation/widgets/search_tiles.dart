@@ -64,15 +64,27 @@ class SearchPostTile extends ConsumerWidget {
       PostsFeedScreen.open(context, posts: list, index: i, oneAuthor: false);
     }
 
+    // The posts a screen below this tile: posters and first video bytes are
+    // warmed for them while this one is on screen.
+    final all = feed;
+    final at = all?.indexWhere((p) => p.id == post.id) ?? -1;
     return PostGridTile(
       post: post,
       semanticLabel: '$kindLabel. $title. ${post.author.displayName}',
       showPin: false,
       autoplay: true,
+      index: at < 0 ? 0 : at,
+      warmAhead: all == null || at < 0
+          ? const []
+          : all.skip(at + 1).take(kSearchWarmAhead).toList(),
       onTap: open,
     );
   }
 }
+
+/// How many posts below a tile get their poster (and video start) warmed:
+/// about a screen of the 3-column grid.
+const kSearchWarmAhead = 9;
 
 /// An attorney's search result case (owner 2026-10-15, variant C): a slim
 /// card — the practice header (colour of the practice, budget · state),
