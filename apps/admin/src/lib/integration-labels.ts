@@ -48,6 +48,25 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
       'Если сменить бакеты, файлы из старых бакетов станут недоступны — меняйте только ключи, если файлы не переносили.',
   },
   sentry: { label: 'Sentry (отчёты об ошибках)', description: 'Отчёты о сбоях и ошибках сервера, приложения и админки.' },
+  apns: {
+    label: 'Apple Push (APNs) — звонки на iPhone',
+    description: 'Звонит на iPhone, даже когда приложение закрыто (VoIP-пуши).',
+  },
+  aws_rekognition: {
+    label: 'Проверка фото (AWS Rekognition)',
+    description:
+      'Смотрит публичные фото, аватары, фото отзывов и обложки рилсов на откровенный и жестокий контент; выше порога файл скрывается и попадает в Модерация → Медиа. На AWS при пустых ключах используется роль сервера.',
+  },
+  photodna: {
+    label: 'PhotoDNA (известные материалы о насилии над детьми)',
+    description:
+      'Microsoft PhotoDNA: каждое публичное изображение сверяется с базой известных хэшей; совпадение скрывает файл сразу и открывает отчёт в NCMEC.',
+  },
+  ncmec: {
+    label: 'NCMEC CyberTipline (отчёты)',
+    description:
+      'Аккаунт провайдера (ESP) в NCMEC CyberTipline. Без него отчёты ждут в Модерация → Медиа с пометкой «подать вручную».',
+  },
   cockroach_cloud: {
     label: 'Хостинг базы данных (проверка бэкапов)',
     description: 'Ключ только для чтения от хостинга базы данных: сервер каждый час проверяет, что свежий бэкап есть. Подключается после выбора боевого хостинга PostgreSQL.',
@@ -93,12 +112,24 @@ const FIELD_BY_NAME: Record<string, string> = {
   privateCdnKeyId: 'ID публичного ключа CloudFront',
   privateCdnPrivateKey: 'Закрытый ключ подписи CloudFront (PEM)',
   dsn: 'Адрес для отчётов',
+  publishableKey: 'Публичный ключ',
+  keyId: 'ID ключа',
+  subscriptionKey: 'Ключ подписки',
+  endpoint: 'Адрес проверки',
+  username: 'Логин',
+  password: 'Пароль',
+  environment: 'Режим (test или production)',
 };
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
-  'livekit.url': 'Адрес сервера — LIVEKIT_URL',
-  'livekit.apiKey': 'Ключ API — LIVEKIT_API_KEY',
-  'livekit.apiSecret': 'Секрет API — LIVEKIT_API_SECRET',
+  'livekit.url': 'Адрес сервера',
+  'livekit.apiKey': 'Ключ API',
+  'livekit.apiSecret': 'Секрет API',
+  'apns.privateKey': 'Содержимое файла ключа (.p8)',
+  'apns.teamId': 'ID команды Apple',
+  'aws_rekognition.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
+  'aws_rekognition.secretAccessKey': 'Секретный ключ доступа',
+  'fcm.clientEmail': 'Email сервисного аккаунта',
   'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
   'bunny_stream.apiKey': 'API-ключ библиотеки',
@@ -170,8 +201,95 @@ const FIELD_EN: Record<string, string> = {
   'storage.privateCdnKeyId': 'Public key ID',
   'storage.privateCdnPrivateKey': 'Private key (PEM)',
   'sentry.dsn': 'DSN',
+  'sentry.mobileDsn': 'DSN',
+  'sentry.adminDsn': 'DSN',
+  'stripe.publishableKey': 'Publishable key',
+  'apns.keyId': 'Key ID',
+  'apns.teamId': 'Team ID',
+  'apns.privateKey': 'Auth key (.p8 file)',
+  'livekit.url': 'Project URL',
+  'livekit.apiKey': 'API Key',
+  'livekit.apiSecret': 'API Secret',
+  'aws_rekognition.region': 'Region',
+  'aws_rekognition.accessKeyId': 'Access key ID',
+  'aws_rekognition.secretAccessKey': 'Secret access key',
+  'photodna.subscriptionKey': 'Ocp-Apim-Subscription-Key',
+  'photodna.endpoint': 'Endpoint',
+  'ncmec.username': 'Username',
+  'ncmec.password': 'Password',
+  'ncmec.environment': 'Environment',
   'cockroach_cloud.apiKey': 'API key',
   'cockroach_cloud.clusterId': 'Cluster ID',
+};
+
+/**
+ * The server variable (env / config key) each field falls back to: the name
+ * the developer and the hosting panel know it by. Shown next to the Russian
+ * label (owner 2026-10-22: original technical names next to the Russian ones).
+ * Mirrors `env:` in apps/api common/secrets/provider-registry.ts; a test
+ * keeps them in step.
+ */
+export const FIELD_ENV: Record<string, string> = {
+  'bunny_stream.libraryId': 'BUNNY_LIBRARY_ID',
+  'bunny_stream.cdnHostname': 'BUNNY_CDN_HOSTNAME',
+  'bunny_stream.apiKey': 'BUNNY_API_KEY',
+  'bunny_stream.tokenAuthKey': 'BUNNY_TOKEN_AUTH_KEY',
+  'bunny_stream.webhookToken': 'BUNNY_WEBHOOK_TOKEN',
+  'bunny_stream.readOnlyApiKey': 'BUNNY_READ_ONLY_API_KEY',
+  'google_translate.apiKey': 'GOOGLE_TRANSLATE_API_KEY',
+  'stripe.secretKey': 'STRIPE_SECRET_KEY',
+  'stripe.publishableKey': 'STRIPE_PUBLISHABLE_KEY',
+  'stripe.webhookSecret': 'STRIPE_WEBHOOK_SECRET',
+  'stripe.connectWebhookSecret': 'STRIPE_CONNECT_WEBHOOK_SECRET',
+  'stripe.priceId': 'STRIPE_PRICE_ID',
+  'stripe.priceSeatId': 'STRIPE_PRICE_SEAT_ID',
+  'stripe.priceYearlyId': 'STRIPE_PRICE_YEARLY_ID',
+  'twilio.accountSid': 'TWILIO_ACCOUNT_SID',
+  'twilio.authToken': 'TWILIO_AUTH_TOKEN',
+  'twilio.fromNumber': 'TWILIO_FROM_NUMBER',
+  'twilio.messagingServiceSid': 'TWILIO_MESSAGING_SERVICE_SID',
+  'twilio.androidAppHash': 'SMS_ANDROID_APP_HASH',
+  'ses.region': 'SES_REGION',
+  'ses.fromAddress': 'SES_FROM_ADDRESS',
+  'ses.accessKeyId': 'AWS_ACCESS_KEY_ID',
+  'ses.secretAccessKey': 'AWS_SECRET_ACCESS_KEY',
+  'fcm.projectId': 'FCM_PROJECT_ID',
+  'fcm.clientEmail': 'FCM_CLIENT_EMAIL',
+  'fcm.privateKey': 'FCM_PRIVATE_KEY',
+  'apns.keyId': 'APNS_KEY_ID',
+  'apns.teamId': 'APNS_TEAM_ID',
+  'apns.privateKey': 'APNS_PRIVATE_KEY',
+  'turn.urls': 'TURN_URLS',
+  'turn.secret': 'TURN_SECRET',
+  'turn.stunUrls': 'STUN_URLS',
+  'livekit.url': 'LIVEKIT_URL',
+  'livekit.apiKey': 'LIVEKIT_API_KEY',
+  'livekit.apiSecret': 'LIVEKIT_API_SECRET',
+  'persona.apiKey': 'PERSONA_API_KEY',
+  'google_signin.clientIds': 'GOOGLE_CLIENT_IDS',
+  'apple_signin.bundleIds': 'APPLE_BUNDLE_IDS',
+  'apple_signin.teamId': 'APPLE_TEAM_ID',
+  'ny_registry.appToken': 'NY_OPEN_DATA_APP_TOKEN',
+  'storage.region': 'S3_REGION',
+  'storage.bucketDocuments': 'S3_BUCKET_DOCUMENTS',
+  'storage.bucketMedia': 'S3_BUCKET_MEDIA',
+  'storage.accessKeyId': 'S3_ACCESS_KEY_ID',
+  'storage.secretAccessKey': 'S3_SECRET_ACCESS_KEY',
+  'storage.cdnBaseUrl': 'MEDIA_CDN_BASE_URL',
+  'storage.privateCdnDomain': 'CLOUDFRONT_PRIVATE_DOMAIN',
+  'storage.privateCdnKeyId': 'CLOUDFRONT_PRIVATE_KEY_ID',
+  'storage.privateCdnPrivateKey': 'CLOUDFRONT_PRIVATE_KEY_PEM',
+  'sentry.dsn': 'SENTRY_DSN',
+  'cockroach_cloud.apiKey': 'COCKROACH_CLOUD_API_KEY',
+  'cockroach_cloud.clusterId': 'COCKROACH_CLUSTER_ID',
+  'aws_rekognition.region': 'REKOGNITION_REGION',
+  'aws_rekognition.accessKeyId': 'REKOGNITION_ACCESS_KEY_ID',
+  'aws_rekognition.secretAccessKey': 'REKOGNITION_SECRET_ACCESS_KEY',
+  'photodna.subscriptionKey': 'PHOTODNA_SUBSCRIPTION_KEY',
+  'photodna.endpoint': 'PHOTODNA_ENDPOINT',
+  'ncmec.username': 'NCMEC_USERNAME',
+  'ncmec.password': 'NCMEC_PASSWORD',
+  'ncmec.environment': 'NCMEC_ENVIRONMENT',
 };
 
 export function fieldLabel(provider: string, name: string, fallback: string): string {
@@ -181,6 +299,12 @@ export function fieldLabel(provider: string, name: string, fallback: string): st
   // «ID ключа (только без роли)» → «ID ключа (Access key ID), только без роли»
   const at = ru.indexOf(' (');
   return at < 0 ? `${ru} (${en})` : `${ru.slice(0, at)} (${en}), ${ru.slice(at + 2, -1)}`;
+}
+/** The label with the server variable after it: «Регион (AWS Region) · SES_REGION». */
+export function fieldLabelWithKey(provider: string, name: string, fallback: string): string {
+  const label = fieldLabel(provider, name, fallback);
+  const env = FIELD_ENV[`${provider}.${name}`];
+  return env && !label.includes(env) ? `${label} · ${env}` : label;
 }
 export function fieldHint(hint: string | null | undefined): string | null {
   if (!hint) return null;

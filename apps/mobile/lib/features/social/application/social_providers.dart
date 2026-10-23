@@ -7,6 +7,7 @@ import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/saved_json.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -590,8 +591,12 @@ class CommentsNotifier extends PagedNotifier<Comment> {
   }
 
   @override
-  Future<CursorPage<Comment>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).comments(postId, cursor: cursor);
+  Future<CursorPage<Comment>> fetch(String? cursor) {
+    // Owner 2026-10-22 (guest browsing): the comments are read with an
+    // account (the API does not open them to a guest) — a «sign in».
+    if (ref.read(isGuestProvider)) return Future.error(guestSignInRequired());
+    return ref.read(socialRepositoryProvider).comments(postId, cursor: cursor);
+  }
 
   @override
   Object idOf(Comment item) => item.id;
@@ -706,8 +711,14 @@ final followListProvider = AsyncNotifierProvider.autoDispose
 
 class SuggestionsNotifier extends PagedNotifier<AttorneyRow> {
   @override
-  Future<CursorPage<AttorneyRow>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).suggestions(cursor: cursor);
+  Future<CursorPage<AttorneyRow>> fetch(String? cursor) async {
+    // Owner 2026-10-22 (guest browsing): «who to follow» is personal — a
+    // guest has none, and asks nothing.
+    if (ref.read(isGuestProvider)) {
+      return const CursorPage<AttorneyRow>(items: []);
+    }
+    return ref.read(socialRepositoryProvider).suggestions(cursor: cursor);
+  }
 
   @override
   Object idOf(AttorneyRow item) => item.id;

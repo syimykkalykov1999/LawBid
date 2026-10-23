@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
@@ -25,6 +26,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_prefetch.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
 
 /// Post skeletons for list loading states.
@@ -406,6 +408,31 @@ List<Widget> commentThreadSlivers(
               onReply: onReply,
             );
           },
+        ),
+      ],
+    AsyncError(:final error)
+        when error is ApiException && error.guest =>
+      [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              children: [
+                Text(
+                  t.t('guest.error.signIn'),
+                  textAlign: TextAlign.center,
+                  style: type.body.copyWith(color: colors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppButton(
+                  key: const ValueKey('guest-comments-sign-in'),
+                  label: t.t('guest.signIn'),
+                  height: AppSizes.touchTarget,
+                  onPressed: () => openSignIn(context, ref),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     AsyncError() => [

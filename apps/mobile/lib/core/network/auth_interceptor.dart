@@ -31,6 +31,11 @@ class AuthInterceptor extends Interceptor {
     final skipAuth = options.extra[RequestFlags.skipAuth] == true;
     if (!skipAuth && session != null) {
       options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    } else if (!skipAuth) {
+      // Owner 2026-10-22 (guest browsing): no token at all. The API serves
+      // the optional-auth reads to a guest as they are; nothing here may
+      // refresh or sign out (see [onError]).
+      options.extra[RequestFlags.guest] = true;
     }
     // Owner 2026-10-05 (docs/ops/demo-world.md): a demo session marks every
     // bearer request (logout included). Token-issuing calls (`skipAuth`,

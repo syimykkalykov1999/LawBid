@@ -288,8 +288,14 @@ async function expectOnePendingRunPerScheduler(queue: Queue): Promise<void> {
       const key = j.repeatJobKey ?? j.name;
       perKey.set(key, [...(perKey.get(key) ?? []), `${j.id}@${due}`]);
     }
+    // Two runs of one scheduler at DIFFERENT due times are consecutive
+    // runs of a short (1-minute) cron, not a duplicate registration; a
+    // real duplicate holds two jobs for the same due time.
     return [...perKey]
-      .filter(([, runs]) => runs.length > 1)
+      .filter(([, runs]) => {
+        const dues = runs.map((r) => r.split('@')[1]);
+        return new Set(dues).size < dues.length;
+      })
       .map(([key, runs]) => `${key}: ${runs.join(', ')}`);
   };
   const deadline = Date.now() + 15_000;

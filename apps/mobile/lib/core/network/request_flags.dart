@@ -30,6 +30,11 @@ abstract final class RequestFlags {
   /// token without it (or a real token with it) is a 401 server-side.
   static const demoHeader = 'X-LawBid-Demo';
 
+  /// Owner 2026-10-22 (guest browsing): AuthInterceptor stamps a request
+  /// sent with no bearer token (a guest on an optional-auth read). A 401 or
+  /// 429 on it is a «sign in» / «try later» note, never «session expired».
+  static const guest = 'guest';
+
   /// Internal: attempt counter RetryInterceptor keeps across re-fetches.
   static const retryAttempt = 'retryAttempt';
 

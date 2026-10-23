@@ -727,6 +727,8 @@ String callStatusText(Translator t, CallSession s) {
           return t.t('call.micDenied');
         case kRemovedFromCall:
           return t.t('call.removed');
+        case kCallUpdateApp:
+          return t.t('call.updateApp');
         case 'CALL_NOT_ALLOWED':
           return t.t('call.notAllowed');
         case 'SUBSCRIPTION_REQUIRED':
