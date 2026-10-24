@@ -16,13 +16,11 @@
     "legal-security",
     "link-preview",
     "magic-link",
-    "owner-admin-flex",
     "owner-admin-roles",
     "owner-app-events",
     "owner-bulk-moderation",
     "owner-crash-reports",
     "owner-document-templates",
-    "owner-economy",
     "owner-keys-payroll",
     "owner-outreach",
     "owner-partners",
@@ -839,6 +837,20 @@
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
       "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
       "firstFailingTest": "Verification (e2e) — docs/03 stages 3.3–3.4 stage 3.3 — attorney requests allows only one open reque"
+    },
+    {
+      "spec": "owner-admin-flex",
+      "kind": "write",
+      "reason": "Bulk case close/archive/restore from admin touches case rows and global audit/counters in one transaction; fails in CI two-DB mode (PrismaClientKnownRequestError).",
+      "fixedBy": "step 7",
+      "firstFailure": "bulk closes, archives and restores cases"
+    },
+    {
+      "spec": "owner-economy",
+      "kind": "read",
+      "reason": "Economy guard cycle reads and writes global settings plus per-shard usage in one flow; flaky across databases in CI.",
+      "fixedBy": "steps 6-8",
+      "firstFailure": "guard cycle: over the rule floors the caps, back under restores them"
     }
   ],
   "environmentOnly": [
