@@ -57,6 +57,9 @@ export const TOPICS: readonly TopicDef[] = [
     category: 'new_cases',
     attorneyOnly: true,
   },
+  // Owner 2026-10-23: new public questions in my practice. Off until the
+  // person turns it on (Cases → Questions), for everyone, old users too.
+  { key: 'legalQa', block: 'cases', attorneyOnly: true },
   { key: 'caseMessages', block: 'cases' },
   { key: 'caseDeadlines', block: 'cases' },
   { key: 'casePayments', block: 'cases' },
@@ -150,7 +153,7 @@ export const TYPE_TOPIC: Record<NotificationType, string> = {
   task_purge_soon: 'tasks',
   new_case: 'newCases',
   new_urgent_case: 'newCases',
-  legal_question_new: 'newCases',
+  legal_question_new: 'legalQa',
   // Chats.
   new_message: 'messages',
   assistant_result: 'messages',
@@ -233,8 +236,16 @@ export function topicOn(
     return false;
   }
   if (def.category) return categoryOn(def.category);
-  return topics[topic] ?? categoryOn(TOPIC_FALLBACK[topic] ?? 'system');
+  return (
+    topics[topic] ??
+    (TOPIC_DEFAULT_OFF.has(topic)
+      ? false
+      : categoryOn(TOPIC_FALLBACK[topic] ?? 'system'))
+  );
 }
+
+/** Finer switches that start OFF whatever their category says (opt-in). */
+export const TOPIC_DEFAULT_OFF: ReadonlySet<string> = new Set(['legalQa']);
 
 /** The category a finer switch shows until it is set (the old category
  * of its notifications). */
@@ -248,6 +259,7 @@ export const TOPIC_FALLBACK: Record<string, NotificationCategory> = {
   reactions: 'social',
   bidNew: 'bids',
   bidDecision: 'bids',
+  legalQa: 'cases',
   caseMessages: 'cases',
   caseDeadlines: 'cases',
   casePayments: 'cases',

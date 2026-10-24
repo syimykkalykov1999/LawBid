@@ -320,7 +320,7 @@ class _IncomingBanner extends ConsumerWidget {
               const SizedBox(width: AppSpacing.sm),
               round(
                 AppIcons.callEndRounded,
-                colors.danger,
+                colors.dangerFill,
                 t.t('call.decline'),
                 () => unawaited(call.decline()),
               ),

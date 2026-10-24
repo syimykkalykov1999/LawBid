@@ -664,9 +664,6 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
           license_status: 'verified',
         },
       });
-      await prisma.notificationSetting.create({
-        data: { user_id: att.id, category: 'new_cases', push_enabled: true },
-      });
       const q = await prisma.legalQuestion.create({
         data: {
           author_id: cl.id,
@@ -691,6 +688,13 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
         .set(admin.auth)
         .send({ value: true })
         .expect(200);
+      // Owner 2026-10-23: even with the global switch on, nobody gets it
+      // until they turn «Questions» on themselves (off for everyone).
+      expect(await qa.alertAttorneys(q)).toBe(0);
+      await prisma.user.update({
+        where: { id: att.id },
+        data: { notif_topics: { legalQa: true } },
+      });
       const n = await qa.alertAttorneys(q);
       expect(n).toBe(1);
       expect(

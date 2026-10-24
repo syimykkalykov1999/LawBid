@@ -13,6 +13,7 @@ import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -73,23 +74,29 @@ Future<void> openContactInfo(
   BuildContext context, {
   required String conversationId,
   VoidCallback? onCall,
+  VoidCallback? onVideoCall,
 }) =>
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => webPageRoute(
-          ContactInfoScreen(conversationId: conversationId, onCall: onCall),
+          ContactInfoScreen(
+            conversationId: conversationId,
+            onCall: onCall,
+            onVideoCall: onVideoCall,
+          ),
         ),
       ),
     );
 
 /// Owner 2026-10-18 (WhatsApp «Данные контакта»): the big photo, name and
-/// status, round actions (Profile · Audio), «Медиа, ссылки и документы»
+/// status, round actions (Profile · Audio · Video), «Медиа, ссылки и документы»
 /// with the latest thumbnails, the case, mute / pin / note, then block and
 /// report. A client hidden before acceptance shows no photo and no profile.
 class ContactInfoScreen extends ConsumerStatefulWidget {
   const ContactInfoScreen({
     required this.conversationId,
     this.onCall,
+    this.onVideoCall,
     super.key,
   });
 
@@ -97,6 +104,10 @@ class ContactInfoScreen extends ConsumerStatefulWidget {
 
   /// Starts the audio call (the conversation screen owns call plumbing).
   final VoidCallback? onCall;
+
+  /// Starts the video call (owner 2026-10-23): the same rules as [onCall]
+  /// plus the `video_calls` switch.
+  final VoidCallback? onVideoCall;
 
   @override
   ConsumerState<ContactInfoScreen> createState() => _ContactInfoScreenState();
@@ -231,6 +242,9 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
     final username = p.username;
     final canProfile = !hidden && username != null;
     final canCall = widget.onCall != null && chatAudioCallAllowed(ref, c);
+    final canVideo = widget.onVideoCall != null &&
+        canCall &&
+        ref.watch(videoCallsEnabledProvider);
     final photo = hidden ? null : (p.avatarFullUrl ?? p.avatarUrl);
     final blocked =
         ref.watch(blockedIdsProvider).value?.contains(p.id) ?? false;
@@ -329,7 +343,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                 ],
               ),
             ),
-          if (canProfile || canCall) ...[
+          if (canProfile || canCall || canVideo) ...[
             const SizedBox(height: AppSpacing.xl),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -352,6 +366,13 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                     icon: AppIcons.callOutlined,
                     label: t.t('contact.audio'),
                     onTap: widget.onCall!,
+                  ),
+                if (canVideo)
+                  _RoundAction(
+                    key: const ValueKey('contact-video'),
+                    icon: AppIcons.videoCameraOutlined,
+                    label: t.t('contact.video'),
+                    onTap: widget.onVideoCall!,
                   ),
               ],
             ),

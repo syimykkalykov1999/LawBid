@@ -84,6 +84,10 @@ All of them reach Dart as `popRoute`. `SystemBackGuard` (`system_back.dart`)
 runs after the router:
 
 1. the router closes the top page or dialog (a screen's `PopScope` is asked);
+   then the visible navigators are asked once more, deepest first: the
+   router skips the first route of a tab, so a tab screen with its own
+   `PopScope(canPop: false)` (the feed's Chats page -> back to the feed,
+   one press, no exit hint) is only reached by this second ask;
 2. else on Search / Mine / Profile, or on a signed-in screen that stands
    alone after a `context.go` (the chat list): to the first tab (Feed);
 3. else on the first tab: a hint "press back again to exit"; the second

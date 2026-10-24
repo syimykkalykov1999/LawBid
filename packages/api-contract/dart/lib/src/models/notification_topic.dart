@@ -36,6 +36,8 @@ enum NotificationTopic {
   bidDecision('bidDecision'),
   @JsonValue('newCases')
   newCases('newCases'),
+  @JsonValue('legalQa')
+  legalQa('legalQa'),
   @JsonValue('caseMessages')
   caseMessages('caseMessages'),
   @JsonValue('caseDeadlines')

@@ -30,6 +30,15 @@ describe('notification topics', () => {
     }
   });
 
+  it('Q&A questions are opt-in: off until set, whatever the category says', () => {
+    expect(TYPE_TOPIC.legal_question_new).toBe('legalQa');
+    expect(topicOn('legalQa', {}, cats())).toBe(false);
+    expect(topicOn('legalQa', {}, () => true)).toBe(false);
+    expect(topicOn('legalQa', { legalQa: true }, cats())).toBe(true);
+    // A reply to my own question stays a personal case update.
+    expect(TYPE_TOPIC.legal_answer_update).toBe('caseUpdates');
+  });
+
   it('only the serious system notices are locked', () => {
     const locked = (Object.keys(TYPE_TOPIC) as NotificationType[])
       .filter((t) => TOPIC_BY_KEY.get(TYPE_TOPIC[t])?.locked)
