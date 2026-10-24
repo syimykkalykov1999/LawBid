@@ -73,34 +73,48 @@ Future<int?> showChoiceSheet(
       builder: (ctx) {
         final colors = Theme.of(ctx).extension<AppColorTokens>()!;
         final typography = Theme.of(ctx).extension<AppTypographyTokens>()!;
+        final height = MediaQuery.sizeOf(ctx).height;
+        // Owner 2026-10-24: a picker is a proper sheet — raised to about the
+        // middle of the screen (a short list), with a handle and a roomy
+        // title; a long list scrolls under the title.
         return SafeArea(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
+              minHeight: height * 0.3,
+              maxHeight: height * 0.6,
             ),
-            child: ListView(
-              shrinkWrap: true,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const AppSheetHandle(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.screenSide,
-                    0,
+                    AppSpacing.xs,
                     AppSpacing.screenSide,
-                    AppSpacing.sm,
+                    AppSpacing.md,
                   ),
                   child: Text(
                     title,
                     style: typography.titleMedium.copyWith(color: colors.text),
                   ),
                 ),
-                for (final (i, l) in labels.indexed)
-                  AppListRow(
-                    key: ValueKey('$keyPrefix-$i'),
-                    label: l,
-                    selected: i == selected,
-                    showChevron: false,
-                    onTap: () => Navigator.of(ctx).pop(i),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    children: [
+                      for (final (i, l) in labels.indexed)
+                        AppListRow(
+                          key: ValueKey('$keyPrefix-$i'),
+                          label: l,
+                          selected: i == selected,
+                          showChevron: false,
+                          onTap: () => Navigator.of(ctx).pop(i),
+                        ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),
