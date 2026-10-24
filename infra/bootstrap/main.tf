@@ -29,6 +29,11 @@ variable "github_repo" {
   default     = "syimykkalykov1999/LawBid"
   description = "owner/name of the repository whose Actions may deploy."
 }
+variable "github_repo_immutable" {
+  type        = string
+  default     = "syimykkalykov1999@91685781/LawBid@1400978845"
+  description = "The repository has use_immutable_subject on: GitHub signs OIDC tokens as repo:<owner>@<owner_id>/<repo>@<repo_id>:... (gh api repos/OWNER/REPO/actions/oidc/customization/sub)."
+}
 variable "env" {
   type    = string
   default = "prod"
@@ -172,7 +177,9 @@ data "aws_iam_policy_document" "deploy_trust" {
         "repo:${var.github_repo}:ref:refs/heads/main",
         "repo:${var.github_repo}:environment:production",
         "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
         "repo:${lower(var.github_repo)}:environment:production",
+        "repo:${var.github_repo_immutable}:environment:production",
       ]
     }
   }
@@ -275,6 +282,7 @@ data "aws_iam_policy_document" "inventory_trust" {
       values = [
         "repo:${var.github_repo}:ref:refs/heads/main",
         "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
       ]
     }
   }
@@ -321,6 +329,7 @@ data "aws_iam_policy_document" "cleanup_trust" {
       values = [
         "repo:${var.github_repo}:environment:aws-cleanup",
         "repo:${lower(var.github_repo)}:environment:aws-cleanup",
+        "repo:${var.github_repo_immutable}:environment:aws-cleanup",
       ]
     }
   }
