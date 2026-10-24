@@ -15,6 +15,12 @@ ses_from_address  = "no-reply@lawbid.dev"
 api_image         = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
 admin_image       = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
 clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4"
+# Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md, runbook
+# docs/runbooks/DB_POOLER.md). Order: apply infra/bootstrap (ECR repo) -> run
+# the "Build PgBouncer" workflow -> set the two lines below -> terraform apply.
+# Rollback: db_pooler_enabled = false -> terraform apply.
+db_pooler_enabled = false # true after the image exists
+pgbouncer_image   = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-pgbouncer:1.24.0-1"
 alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.dev has no inbox yet)
 # Subscription prices and all third-party keys are set in the admin.
 
@@ -100,3 +106,25 @@ web_create_certificate = true
 # lines out and the API keeps presigned S3 links.
 # documents_cdn_public_key_pem = file("cloudfront-signing.pub.pem")
 # extra_secrets                = ["CLOUDFRONT_PRIVATE_KEY_PEM"]
+
+# --- database autoscale (owner 2026-10-24, docs/runbooks/db-autoscale.md) ------
+# On by default for the database named in existing_database_identifier. Idle
+# until Multi-AZ is on (a pending modification pauses it). Optional:
+# db_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
+# db_autoscale_min_class = "db.t4g.micro"
+# db_autoscale_enabled   = false              # switch the whole thing off
+
+# --- Batch A (2026-10-24, docs/runbooks/batch-a-owner.md): all additive, none applied yet ---
+# pagerduty_https_endpoint = "https://events.pagerduty.com/integration/REPLACE/enqueue" # secret: only in the Secrets Manager tfvars
+# backup_age_missing_data  = "notBreaching" # until the first backup job is COMPLETED, then "breaching"
+# backup_vault_lock_mode   = "governance"   # "compliance" only after a passing restore drill
+# audit_logs_enabled       = true           # keep audit_logs_object_lock = false (S3 server access logs cannot go to an Object Lock bucket)
+# documents_data_events    = true
+# waf_bot_control_enabled  = true           # count mode; waf_bot_control_block stays false for 1-2 weeks
+# budget_forecast_thresholds   = [80, 100]
+# create_anomaly_monitor       = false
+# anomaly_existing_monitor_arn = "arn:aws:ce::047754151252:anomalymonitor/22314789-2e8e-43a5-8360-f93611944718"
+# anomaly_extra_emails         = ["REPLACE@gmail.com"]
+# redis_memory_alarm_percent   = 70   # default
+# nat_traffic_alarm_gb_per_day = 100  # default; 0 = off

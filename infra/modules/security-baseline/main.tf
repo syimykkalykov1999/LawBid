@@ -86,6 +86,16 @@ variable "documents_bucket_arn" {
   default     = ""
   description = "ARN of the documents bucket (for documents_data_events)."
 }
+variable "guardduty_ebs_malware" {
+  type        = bool
+  default     = false
+  description = "GuardDuty Malware Protection for EC2 (EBS scan after a finding). Pay per GB scanned ($0.03/GB, us-east-1, 2026-10); we run Fargate only, so little to scan."
+}
+variable "guardduty_runtime_monitoring" {
+  type        = bool
+  default     = false
+  description = "GuardDuty Runtime Monitoring for ECS Fargate with managed agent (a sidecar is added to each task at start). $1.50 per vCPU per month for the first 500 vCPU (us-east-1, 2026-10), i.e. about $5-50 for 3-30 tasks of 0.5-1 vCPU. Changes how tasks start: test in staging first."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -351,15 +361,22 @@ resource "aws_guardduty_detector_feature" "rds_login" {
 resource "aws_guardduty_detector_feature" "malware" {
   detector_id = aws_guardduty_detector.this.id
   name        = "EBS_MALWARE_PROTECTION"
-  status      = "DISABLED"
+  status      = var.guardduty_ebs_malware ? "ENABLED" : "DISABLED"
   depends_on  = [aws_guardduty_detector_feature.rds_login]
 }
 
 resource "aws_guardduty_detector_feature" "runtime" {
   detector_id = aws_guardduty_detector.this.id
   name        = "RUNTIME_MONITORING"
-  status      = "DISABLED"
-  depends_on  = [aws_guardduty_detector_feature.malware]
+  status      = var.guardduty_runtime_monitoring ? "ENABLED" : "DISABLED"
+  dynamic "additional_configuration" {
+    for_each = var.guardduty_runtime_monitoring ? ["ECS_FARGATE_AGENT_MANAGEMENT"] : []
+    content {
+      name   = additional_configuration.value
+      status = "ENABLED"
+    }
+  }
+  depends_on = [aws_guardduty_detector_feature.malware]
 }
 
 # --- IAM Access Analyzer, password policy ---------------------------------

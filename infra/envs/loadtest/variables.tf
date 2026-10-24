@@ -80,6 +80,17 @@ variable "admin_image" {
   type    = string
   default = "unset"
 }
+# Owner 2026-10-24: the load tests run THROUGH our own PgBouncer (on by default
+# here), so they prove it. Turn it off to compare with the direct connection.
+variable "db_pooler_enabled" {
+  type    = bool
+  default = true
+}
+variable "pgbouncer_image" {
+  type        = string
+  default     = ""
+  description = "<ECR_REGISTRY>/lawbid-pgbouncer:<tag>; the workflow passes it."
+}
 variable "clamav_image" {
   type    = string
   default = "clamav/clamav:1.4"
@@ -91,6 +102,15 @@ variable "cpu_architecture" {
 variable "alert_emails" {
   type    = list(string)
   default = ["loadtest@lawbid-loadtest.invalid"]
+}
+
+# Database autoscale (docs/architecture/DB_AUTOSCALE.md) is OFF for load tests:
+# the test measures a fixed size. Turning it on needs infra/bootstrap-loadtest
+# to allow lambda:*, scheduler:* and iam:PassRole to lambda / scheduler on
+# lawbid-loadtest-* (re-apply the bootstrap first); it also needs Multi-AZ.
+variable "db_autoscale_enabled" {
+  type    = bool
+  default = false
 }
 
 # --- size (profiles/*.tfvars) --------------------------------------------------------

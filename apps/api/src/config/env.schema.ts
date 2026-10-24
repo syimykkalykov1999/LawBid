@@ -93,6 +93,12 @@ export const envSchema = z
     // database. Unset → `<DATABASE_URL database>_demo`, created and
     // migrated by the API itself; `off` → no demo world.
     DEMO_DATABASE_URL: z.string().min(1).optional(),
+    // Own PgBouncer (docs/architecture/DB_POOLER.md). Set by infra when
+    // `db_pooler_enabled = true`: DATABASE_URL is sent to this host:port
+    // (src/prisma/pooler-url.ts). Unset = direct database connection.
+    DB_POOLER_HOST: z.string().min(1).optional(),
+    DB_POOLER_PORT: z.coerce.number().int().positive().optional(),
+    DB_POOLER_QUERY: z.string().optional(),
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
     // How long one Redis command may wait before failing. The e2e harness
     // raises it: a busy CI runner stalls the event loop past 2 s while an

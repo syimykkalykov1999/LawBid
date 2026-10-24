@@ -251,7 +251,7 @@ variable "audit_logs_retention_days" {
 variable "audit_logs_object_lock" {
   type        = bool
   default     = false
-  description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs."
+  description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs. WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
 variable "vpc_flow_logs_traffic" {
   type    = string
@@ -439,6 +439,68 @@ variable "uptime_check" {
   type        = string
   default     = "synthetics"
   description = "External uptime probe: \"synthetics\" (CloudWatch canary, ≈ $10/month) or \"route53\" (HTTPS health check, ≈ $2/month, us-east-1 only). Off: uptime_canary_enabled = false."
+}
+# --- Batch A (docs/architecture/P0_AND_COST_PLAN.md): paging, budgets, NAT, backup alarm ---
+variable "pagerduty_https_endpoint" {
+  type        = string
+  default     = null
+  description = "Batch A item 1: PagerDuty Events API integration URL (https://events.pagerduty.com/integration/<key>/enqueue) for the CRITICAL topic (the 6 SLO composite alarms). Secret: lives only in the Secrets Manager tfvars. null = no phone paging. Runbook docs/runbooks/paging.md."
+  sensitive   = true
+}
+variable "critical_email_too" {
+  type        = bool
+  default     = true
+  description = "E-mail alert_emails from the critical topic as well (a second copy of the page)."
+}
+variable "redis_memory_alarm_percent" {
+  type        = number
+  default     = 70
+  description = "Redis (queue node) memory alarm threshold, percent."
+}
+variable "nat_traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 100
+  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
+}
+variable "budget_forecast_thresholds" {
+  type        = list(number)
+  default     = [80, 100]
+  description = "AWS Budgets FORECASTED alerts, percent of monthly_budget_usd."
+}
+variable "budget_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Also send the budget notifications to the alerts SNS topic (Slack/e-mail subscribers), not only to alert_emails."
+}
+variable "anomaly_existing_monitor_arn" {
+  type        = string
+  default     = ""
+  description = "With create_anomaly_monitor = false: ARN of the account's existing service anomaly monitor (aws ce get-anomaly-monitors). Together with anomaly_extra_emails adds a subscription with threshold anomaly_threshold_usd."
+}
+variable "anomaly_extra_emails" {
+  type        = list(string)
+  default     = []
+  description = "E-mails of the extra Cost Anomaly subscription on the existing monitor."
+}
+variable "anomaly_threshold_usd" {
+  type        = number
+  default     = 20
+  description = "Cost anomaly e-mail threshold (USD impact)."
+}
+variable "backup_age_missing_data" {
+  type        = string
+  default     = "breaching"
+  description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
+}
+variable "guardduty_ebs_malware" {
+  type        = bool
+  default     = false
+  description = "GuardDuty EBS malware protection ($0.03/GB scanned, only after a finding). We run Fargate: leave off."
+}
+variable "guardduty_runtime_monitoring" {
+  type        = bool
+  default     = false
+  description = "GuardDuty Runtime Monitoring on Fargate, $1.50/vCPU/month (about $5-50). Changes task start (sidecar): staging first."
 }
 variable "create_anomaly_monitor" {
   type    = bool
@@ -809,8 +871,9 @@ module "backup" {
   copy_account_vault_arn = var.backup_copy_account_id == "" ? "" : (
     "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
-  alerts_topic_arn = module.monitoring.alerts_topic_arn
-  tags             = local.tags
+  alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  backup_age_missing_data = var.backup_age_missing_data
+  tags                    = local.tags
 
   vault_lock_mode             = var.backup_vault_lock_mode
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
@@ -826,6 +889,42 @@ module "secrets" {
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
+# --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) --
+variable "db_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "The database grows one size under load and shrinks one size after 3 quiet days, by itself (modules/db-autoscale). Needs a database named by create_database or existing_database_identifier."
+}
+variable "db_autoscale_min_class" {
+  type    = string
+  default = "db.t4g.micro"
+}
+variable "db_autoscale_max_class" {
+  type        = string
+  default     = "db.r7g.xlarge"
+  description = "Ceiling for the bill. Above it the owner gets an e-mail."
+}
+variable "db_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run | off. Later changes are made in SSM (docs/runbooks/db-autoscale.md)."
+}
+variable "db_autoscale_ladder" {
+  type = list(string)
+  default = [
+    "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
+    "db.r7g.large", "db.r7g.xlarge", "db.r7g.2xlarge",
+  ]
+}
+variable "db_autoscale_tuning" {
+  type    = map(number)
+  default = {}
+}
+
+locals {
+  db_identifier = var.create_database ? "${local.name}-postgres" : var.existing_database_identifier
+}
+
 # --- database connection budget (scale audit 2026-10-23) ---------------------
 # Every API / worker task keeps DB_POOL_SIZE connections (Prisma). Before
 # this, the pool was a fixed 10: at 20 API + 10 worker tasks that is 300
@@ -838,8 +937,51 @@ variable "database_max_connections" {
   description = "max_connections of the database. 0 = estimate from database_instance_class with the RDS default formula (memory / 9531392); set it when the database is not ours (create_database = false) or the parameter group changes it."
 }
 
+# --- own connection pooler (docs/architecture/DB_POOLER.md) -------------------------
+variable "db_pooler_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: run our own PgBouncer between the app and the database. true: api / worker connect to it (DB_POOLER_HOST), so up to 70 tasks never exhaust the database connections. false (default): direct DATABASE_URL, exactly as before - this is the rollback switch."
+}
+variable "pgbouncer_image" {
+  type        = string
+  default     = ""
+  description = "ECR image of the pooler: <registry>/lawbid-pgbouncer:<tag> (build it with .github/workflows/build-pgbouncer.yml). Required when db_pooler_enabled."
+}
+variable "pgbouncer_min_tasks" {
+  type    = number
+  default = 2
+}
+variable "pgbouncer_max_tasks" {
+  type        = number
+  default     = 4
+  description = "CPU autoscaling ceiling of the pooler. The database budget is split by this number, so a higher ceiling means smaller pools per task."
+}
+variable "pgbouncer_cpu" {
+  type    = number
+  default = 512
+}
+variable "pgbouncer_memory" {
+  type    = number
+  default = 1024
+}
+variable "pgbouncer_reserve_pool_size" {
+  type        = number
+  default     = 3
+  description = "Extra database connections per pooler task, used only when clients already waited 3 s."
+}
+variable "db_pooler_max_client_conn" {
+  type        = number
+  default     = 5000
+  description = "Client connections one pooler task accepts (every app task holds up to 10)."
+}
+variable "pgbouncer_query_wait_timeout" {
+  type    = number
+  default = 30
+}
+
 locals {
-  db_memory_gib = lookup({
+  db_memory_gib = {
     "db.t4g.micro" = 1, "db.t4g.small" = 2, "db.t4g.medium" = 4,
     "db.t4g.large" = 8, "db.t4g.xlarge" = 16, "db.t4g.2xlarge" = 32,
     "db.t3.medium" = 4, "db.t3.large" = 8,
@@ -847,20 +989,52 @@ locals {
     "db.m7g.large" = 8, "db.m7g.xlarge" = 16, "db.m7g.2xlarge" = 32,
     "db.r6g.large" = 16, "db.r6g.xlarge" = 32, "db.r6g.2xlarge" = 64,
     "db.r7g.large" = 16, "db.r7g.xlarge" = 32, "db.r7g.2xlarge" = 64,
-  }, var.database_instance_class, 4)
+  }
+  # Owner 2026-10-24: with db_autoscale_enabled the database changes size by
+  # itself. The pool must be safe at the SMALLEST size it can shrink to
+  # (db_autoscale_min_class); the check below asks only that the LARGEST size
+  # (db_autoscale_max_class) can carry the task ceiling at all.
+  db_autoscale_on    = var.db_autoscale_enabled && local.db_identifier != ""
+  db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
+  db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
+  db_pool_memory_gib = lookup(local.db_memory_gib, local.db_pool_class, 4)
+  db_ceil_memory_gib = lookup(local.db_memory_gib, local.db_ceiling_class, 4)
   # RDS: LEAST(DBInstanceClassMemory / 9531392, 5000); the usable memory is
   # about 88 % of the instance memory.
-  db_max_connections = var.database_max_connections > 0 ? var.database_max_connections : min(5000, floor(local.db_memory_gib * 1073741824 * 0.88 / 9531392))
+  db_max_connections     = var.database_max_connections > 0 ? var.database_max_connections : min(5000, floor(local.db_pool_memory_gib * 1073741824 * 0.88 / 9531392))
+  db_ceiling_connections = var.database_max_connections > 0 ? var.database_max_connections : min(5000, floor(local.db_ceil_memory_gib * 1073741824 * 0.88 / 9531392))
   # Rolling deploy: up to twice the tasks run together.
   db_peak_tasks = 2 * (var.api_max_tasks + var.worker_max_tasks)
   # 80 % of max_connections shared by the peak tasks; 3..10 per task.
-  db_pool_size = max(3, min(10, floor(0.8 * local.db_max_connections / local.db_peak_tasks)))
+  direct_pool_size = max(3, min(10, floor(0.8 * local.db_max_connections / local.db_peak_tasks)))
+
+  # --- own PgBouncer (db_pooler_enabled; docs/architecture/DB_POOLER.md) -------
+  # App tasks then connect to the pooler, which keeps a FIXED number of
+  # database connections: pgbouncer_max_tasks x (pool + reserve). 70 % of
+  # max_connections is given to it; the other 30 % stay for the direct users
+  # (migrate task, retention / demo roles, the admin, monitoring, superuser
+  # reserve). The app-side Prisma pool is then cheap (it only holds
+  # connections to the pooler), so it is 10 per task.
+  db_pooler_budget         = floor(0.7 * local.db_max_connections)
+  pgb_server_per_task      = min(200, floor(local.db_pooler_budget / var.pgbouncer_max_tasks))
+  pgb_reserve              = var.pgbouncer_reserve_pool_size
+  pgb_pool_size            = local.pgb_server_per_task - local.pgb_reserve
+  pgb_server_connections   = var.pgbouncer_max_tasks * (local.pgb_pool_size + local.pgb_reserve)
+  db_pool_size             = var.db_pooler_enabled ? 10 : local.direct_pool_size
+  pgb_max_clients_possible = local.db_peak_tasks * 10 # every app task fully busy, a deploy at the same time
 }
 
 check "db_connection_budget" {
   assert {
-    condition     = local.db_pool_size * local.db_peak_tasks <= local.db_max_connections
-    error_message = "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts: lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or put a connection pooler (RDS Proxy / PgBouncer) in front."
+    condition = var.db_pooler_enabled ? (
+      var.pgbouncer_image != "" &&
+      local.pgb_pool_size >= 5 &&
+      local.pgb_server_connections <= local.db_pooler_budget &&
+      local.pgb_max_clients_possible <= var.db_pooler_max_client_conn
+      ) : (
+      local.direct_pool_size * local.db_peak_tasks <= local.db_ceiling_connections
+    )
+    error_message = var.db_pooler_enabled ? "db_pooler_enabled = true needs: pgbouncer_image set (ECR lawbid-pgbouncer, .github/workflows/build-pgbouncer.yml); at least 5 database connections per pooler task after the reserve (pgbouncer_max_tasks too high or the database too small); and db_pooler_max_client_conn >= 10 x (api_max_tasks + worker_max_tasks) x 2." : "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts (with db_autoscale_enabled: even at db_autoscale_max_class): lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or turn on our own pooler (db_pooler_enabled = true, docs/architecture/DB_POOLER.md)."
   }
 }
 
@@ -914,7 +1088,7 @@ locals {
     # database and Redis the admin may raise one tier.
     OPS_API_TASK_USD    = tostring(local.api_task_usd)
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
-    OPS_DB_INSTANCE     = var.create_database ? "${local.name}-postgres" : ""
+    OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
     OPS_REDIS_GROUP     = "${local.name}-redis"
     OPS_BUDGET_NAME     = "${local.name}-monthly"
     OPS_AWS_ACCOUNT_ID  = data.aws_caller_identity.current.account_id
@@ -932,6 +1106,45 @@ locals {
   )
 }
 
+# --- own connection pooler: PgBouncer service, Cloud Map name, alarms ----------------
+module "pgbouncer" {
+  count  = var.db_pooler_enabled ? 1 : 0
+  source = "../pgbouncer"
+
+  name                       = local.name
+  vpc_id                     = module.network.vpc_id
+  private_subnet_ids         = module.network.private_subnet_ids
+  cluster_arn                = module.ecs.cluster_arn
+  cluster_name               = module.ecs.cluster_name
+  client_security_group_id   = aws_security_group.tasks.id
+  database_security_group_id = var.create_database ? module.postgres[0].security_group_id : ""
+  database_url_secret_arn    = module.secrets.arns["DATABASE_URL"]
+  kms_key_arn                = module.kms.key_arn
+  image                      = var.pgbouncer_image
+  cpu_architecture           = var.cpu_architecture
+  cpu                        = var.pgbouncer_cpu
+  memory                     = var.pgbouncer_memory
+  min_tasks                  = var.pgbouncer_min_tasks
+  max_tasks                  = var.pgbouncer_max_tasks
+  pool_size                  = local.pgb_pool_size
+  reserve_pool_size          = local.pgb_reserve
+  max_client_conn            = var.db_pooler_max_client_conn
+  query_wait_timeout         = var.pgbouncer_query_wait_timeout
+  metrics_namespace          = "LawBid/${local.name}/PgBouncer"
+  alarm_actions              = [module.monitoring.alerts_topic_arn]
+  runbook_url                = "${var.runbook_base_url}/db-pooler.md"
+  tags                       = local.tags
+}
+
+# What the api / worker get when the pooler is on (src/prisma/pooler-url.ts
+# swaps host and port of DATABASE_URL; the secret itself is untouched).
+locals {
+  db_pooler_env = var.db_pooler_enabled ? {
+    DB_POOLER_HOST = module.pgbouncer[0].endpoint
+    DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
+  } : {}
+}
+
 module "ecs" {
   source                   = "../ecs"
   name                     = local.name
@@ -944,7 +1157,7 @@ module "ecs" {
   api_image                = var.api_image
   admin_image              = var.admin_image
   kms_key_arn              = module.kms.key_arn
-  api_env                  = local.api_env
+  api_env                  = merge(local.api_env, local.db_pooler_env)
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
@@ -1068,32 +1281,70 @@ module "budget" {
   alert_emails           = var.alert_emails
   create_anomaly_monitor = var.create_anomaly_monitor
   tags                   = local.tags
+
+  forecast_thresholds          = var.budget_forecast_thresholds
+  subscriber_sns_topic_arns    = var.budget_to_alerts_topic ? [module.monitoring.alerts_topic_arn] : []
+  anomaly_threshold_usd        = var.anomaly_threshold_usd
+  anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
+  anomaly_extra_emails         = var.anomaly_extra_emails
 }
 
 module "monitoring" {
-  source                      = "../monitoring"
-  name                        = local.name
-  alert_emails                = var.alert_emails
-  slack_webhook_url           = var.slack_webhook_url
-  alb_arn_suffix              = module.alb.arn_suffix
-  api_target_group_arn_suffix = module.alb.api_target_group_arn_suffix
-  cluster_name                = module.ecs.cluster_name
-  api_service_name            = module.ecs.api_service_name
-  worker_service_name         = module.ecs.worker_service_name
-  redis_replication_group_id  = "${local.name}-redis"
-  redis_replicas              = var.redis_replicas
-  db_instance_id              = var.create_database ? "${local.name}-postgres" : ""
-  db_max_connections          = local.db_max_connections
-  api_log_group               = module.ecs.log_group_names["api"]
-  worker_log_group            = module.ecs.log_group_names["worker"]
-  p95_target_ms               = var.p95_target_ms
-  runbook_base_url            = var.runbook_base_url
-  kms_key_arn                 = module.kms.key_arn
+  source                       = "../monitoring"
+  name                         = local.name
+  alert_emails                 = var.alert_emails
+  slack_webhook_url            = var.slack_webhook_url
+  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
+  critical_email_too           = var.critical_email_too
+  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
+  nat_gateway_ids              = module.network.nat_gateway_ids
+  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
+  alb_arn_suffix               = module.alb.arn_suffix
+  api_target_group_arn_suffix  = module.alb.api_target_group_arn_suffix
+  cluster_name                 = module.ecs.cluster_name
+  api_service_name             = module.ecs.api_service_name
+  worker_service_name          = module.ecs.worker_service_name
+  redis_replication_group_id   = "${local.name}-redis"
+  redis_replicas               = var.redis_replicas
+  db_instance_id               = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections           = local.db_max_connections
+  api_log_group                = module.ecs.log_group_names["api"]
+  worker_log_group             = module.ecs.log_group_names["worker"]
+  p95_target_ms                = var.p95_target_ms
+  runbook_base_url             = var.runbook_base_url
+  kms_key_arn                  = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check      = var.uptime_check
   min_daily_signups = var.min_daily_signups
   tags              = local.tags
+}
+
+# Owner 2026-10-24: database size follows the load (up fast, down at night).
+module "db_autoscale" {
+  count            = local.db_autoscale_on ? 1 : 0
+  source           = "../db-autoscale"
+  name             = local.name
+  db_instance_id   = local.db_identifier
+  cluster_name     = module.ecs.cluster_name
+  service_names    = [module.ecs.api_service_name, module.ecs.worker_service_name]
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  kms_key_arn      = module.kms.key_arn
+  ladder           = var.db_autoscale_ladder
+  min_class        = var.db_autoscale_min_class
+  max_class        = var.db_autoscale_max_class
+  mode             = var.db_autoscale_mode
+  tuning           = var.db_autoscale_tuning
+  tags             = local.tags
+}
+
+# A read replica must keep max_connections >= its primary's, so the primary
+# cannot grow alone; the autoscaler pauses (and e-mails) while replicas exist.
+check "db_autoscale_vs_replicas" {
+  assert {
+    condition     = !local.db_autoscale_on || var.growth.rds_read_replicas == 0
+    error_message = "db_autoscale_enabled and growth.rds_read_replicas > 0: the autoscaler will not resize a database that has replicas (it pauses and sends an e-mail). Size the primary and the replicas by hand, or set db_autoscale_enabled = false."
+  }
 }
 
 # Security research #5 (2026-10-22), A6: CloudTrail, GuardDuty, Access
@@ -1114,6 +1365,9 @@ module "security_baseline" {
   critical_api_alerts_enabled    = var.critical_api_alerts_enabled
   documents_data_events          = var.documents_data_events
   documents_bucket_arn           = module.s3.documents_bucket_arn
+
+  guardduty_ebs_malware        = var.guardduty_ebs_malware
+  guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
 }
 
 resource "aws_route53_record" "hosts" {
@@ -1159,6 +1413,8 @@ output "database_instance_id" { value = one(module.postgres[*].instance_id) }
 output "backup_vault" { value = one(module.backup[*].vault_name) }
 output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
+output "critical_topic_arn" { value = module.monitoring.critical_topic_arn }
+output "db_autoscale_function" { value = one(module.db_autoscale[*].function_name) }
 output "budget_name" { value = one(module.budget[*].budget_name) }
 output "rds_endpoint_secret_arn" { value = one(module.postgres[*].master_secret_arn) }
 output "secret_arns" { value = local.app_secret_arns }
@@ -1196,6 +1452,9 @@ output "livekit_instance_id" { value = one(module.livekit[*].instance_id) }
 output "livekit_security_group_id" { value = one(module.livekit[*].security_group_id) }
 output "alb_arn_suffix" { value = module.alb.arn_suffix }
 output "api_target_group_arn_suffix" { value = module.alb.api_target_group_arn_suffix }
+output "pgbouncer_service_name" { value = one(module.pgbouncer[*].service_name) }
+output "db_pooler_endpoint" { value = one(module.pgbouncer[*].endpoint) }
+output "db_pooler_server_connections_max" { value = var.db_pooler_enabled ? local.pgb_server_connections : null }
 output "api_service_name" { value = module.ecs.api_service_name }
 output "worker_service_name" { value = module.ecs.worker_service_name }
 output "redis_replication_group_id" { value = "${local.name}-redis" }

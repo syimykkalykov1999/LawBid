@@ -121,9 +121,10 @@ describe('fargateTaskMonthUsd', () => {
 describe('tiers', () => {
   it('finds the next bigger database tier', () => {
     expect(nextTier(DB_TIERS, 'db.t4g.medium')?.name).toBe('db.t4g.large');
+    expect(nextTier(DB_TIERS, 'db.t4g.large')?.name).toBe('db.r7g.large');
   });
   it('has no next tier after the largest or for an unknown class', () => {
-    expect(nextTier(DB_TIERS, 'db.t4g.2xlarge')).toBeNull();
+    expect(nextTier(DB_TIERS, 'db.r7g.2xlarge')).toBeNull();
     expect(nextTier(DB_TIERS, 'db.r6g.large')).toBeNull();
     expect(nextTier(REDIS_TIERS, null)).toBeNull();
   });

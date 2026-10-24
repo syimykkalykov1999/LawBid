@@ -75,12 +75,15 @@ module "stack" {
   api_image           = var.api_image
   admin_image         = var.admin_image
   clamav_image        = var.clamav_image
+  db_pooler_enabled   = var.db_pooler_enabled
+  pgbouncer_image     = var.pgbouncer_image
   alert_emails        = var.alert_emails
   stripe_price_id     = ""
 
   # --- sized like prod (envs/prod launch size), numbers per profile ---------
   create_database         = true
   database_instance_class = var.database_instance_class
+  db_autoscale_enabled    = var.db_autoscale_enabled
   database_multi_az       = false # failover is not what this test measures; Multi-AZ doubles the price
   # RDS needs at least 7 days of automated backups to allow point-in-time
   # restore; the instance (and its backups) is deleted at the end.
