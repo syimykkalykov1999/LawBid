@@ -107,8 +107,9 @@ module "stack" {
   p95_target_ms                  = 600
 
   # --- calls ---------------------------------------------------------------
-  turn_enabled        = true
-  turn_second_enabled = var.turn_second_enabled
+  # Owner 2026-10-24: calls use Cloudflare TURN; our own coturn is removed.
+  turn_enabled        = false
+  turn_second_enabled = false
   livekit_enabled     = var.livekit_enabled
 
   # --- the test comes from a handful of addresses: the per-IP edge limits

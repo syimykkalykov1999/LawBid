@@ -19,7 +19,7 @@ alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.de
 # Subscription prices and all third-party keys are set in the admin.
 
 # --- size (full-size default → launch) -----------------------------------
-turn_enabled     = true # coturn for calls (≈ $7–8/month, docs/runbooks/TURN.md)
+turn_enabled     = false # owner 2026-10-24: calls use Cloudflare TURN (admin → Integrations → cloudflare_turn); our own coturn is removed (bring it back: docs/runbooks/TURN.md)
 min_tasks        = 1    # 2 → 1: one api + one worker task; autoscaling adds more
 # api_max_tasks / worker_max_tasks are the HARD cap the app never exceeds.
 # The real ceiling is set by the app itself every 5 minutes from the
@@ -76,7 +76,7 @@ monthly_budget_usd = 350
 # --- optional extras (owner 2026-10-22, all OFF = today's cost) ----------------
 # Each is a separate `terraform apply`; steps and prices: docs/runbooks/DEPLOY_PROD.md
 # «Отказоустойчивость и звонки».
-turn_second_enabled = true # owner 2026-10-23: second coturn in the other AZ (+ ≈ $9)
+turn_second_enabled = false # owner 2026-10-24: calls use Cloudflare TURN; the second coturn is removed too (was ≈ +$9)
 # Owner 2026-10-23: prod TURN is t4g.small (quota 500 allocations ≈ 250 relayed calls per server;
 # the variable default is the same). ≈ +$9/month per server vs t4g.nano ($12.3 vs $3.1, us-east-1
 # on-demand list price, approximate), ≈ +$18 for the pair. Ladder: docs/runbooks/TURN.md.
