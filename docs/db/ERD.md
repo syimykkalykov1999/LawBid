@@ -231,6 +231,7 @@ erDiagram
   case_extra_practices {
     String case_id PK,FK
     String practice_area_id PK,FK
+    Int shard_id
   }
   practice_areas {
     String id PK
@@ -388,11 +389,13 @@ erDiagram
     tsvector search_tsv_simple "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   case_states {
     String case_id PK,FK
     String state_code PK,FK
     Boolean is_primary
+    Int shard_id
   }
   bids {
     String id PK
@@ -413,6 +416,7 @@ erDiagram
     DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   bid_offers {
     String id PK
@@ -425,6 +429,7 @@ erDiagram
     String message "nullable"
     enum_OfferStatus status
     DateTime created_at
+    Int shard_id
   }
   case_journal {
     String id PK
@@ -439,6 +444,7 @@ erDiagram
     String row_hash
     DateTime retain_until
     DateTime created_at
+    Int shard_id
   }
   contact_disclosures {
     String id PK
@@ -449,6 +455,7 @@ erDiagram
     String ip "nullable"
     String device_id "nullable"
     DateTime disclosed_at
+    Int shard_id
   }
   contact_issue_reports {
     String id PK
@@ -464,6 +471,7 @@ erDiagram
     String resolution_note "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   case_disputes {
     String id PK
@@ -476,6 +484,7 @@ erDiagram
     String resolution_note "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   reviews {
     String id PK
@@ -491,6 +500,7 @@ erDiagram
     Int helpful_count
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   posts {
     String id PK
@@ -527,6 +537,7 @@ erDiagram
     DateTime created_at
     Int created_shard
     DateTime updated_at
+    Int shard_id
   }
   case_photos {
     String id PK
@@ -540,6 +551,7 @@ erDiagram
     Boolean is_sample
     String added_by "nullable"
     DateTime created_at
+    Int shard_id
   }
   case_tasks {
     String id PK
@@ -555,6 +567,7 @@ erDiagram
     DateTime due_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   case_task_items {
     String id PK
@@ -564,11 +577,13 @@ erDiagram
     DateTime done_at "nullable"
     String done_by "nullable"
     DateTime created_at
+    Int shard_id
   }
   case_reads {
     String case_id PK
     String user_id PK
     DateTime updates_seen_at
+    Int shard_id
   }
   case_task_events {
     String id PK
@@ -579,6 +594,7 @@ erDiagram
     String note "nullable"
     Int file_count
     DateTime created_at
+    Int shard_id
   }
   case_updates {
     String id PK
@@ -586,6 +602,7 @@ erDiagram
     String author_id
     String body
     DateTime created_at
+    Int shard_id
   }
   post_media {
     String id PK
@@ -596,6 +613,7 @@ erDiagram
     Int width "nullable"
     Int height "nullable"
     DateTime created_at
+    Int shard_id
   }
   post_attachments {
     String id PK
@@ -604,6 +622,7 @@ erDiagram
     String file_name
     Int position
     DateTime created_at
+    Int shard_id
   }
   tags {
     String id PK
@@ -613,6 +632,7 @@ erDiagram
   post_tags {
     String post_id PK,FK
     String tag_id PK,FK
+    Int shard_id
   }
   comments {
     String id PK
@@ -626,44 +646,52 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   post_likes {
     String post_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   post_reposts {
     String id PK
     String post_id FK
     String user_id FK
     DateTime created_at
+    Int shard_id
   }
   comment_likes {
     String comment_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   follows {
     String follower_id PK,FK
     String followee_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   user_blocks {
     String blocker_id PK,FK
     String blocked_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   saved_items {
     String user_id PK,FK
     enum_SavedItemType item_type PK
     String item_id PK
     DateTime created_at
+    Int shard_id
   }
   saved_chat_messages {
     String user_id PK,FK
     String message_id PK,FK
     enum_SavedChatKind kind
     DateTime created_at
+    Int shard_id
   }
   conversations {
     String id PK
@@ -681,6 +709,7 @@ erDiagram
     String last_message_id "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   conversation_participants {
     String conversation_id PK,FK
@@ -699,6 +728,7 @@ erDiagram
     DateTime archived_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   calls {
     String id PK
@@ -718,11 +748,13 @@ erDiagram
     String media_provider
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   call_log_hidden {
     String user_id PK,FK
     String call_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   call_participants {
     String id PK
@@ -736,6 +768,7 @@ erDiagram
     DateTime joined_at "nullable"
     DateTime left_at "nullable"
     DateTime updated_at
+    Int shard_id
   }
   call_votes {
     String id PK
@@ -746,6 +779,7 @@ erDiagram
     String status
     DateTime expires_at
     DateTime created_at
+    Int shard_id
   }
   messages {
     String id PK
@@ -773,29 +807,34 @@ erDiagram
     String forwarded_from_name "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   message_hidden {
     String message_id PK,FK
     String user_id PK
     DateTime created_at
+    Int shard_id
   }
   message_reactions {
     String message_id PK,FK
     String user_id PK
     String emoji
     DateTime created_at
+    Int shard_id
   }
   message_edits {
     String id PK
     String message_id FK
     String body_original
     DateTime edited_at
+    Int shard_id
   }
   message_pins {
     String message_id PK,FK
     String conversation_id
     String pinned_by
     DateTime pinned_at
+    Int shard_id
   }
   chat_groups {
     String id PK
@@ -829,6 +868,7 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   chat_group_members {
     String group_id PK,FK
@@ -845,6 +885,7 @@ erDiagram
     DateTime hidden_at "nullable"
     DateTime archived_at "nullable"
     DateTime updated_at
+    Int shard_id
   }
   chat_group_messages {
     String id PK
@@ -865,6 +906,7 @@ erDiagram
     Boolean forwarded
     String forwarded_from_name "nullable"
     DateTime created_at
+    Int shard_id
   }
   chat_group_topics {
     String id PK
@@ -880,17 +922,20 @@ erDiagram
     DateTime last_message_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   chat_group_topic_reads {
     String topic_id PK,FK
     String user_id PK,FK
     String last_read_message_id "nullable"
     DateTime updated_at
+    Int shard_id
   }
   chat_group_join_requests {
     String group_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   chat_group_invites {
     String id PK
@@ -900,6 +945,7 @@ erDiagram
     String status
     DateTime created_at
     DateTime responded_at "nullable"
+    Int shard_id
   }
   chat_group_polls {
     String id PK
@@ -912,18 +958,21 @@ erDiagram
     DateTime closed_at "nullable"
     String closed_by "nullable"
     DateTime created_at
+    Int shard_id
   }
   chat_group_poll_options {
     String id PK
     String poll_id FK
     Int position
     String text
+    Int shard_id
   }
   chat_group_poll_votes {
     String poll_id FK
     String option_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   notifications {
     String id PK
@@ -936,6 +985,7 @@ erDiagram
     DateTime updated_at
     String dedupe_key "nullable"
     Int aggregate_count
+    Int shard_id
   }
   notification_settings {
     String user_id PK,FK
@@ -943,6 +993,7 @@ erDiagram
     Boolean push_enabled
     Boolean email_enabled
     DateTime updated_at
+    Int shard_id
   }
   notification_quiet_hours {
     String user_id PK,FK
@@ -950,6 +1001,7 @@ erDiagram
     DateTime end_time
     String timezone
     DateTime updated_at
+    Int shard_id
   }
   push_tokens {
     String id PK
@@ -961,6 +1013,7 @@ erDiagram
     Boolean chat_style
     DateTime last_seen_at
     DateTime created_at
+    Int shard_id
   }
   voip_tokens {
     String id PK
@@ -971,6 +1024,7 @@ erDiagram
     String environment
     DateTime last_seen_at
     DateTime created_at
+    Int shard_id
   }
   stripe_customers {
     String user_id PK,FK
@@ -1223,23 +1277,27 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   case_comment_likes {
     String comment_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   post_shares {
     String id PK
     String post_id FK
     String user_id FK
     DateTime created_at
+    Int shard_id
   }
   post_views {
     String id PK
     String post_id FK
     String user_id FK
     DateTime created_at
+    Int shard_id
   }
   post_view_events {
     String id PK
@@ -1247,12 +1305,14 @@ erDiagram
     String viewer_id FK "nullable"
     String kind
     DateTime created_at
+    Int shard_id
   }
   case_shares {
     String id PK
     String case_id FK
     String user_id FK
     DateTime created_at
+    Int shard_id
   }
   client_reviews {
     String id PK
@@ -1268,16 +1328,19 @@ erDiagram
     DateTime edited_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   review_helpful_votes {
     String review_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   client_review_helpful_votes {
     String review_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   client_review_appeals {
     String id PK
@@ -1290,6 +1353,7 @@ erDiagram
     String decided_by "nullable"
     String admin_note "nullable"
     DateTime created_at
+    Int shard_id
   }
   assistant_memberships {
     String id PK
@@ -1357,6 +1421,7 @@ erDiagram
     Int purge_notice_days "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   attorney_task_places {
     String id PK
@@ -1365,6 +1430,7 @@ erDiagram
     String label "nullable"
     String address
     DateTime created_at
+    Int shard_id
   }
   attorney_task_people {
     String id PK
@@ -1376,6 +1442,7 @@ erDiagram
     String phone "nullable"
     String email "nullable"
     DateTime created_at
+    Int shard_id
   }
   attorney_task_steps {
     String id PK
@@ -1394,6 +1461,7 @@ erDiagram
     String created_by_name "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   bid_drafts {
     String id PK
@@ -1403,6 +1471,7 @@ erDiagram
     String prepared_by_name "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   case_invites {
     String id PK
@@ -1420,6 +1489,7 @@ erDiagram
     DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   admin_broadcasts {
     String id PK
@@ -1969,11 +2039,13 @@ erDiagram
     String pack_id PK,FK
     Int position
     DateTime installed_at
+    Int shard_id
   }
   user_recent_stickers {
     String user_id PK,FK
     String sticker_id PK,FK
     DateTime used_at
+    Int shard_id
   }
   star_wallets {
     String user_id PK
@@ -2195,6 +2267,7 @@ erDiagram
     String failure_code "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   payment_requests {
     String id PK
@@ -2221,6 +2294,7 @@ erDiagram
     Int reminders_sent
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   connected_customers {
     String client_id PK
@@ -2240,6 +2314,7 @@ erDiagram
     String failure_reason "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   document_templates {
     String id PK
@@ -2396,6 +2471,7 @@ erDiagram
     String owner_id PK,FK
     String matched_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   contact_sync_settings {
     String user_id PK,FK
@@ -2405,12 +2481,14 @@ erDiagram
     Int book_size
     Int matches_version
     Boolean notify_joined
+    Int shard_id
   }
   contact_book_hashes {
     String owner_id PK,FK
     String phone_hash PK
     Boolean peppered
     DateTime created_at
+    Int shard_id
   }
   attorney_profile_views {
     String attorney_id PK
@@ -2535,22 +2613,26 @@ erDiagram
     DateTime created_at
     DateTime expires_at
     DateTime deleted_at "nullable"
+    Int shard_id
   }
   story_views {
     String story_id PK,FK
     String viewer_id PK,FK
     DateTime viewed_at
+    Int shard_id
   }
   story_hidden {
     String owner_id PK,FK
     String hidden_user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   story_settings {
     String user_id PK,FK
     String audience
     Boolean allow_replies
     DateTime updated_at
+    Int shard_id
   }
   channels {
     String id PK
@@ -2570,12 +2652,14 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     DateTime deleted_at "nullable"
+    Int shard_id
   }
   channel_admins {
     String channel_id PK,FK
     String user_id PK,FK
     String role
     DateTime created_at
+    Int shard_id
   }
   channel_subscriptions {
     String channel_id PK,FK
@@ -2585,6 +2669,7 @@ erDiagram
     DateTime pinned_at "nullable"
     DateTime archived_at "nullable"
     DateTime created_at
+    Int shard_id
   }
   channel_posts {
     String id PK
@@ -2601,23 +2686,27 @@ erDiagram
     DateTime created_at
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
+    Int shard_id
   }
   channel_post_views {
     String post_id PK,FK
     String user_id PK
     DateTime viewed_at
+    Int shard_id
   }
   channel_post_shares {
     String id PK
     String post_id FK
     String user_id
     DateTime created_at
+    Int shard_id
   }
   channel_reactions {
     String post_id PK,FK
     String user_id PK,FK
     String emoji
     DateTime created_at
+    Int shard_id
   }
   channel_comments {
     String id PK
@@ -2626,6 +2715,7 @@ erDiagram
     String body
     DateTime created_at
     DateTime deleted_at "nullable"
+    Int shard_id
   }
   case_billing {
     String case_id PK
@@ -2633,6 +2723,7 @@ erDiagram
     Int hourly_rate_cents
     String currency
     DateTime updated_at
+    Int shard_id
   }
   case_time_entries {
     String id PK
@@ -2647,6 +2738,7 @@ erDiagram
     DateTime created_at
     DateTime updated_at
     DateTime deleted_at "nullable"
+    Int shard_id
   }
   case_expenses {
     String id PK
@@ -2659,6 +2751,7 @@ erDiagram
     String invoice_id "nullable"
     DateTime created_at
     DateTime deleted_at "nullable"
+    Int shard_id
   }
   case_invoices {
     String id PK
@@ -2676,6 +2769,7 @@ erDiagram
     Json lines
     String file_id
     DateTime created_at
+    Int shard_id
   }
   case_sign_requests {
     String id PK
@@ -2692,6 +2786,7 @@ erDiagram
     DateTime completed_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   case_signatures {
     String id PK
@@ -2705,6 +2800,7 @@ erDiagram
     String ip "nullable"
     String user_agent "nullable"
     DateTime signed_at
+    Int shard_id
   }
   form_templates {
     String id PK
@@ -2729,6 +2825,7 @@ erDiagram
     String bid_id "nullable"
     Json matches
     DateTime created_at
+    Int shard_id
   }
   consultation_settings {
     String attorney_id PK,FK
@@ -2740,6 +2837,7 @@ erDiagram
     Boolean auto_confirm
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   consultation_windows {
     String id PK
@@ -2748,6 +2846,7 @@ erDiagram
     Int start_minute
     Int end_minute
     DateTime created_at
+    Int shard_id
   }
   consultation_time_off {
     String id PK
@@ -2756,6 +2855,7 @@ erDiagram
     DateTime ends_on
     String note "nullable"
     DateTime created_at
+    Int shard_id
   }
   consultations {
     String id PK
@@ -2775,6 +2875,7 @@ erDiagram
     DateTime reminded_hour_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   legal_questions {
     String id PK
@@ -2791,6 +2892,7 @@ erDiagram
     DateTime closed_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   legal_answers {
     String id PK
@@ -2803,11 +2905,13 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int shard_id
   }
   legal_answer_likes {
     String answer_id PK,FK
     String user_id PK,FK
     DateTime created_at
+    Int shard_id
   }
   deadline_rules {
     String id PK
