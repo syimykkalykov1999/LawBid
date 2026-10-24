@@ -129,6 +129,59 @@ Order for the owner: create R2 -> configure integration -> run the script in dry
 
 `FileReleaseService`, storage cleanup, orphan sweep, account deletion and GDPR erase all call `storage.remove(bucket, keys)`; routing by bucket name makes them delete from R2 for R2 rows. Unchanged and tested for R2.
 
+## Owner checklist: CORS, cache rule, verification (added 2026-10-24)
+
+Exact steps in Russian with the JSON to paste: `docs/runbooks/DNS_TO_CLOUDFLARE.md`
+(section «После переноса: два обязательных пункта для R2»). Summary:
+
+1. **Bucket CORS** (Dashboard -> R2 -> bucket -> Settings -> CORS Policy -> JSON):
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://lawbid.dev", "https://www.lawbid.dev", "https://admin.lawbid.dev",
+                          "http://localhost:3000", "http://localhost:3001", "http://localhost:8080"],
+       "AllowedMethods": ["PUT", "GET", "HEAD"],
+       "AllowedHeaders": ["Content-Type", "Cache-Control"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+   Purge the cache of `media.lawbid.dev` after changing it (Cloudflare docs).
+2. **Cache Rule** for hostname `media.lawbid.dev`: Cache eligibility = Eligible for cache
+   (Cache Everything), Edge TTL = ignore origin, **1 day**; Browser TTL = **respect origin**
+   (the objects carry `public, max-age=31536000, immutable`).
+3. **Verify**: `sh scripts/ops/verify-r2-media.sh https://media.lawbid.dev/<key>` (second
+   request `cf-cache-status: HIT`, `immutable`, `Accept-Ranges`, CORS headers, preflight PUT).
+
+## Monitoring and cost visibility (added 2026-10-24)
+
+- **Health:** the admin health item `storage` also does a `HEAD` on `ops/health-probe` in the
+  R2 bucket (a missing key answers 404 = fine, reaching R2 is what counts); the item
+  `r2` probes `https://<publicBaseUrl>/ops/health-probe` through the edge (cached 2 min,
+  grey unless `media.public_store = r2`; the watchdog pages on two red checks).
+- **Size:** the nightly `storage.snapshot` job walks the bucket with `ListObjectsV2`
+  (1000 keys a call, Class A: about one cent per million objects), keeps bytes and object
+  count in Redis (3 days) and the admin «Хранилище» table shows a «Cloudflare R2» row.
+- **Alerts (CloudWatch, worker logs):** `r2_storage_high` when the bucket passes the **10 GB**
+  free tier; `r2_ops_high` when the object count grew more than
+  `storage.growth_alert_percent` in a day (each new object is a paid write beyond the free
+  1M Class A a month; proxy for «operations unusually high»).
+- **Prices (checked 2026-10-24):** free monthly: 10 GB storage, 1M Class A, 10M Class B,
+  egress free; then $0.015/GB-month, $4.50/M Class A, $0.36/M Class B.
+- **Why not the GraphQL Analytics API:** it needs a separate token with Analytics read and
+  gives true operation counts; we chose the walk because it needs nothing beyond the R2 keys
+  we already have. If true op counts are ever wanted, add the token to the integration and
+  query `r2OperationsAdaptiveGroups`.
+
+## How others do it
+
+- Cloudflare R2 docs: serve public buckets from a custom domain (not r2.dev), add a cache
+  rule so reads hit the edge (Class B reads are billed only on misses), purge after CORS
+  changes, and set CORS in the bucket for browser uploads/reads.
+- Object keys are unguessable and immutable (new file = new key), the same pattern large
+  media apps use with a CDN and a one-year `immutable` header.
+
 ## What is NOT covered
 
 Bunny video, reel covers: unchanged. Mobile local caches: unchanged. CloudFront/Macie for the media bucket: unchanged for objects still on AWS.
