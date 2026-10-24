@@ -93,6 +93,15 @@ variable "alert_emails" {
   default = ["loadtest@lawbid-loadtest.invalid"]
 }
 
+# Database autoscale (docs/architecture/DB_AUTOSCALE.md) is OFF for load tests:
+# the test measures a fixed size. Turning it on needs infra/bootstrap-loadtest
+# to allow lambda:*, scheduler:* and iam:PassRole to lambda / scheduler on
+# lawbid-loadtest-* (re-apply the bootstrap first); it also needs Multi-AZ.
+variable "db_autoscale_enabled" {
+  type    = bool
+  default = false
+}
+
 # --- size (profiles/*.tfvars) --------------------------------------------------------
 variable "database_instance_class" {
   type    = string

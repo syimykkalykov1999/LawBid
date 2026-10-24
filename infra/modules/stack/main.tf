@@ -826,6 +826,42 @@ module "secrets" {
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
+# --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) --
+variable "db_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "The database grows one size under load and shrinks one size after 3 quiet days, by itself (modules/db-autoscale). Needs a database named by create_database or existing_database_identifier."
+}
+variable "db_autoscale_min_class" {
+  type    = string
+  default = "db.t4g.micro"
+}
+variable "db_autoscale_max_class" {
+  type        = string
+  default     = "db.r7g.xlarge"
+  description = "Ceiling for the bill. Above it the owner gets an e-mail."
+}
+variable "db_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run | off. Later changes are made in SSM (docs/runbooks/db-autoscale.md)."
+}
+variable "db_autoscale_ladder" {
+  type = list(string)
+  default = [
+    "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
+    "db.r7g.large", "db.r7g.xlarge", "db.r7g.2xlarge",
+  ]
+}
+variable "db_autoscale_tuning" {
+  type    = map(number)
+  default = {}
+}
+
+locals {
+  db_identifier = var.create_database ? "${local.name}-postgres" : var.existing_database_identifier
+}
+
 # --- database connection budget (scale audit 2026-10-23) ---------------------
 # Every API / worker task keeps DB_POOL_SIZE connections (Prisma). Before
 # this, the pool was a fixed 10: at 20 API + 10 worker tasks that is 300
@@ -839,7 +875,7 @@ variable "database_max_connections" {
 }
 
 locals {
-  db_memory_gib = lookup({
+  db_memory_gib = {
     "db.t4g.micro" = 1, "db.t4g.small" = 2, "db.t4g.medium" = 4,
     "db.t4g.large" = 8, "db.t4g.xlarge" = 16, "db.t4g.2xlarge" = 32,
     "db.t3.medium" = 4, "db.t3.large" = 8,
@@ -847,10 +883,20 @@ locals {
     "db.m7g.large" = 8, "db.m7g.xlarge" = 16, "db.m7g.2xlarge" = 32,
     "db.r6g.large" = 16, "db.r6g.xlarge" = 32, "db.r6g.2xlarge" = 64,
     "db.r7g.large" = 16, "db.r7g.xlarge" = 32, "db.r7g.2xlarge" = 64,
-  }, var.database_instance_class, 4)
+  }
+  # Owner 2026-10-24: with db_autoscale_enabled the database changes size by
+  # itself. The pool must be safe at the SMALLEST size it can shrink to
+  # (db_autoscale_min_class); the check below asks only that the LARGEST size
+  # (db_autoscale_max_class) can carry the task ceiling at all.
+  db_autoscale_on    = var.db_autoscale_enabled && local.db_identifier != ""
+  db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
+  db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
+  db_pool_memory_gib = lookup(local.db_memory_gib, local.db_pool_class, 4)
+  db_ceil_memory_gib = lookup(local.db_memory_gib, local.db_ceiling_class, 4)
   # RDS: LEAST(DBInstanceClassMemory / 9531392, 5000); the usable memory is
   # about 88 % of the instance memory.
-  db_max_connections = var.database_max_connections > 0 ? var.database_max_connections : min(5000, floor(local.db_memory_gib * 1073741824 * 0.88 / 9531392))
+  db_max_connections     = var.database_max_connections > 0 ? var.database_max_connections : min(5000, floor(local.db_pool_memory_gib * 1073741824 * 0.88 / 9531392))
+  db_ceiling_connections = var.database_max_connections > 0 ? var.database_max_connections : min(5000, floor(local.db_ceil_memory_gib * 1073741824 * 0.88 / 9531392))
   # Rolling deploy: up to twice the tasks run together.
   db_peak_tasks = 2 * (var.api_max_tasks + var.worker_max_tasks)
   # 80 % of max_connections shared by the peak tasks; 3..10 per task.
@@ -859,8 +905,8 @@ locals {
 
 check "db_connection_budget" {
   assert {
-    condition     = local.db_pool_size * local.db_peak_tasks <= local.db_max_connections
-    error_message = "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts: lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or put a connection pooler (RDS Proxy / PgBouncer) in front."
+    condition     = local.db_pool_size * local.db_peak_tasks <= local.db_ceiling_connections
+    error_message = "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts (with db_autoscale_enabled: even at db_autoscale_max_class): lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class / db_autoscale_max_class, or put a connection pooler (RDS Proxy / PgBouncer) in front."
   }
 }
 
@@ -914,7 +960,7 @@ locals {
     # database and Redis the admin may raise one tier.
     OPS_API_TASK_USD    = tostring(local.api_task_usd)
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
-    OPS_DB_INSTANCE     = var.create_database ? "${local.name}-postgres" : ""
+    OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
     OPS_REDIS_GROUP     = "${local.name}-redis"
     OPS_BUDGET_NAME     = "${local.name}-monthly"
     OPS_AWS_ACCOUNT_ID  = data.aws_caller_identity.current.account_id
@@ -1096,6 +1142,33 @@ module "monitoring" {
   tags              = local.tags
 }
 
+# Owner 2026-10-24: database size follows the load (up fast, down at night).
+module "db_autoscale" {
+  count            = local.db_autoscale_on ? 1 : 0
+  source           = "../db-autoscale"
+  name             = local.name
+  db_instance_id   = local.db_identifier
+  cluster_name     = module.ecs.cluster_name
+  service_names    = [module.ecs.api_service_name, module.ecs.worker_service_name]
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  kms_key_arn      = module.kms.key_arn
+  ladder           = var.db_autoscale_ladder
+  min_class        = var.db_autoscale_min_class
+  max_class        = var.db_autoscale_max_class
+  mode             = var.db_autoscale_mode
+  tuning           = var.db_autoscale_tuning
+  tags             = local.tags
+}
+
+# A read replica must keep max_connections >= its primary's, so the primary
+# cannot grow alone; the autoscaler pauses (and e-mails) while replicas exist.
+check "db_autoscale_vs_replicas" {
+  assert {
+    condition     = !local.db_autoscale_on || var.growth.rds_read_replicas == 0
+    error_message = "db_autoscale_enabled and growth.rds_read_replicas > 0: the autoscaler will not resize a database that has replicas (it pauses and sends an e-mail). Size the primary and the replicas by hand, or set db_autoscale_enabled = false."
+  }
+}
+
 # Security research #5 (2026-10-22), A6: CloudTrail, GuardDuty, Access
 # Analyzer, password policy; findings go to the alerts topic.
 module "security_baseline" {
@@ -1159,6 +1232,7 @@ output "database_instance_id" { value = one(module.postgres[*].instance_id) }
 output "backup_vault" { value = one(module.backup[*].vault_name) }
 output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
+output "db_autoscale_function" { value = one(module.db_autoscale[*].function_name) }
 output "budget_name" { value = one(module.budget[*].budget_name) }
 output "rds_endpoint_secret_arn" { value = one(module.postgres[*].master_secret_arn) }
 output "secret_arns" { value = local.app_secret_arns }

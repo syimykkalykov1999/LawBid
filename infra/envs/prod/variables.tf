@@ -214,6 +214,35 @@ variable "existing_database_identifier" {
   default     = ""
   description = "The production RDS created outside Terraform (lawbid-prod-postgres): backed up by AWS Backup and checked at plan time, never modified."
 }
+# --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) -----
+variable "db_autoscale_enabled" {
+  type        = bool
+  default     = true
+  description = "The database grows one size under load and shrinks one size after 3 quiet days, by itself. Works on the database named by existing_database_identifier (or create_database). Off switch without terraform: docs/runbooks/db-autoscale.md."
+}
+variable "db_autoscale_min_class" {
+  type    = string
+  default = "db.t4g.micro"
+}
+variable "db_autoscale_max_class" {
+  type        = string
+  default     = "db.r7g.xlarge"
+  description = "Ceiling for the bill: ≈ $698/month with Multi-AZ. Above it the owner gets an e-mail and decides."
+}
+variable "db_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run (e-mails what it would do, changes nothing) | off. Later changes are made in SSM, not here."
+  validation {
+    condition     = contains(["on", "dry-run", "off"], var.db_autoscale_mode)
+    error_message = "db_autoscale_mode: on, dry-run or off."
+  }
+}
+variable "db_autoscale_tuning" {
+  type        = map(number)
+  default     = {}
+  description = "Optional numbers, e.g. { up_cpu_pct = 75 } (infra/modules/db-autoscale/lambda/decision.py Config)."
+}
 variable "backup_enabled" {
   type    = bool
   default = true
