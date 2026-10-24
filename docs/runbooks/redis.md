@@ -1,4 +1,4 @@
-# redis-cpu / redis-memory — ElastiCache above 80 %
+# redis-cpu / redis-memory — ElastiCache CPU above 80 %, memory above 70 %
 
 > **Для владельца:** Обычно проходит само. Держится больше суток — увеличить Redis при следующем «ставь на AWS». Все письма и кнопки: [OWNER.md](OWNER.md).
 
