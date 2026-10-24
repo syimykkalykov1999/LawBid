@@ -43,18 +43,18 @@ class FakeStream extends Fake implements MediaStream {
   @override
   List<MediaStreamTrack> getAudioTracks() => [
         for (final t in _tracks)
-          if (t.kind == 'audio') t
+          if (t.kind == 'audio') t,
       ];
 
   @override
   List<MediaStreamTrack> getVideoTracks() => [
         for (final t in _tracks)
-          if (t.kind == 'video') t
+          if (t.kind == 'video') t,
       ];
 
   @override
   Future<void> addTrack(MediaStreamTrack track,
-          {bool addToNative = true}) async =>
+          {bool addToNative = true,}) async =>
       _tracks.add(track as FakeTrack);
 
   @override
@@ -92,7 +92,7 @@ class FakeSfuApi implements CallsSfuApi {
 
   List<SfuCall> named(String n) => [
         for (final c in calls)
-          if (c.name == n) c
+          if (c.name == n) c,
       ];
 
   @override
@@ -208,12 +208,12 @@ class FakeSfuPeer implements SfuPeer {
   final remotes = <String>[];
   final stopped = <String>[];
   final layers = <Set<String>>[];
-  var restarts = 0;
-  var serversSet = 0;
-  var closed = false;
-  var offers = 0;
-  var answers = 0;
-  var iceRestartOffers = 0;
+  int restarts = 0;
+  int serversSet = 0;
+  bool closed = false;
+  int offers = 0;
+  int answers = 0;
+  int iceRestartOffers = 0;
 
   /// Tracks the SFU "sends" while the offer is applied (fired in setRemote).
   final List<({String mid, FakeTrack track})> incomingOnOffer = [];
@@ -290,9 +290,9 @@ class FakeSfuPeer implements SfuPeer {
 class FakeSfuRtc implements SfuRtc {
   final peers = <FakeSfuPeer>[];
   final streams = <FakeStream>[];
-  var speaker = <bool>[];
-  var flips = 0;
-  var openedVideo = <bool>[];
+  List<bool> speaker = <bool>[];
+  int flips = 0;
+  List<bool> openedVideo = <bool>[];
 
   FakeSfuPeer get peer => peers.last;
 

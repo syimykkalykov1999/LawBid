@@ -57,7 +57,7 @@ AppCall _call({
       hostId: 'me',
       participants: members ??
           [
-            _m('me', tracks: {'mic'})
+            _m('me', tracks: {'mic'}),
           ],
       mediaProvider: provider,
       mediaFallback: fallback,
@@ -80,7 +80,7 @@ class _Repo extends Fake implements CallsRepository {
 
   @override
   Future<List<IceServer>> iceServers() async => const [
-        IceServer(urls: ['stun:t.example.com:3478'])
+        IceServer(urls: ['stun:t.example.com:3478']),
       ];
 
   @override
@@ -304,8 +304,8 @@ class _H {
   final _Repo repo;
   final sfu = _SfuMedia();
   final mesh = _MeshMedia();
-  var sfuCreated = 0;
-  var meshCreated = 0;
+  int sfuCreated = 0;
+  int meshCreated = 0;
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
   late final ProviderContainer container;
@@ -574,7 +574,7 @@ void main() {
         _call(
           provider: CallMediaProvider.p2p,
           members: [
-            for (var i = 0; i < 6; i++) _m(i == 0 ? 'me' : 'u$i', order: i)
+            for (var i = 0; i < 6; i++) _m(i == 0 ? 'me' : 'u$i', order: i),
           ],
           fallback: const CallMediaFallback(
             active: true,

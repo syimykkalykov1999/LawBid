@@ -176,9 +176,10 @@ class ApiCallsSfuApi implements CallsSfuApi {
               ? null
               : [
                   for (final n in trackNames)
-                    n == kSfuCam
-                        ? api.SfuSubscribeDtoTrackNames.cam
-                        : api.SfuSubscribeDtoTrackNames.mic,
+                    if (n == kSfuCam)
+                      api.SfuSubscribeDtoTrackNames.cam
+                    else
+                      api.SfuSubscribeDtoTrackNames.mic,
                 ],
           rid: rid == null
               ? null
@@ -233,9 +234,10 @@ class ApiCallsSfuApi implements CallsSfuApi {
               ? null
               : [
                   for (final n in trackNames)
-                    n == kSfuCam
-                        ? api.SfuCloseDtoTrackNames.cam
-                        : api.SfuCloseDtoTrackNames.mic,
+                    if (n == kSfuCam)
+                      api.SfuCloseDtoTrackNames.cam
+                    else
+                      api.SfuCloseDtoTrackNames.mic,
                 ],
           userIds: userIds,
           sdp: sdp,

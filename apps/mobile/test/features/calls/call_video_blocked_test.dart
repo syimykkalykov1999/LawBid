@@ -74,12 +74,12 @@ Future<void> _pump(WidgetTester tester, CallSession s) async {
   await tester.pump(const Duration(milliseconds: 300));
 }
 
-final _message = StaticTranslatorEn().t('call.videoBlocked');
+final _message = const StaticTranslatorEn().t('call.videoBlocked');
 
 void main() {
   test('the message exists in Russian (the owner text) and English', () {
     expect(
-      StaticTranslatorRu().t('call.videoBlocked'),
+      const StaticTranslatorRu().t('call.videoBlocked'),
       'На сервере идут работы. Видео можно будет включить примерно через час.',
     );
     expect(_message, startsWith('Maintenance is under way'));

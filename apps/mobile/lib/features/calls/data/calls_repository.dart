@@ -397,9 +397,9 @@ abstract final class CallMappers {
       );
 
   /// A realtime `call:participants` payload. Besides the members it carries
-  /// the media facts of the call (owner 2026-10-24): [mediaProvider], the
-  /// current [video] flag (it turns false when a crowded call drops to
-  /// audio) and the outage [fallback].
+  /// the media facts of the call (owner 2026-10-24): `mediaProvider`, the
+  /// current `video` flag (it turns false when a crowded call drops to
+  /// audio) and the outage `fallback`.
   static ({
     String callId,
     String? hostId,

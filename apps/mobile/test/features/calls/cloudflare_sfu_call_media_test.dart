@@ -85,8 +85,9 @@ void main() {
   test('the link state of the connection reaches the call', () async {
     final r = _Rig();
     await r.open();
-    r.peerSays(CallMediaState.connected);
-    r.peerSays(CallMediaState.disconnected);
+    r
+      ..peerSays(CallMediaState.connected)
+      ..peerSays(CallMediaState.disconnected);
     expect(r.states, [
       CallMediaState.connecting,
       CallMediaState.connected,
@@ -288,12 +289,12 @@ void main() {
       expect(sfuRidForTile(const Size(72, 96)), SfuRid.q);
       expect(
         sfuRidForTile(
-            nominalTileSize(total: 9, focused: false, anyFocus: false)),
+            nominalTileSize(total: 9, focused: false, anyFocus: false),),
         SfuRid.q,
       );
       expect(
         sfuRidForTile(
-            nominalTileSize(total: 4, focused: false, anyFocus: false)),
+            nominalTileSize(total: 4, focused: false, anyFocus: false),),
         SfuRid.h,
       );
       expect(
@@ -445,7 +446,7 @@ void main() {
     });
 
     test('the new session cannot be made: failed is reported', () async {
-      final r = _Rig(maxRecreate: 2);
+      final r = _Rig();
       await r.open();
       r.peerSays(CallMediaState.failed);
       r.api.failPublish = 2;
