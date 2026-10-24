@@ -17,6 +17,7 @@ deadline=$(( $(date +%s) + WAIT ))
 
 list_left() {
   local r arns
+  {
   for r in $regions; do
     arns="$(aws resourcegroupstaggingapi get-resources --region "$r" --tag-filters Key=Project,Values=lawbid-loadtest \
       --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d')"
@@ -33,7 +34,11 @@ list_left() {
       esac
       echo "$r $arn"
     done <<<"$arns"
-  done | sort -u
+  done
+  # CloudFront key-value stores and functions cannot carry tags: find them by name.
+  aws cloudfront list-key-value-stores --query 'KeyValueStoreList.Items[?starts_with(Name, `lawbid-loadtest`)].ARN' --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d;/^None$/d;s/^/global /'
+  aws cloudfront list-functions --query 'FunctionList.Items[?starts_with(Name, `lawbid-loadtest`)].FunctionMetadata.FunctionARN' --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d;/^None$/d;s/^/global /'
+  } | sort -u
 }
 
 while :; do
