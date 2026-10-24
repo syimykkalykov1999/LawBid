@@ -30,6 +30,11 @@ variable "alerts_topic_arn" {
   default     = null
   description = "SNS topic for the instance-status, health and traffic alarms; null = no alarms."
 }
+variable "alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the alarms. A plan-time bool: alerts_topic_arn is unknown until the topic exists."
+}
 variable "traffic_alarm_gb_per_day" {
   type        = number
   default     = 20
