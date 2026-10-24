@@ -1425,7 +1425,6 @@ model CaseExtraPractice {
 
   @@id([case_id, practice_area_id])
   @@index([practice_area_id, case_id])
-  @@index([shard_id])
   @@map("case_extra_practices")
 }
 
@@ -1797,7 +1796,6 @@ model Case {
   // Owner 2026-10-23 (admin economy pass): the admin list pages newest-first by (created_at, id).
   @@index([created_at(sort: Desc), id(sort: Desc)], map: "cases_created_at_id_idx")
   @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "cases_status_created_at_id_idx")
-  @@index([shard_id])
   @@map("cases")
 }
 
@@ -1813,7 +1811,6 @@ model CaseState {
 
   @@id([case_id, state_code])
   @@index([state_code, case_id])
-  @@index([shard_id])
   @@map("case_states")
 }
 
@@ -1865,7 +1862,6 @@ model Bid {
   // Owner 2026-10-23 (admin economy pass): the admin list pages newest-first by (created_at, id).
   @@index([created_at(sort: Desc), id(sort: Desc)], map: "bids_created_at_id_idx")
   @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "bids_status_created_at_id_idx")
-  @@index([shard_id])
   @@map("bids")
 }
 
@@ -1888,7 +1884,6 @@ model BidOffer {
   shard_id Int @default(0) @db.SmallInt
 
   @@unique([bid_id, round_no])
-  @@index([shard_id])
   @@map("bid_offers")
 }
 
@@ -1923,7 +1918,6 @@ model CaseJournal {
   @@index([retain_until])
   // docs/06 §5.3: the daily chain check picks the last 24 h of rows.
   @@index([created_at])
-  @@index([shard_id])
   @@map("case_journal")
 }
 
@@ -1946,7 +1940,6 @@ model ContactDisclosure {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
-  @@index([shard_id])
   @@map("contact_disclosures")
 }
 
@@ -1974,7 +1967,6 @@ model ContactIssueReport {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([status, created_at])
-  @@index([shard_id])
   @@map("contact_issue_reports")
 }
 
@@ -1998,7 +1990,6 @@ model CaseDispute {
 
   @@index([case_id])
   @@index([status, created_at(sort: Desc), id(sort: Desc)], map: "case_disputes_status_created_at_id_idx")
-  @@index([shard_id])
   @@map("case_disputes")
 }
 
@@ -2036,7 +2027,6 @@ model Review {
   @@index([attorney_id, created_at(sort: Desc)])
   // Owner 2026-10-05: the storage cleanup looks photos up by id.
   @@index([photo_ids], map: "reviews_photo_ids_idx", type: Gin)
-  @@index([shard_id])
   @@map("reviews")
 }
 
@@ -2133,7 +2123,6 @@ model Post {
   @@index([practice_area_id, created_at(sort: Desc)])
   @@index([kind, created_at(sort: Desc)])
   @@index([content_class, created_at(sort: Desc)])
-  @@index([shard_id])
   @@map("posts")
 }
 
@@ -2165,7 +2154,6 @@ model CasePhoto {
   @@unique([case_id, position])
   @@index([file_id])
   @@index([source, source_id])
-  @@index([shard_id])
   @@map("case_photos")
 }
 
@@ -2199,7 +2187,6 @@ model CaseTask {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([case_id, created_at])
-  @@index([shard_id])
   @@map("case_tasks")
 }
 
@@ -2219,7 +2206,6 @@ model CaseTaskItem {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([task_id, position])
-  @@index([shard_id])
   @@map("case_task_items")
 }
 
@@ -2233,7 +2219,6 @@ model CaseRead {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([case_id, user_id])
-  @@index([shard_id])
   @@map("case_reads")
 }
 
@@ -2255,7 +2240,6 @@ model CaseTaskEvent {
 
   @@index([task_id, created_at])
   @@index([case_id, created_at])
-  @@index([shard_id])
   @@map("case_task_events")
 }
 
@@ -2273,7 +2257,6 @@ model CaseUpdate {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([case_id, created_at])
-  @@index([shard_id])
   @@map("case_updates")
 }
 
@@ -2294,7 +2277,6 @@ model PostMedia {
 
   @@unique([post_id, position])
   @@index([file_id])
-  @@index([shard_id])
   @@map("post_media")
 }
 
@@ -2314,7 +2296,6 @@ model PostAttachment {
   shard_id Int @default(0) @db.SmallInt
 
   @@unique([post_id, position])
-  @@index([shard_id])
   @@map("post_attachments")
 }
 
@@ -2341,7 +2322,6 @@ model PostTag {
 
   @@id([post_id, tag_id])
   @@index([tag_id, post_id])
-  @@index([shard_id])
   @@map("post_tags")
 }
 
@@ -2372,7 +2352,6 @@ model Comment {
 
   @@index([post_id, created_at])
   @@index([parent_comment_id, created_at])
-  @@index([shard_id])
   @@map("comments")
 }
 
@@ -2388,7 +2367,6 @@ model PostLike {
 
   @@id([post_id, user_id])
   @@index([user_id, created_at(sort: Desc)])
-  @@index([shard_id])
   @@map("post_likes")
 }
 
@@ -2408,7 +2386,6 @@ model PostRepost {
   @@unique([user_id, post_id])
   @@index([post_id])
   @@index([user_id, created_at(sort: Desc)])
-  @@index([shard_id])
   @@map("post_reposts")
 }
 
@@ -2423,7 +2400,6 @@ model CommentLike {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([comment_id, user_id])
-  @@index([shard_id])
   @@map("comment_likes")
 }
 
@@ -2441,7 +2417,6 @@ model Follow {
 
   @@id([follower_id, followee_id])
   @@index([followee_id, follower_id])
-  @@index([shard_id])
   @@map("follows")
 }
 
@@ -2461,7 +2436,6 @@ model UserBlock {
 
   @@id([blocker_id, blocked_id])
   @@index([blocked_id])
-  @@index([shard_id])
   @@map("user_blocks")
 }
 
@@ -2480,7 +2454,6 @@ model SavedItem {
   @@index([user_id, item_type, created_at(sort: Desc)])
   // Owner 2026-10-18: a post's saves by day (post statistics).
   @@index([item_type, item_id, created_at])
-  @@index([shard_id])
   @@map("saved_items")
 }
 
@@ -2503,7 +2476,6 @@ model SavedChatMessage {
   @@index([user_id, kind, created_at(sort: Desc)])
   @@index([user_id, created_at(sort: Desc)])
   @@index([message_id])
-  @@index([shard_id])
   @@map("saved_chat_messages")
 }
 
@@ -2560,7 +2532,6 @@ model Conversation {
   @@unique([case_id, attorney_id])
   @@index([client_id, last_message_at(sort: Desc)])
   @@index([attorney_id, last_message_at(sort: Desc)])
-  @@index([shard_id])
   @@map("conversations")
 }
 
@@ -2609,7 +2580,6 @@ model ConversationParticipant {
 
   @@id([conversation_id, user_id])
   @@index([user_id])
-  @@index([shard_id])
   @@map("conversation_participants")
 }
 
@@ -2671,7 +2641,6 @@ model Call {
   /// Owner 2026-10-21: the «Calls» tab reads a person's history newest first.
   @@index([caller_id, created_at(sort: Desc), id(sort: Desc)])
   @@index([callee_id, created_at(sort: Desc), id(sort: Desc)])
-  @@index([shard_id])
   @@map("calls")
 }
 
@@ -2689,7 +2658,6 @@ model CallLogHidden {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([user_id, call_id])
-  @@index([shard_id])
   @@map("call_log_hidden")
 }
 
@@ -2717,7 +2685,6 @@ model CallParticipant {
 
   @@unique([call_id, user_id])
   @@index([user_id, status])
-  @@index([shard_id])
   @@map("call_participants")
 }
 
@@ -2741,7 +2708,6 @@ model CallVote {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([call_id, status])
-  @@index([shard_id])
   @@map("call_votes")
 }
 
@@ -2815,7 +2781,6 @@ model Message {
   @@index([conversation_id, created_at(sort: Desc)])
   // docs/06 §5.1: anonymization scrubs a user's messages by sender.
   @@index([sender_id])
-  @@index([shard_id])
   @@map("messages")
 }
 
@@ -2831,7 +2796,6 @@ model MessageHidden {
 
   @@id([message_id, user_id])
   @@index([user_id])
-  @@index([shard_id])
   @@map("message_hidden")
 }
 
@@ -2847,7 +2811,6 @@ model MessageReaction {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([message_id, user_id])
-  @@index([shard_id])
   @@map("message_reactions")
 }
 
@@ -2863,7 +2826,6 @@ model MessageEdit {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([message_id])
-  @@index([shard_id])
   @@map("message_edits")
 }
 
@@ -2879,7 +2841,6 @@ model MessagePin {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([conversation_id, pinned_at(sort: Desc)])
-  @@index([shard_id])
   @@map("message_pins")
 }
 
@@ -2985,7 +2946,6 @@ model ChatGroup {
   @@index([avatar_file_id])
   // Owner 2026-10-22 (client economy plan, package B): GET /groups?updatedSince.
   @@index([updated_at])
-  @@index([shard_id])
   @@map("chat_groups")
 }
 
@@ -3022,7 +2982,6 @@ model ChatGroupMember {
   @@index([user_id, left_at])
   // Owner 2026-10-22 (client economy plan, package B): my memberships changed since.
   @@index([user_id, updated_at])
-  @@index([shard_id])
   @@map("chat_group_members")
 }
 
@@ -3071,7 +3030,6 @@ model ChatGroupMessage {
   @@index([sender_id])
   @@index([file_id])
   @@index([reply_to_id])
-  @@index([shard_id])
   @@map("chat_group_messages")
 }
 
@@ -3099,7 +3057,6 @@ model ChatGroupTopic {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([group_id, last_message_at(sort: Desc)])
-  @@index([shard_id])
   @@map("chat_group_topics")
 }
 
@@ -3117,7 +3074,6 @@ model ChatGroupTopicRead {
 
   @@id([topic_id, user_id])
   @@index([user_id])
-  @@index([shard_id])
   @@map("chat_group_topic_reads")
 }
 
@@ -3135,7 +3091,6 @@ model ChatGroupJoinRequest {
 
   @@id([group_id, user_id])
   @@index([user_id])
-  @@index([shard_id])
   @@map("chat_group_join_requests")
 }
 
@@ -3159,7 +3114,6 @@ model ChatGroupInvite {
 
   @@unique([group_id, invitee_id])
   @@index([invitee_id, status])
-  @@index([shard_id])
   @@map("chat_group_invites")
 }
 
@@ -3186,7 +3140,6 @@ model ChatGroupPoll {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([group_id])
-  @@index([shard_id])
   @@map("chat_group_polls")
 }
 
@@ -3202,7 +3155,6 @@ model ChatGroupPollOption {
   shard_id Int @default(0) @db.SmallInt
 
   @@unique([poll_id, position])
-  @@index([shard_id])
   @@map("chat_group_poll_options")
 }
 
@@ -3220,7 +3172,6 @@ model ChatGroupPollVote {
 
   @@id([option_id, user_id])
   @@index([poll_id, user_id])
-  @@index([shard_id])
   @@map("chat_group_poll_votes")
 }
 
@@ -3248,7 +3199,6 @@ model Notification {
   @@index([user_id, updated_at(sort: Desc)])
   // Kept (migration 20260928140000): the retention job scans by age.
   @@index([created_at], map: "notifications_created_at_idx")
-  @@index([shard_id])
   @@map("notifications")
 }
 
@@ -3264,7 +3214,6 @@ model NotificationSetting {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([user_id, category])
-  @@index([shard_id])
   @@map("notification_settings")
 }
 
@@ -3279,7 +3228,6 @@ model NotificationQuietHours {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
-  @@index([shard_id])
   @@map("notification_quiet_hours")
 }
 
@@ -3309,7 +3257,6 @@ model PushToken {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([user_id])
-  @@index([shard_id])
   @@map("push_tokens")
 }
 
@@ -3334,7 +3281,6 @@ model VoipToken {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([user_id])
-  @@index([shard_id])
   @@map("voip_tokens")
 }
 
@@ -3833,7 +3779,6 @@ model CaseComment {
 
   @@index([case_id, created_at])
   @@index([parent_comment_id, created_at])
-  @@index([shard_id])
   @@map("case_comments")
 }
 
@@ -3848,7 +3793,6 @@ model CaseCommentLike {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([comment_id, user_id])
-  @@index([shard_id])
   @@map("case_comment_likes")
 }
 
@@ -3866,7 +3810,6 @@ model PostShare {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([post_id])
-  @@index([shard_id])
   @@map("post_shares")
 }
 
@@ -3886,7 +3829,6 @@ model PostView {
 
   @@unique([user_id, post_id])
   @@index([post_id])
-  @@index([shard_id])
   @@map("post_views")
 }
 
@@ -3911,7 +3853,6 @@ model PostViewEvent {
 
   @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
   @@index([post_id, kind, created_at(sort: Desc)])
-  @@index([shard_id])
   @@map("post_view_events")
 }
 
@@ -3927,7 +3868,6 @@ model CaseShare {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([case_id])
-  @@index([shard_id])
   @@map("case_shares")
 }
 
@@ -3968,7 +3908,6 @@ model ClientReview {
   @@index([client_id, created_at(sort: Desc)])
   @@index([client_id, attorney_id])
   @@index([photo_ids], map: "client_reviews_photo_ids_idx", type: Gin)
-  @@index([shard_id])
   @@map("client_reviews")
 }
 
@@ -3986,7 +3925,6 @@ model ReviewHelpfulVote {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([review_id, user_id])
-  @@index([shard_id])
   @@map("review_helpful_votes")
 }
 
@@ -4001,7 +3939,6 @@ model ClientReviewHelpfulVote {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([review_id, user_id])
-  @@index([shard_id])
   @@map("client_review_helpful_votes")
 }
 
@@ -4026,7 +3963,6 @@ model ClientReviewAppeal {
 
   @@index([status, created_at])
   @@index([status, auto_remove_at])
-  @@index([shard_id])
   @@map("client_review_appeals")
 }
 
@@ -4265,7 +4201,6 @@ model AttorneyTask {
   @@index([remind_at], map: "attorney_tasks_remind_idx")
   @@index([archived_at], map: "attorney_tasks_archived_idx")
   @@index([file_ids], map: "attorney_tasks_file_ids_idx", type: Gin)
-  @@index([shard_id])
   @@map("attorney_tasks")
 }
 
@@ -4284,7 +4219,6 @@ model AttorneyTaskPlace {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([task_id, position], map: "attorney_task_places_task_idx")
-  @@index([shard_id])
   @@map("attorney_task_places")
 }
 
@@ -4310,7 +4244,6 @@ model AttorneyTaskPerson {
 
   @@index([task_id, position], map: "attorney_task_people_task_idx")
   @@index([user_id], map: "attorney_task_people_user_idx")
-  @@index([shard_id])
   @@map("attorney_task_people")
 }
 
@@ -4339,7 +4272,6 @@ model AttorneyTaskStep {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([task_id, position], map: "attorney_task_steps_task_idx")
-  @@index([shard_id])
   @@map("attorney_task_steps")
 }
 
@@ -4359,7 +4291,6 @@ model BidDraft {
   shard_id Int @default(0) @db.SmallInt
 
   @@unique([attorney_id, case_id], map: "bid_drafts_attorney_case_key")
-  @@index([shard_id])
   @@map("bid_drafts")
 }
 
@@ -4395,7 +4326,6 @@ model CaseInvite {
   // Owner 2026-10-22 (client economy plan, package E): GET /invites?updatedSince.
   @@index([attorney_id, updated_at], map: "case_invites_attorney_updated_idx")
   @@index([client_id, created_at], map: "case_invites_client_created_idx")
-  @@index([shard_id])
   @@map("case_invites")
 }
 
@@ -5415,7 +5345,6 @@ model UserStickerPack {
 
   @@id([user_id, pack_id])
   @@index([pack_id], map: "user_sticker_packs_pack_idx")
-  @@index([shard_id])
   @@map("user_sticker_packs")
 }
 
@@ -5431,7 +5360,6 @@ model UserRecentSticker {
 
   @@id([user_id, sticker_id])
   @@index([user_id, used_at(sort: Desc)], map: "user_recent_stickers_used_idx")
-  @@index([shard_id])
   @@map("user_recent_stickers")
 }
 
@@ -5827,7 +5755,6 @@ model CasePayment {
   @@index([attorney_id, created_at(sort: Desc)])
   @@index([status, created_at(sort: Desc)])
   @@index([request_id])
-  @@index([shard_id])
   @@map("case_payments")
 }
 
@@ -5877,7 +5804,6 @@ model PaymentRequest {
   @@index([client_id, status, due_at])
   @@index([attorney_id, created_at(sort: Desc)])
   @@index([status, due_at])
-  @@index([shard_id])
   @@map("payment_requests")
 }
 
@@ -5914,7 +5840,6 @@ model CasePaymentRefund {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([payment_id])
-  @@index([shard_id])
   @@map("case_payment_refunds")
 }
 
@@ -6234,7 +6159,6 @@ model ContactMatch {
 
   @@id([owner_id, matched_id])
   @@index([matched_id])
-  @@index([shard_id])
   @@map("contact_matches")
 }
 
@@ -6262,7 +6186,6 @@ model ContactSyncSetting {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
-  @@index([shard_id])
   @@map("contact_sync_settings")
 }
 
@@ -6288,7 +6211,6 @@ model ContactBookHash {
   @@id([owner_id, phone_hash])
   @@index([phone_hash])
   @@index([peppered])
-  @@index([shard_id])
   @@map("contact_book_hashes")
 }
 
@@ -6538,7 +6460,6 @@ model Story {
 
   @@index([author_id, created_at(sort: Desc)], map: "stories_author_created_idx")
   @@index([expires_at], map: "stories_expires_idx")
-  @@index([shard_id])
   @@map("stories")
 }
 
@@ -6555,7 +6476,6 @@ model StoryView {
   @@id([story_id, viewer_id])
   @@index([story_id, viewed_at(sort: Desc)], map: "story_views_story_time_idx")
   @@index([viewer_id, viewed_at(sort: Desc)], map: "story_views_viewer_time_idx")
-  @@index([shard_id])
   @@map("story_views")
 }
 
@@ -6572,7 +6492,6 @@ model StoryHidden {
 
   @@id([owner_id, hidden_user_id])
   @@index([hidden_user_id])
-  @@index([shard_id])
   @@map("story_hidden")
 }
 
@@ -6588,7 +6507,6 @@ model StorySetting {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
-  @@index([shard_id])
   @@map("story_settings")
 }
 
@@ -6629,7 +6547,6 @@ model Channel {
 
   @@index([status, subscriber_count(sort: Desc)], map: "channels_status_subscribers_idx")
   @@index([owner_id], map: "channels_owner_idx")
-  @@index([shard_id])
   @@map("channels")
 }
 
@@ -6647,7 +6564,6 @@ model ChannelAdmin {
 
   @@id([channel_id, user_id])
   @@index([user_id])
-  @@index([shard_id])
   @@map("channel_admins")
 }
 
@@ -6671,7 +6587,6 @@ model ChannelSubscription {
 
   @@id([channel_id, user_id])
   @@index([user_id, created_at(sort: Desc)], map: "channel_subscriptions_user_idx")
-  @@index([shard_id])
   @@map("channel_subscriptions")
 }
 
@@ -6708,7 +6623,6 @@ model ChannelPost {
 
   @@unique([channel_id, author_id, forward_key], map: "channel_posts_forward_key_key")
   @@index([channel_id, created_at(sort: Desc)], map: "channel_posts_channel_created_idx")
-  @@index([shard_id])
   @@map("channel_posts")
 }
 
@@ -6723,7 +6637,6 @@ model ChannelPostView {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([post_id, user_id])
-  @@index([shard_id])
   @@map("channel_post_views")
 }
 
@@ -6739,7 +6652,6 @@ model ChannelPostShare {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([post_id, user_id, created_at])
-  @@index([shard_id])
   @@map("channel_post_shares")
 }
 
@@ -6757,7 +6669,6 @@ model ChannelReaction {
 
   @@id([post_id, user_id])
   @@index([post_id, emoji], map: "channel_reactions_post_emoji_idx")
-  @@index([shard_id])
   @@map("channel_reactions")
 }
 
@@ -6775,7 +6686,6 @@ model ChannelComment {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([post_id, created_at], map: "channel_comments_post_created_idx")
-  @@index([shard_id])
   @@map("channel_comments")
 }
 
@@ -6792,7 +6702,6 @@ model CaseBilling {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
-  @@index([shard_id])
   @@map("case_billing")
 }
 
@@ -6820,7 +6729,6 @@ model CaseTimeEntry {
 
   @@index([case_id, worked_on])
   @@index([attorney_id, running_since])
-  @@index([shard_id])
   @@map("case_time_entries")
 }
 
@@ -6844,7 +6752,6 @@ model CaseExpense {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([case_id, spent_on])
-  @@index([shard_id])
   @@map("case_expenses")
 }
 
@@ -6875,7 +6782,6 @@ model CaseInvoice {
 
   @@unique([case_id, seq])
   @@index([attorney_id, created_at])
-  @@index([shard_id])
   @@map("case_invoices")
 }
 
@@ -6913,7 +6819,6 @@ model CaseSignRequest {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([case_id, created_at])
-  @@index([shard_id])
   @@map("case_sign_requests")
 }
 
@@ -6939,7 +6844,6 @@ model CaseSignature {
   shard_id Int @default(0) @db.SmallInt
 
   @@unique([request_id, signer_id])
-  @@index([shard_id])
   @@map("case_signatures")
 }
 
@@ -6985,7 +6889,6 @@ model CaseConflictCheck {
 
   @@index([attorney_id, created_at])
   @@index([case_id, attorney_id])
-  @@index([shard_id])
   @@map("case_conflict_checks")
 }
 
@@ -7024,7 +6927,6 @@ model ConsultationSettings {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
-  @@index([shard_id])
   @@map("consultation_settings")
 }
 
@@ -7044,7 +6946,6 @@ model ConsultationWindow {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([attorney_id, weekday])
-  @@index([shard_id])
   @@map("consultation_windows")
 }
 
@@ -7062,7 +6963,6 @@ model ConsultationTimeOff {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([attorney_id, starts_on])
-  @@index([shard_id])
   @@map("consultation_time_off")
 }
 
@@ -7100,7 +7000,6 @@ model Consultation {
   // Owner 2026-10-22 (client economy plan, package E): GET /consultations?updatedSince.
   @@index([attorney_id, updated_at])
   @@index([client_id, updated_at])
-  @@index([shard_id])
   @@map("consultations")
 }
 
@@ -7141,7 +7040,6 @@ model LegalQuestion {
   // Owner 2026-10-22 (client economy plan, package F): GET /questions?filter=mine&updatedSince.
   @@index([author_id, updated_at])
   @@index([closed_at, deleted_at])
-  @@index([shard_id])
   @@map("legal_questions")
 }
 
@@ -7167,7 +7065,6 @@ model LegalAnswer {
   /// One answer per attorney and question (edited, not repeated).
   @@unique([question_id, attorney_id])
   @@index([attorney_id, created_at(sort: Desc)])
-  @@index([shard_id])
   @@map("legal_answers")
 }
 
@@ -7182,7 +7079,6 @@ model LegalAnswerLike {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([answer_id, user_id])
-  @@index([shard_id])
   @@map("legal_answer_likes")
 }
 
