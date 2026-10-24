@@ -11,6 +11,10 @@ import { LoggerModule } from 'nestjs-pino';
 import { startTime, type Options as PinoHttpOptions } from 'pino-http';
 import { ViewerContextInterceptor } from './common/viewer/viewer-context';
 import { ConfigModule } from './config/config.module';
+import {
+  AnonymousCacheInterceptor,
+  CacheSafetyMiddleware,
+} from './common/cache/http-cache';
 import { AdminCacheHeadersMiddleware } from './common/middleware/admin-cache-headers.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -406,6 +410,8 @@ const isDev =
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },
+    // Batch C item 14: opt-in shared-cache header for guest-only GETs.
+    { provide: APP_INTERCEPTOR, useClass: AnonymousCacheInterceptor },
     // OQ-048: per signed-in user (assistants share an office IP).
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],
@@ -422,5 +428,7 @@ export class AppModule implements NestModule {
     consumer.apply(HttpStatsMiddleware).forRoutes('*');
     // Owner 2026-10-23: admin GETs are private and revalidated by ETag.
     consumer.apply(AdminCacheHeadersMiddleware).forRoutes('*');
+    // Batch C item 14: nothing personal reaches a shared cache.
+    consumer.apply(CacheSafetyMiddleware).forRoutes('*');
   }
 }
