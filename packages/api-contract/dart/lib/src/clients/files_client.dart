@@ -39,11 +39,21 @@ abstract class FilesClient {
   });
 
   /// Security & legal pass 2026-10-24: who other than you was given a link.
-  /// to this file, from which device (newest first, at most 50). Only the.
-  /// file's owner may read it.
+  /// to this file, from which device (newest first, 20 per page). Only the.
+  /// file's owner may read it. Owner 2026-10-24: `?since=` returns only the.
+  /// rows logged after that time and meta.syncedAt, `?cursor=` pages back.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [limit] - Page size (a small page keeps the phone sync cheap).
+  ///
+  /// [since] - Only views logged after this time (ISO), newest first and paged like the full list; meta.syncedAt = the newest viewedAt of the answer (or `since`). The journal is append-only, so there is no SYNC_TOO_OLD.
   @GET('/files/{id}/views')
   Future<FileViewListEnvelope> views({
     @Path('id') required String id,
+    @Query('limit') int? limit = 20,
+    @Query('cursor') String? cursor,
+    @Query('since') DateTime? since,
     @Extras() Map<String, dynamic>? extras,
   });
 }

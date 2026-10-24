@@ -112,6 +112,38 @@ class CachedTranslations extends Table {
   Set<Column> get primaryKey => {owner, kind, id, target};
 }
 
+/// Owner 2026-10-24 («Просмотры» of a case document): who opened my file,
+/// kept on the phone like the chat history. [json] is the row as the server
+/// sent it (name, role, device, masked address); the list opens from here
+/// without a request and only newer rows are fetched.
+@DataClassName('CachedFileViewRow')
+class CachedFileViews extends Table {
+  TextColumn get owner => text()();
+  TextColumn get fileId => text()();
+  TextColumn get id => text()();
+  DateTimeColumn get viewedAt => dateTime()();
+  TextColumn get json => text()();
+  IntColumn get bytes => integer()();
+
+  @override
+  Set<Column> get primaryKey => {owner, fileId, id};
+}
+
+/// What the phone holds of one file's view list: the newest `viewedAt` (the
+/// `?since=` of the next catch-up), the server cursor for the page older
+/// than the oldest held row, and when it was last opened (LRU by file).
+@DataClassName('FileViewsSyncRow')
+class FileViewsSync extends Table {
+  TextColumn get owner => text()();
+  TextColumn get fileId => text()();
+  DateTimeColumn get newestAt => dateTime().nullable()();
+  TextColumn get olderCursor => text().nullable()();
+  DateTimeColumn get openedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {owner, fileId};
+}
+
 /// The cache database (`lawbid_cache`). On the web build it lives only in
 /// the tab's memory (plan §5: a shared or private computer keeps nothing
 /// of the account on disk); on phones it is a file the OS protects.
@@ -124,6 +156,8 @@ class CachedTranslations extends Table {
     CachedMessages,
     ConversationSync,
     CachedTranslations,
+    CachedFileViews,
+    FileViewsSync,
   ],
 )
 class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
@@ -131,7 +165,20 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
       : super(executor ?? appDriftCacheDatabase('lawbid_cache'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  // v2 (owner 2026-10-24): the view lists of case documents - two new
+  // tables; nothing existing changes.
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.createTable(cachedFileViews);
+            await m.createTable(fileViewsSync);
+          }
+        },
+      );
 
   // --- http cache -------------------------------------------------------
 
@@ -550,11 +597,140 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
     return row.read(sum) ?? 0;
   }
 
+  // --- file views (owner 2026-10-24) ------------------------------------
+
+  /// Rows kept per file: the newest ones; older pages are read from the
+  /// server when asked and not kept.
+  static const fileViewsPerFile = 100;
+
+  /// Newest first.
+  Future<List<CachedFileViewRow>> fileViewsOf(String owner, String fileId) =>
+      (select(cachedFileViews)
+            ..where((r) => r.owner.equals(owner) & r.fileId.equals(fileId))
+            ..orderBy([
+              (r) => OrderingTerm.desc(r.viewedAt),
+              (r) => OrderingTerm.desc(r.id),
+            ])
+            ..limit(fileViewsPerFile))
+          .get();
+
+  Future<FileViewsSyncRow?> fileViewsSyncOf(String owner, String fileId) =>
+      (select(fileViewsSync)
+            ..where((r) => r.owner.equals(owner) & r.fileId.equals(fileId)))
+          .getSingleOrNull();
+
+  /// Stores [rows] (upsert by id) and moves the file's sync row in one go,
+  /// so a kill in between never leaves a cursor ahead of its rows.
+  /// [olderCursor] is left as it is unless [setOlderCursor].
+  Future<void> putFileViews({
+    required String owner,
+    required String fileId,
+    required Iterable<({String id, DateTime viewedAt, String json})> rows,
+    required DateTime now,
+    DateTime? newestAt,
+    String? olderCursor,
+    bool setOlderCursor = false,
+  }) =>
+      transaction(() async {
+        final current = await fileViewsSyncOf(owner, fileId);
+        await batch((b) {
+          for (final r in rows) {
+            b.insert(
+              cachedFileViews,
+              CachedFileViewsCompanion.insert(
+                owner: owner,
+                fileId: fileId,
+                id: r.id,
+                viewedAt: r.viewedAt,
+                json: r.json,
+                bytes: r.json.length,
+              ),
+              onConflict: DoUpdate(
+                (_) => CachedFileViewsCompanion(
+                  viewedAt: Value(r.viewedAt),
+                  json: Value(r.json),
+                  bytes: Value(r.json.length),
+                ),
+              ),
+            );
+          }
+        });
+        final held = current?.newestAt;
+        final newest = newestAt == null
+            ? held
+            : (held != null && held.isAfter(newestAt) ? held : newestAt);
+        await into(fileViewsSync).insertOnConflictUpdate(
+          FileViewsSyncCompanion.insert(
+            owner: owner,
+            fileId: fileId,
+            newestAt: Value(newest),
+            olderCursor: Value(
+              setOlderCursor ? olderCursor : current?.olderCursor,
+            ),
+            openedAt: now,
+          ),
+        );
+      });
+
+  Future<int> fileViewsCount(String owner, String fileId) async {
+    final n = countAll();
+    return (selectOnly(cachedFileViews)
+          ..addColumns([n])
+          ..where(
+            cachedFileViews.owner.equals(owner) &
+                cachedFileViews.fileId.equals(fileId),
+          ))
+        .map((r) => r.read(n) ?? 0)
+        .getSingle();
+  }
+
+  Future<void> dropFileViews(String owner, String fileId) async {
+    await (delete(cachedFileViews)
+          ..where((r) => r.owner.equals(owner) & r.fileId.equals(fileId)))
+        .go();
+    await (delete(fileViewsSync)
+          ..where((r) => r.owner.equals(owner) & r.fileId.equals(fileId)))
+        .go();
+  }
+
+  Future<int> fileViewsBytes() async {
+    final sum = cachedFileViews.bytes.sum();
+    final row =
+        await (selectOnly(cachedFileViews)..addColumns([sum])).getSingle();
+    return row.read(sum) ?? 0;
+  }
+
+  /// LRU **by file**: the list opened longest ago goes whole until the rows
+  /// fit [limitBytes].
+  Future<void> trimFileViews(int limitBytes) async {
+    var total = await fileViewsBytes();
+    if (total <= limitBytes) return;
+    final files = await (select(fileViewsSync)
+          ..orderBy([(r) => OrderingTerm.asc(r.openedAt)]))
+        .get();
+    for (final f in files) {
+      if (total <= limitBytes) break;
+      final sum = cachedFileViews.bytes.sum();
+      final size = await (selectOnly(cachedFileViews)
+            ..addColumns([sum])
+            ..where(
+              cachedFileViews.owner.equals(f.owner) &
+                  cachedFileViews.fileId.equals(f.fileId),
+            ))
+          .map((r) => r.read(sum) ?? 0)
+          .getSingle();
+      await dropFileViews(f.owner, f.fileId);
+      total -= size;
+    }
+  }
+
   /// «Прочее»: everything small and technical.
   Future<void> clearOther() async {
     await delete(syncState).go();
     await delete(eventDedup).go();
     await delete(cachedTranslations).go();
+    await delete(cachedFileViews).go();
+    await delete(fileViewsSync).go();
   }
 }
 

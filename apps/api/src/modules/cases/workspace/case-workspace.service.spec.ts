@@ -31,14 +31,17 @@ function make(opts: {
       updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
     },
     casePhoto: { findMany: jest.fn(() => Promise.resolve([])) },
+    file: { findMany: jest.fn(() => Promise.resolve([])) },
+    fileAccessLog: { groupBy: jest.fn(() => Promise.resolve([])) },
   };
   const notifications = { emit: jest.fn(() => Promise.resolve(null)) };
+  const files = { casePhotoUrls: jest.fn(() => Promise.resolve([])) };
   const svc = new CaseWorkspaceService(
     prisma as never,
-    {} as never,
+    files as never,
     notifications as never,
   );
-  return { svc, prisma, notifications };
+  return { svc, prisma, notifications, files };
 }
 const as = (sub: string) => ({ sub, role: 'x' }) as never;
 /** An assistant working in the attorney's account (the guard swaps sub). */
@@ -50,6 +53,47 @@ const assistant = (duties: string[]) =>
   }) as never;
 
 describe('CaseWorkspaceService', () => {
+  it("Files tab: a view count only on the caller's own uploads", async () => {
+    const m = make({ accepted: true });
+    const row = (file_id: string) => ({
+      case_id: 'k',
+      file_id,
+      source: 'case',
+      source_id: null,
+      source_item_id: null,
+      description: null,
+      is_sample: false,
+      added_by: CLIENT,
+      created_at: new Date('2026-10-24T10:00:00Z'),
+    });
+    m.prisma.casePhoto.findMany.mockResolvedValue([
+      row('f1'),
+      row('f2'),
+    ] as never);
+    m.prisma.file.findMany.mockResolvedValue([{ id: 'f1' }] as never);
+    m.prisma.fileAccessLog.groupBy.mockResolvedValue([
+      { file_id: 'f1', _count: { _all: 3 } },
+    ] as never);
+    (m.files.casePhotoUrls as jest.Mock).mockResolvedValue(
+      ['f1', 'f2'].map((fileId) => ({
+        fileId,
+        url: 'u',
+        previewUrl: 'p',
+        mime: 'application/pdf',
+        sizeBytes: 1,
+      })),
+    );
+    const out = await m.svc.listFiles(as(CLIENT), 'k');
+    expect(out.map((f) => [f.fileId, f.viewCount])).toEqual([
+      ['f1', 3],
+      ['f2', null],
+    ]);
+    expect(m.prisma.file.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['f1', 'f2'] }, owner_user_id: CLIENT },
+      select: { id: true },
+    });
+  });
+
   it('404 for a stranger, 403 before acceptance', async () => {
     await expect(
       make({ accepted: true }).svc.listFiles(as('zzz'), 'k'),
