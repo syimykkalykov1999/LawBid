@@ -117,6 +117,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
               label: t.t('cases.work.disputeReason'),
               // Audit 2026-10-04: 1000, as the API and the lawyer form.
               maxLength: TextLimits.of(TextLimit.dispute),
+              tapAnywhere: true,
               maxLines: 4,
             ),
             const SizedBox(height: AppSpacing.md),

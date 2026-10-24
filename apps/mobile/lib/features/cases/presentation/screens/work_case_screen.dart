@@ -714,6 +714,7 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
               AppTextField(
                 controller: _note,
                 label: t.t('cases.issue.comment'),
+                tapAnywhere: true,
                 maxLines: 3,
                 maxLength: TextLimits.of(TextLimit.dispute),
                 textCapitalization: TextCapitalization.sentences,
@@ -787,6 +788,7 @@ class _TextSheetState extends State<_TextSheet> {
               controller: _text,
               label: widget.label,
               autofocus: true,
+              tapAnywhere: true,
               maxLines: 4,
               maxLength: TextLimits.of(TextLimit.dispute),
               textCapitalization: TextCapitalization.sentences,
