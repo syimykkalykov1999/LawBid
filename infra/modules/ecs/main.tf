@@ -192,6 +192,23 @@ resource "aws_cloudwatch_log_group" "svc" {
   tags              = var.tags
 }
 
+# Cleanup (AWS cleanup audit 2026-10-23): Container Insights writes its
+# per-task performance events to /aws/ecs/containerinsights/<cluster>/performance,
+# a group AWS creates by itself with "never expire". Set the retention with the
+# AWS CLI (create if missing, then put-retention-policy): works whether or not
+# the group exists yet. A failure only warns.
+resource "terraform_data" "insights_log_retention" {
+  triggers_replace = [aws_ecs_cluster.this.name, var.log_retention_days]
+  provisioner "local-exec" {
+    on_failure = continue
+    command    = <<-EOT
+      G="/aws/ecs/containerinsights/${aws_ecs_cluster.this.name}/performance"
+      aws logs create-log-group --region ${data.aws_region.current.name} --log-group-name "$G" 2>/dev/null || true
+      aws logs put-retention-policy --region ${data.aws_region.current.name} --log-group-name "$G" --retention-in-days ${var.log_retention_days}
+    EOT
+  }
+}
+
 # --- IAM -----------------------------------------------------------------
 data "aws_iam_policy_document" "ecs_assume" {
   statement {

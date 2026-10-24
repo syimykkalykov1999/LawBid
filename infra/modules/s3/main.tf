@@ -135,6 +135,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
     noncurrent_version_expiration { noncurrent_days = 90 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
+  # Cleanup: a delete marker whose old versions are all gone is just clutter.
+  rule {
+    id     = "orphan-delete-markers"
+    status = "Enabled"
+    filter { prefix = "" }
+    expiration { expired_object_delete_marker = true }
+  }
   # Owner 2026-10-05 (storage like Telegram): case files, chat documents
   # and voice notes are read in the first weeks and rarely after. Same as
   # media: Intelligent-Tiering moves each one to a cheaper tier after 30 /
@@ -273,6 +280,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents_replica" {
     expiration { days = 31 }
     noncurrent_version_expiration { noncurrent_days = 1 }
   }
+  # Cleanup: the replica mirrors every version of `documents`; same 90 days.
+  rule {
+    id     = "old-versions"
+    status = "Enabled"
+    filter { prefix = "" }
+    noncurrent_version_expiration { noncurrent_days = 90 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  rule {
+    id     = "orphan-delete-markers"
+    status = "Enabled"
+    filter { prefix = "" }
+    expiration { expired_object_delete_marker = true }
+  }
   depends_on = [aws_s3_bucket_versioning.documents_replica]
 }
 
@@ -284,6 +305,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
     filter { prefix = "" }
     noncurrent_version_expiration { noncurrent_days = 30 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  # Cleanup: user media itself is NEVER expired (keys are <purpose>/<user>/<file>,
+  # there is no temp prefix). Only a delete marker with no versions left goes.
+  rule {
+    id     = "orphan-delete-markers"
+    status = "Enabled"
+    filter { prefix = "" }
+    expiration { expired_object_delete_marker = true }
   }
   # Old photos are rarely opened: Intelligent-Tiering moves each file to a
   # cheaper tier after 30 / 90 days without reads and back on the next read

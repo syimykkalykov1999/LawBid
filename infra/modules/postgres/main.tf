@@ -171,11 +171,12 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot       = false
   final_snapshot_identifier = "${var.name}-postgres-final"
 
-  auto_minor_version_upgrade      = true
-  maintenance_window              = "sun:04:30-sun:05:30"
-  performance_insights_enabled    = true
-  performance_insights_kms_key_id = var.kms_key_arn
-  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  auto_minor_version_upgrade            = true
+  maintenance_window                    = "sun:04:30-sun:05:30"
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7 # free tier; longer history is billed
+  performance_insights_kms_key_id       = var.kms_key_arn
+  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
 
   tags = var.tags
 

@@ -172,6 +172,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "web" {
     status = "Enabled"
     filter {}
     noncurrent_version_expiration { noncurrent_days = 14 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  # Cleanup: web-deploy.yml deletes old releases/<sha>/ folders (the newest
+  # 30 and everything younger than 3 days stay). A deleted file is not
+  # restorable, so its old version goes after a day, not 14.
+  rule {
+    id     = "purged-releases"
+    status = "Enabled"
+    filter { prefix = "releases/" }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+  }
+  rule {
+    id     = "orphan-delete-markers"
+    status = "Enabled"
+    filter {}
+    expiration { expired_object_delete_marker = true }
   }
 }
 
@@ -572,6 +588,7 @@ data "aws_iam_policy_document" "deploy" {
       "cloudfront-keyvaluestore:DescribeKeyValueStore",
       "cloudfront-keyvaluestore:GetKey",
       "cloudfront-keyvaluestore:PutKey",
+      "cloudfront-keyvaluestore:DeleteKey", # web-prune-releases.sh drops br_<sha> of removed releases
     ]
     resources = [aws_cloudfront_key_value_store.web.arn]
   }

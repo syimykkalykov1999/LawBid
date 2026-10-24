@@ -6,6 +6,7 @@
 #   web-release.sh store <distribution-id>        → prints the store ARN ('' = not applied yet)
 #   web-release.sh get   <store-arn> <key>        → prints the value ('' = unset)
 #   web-release.sh put   <store-arn> <key> <value>
+#   web-release.sh delete <store-arn> <key>       (a missing key is fine)
 #
 # The store is found through the distribution's viewer-request function,
 # so the workflows need no new secret.
@@ -35,6 +36,12 @@ case "$cmd" in
     etag=$(aws cloudfront-keyvaluestore describe-key-value-store --kvs-arn "$arn" --query ETag --output text)
     aws cloudfront-keyvaluestore put-key --kvs-arn "$arn" --key "$key" --value "$value" \
       --if-match "$etag" >/dev/null
+    ;;
+  delete)
+    arn="${2:?store arn}"; key="${3:?key}"
+    etag=$(aws cloudfront-keyvaluestore describe-key-value-store --kvs-arn "$arn" --query ETag --output text)
+    aws cloudfront-keyvaluestore delete-key --kvs-arn "$arn" --key "$key" \
+      --if-match "$etag" >/dev/null 2>&1 || true
     ;;
   *)
     echo "unknown command: $cmd" >&2
