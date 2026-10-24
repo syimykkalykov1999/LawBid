@@ -40,6 +40,11 @@ variable "description" {
   type    = string
   default = "cache, queues, rate limits, realtime"
 }
+variable "recovery_window_in_days" {
+  type        = number
+  default     = 30
+  description = "Days a deleted secret can be restored. 0 = deleted at once (throw-away load-test stacks, so the same name can be created again)."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -126,9 +131,10 @@ resource "aws_elasticache_replication_group" "this" {
 }
 
 resource "aws_secretsmanager_secret" "redis_url" {
-  name       = "${var.name}/REDIS_URL"
-  kms_key_id = var.kms_key_arn
-  tags       = var.tags
+  name                    = "${var.name}/REDIS_URL"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "redis_url" {

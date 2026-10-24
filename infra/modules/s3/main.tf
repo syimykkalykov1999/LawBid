@@ -12,6 +12,11 @@ terraform {
 }
 
 variable "name" { type = string }
+variable "force_destroy" {
+  type        = bool
+  default     = false
+  description = "Let terraform destroy delete a bucket that still holds objects. Only for throw-away load-test stacks."
+}
 variable "kms_key_arn" { type = string }
 variable "media_web_acl_arn" {
   type        = string
@@ -45,14 +50,16 @@ locals {
 
 # --- documents (verification files, exports; never public) -------------
 resource "aws_s3_bucket" "documents" {
-  bucket = local.documents
-  tags   = var.tags
+  bucket        = local.documents
+  force_destroy = var.force_destroy
+  tags          = var.tags
 }
 
 resource "aws_s3_bucket" "documents_replica" {
-  provider = aws.replica
-  bucket   = "${local.documents}-replica"
-  tags     = var.tags
+  provider      = aws.replica
+  bucket        = "${local.documents}-replica"
+  force_destroy = var.force_destroy
+  tags          = var.tags
 }
 
 resource "aws_s3_bucket_versioning" "documents" {
@@ -239,8 +246,9 @@ resource "aws_s3_bucket_replication_configuration" "documents" {
 
 # --- media (post images, avatars) via CloudFront ------------------------
 resource "aws_s3_bucket" "media" {
-  bucket = local.media
-  tags   = var.tags
+  bucket        = local.media
+  force_destroy = var.force_destroy
+  tags          = var.tags
 }
 
 resource "aws_s3_bucket_versioning" "media" {

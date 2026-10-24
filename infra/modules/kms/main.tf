@@ -11,6 +11,11 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "deletion_window_in_days" {
+  type        = number
+  default     = 30
+  description = "Waiting period before a destroyed key is really deleted (7-30). Load-test stacks use 7."
+}
 variable "backup_copy_account_ids" {
   type        = list(string)
   default     = []
@@ -22,7 +27,7 @@ data "aws_region" "current" {}
 
 resource "aws_kms_key" "this" {
   description             = "${var.name}: S3, Secrets Manager, logs"
-  deletion_window_in_days = 30
+  deletion_window_in_days = var.deletion_window_in_days
   enable_key_rotation     = true
   policy = jsonencode({
     Version = "2012-10-17"

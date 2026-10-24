@@ -81,6 +81,11 @@ variable "egress_alarm_gb_per_day" {
   default     = 50
   description = "Alarm when the box sends more than this many GB in 24 h (about $0.09/GB). 0 = no alarm."
 }
+variable "recovery_window_in_days" {
+  type        = number
+  default     = 30
+  description = "Days a deleted secret can be restored. 0 = deleted at once (throw-away load-test stacks, so the same name can be created again)."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -111,9 +116,10 @@ resource "random_password" "api_secret" {
 }
 
 resource "aws_secretsmanager_secret" "url" {
-  name       = "${var.name}/LIVEKIT_URL"
-  kms_key_id = var.kms_key_arn
-  tags       = var.tags
+  name                    = "${var.name}/LIVEKIT_URL"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 resource "aws_secretsmanager_secret_version" "url" {
   secret_id     = aws_secretsmanager_secret.url.id
@@ -121,9 +127,10 @@ resource "aws_secretsmanager_secret_version" "url" {
 }
 
 resource "aws_secretsmanager_secret" "api_key" {
-  name       = "${var.name}/LIVEKIT_API_KEY"
-  kms_key_id = var.kms_key_arn
-  tags       = var.tags
+  name                    = "${var.name}/LIVEKIT_API_KEY"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 resource "aws_secretsmanager_secret_version" "api_key" {
   secret_id     = aws_secretsmanager_secret.api_key.id
@@ -131,9 +138,10 @@ resource "aws_secretsmanager_secret_version" "api_key" {
 }
 
 resource "aws_secretsmanager_secret" "api_secret" {
-  name       = "${var.name}/LIVEKIT_API_SECRET"
-  kms_key_id = var.kms_key_arn
-  tags       = var.tags
+  name                    = "${var.name}/LIVEKIT_API_SECRET"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 resource "aws_secretsmanager_secret_version" "api_secret" {
   secret_id     = aws_secretsmanager_secret.api_secret.id
