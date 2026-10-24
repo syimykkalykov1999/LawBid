@@ -5,7 +5,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { S3StorageService } from '../files/storage/s3-storage.service';
+import { S3StorageService } from '../files/files.public';
 
 export interface PurposeUsage {
   purpose: string;

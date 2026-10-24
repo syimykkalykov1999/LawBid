@@ -4,7 +4,7 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { S3StorageService } from '../files/storage/s3-storage.service';
+import { S3StorageService } from '../files/files.public';
 import type { PublicAttorneyDto } from './public-directory.dto';
 
 export interface PublicAttorneysPage {
