@@ -130,13 +130,17 @@ export interface Tier {
   monthUsd: number;
 }
 
+// ONE ladder with the database autoscaler (infra/modules/db-autoscale,
+// docs/architecture/DB_AUTOSCALE.md): the admin button and the Lambda step
+// through the same sizes. Prices: Multi-AZ, on demand, us-east-1, 2026-10-24.
 export const DB_TIERS: readonly Tier[] = [
-  { name: 'db.t4g.micro', memoryGb: 1, monthUsd: 13 },
-  { name: 'db.t4g.small', memoryGb: 2, monthUsd: 26 },
-  { name: 'db.t4g.medium', memoryGb: 4, monthUsd: 53 },
-  { name: 'db.t4g.large', memoryGb: 8, monthUsd: 105 },
-  { name: 'db.t4g.xlarge', memoryGb: 16, monthUsd: 210 },
-  { name: 'db.t4g.2xlarge', memoryGb: 32, monthUsd: 420 },
+  { name: 'db.t4g.micro', memoryGb: 1, monthUsd: 23 },
+  { name: 'db.t4g.small', memoryGb: 2, monthUsd: 47 },
+  { name: 'db.t4g.medium', memoryGb: 4, monthUsd: 94 },
+  { name: 'db.t4g.large', memoryGb: 8, monthUsd: 188 },
+  { name: 'db.r7g.large', memoryGb: 16, monthUsd: 349 },
+  { name: 'db.r7g.xlarge', memoryGb: 32, monthUsd: 698 },
+  { name: 'db.r7g.2xlarge', memoryGb: 64, monthUsd: 1396 },
 ];
 
 export const REDIS_TIERS: readonly Tier[] = [

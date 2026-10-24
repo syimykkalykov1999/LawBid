@@ -246,10 +246,15 @@ Then one step down, never below `min_class`.
 5. **Memory trigger on micro** may fire early (see research); cost is one step.
 6. **Down-step wrongly judged**: protected by the projection checks and by the
    30 min up-cooldown being short; worst case is a quick up-step the next day.
-7. **Manual / admin changes** are detected by class mismatch, not by event; the
-   admin chain (`DB_TIERS`) contains `db.t4g.xlarge/2xlarge`, which are not in the
-   ladder: the Lambda then logs `unknown_class` and does nothing until the class
-   is back on the ladder (`aws lambda invoke` with `force`, runbook).
+7. **Manual / admin changes** are detected by class mismatch, not by event. The
+   admin one-click («Экономика») now uses the SAME seven-step ladder
+   (`DB_TIERS` in `economy.rules.ts`, Multi-AZ prices), so the two never
+   disagree on the next size; an admin step counts as a change and blocks a
+   scale-down for 72 h. `db.t4g.xlarge` ($0.517/h, 16 GiB) and `db.t4g.2xlarge`
+   ($1.034/h, 32 GiB) were deliberately NOT put on the ladder: they cost more than
+   `db.r7g.large` ($0.478/h, 16 GiB) and `db.r7g.xlarge` ($0.956/h, 32 GiB) for
+   the same memory, and a step up from t4g.2xlarge to r7g.large would lose memory.
+   A class outside the ladder is left alone (`unknown_class`) until set back with `force`.
 8. **Read replicas** block autoscale (documented, mailed weekly).
 9. **Cost**: ceiling `db.r7g.xlarge` ≈ $698/month; the monthly budget alarm
    (`monthly_budget_usd = 350`) will fire there: raise the budget before raising the ceiling.
