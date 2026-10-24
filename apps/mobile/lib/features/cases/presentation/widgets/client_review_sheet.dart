@@ -240,6 +240,7 @@ class _SheetState extends ConsumerState<_Sheet> {
             AppTextField(
               controller: _text,
               maxLength: 2000,
+              tapAnywhere: true,
               maxLines: 6,
             ),
             // Owner 2026-10-01 (Google Maps-style): photos in the review.
