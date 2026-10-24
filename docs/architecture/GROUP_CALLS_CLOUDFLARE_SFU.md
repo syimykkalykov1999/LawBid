@@ -1,6 +1,8 @@
 # Групповые звонки через Cloudflare Realtime SFU
 
-Статус: проект (дизайн), код не написан. Дата: 2026-10-24.
+Статус: дизайн + серверная часть (PR 1, 2 и серверная часть PR 5) реализованы в API; мобильное приложение не тронуто. Дата: 2026-10-24.
+
+ВАЖНО: решения владельца от 2026-10-24 (раздел 11) заменяют разделы 5 и 10 там, где они расходятся: звонок никогда не отклоняется из-за сбоя Cloudflare, максимум людей задаётся настройкой (по умолчанию 20), внешний вид приложения не меняется.
 
 ## Краткое резюме для владельца (простыми словами)
 
@@ -159,3 +161,57 @@
 6. Нужна ли демонстрация экрана в первом релизе?
 7. Кто заведёт приложение Realtime SFU в Cloudflare и внесёт App ID и App Secret (нужен ваш аккаунт)?
 8. Оставлять ли LiveKit-код или удалить, когда Cloudflare заработает?
+
+
+## 11. Решения владельца 2026-10-24 и API для мобильного разработчика
+
+### 11.1 Решения (заменяют разделы 5 и 10 при расхождении)
+
+- Выпускаем до релиза. Только звонки 1 на 1 остаются P2P с TURN; групповые идут через Cloudflare SFU.
+- Максимум людей в SFU-звонке: настройка `calls.sfu_max_participants`, по умолчанию 20. `calls.max_participants` (9) остаётся для обычной сетки (mesh).
+- Cloudflare не настроен или недоступен (только тогда): звонок НИКОГДА не отклоняется и не обрезается ниже обычного лимита. До `calls.sfu_fallback_mesh_max` человек (по умолчанию 4) идут напрямую (mesh) с видео; если людей больше, у всех только аудио, тоже mesh. Это относится и к тем, кто подключается к идущему звонку: когда в звонке становится больше порога, сервер сам переводит звонок в «только аудио» (`video=false`). Когда Cloudflare снова здоров, НОВЫЕ звонки идут через SFU (идущий звонок свой транспорт не меняет).
+- Сквозное шифрование (insertable streams / FrameCryptor) позже. Сейчас не делаем. В API места для него: ключ звонка раздаётся рядом с сессией (`POST /sfu/session` может вернуть поле с ключом), SDP-поток от этого не зависит.
+- Звонок, начатый как 1 на 1 и ставший групповым через «добавить человека», остаётся mesh (транспорт не меняется на лету). Это ограничение первого релиза; вопрос владельцу, нужно ли переносить такие звонки на SFU.
+
+### 11.2 ЖЁСТКОЕ ПРАВИЛО ДЛЯ МОБИЛЬНОЙ ЧАСТИ: внешний вид не меняется
+
+Менять нельзя ничего видимого: расположение, кнопки, цвета, размеры, экраны звонка и все существующие элементы управления остаются как сейчас. Меняется только транспорт медиа под ними (одно PeerConnection вместо сетки). Единственное разрешённое видимое добавление: короткое сообщение при сбое (11.5).
+
+### 11.3 Как работает серверная часть
+
+- Тип транспорта записан в звонок при старте: `CallDto.mediaProvider` = `cloudflare` | `p2p` (не меняется до конца звонка; колонка `calls.media_provider`). `p2p` = как сейчас (mesh/1:1).
+- Роуты `/sfu/*` работают только для `mediaProvider = cloudflare`, только для участника со статусом `joined` (иначе 404; завершённый звонок 409). `sessionId` издателя всегда берётся из состояния на сервере (Redis `sfu:call:{id}`), никогда из тела запроса.
+- Одна мутация за раз на сессию (очередь на сервере). Незавершённый offer блокирует следующую мутацию (409 `CALL_STATE_CONFLICT`, подождите/ответьте и повторите; зависший offer снимается через 15 с).
+- Выход, кик, тишина (sweep), голосование, конец звонка: сервер сам закрывает треки человека в Cloudflare и рассылает `call:participants`. Клиенту достаточно убрать плитку и закрыть свои подписки на ушедшего (`/sfu/close { userIds }`).
+- Лимит 10 запросов/с на пользователя на `/sfu/*`.
+- Ошибки: 503 `CALL_MEDIA_UNAVAILABLE` (Cloudflare не отвечает), 409 `CALL_STATE_CONFLICT`, 403 (слушатель канального звонка пытается публиковать), 400 (неверный SDP/трек), 404.
+
+### 11.4 Эндпоинты (все POST, JWT, ответ в обычной обёртке `{data: ...}`)
+
+1. `POST /calls/:id/sfu/session` -> `{ sessionId, iceServers:[{urls:["stun:stun.cloudflare.com:3478"]}] }`. Для сетей за NAT TURN берите, как сейчас, из `GET /calls/ice-servers`. Повторный вызов (реконнект дольше 30 с) заменяет старую сессию.
+2. `POST /calls/:id/sfu/publish` `{ sdp, tracks:[{mid, trackName:"mic"|"cam"}] }` (sdp = offer с sendonly transceiver, mid из этого offer) -> `{ type:"answer", sdp, tracks:[{mid,trackName}], failed:[{trackName,errorCode}] }`. Примените answer через setRemoteDescription. Сервер рассылает `call:participants`.
+3. `POST /calls/:id/sfu/subscribe` `{ userIds?, trackNames?, rid? }` (пусто = все; `rid` f|h|q, по умолчанию h для видео) -> `{ requiresAnswer, type:"offer"|null, sdp|null, subscriptions:[{userId,trackName,mid}], skipped:[{userId,trackName,reason}] }`. Если `requiresAnswer`: setRemoteDescription(offer), createAnswer, затем `/sfu/answer`. `subscriptions` связывает ваш mid с человеком (для плитки). `skipped.reason`: `not_in_call`, `not_published`, `already_pulled`, `batch_limit` (больше 64 треков: повторить после answer) или код Cloudflare.
+4. `POST /calls/:id/sfu/answer` `{ sdp }` -> `{ ok:true }`.
+5. `POST /calls/:id/sfu/close` `{ trackNames?:["mic"|"cam"], userIds?, sdp? }`: свои треки (выключили камеру надолго) или подписки на ушедших. Для подписок остановите transceiver, сделайте offer и пришлите в `sdp`: ответ `{closed:[mids], type:"answer", sdp}` примените; без `sdp` треки закрываются принудительно. Для своих треков (`trackNames`) сервер рассылает `call:participants`.
+6. `POST /calls/:id/sfu/layer` `{ userId, rid:"f"|"h"|"q" }` -> `{ ok:true }` (слой simulcast подписанной камеры). Форма вызова `tracks/update` в OpenAPI Cloudflare не описана примером; проверить на устройстве.
+
+### 11.5 События и поля, которые читает приложение
+
+- `call:participants` (существующее событие) теперь содержит: `mediaProvider`, `video` (актуальное, может стать `false` при переходе в аудио), `mediaFallback`, а у каждого участника `sfuReady` (публикует хотя бы один трек) и `sfuTracks` (`["mic","cam"]`). Когда у человека появились `sfuTracks`, которых вы ещё не тянули: `subscribe {userIds:[он]}`. Когда пропали: закройте подписку.
+- `CallDto` (GET /calls/:id и все ответы со звонком) содержит `mediaProvider` и `mediaFallback`.
+- `mediaFallback` (только у групповых звонков): `{ active, reason: "sfu_unavailable"|null, videoBlocked, videoMaxParticipants }`. `active` = Cloudflare выбран админом, но звонок идёт mesh из-за сбоя/отсутствия ключей. `videoBlocked` = людей больше порога, камеру включать нельзя.
+- ЕДИНСТВЕННОЕ разрешённое видимое добавление: если `mediaFallback.videoBlocked` и человек нажимает кнопку видеозвонка или камеры, камера НЕ включается, показывается короткое сообщение (тот же снекбар/тост, что уже используется в приложении) с текстом «На сервере идут работы. Видео можно будет включить примерно через час.» Ключ перевода добавить во все 85 языков через `scripts/i18n-add.mjs` на мобильном шаге. Звонок при этом продолжается с аудио у всех.
+
+### 11.6 Последовательность (клиент, SFU-звонок)
+
+1. Принять/войти обычным путём (accept/join, кольцо, push, CallKit без изменений). Если `mediaProvider = cloudflare`:
+2. `/sfu/session` -> создать RTCPeerConnection (один на звонок) -> добавить sendonly mic (и cam) -> offer -> `/sfu/publish` -> setRemoteDescription(answer).
+3. Получив `call:participants`: для каждого нового человека с `sfuTracks` -> `/sfu/subscribe` -> (если `requiresAnswer`) setRemoteDescription(offer), createAnswer -> `/sfu/answer`. Запросы одной сессии выполнять строго по очереди и на клиенте.
+4. Mute/камера/хост-мьют/кик/голосование остаются существующими запросами; камера выключена надолго -> `/sfu/close {trackNames:["cam"]}`, снова включили -> `/sfu/publish` новым cam.
+5. Выход: обычный leave; сервер закроет треки. Конец звонка: сервер закрывает всё.
+6. Реконнект: до 30 с ICE restart на том же PC; иначе `/sfu/session` заново, затем publish и subscribe.
+7. `mediaProvider = p2p`: ничего не менять, работает существующий mesh-код (в том числе в режиме сбоя).
+
+### 11.7 Что подтверждено по OpenAPI Cloudflare (calls-api-2024-05-21.yaml)
+
+База `https://rtc.live.cloudflare.com/v1`; `sessions/new` -> 201 `{sessionId}`; `tracks/new` тело `{sessionDescription?, tracks:[{location:local|remote, mid, sessionId, trackName, simulcast:{preferredRid, priorityOrdering, ridNotAvailable}}], autoDiscover?}`, ответ `{requiresImmediateRenegotiation, sessionDescription, tracks[+errorCode,errorDescription], errorCode}`; `renegotiate` тело `{sessionDescription}`; `tracks/close` тело `{tracks:[{mid}] (обязательно, минимум 1), force (обязательно), sessionDescription?}`, закрытие идёт по `mid`, а не по trackName; `tracks/update` `{tracks, sessionDescription}`; `GET sessions/{id}` -> `{tracks[+status], dataChannels}`. Код сервера: `apps/api/src/modules/calls/cloudflare-sfu.client.ts` (единственное место, знающее формат Cloudflare).
