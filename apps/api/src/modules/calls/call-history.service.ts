@@ -6,6 +6,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { viewerContext } from '../../common/viewer/viewer-context';
 import { PrismaService } from '../../prisma/prisma.service';
+import { hashShard } from '../../sharding/shard-id';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { FilesService } from '../files/files.service';
 import type {
@@ -181,8 +182,8 @@ export class CallHistoryService {
   async clear(user: RequestUser): Promise<HiddenCallsDto> {
     const me = user.sub;
     const count = await this.prisma.$executeRaw`
-      INSERT INTO call_log_hidden (user_id, call_id)
-      SELECT ${me}::uuid, c.id FROM calls c
+      INSERT INTO call_log_hidden (user_id, call_id, shard_id)
+      SELECT ${me}::uuid, c.id, ${hashShard(me)}::smallint FROM calls c
       WHERE c.status::text IN ('ended', 'missed', 'declined', 'busy', 'canceled', 'failed')
         AND (
           c.caller_id = ${me}::uuid
