@@ -23,6 +23,14 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
   group: json['group'] as bool? ?? false,
   moderated: json['moderated'] as bool? ?? false,
   channelId: json['channelId'] as String?,
+  mediaProvider: json['mediaProvider'] == null
+      ? null
+      : CallDtoMediaProvider.fromJson(json['mediaProvider'] as String),
+  mediaFallback: json['mediaFallback'] == null
+      ? null
+      : CallMediaFallbackDto.fromJson(
+          json['mediaFallback'] as Map<String, dynamic>,
+        ),
   hostId: json['hostId'] as String?,
   vote: json['vote'] == null
       ? null
@@ -48,6 +56,8 @@ Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
   'video': instance.video,
   'peer': instance.peer.toJson(),
   'group': instance.group,
+  'mediaProvider': ?instance.mediaProvider?.toJson(),
+  'mediaFallback': ?instance.mediaFallback?.toJson(),
   'hostId': ?instance.hostId,
   'participants': instance.participants.map((e) => e.toJson()).toList(),
   'moderated': instance.moderated,

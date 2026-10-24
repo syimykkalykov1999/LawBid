@@ -89551,6 +89551,748 @@
         ]
       }
     },
+    "/calls/{id}/sfu/session": {
+      "post": {
+        "operationId": "sfuSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Open your Cloudflare SFU session in this call",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/publish": {
+      "post": {
+        "operationId": "sfuPublish",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuPublishDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuPublishResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publish your mic / camera: send your SDP offer, get the answer",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/subscribe": {
+      "post": {
+        "operationId": "sfuSubscribe",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuSubscribeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuSubscribeResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pull other people of the call; answer the returned offer with /sfu/answer",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/answer": {
+      "post": {
+        "operationId": "sfuAnswer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuAnswerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuOkEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Renegotiate: your answer to the SFU offer",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/close": {
+      "post": {
+        "operationId": "sfuClose",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuCloseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuCloseResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop publishing your tracks / stop receiving people who left",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/layer": {
+      "post": {
+        "operationId": "sfuLayer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuLayerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuOkEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pick the simulcast layer (f / h / q) of a camera",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
     "/calls/ice-servers": {
       "get": {
         "operationId": "callIceServers",
@@ -111231,6 +111973,7 @@
           "CALL_NOT_ALLOWED",
           "CALL_IN_PROGRESS",
           "CALL_STATE_CONFLICT",
+          "CALL_MEDIA_UNAVAILABLE",
           "DIRECT_CHAT_NOT_ALLOWED",
           "CONTINGENCY_NOT_ALLOWED",
           "MESSAGE_REQUEST_DECLINED",
@@ -159081,6 +159824,36 @@
           "failed"
         ]
       },
+      "CallMediaFallbackDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "true: Cloudflare was chosen but this call runs device to device because it was down or unconfigured at its start."
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "sfu_unavailable"
+            ]
+          },
+          "videoBlocked": {
+            "type": "boolean",
+            "description": "true: more people are in the call than the threshold (calls.sfu_fallback_mesh_max, 4), so the camera cannot be switched on. When the person taps video/camera, show «На сервере идут работы. Видео можно будет включить примерно через час.» instead."
+          },
+          "videoMaxParticipants": {
+            "type": "number",
+            "description": "The threshold (default 4)."
+          }
+        },
+        "required": [
+          "active",
+          "reason",
+          "videoBlocked",
+          "videoMaxParticipants"
+        ]
+      },
       "CallParticipantStatus": {
         "type": "string",
         "enum": [
@@ -159130,6 +159903,21 @@
             "type": "string",
             "nullable": true,
             "description": "When they joined; the later joiner offers WebRTC."
+          },
+          "sfuReady": {
+            "type": "boolean",
+            "description": "Cloudflare SFU calls only: this person publishes at least one track, so pull them (POST /calls/:id/sfu/subscribe)."
+          },
+          "sfuTracks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mic",
+                "cam"
+              ]
+            },
+            "description": "Cloudflare SFU calls only: the tracks this person publishes now."
           }
         },
         "required": [
@@ -159241,6 +160029,22 @@
             "type": "boolean",
             "description": "Owner 2026-10-20: people were added; `participants` lists everyone.",
             "default": false
+          },
+          "mediaProvider": {
+            "enum": [
+              "p2p",
+              "cloudflare"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-24: how the media of this call is carried, fixed at its start. cloudflare = Cloudflare SFU (use POST /calls/:id/sfu/*); p2p = device to device (1:1 calls and the fallback)."
+          },
+          "mediaFallback": {
+            "description": "Owner 2026-10-24: set on group calls only; see CallMediaFallbackDto. Also sent with every call:participants event.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallMediaFallbackDto"
+              }
+            ]
           },
           "hostId": {
             "type": "string",
@@ -159362,7 +160166,8 @@
           "provider": {
             "enum": [
               "webrtc",
-              "livekit"
+              "livekit",
+              "cloudflare"
             ],
             "type": "string"
           },
@@ -159447,6 +160252,445 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "SfuIceServerDto": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "urls"
+        ]
+      },
+      "SfuSessionDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Our handle for your Cloudflare session. Informational: every later call finds your session from your login, never from this value."
+          },
+          "iceServers": {
+            "description": "STUN for the SFU. For hard networks also use GET /calls/ice-servers (TURN).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuIceServerDto"
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "iceServers"
+        ]
+      },
+      "SfuSessionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuSessionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuPublishedTrackDto": {
+        "type": "object",
+        "properties": {
+          "mid": {
+            "type": "string"
+          },
+          "trackName": {
+            "enum": [
+              "mic",
+              "cam"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mid",
+          "trackName"
+        ]
+      },
+      "SfuPublishFailedDto": {
+        "type": "object",
+        "properties": {
+          "trackName": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trackName",
+          "errorCode"
+        ]
+      },
+      "SfuPublishResultDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "answer"
+            ]
+          },
+          "sdp": {
+            "type": "string",
+            "description": "Apply with setRemoteDescription."
+          },
+          "tracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuPublishedTrackDto"
+            }
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuPublishFailedDto"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "sdp",
+          "tracks",
+          "failed"
+        ]
+      },
+      "SfuPublishTrackDto": {
+        "type": "object",
+        "properties": {
+          "mid": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,16}$",
+            "description": "Transceiver mid in your offer."
+          },
+          "trackName": {
+            "enum": [
+              "mic",
+              "cam"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mid",
+          "trackName"
+        ]
+      },
+      "SfuPublishDto": {
+        "type": "object",
+        "properties": {
+          "sdp": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Your SDP offer (sendonly transceivers)."
+          },
+          "tracks": {
+            "minItems": 1,
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuPublishTrackDto"
+            }
+          }
+        },
+        "required": [
+          "sdp",
+          "tracks"
+        ]
+      },
+      "SfuPublishResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuPublishResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trackName": {
+            "enum": [
+              "mic",
+              "cam"
+            ],
+            "type": "string"
+          },
+          "mid": {
+            "type": "string",
+            "description": "Your transceiver mid for this stream."
+          }
+        },
+        "required": [
+          "userId",
+          "trackName",
+          "mid"
+        ]
+      },
+      "SfuSkippedDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trackName": {
+            "type": "string",
+            "description": "mic, cam or * for all of that person."
+          },
+          "reason": {
+            "type": "string",
+            "description": "not_in_call | not_published | already_pulled | batch_limit | a Cloudflare error code."
+          }
+        },
+        "required": [
+          "userId",
+          "trackName",
+          "reason"
+        ]
+      },
+      "SfuSubscribeResultDto": {
+        "type": "object",
+        "properties": {
+          "requiresAnswer": {
+            "type": "boolean",
+            "description": "true: apply `sdp` as the remote offer, answer it with POST /calls/:id/sfu/answer."
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "offer"
+            ]
+          },
+          "sdp": {
+            "type": "string",
+            "nullable": true
+          },
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuSubscriptionDto"
+            }
+          },
+          "skipped": {
+            "description": "`batch_limit` entries: ask again after the answer has been sent.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuSkippedDto"
+            }
+          }
+        },
+        "required": [
+          "requiresAnswer",
+          "type",
+          "sdp",
+          "subscriptions",
+          "skipped"
+        ]
+      },
+      "SfuSubscribeDto": {
+        "type": "object",
+        "properties": {
+          "userIds": {
+            "maxItems": 100,
+            "description": "People to receive; empty = everybody in the call.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "trackNames": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "mic",
+                "cam"
+              ]
+            }
+          },
+          "rid": {
+            "enum": [
+              "f",
+              "h",
+              "q"
+            ],
+            "type": "string",
+            "description": "Simulcast layer of the video: full, half, quarter."
+          }
+        }
+      },
+      "SfuSubscribeResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuSubscribeResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuOkDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "SfuAnswerDto": {
+        "type": "object",
+        "properties": {
+          "sdp": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Your SDP answer to the SFU offer."
+          }
+        },
+        "required": [
+          "sdp"
+        ]
+      },
+      "SfuOkEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuOkDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuCloseResultDto": {
+        "type": "object",
+        "properties": {
+          "closed": {
+            "description": "The mids that were closed.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "answer"
+            ]
+          },
+          "sdp": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "closed",
+          "type",
+          "sdp"
+        ]
+      },
+      "SfuCloseDto": {
+        "type": "object",
+        "properties": {
+          "trackNames": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "mic",
+                "cam"
+              ]
+            },
+            "description": "Stop publishing these of your own tracks."
+          },
+          "userIds": {
+            "maxItems": 100,
+            "description": "Stop receiving these people (a person who left).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "sdp": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Your SDP offer after you stopped the transceivers of `userIds`; the answer comes back. Without it the tracks are force-closed."
+          }
+        }
+      },
+      "SfuCloseResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuCloseResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuLayerDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rid": {
+            "enum": [
+              "f",
+              "h",
+              "q"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "rid"
         ]
       },
       "IceServerDto": {

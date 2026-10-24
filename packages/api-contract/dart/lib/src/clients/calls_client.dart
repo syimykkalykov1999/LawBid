@@ -16,6 +16,16 @@ import '../models/ice_servers_envelope.dart';
 import '../models/invite_call_dto.dart';
 import '../models/live_kit_join_envelope.dart';
 import '../models/ongoing_group_call_list_envelope.dart';
+import '../models/sfu_answer_dto.dart';
+import '../models/sfu_close_dto.dart';
+import '../models/sfu_close_result_envelope.dart';
+import '../models/sfu_layer_dto.dart';
+import '../models/sfu_ok_envelope.dart';
+import '../models/sfu_publish_dto.dart';
+import '../models/sfu_publish_result_envelope.dart';
+import '../models/sfu_session_envelope.dart';
+import '../models/sfu_subscribe_dto.dart';
+import '../models/sfu_subscribe_result_envelope.dart';
 import '../models/start_call_dto.dart';
 import '../models/start_call_vote_dto.dart';
 import '../models/start_group_call_dto.dart';
@@ -111,6 +121,53 @@ abstract class CallsClient {
   @POST('/calls/{id}/livekit-token')
   Future<LiveKitJoinEnvelope> livekitToken({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Open your Cloudflare SFU session in this call
+  @POST('/calls/{id}/sfu/session')
+  Future<SfuSessionEnvelope> sfuSession({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Publish your mic / camera: send your SDP offer, get the answer
+  @POST('/calls/{id}/sfu/publish')
+  Future<SfuPublishResultEnvelope> sfuPublish({
+    @Path('id') required String id,
+    @Body() required SfuPublishDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pull other people of the call; answer the returned offer with /sfu/answer
+  @POST('/calls/{id}/sfu/subscribe')
+  Future<SfuSubscribeResultEnvelope> sfuSubscribe({
+    @Path('id') required String id,
+    @Body() required SfuSubscribeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Renegotiate: your answer to the SFU offer
+  @POST('/calls/{id}/sfu/answer')
+  Future<SfuOkEnvelope> sfuAnswer({
+    @Path('id') required String id,
+    @Body() required SfuAnswerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Stop publishing your tracks / stop receiving people who left
+  @POST('/calls/{id}/sfu/close')
+  Future<SfuCloseResultEnvelope> sfuClose({
+    @Path('id') required String id,
+    @Body() required SfuCloseDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pick the simulcast layer (f / h / q) of a camera
+  @POST('/calls/{id}/sfu/layer')
+  Future<SfuOkEnvelope> sfuLayer({
+    @Path('id') required String id,
+    @Body() required SfuLayerDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

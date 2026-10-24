@@ -334,6 +334,8 @@ enum ErrorCode {
   callInProgress('CALL_IN_PROGRESS'),
   @JsonValue('CALL_STATE_CONFLICT')
   callStateConflict('CALL_STATE_CONFLICT'),
+  @JsonValue('CALL_MEDIA_UNAVAILABLE')
+  callMediaUnavailable('CALL_MEDIA_UNAVAILABLE'),
   @JsonValue('DIRECT_CHAT_NOT_ALLOWED')
   directChatNotAllowed('DIRECT_CHAT_NOT_ALLOWED'),
   @JsonValue('CONTINGENCY_NOT_ALLOWED')
