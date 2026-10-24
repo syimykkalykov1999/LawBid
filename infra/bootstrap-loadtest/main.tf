@@ -46,6 +46,11 @@ variable "github_repo" {
   default     = "syimykkalykov1999/LawBid"
   description = "owner/name of the repository whose Actions may run the load test."
 }
+variable "github_repo_immutable" {
+  type        = string
+  default     = "syimykkalykov1999@91685781/LawBid@1400978845"
+  description = "The repository has use_immutable_subject on: GitHub signs OIDC tokens as repo:<owner>@<owner_id>/<repo>@<repo_id>:... (gh api repos/OWNER/REPO/actions/oidc/customization/sub)."
+}
 variable "environment_name" {
   type        = string
   default     = "load-test"
@@ -98,6 +103,7 @@ data "aws_iam_policy_document" "trust_github" {
       values = [
         "repo:${var.github_repo}:environment:${var.environment_name}",
         "repo:${lower(var.github_repo)}:environment:${var.environment_name}",
+        "repo:${var.github_repo_immutable}:environment:${var.environment_name}",
       ]
     }
   }
@@ -121,6 +127,7 @@ data "aws_iam_policy_document" "trust_watchdog" {
       values = [
         "repo:${var.github_repo}:ref:refs/heads/main",
         "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
       ]
     }
   }
