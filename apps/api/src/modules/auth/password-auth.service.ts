@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -150,7 +151,46 @@ export class PasswordAuthService {
       email: user.email,
       deviceId: deviceInfo.deviceId,
     });
+    await this.assertNotDowngraded(user, identifier, deviceInfo, meta);
     return this.signIn(user, `password:${identifier}`, deviceInfo, meta);
+  }
+
+  /**
+   * Security & legal pass 2026-10-24 (`security.attorney_strong_auth`):
+   * an attorney or assistant who registered a passkey must sign in with it —
+   * a password alone (phished, leaked, reused) no longer opens client
+   * documents. Accounts without a passkey are not affected. Refused with
+   * AUTH_PROVIDER_DISABLED (the app already shows «этот способ входа
+   * недоступен»), recorded as a failed password sign-in.
+   */
+  private async assertNotDowngraded(
+    user: User,
+    identifier: string,
+    deviceInfo: DeviceInfo,
+    meta: RequestMeta,
+  ): Promise<void> {
+    if (!this.settings) return;
+    if (user.role !== 'attorney' && user.role !== 'assistant') return;
+    if (!(await this.settings.boolean('security.attorney_strong_auth'))) return;
+    const passkeys = await this.prisma.webauthnCredential.count({
+      where: { user_id: user.id, scope: 'user' },
+    });
+    if (passkeys === 0) return;
+    await this.authEvents.record({
+      userId: user.id,
+      eventType: AUTH_EVENT_TYPES.PASSWORD_LOGIN_FAILED,
+      success: false,
+      identifier,
+      deviceId: deviceInfo.deviceId,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+      meta: { reason: 'passkey_enrolled' },
+    });
+    throw new ForbiddenException({
+      code: ErrorCode.AUTH_PROVIDER_DISABLED,
+      message: 'Sign in with your passkey: the password alone is not accepted.',
+      details: { method: 'password', reason: 'passkey_enrolled' },
+    });
   }
 
   // POST /auth/phone/status — "is this number registered?" (rate-limited

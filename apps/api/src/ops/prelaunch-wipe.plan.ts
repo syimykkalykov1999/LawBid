@@ -89,6 +89,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   user_identifiers: 'phones / e-mails / Apple / Google ids',
   sessions: 'sign-in sessions (admins sign in again)',
   auth_events: 'sign-in history',
+  file_access_log: 'who opened a confidential file (journal)',
   user_consents: 'accepted terms per user',
   onboarding_state: 'onboarding progress',
   push_tokens: 'device push tokens',

@@ -1040,6 +1040,31 @@ model File {
   @@map("files")
 }
 
+/// Security & legal pass 2026-10-24: who (other than the owner) was given a
+/// link to a confidential file (case documents, chat attachments, support
+/// attachments) and from which device. Append-only, one row per viewer and
+/// file per 10 minutes (Redis dedupe); a retention rule (the privacy runner
+/// must drop rows of a purged file / deleted account) is on the
+/// docs/runbooks/SECURITY_LEGAL.md list. The owner reads it with
+/// GET /files/:id/views.
+/// No file names or text are stored here.
+model FileAccessLog {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  file_id        String   @db.Uuid
+  owner_user_id  String   @db.Uuid
+  viewer_user_id String   @db.Uuid
+  purpose        String   @db.VarChar(32)
+  /// The viewer's session chain (a device) when the request carries one.
+  session_id     String?  @db.Uuid
+  ip             String?  @db.VarChar(64)
+  created_at     DateTime @default(now()) @db.Timestamptz
+
+  @@index([file_id, created_at(sort: Desc)])
+  @@index([owner_user_id, created_at(sort: Desc)])
+  @@index([viewer_user_id, created_at(sort: Desc)])
+  @@map("file_access_log")
+}
+
 model UserIdentifier {
   id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id      String         @db.Uuid

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-238 tables.
+239 tables.
 
 ```mermaid
 erDiagram
@@ -66,6 +66,16 @@ erDiagram
     DateTime purged_at "nullable"
     DateTime created_at
     DateTime updated_at
+  }
+  file_access_log {
+    String id PK
+    String file_id
+    String owner_user_id
+    String viewer_user_id
+    String purpose
+    String session_id "nullable"
+    String ip "nullable"
+    DateTime created_at
   }
   user_identifiers {
     String id PK

@@ -31,6 +31,11 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "access_log_bucket" {
+  type        = string
+  default     = ""
+  description = "Security & legal pass 2026-10-24: bucket (modules/audit-logs) that receives the S3 server access log of the documents bucket: requester, object key, operation, time. Empty = no access log."
+}
 variable "documents_cdn_public_key_pem" {
   type        = string
   default     = ""
@@ -65,6 +70,15 @@ resource "aws_s3_bucket" "documents_replica" {
 resource "aws_s3_bucket_versioning" "documents" {
   bucket = aws_s3_bucket.documents.id
   versioning_configuration { status = "Enabled" }
+}
+
+# Who touched which object: requester, key, operation, status (delivered
+# within hours, free to switch on; the log bucket costs cents).
+resource "aws_s3_bucket_logging" "documents" {
+  count         = var.access_log_bucket == "" ? 0 : 1
+  bucket        = aws_s3_bucket.documents.id
+  target_bucket = var.access_log_bucket
+  target_prefix = "s3-documents/"
 }
 
 resource "aws_s3_bucket_versioning" "documents_replica" {
@@ -409,7 +423,47 @@ resource "aws_cloudfront_distribution" "media" {
   tags = var.tags
 }
 
+# Security & legal pass 2026-10-24: nothing is read or written over plain
+# HTTP (ABA 477R: encryption in transit). Every legitimate caller (the API,
+# CloudFront, replication, the AWS SDK) already uses TLS.
+data "aws_iam_policy_document" "tls_only_media" {
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.media.arn, "${aws_s3_bucket.media.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "tls_only_documents" {
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.documents.arn, "${aws_s3_bucket.documents.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
 data "aws_iam_policy_document" "media_cf" {
+  source_policy_documents = [data.aws_iam_policy_document.tls_only_media.json]
   statement {
     actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.media.arn}/*"]
@@ -550,10 +604,23 @@ data "aws_iam_policy_document" "documents_cf" {
   }
 }
 
+# Always present now (it used to exist only with the private CDN): the
+# TLS-only rule must hold even before the signing key is supplied.
+data "aws_iam_policy_document" "documents_all" {
+  source_policy_documents = concat(
+    [data.aws_iam_policy_document.tls_only_documents.json],
+    data.aws_iam_policy_document.documents_cf[*].json,
+  )
+}
+
+moved {
+  from = aws_s3_bucket_policy.documents[0]
+  to   = aws_s3_bucket_policy.documents
+}
+
 resource "aws_s3_bucket_policy" "documents" {
-  count  = local.documents_cdn
   bucket = aws_s3_bucket.documents.id
-  policy = data.aws_iam_policy_document.documents_cf[0].json
+  policy = data.aws_iam_policy_document.documents_all.json
 }
 
 output "documents_bucket" { value = aws_s3_bucket.documents.bucket }

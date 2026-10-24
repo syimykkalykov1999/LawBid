@@ -12659,6 +12659,102 @@
         ]
       }
     },
+    "/files/{id}/views": {
+      "get": {
+        "operationId": "views",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileViewListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Security & legal pass 2026-10-24: who other than you was given a link\nto this file, from which device (newest first, at most 50). Only the\nfile's owner may read it.",
+        "tags": [
+          "files"
+        ]
+      }
+    },
     "/users/me/privacy": {
       "get": {
         "operationId": "getPrivacySettings",
@@ -116873,6 +116969,61 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/FileDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "FileViewDto": {
+        "type": "object",
+        "properties": {
+          "viewerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "viewerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "viewedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "device": {
+            "type": "string",
+            "nullable": true,
+            "description": "Device name of the viewer session, when known."
+          },
+          "platform": {
+            "type": "string",
+            "nullable": true
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "viewerUserId",
+          "viewerName",
+          "viewedAt",
+          "device",
+          "platform",
+          "ip"
+        ]
+      },
+      "FileViewListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileViewDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

@@ -99,6 +99,7 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { viewerContext } from '../../common/viewer/viewer-context';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { demoContext } from '../../common/demo/demo-context';
+import { FileAccessService } from './file-access.service';
 import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
 export interface SignedAttachment {
   url: string;
@@ -126,6 +127,8 @@ export class FilesService {
     @Optional() private readonly entitlements?: EntitlementsService,
     // Owner 2026-10-20: a hidden profile photo is not served to the viewer.
     @Optional() private readonly privacy?: PrivacySettingsService,
+    // Security & legal pass 2026-10-24: who opened a confidential file.
+    @Optional() private readonly access?: FileAccessService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -568,6 +571,30 @@ export class FilesService {
   }
 
   /**
+   * Security & legal pass 2026-10-24: how long a link to a confidential
+   * file lives (`files.confidential_url_ttl_sec`, default 15 min instead of
+   * the 1 h of public media). The app asks for a new link at every open and
+   * every caller re-checks access first, so removed access ends here.
+   */
+  private async confidentialTtl(): Promise<number> {
+    try {
+      const n = await this.settings.number('files.confidential_url_ttl_sec');
+      return Number.isFinite(n) ? Math.min(Math.max(n, 60), 3600) : 900;
+    } catch {
+      return 900;
+    }
+  }
+
+  /** Journal row for every confidential file handed to somebody other than
+   * its owner (best effort, never awaited by the caller). */
+  private noteViews(
+    files: { id: string; owner_user_id: string; purpose: string }[],
+  ): void {
+    if (!this.access || files.length === 0) return;
+    void this.access.recordViews(files);
+  }
+
+  /**
    * OQ-031: short-lived signed links for clean case photos (documents
    * bucket — never the CDN), in [fileIds] order. The caller decides who
    * may see them (case owner / accepted attorney).
@@ -591,6 +618,8 @@ export class FilesService {
         deleted_at: null,
       },
     });
+    const ttl = await this.confidentialTtl();
+    this.noteViews(files);
     const byId = new Map(files.map((f) => [f.id, f]));
     const out: {
       fileId: string;
@@ -602,11 +631,7 @@ export class FilesService {
     for (const id of fileIds) {
       const f = byId.get(id);
       if (!f) continue;
-      const url = await this.storage.signedGetUrl(
-        f.s3_bucket,
-        f.s3_key,
-        MEDIA_SIGNED_URL_TTL_SEC,
-      );
+      const url = await this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl);
       out.push({
         fileId: f.id,
         url,
@@ -615,7 +640,7 @@ export class FilesService {
           ? await this.storage.signedGetUrl(
               f.s3_bucket,
               variantKey(f.s3_key, 320),
-              MEDIA_SIGNED_URL_TTL_SEC,
+              ttl,
             )
           : url,
         mime: f.mime,
@@ -638,15 +663,20 @@ export class FilesService {
         scan_status: 'clean',
         deleted_at: null,
       },
-      select: { id: true, s3_bucket: true, s3_key: true, mime: true },
+      select: {
+        id: true,
+        s3_bucket: true,
+        s3_key: true,
+        mime: true,
+        owner_user_id: true,
+        purpose: true,
+      },
     });
+    const ttl = await this.confidentialTtl();
+    this.noteViews(files);
     for (const f of files) {
       out.set(f.id, {
-        url: await this.storage.signedGetUrl(
-          f.s3_bucket,
-          f.s3_key,
-          MEDIA_SIGNED_URL_TTL_SEC,
-        ),
+        url: await this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl),
         mime: f.mime,
       });
     }
@@ -695,12 +725,14 @@ export class FilesService {
         deleted_at: null,
       },
     });
+    const ttl = await this.confidentialTtl();
+    this.noteViews(files);
     for (const f of files) {
       out.set(f.id, {
         url: await this.storage.signedGetUrl(
           f.s3_bucket,
           f.s3_key,
-          MEDIA_SIGNED_URL_TTL_SEC,
+          ttl,
           // Photos and videos play inline; documents save under the name.
           isImageMime(f.mime) || f.mime.startsWith('video/')
             ? undefined
@@ -710,7 +742,7 @@ export class FilesService {
           ? await this.storage.signedGetUrl(
               f.s3_bucket,
               variantKey(f.s3_key, 320),
-              MEDIA_SIGNED_URL_TTL_SEC,
+              ttl,
             )
           : null,
         mime: f.mime,

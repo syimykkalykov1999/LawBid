@@ -207,6 +207,74 @@ variable "guardduty_alert_severity" {
   type    = number
   default = 7
 }
+# Security & legal pass 2026-10-24 (docs/runbooks/SECURITY_LEGAL.md): every
+# switch with its monthly cost. Free ones default on, paid ones off.
+variable "securityhub_fsbp_enabled" {
+  type        = bool
+  default     = false
+  description = "Security Hub: AWS Foundational Security Best Practices standard (needs security_hub_enabled). ~$5-15/month (approximate)."
+}
+variable "inspector_enabled" {
+  type        = bool
+  default     = false
+  description = "Amazon Inspector for ECR images. ~$1-6/month (approximate)."
+}
+variable "unused_access_analyzer_enabled" {
+  type        = bool
+  default     = false
+  description = "IAM Access Analyzer unused-access findings. ~$0.20 per role/user per month (approximate)."
+}
+variable "s3_account_block_public_access" {
+  type        = bool
+  default     = true
+  description = "Account-wide S3 Block Public Access. Free."
+}
+variable "critical_api_alerts_enabled" {
+  type        = bool
+  default     = true
+  description = "Alert on key deletion, CloudTrail off, backup vault/lock deletion, Block Public Access lifted, root user use. Free."
+}
+variable "documents_data_events" {
+  type        = bool
+  default     = false
+  description = "CloudTrail data events on the documents bucket. ~$0.10 per 100 000 events (approximate)."
+}
+variable "audit_logs_enabled" {
+  type        = bool
+  default     = false
+  description = "Locked-down log bucket with the ALB access log, the documents-bucket access log and VPC flow logs. ~$2-12/month (approximate, depends on traffic)."
+}
+variable "audit_logs_retention_days" {
+  type    = number
+  default = 400
+}
+variable "audit_logs_object_lock" {
+  type        = bool
+  default     = false
+  description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs."
+}
+variable "vpc_flow_logs_traffic" {
+  type    = string
+  default = "ALL"
+}
+variable "macie_enabled" {
+  type        = bool
+  default     = false
+  description = "Amazon Macie monthly sensitive-data scan of the documents bucket. ~$1 per GB inspected x sampling, see macie_sampling_percentage (approximate)."
+}
+variable "macie_sampling_percentage" {
+  type    = number
+  default = 10
+}
+variable "backup_vault_lock_mode" {
+  type        = string
+  default     = "off"
+  description = "off | governance | compliance (irreversible after the cooling-off days). Free."
+}
+variable "backup_vault_lock_cooling_off_days" {
+  type    = number
+  default = 7
+}
 variable "ecs_readonly_root_filesystem" {
   type    = bool
   default = true
@@ -438,6 +506,8 @@ module "kms" {
   name   = local.name
   tags   = local.tags
 
+  allow_macie = var.macie_enabled
+
   backup_copy_account_ids = var.backup_copy_account_id == "" ? [] : [var.backup_copy_account_id]
   deletion_window_in_days = var.ephemeral ? 7 : 30
 }
@@ -533,6 +603,32 @@ module "s3" {
   media_web_acl_arn            = module.cdn_waf.web_acl_arn
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
   force_destroy                = var.ephemeral
+  access_log_bucket            = try(module.audit_logs[0].bucket, "")
+}
+
+# Security & legal pass 2026-10-24: the access logs that prove who touched
+# what, in a bucket nobody can delete from.
+module "audit_logs" {
+  count               = var.audit_logs_enabled && !var.ephemeral ? 1 : 0
+  source              = "../audit-logs"
+  name                = local.name
+  enabled             = true
+  retention_days      = var.audit_logs_retention_days
+  object_lock_enabled = var.audit_logs_object_lock
+  vpc_id              = module.network.vpc_id
+  flow_logs_traffic   = var.vpc_flow_logs_traffic
+  tags                = local.tags
+}
+
+# Sensitive-data discovery on the documents bucket (default off).
+module "macie" {
+  count               = var.macie_enabled && !var.ephemeral ? 1 : 0
+  source              = "../macie"
+  name                = local.name
+  bucket_names        = [module.s3.documents_bucket]
+  sampling_percentage = var.macie_sampling_percentage
+  alerts_topic_arn    = module.monitoring.alerts_topic_arn
+  tags                = local.tags
 }
 
 # Security research #5 (2026-10-22), A3: one WAF for both CloudFront
@@ -586,6 +682,9 @@ module "alb" {
   waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
   waf_bot_control_enabled   = var.waf_bot_control_enabled
   waf_bot_control_block     = var.waf_bot_control_block
+
+  # The load-balancer log goes to the locked audit bucket (prefix `alb`).
+  access_logs_bucket = one(module.audit_logs[*].bucket)
 }
 
 resource "aws_security_group" "tasks" {
@@ -706,6 +805,9 @@ module "backup" {
   )
   alerts_topic_arn = module.monitoring.alerts_topic_arn
   tags             = local.tags
+
+  vault_lock_mode             = var.backup_vault_lock_mode
+  vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
 }
 
 module "secrets" {
@@ -997,6 +1099,14 @@ module "security_baseline" {
   alert_severity       = var.guardduty_alert_severity
   security_hub_enabled = var.security_hub_enabled
   tags                 = local.tags
+
+  securityhub_fsbp_enabled       = var.securityhub_fsbp_enabled
+  inspector_enabled              = var.inspector_enabled
+  unused_access_analyzer_enabled = var.unused_access_analyzer_enabled
+  s3_account_block_public_access = var.s3_account_block_public_access
+  critical_api_alerts_enabled    = var.critical_api_alerts_enabled
+  documents_data_events          = var.documents_data_events
+  documents_bucket_arn           = module.s3.documents_bucket_arn
 }
 
 resource "aws_route53_record" "hosts" {

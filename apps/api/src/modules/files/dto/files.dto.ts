@@ -115,3 +115,29 @@ export class FileDto {
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
 }
+
+/** One entry of GET /files/:id/views — somebody other than the owner was
+ * given a link to the file (security & legal pass 2026-10-24). */
+export class FileViewDto {
+  @ApiProperty({ format: 'uuid' })
+  viewerUserId!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  viewerName!: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  viewedAt!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Device name of the viewer session, when known.',
+  })
+  device!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  platform!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  ip!: string | null;
+}

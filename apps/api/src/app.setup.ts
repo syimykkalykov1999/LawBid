@@ -59,6 +59,7 @@ export function responseCompression() {
  * production wiring instead of a hand-copied approximation of it.
  */
 import { startSentry } from './telemetry/sentry';
+import { scrubDeep, scrubString } from './telemetry/scrub';
 
 /**
  * docs/06 §4.1 body cap. Owner 2026-10-22: the whole phone book goes up in
@@ -213,25 +214,6 @@ export function configureApp(
   }
 }
 
-const PII_KEYS = new Set([
-  'phone',
-  'email',
-  'identifier',
-  'value',
-  'code',
-  'authorization',
-  'cookie',
-  'refreshToken',
-  'idToken',
-  'nonce',
-  'reauthToken',
-  'body',
-  'body_original',
-  'body_display',
-  'description',
-  'title',
-]);
-
 /** Drops request bodies/headers/cookies/user data and any PII-named field
  * from a Sentry event (docs/06 §4.3). Exported for its unit test. */
 export function scrubSentryEvent<T extends Sentry.ErrorEvent>(event: T): T {
@@ -245,18 +227,18 @@ export function scrubSentryEvent<T extends Sentry.ErrorEvent>(event: T): T {
     if (event.request.query_string) delete event.request.query_string;
   }
   if (event.user) event.user = { id: event.user.id };
-  const walk = (o: unknown): void => {
-    if (!o || typeof o !== 'object') return;
-    for (const k of Object.keys(o)) {
-      if (PII_KEYS.has(k)) {
-        (o as Record<string, unknown>)[k] = '[REDACTED]';
-      } else {
-        walk((o as Record<string, unknown>)[k]);
-      }
-    }
-  };
-  walk(event.extra);
-  walk(event.contexts);
-  walk(event.breadcrumbs);
+  // Security & legal pass 2026-10-24: every string that can reach Sentry —
+  // the message, exception texts (Prisma errors quote the data), breadcrumbs
+  // (HTTP crumbs carry signed links) — loses e-mails, phone numbers, query
+  // strings, document names; PII-named fields are dropped whole.
+  if (typeof event.message === 'string') {
+    event.message = scrubString(event.message);
+  }
+  for (const ex of event.exception?.values ?? []) {
+    if (typeof ex.value === 'string') ex.value = scrubString(ex.value);
+  }
+  scrubDeep(event.extra);
+  scrubDeep(event.contexts);
+  scrubDeep(event.breadcrumbs);
   return event;
 }
