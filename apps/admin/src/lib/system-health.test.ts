@@ -12,6 +12,9 @@ describe('status board wording', () => {
     expect(push.line).toContain('80 %');
     expect(push.todo).toBeTruthy();
     expect(word({ key: 'turn', status: 'grey', detail: {} } as never).line).toContain('не настроен');
+    expect(word({ key: 'cloudflare_turn', status: 'red', detail: { error: 'HTTP 500' } } as never).todo).toBeTruthy();
+    expect(componentTitle('cloudflare_sfu')).toContain('SFU');
+    expect(componentTitle('r2')).toContain('R2');
     expect(componentTitle('stripe_webhooks')).toContain('Stripe');
     expect(componentTitle('http')).toContain('API');
     const ws = word({

@@ -11,6 +11,15 @@ const NAMES: Record<string, { ru: string; en: string }> = {
   stripe_webhooks: { ru: 'Платежи Stripe (вебхуки)', en: 'Stripe webhooks' },
   push: { ru: 'Доставка пушей', en: 'Push delivery' },
   turn: { ru: 'TURN-сервер звонков', en: 'TURN call relay' },
+  cloudflare_turn: {
+    ru: 'Звонки: Cloudflare TURN',
+    en: 'Calls: Cloudflare TURN',
+  },
+  cloudflare_sfu: {
+    ru: 'Групповые звонки: Cloudflare SFU',
+    en: 'Group calls: Cloudflare SFU',
+  },
+  r2: { ru: 'Фото и медиа: Cloudflare R2', en: 'Media: Cloudflare R2' },
   http: { ru: 'Ошибки и скорость API', en: 'API errors and speed' },
 };
 
