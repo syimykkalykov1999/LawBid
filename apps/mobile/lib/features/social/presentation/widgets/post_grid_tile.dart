@@ -262,8 +262,9 @@ class _GridTileProbeState extends ConsumerState<GridTileProbe>
   }
 }
 
-/// How long a muted preview plays before it loops back.
-const kGridPreviewLength = Duration(seconds: 6);
+/// How long a muted preview plays before it loops back (owner 2026-10-23:
+/// Instagram Explore loops a 3-5 s fragment, never the whole video).
+const kGridPreviewLength = Duration(seconds: 4);
 
 /// The muted preview of a video tile (its poster stays under it until the
 /// first frame moves) and the view count at the bottom left.
