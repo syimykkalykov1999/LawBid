@@ -22,6 +22,9 @@ function build(
     heartbeatAgoSec?: number | null;
     cipher?: { enabled: boolean; activeKid: string | null; kids: string[] };
     reencryptState?: Record<string, unknown> | null;
+    s3Bucket?: string;
+    r2Bucket?: string | null;
+    head?: (bucket: string) => Promise<unknown>;
   } = {},
 ) {
   const opts = over;
@@ -38,7 +41,8 @@ function build(
     ),
   };
   const config = {
-    get: (k: string) => ({ REDIS_URL: 'redis://x' })[k],
+    get: (k: string) =>
+      ({ REDIS_URL: 'redis://x', S3_BUCKET_MEDIA: over.s3Bucket })[k],
     getOrThrow: () => 'redis://x',
   } as unknown as ConfigService;
   const hb = over.heartbeatAgoSec === undefined ? 10 : over.heartbeatAgoSec;
@@ -68,7 +72,13 @@ function build(
   };
   const secrets = { get: jest.fn(() => Promise.resolve(null)) };
   const flags = { isEnabled: jest.fn(() => Promise.resolve(false)) };
-  const storage = { head: jest.fn(), bucket: jest.fn(() => 'media') };
+  const storage = {
+    head: jest.fn((bucket: string) =>
+      over.head ? over.head(bucket) : Promise.resolve(null),
+    ),
+    bucket: jest.fn(() => 'media'),
+    publicStoreBucket: jest.fn(() => Promise.resolve(over.r2Bucket ?? null)),
+  };
   const cipher = opts.cipher ?? { enabled: false, activeKid: null, kids: [] };
   const reencrypt = {
     state: jest.fn(() => Promise.resolve(opts.reencryptState ?? null)),
@@ -87,7 +97,7 @@ function build(
     cipher as never,
     reencrypt as never,
   );
-  return { svc, now };
+  return { svc, now, storage };
 }
 
 const keysOn = { enabled: true, activeKid: 'm2', kids: ['m1', 'm2'] };
@@ -168,5 +178,42 @@ describe('SystemHealthService', () => {
     expect(r4.items.find((i) => i.key === 'message_keys')?.status).toBe(
       'yellow',
     );
+  });
+
+  describe('storage probe', () => {
+    const item = async (o: Parameters<typeof build>[0]) => {
+      const b = build(o);
+      const r = await b.svc.report(b.now);
+      return {
+        it: r.items.find((i) => i.key === 'storage'),
+        storage: b.storage,
+      };
+    };
+
+    it('is green when AWS and R2 both answer, and heads the R2 bucket', async () => {
+      const { it, storage } = await item({ s3Bucket: 'aws', r2Bucket: 'r2b' });
+      expect(it?.status).toBe('green');
+      expect(storage.head).toHaveBeenCalledWith('r2b', 'ops/health-probe');
+      expect(it?.detail).toHaveProperty('r2LatencyMs');
+    });
+
+    it('is red with r2Error when only R2 fails', async () => {
+      const { it } = await item({
+        s3Bucket: 'aws',
+        r2Bucket: 'r2b',
+        head: (bucket) =>
+          bucket === 'r2b'
+            ? Promise.reject(new Error('R2 403'))
+            : Promise.resolve(null),
+      });
+      expect(it?.status).toBe('red');
+      expect(it?.detail.r2Error).toBe('R2 403');
+      expect(it?.detail.error).toBeUndefined();
+    });
+
+    it('works with R2 only (no AWS keys) and stays grey with neither', async () => {
+      expect((await item({ r2Bucket: 'r2b' })).it?.status).toBe('green');
+      expect((await item({})).it?.status).toBe('grey');
+    });
   });
 });

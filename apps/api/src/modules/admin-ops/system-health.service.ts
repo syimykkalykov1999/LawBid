@@ -261,16 +261,42 @@ export class SystemHealthService implements OnModuleDestroy {
 
   private async storageItem(): Promise<Omit<HealthItemDto, 'key'>> {
     const creds = await this.secrets.get('storage');
-    if (!creds && !this.config.get<string>('S3_BUCKET_MEDIA')) {
+    const awsOn = !!creds || !!this.config.get<string>('S3_BUCKET_MEDIA');
+    // Owner 2026-10-24: R2 (public media) is checked too when it has keys.
+    const r2Bucket = await this.storage.publicStoreBucket();
+    if (!awsOn && !r2Bucket) {
       return { status: 'grey', detail: { configured: false } };
     }
-    const started = Date.now();
-    // A missing key answers null: reaching the bucket is what counts.
-    await withTimeout(
-      this.storage.head(this.storage.bucket('media'), 'ops/health-probe'),
-      5_000,
-    );
-    return { status: 'green', detail: { latencyMs: Date.now() - started } };
+    const detail: Record<string, unknown> = {};
+    let ok = true;
+    if (awsOn) {
+      const started = Date.now();
+      try {
+        // A missing key answers null: reaching the bucket is what counts.
+        await withTimeout(
+          this.storage.head(this.storage.bucket('media'), 'ops/health-probe'),
+          5_000,
+        );
+        detail.latencyMs = Date.now() - started;
+      } catch (e) {
+        ok = false;
+        detail.error = (e as Error).message;
+      }
+    }
+    if (r2Bucket) {
+      const started = Date.now();
+      try {
+        await withTimeout(
+          this.storage.head(r2Bucket, 'ops/health-probe'),
+          5_000,
+        );
+        detail.r2LatencyMs = Date.now() - started;
+      } catch (e) {
+        ok = false;
+        detail.r2Error = (e as Error).message;
+      }
+    }
+    return { status: ok ? 'green' : 'red', detail };
   }
 
   private async video(): Promise<Omit<HealthItemDto, 'key'>> {
