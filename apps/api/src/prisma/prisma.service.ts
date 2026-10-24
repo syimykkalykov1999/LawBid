@@ -12,6 +12,14 @@ import {
 } from './slow-query.extension';
 import { softDeleteExtension } from './soft-delete.extension';
 import { parentShardLookup, shardExtension } from '../sharding/shard.extension';
+import { shardContext } from '../sharding/shard-context';
+import {
+  ShardDatabaseNotConfiguredError,
+  parseShardDatabaseUrls,
+} from '../sharding/shard-databases';
+import { delegateInfo } from '../sharding/shard-delegates';
+import { PRIMARY_DB, ShardMapRow, ShardRouter } from '../sharding/shard-router';
+import { shardStats } from '../sharding/shard-stats';
 
 /**
  * The application's database client. Every query made through it (and
@@ -31,6 +39,19 @@ import { parentShardLookup, shardExtension } from '../sharding/shard.extension';
  * context queries throw `DemoDatabaseUnavailableError` (the demo
  * endpoints turn that into 503 DEMO_UNAVAILABLE before any query runs).
  *
+ * Shard-ready step 3 (docs/architecture/SHARDING_READY.md §5): the real
+ * side is itself a set of clients, one per PHYSICAL database: `primary`
+ * (DATABASE_URL, also the global family and `shard_map`) plus the optional
+ * DATABASE_URL_SHARDS JSON. Which one a query uses:
+ *  - a delegate of a GLOBAL model: always `primary`;
+ *  - a delegate of a sharded model: the database of the current shard
+ *    context (`shardContext`, step 4), `primary` while there is none (and
+ *    the query is counted, see shard-stats.ts);
+ *  - `$transaction`, `$queryRaw` ...: the database of the shard context.
+ * `forShard(n)`, `forCase(id)`, `forUser(id)` and `global()` return a client
+ * explicitly. With one physical database all of them are the same client,
+ * so behaviour is identical to before.
+ *
  * The constructor returns the proxy, so `PrismaService` keeps the plain
  * `PrismaClient` type and every existing injection site, `withTxRetry(
  * prisma, ...)` and `prisma.$transaction` call keep compiling and behaving
@@ -46,6 +67,14 @@ export class DemoDatabaseUnavailableError extends Error {
 type ExtendedClient = ReturnType<typeof extend>;
 
 const slowLog = new Logger('SlowQuery');
+const shardLog = new Logger('ShardRouting');
+
+function shardMapTtlMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number | undefined {
+  const n = Number(env.SHARD_MAP_TTL_MS);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
 
 export function extend(client: PrismaClient) {
   return client
@@ -105,18 +134,74 @@ export class PrismaService
     // consumer; only prototype methods survive. State lives in the
     // closure below.
     const real = extend(this) as unknown as PrismaService;
+    const rawPrimary = this as PrismaClient;
+    const shardUrls = parseShardDatabaseUrls(
+      process.env.DATABASE_URL_SHARDS,
+      (m) => shardLog.error(m),
+    );
+    const shardClients = new Map<
+      string,
+      { raw: PrismaClient; ext: PrismaService }
+    >();
+    const router = new ShardRouter(
+      async () => {
+        const rows = await rawPrimary.$queryRaw<ShardMapRow[]>`
+        SELECT logical_shard::int AS logical_shard, physical_db, version
+        FROM shard_map`;
+        return rows;
+      },
+      { ttlMs: shardMapTtlMs() },
+    );
+
+    /** The extended client of a physical database (created on first use). */
+    const clientFor = (key: string): PrismaService => {
+      if (key === PRIMARY_DB) return real;
+      const hit = shardClients.get(key);
+      if (hit) return hit.ext;
+      const url = shardUrls[key];
+      if (!url) throw new ShardDatabaseNotConfiguredError(key);
+      const raw = new PrismaClient({
+        datasourceUrl: withPoolDefaults(url, process.env, 'DB_POOL_SIZE_SHARD'),
+      });
+      const ext = extend(raw) as unknown as PrismaService;
+      shardClients.set(key, { raw, ext });
+      return ext;
+    };
     let demo: ExtendedClient | null = null;
     let demoRaw: PrismaClient | null = null;
     let demoReady = false;
     let demoReason = 'not initialised';
 
-    const pick = (): PrismaService => {
-      if (!demoContext.isDemo()) return real;
+    const demoClient = (): PrismaService => {
       if (!demo || !demoReady) {
         throw new DemoDatabaseUnavailableError(demoReason);
       }
       return demo as unknown as PrismaService;
     };
+
+    /** The database of the current shard context; primary without one. */
+    const byContext = (): PrismaService => {
+      const ctx = shardContext.current();
+      if (!ctx) return real;
+      if (ctx.physical) return clientFor(ctx.physical);
+      if (ctx.shard === undefined) return real;
+      return clientFor(router.physicalFor(ctx.shard));
+    };
+
+    const pick = (prop: PropertyKey): PrismaService => {
+      if (demoContext.isDemo()) return demoClient();
+      const info = typeof prop === 'string' ? delegateInfo(prop) : undefined;
+      if (!info) return byContext();
+      if (info.family === 'global') return real;
+      const ctx = shardContext.current();
+      if (!ctx) shardStats.noContext(info.model);
+      else if (ctx.source === 'auth') shardStats.weakContext(info.model);
+      return byContext();
+    };
+
+    /** Explicit routing: a physical database, or the demo one in demo mode. */
+    const explicit = (key: () => string): PrismaService =>
+      demoContext.isDemo() ? demoClient() : clientFor(key());
 
     const control: PrismaRoutingControl = {
       demoClient(): PrismaClient | null {
@@ -139,6 +224,26 @@ export class PrismaService
       async disconnectDemo() {
         if (demoRaw) await demoRaw.$disconnect().catch(() => undefined);
       },
+      router,
+      clientFor,
+      shardDatabaseKeys: () => Object.keys(shardUrls),
+      async connectShardDatabases() {
+        for (const key of Object.keys(shardUrls)) {
+          try {
+            clientFor(key);
+            await shardClients.get(key)!.raw.$connect();
+          } catch (e) {
+            shardLog.error(
+              `cannot connect physical database ${key}: ${String(e)}`,
+            );
+          }
+        }
+      },
+      async disconnectShardDatabases() {
+        for (const { raw } of shardClients.values()) {
+          await raw.$disconnect().catch(() => undefined);
+        }
+      },
     };
 
     const proxy = new Proxy(real, {
@@ -147,15 +252,28 @@ export class PrismaService
         if (prop === 'onModuleInit') {
           return async () => {
             await (real as unknown as PrismaClient).$connect();
+            await control.connectShardDatabases();
+            await router.start();
           };
         }
         if (prop === 'onModuleDestroy') {
           return async () => {
             await (real as unknown as PrismaClient).$disconnect();
+            await control.disconnectShardDatabases();
             await control.disconnectDemo();
           };
         }
-        const client = pick() as unknown as Record<PropertyKey, unknown>;
+        if (prop === 'forShard') {
+          return (shard: number) => explicit(() => router.physicalFor(shard));
+        }
+        if (prop === 'forCase') {
+          return (caseId: string) => explicit(() => router.forCase(caseId));
+        }
+        if (prop === 'forUser') {
+          return (userId: string) => explicit(() => router.forUser(userId));
+        }
+        if (prop === 'global') return () => explicit(() => PRIMARY_DB);
+        const client = pick(prop) as unknown as Record<PropertyKey, unknown>;
         const value = client[prop];
         // Jest spies must stay as they are: binding would hide .mockXxx().
         if (
@@ -175,6 +293,26 @@ export class PrismaService
       },
     });
     return proxy;
+  }
+
+  /**
+   * Shard-ready step 3. These four are answered by the proxy in the
+   * constructor (they cannot be, here, because `this` is the raw client);
+   * the declarations give them types. Each returns the client of the
+   * physical database that holds the shard / case / user, the primary
+   * database for `global()`, and the demo client in demo mode.
+   */
+  forShard(shard: number): PrismaService {
+    throw new Error(`forShard(${shard}) is served by the PrismaService proxy`);
+  }
+  forCase(caseId: string): PrismaService {
+    throw new Error(`forCase(${caseId}) is served by the PrismaService proxy`);
+  }
+  forUser(userId: string): PrismaService {
+    throw new Error(`forUser(${userId}) is served by the PrismaService proxy`);
+  }
+  global(): PrismaService {
+    throw new Error('PrismaService.global is served by the proxy');
   }
 
   async onModuleInit(): Promise<void> {
@@ -198,6 +336,15 @@ export interface PrismaRoutingControl {
   demoState(): { ready: boolean; reason: string };
   realClient(): PrismaService;
   disconnectDemo(): Promise<void>;
+  /** Shard-ready step 3: the shard_map cache. */
+  router: ShardRouter;
+  /** The extended client of a physical database key (`primary` or a key of
+   * DATABASE_URL_SHARDS); throws ShardDatabaseNotConfiguredError otherwise. */
+  clientFor(key: string): PrismaService;
+  /** Keys of DATABASE_URL_SHARDS (without `primary`). */
+  shardDatabaseKeys(): string[];
+  connectShardDatabases(): Promise<void>;
+  disconnectShardDatabases(): Promise<void>;
 }
 
 export function routingOf(prisma: PrismaService): PrismaRoutingControl {
