@@ -11,6 +11,7 @@ import {
   slowQueryThresholdMs,
 } from './slow-query.extension';
 import { softDeleteExtension } from './soft-delete.extension';
+import { parentShardLookup, shardExtension } from '../sharding/shard.extension';
 
 /**
  * The application's database client. Every query made through it (and
@@ -49,6 +50,7 @@ const slowLog = new Logger('SlowQuery');
 export function extend(client: PrismaClient) {
   return client
     .$extends(softDeleteExtension())
+    .$extends(shardExtension(parentShardLookup(client)))
     .$extends(
       slowQueryExtension(slowQueryThresholdMs(), (q) =>
         slowLog.warn(`${q.operation} took ${q.ms} ms`),
