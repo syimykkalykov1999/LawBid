@@ -407,6 +407,7 @@
 "call.status.reconnecting":"Verbindung wird wiederhergestellt …",
 "call.subscription":"Mae angen tanysgrifiad gweithredol ar y cyfreithiwr ar gyfer galwadau.",
 "call.updateApp":"Актуализирайте приложението, за да провеждате и приемате обаждания.",
+"call.videoBlocked":"Tá obair ar siúl ar an bhfreastalaí. Beifear in ann físeán a chur ar siúl i gceann uair an chloig nó mar sin.",
 "call.videoButton":"Chamada de vídeo",
 "call.videoLabel":"LawBid video qo‘ng‘irog‘i",
 "call.videoNotNow":"Pas maintenant",
