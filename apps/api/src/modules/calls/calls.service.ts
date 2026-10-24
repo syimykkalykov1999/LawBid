@@ -696,6 +696,8 @@ export class CallsService {
     }
     await this.sweepInvites(now);
     await this.sweepSilentMembers(now);
+    await this.sweepSoloCalls(now);
+    await this.sweepEmptyCalls(now);
     await this.sweepVotes(now);
     return stale.length;
   }
@@ -704,8 +706,9 @@ export class CallsService {
     call: Call,
     outcome: Outcome,
     viewerId: string | null,
+    at?: Date,
   ): Promise<CallDto> {
-    const now = new Date();
+    const now = at ?? new Date();
     const durationSec =
       outcome === 'ended' && call.answered_at
         ? Math.max(
@@ -1063,12 +1066,6 @@ export class CallsService {
     return this.toDto(call, user.sub);
   }
 
-  /** Too few people left for the call to go on: a channel's call lives
-   * while anyone is in it (Telegram), any other while two or more are. */
-  private tooFew(call: Call, joined: number): boolean {
-    return call.channel_id ? joined < 1 : joined < 2;
-  }
-
   /** May end the call for everyone besides the host: an admin of the group
    * / channel it belongs to (Telegram: admins run the video chat). */
   private async isCallAdmin(call: Call, userId: string): Promise<boolean> {
@@ -1249,13 +1246,7 @@ export class CallsService {
       callId: call.id,
       ended: true,
     });
-    const joined = (await this.rowsOf(call.id)).filter(
-      (r) => r.status === 'joined',
-    );
-    if (this.tooFew(call, joined.length)) {
-      await this.finish(call, 'ended', null);
-      return;
-    }
+    if (await this.settleHeadcount(call, null)) return;
     await this.broadcastParticipants(call.id, [e.userId]);
   }
 
@@ -1305,6 +1296,12 @@ export class CallsService {
     const call = await this.prisma.call.findUnique({ where: { id: callId } });
     if (!call?.is_group) return;
     const rows = await this.rowsOf(callId);
+    if (
+      call.solo_since &&
+      rows.filter((r) => r.status === 'joined').length > 1
+    ) {
+      await this.clearSolo(callId);
+    }
     const ids = [...new Set([...this.audience(call, rows), ...extra])];
     this.realtime.toUsers(
       ids,
@@ -1540,16 +1537,11 @@ export class CallsService {
       where: { id: row.id, status: 'joined' },
       data: { status: 'left', left_at: new Date() },
     });
-    const rows = await this.rowsOf(call.id);
-    const joined = rows.filter((r) => r.status === 'joined');
     // Like [endIfAlone]: while someone still rings the call stays, so the
-    // one who left can come back (inbox 20b).
-    if (
-      this.tooFew(call, joined.length) &&
-      !rows.some((r) => r.status === 'invited')
-    ) {
-      return this.finish(call, 'ended', user.sub);
-    }
+    // one who left can come back (inbox 20b); one person left gets the
+    // grace (owner 2026-10-23).
+    const over = await this.settleHeadcount(call, user.sub);
+    if (over) return over;
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
       callId: call.id,
@@ -1645,13 +1637,7 @@ export class CallsService {
       callId: call.id,
       ended: true,
     });
-    const joined = (await this.rowsOf(call.id)).filter(
-      (r) => r.status === 'joined',
-    );
-    if (this.tooFew(call, joined.length)) {
-      await this.finish(call, 'ended', byUserId);
-      return;
-    }
+    if (await this.settleHeadcount(call, byUserId)) return;
     await this.broadcastParticipants(call.id, [row.user_id]);
   }
 
@@ -1973,12 +1959,7 @@ export class CallsService {
         where: { id: row.call_id },
       });
       if (!call || call.status !== 'active') continue;
-      const joined = (await this.rowsOf(call.id)).filter(
-        (r) => r.status === 'joined',
-      );
-      if (this.tooFew(call, joined.length)) {
-        await this.finish(call, 'ended', null);
-      } else {
+      if (!(await this.settleHeadcount(call, null))) {
         await this.broadcastParticipants(call.id, [row.user_id]);
       }
     }
@@ -1991,14 +1972,114 @@ export class CallsService {
     if (!(call?.group_id || call?.channel_id) || call.status !== 'active') {
       return;
     }
-    const rows = await this.rowsOf(callId);
+    await this.settleHeadcount(call, null);
+  }
+
+  /** `calls.solo_end_seconds` in ms (0 = end at once). Without settings
+   * (unit tests, the old wiring) the call ends at once, as it always did. */
+  private async soloGraceMs(): Promise<number> {
+    if (!this.settings) return 0;
+    const sec = await this.settings.number('calls.solo_end_seconds');
+    return Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : 0;
+  }
+
+  /**
+   * Owner 2026-10-23: a call with one person left must end (their phone
+   * stayed in an empty call and cost us a media session). Called whenever
+   * somebody stops being connected:
+   *  - nobody connected (and nobody still ringing) → ends now;
+   *  - one connected, nobody ringing → `solo_since` is stamped in the row and
+   *    the call ends after `calls.solo_end_seconds` unless somebody joins
+   *    (0 = at once). The end is a conditional update, so two API instances
+   *    and the cron worker can all try it and the call is ended and logged
+   *    once; the row (not a process timer) is what the worker's sweep reads;
+   *  - two or more, or someone still ringing → the stamp is cleared.
+   * Returns the ended call when it ended here, else null.
+   */
+  private async settleHeadcount(
+    call: Call,
+    viewerId: string | null,
+  ): Promise<CallDto | null> {
+    const rows = await this.rowsOf(call.id);
     const joined = rows.filter((r) => r.status === 'joined').length;
-    if (
-      this.tooFew(call, joined) &&
-      !rows.some((r) => r.status === 'invited')
-    ) {
-      await this.finish(call, 'ended', null);
+    const ringing = rows.some((r) => r.status === 'invited');
+    if (joined === 0 && !ringing) {
+      return this.finish(call, 'ended', viewerId);
     }
+    if (joined === 1 && !ringing) {
+      const grace = await this.soloGraceMs();
+      if (grace <= 0) return this.finish(call, 'ended', viewerId);
+      const now = new Date();
+      const { count } = await this.prisma.call.updateMany({
+        where: { id: call.id, status: 'active', solo_since: null },
+        data: { solo_since: now },
+      });
+      if (count > 0) this.armSoloTimer(call.id, grace);
+      return null;
+    }
+    await this.clearSolo(call.id);
+    return null;
+  }
+
+  private async clearSolo(callId: string): Promise<void> {
+    await this.prisma.call.updateMany({
+      where: { id: callId, solo_since: { not: null } },
+      data: { solo_since: null },
+    });
+  }
+
+  /** A nudge on this instance a moment after the deadline so the grace is
+   * exact; the cron sweep is the guarantee if this process is gone. */
+  private armSoloTimer(callId: string, graceMs: number): void {
+    const t = setTimeout(() => {
+      void this.endSolo(callId).catch(() => undefined);
+    }, graceMs + 200);
+    t.unref?.();
+  }
+
+  /** Ends [callId] if it has been down to one person for the whole grace. */
+  private async endSolo(callId: string): Promise<boolean> {
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    if (!call || call.status !== 'active' || !call.solo_since) return false;
+    const grace = await this.soloGraceMs();
+    if (Date.now() - call.solo_since.getTime() < grace) return false;
+    const rows = await this.rowsOf(call.id);
+    const joined = rows.filter((r) => r.status === 'joined').length;
+    if (joined >= 2 || rows.some((r) => r.status === 'invited')) {
+      await this.clearSolo(call.id);
+      return false;
+    }
+    // The call lasted until the second to last person left.
+    await this.finish(call, 'ended', null, call.solo_since);
+    return true;
+  }
+
+  /** Cron: calls down to one person for longer than the grace end. */
+  private async sweepSoloCalls(now: Date): Promise<void> {
+    const grace = await this.soloGraceMs();
+    const due = await this.prisma.call.findMany({
+      where: {
+        status: 'active',
+        solo_since: { lt: new Date(now.getTime() - grace) },
+      },
+      take: 200,
+    });
+    for (const c of due) await this.endSolo(c.id);
+  }
+
+  /** Cron: a group / channel call nobody is connected to (every phone died)
+   * is over once it is a minute old. */
+  private async sweepEmptyCalls(now: Date): Promise<void> {
+    const empty = await this.prisma.call.findMany({
+      where: {
+        status: 'active',
+        is_group: true,
+        created_at: { lt: new Date(now.getTime() - 60_000) },
+        participants: { none: { status: { in: IN_CALL } } },
+      },
+      take: 200,
+    });
+    for (const c of empty) await this.finish(c, 'ended', null);
   }
 
   private async toDtoById(callId: string, viewerId: string) {

@@ -7,6 +7,7 @@ import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { AppSettingsService } from '../src/common/app-settings/app-settings.service';
 
 /**
  * Owner 2026-10-20: group calls. A member adds a person to the running call
@@ -42,6 +43,16 @@ describe('Group calls (e2e)', () => {
     base = `http://127.0.0.1:${port}`;
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
+    // Owner 2026-10-23: a call with one person left ends after a grace
+    // (`calls.solo_end_seconds`, 30). These scenarios are about who is in the
+    // call, so the grace is 0 here (ends at once); owner-solo-calls covers it.
+    const settings = app.get(AppSettingsService);
+    const real = settings.number.bind(settings);
+    jest
+      .spyOn(settings, 'number')
+      .mockImplementation((k) =>
+        k === 'calls.solo_end_seconds' ? Promise.resolve(0) : real(k),
+      );
   });
 
   afterAll(async () => {

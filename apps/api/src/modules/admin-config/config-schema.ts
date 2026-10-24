@@ -62,6 +62,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 50,
   };
+  out['calls.solo_end_seconds'] = {
+    type: 'integer',
+    defaultValue: 30,
+    description:
+      'When only one person is left in a call, the call ends after this many seconds unless somebody joins. 0 = end at once.',
+    min: 0,
+    max: 600,
+  };
   for (const provider of COST_PROVIDERS) {
     for (const window of ['per_minute_max', 'daily_max', 'monthly_max']) {
       out[`budget.${provider}.${window}`] = {
