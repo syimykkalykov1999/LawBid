@@ -36,6 +36,14 @@
 #                  3001 with S3_ENDPOINT / DEV_FAKE_BUNNY_HOST set to that
 #                  address (the API on :3000 is not touched) and stops it
 #                  at the end. Android with adb reverse needs none of this.
+#   PERF_VIA_USB=1 physical iPhone only: reach the Mac through the USB cable
+#                  (the Mac's address on the CoreDevice tunnel, fd..::2)
+#                  instead of Wi-Fi. iOS blocks Wi-Fi/LAN addresses for an app
+#                  until someone taps "Allow" on its Local Network prompt, and
+#                  `flutter drive` uninstalls the app every run, which wipes
+#                  that permission; the cable tunnel is not "local network",
+#                  so no tap is needed. A second fake Bunny (IPv6, :4011) is
+#                  started next to the second API for the videos.
 #   PERF_NO_FAIL=1 exit 0 even when a budget failed
 set -euo pipefail
 
@@ -79,8 +87,16 @@ if [ -z "${API_BASE_URL:-}" ]; then
   elif [ "$EMU" = True ]; then
     API_BASE_URL="http://127.0.0.1:3000/api/v1"
   else
-    LAN="$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)"
-    [ -n "$LAN" ] || { echo "no LAN address; set API_BASE_URL"; exit 2; }
+    if [ -n "${PERF_VIA_USB:-}" ]; then
+      USB6="$(ifconfig | awk '/inet6 fd/ {print $2; exit}')"
+      [ -n "$USB6" ] || { echo "no USB tunnel address (is the phone unlocked and trusted?)"; exit 2; }
+      LAN="[$USB6]"
+      BUNNY_PORT=4011
+      FAKE_BUNNY_V6=1
+    else
+      LAN="$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)"
+      [ -n "$LAN" ] || { echo "no LAN address; set API_BASE_URL"; exit 2; }
+    fi
     API_BASE_URL="http://$LAN:3000/api/v1"
     PERF_MEDIA_HOST="${PERF_MEDIA_HOST:-$LAN}"
   fi
@@ -88,16 +104,25 @@ fi
 
 # --- media the phone can reach: a second API copy with LAN media links ------
 SIDE_API_PID=""
+BUNNY_PID=""
+BUNNY_PORT="${BUNNY_PORT:-4010}"
 if [ -n "${PERF_MEDIA_HOST:-}" ]; then
   API_DIR="$PWD/../api"
   SIDE_PORT=3001
   if [ -f "$API_DIR/dist/src/main.js" ]; then
     echo "perf: media host $PERF_MEDIA_HOST: starting a second API on :$SIDE_PORT"
     (cd "$API_DIR" && PORT=$SIDE_PORT S3_ENDPOINT="http://$PERF_MEDIA_HOST:9000" \
-      DEV_FAKE_BUNNY_HOST="$PERF_MEDIA_HOST:4010" \
+      DEV_FAKE_BUNNY_HOST="$PERF_MEDIA_HOST:$BUNNY_PORT" \
       exec node dist/src/main.js) >"$OUT/side_api.log" 2>&1 &
     SIDE_API_PID=$!
-    trap '[ -n "$SIDE_API_PID" ] && kill "$SIDE_API_PID" 2>/dev/null || true' EXIT
+    if [ -n "${FAKE_BUNNY_V6:-}" ]; then
+      # The cable tunnel is IPv6; the dev fake Bunny on :4010 is IPv4 only.
+      (cd "$API_DIR" && FAKE_BUNNY_PORT=$BUNNY_PORT FAKE_BUNNY_HOST=:: \
+        FAKE_BUNNY_DIR="${FAKE_BUNNY_DIR:-$API_DIR/.fake-bunny}" \
+        exec node tools/fake-bunny.mjs) >"$OUT/side_bunny.log" 2>&1 &
+      BUNNY_PID=$!
+    fi
+    trap '[ -n "$SIDE_API_PID" ] && kill "$SIDE_API_PID" 2>/dev/null; [ -n "$BUNNY_PID" ] && kill "$BUNNY_PID" 2>/dev/null; true' EXIT
     API_BASE_URL="http://$PERF_MEDIA_HOST:$SIDE_PORT/api/v1"
     for _ in $(seq 1 60); do
       [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' \

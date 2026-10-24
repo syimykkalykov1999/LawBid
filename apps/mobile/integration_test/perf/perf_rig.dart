@@ -51,14 +51,41 @@ class PerfRig {
     bool Function() done, {
     required Duration timeout,
     required String what,
+    Future<void> Function()? onTick,
   }) async {
     final end = DateTime.now().add(timeout);
+    var tick = 0;
     while (!done()) {
       if (DateTime.now().isAfter(end)) {
         fail('perf: timed out waiting for $what');
       }
       await idle(const Duration(milliseconds: 100));
+      // Every ~4 s, e.g. press "Retry" on a no-connection splash (the first
+      // request of a fresh iOS install can lose to the Local Network prompt).
+      if (onTick != null && ++tick % 40 == 0) await onTick();
     }
+  }
+
+  bool _probed = false;
+
+  /// Presses the "Повторить" button of the no-connection screen, if shown.
+  Future<void> tapRetryIfShown() async {
+    final f = find.text('Повторить').hitTestable();
+    if (f.evaluate().isEmpty) return;
+    debugPrint('perf: no-connection screen, pressing Retry');
+    if (!_probed) {
+      _probed = true;
+      const base = String.fromEnvironment('API_BASE_URL');
+      try {
+        final c = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+        final r =
+            await (await c.getUrl(Uri.parse('$base/config/bootstrap'))).close();
+        debugPrint('perf: probe $base -> HTTP ${r.statusCode}');
+      } on Object catch (e) {
+        debugPrint('perf: probe $base failed: $e');
+      }
+    }
+    await tester.tapAt(tester.getCenter(f.first));
   }
 
   // --- touches ---------------------------------------------------------
@@ -103,11 +130,20 @@ class PerfRig {
   /// "Not now" on the notification explanation that follows a sign-in
   /// (it covers the app and blocks every tap); true when it was there.
   Future<bool> dismissPrimer() async {
-    final f = find.byKey(const ValueKey<String>('permission-primer-later'));
-    if (f.evaluate().isEmpty) return false;
-    await tester.tapAt(tester.getCenter(f.first));
-    await idle(const Duration(milliseconds: 800));
-    return true;
+    // The explanations come one after another (notifications, then the
+    // microphone, ...): keep pressing "Not now" until none shows up for 3 s.
+    var any = false;
+    for (var i = 0; i < 6; i++) {
+      final f = find.byKey(const ValueKey<String>('permission-primer-later'));
+      if (f.evaluate().isEmpty) {
+        await idle(const Duration(seconds: 3));
+        if (f.evaluate().isEmpty) break;
+      }
+      await tester.tapAt(tester.getCenter(f.first));
+      await idle(const Duration(milliseconds: 800));
+      any = true;
+    }
+    return any;
   }
 
   /// Taps the first hit-testable widget with this [ValueKey] string.

@@ -214,6 +214,7 @@ void main() {
               () => location() != AppRoutes.splash,
               timeout: const Duration(seconds: 60),
               what: 'splash to finish',
+              onTick: rg.tapRetryIfShown,
             );
           } on Object {
             final texts = find
@@ -281,6 +282,21 @@ void main() {
               'perf: no feed posts. at ${location()}, PostCard widgets: '
               '${find.byType(PostCard).evaluate().length}, '
               'feed state: ${container.read(feedProvider)}, texts: $texts',
+            );
+            final more = find
+                .byType(Text)
+                .evaluate()
+                .map((e) => (e.widget as Text).data)
+                .whereType<String>()
+                .skip(25)
+                .take(60)
+                .join(' | ');
+            debugPrint(
+              'perf: overlays: barriers '
+              '${find.byType(ModalBarrier).evaluate().length}, '
+              'dialogs ${find.byType(Dialog).evaluate().length}, '
+              'sheets ${find.byType(BottomSheet).evaluate().length}, '
+              'more texts: $more',
             );
             rethrow;
           }
