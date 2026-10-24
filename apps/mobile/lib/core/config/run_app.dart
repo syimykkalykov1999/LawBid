@@ -34,6 +34,10 @@ import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// How long a local step before `runApp` may take on its own (a lookup, a
+/// storage read) before the app starts without its answer.
+const _startStepTimeout = Duration(seconds: 3);
+
 /// Shared body of every entry point (`lib/main_dev.dart`,
 /// `lib/main_staging.dart`, `lib/main_prod.dart`; `lib/main.dart` = dev):
 ///
@@ -63,10 +67,18 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // §7) — before any request, including the splash's /config/bootstrap.
   // Local platform call, no network.
   // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): the phone's X-Device-Key.
+  // Owner 2026-10-24 (slow-link pass): AppVersion.load() is an HTTP fetch of
+  // version.json on the web and DeviceKey.load() a platform call; neither
+  // may hold the first frame on a bad connection. After 3 s the app starts
+  // with the fallback version (see AppVersion.fallback) and the lookup
+  // finishes in the background.
   final (prefs, _, _) = await (
     SharedPreferences.getInstance(),
-    AppVersion.load(),
-    DeviceKey.load(),
+    AppVersion.load().timeout(
+      _startStepTimeout,
+      onTimeout: () => AppVersion.current,
+    ),
+    DeviceKey.load().timeout(_startStepTimeout, onTimeout: () {}),
   ).wait;
 
   // Owner 2026-10-15: the app's own crash reports (admin → Вылеты).
@@ -163,7 +175,16 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // drift → показывает UI"): LOCAL-ONLY (Drift read, seeded from the
   // compiled-in static maps on a brand-new install) — no network call, so
   // this never delays first paint and even the splash is localized.
-  await container.read(l10nCacheControllerProvider.notifier).bootstrap();
+  // Owner 2026-10-24 (slow-link pass): the first frame must not depend on
+  // the browser's storage. On the web this is the shared worker +
+  // IndexedDB database (drift); when it is slow or stuck the translator
+  // answers from the compiled-in seed (L10nTranslator's layered fallback)
+  // and the cached bundle lands by itself when the read finishes.
+  await container
+      .read(l10nCacheControllerProvider.notifier)
+      .bootstrap()
+      .timeout(_startStepTimeout, onTimeout: () {})
+      .onError<Object>((_, __) {});
 
   // Deep links (§12, §10.2 E/F magic link): subscribe now so a cold-start
   // link is captured; DeepLinkController holds it until the splash

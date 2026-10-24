@@ -382,6 +382,19 @@ variable "runbook_base_url" {
   description = "Alert e-mails link the matching runbook here."
 }
 
+# Owner 2026-10-24: the media CDN answered the web app's image fetches
+# without Access-Control-Allow-Origin because the origin list held only the
+# old github.io address (s3_cors_allowed_origins) and never the real web
+# hosts. The list is now built from the hosts this stack serves (web, its
+# extra hosts, admin) plus whatever s3_cors_allowed_origins adds (previews,
+# http://localhost:<port> for development).
+locals {
+  web_cors_origins = distinct(concat(
+    var.s3_cors_allowed_origins,
+    [for h in concat([var.web_host, var.admin_host], var.web_extra_hosts) : "https://${h}" if h != ""],
+  ))
+}
+
 locals {
   name = "lawbid-${var.env}"
   tags = merge({ Project = var.project_tag, Env = var.env, ManagedBy = "terraform" }, var.extra_tags)
@@ -504,7 +517,7 @@ module "s3" {
   replica_kms_key_arn = module.kms_replica.key_arn
   tags                = local.tags
 
-  cors_allowed_origins         = var.s3_cors_allowed_origins
+  cors_allowed_origins         = local.web_cors_origins
   media_web_acl_arn            = module.cdn_waf.web_acl_arn
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
   force_destroy                = var.ephemeral
