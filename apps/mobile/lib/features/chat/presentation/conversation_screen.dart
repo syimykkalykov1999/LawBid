@@ -335,6 +335,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   context,
                   conversationId: c.id,
                   onCall: () => _call(c),
+                  onVideoCall: () => _call(c, video: true),
                 );
               },
             ),
@@ -431,7 +432,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
               ),
               title: c == null
                   ? null
-                  : _Header(conversation: c, onCall: () => _call(c)),
+                  : _Header(
+                      conversation: c,
+                      onCall: () => _call(c),
+                      onVideoCall: () => _call(c, video: true),
+                    ),
               actions: [
                 // OQ-041: an in-app audio call (after acceptance).
                 // OQ-043: a direct chat gets calls once the request
@@ -453,6 +458,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                 // the owner has video calls on (flag + TURN configured).
                 if (c != null &&
                     !c.closed &&
+                    !c.blockedHere &&
                     !c.myRequestPending &&
                     !c.awaitingMyAnswer &&
                     !c.myRequestDeclined &&
@@ -631,10 +637,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.conversation, this.onCall});
+  const _Header({required this.conversation, this.onCall, this.onVideoCall});
 
   final Conversation conversation;
   final VoidCallback? onCall;
+  final VoidCallback? onVideoCall;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -656,6 +663,7 @@ class _Header extends ConsumerWidget {
           context,
           conversationId: c.id,
           onCall: onCall,
+          onVideoCall: onVideoCall,
         ),
         child: Row(
           children: [

@@ -173,4 +173,40 @@ describe('App icon badge switch (e2e)', () => {
       .send({ items: [{ topic: 'nope', pushEnabled: false }] })
       .expect(400);
   });
+  // Owner 2026-10-23: «Вопросы» (Q&A) notifications are opt-in, for old
+  // users too: no stored value = off; the switch turns it on and off.
+  it('Q&A notifications start off and follow the switch', async () => {
+    const me = await prisma.user.create({
+      data: { role: 'attorney', first_name: 'Qa', last_name: 'Switch' },
+    });
+    const read = async () => {
+      const r = await api()
+        .get('/api/v1/notification-settings')
+        .set(bearer(me.id))
+        .expect(200);
+      return (
+        r.body.data.topics as { topic: string; pushEnabled: boolean }[]
+      ).find((x) => x.topic === 'legalQa')!;
+    };
+    expect((await read()).pushEnabled).toBe(false);
+    // Even an old «new cases» opt-in does not switch it on.
+    await prisma.notificationSetting.create({
+      data: { user_id: me.id, category: 'new_cases', push_enabled: true },
+    });
+    expect((await read()).pushEnabled).toBe(false);
+    expect((await badges.topicSwitches(me.id)).on('legalQa')).toBe(false);
+    await api()
+      .put('/api/v1/notification-settings/topics')
+      .set(bearer(me.id))
+      .send({ items: [{ topic: 'legalQa', pushEnabled: true }] })
+      .expect(200);
+    expect((await read()).pushEnabled).toBe(true);
+    expect((await badges.topicSwitches(me.id)).on('legalQa')).toBe(true);
+    await api()
+      .put('/api/v1/notification-settings/topics')
+      .set(bearer(me.id))
+      .send({ items: [{ topic: 'legalQa', pushEnabled: false }] })
+      .expect(200);
+    expect((await read()).pushEnabled).toBe(false);
+  });
 });

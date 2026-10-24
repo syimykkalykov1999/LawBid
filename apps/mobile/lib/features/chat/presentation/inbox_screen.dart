@@ -317,30 +317,25 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                         .read(chatSearchOpenProvider.notifier)
                                         .open,
                                   ),
-                                // Owner 2026-10-02: the notification filter /
-                                // settings sit up here, left of the bell, in
-                                // the same place as the chats' ⋮.
-                                // Owner 2026-10-20: «mark all read» up here, next to
-                                // the filter and the bell, close together.
-                                if (tab == InboxTab.notifications &&
-                                    badges.notifications > 0)
-                                  AppIconButton(
-                                    key: const ValueKey('notif-mark-all'),
-                                    compact: true,
-                                    icon: AppIcon(
-                                      AppIcons.doneAllRounded,
-                                      color: colors.text,
-                                    ),
-                                    semanticLabel: t.t('notif.markAllRead'),
-                                    onPressed: () => ref
-                                        .read(notificationsProvider.notifier)
-                                        .markRead(),
-                                  ),
-                                // Owner 2026-10-23: the bell is always the
-                                // rightmost icon, the magnifier left of it, the
-                                // third icon (⋮ on Chats, the filter here) left
-                                // of the magnifier: filter · magnifier · bell.
+                                // Owner 2026-10-23: from the right edge - the bell
+                                // (same place as on Chats), the notification
+                                // settings, «mark all read»; the search is gone.
+                                // The settings button is the old «filter»: it
+                                // always opened the settings, so no filter is lost.
                                 if (tab == InboxTab.notifications) ...[
+                                  if (badges.notifications > 0)
+                                    AppIconButton(
+                                      key: const ValueKey('notif-mark-all'),
+                                      compact: true,
+                                      icon: AppIcon(
+                                        AppIcons.doneAllRounded,
+                                        color: colors.text,
+                                      ),
+                                      semanticLabel: t.t('notif.markAllRead'),
+                                      onPressed: () => ref
+                                          .read(notificationsProvider.notifier)
+                                          .markRead(),
+                                    ),
                                   AppIconButton(
                                     key: const ValueKey('notif-filter'),
                                     compact: true,
@@ -352,22 +347,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                         t.t('settings.notifications'),
                                     onPressed: () => context
                                         .push(ChatRoutes.notificationSettings),
-                                  ),
-                                  AppIconButton(
-                                    key: const ValueKey('notif-search-top'),
-                                    compact: true,
-                                    icon: AppIcon(
-                                      AppIcons.searchRounded,
-                                      size: 22,
-                                      color: colors.text,
-                                    ),
-                                    semanticLabel: t.t('notif.search.hint'),
-                                    onPressed: ref
-                                        .read(
-                                          notificationSearchOpenProvider
-                                              .notifier,
-                                        )
-                                        .open,
                                   ),
                                   bell,
                                 ] else ...[
@@ -1669,24 +1648,36 @@ class _NewChatButton extends ConsumerWidget {
         (ref.watch(ongoingGroupCallsProvider).value ?? const []).isNotEmpty;
     // Owner 2026-10-22 (WhatsApp): a floating button at the bottom right
     // instead of the «+» in the filter row; green while a group call runs.
+    // Owner 2026-10-23: on the iPhone it sat on the home indicator. Inside
+    // the app's shell the body's own safe-area inset is removed, so the
+    // button is lifted by the DEVICE's inset (what the Scaffold lost) plus a
+    // small lift - the same gap above the bottom edge on iOS and Android.
+    final view = View.of(context);
+    final deviceInset = view.viewPadding.bottom / view.devicePixelRatio;
+    final lost = (deviceInset - MediaQuery.viewPaddingOf(context).bottom)
+        .clamp(0.0, double.infinity);
     return Semantics(
       button: true,
       label: label,
       excludeSemantics: true,
-      child: FloatingActionButton(
-        key: const ValueKey('chats-new-chat'),
-        heroTag: null,
-        backgroundColor: live ? colors.success : colors.accent,
-        foregroundColor: live ? Colors.white : colors.onAccent,
-        onPressed: () => context.push(
-          live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
+      child: Padding(
+        key: const ValueKey('chats-new-chat-lift'),
+        padding: EdgeInsets.only(bottom: lost + AppSpacing.sm),
+        child: FloatingActionButton(
+          key: const ValueKey('chats-new-chat'),
+          heroTag: null,
+          backgroundColor: live ? colors.success : colors.accent,
+          foregroundColor: live ? Colors.white : colors.onAccent,
+          onPressed: () => context.push(
+            live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
+          ),
+          child: live
+              ? const AppIcon(
+                  AppIcons.addRounded,
+                  key: ValueKey('chats-new-chat-live'),
+                )
+              : const AppIcon(AppIcons.addRounded),
         ),
-        child: live
-            ? const AppIcon(
-                AppIcons.addRounded,
-                key: ValueKey('chats-new-chat-live'),
-              )
-            : const AppIcon(AppIcons.addRounded),
       ),
     );
   }

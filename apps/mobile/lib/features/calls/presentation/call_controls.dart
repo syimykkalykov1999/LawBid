@@ -79,7 +79,7 @@ class CallControlBar extends ConsumerWidget {
               key: const Key('call-btn-end'),
               icon: AppIcons.callEndRounded,
               label: t.t('call.end'),
-              fill: colors.danger,
+              fill: colors.dangerFill,
               onTap: onEnd,
             ),
           ],
@@ -116,7 +116,15 @@ class _PillButton extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final on = selected ?? false;
     final enabled = onTap != null;
-    final bg = fill ?? colors.callInk.withValues(alpha: on ? 0.92 : 0.12);
+    // Owner 2026-10-23: the same on iPhone and Android in every theme. The
+    // end button is the solid strong red (`dangerFill`, not the pale pink
+    // `danger` of the Blue / Green themes) with a white icon; the other
+    // buttons are white icons on a darker translucent fill, and a button
+    // that is not available yet is only a little dimmer, never washed out.
+    final bg = fill ??
+        (on
+            ? colors.callInk.withValues(alpha: 0.92)
+            : colors.navy.withValues(alpha: 0.55));
     final ink = fill != null || !on ? colors.callInk : colors.navy;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
@@ -127,7 +135,7 @@ class _PillButton extends StatelessWidget {
         label: label,
         excludeSemantics: true,
         child: Opacity(
-          opacity: enabled ? 1 : 0.4,
+          opacity: enabled || fill != null ? 1 : 0.7,
           child: AppPressable(
             onTap: () {
               if (onTap == null) return;

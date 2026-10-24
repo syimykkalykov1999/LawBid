@@ -28,6 +28,8 @@ import 'package:lawbid/features/channels/application/channel_forward_port.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
+import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -93,6 +95,8 @@ Future<void> runLawBid(AppFlavor flavor) async {
       groupVideoCallsProvider.overrideWith(
         (ref) => ref.watch(videoCallsEnabledProvider),
       ),
+      // Owner 2026-10-23: the Q&A's notification switch.
+      qaNotifySwitchProvider.overrideWithValue(() => const QaNotifySwitch()),
       // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.
       channelForwardPortProvider.overrideWithValue(
         (context, ref, {required postId}) => forwardWithSheet(

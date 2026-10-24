@@ -15,8 +15,6 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show CountPill;
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
-import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
-import 'package:lawbid/features/legal_qa/presentation/qa_search_button.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -640,10 +638,7 @@ class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
                   )
                 : chips,
           ),
-          // Owner 2026-10-20: the «?» — the same door to «Вопрос юристу» as
-          // the «Вопрос юристу · N новых» line (no «how it works» screens).
-          if (!open && ref.watch(legalQaEnabledProvider))
-            const QaSearchButton(),
+          // Owner 2026-10-23: the «?» went away — «Вопросы» is a tab now.
           if (!open)
             AppIconButton(
               key: const ValueKey('mine-search-open'),

@@ -161740,6 +161740,7 @@
           "bidNew",
           "bidDecision",
           "newCases",
+          "legalQa",
           "caseMessages",
           "caseDeadlines",
           "casePayments",

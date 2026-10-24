@@ -583,11 +583,10 @@ export class LegalQaService {
                        SELECT c.id FROM practice_areas c WHERE c.parent_id = qa.id)
       JOIN attorney_profiles p ON p.user_id = ch.attorney_id
        AND p.verification_status = 'verified'
-      JOIN notification_settings s
-        ON s.user_id = ch.attorney_id AND s.category = 'new_cases'
-       AND s.push_enabled
       JOIN users u ON u.id = ch.attorney_id
        AND u.status = 'active' AND u.deleted_at IS NULL
+       -- Owner 2026-10-23: Q&A notifications are opt-in (Cases → Questions).
+       AND u.notif_topics ->> 'legalQa' = 'true'
       WHERE ch.attorney_id <> ${q.author_id}::UUID
         ${stateFilter}
         AND NOT EXISTS (

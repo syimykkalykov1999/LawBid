@@ -71,7 +71,77 @@ const _bar = [
   'call-btn-end',
 ];
 
+/// Owner 2026-10-23: the pill read washed out on iPhone (the Blue / Green
+/// themes' `danger` is a pale pink). End = solid strong red + white icon in
+/// every theme; the other buttons are white icons on a darker fill.
+void _barTests() {
+  for (final id in AppThemeId.values) {
+    testWidgets('call pill: solid red end, visible icons (${id.name})',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: uxOverrides(),
+          child: MaterialApp(
+            theme: AppTheme.of(id),
+            home: Scaffold(
+              body: Center(
+                child: CallControlBar(
+                  speaker: false,
+                  videoOn: false,
+                  muted: false,
+                  onSpeaker: null,
+                  onVideo: () {},
+                  onMute: () {},
+                  onEnd: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final colors = AppTheme.of(id).extension<AppColorTokens>()!;
+      Color fillOf(String key) {
+        final box = tester.widget<AnimatedContainer>(
+          find.descendant(
+            of: find.byKey(Key(key)),
+            matching: find.byType(AnimatedContainer),
+          ),
+        );
+        return (box.decoration! as BoxDecoration).color!;
+      }
+
+      Color iconOf(String key) => tester
+          .widget<AppIcon>(
+            find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(AppIcon),
+            ),
+          )
+          .color!;
+
+      expect(fillOf('call-btn-end'), colors.dangerFill);
+      expect(iconOf('call-btn-end'), colors.onDanger);
+      // The others: white icon on a darker translucent fill.
+      for (final k in ['call-btn-speaker', 'call-btn-video', 'call-btn-mute']) {
+        expect(iconOf(k), colors.onDanger, reason: k);
+        expect(fillOf(k), colors.navy.withValues(alpha: 0.55), reason: k);
+      }
+      // A button not available yet (the speaker) is only a little dimmer.
+      final dim = tester.widget<Opacity>(
+        find
+            .descendant(
+              of: find.byKey(const Key('call-btn-speaker')),
+              matching: find.byType(Opacity),
+            )
+            .first,
+      );
+      expect(dim.opacity, greaterThanOrEqualTo(0.7));
+    });
+  }
+}
+
 void main() {
+  _barTests();
   testWidgets('a voice call: the pill holds four buttons, no camera flip',
       (tester) async {
     await _pump(tester, _active());
