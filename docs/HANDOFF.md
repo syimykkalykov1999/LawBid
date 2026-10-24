@@ -84,3 +84,6 @@ Another Claude account may pick this up. Read ALL of this before doing anything.
 5. Delete the manual $50 budget "LawBid Monthly" in the console.
 6. Run the restore drill when asked.
 7. At the end: the Apple account transfer to SiMA LLC, the Stripe live key.
+
+## 6. VERY LAST TASK (the owner's "everything is done" signal)
+ONLY after every item above is finished: the verified checkmark badges (attorney green, client badge) look greyish in some themes. Fix ONLY their colors per theme (Day, Night, Blue, Green) so each is clearly visible; keep the icon shape and size. If anything else is unfinished, do NOT do this, because the owner uses it to know all work is complete.
