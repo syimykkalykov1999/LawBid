@@ -144,3 +144,52 @@ describe('StatusProbesService outside probes', () => {
     expect((await make(r2, settings).r2()).status).toBe('red');
   });
 });
+
+describe('StatusProbesService usage and breaker lines (Batch C)', () => {
+  interface Extra {
+    usage(w: 'cloudflare' | 'bunny'): Promise<{
+      status: string;
+      detail: Record<string, unknown>;
+    }>;
+    breakers(): Promise<{ status: string; detail: Record<string, unknown> }>;
+  }
+  function withSnapshot(snap: unknown): Extra {
+    const Ctor = StatusProbesService as unknown as new (
+      ...a: unknown[]
+    ) => unknown;
+    return new Ctor(null, {
+      get: () => Promise.resolve(snap ? JSON.stringify(snap) : null),
+    }) as Extra;
+  }
+
+  it('is grey until the daily poll has run', async () => {
+    expect((await withSnapshot(null).usage('cloudflare')).status).toBe('grey');
+  });
+
+  it('is yellow at the warn level and red at the crit level', async () => {
+    const warn = withSnapshot({
+      at: 'x',
+      cloudflare: { ok: true, egressGb: 720, level: 'warn' },
+    });
+    expect((await warn.usage('cloudflare')).status).toBe('yellow');
+    const crit = withSnapshot({
+      at: 'x',
+      cloudflare: { ok: true, egressGb: 960, level: 'crit' },
+    });
+    expect((await crit.usage('cloudflare')).status).toBe('red');
+  });
+
+  it('a failed poll is yellow with the reason', async () => {
+    const p = withSnapshot({
+      at: 'x',
+      bunny: { ok: false, error: 'Bunny HTTP 401' },
+    });
+    const r = await p.usage('bunny');
+    expect(r.status).toBe('yellow');
+    expect(r.detail.error).toBe('Bunny HTTP 401');
+  });
+
+  it('breakers line is green while nothing is paused', async () => {
+    expect((await withSnapshot(null).breakers()).status).toBe('green');
+  });
+});
