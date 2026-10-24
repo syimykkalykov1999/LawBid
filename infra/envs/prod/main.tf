@@ -66,6 +66,7 @@ module "stack" {
   api_max_tasks                   = var.api_max_tasks
   worker_max_tasks                = var.worker_max_tasks
   min_tasks                       = var.min_tasks
+  container_insights              = var.container_insights
   worker_spot                     = var.worker_spot
   api_spot                        = var.api_spot
   turn_enabled                    = var.turn_enabled

@@ -470,6 +470,15 @@ resource "aws_cloudwatch_metric_alarm" "service_cpu" {
 }
 
 # A service with zero running tasks (crash loop, failed deploy, capacity).
+# 2026-10-24: Container Insights is off (it cost about $30/month), so the old
+# ECS/ContainerInsights RunningTaskCount is gone. Two free signals instead:
+#   api    = ALB HealthyHostCount of the api target group (tasks that really
+#            pass the health check; free, one point a minute);
+#   worker = SampleCount of LawBid/Runtime HeapUsedMb {Service=worker}: every
+#            running worker writes one line a minute (RuntimeStatsService), so
+#            "no samples" = "no running worker". Period 180 s so one late line
+#            never looks like an outage. No data = breaching, a dead service
+#            still pages.
 resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
   for_each = {
     api    = var.api_service_name
@@ -479,16 +488,21 @@ resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
   alarm_description   = "LawBid: Сервер ${each.key} не запущен ни разу. Что делать: AWS пытается запустить его сам. Не прошло за 10 минут — GitHub → Actions → «Rollback production» на прошлую версию. Инструкция: ${var.runbook_base_url}/ecs-capacity.md (EN: ${each.key} has no running ECS tasks.)"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 2
-  period              = 60
+  period              = each.key == "api" ? 60 : 180
   threshold           = 1
-  statistic           = "Minimum"
-  metric_name         = "RunningTaskCount"
-  namespace           = "ECS/ContainerInsights"
-  dimensions          = { ClusterName = var.cluster_name, ServiceName = each.value }
-  treat_missing_data  = "breaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
-  tags                = var.tags
+  statistic           = each.key == "api" ? "Minimum" : "SampleCount"
+  metric_name         = each.key == "api" ? "HealthyHostCount" : "HeapUsedMb"
+  namespace           = each.key == "api" ? "AWS/ApplicationELB" : "LawBid/Runtime"
+  dimensions = each.key == "api" ? {
+    LoadBalancer = var.alb_arn_suffix
+    TargetGroup  = var.api_target_group_arn_suffix
+    } : {
+    Service = "worker"
+  }
+  treat_missing_data = "breaching"
+  alarm_actions      = local.ops
+  ok_actions         = local.ops
+  tags               = var.tags
 }
 
 # Email reputation (SES production-access promise): AWS pauses sending

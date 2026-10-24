@@ -98,15 +98,24 @@ variable "cpu_architecture" {
     error_message = "cpu_architecture must be X86_64 or ARM64."
   }
 }
+variable "container_insights" {
+  type        = string
+  default     = "disabled"
+  description = "ECS Container Insights: disabled (default, saves about $30/month) or enabled (per-task CPU/memory/network graphs for debugging, AWS/ECS/ContainerInsights). Autoscaling and alarms do not depend on it."
+  validation {
+    condition     = contains(["disabled", "enabled", "enhanced"], var.container_insights)
+    error_message = "container_insights must be disabled, enabled or enhanced."
+  }
+}
 variable "worker_spot" {
   type        = bool
   default     = false
-  description = "Run the worker on Fargate Spot (up to 70 % cheaper): one task stays on regular Fargate, the rest are Spot (weight 1:3). Safe for the queue: an interrupted job is retried."
+  description = "Run the worker on Fargate Spot (up to 70 % cheaper): one task stays on regular Fargate, the rest are split half on regular Fargate, half on Spot (weight 1:1). Safe for the queue: an interrupted job is retried."
 }
 variable "api_spot" {
   type        = bool
   default     = false
-  description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are Spot (weight 1:3). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
+  description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are split half regular, half Spot (weight 1:1; ECS does not fall back to regular Fargate when Spot has no capacity, so half of the new tasks always start). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
 }
 variable "night_scale_down" {
   type        = bool
@@ -170,7 +179,7 @@ resource "aws_ecs_cluster" "this" {
   name = var.name
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = var.container_insights
   }
   tags = var.tags
 }
@@ -198,13 +207,17 @@ resource "aws_cloudwatch_log_group" "svc" {
 # AWS CLI (create if missing, then put-retention-policy): works whether or not
 # the group exists yet. A failure only warns.
 resource "terraform_data" "insights_log_retention" {
-  triggers_replace = [aws_ecs_cluster.this.name, var.log_retention_days]
+  triggers_replace = [aws_ecs_cluster.this.name, var.log_retention_days, var.container_insights]
   provisioner "local-exec" {
     on_failure = continue
-    command    = <<-EOT
-      G="/aws/ecs/containerinsights/${aws_ecs_cluster.this.name}/performance"
-      aws logs create-log-group --region ${data.aws_region.current.name} --log-group-name "$G" 2>/dev/null || true
-      aws logs put-retention-policy --region ${data.aws_region.current.name} --log-group-name "$G" --retention-in-days ${var.log_retention_days}
+    # Insights off (default): nothing writes the group any more, skip (an
+    # old group keeps the retention it already has).
+    command = <<-EOT
+      if [ "${var.container_insights}" != "disabled" ]; then
+        G="/aws/ecs/containerinsights/${aws_ecs_cluster.this.name}/performance"
+        aws logs create-log-group --region ${data.aws_region.current.name} --log-group-name "$G" 2>/dev/null || true
+        aws logs put-retention-policy --region ${data.aws_region.current.name} --log-group-name "$G" --retention-in-days ${var.log_retention_days}
+      fi
     EOT
   }
 }
@@ -477,18 +490,23 @@ resource "aws_ecs_task_definition" "migrate" {
 
 # --- services --------------------------------------------------------------
 resource "aws_ecs_service" "api" {
-  name                              = "api"
-  cluster                           = aws_ecs_cluster.this.id
-  task_definition                   = aws_ecs_task_definition.api.arn
-  desired_count                     = var.min_tasks
-  launch_type                       = var.api_spot ? null : "FARGATE"
+  name            = "api"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = var.min_tasks
+  launch_type     = var.api_spot ? null : "FARGATE"
+  # Needed for api_spot / worker_spot: adding or removing a capacity provider
+  # strategy on a running service makes the AWS provider REPLACE the service
+  # (downtime) unless force_new_deployment is true; with it the change is an
+  # in-place UpdateService and a normal rolling deployment.
+  force_new_deployment              = true
   platform_version                  = "LATEST"
   health_check_grace_period_seconds = 60
   enable_execute_command            = false
   propagate_tags                    = "SERVICE"
 
   dynamic "capacity_provider_strategy" {
-    for_each = var.api_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 3 } } : {}
+    for_each = var.api_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 1 } } : {}
     content {
       capacity_provider = capacity_provider_strategy.key
       base              = capacity_provider_strategy.value.base
@@ -519,16 +537,21 @@ resource "aws_ecs_service" "api" {
 }
 
 resource "aws_ecs_service" "worker" {
-  name                   = "worker"
-  cluster                = aws_ecs_cluster.this.id
-  task_definition        = aws_ecs_task_definition.worker.arn
-  desired_count          = var.min_tasks
-  launch_type            = var.worker_spot ? null : "FARGATE"
+  name            = "worker"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.worker.arn
+  desired_count   = var.min_tasks
+  launch_type     = var.worker_spot ? null : "FARGATE"
+  # Needed for api_spot / worker_spot: adding or removing a capacity provider
+  # strategy on a running service makes the AWS provider REPLACE the service
+  # (downtime) unless force_new_deployment is true; with it the change is an
+  # in-place UpdateService and a normal rolling deployment.
+  force_new_deployment   = true
   platform_version       = "LATEST"
   enable_execute_command = false
   propagate_tags         = "SERVICE"
   dynamic "capacity_provider_strategy" {
-    for_each = var.worker_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 3 } } : {}
+    for_each = var.worker_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 1 } } : {}
     content {
       capacity_provider = capacity_provider_strategy.key
       base              = capacity_provider_strategy.value.base
@@ -688,8 +711,16 @@ resource "aws_appautoscaling_policy" "api_requests" {
 # CPU stays low while jobs wait on Stripe / FCM / ClamAV, so CPU alone never
 # adds a worker for a backlog. Metric: QueueWaitingTotal (one line a minute
 # from the worker's ops.metrics job, log metric filter in modules/monitoring)
-# divided by the running worker tasks (Container Insights): the AWS
-# "backlog per task" pattern. The CPU policy above stays; with two target
+# divided by the running worker tasks: the AWS "backlog per task" pattern.
+# Running tasks = SampleCount of LawBid/Runtime HeapUsedMb {Service=worker}:
+# each running worker writes one such line a minute (RuntimeStatsService), so
+# the sample count per minute is the task count (checked against ECS/
+# ContainerInsights RunningTaskCount on 2026-10-24: same value, 1 or 2 during
+# deploys). Free; replaces Container Insights (about $30/month). A late line
+# can show one extra sample for a minute: the ratio dips for that minute only,
+# scale-out stays fast, scale-in has a 10 minute cooldown. Caveat: the metric
+# has no cluster dimension, so a second environment in the same account (the
+# load-test stack) adds to the count while it runs. The CPU policy above stays; with two target
 # tracking policies the larger desired count wins.
 # https://docs.aws.amazon.com/autoscaling/application/userguide/application-auto-scaling-target-tracking-metric-math.html
 resource "aws_appautoscaling_policy" "worker_queue" {
@@ -722,18 +753,14 @@ resource "aws_appautoscaling_policy" "worker_queue" {
         return_data = false
         metric_stat {
           metric {
-            metric_name = "RunningTaskCount"
-            namespace   = "ECS/ContainerInsights"
+            metric_name = "HeapUsedMb"
+            namespace   = "LawBid/Runtime"
             dimensions {
-              name  = "ClusterName"
-              value = aws_ecs_cluster.this.name
-            }
-            dimensions {
-              name  = "ServiceName"
-              value = aws_ecs_service.worker.name
+              name  = "Service"
+              value = "worker"
             }
           }
-          stat = "Average"
+          stat = "SampleCount"
         }
       }
       metrics {
