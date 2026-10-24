@@ -244,7 +244,11 @@ describe('Solo call end (e2e)', () => {
     await t.hangUp(t.cAuth);
     // Two "instances" (the same code on the same database) and the cron
     // sweep all try at the deadline.
-    const svc = app.get(CallsService);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- endSolo is private
+    const svc = app.get(CallsService) as unknown as {
+      endSolo(id: string): Promise<boolean>;
+      sweep(): Promise<number>;
+    };
     await sleep(GRACE_S * 1000 + 100);
     await Promise.all([
       svc.endSolo(t.callId),
