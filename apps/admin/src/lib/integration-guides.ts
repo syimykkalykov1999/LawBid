@@ -283,6 +283,26 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  opensearch: {
+    steps: [
+      'Это отдельный поисковый движок. Сейчас поиск работает на Postgres и этого не нужно: включайте, когда Postgres станет узким местом (медленный поиск при большом числе пользователей).',
+      'Создание: в Terraform (infra/envs/prod/terraform.tfvars) в блоке growth поставьте opensearch_enabled = true и примените. AWS создаст движок сам; адрес появится в выводе growth_opensearch_endpoint (начинается с https://vpc-…).',
+      'Вставьте адрес в поле ниже и нажмите «Сохранить» (потребуется код 2FA), затем «Проверить». Имя и пароль нужны только если вы включили закрытый доступ по паролю; по умолчанию доступ только изнутри нашей сети и поля пустые.',
+      'Включение шагами: 1) Настройки → search.engine = shadow. Система сама заполнит движок данными (несколько минут) и будет сравнивать ответы, показывая людям результат Postgres. 2) Через пару дней без расхождений в логах поставьте search.engine = engine. 3) Если что-то не так — верните postgres, это мгновенно и ничего не теряет.',
+    ],
+    links: [{ label: 'Amazon OpenSearch Service', url: 'https://aws.amazon.com/opensearch-service/' }],
+    enable: [
+      'Заполните адрес → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Сам ключ поиск не переключает: Админка → Настройки → search.engine = shadow, потом engine. Пока адреса нет, система не даст выбрать shadow или engine.',
+    ],
+    fields: {
+      url: { how: 'OPENSEARCH_URL: адрес движка из growth_opensearch_endpoint, с https://.', example: 'https://vpc-lawbid-search-abc123.us-east-1.es.amazonaws.com' },
+      username: { how: 'OPENSEARCH_USERNAME: только если у движка включён вход по паролю. Иначе оставьте пустым.' },
+      password: { how: 'OPENSEARCH_PASSWORD: пароль к имени выше. Иначе оставьте пустым.' },
+      prefix: { how: 'Приставка имён индексов. Оставьте lawbid; для нагрузочной среды — lawbid-loadtest, чтобы среды не смешивались.', example: 'lawbid' },
+    },
+  },
+
   persona: {
     steps: ['Откройте app.withpersona.com → API → API Keys → создайте или скопируйте ключ.'],
     links: [{ label: 'Persona', url: 'https://app.withpersona.com/' }],
