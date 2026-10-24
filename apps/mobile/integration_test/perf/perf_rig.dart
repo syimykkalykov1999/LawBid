@@ -27,6 +27,11 @@ class PerfRig {
   final Map<String, List<double>> latency = {};
   final List<Map<String, Object?>> memory = [];
 
+  /// Which pass over the scroll scenarios this is (PERF_ROUNDS). Frame stats,
+  /// latencies and video starts are recorded in round 1 only; every round
+  /// samples memory.
+  int round = 1;
+
   double get refreshRate {
     final displays = ui.PlatformDispatcher.instance.displays;
     final hz = displays.isEmpty ? 60.0 : displays.first.refreshRate;
@@ -125,6 +130,10 @@ class PerfRig {
     // a phone cannot reach from inside (its ws://localhost is the Mac's).
     SchedulerBinding.instance.addTimingsCallback(collect);
     await action();
+    if (round > 1) {
+      SchedulerBinding.instance.removeTimingsCallback(collect);
+      return;
+    }
     // FrameTimings arrive in batches (about once a second).
     await idle(const Duration(milliseconds: 2500));
     SchedulerBinding.instance.removeTimingsCallback(collect);
@@ -169,6 +178,7 @@ class PerfRig {
     SchedulerBinding.instance.addPostFrameCallback(check);
     await trigger();
     final v = await done.future;
+    if (round > 1) return v;
     if (v >= 0) {
       latency
           .putIfAbsent(name, () => [])
@@ -225,6 +235,7 @@ class PerfRig {
     final cache = PaintingBinding.instance.imageCache;
     memory.add({
       'at': at,
+      'round': round,
       'rss_mb':
           double.parse((ProcessInfo.currentRss / 1048576).toStringAsFixed(1)),
       if (heapMb != null) 'heap_mb': double.parse(heapMb.toStringAsFixed(1)),

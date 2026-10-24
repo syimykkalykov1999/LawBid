@@ -13,7 +13,11 @@
 //   the videos are COPIES (symlinks) of the clips the dev fake Bunny already
 //   holds (apps/api/tools/fake-bunny.mjs, DEV_FAKE_BUNNY=true), so they play
 //   on a phone with `adb reverse tcp:4010 tcp:4010` and the fake Bunny
-//   running. Without those clips the reels are skipped (and said so).
+//   running. On a physical iPhone the media links must carry the Mac's LAN
+//   address instead of 127.0.0.1: the links are made by the API when it
+//   answers (not stored), so run_device_perf.sh starts a second API copy
+//   with S3_ENDPOINT / DEV_FAKE_BUNNY_HOST on that address (PERF_MEDIA_HOST).
+//   Without those clips the reels are skipped (and said so).
 // - The account is created through the real API (needs it running and
 //   OTP_DEV_FIXED_CODE=true, API_URL overrides http://127.0.0.1:3000/api/v1);
 //   the rest of the profile is filled directly in the database.

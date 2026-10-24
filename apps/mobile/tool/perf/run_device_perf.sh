@@ -25,6 +25,17 @@
 #   PERF_PHONE / PERF_PASSWORD   other seed login
 #   PERF_ONLY      run only some scenarios: feed,reels,search,chats,cases,taps
 #   COLD_RUNS      cold starts to take the median of (default 3, 0 = skip)
+#   PERF_ROUNDS    run the scroll scenarios N times in a row (default 1); the
+#                  report gives the RSS at the end of each round and a
+#                  warm-up / leak verdict (needs 3)
+#   PERF_MEDIA_HOST  address of the Mac the PHONE can reach MinIO (:9000) and
+#                  the fake Bunny (:4010) at. Default for a physical iPhone:
+#                  the Mac's LAN address (the API's media links point at
+#                  127.0.0.1 otherwise and no photo or video loads). The
+#                  script then starts a SECOND copy of the built API on port
+#                  3001 with S3_ENDPOINT / DEV_FAKE_BUNNY_HOST set to that
+#                  address (the API on :3000 is not touched) and stops it
+#                  at the end. Android with adb reverse needs none of this.
 #   PERF_NO_FAIL=1 exit 0 even when a budget failed
 set -euo pipefail
 
@@ -71,10 +82,34 @@ if [ -z "${API_BASE_URL:-}" ]; then
     LAN="$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)"
     [ -n "$LAN" ] || { echo "no LAN address; set API_BASE_URL"; exit 2; }
     API_BASE_URL="http://$LAN:3000/api/v1"
+    PERF_MEDIA_HOST="${PERF_MEDIA_HOST:-$LAN}"
+  fi
+fi
+
+# --- media the phone can reach: a second API copy with LAN media links ------
+SIDE_API_PID=""
+if [ -n "${PERF_MEDIA_HOST:-}" ]; then
+  API_DIR="$PWD/../api"
+  SIDE_PORT=3001
+  if [ -f "$API_DIR/dist/src/main.js" ]; then
+    echo "perf: media host $PERF_MEDIA_HOST: starting a second API on :$SIDE_PORT"
+    (cd "$API_DIR" && PORT=$SIDE_PORT S3_ENDPOINT="http://$PERF_MEDIA_HOST:9000" \
+      DEV_FAKE_BUNNY_HOST="$PERF_MEDIA_HOST:4010" \
+      exec node dist/src/main.js) >"$OUT/side_api.log" 2>&1 &
+    SIDE_API_PID=$!
+    trap '[ -n "$SIDE_API_PID" ] && kill "$SIDE_API_PID" 2>/dev/null || true' EXIT
+    API_BASE_URL="http://$PERF_MEDIA_HOST:$SIDE_PORT/api/v1"
+    for _ in $(seq 1 60); do
+      [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' \
+        "http://127.0.0.1:$SIDE_PORT/api/v1/config/bootstrap")" = 200 ] && break
+      sleep 1
+    done
+  else
+    echo "perf: apps/api/dist is not built (npm run build --workspace apps/api); media links stay on 127.0.0.1"
   fi
 fi
 echo "perf: API as the phone sees it: $API_BASE_URL"
-HOST_URL="$(echo "$API_BASE_URL" | sed -E 's#//[^:/]+#//127.0.0.1#')"
+HOST_URL="$(echo "$API_BASE_URL" | sed -E 's#//(\[[^]]*\]|[^:/]+)#//127.0.0.1#')"
 CODE="$(curl -s -o /dev/null -m 5 -w '%{http_code}' "$HOST_URL/config/bootstrap" || true)"
 if [ "$CODE" = "000" ] || [ -z "$CODE" ]; then
   echo "perf: the API does not answer at $HOST_URL - start it first (apps/api)."
@@ -98,6 +133,7 @@ DEFS=(
 )
 [ -n "${PERF_DEMO_CODE:-}" ] && DEFS+=("--dart-define=PERF_DEMO_CODE=$PERF_DEMO_CODE")
 [ -n "${PERF_PHONE:-}" ] && DEFS+=("--dart-define=PERF_PHONE=$PERF_PHONE")
+[ -n "${PERF_ROUNDS:-}" ] && DEFS+=("--dart-define=PERF_ROUNDS=$PERF_ROUNDS")
 [ -n "${PERF_ONLY:-}" ] && DEFS+=("--dart-define=PERF_ONLY=$PERF_ONLY")
 [ -n "${PERF_PASSWORD:-}" ] && DEFS+=("--dart-define=PERF_PASSWORD=$PERF_PASSWORD")
 

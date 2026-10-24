@@ -77,6 +77,13 @@ const _nativeInit = String.fromEnvironment('PERF_NATIVE_FRAMEWORK_INIT_MS');
 // and the feed warm-up always run.
 const _only = String.fromEnvironment('PERF_ONLY');
 
+/// How many times the scroll scenarios (feed, reels, search, chats, cases) run
+/// in a row, e.g. --dart-define=PERF_ROUNDS=3. Memory is sampled after every
+/// scenario of every round: warm-up (growth only in round 1) or a leak
+/// (growth in every round) shows in the per-round table.
+final _rounds = (int.tryParse(const String.fromEnvironment('PERF_ROUNDS')) ?? 1)
+    .clamp(1, 10);
+
 /// How many times each tap latency is repeated (the median is judged).
 const _reps = 3;
 
@@ -202,11 +209,23 @@ void main() {
 
         // --- sign in (a stored session is reused) -----------------------
         Future<void> signIn() async {
-          await rg.waitUntil(
-            () => location() != AppRoutes.splash,
-            timeout: const Duration(seconds: 60),
-            what: 'splash to finish',
-          );
+          try {
+            await rg.waitUntil(
+              () => location() != AppRoutes.splash,
+              timeout: const Duration(seconds: 60),
+              what: 'splash to finish',
+            );
+          } on Object {
+            final texts = find
+                .byType(Text)
+                .evaluate()
+                .map((e) => (e.widget as Text).data)
+                .whereType<String>()
+                .take(25)
+                .join(' | ');
+            debugPrint('perf: stuck at ${location()}, texts: $texts');
+            rethrow;
+          }
           if (!location().startsWith(AppRoutes.feed)) {
             if (_demoCode.isNotEmpty) {
               debugPrint('perf: entering the demo with a code');
@@ -272,167 +291,174 @@ void main() {
 
         await step('signin', signIn, always: true);
 
-        // --- 1. feed scroll ---------------------------------------------
         String? authorName;
-        await step('feed', () async {
-          authorName = container
-              .read(feedProvider)
-              .value
-              ?.items
-              .map((p) => p.author)
-              .where((a) => !a.isClient)
-              .map((a) => a.username)
-              .firstOrNull;
+        for (var round = 1; round <= _rounds; round++) {
+          rg.round = round;
           PerfMarks.takeVideoStarts();
-          await rg.scroll('feed_scroll', () async {
-            for (var i = 0; i < 14; i++) {
-              await rg.fling(up: true);
-            }
-            for (var i = 0; i < 4; i++) {
-              await rg.fling(up: false);
-            }
+          // --- 1. feed scroll ---------------------------------------------
+          await step('feed', () async {
+            if (round > 1) await goTab(AppTabKey.feed);
+            authorName = container
+                .read(feedProvider)
+                .value
+                ?.items
+                .map((p) => p.author)
+                .where((a) => !a.isClient)
+                .map((a) => a.username)
+                .firstOrNull;
+            PerfMarks.takeVideoStarts();
+            await rg.scroll('feed_scroll', () async {
+              for (var i = 0; i < 14; i++) {
+                await rg.fling(up: true);
+              }
+              for (var i = 0; i < 4; i++) {
+                await rg.fling(up: false);
+              }
+            });
+            if (round == 1) video['feed'] = PerfMarks.takeVideoStarts();
+            await rg.sampleMemory('after feed scroll');
           });
-          video['feed'] = PerfMarks.takeVideoStarts();
-          await rg.sampleMemory('after feed scroll');
-        });
 
-        // --- 2. reels: swipe through 10 videos --------------------------
-        await step('reels', () async {
-          await rg.tapKey('pill-_FeedTab.reels');
-          await rg.idle(const Duration(seconds: 4));
-          PerfMarks.takeVideoStarts();
-          await rg.scroll('reels_swipe_10', () async {
-            for (var i = 0; i < 10; i++) {
-              await rg.swipePage(up: true);
-            }
-            await rg.swipePage(up: false);
-          });
-          video['reels'] = PerfMarks.takeVideoStarts();
-          await rg.tapKey('pill-_FeedTab.posts');
-          await rg.idle(const Duration(seconds: 2));
-          await rg.sampleMemory('after reels');
-        });
-
-        // --- 3. search grid (posts with video previews) ------------------
-        await step('search', () async {
-          await goTab(AppTabKey.search);
-          await rg.waitUntil(
-            () => find.byType(SearchScreen).evaluate().isNotEmpty,
-            timeout: const Duration(seconds: 10),
-            what: 'search',
-          );
-          await rg.idle(const Duration(seconds: 1));
-          await rg.tapKey('pill-${SearchTab.posts}');
-          await rg.waitUntil(
-            () => find.byType(PostGridTile).hitTestable().evaluate().isNotEmpty,
-            timeout: const Duration(seconds: 30),
-            what: 'search grid',
-          );
-          await rg.idle(const Duration(seconds: 3));
-          PerfMarks.takeVideoStarts();
-          await rg.scroll('search_grid_scroll', () async {
-            for (var i = 0; i < 8; i++) {
-              await rg.fling(up: true, distance: 450);
-            }
-            for (var i = 0; i < 4; i++) {
-              await rg.fling(up: false, distance: 450);
-            }
-          });
-          video['search_grid'] = PerfMarks.takeVideoStarts();
-          await rg.sampleMemory('after search grid');
-
-          // Open a reel from the grid (latency): the first video tile.
-          for (var i = 0; i < _reps; i++) {
-            final tile = find.byWidgetPredicate(
-              (w) => w is PostGridTile && w.post.video != null,
-            );
-            if (tile.hitTestable().evaluate().isEmpty) {
-              notes.add('open_reel_from_grid skipped: no video tile in the '
-                  'search grid');
-              break;
-            }
-            await rg.timeToFrame(
-              'open_reel_from_grid',
-              () => rg.tapFirst(tile),
-              find.byType(ReelsScreen),
-            );
+          // --- 2. reels: swipe through 10 videos --------------------------
+          await step('reels', () async {
+            await rg.tapKey('pill-_FeedTab.reels');
+            await rg.idle(const Duration(seconds: 4));
+            PerfMarks.takeVideoStarts();
+            await rg.scroll('reels_swipe_10', () async {
+              for (var i = 0; i < 10; i++) {
+                await rg.swipePage(up: true);
+              }
+              await rg.swipePage(up: false);
+            });
+            if (round == 1) video['reels'] = PerfMarks.takeVideoStarts();
+            await rg.tapKey('pill-_FeedTab.posts');
             await rg.idle(const Duration(seconds: 2));
-            router.pop();
-            await rg.idle(const Duration(seconds: 1));
-          }
-        });
-
-        // --- 4. chats list ----------------------------------------------
-        await step('chats', () async {
-          unawaited(router.push(ChatRoutes.inbox));
-          await rg.waitUntil(
-            () => find
-                .byType(ConversationRow)
-                .hitTestable()
-                .evaluate()
-                .isNotEmpty,
-            timeout: const Duration(seconds: 30),
-            what: 'chat rows',
-          );
-          await rg.idle(const Duration(seconds: 2));
-          await rg.scroll('chats_list_scroll', () async {
-            for (var i = 0; i < 6; i++) {
-              await rg.fling(up: true, distance: 450);
-            }
-            for (var i = 0; i < 6; i++) {
-              await rg.fling(up: false, distance: 450);
-            }
+            await rg.sampleMemory('after reels');
           });
-          await rg.sampleMemory('after chats list');
 
-          // Open a chat by tapping its row (latency, repeated), then keep
-          // the last one open for the long-history scroll.
-          for (var i = 0; i < _reps; i++) {
-            await rg.timeToFrame(
-              'open_chat',
-              () => rg.tapFirst(find.byType(ConversationRow)),
-              find.byType(ConversationScreen),
+          // --- 3. search grid (posts with video previews) ------------------
+          await step('search', () async {
+            await goTab(AppTabKey.search);
+            await rg.waitUntil(
+              () => find.byType(SearchScreen).evaluate().isNotEmpty,
+              timeout: const Duration(seconds: 10),
+              what: 'search',
+            );
+            await rg.idle(const Duration(seconds: 1));
+            await rg.tapKey('pill-${SearchTab.posts}');
+            await rg.waitUntil(
+              () =>
+                  find.byType(PostGridTile).hitTestable().evaluate().isNotEmpty,
+              timeout: const Duration(seconds: 30),
+              what: 'search grid',
             );
             await rg.idle(const Duration(seconds: 3));
-            if (i < _reps - 1) {
+            PerfMarks.takeVideoStarts();
+            await rg.scroll('search_grid_scroll', () async {
+              for (var i = 0; i < 8; i++) {
+                await rg.fling(up: true, distance: 450);
+              }
+              for (var i = 0; i < 4; i++) {
+                await rg.fling(up: false, distance: 450);
+              }
+            });
+            if (round == 1) video['search_grid'] = PerfMarks.takeVideoStarts();
+            await rg.sampleMemory('after search grid');
+
+            // Open a reel from the grid (latency): the first video tile.
+            for (var i = 0; i < _reps; i++) {
+              final tile = find.byWidgetPredicate(
+                (w) => w is PostGridTile && w.post.video != null,
+              );
+              if (tile.hitTestable().evaluate().isEmpty) {
+                notes.add('open_reel_from_grid skipped: no video tile in the '
+                    'search grid');
+                break;
+              }
+              await rg.timeToFrame(
+                'open_reel_from_grid',
+                () => rg.tapFirst(tile),
+                find.byType(ReelsScreen),
+              );
+              await rg.idle(const Duration(seconds: 2));
               router.pop();
               await rg.idle(const Duration(seconds: 1));
             }
-          }
-          await rg.scroll('chat_history_scroll', () async {
-            // Older messages sit above: the finger moves down.
-            for (var i = 0; i < 12; i++) {
-              await rg.fling(up: false, distance: 450);
-            }
-            for (var i = 0; i < 12; i++) {
-              await rg.fling(up: true, distance: 450);
-            }
           });
-          router
-            ..pop()
-            ..pop();
-          await rg.idle(const Duration(seconds: 2));
-          await rg.sampleMemory('after chat');
-        });
 
-        // --- 5. cases list (Mine) ----------------------------------------
-        await step('cases', () async {
-          await rg.timeToFrame(
-            'tab_switch_mine',
-            () => rg.tapNav(AppTabKey.mine),
-            find.byType(MineScreen),
-          );
-          await rg.idle(const Duration(seconds: 3));
-          await rg.scroll('cases_list_scroll', () async {
-            for (var i = 0; i < 6; i++) {
-              await rg.fling(up: true, distance: 450);
+          // --- 4. chats list ----------------------------------------------
+          await step('chats', () async {
+            unawaited(router.push(ChatRoutes.inbox));
+            await rg.waitUntil(
+              () => find
+                  .byType(ConversationRow)
+                  .hitTestable()
+                  .evaluate()
+                  .isNotEmpty,
+              timeout: const Duration(seconds: 30),
+              what: 'chat rows',
+            );
+            await rg.idle(const Duration(seconds: 2));
+            await rg.scroll('chats_list_scroll', () async {
+              for (var i = 0; i < 6; i++) {
+                await rg.fling(up: true, distance: 450);
+              }
+              for (var i = 0; i < 6; i++) {
+                await rg.fling(up: false, distance: 450);
+              }
+            });
+            await rg.sampleMemory('after chats list');
+
+            // Open a chat by tapping its row (latency, repeated), then keep
+            // the last one open for the long-history scroll.
+            for (var i = 0; i < _reps; i++) {
+              await rg.timeToFrame(
+                'open_chat',
+                () => rg.tapFirst(find.byType(ConversationRow)),
+                find.byType(ConversationScreen),
+              );
+              await rg.idle(const Duration(seconds: 3));
+              if (i < _reps - 1) {
+                router.pop();
+                await rg.idle(const Duration(seconds: 1));
+              }
             }
-            for (var i = 0; i < 6; i++) {
-              await rg.fling(up: false, distance: 450);
-            }
+            await rg.scroll('chat_history_scroll', () async {
+              // Older messages sit above: the finger moves down.
+              for (var i = 0; i < 12; i++) {
+                await rg.fling(up: false, distance: 450);
+              }
+              for (var i = 0; i < 12; i++) {
+                await rg.fling(up: true, distance: 450);
+              }
+            });
+            router
+              ..pop()
+              ..pop();
+            await rg.idle(const Duration(seconds: 2));
+            await rg.sampleMemory('after chat');
           });
-          await rg.sampleMemory('after cases list');
-        });
+
+          // --- 5. cases list (Mine) ----------------------------------------
+          await step('cases', () async {
+            await rg.timeToFrame(
+              'tab_switch_mine',
+              () => rg.tapNav(AppTabKey.mine),
+              find.byType(MineScreen),
+            );
+            await rg.idle(const Duration(seconds: 3));
+            await rg.scroll('cases_list_scroll', () async {
+              for (var i = 0; i < 6; i++) {
+                await rg.fling(up: true, distance: 450);
+              }
+              for (var i = 0; i < 6; i++) {
+                await rg.fling(up: false, distance: 450);
+              }
+            });
+            await rg.sampleMemory('after cases list');
+          });
+        }
+        rg.round = _rounds;
 
         // --- 6. the rest of the tap latencies ----------------------------
         await step('taps', () async {
