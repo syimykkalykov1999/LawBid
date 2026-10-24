@@ -110,12 +110,12 @@ variable "container_insights" {
 variable "worker_spot" {
   type        = bool
   default     = false
-  description = "Run the worker on Fargate Spot (up to 70 % cheaper): one task stays on regular Fargate, the rest are Spot (weight 1:3). Safe for the queue: an interrupted job is retried."
+  description = "Run the worker on Fargate Spot (up to 70 % cheaper): one task stays on regular Fargate, the rest are split half on regular Fargate, half on Spot (weight 1:1). Safe for the queue: an interrupted job is retried."
 }
 variable "api_spot" {
   type        = bool
   default     = false
-  description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are Spot (weight 1:3). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
+  description = "Run extra API tasks on Fargate Spot (up to 70 % cheaper): the first task stays on regular Fargate (base 1), tasks added by autoscaling are split half regular, half Spot (weight 1:1; ECS does not fall back to regular Fargate when Spot has no capacity, so half of the new tasks always start). A Spot interruption gives 2 minutes: the ALB drains the task and the app reconnects through the other tasks."
 }
 variable "night_scale_down" {
   type        = bool
@@ -490,18 +490,23 @@ resource "aws_ecs_task_definition" "migrate" {
 
 # --- services --------------------------------------------------------------
 resource "aws_ecs_service" "api" {
-  name                              = "api"
-  cluster                           = aws_ecs_cluster.this.id
-  task_definition                   = aws_ecs_task_definition.api.arn
-  desired_count                     = var.min_tasks
-  launch_type                       = var.api_spot ? null : "FARGATE"
+  name            = "api"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.api.arn
+  desired_count   = var.min_tasks
+  launch_type     = var.api_spot ? null : "FARGATE"
+  # Needed for api_spot / worker_spot: adding or removing a capacity provider
+  # strategy on a running service makes the AWS provider REPLACE the service
+  # (downtime) unless force_new_deployment is true; with it the change is an
+  # in-place UpdateService and a normal rolling deployment.
+  force_new_deployment              = true
   platform_version                  = "LATEST"
   health_check_grace_period_seconds = 60
   enable_execute_command            = false
   propagate_tags                    = "SERVICE"
 
   dynamic "capacity_provider_strategy" {
-    for_each = var.api_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 3 } } : {}
+    for_each = var.api_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 1 } } : {}
     content {
       capacity_provider = capacity_provider_strategy.key
       base              = capacity_provider_strategy.value.base
@@ -532,16 +537,21 @@ resource "aws_ecs_service" "api" {
 }
 
 resource "aws_ecs_service" "worker" {
-  name                   = "worker"
-  cluster                = aws_ecs_cluster.this.id
-  task_definition        = aws_ecs_task_definition.worker.arn
-  desired_count          = var.min_tasks
-  launch_type            = var.worker_spot ? null : "FARGATE"
+  name            = "worker"
+  cluster         = aws_ecs_cluster.this.id
+  task_definition = aws_ecs_task_definition.worker.arn
+  desired_count   = var.min_tasks
+  launch_type     = var.worker_spot ? null : "FARGATE"
+  # Needed for api_spot / worker_spot: adding or removing a capacity provider
+  # strategy on a running service makes the AWS provider REPLACE the service
+  # (downtime) unless force_new_deployment is true; with it the change is an
+  # in-place UpdateService and a normal rolling deployment.
+  force_new_deployment   = true
   platform_version       = "LATEST"
   enable_execute_command = false
   propagate_tags         = "SERVICE"
   dynamic "capacity_provider_strategy" {
-    for_each = var.worker_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 3 } } : {}
+    for_each = var.worker_spot ? { FARGATE = { base = 1, weight = 1 }, FARGATE_SPOT = { base = 0, weight = 1 } } : {}
     content {
       capacity_provider = capacity_provider_strategy.key
       base              = capacity_provider_strategy.value.base
