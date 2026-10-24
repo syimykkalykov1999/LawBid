@@ -704,6 +704,7 @@ erDiagram
     String end_reason "nullable"
     Boolean video
     Boolean is_group
+    DateTime solo_since "nullable"
     DateTime created_at
     DateTime updated_at
   }
