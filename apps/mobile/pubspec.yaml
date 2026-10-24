@@ -170,9 +170,11 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   # 2026-10-18 (speed): on-device scroll measurements —
-  # integration_test/scroll_perf_test.dart + test_driver/perf_driver.dart.
+  # integration_test/scroll_perf_test.dart + test_driver/perf_driver.dart;
+  # 2026-10-23: the full suite integration_test/perf/ (vm_service = Dart heap).
   integration_test:
     sdk: flutter
+  vm_service: ^15.0.0
   flutter_driver:
     sdk: flutter
   riverpod_generator: ^4.0.9

@@ -11,6 +11,7 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/device_key.dart';
@@ -40,6 +41,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// flutter run --flavor prod    -t lib/main_prod.dart    --dart-define-from-file=config/prod.json
 /// ```
 Future<void> runLawBid(AppFlavor flavor) async {
+  PerfMarks.start();
   WidgetsFlutterBinding.ensureInitialized();
   // Owner 2026-10-15 (web): an address is the screen (`/lawyer/anna`), not
   // `/#/lawyer/anna` — links, reload and the back button all work. A no-op
@@ -190,6 +192,12 @@ Future<void> runLawBid(AppFlavor flavor) async {
       container: container,
       child: const LawBidApp(),
     ),
+  );
+  // Perf suite markers (no-ops in release): the first frame on the glass.
+  PerfMarks.mark('lb.run_app');
+  unawaited(
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized
+        .then((_) => PerfMarks.mark('lb.first_frame')),
   );
 }
 

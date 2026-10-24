@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
+import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/audio_takeover.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
@@ -138,6 +139,9 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   bool _rendered = false;
   Duration _openedAt = Duration.zero;
 
+  /// Perf suite: when this video was told to play (no-op in release).
+  final Stopwatch _sinceActive = Stopwatch();
+
   /// Owner 2026-10-15: no loading wheel flashing for a split second — it
   /// shows only when the stream is really slow (over 1.2 s), the poster
   /// frame fills the box until then.
@@ -219,6 +223,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   @override
   void initState() {
     super.initState();
+    if (widget.active && !kReleaseMode) _sinceActive.start();
     if (widget.active || widget.warm) _open();
     // The poster is drawn only for a video that cannot play (see build);
     // then it is on screen at once (it is cached by the list).
@@ -241,6 +246,17 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   @override
   void didUpdateWidget(ReelVideo old) {
     super.didUpdateWidget(old);
+    if (!kReleaseMode) {
+      if (widget.active && !old.active) {
+        _sinceActive
+          ..reset()
+          ..start();
+      } else if (!widget.active) {
+        _sinceActive
+          ..stop()
+          ..reset();
+      }
+    }
     // Off screen: free the player so it stops buffering (data + memory);
     // coming back re-opens it at the same spot.
     if (!widget.active && !widget.warm && _c != null) {
@@ -343,6 +359,12 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     );
     if (!_rendered && _ready && c.value.isPlaying && pos != _openedAt) {
       setState(() => _rendered = true);
+      if (_sinceActive.isRunning) {
+        PerfMarks.videoStarted(_sinceActive.elapsed);
+        _sinceActive
+          ..stop()
+          ..reset();
+      }
     }
     // Owner 2026-10-19: just before the end the sound fades out, after the
     // loop back it rises again (no click at the seam).
