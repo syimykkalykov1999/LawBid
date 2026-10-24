@@ -3,7 +3,7 @@ import type Redis from 'ioredis';
 import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 
 /**
  * Owner 2026-10-05: every post is 'legal' (a law topic, News, or marked by
@@ -67,7 +67,7 @@ export class ContentFilterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
   ) {}
 
   /** The admin default for people who never picked a mode. */

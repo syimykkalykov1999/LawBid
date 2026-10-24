@@ -104,6 +104,16 @@ export const envSchema = z
     // raises it: a busy CI runner stalls the event loop past 2 s while an
     // app boots, and the timer then fires before the reply is read.
     REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
+    // Batch C item 9 (2026-10-24): a separate allkeys-lru Redis for pure
+    // caches (search results, translations, link previews …) so cache keys
+    // can never fill the queue Redis (noeviction). Unset = caches use
+    // REDIS_URL. Command timeout is short: a slow cache is skipped.
+    REDIS_CACHE_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    REDIS_CACHE_COMMAND_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(500),
     // Owner 2026-10-22 (server load audit, finding 5): the Socket.IO Redis
     // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
     // instances holding its room); `classic` = the old pub/sub, a rollback
@@ -773,6 +783,21 @@ export const envSchema = z
       blankToUndefined,
       z.string().optional(),
     ),
+    // Batch C item 11: usage alerts (GraphQL Analytics, «Account Analytics:
+    // Read»); also settable in admin -> Integrations -> Cloudflare TURN.
+    CLOUDFLARE_ANALYTICS_ACCOUNT_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_ANALYTICS_API_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Batch C item 16: Bunny account API key for the usage poll.
+    BUNNY_ACCOUNT_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // Cloudflare Realtime SFU for group calls (also settable in admin ->
     // Integrations -> Cloudflare SFU); used when calls.video_provider =
     // cloudflare.
@@ -869,6 +894,18 @@ export const envSchema = z
         path: ['REDIS_URL'],
         message:
           'REDIS_URL must be rediss:// (TLS) on staging/production: the Redis connection must be encrypted',
+      });
+    }
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      env.REDIS_CACHE_URL &&
+      !env.REDIS_CACHE_URL.startsWith('rediss://')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['REDIS_CACHE_URL'],
+        message:
+          'REDIS_CACHE_URL must be rediss:// (TLS) on staging/production',
       });
     }
     // Security audit 2026-10-01: deployed behind the ALB with 0 hops,
