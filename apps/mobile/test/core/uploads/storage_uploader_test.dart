@@ -94,6 +94,79 @@ void main() {
     );
   });
 
+  test('the app tells the server it can do a PUT', () async {
+    await uploader().upload(
+      purpose: api.FilePurpose.avatar,
+      body: UploadBody.bytes(Uint8List.fromList([1, 2, 3])),
+      mime: 'image/png',
+    );
+    final presign = apiAdapter.requests.first.data as Map<String, dynamic>;
+    expect(presign['supportsPut'], true);
+  });
+
+  test('R2: a presigned PUT sends the raw file with the signed headers',
+      () async {
+    final plain = apiAdapter.handler;
+    apiAdapter.handler = (o) async {
+      if (o.path == '/files/presign') {
+        return jsonBody(
+          {
+            'data': {
+              'fileId': 'file-1',
+              'upload': {
+                'url': 'https://r2.test/bucket/key',
+                'fields': <String, String>{},
+                'method': 'PUT',
+                'headers': {
+                  'Content-Type': 'image/png',
+                  'Cache-Control': 'public, max-age=31536000, immutable',
+                },
+              },
+              'expiresAt': '2026-10-22T10:05:00.000Z',
+            },
+          },
+          201,
+        );
+      }
+      return plain(o);
+    };
+    final id = await uploader().upload(
+      purpose: api.FilePurpose.avatar,
+      body: UploadBody.bytes(Uint8List.fromList([1, 2, 3])),
+      mime: 'image/png',
+    );
+    expect(id, 'file-1');
+    final put = storage.requests.single;
+    expect(put.method, 'PUT');
+    expect(put.path, 'https://r2.test/bucket/key');
+    expect(put.headers['Content-Type'], 'image/png');
+    expect(put.headers['Cache-Control'], contains('immutable'));
+    expect(put.headers['content-length'], 3);
+    expect(put.data, isNot(isA<FormData>()));
+  });
+
+  test('a PUT that fails is retried like a POST', () async {
+    var calls = 0;
+    storage.handler = (o) async {
+      calls++;
+      return calls == 1
+          ? ResponseBody.fromString('busy', 503)
+          : ResponseBody.fromString('', 200);
+    };
+    await uploader().put(
+      const StorageTarget(
+        fileId: 'f',
+        url: 'https://r2.test/k',
+        fields: {},
+        method: 'PUT',
+        headers: {'Content-Type': 'image/png'},
+      ),
+      UploadBody.bytes(Uint8List(3)),
+      mime: 'image/png',
+    );
+    expect(calls, 2);
+  });
+
   test('a lost connection or a busy storage is tried again', () async {
     var calls = 0;
     storage.handler = (o) async {
