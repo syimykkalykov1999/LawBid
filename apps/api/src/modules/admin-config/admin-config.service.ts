@@ -237,6 +237,25 @@ export class AdminConfigService {
       });
   }
 
+  /** Owner 2026-10-24: R2 cannot be switched on without its keys. */
+  private async assertR2Ready(key: string, value: unknown): Promise<void> {
+    if (key !== 'media.public_store' || value !== 'r2') return;
+    const f = (await this.secrets?.get('cloudflare_r2'))?.fields ?? {};
+    const missing = [
+      'accountId',
+      'accessKeyId',
+      'secretAccessKey',
+      'bucket',
+      'publicBaseUrl',
+    ].filter((n) => !(f[n] ?? '').trim());
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `Cloudflare R2 is not configured: add ${missing.join(', ')} in Integrations → Cloudflare R2 first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
   /** Owner 2026-10-22: livekit cannot be switched on without its keys. */
   private async assertLivekitReady(key: string, value: unknown): Promise<void> {
     const needs =
@@ -281,6 +300,7 @@ export class AdminConfigService {
       });
     }
     await this.assertLivekitReady(key, value);
+    await this.assertR2Ready(key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });

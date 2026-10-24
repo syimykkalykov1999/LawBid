@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { FilePurpose, ScanStatus } from '@prisma/client';
 import {
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsInt,
@@ -50,12 +51,20 @@ export class PresignFileDto {
   })
   @Matches(/^[0-9a-f]{64}$/)
   sha256!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  supportsPut?: boolean;
 }
 
 export class PresignedUploadDto {
   @ApiProperty({
     description:
-      'POST target (multipart/form-data): send every field, then the file as the last field named "file".',
+      'Upload target. With method POST (default): multipart/form-data, send every field, then the file as the last field named "file". With method PUT: send the raw file as the body.',
   })
   url!: string;
 
@@ -63,9 +72,24 @@ export class PresignedUploadDto {
     type: 'object',
     additionalProperties: { type: 'string' },
     description:
-      'Form fields signed by the server (key, policy, signature, Content-Type).',
+      'Form fields signed by the server (key, policy, signature, Content-Type). Empty for method PUT.',
   })
   fields!: Record<string, string>;
+
+  @ApiPropertyOptional({
+    enum: ['POST', 'PUT'],
+    description:
+      'HTTP method of the upload. Absent means POST (older servers).',
+  })
+  method?: 'POST' | 'PUT';
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description:
+      'Headers to send exactly as given with a PUT upload (Content-Type, Cache-Control).',
+  })
+  headers?: Record<string, string>;
 }
 
 export class PresignedFileDto {

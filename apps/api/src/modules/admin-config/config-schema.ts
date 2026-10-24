@@ -47,6 +47,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   }
   // Owner 2026-10-22: calls. The provider switch is checked again on save
   // (livekit needs LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET).
+  out['media.public_store'] = {
+    type: 'string',
+    defaultValue: 'aws',
+    description:
+      'Where new PUBLIC media (avatars, post and review photos, stickers) is stored: aws or r2 (Cloudflare R2; needs Integrations → Cloudflare R2). Private files (chats, cases, documents, verification) always stay on AWS.',
+    pattern: /^(aws|r2)$/,
+  };
   out['calls.video_provider'] = {
     type: 'string',
     defaultValue: 'p2p',

@@ -2159,6 +2159,7 @@ export 'models/registry_adapter_descriptor_dto_secret.dart';
 export 'models/state_registry_dto_adapter.dart';
 export 'models/save_state_registry_dto_adapter.dart';
 export 'models/registry_test_result_dto_result.dart';
+export 'models/presigned_upload_dto_method.dart';
 export 'models/analytics_step_dto_key.dart';
 export 'models/conflict_match_dto_kind.dart';
 export 'models/conflict_match_dto_by.dart';
