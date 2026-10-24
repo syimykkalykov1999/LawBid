@@ -11,6 +11,7 @@ import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/device_key.dart';
@@ -28,6 +29,8 @@ import 'package:lawbid/features/channels/application/channel_forward_port.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
+import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,6 +43,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// flutter run --flavor prod    -t lib/main_prod.dart    --dart-define-from-file=config/prod.json
 /// ```
 Future<void> runLawBid(AppFlavor flavor) async {
+  PerfMarks.start();
   WidgetsFlutterBinding.ensureInitialized();
   // Owner 2026-10-15 (web): an address is the screen (`/lawyer/anna`), not
   // `/#/lawyer/anna` — links, reload and the back button all work. A no-op
@@ -93,6 +97,8 @@ Future<void> runLawBid(AppFlavor flavor) async {
       groupVideoCallsProvider.overrideWith(
         (ref) => ref.watch(videoCallsEnabledProvider),
       ),
+      // Owner 2026-10-23: the Q&A's notification switch.
+      qaNotifySwitchProvider.overrideWithValue(() => const QaNotifySwitch()),
       // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.
       channelForwardPortProvider.overrideWithValue(
         (context, ref, {required postId}) => forwardWithSheet(
@@ -190,6 +196,12 @@ Future<void> runLawBid(AppFlavor flavor) async {
       container: container,
       child: const LawBidApp(),
     ),
+  );
+  // Perf suite markers (no-ops in release): the first frame on the glass.
+  PerfMarks.mark('lb.run_app');
+  unawaited(
+    WidgetsBinding.instance.waitUntilFirstFrameRasterized
+        .then((_) => PerfMarks.mark('lb.first_frame')),
   );
 }
 

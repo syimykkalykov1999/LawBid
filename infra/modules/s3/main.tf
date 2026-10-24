@@ -12,6 +12,11 @@ terraform {
 }
 
 variable "name" { type = string }
+variable "force_destroy" {
+  type        = bool
+  default     = false
+  description = "Let terraform destroy delete a bucket that still holds objects. Only for throw-away load-test stacks."
+}
 variable "kms_key_arn" { type = string }
 variable "media_web_acl_arn" {
   type        = string
@@ -45,14 +50,16 @@ locals {
 
 # --- documents (verification files, exports; never public) -------------
 resource "aws_s3_bucket" "documents" {
-  bucket = local.documents
-  tags   = var.tags
+  bucket        = local.documents
+  force_destroy = var.force_destroy
+  tags          = var.tags
 }
 
 resource "aws_s3_bucket" "documents_replica" {
-  provider = aws.replica
-  bucket   = "${local.documents}-replica"
-  tags     = var.tags
+  provider      = aws.replica
+  bucket        = "${local.documents}-replica"
+  force_destroy = var.force_destroy
+  tags          = var.tags
 }
 
 resource "aws_s3_bucket_versioning" "documents" {
@@ -134,6 +141,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents" {
     filter { prefix = "" }
     noncurrent_version_expiration { noncurrent_days = 90 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  # Cleanup: a delete marker whose old versions are all gone is just clutter.
+  rule {
+    id     = "orphan-delete-markers"
+    status = "Enabled"
+    filter { prefix = "" }
+    expiration { expired_object_delete_marker = true }
   }
   # Owner 2026-10-05 (storage like Telegram): case files, chat documents
   # and voice notes are read in the first weeks and rarely after. Same as
@@ -232,8 +246,9 @@ resource "aws_s3_bucket_replication_configuration" "documents" {
 
 # --- media (post images, avatars) via CloudFront ------------------------
 resource "aws_s3_bucket" "media" {
-  bucket = local.media
-  tags   = var.tags
+  bucket        = local.media
+  force_destroy = var.force_destroy
+  tags          = var.tags
 }
 
 resource "aws_s3_bucket_versioning" "media" {
@@ -273,6 +288,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents_replica" {
     expiration { days = 31 }
     noncurrent_version_expiration { noncurrent_days = 1 }
   }
+  # Cleanup: the replica mirrors every version of `documents`; same 90 days.
+  rule {
+    id     = "old-versions"
+    status = "Enabled"
+    filter { prefix = "" }
+    noncurrent_version_expiration { noncurrent_days = 90 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  rule {
+    id     = "orphan-delete-markers"
+    status = "Enabled"
+    filter { prefix = "" }
+    expiration { expired_object_delete_marker = true }
+  }
   depends_on = [aws_s3_bucket_versioning.documents_replica]
 }
 
@@ -284,6 +313,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
     filter { prefix = "" }
     noncurrent_version_expiration { noncurrent_days = 30 }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  # Cleanup: user media itself is NEVER expired (keys are <purpose>/<user>/<file>,
+  # there is no temp prefix). Only a delete marker with no versions left goes.
+  rule {
+    id     = "orphan-delete-markers"
+    status = "Enabled"
+    filter { prefix = "" }
+    expiration { expired_object_delete_marker = true }
   }
   # Old photos are rarely opened: Intelligent-Tiering moves each file to a
   # cheaper tier after 30 / 90 days without reads and back on the next read

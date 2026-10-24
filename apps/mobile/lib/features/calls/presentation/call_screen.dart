@@ -610,7 +610,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                         _RoundButton(
                                           icon: AppIcons.callEndRounded,
                                           label: t.t('call.decline'),
-                                          color: colors.danger,
+                                          color: colors.dangerFill,
                                           onTap: c.decline,
                                         ),
                                         _RoundButton(

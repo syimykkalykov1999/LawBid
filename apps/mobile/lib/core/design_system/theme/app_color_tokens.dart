@@ -132,9 +132,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         successText: AppColorsStatus.success,
       );
 
-  /// Blue: the Citi bank-app look (owner 2026-10-22). A deep-to-sky blue
-  /// header wash with white ink over a light blue-grey page with white
-  /// cards and a brand-blue button with a white label.
+  /// Blue: the Citi app look (owner 2026-10-23), built like Night: a solid
+  /// deep-blue page, white ink, lighter-blue cards, a white button.
   factory AppColorTokens.blue() => const AppColorTokens(
         bg: AppColorsBlue.bg,
         surface: AppColorsBlue.surface,
@@ -149,16 +148,16 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsBlue.goldStroke,
         goldLight: AppColorsBlue.goldLight,
         goldDark: AppColorsBlue.goldDark,
-        goldAccent: AppColorsBlue.accent,
+        goldAccent: AppColorsBlue.goldLight,
         navy: AppColorsBlue.navy,
-        panFill: AppColorsLight.panFill,
-        panText: AppColorsLight.panText,
+        panFill: AppColorsBlue.accent,
+        panText: AppColorsBlue.onAccent,
         watermarkOpacity: AppColorsBlue.watermarkOpacity,
-        focusRingGlow: AppColorsLight.focusRingGlow,
-        danger: AppColorsStatus.danger,
-        success: AppColorsStatus.success,
-        warning: AppColorsStatus.warning,
-        info: AppColorsStatus.info,
+        focusRingGlow: AppColorsDark.focusRingGlow,
+        danger: AppColorsBlue.danger,
+        success: AppColorsBlue.success,
+        warning: AppColorsBlue.warning,
+        info: AppColorsBlue.info,
         shadow: AppColorsBlue.shadow,
         goldTint: AppColorsBlue.goldTint,
         dangerTint: AppColorsBlue.dangerTint,
@@ -166,21 +165,18 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         infoTint: AppColorsBlue.infoTint,
         skeletonBase: AppColorsBlue.skeletonBase,
         skeletonHighlight: AppColorsBlue.skeletonHighlight,
-        onDanger: AppColorsLight.onDanger,
+        onDanger: AppColorsDark.onDanger,
         dangerText: AppColorsBlue.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
         chip: AppColorsBlue.chip,
         sheet: AppColorsBlue.surface,
-        inverseText: AppColorsBlue.text,
-        barFill: AppColorsBlue.bg,
-        successText: AppColorsBlue.successText,
-        headerFill: AppColorsBlue.deep,
-        headerGradient: AppColorsBlue.headerGradient,
-        onHeader: AppColorsBlue.onHeader,
+        inverseText: AppColorsBlue.bg,
+        barFill: AppColorsBlue.bar,
+        successText: AppColorsBlue.success,
       );
 
-  /// Green: the Credit Karma look (owner 2026-10-22). A fresh light page,
-  /// soft green cards, deep-green ink, a green button with a white label.
+  /// Green: the Credit Karma look (owner 2026-10-23), built like Night: a
+  /// solid green page, white ink, darker-green cards, a white button.
   factory AppColorTokens.green() => const AppColorTokens(
         bg: AppColorsGreen.bg,
         surface: AppColorsGreen.surface,
@@ -195,16 +191,16 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsGreen.goldStroke,
         goldLight: AppColorsGreen.goldLight,
         goldDark: AppColorsGreen.goldDark,
-        goldAccent: AppColorsGreen.accent,
+        goldAccent: AppColorsGreen.goldLight,
         navy: AppColorsGreen.navy,
-        panFill: AppColorsLight.panFill,
-        panText: AppColorsLight.panText,
+        panFill: AppColorsGreen.accent,
+        panText: AppColorsGreen.onAccent,
         watermarkOpacity: AppColorsGreen.watermarkOpacity,
-        focusRingGlow: AppColorsGreen.focusRingGlow,
-        danger: AppColorsStatus.danger,
-        success: AppColorsStatus.success,
-        warning: AppColorsStatus.warning,
-        info: AppColorsStatus.info,
+        focusRingGlow: AppColorsDark.focusRingGlow,
+        danger: AppColorsGreen.danger,
+        success: AppColorsGreen.success,
+        warning: AppColorsGreen.warning,
+        info: AppColorsGreen.info,
         shadow: AppColorsGreen.shadow,
         goldTint: AppColorsGreen.goldTint,
         dangerTint: AppColorsGreen.dangerTint,
@@ -212,17 +208,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         infoTint: AppColorsGreen.infoTint,
         skeletonBase: AppColorsGreen.skeletonBase,
         skeletonHighlight: AppColorsGreen.skeletonHighlight,
-        onDanger: AppColorsLight.onDanger,
+        onDanger: AppColorsDark.onDanger,
         dangerText: AppColorsGreen.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
         chip: AppColorsGreen.chip,
         sheet: AppColorsGreen.surface,
         inverseText: AppColorsGreen.bg,
-        barFill: AppColorsGreen.bg,
-        successText: AppColorsGreen.deep,
-        headerFill: AppColorsGreen.deep,
-        headerGradient: AppColorsGreen.headerGradient,
-        onHeader: AppColorsGreen.onHeader,
+        barFill: AppColorsGreen.bar,
+        successText: AppColorsGreen.success,
       );
 
   final Color bg;

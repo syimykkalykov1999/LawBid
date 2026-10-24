@@ -6,6 +6,7 @@ import 'package:lawbid/features/search/presentation/widgets/search_tiles.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../helpers/ux_harness.dart';
 
@@ -92,6 +93,7 @@ Widget grid({required bool compact}) => GridView.count(
     );
 
 void main() {
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
   for (final (name, theme) in [
     ('light', AppTheme.light()),
     ('dark', AppTheme.dark()),

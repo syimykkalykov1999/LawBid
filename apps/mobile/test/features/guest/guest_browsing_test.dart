@@ -92,6 +92,9 @@ void main() {
           ),
           reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
           appStartupProvider.overrideWith(_ReadyStartup.new),
+          // Owner 2026-10-23: the apps ship with guest browsing off; these
+          // tests are about the screens a guest sees when it is on.
+          guestBrowsingEnabledProvider.overrideWithValue(true),
           dioProvider.overrideWith((ref) {
             final dio = Dio(BaseOptions(baseUrl: 'http://test'))
               ..httpClientAdapter = adapter;
@@ -350,6 +353,48 @@ void main() {
       );
     },
   );
+
+  test('guest browsing: off in the app unless the server key says true', () {
+    // An older server sends no key: off in the app, on for the website.
+    expect(guestBrowseSwitchOn(const {}, web: false), isFalse);
+    expect(guestBrowseSwitchOn(const {}, web: true), isTrue);
+    expect(
+      guestBrowseSwitchOn(
+        const {'client.guest_browse_app_enabled': 'false'},
+        web: false,
+      ),
+      isFalse,
+    );
+    expect(
+      guestBrowseSwitchOn(
+        const {'client.guest_browse_app_enabled': 'true'},
+        web: false,
+      ),
+      isTrue,
+    );
+    // The two keys are independent.
+    expect(
+      guestBrowseSwitchOn(
+        const {'client.guest_browse_app_enabled': 'true'},
+        web: true,
+      ),
+      isTrue,
+    );
+    expect(
+      guestBrowseSwitchOn(
+        const {'client.guest_browse_web_enabled': 'false'},
+        web: true,
+      ),
+      isFalse,
+    );
+    expect(
+      guestBrowseSwitchOn(
+        const {'client.guest_browse_web_enabled': 'false'},
+        web: false,
+      ),
+      isFalse,
+    );
+  });
 
   test('guest routes: public screens only', () {
     for (final ok in [

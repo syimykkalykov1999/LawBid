@@ -297,6 +297,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "canary" {
     expiration {
       days = 14
     }
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
   }
 }
 
@@ -398,6 +401,32 @@ resource "aws_synthetics_canary" "uptime" {
   success_retention_period = 2
   failure_retention_period = 14
   tags                     = var.tags
+}
+
+# Cleanup (AWS cleanup audit 2026-10-23): the canary's Lambda writes to
+# /aws/lambda/cwsyn-<canary>-<id>, a log group AWS creates by itself with
+# "never expire". The name is only known after the canary exists, and the group
+# may already exist, so this sets the retention with the AWS CLI (create if
+# missing, then put-retention-policy) instead of a resource that would clash.
+# A failure here only warns (on_failure = continue); change
+# `canary_log_retention_days` to run it again.
+variable "canary_log_retention_days" {
+  type        = number
+  default     = 14
+  description = "Days the Synthetics canary's Lambda logs are kept in CloudWatch."
+}
+
+resource "terraform_data" "canary_log_retention" {
+  count            = local.canary_on ? 1 : 0
+  triggers_replace = [aws_synthetics_canary.uptime[0].engine_arn, var.canary_log_retention_days]
+  provisioner "local-exec" {
+    on_failure = continue
+    command    = <<-EOT
+      G="/aws/lambda/${element(split(":", aws_synthetics_canary.uptime[0].engine_arn), 6)}"
+      aws logs create-log-group --region ${data.aws_region.current.name} --log-group-name "$G" 2>/dev/null || true
+      aws logs put-retention-policy --region ${data.aws_region.current.name} --log-group-name "$G" --retention-in-days ${var.canary_log_retention_days}
+    EOT
+  }
 }
 
 resource "aws_cloudwatch_metric_alarm" "canary" {

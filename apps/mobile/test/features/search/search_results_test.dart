@@ -8,6 +8,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/screens/posts_feed_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../helpers/ux_harness.dart';
 import '../social/social_fakes.dart';
@@ -25,6 +26,7 @@ class _PostsSearch extends FakeSearchRepository {
 }
 
 void main() {
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
   setUpAll(initializeDateFormatting);
 
   testWidgets('post results are the profile grid; a tap opens the feed there',

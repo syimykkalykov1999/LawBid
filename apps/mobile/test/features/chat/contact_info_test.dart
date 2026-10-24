@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -129,6 +130,7 @@ Widget contactTestApp(
   Widget home, {
   required List<String> pushed,
   ThemeData? theme,
+  List<Override> extra = const [],
 }) {
   final router = GoRouter(
     routes: [
@@ -156,6 +158,7 @@ Widget contactTestApp(
     realtimeClientProvider.overrideWithValue(null),
     actsAsAttorneyProvider.overrideWithValue(false),
     blockedIdsProvider.overrideWith((ref) async => <String>{}),
+    ...extra,
   ];
   return ProviderScope(
     overrides: overrides,
@@ -349,6 +352,38 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('contact-audio')));
     expect(calls, 1);
+  });
+
+  _test('video shows next to audio only while video calls are on',
+      (tester) async {
+    var video = 0;
+    for (final on in [true, false]) {
+      final chat = FakeContactChat(makeConv());
+      await pumpContact(
+        tester,
+        contactTestApp(
+          chat,
+          ContactInfoScreen(
+            conversationId: 'c1',
+            onCall: () {},
+            onVideoCall: () => video++,
+          ),
+          pushed: [],
+          extra: [videoCallsEnabledProvider.overrideWithValue(on)],
+        ),
+      );
+      expect(find.byKey(const ValueKey('contact-audio')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('contact-video')),
+        on ? findsOneWidget : findsNothing,
+      );
+      if (on) {
+        await tester.tap(find.byKey(const ValueKey('contact-video')));
+        expect(video, 1);
+        // Profile · Audio · Video fit one row at 320 dp, longest labels.
+        expect(tester.takeException(), isNull);
+      }
+    }
   });
 
   _test('hidden-identity case chat: no profile, no photo, case row',

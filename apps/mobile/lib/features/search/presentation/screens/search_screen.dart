@@ -273,6 +273,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           // while nothing is typed; the phone only (the website shows its
           // own sign-in code instead).
           if (_focused || value.text.isNotEmpty) return button;
+          // Owner 2026-10-23: only People keeps «?» and the scanner; Posts,
+          // Topics and Cases show the magnifier alone.
+          if (_tab != SearchTab.attorneys) return button;
           // Owner 2026-10-20: «?» (ask an attorney), the scanner and the
           // magnifier sit close together at the right edge.
           return Row(

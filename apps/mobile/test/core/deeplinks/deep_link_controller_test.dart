@@ -9,6 +9,7 @@ import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/deeplinks/deep_link_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -103,6 +104,7 @@ void main() {
     bool signedIn = false,
     void Function(String)? navigate,
     String? magicLinkVerifier = _verifier,
+    bool guestBrowsing = false,
   }) async {
     final c = ProviderContainer(
       overrides: [
@@ -116,6 +118,7 @@ void main() {
             .overrideWith(() => FakeSession(signedIn: signedIn)),
         currentUserControllerProvider.overrideWith(MutableUser.new),
         deepLinkSourceProvider.overrideWithValue(source),
+        guestBrowsingEnabledProvider.overrideWithValue(guestBrowsing),
         socialRepositoryProvider.overrideWithValue(_OfflineSocialRepository()),
         deepLinkNavigatorProvider
             .overrideWithValue(navigate ?? navigations.add),
@@ -216,8 +219,8 @@ void main() {
 
   testWidgets('guest browsing: a profile / post link opens without a session',
       (tester) async {
-    // The compiled-in default of `guest_browsing` is on (decision A1).
-    final c = await container();
+    // Owner 2026-10-23: the app's guest browsing is a server switch.
+    final c = await container(guestBrowsing: true);
     final ctl = c.read(deepLinkControllerProvider.notifier)
       ..handleUri(Uri.parse('https://lawbid.dev/lawyer/anna'));
     await tester.pump();
@@ -227,6 +230,17 @@ void main() {
     ctl.handleUri(Uri.parse('https://lawbid.dev/case/abc-123'));
     await tester.pump();
     expect(navigations, ['/lawyer/anna']);
+    expect(c.read(deepLinkControllerProvider), isA<ContentDeepLink>());
+  });
+
+  testWidgets('guest browsing off (the app default): a profile link waits',
+      (tester) async {
+    final c = await container();
+    c
+        .read(deepLinkControllerProvider.notifier)
+        .handleUri(Uri.parse('https://lawbid.dev/lawyer/anna'));
+    await tester.pump();
+    expect(navigations, isEmpty);
     expect(c.read(deepLinkControllerProvider), isA<ContentDeepLink>());
   });
 

@@ -14,6 +14,7 @@ import 'package:lawbid/features/auth/domain/login_identifier.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
     show SwitchChannelLink;
+import 'package:lawbid/features/auth/presentation/widgets/passkey_login_link.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
 
 /// `/auth/login` (owner 2026-10-13): sign in with a phone number or e-mail
@@ -113,15 +114,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           onChanged: (_) => setState(() => _error = null),
         ),
         const SizedBox(height: AppSpacing.md),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: SwitchChannelLink(
-            label: t.t('auth.login.forgot'),
-            onTap: () => context.push(
-              AuthRoutes.forgotPassword,
-              extra: _identifier.text.trim(),
+        // Owner 2026-10-23: «Forgot password?» at the start of the row,
+        // «Face ID / fingerprint» at the end (only when the device offers it).
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: SwitchChannelLink(
+                  label: t.t('auth.login.forgot'),
+                  onTap: () => context.push(
+                    AuthRoutes.forgotPassword,
+                    extra: _identifier.text.trim(),
+                  ),
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: AppSpacing.md),
+            const Flexible(
+              child: Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: PasskeyLoginLink(),
+              ),
+            ),
+          ],
         ),
       ],
       bottom: Column(

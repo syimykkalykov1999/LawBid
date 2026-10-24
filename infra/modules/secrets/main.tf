@@ -14,16 +14,22 @@ variable "names" {
   type        = list(string)
   description = "Env var names stored as individual secrets (docs/01 env schema)."
 }
+variable "recovery_window_in_days" {
+  type        = number
+  default     = 30
+  description = "Days a deleted secret can be restored. 0 = deleted at once (throw-away load-test stacks, so the same name can be created again)."
+}
 variable "tags" {
   type    = map(string)
   default = {}
 }
 
 resource "aws_secretsmanager_secret" "this" {
-  for_each   = toset(var.names)
-  name       = "${var.name}/${each.key}"
-  kms_key_id = var.kms_key_arn
-  tags       = var.tags
+  for_each                = toset(var.names)
+  name                    = "${var.name}/${each.key}"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 
 output "arns" {

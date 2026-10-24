@@ -86,7 +86,7 @@ Future<void> main() async {
     test('Blue and Green: the green status chip text reads on its tint', () {
       for (final id in [AppThemeId.blue, AppThemeId.green]) {
         final c = AppThemes.of(id).tokens();
-        final chip = _over(c.success.withValues(alpha: 0.16), c.bg);
+        final chip = _over(c.successTint, c.bg);
         expect(_contrast(c.successText, chip), greaterThan(4.5), reason: '$id');
       }
     });

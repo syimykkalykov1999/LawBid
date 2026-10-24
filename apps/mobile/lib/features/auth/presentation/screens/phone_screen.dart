@@ -277,11 +277,15 @@ class SwitchChannelLink extends StatelessWidget {
   const SwitchChannelLink({
     required this.label,
     required this.onTap,
+    this.alignment = AlignmentDirectional.centerStart,
+    this.textAlign,
     super.key,
   });
 
   final String label;
   final VoidCallback onTap;
+  final AlignmentGeometry alignment;
+  final TextAlign? textAlign;
 
   @override
   Widget build(BuildContext context) {
@@ -297,9 +301,10 @@ class SwitchChannelLink extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
             child: Align(
-              alignment: AlignmentDirectional.centerStart,
+              alignment: alignment,
               child: Text(
                 label,
+                textAlign: textAlign,
                 style: typography.bodySmall.copyWith(
                   color: colors.goldText,
                   decoration: TextDecoration.underline,

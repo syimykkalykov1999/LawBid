@@ -54,6 +54,21 @@ variable "db_name" {
   type    = string
   default = "lawbid"
 }
+variable "recovery_window_in_days" {
+  type        = number
+  default     = 30
+  description = "Days a deleted secret can be restored. 0 = deleted at once (throw-away load-test stacks, so the same name can be created again)."
+}
+variable "deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Prod: true. Throw-away load-test stacks: false, otherwise terraform destroy cannot remove the database."
+}
+variable "skip_final_snapshot" {
+  type        = bool
+  default     = false
+  description = "Prod: false (a final snapshot is kept). Load-test stacks: true."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -104,9 +119,10 @@ resource "random_password" "master" {
 }
 
 resource "aws_secretsmanager_secret" "master" {
-  name       = "${var.name}/postgres-master"
-  kms_key_id = var.kms_key_arn
-  tags       = var.tags
+  name                    = "${var.name}/postgres-master"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
 }
 
 resource "aws_secretsmanager_secret_version" "master" {
@@ -166,16 +182,17 @@ resource "aws_db_instance" "this" {
   backup_retention_period   = var.backup_retention_days
   backup_window             = var.backup_window
   copy_tags_to_snapshot     = true
-  delete_automated_backups  = false
-  deletion_protection       = true
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${var.name}-postgres-final"
+  delete_automated_backups  = var.skip_final_snapshot
+  deletion_protection       = var.deletion_protection
+  skip_final_snapshot       = var.skip_final_snapshot
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-postgres-final"
 
-  auto_minor_version_upgrade      = true
-  maintenance_window              = "sun:04:30-sun:05:30"
-  performance_insights_enabled    = true
-  performance_insights_kms_key_id = var.kms_key_arn
-  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+  auto_minor_version_upgrade            = true
+  maintenance_window                    = "sun:04:30-sun:05:30"
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7 # free tier; longer history is billed
+  performance_insights_kms_key_id       = var.kms_key_arn
+  enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
 
   tags = var.tags
 

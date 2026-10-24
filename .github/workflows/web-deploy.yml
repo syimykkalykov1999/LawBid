@@ -199,26 +199,19 @@ jobs:
           aws s3 cp "$B/releases/$SHA/index.html" "$B/index.html" --cache-control "no-cache"
           echo "Live web release: $SHA (previous: ${PREV:-none})"
 
-      - name: Keep the last 10 releases (and the live / previous ones)
+      # AWS cleanup audit 2026-10-23: old releases/<sha>/ folders (with their
+      # v/<sha>/ and .br twins) and their br_<sha> markers are removed, but
+      # never the live / previous release, the newest WEB_KEEP_RELEASES
+      # (repository variable, default 30), or anything younger than 3 days
+      # (open tabs ask for their own v/<sha>/ files). A failure here must not
+      # stop the CDN reset below.
+      - name: Remove old releases
         if: steps.store.outputs.arn != ''
+        continue-on-error: true
         env:
-          ARN: ${{ steps.store.outputs.arn }}
-          BUCKET: ${{ secrets.WEB_BUCKET }}
-        run: |
-          LIVE=$(scripts/deploy/web-release.sh get "$ARN" web_release)
-          PREV=$(scripts/deploy/web-release.sh get "$ARN" web_previous)
-          for P in $(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix releases/ --delimiter / \
-              --query 'CommonPrefixes[].Prefix' --output text); do
-            [ "$P" = "None" ] && continue
-            T=$(aws s3api head-object --bucket "$BUCKET" --key "${P}index.html" \
-              --query LastModified --output text 2>/dev/null || echo "1970-01-01")
-            echo "$T $P"
-          done | sort -r | tail -n +11 | while read -r _ P; do
-            R=$(basename "$P")
-            if [ "$R" = "$LIVE" ] || [ "$R" = "$PREV" ]; then continue; fi
-            echo "Removing old release $R"
-            aws s3 rm "s3://$BUCKET/$P" --recursive --quiet
-          done
+          KEEP: ${{ vars.WEB_KEEP_RELEASES || '30' }}
+          MIN_AGE_DAYS: "3"
+        run: scripts/deploy/web-prune-releases.sh "${{ secrets.WEB_BUCKET }}" "${{ steps.store.outputs.arn }}"
 
       - name: Reset the CDN cache for the error page
         if: steps.store.outputs.arn != ''

@@ -367,24 +367,24 @@ class CallHistoryRow extends ConsumerWidget {
           Flexible(child: _Sub('$when$talk')),
         ],
       ),
+      // Owner 2026-10-23 (WhatsApp / Samsung dialer): one button, the kind
+      // of the entry - a video call rings back as video, a voice call as
+      // voice. A video entry only exists while video calls are on.
       trailing: e.isGroup || picking
           ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ContactActionButton(
+          : e.video && video
+              ? ContactActionButton(
+                  key: const ValueKey('call-back-video'),
+                  icon: AppIcons.videoCameraOutlined,
+                  label: t.t('call.videoButton'),
+                  onPressed: () => _callBack(context, ref, e, video: true),
+                )
+              : ContactActionButton(
+                  key: const ValueKey('call-back-audio'),
                   icon: AppIcons.callOutlined,
                   label: t.t('call.button'),
                   onPressed: () => _callBack(context, ref, e, video: false),
                 ),
-                if (video)
-                  ContactActionButton(
-                    icon: AppIcons.videoCameraOutlined,
-                    label: t.t('call.videoButton'),
-                    onPressed: () => _callBack(context, ref, e, video: true),
-                  ),
-              ],
-            ),
     );
   }
 

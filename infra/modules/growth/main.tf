@@ -118,11 +118,12 @@ resource "aws_db_instance" "replica" {
   kms_key_id             = var.kms_key_arn
 
   # A replica is rebuilt from the primary: no backups of its own.
-  backup_retention_period      = 0
-  skip_final_snapshot          = true
-  auto_minor_version_upgrade   = true
-  performance_insights_enabled = true
-  tags                         = merge(var.tags, { Role = "read-replica" })
+  backup_retention_period               = 0
+  skip_final_snapshot                   = true
+  auto_minor_version_upgrade            = true
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7 # free tier
+  tags                                  = merge(var.tags, { Role = "read-replica" })
 
   # The admin («Экономика» → «Увеличить») may move it one tier up.
   lifecycle {

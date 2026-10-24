@@ -216,6 +216,59 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
     expect(again.text ?? '').toBe('');
   });
 
+  it('web pass: the i18n bundle (full and delta), languages and countries all answer 304 to their own ETag', async () => {
+    await prisma.i18nLanguage.upsert({
+      where: { code: 'en' },
+      create: { code: 'en', name_native: 'English', is_active: true, sort: 0 },
+      update: {},
+    });
+    // Full bundle: strong tag, private + no-cache (always revalidated).
+    const full = await api().get('/api/v1/i18n/bundle/en').expect(200);
+    expect(full.headers.etag).toMatch(/^"en-v\d+"$/);
+    expect(full.headers['cache-control']).toBe('private, no-cache');
+    const fullAgain = await api()
+      .get('/api/v1/i18n/bundle/en')
+      .set('If-None-Match', full.headers.etag)
+      .expect(304);
+    expect(fullAgain.text ?? '').toBe('');
+    expect(fullAgain.headers.etag).toBe(full.headers.etag);
+
+    // Delta (the phone's and the web app's normal call): its own tag, which
+    // carries `since`, so the same delta is a 304 and a different one is not.
+    const version = full.body.data.version as number;
+    const delta = await api()
+      .get(`/api/v1/i18n/bundle/en?since=${version}`)
+      .expect(200);
+    expect(delta.headers.etag).toBe(`"en-v${version}-s${version}"`);
+    expect(delta.headers.etag).not.toBe(full.headers.etag);
+    expect(delta.body.data.translations).toEqual({});
+    await api()
+      .get(`/api/v1/i18n/bundle/en?since=${version}`)
+      .set('If-None-Match', delta.headers.etag)
+      .expect(304);
+    const other = await api()
+      .get(`/api/v1/i18n/bundle/en?since=${version + 1}`)
+      .set('If-None-Match', delta.headers.etag)
+      .expect(200);
+    expect(other.headers.etag).not.toBe(delta.headers.etag);
+    // The full tag never answers a delta, nor the other way round.
+    await api()
+      .get(`/api/v1/i18n/bundle/en?since=${version}`)
+      .set('If-None-Match', full.headers.etag)
+      .expect(200);
+
+    for (const path of ['/api/v1/i18n/languages', '/api/v1/countries']) {
+      const first = await api().get(path).expect(200);
+      expect(first.headers.etag).toBeTruthy();
+      expect(first.headers['cache-control']).toContain('max-age');
+      const again = await api()
+        .get(path)
+        .set('If-None-Match', first.headers.etag)
+        .expect(304);
+      expect(again.text ?? '').toBe('');
+    }
+  });
+
   it('D: GET /attorneys/:username is 304 with zero profile queries; a follow changes the tag and answers counts', async () => {
     const att = await attorney();
     const cl = await client();

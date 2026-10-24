@@ -18,44 +18,60 @@ GoRouter _router() => GoRouter(
         StatefulShellRoute.indexedStack(
           builder: (c, s, shell) => Scaffold(body: shell),
           branches: [
-            StatefulShellBranch(routes: [
-              GoRoute(path: '/feed', builder: (c, s) => const Text('feed')),
-            ],),
-            StatefulShellBranch(routes: [
-              GoRoute(path: '/search', builder: (c, s) => const Text('search')),
-            ],),
-            StatefulShellBranch(routes: [
-              GoRoute(path: '/mine', builder: (c, s) => const Text('mine')),
-            ],),
-            StatefulShellBranch(routes: [
-              GoRoute(
-                path: '/profile',
-                builder: (c, s) => Builder(
-                  builder: (c) => Column(
-                    children: [
-                      const Text('profile'),
-                      // The profile grid → the post feed
-                      // (PostsFeedScreen.open).
-                      TextButton(
-                        onPressed: () => Navigator.of(c, rootNavigator: true)
-                            .push(MaterialPageRoute<void>(
-                          builder: (_) => const Text('postsFeed'),
-                        ),),
-                        child: const Text('imperative'),
-                      ),
-                      TextButton(
-                        onPressed: () => c.push('/post/1'),
-                        child: const Text('pushed'),
-                      ),
-                      TextButton(
-                        onPressed: () => c.push('/profile/settings'),
-                        child: const Text('settings'),
-                      ),
-                    ],
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/feed',
+                  builder: (c, s) => const _FeedWithChats(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/search',
+                  builder: (c, s) => const Text('search'),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(path: '/mine', builder: (c, s) => const Text('mine')),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/profile',
+                  builder: (c, s) => Builder(
+                    builder: (c) => Column(
+                      children: [
+                        const Text('profile'),
+                        // The profile grid → the post feed
+                        // (PostsFeedScreen.open).
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.of(c, rootNavigator: true).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const Text('postsFeed'),
+                            ),
+                          ),
+                          child: const Text('imperative'),
+                        ),
+                        TextButton(
+                          onPressed: () => c.push('/post/1'),
+                          child: const Text('pushed'),
+                        ),
+                        TextButton(
+                          onPressed: () => c.push('/profile/settings'),
+                          child: const Text('settings'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],),
+              ],
+            ),
           ],
         ),
         GoRoute(
@@ -92,6 +108,33 @@ GoRouter _router() => GoRouter(
         GoRoute(path: '/welcome', builder: (c, s) => const Text('welcome')),
       ],
     );
+
+/// The feed as the app builds it: Chats is a page of the feed itself, and
+/// the feed's PopScope turns Android back into «slide back to the feed».
+class _FeedWithChats extends StatefulWidget {
+  const _FeedWithChats();
+
+  @override
+  State<_FeedWithChats> createState() => _FeedWithChatsState();
+}
+
+class _FeedWithChatsState extends State<_FeedWithChats> {
+  bool _chats = false;
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+        canPop: !_chats,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop && _chats) setState(() => _chats = false);
+        },
+        child: _chats
+            ? const Text('chatsPage')
+            : TextButton(
+                onPressed: () => setState(() => _chats = true),
+                child: const Text('feed'),
+              ),
+      );
+}
 
 void main() {
   late List<String> platformCalls;
@@ -196,6 +239,23 @@ void main() {
   testWidgets('sign-in screens keep the platform default (leave)',
       (tester) async {
     await pump(tester, at: '/welcome');
+    await back(tester);
+    expect(platformCalls, contains('SystemNavigator.pop'));
+  });
+
+  testWidgets(
+      'Chats opened from the feed: one back returns to the feed, '
+      'no exit hint; then the root asks to press again', (tester) async {
+    await pump(tester, at: '/feed');
+    await tester.tap(find.text('feed'));
+    await tester.pumpAndSettle();
+    expect(find.text('chatsPage'), findsOneWidget);
+    await back(tester);
+    expect(find.text('feed'), findsOneWidget);
+    expect(find.text('press again'), findsNothing);
+    expect(platformCalls, isNot(contains('SystemNavigator.pop')));
+    await back(tester);
+    expect(find.text('press again'), findsOneWidget);
     await back(tester);
     expect(platformCalls, contains('SystemNavigator.pop'));
   });

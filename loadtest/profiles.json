@@ -1,0 +1,66 @@
+{
+  "_comment": "Single source for k6 (open() in k6/lib/profiles.js), the cost estimate and the workflow caps. api_max_tasks / generators must equal infra/envs/loadtest/profiles/<name>.tfvars (scripts/check-profiles.mjs enforces it).",
+  "limits": {
+    "max_wall_minutes": 120,
+    "max_api_tasks": 48,
+    "max_generators": 6,
+    "abort_error_rate": 0.05,
+    "abort_p95_ms": 2000,
+    "abort_window_seconds": 60
+  },
+  "profiles": {
+    "local": {
+      "kind": "http", "where": "mac", "peak_rps": 40, "generators": 0,
+      "stages": [["20s", 10], ["40s", 40], ["60s", 40], ["10s", 0]],
+      "ws_hold": 15, "ws_storm_per_s": 3, "ws_duration": "2m",
+      "calls_per_s": 1, "tokens": { "clients": 300, "attorneys": 100 }, "assets": false
+    },
+    "smoke": {
+      "kind": "http", "where": "ec2", "peak_rps": 60, "generators": 1,
+      "stages": [["1m", 20], ["2m", 60], ["3m", 60], ["30s", 0]],
+      "ws_hold": 100, "ws_storm_per_s": 5, "ws_duration": "5m",
+      "calls_per_s": 2, "tokens": { "clients": 400, "attorneys": 150 }, "assets": true,
+      "stack_hours": 1.0, "api_max_tasks": 2, "worker_max_tasks": 1,
+      "db": "db.t4g.medium", "redis": "cache.t4g.small", "redis_nodes": 2, "turn_nodes": 1,
+      "avg_api_tasks": 2, "avg_worker_tasks": 1, "alb_lcu": 1, "cdn_gb": 0.1, "xfer_gb": 0.2
+    },
+    "m1": {
+      "kind": "http", "where": "ec2", "peak_rps": 1500, "generators": 2,
+      "stages": [["3m", 300], ["5m", 800], ["5m", 1500], ["20m", 1500], ["2m", 0]],
+      "ws_hold": 4000, "ws_storm_per_s": 100, "ws_duration": "30m",
+      "calls_per_s": 20, "tokens": { "clients": 6000, "attorneys": 1500 }, "assets": true,
+      "stack_hours": 1.75, "api_max_tasks": 12, "worker_max_tasks": 4,
+      "db": "db.r7g.large", "redis": "cache.r7g.large", "redis_nodes": 2, "turn_nodes": 2,
+      "avg_api_tasks": 9, "avg_worker_tasks": 3, "alb_lcu": 25, "cdn_gb": 15, "xfer_gb": 18
+    },
+    "m10": {
+      "kind": "http", "where": "ec2", "peak_rps": 5000, "generators": 5,
+      "stages": [["4m", 800], ["6m", 2500], ["6m", 5000], ["25m", 5000], ["3m", 0]],
+      "ws_hold": 20000, "ws_storm_per_s": 400, "ws_duration": "40m",
+      "calls_per_s": 60, "tokens": { "clients": 20000, "attorneys": 5000 }, "assets": true,
+      "stack_hours": 2.0, "api_max_tasks": 40, "worker_max_tasks": 8,
+      "db": "db.r7g.2xlarge", "redis": "cache.r7g.xlarge", "redis_nodes": 2, "turn_nodes": 2,
+      "avg_api_tasks": 30, "avg_worker_tasks": 6, "alb_lcu": 90, "cdn_gb": 45, "xfer_gb": 75
+    },
+    "calls-smoke": {
+      "kind": "calls", "where": "ec2", "generators": 1,
+      "turn_clients": 20, "turn_seconds": 60, "livekit_rooms": 1, "livekit_publishers": 3, "livekit_seconds": 60,
+      "stages": [["1m", 5], ["2m", 10], ["1m", 0]], "peak_rps": 0,
+      "ws_hold": 0, "ws_storm_per_s": 0, "ws_duration": "1s", "calls_per_s": 5,
+      "tokens": { "clients": 200, "attorneys": 100 }, "assets": false,
+      "stack_hours": 1.0, "api_max_tasks": 2, "worker_max_tasks": 1,
+      "db": "db.t4g.medium", "redis": "cache.t4g.small", "redis_nodes": 2, "turn_nodes": 2, "livekit": true,
+      "avg_api_tasks": 2, "avg_worker_tasks": 1, "alb_lcu": 1, "cdn_gb": 0, "xfer_gb": 1
+    },
+    "calls-full": {
+      "kind": "calls", "where": "ec2", "generators": 2,
+      "turn_clients": 400, "turn_seconds": 600, "livekit_rooms": 10, "livekit_publishers": 9, "livekit_seconds": 600,
+      "stages": [["2m", 20], ["5m", 60], ["10m", 60], ["1m", 0]], "peak_rps": 0,
+      "ws_hold": 0, "ws_storm_per_s": 0, "ws_duration": "1s", "calls_per_s": 60,
+      "tokens": { "clients": 3000, "attorneys": 1500 }, "assets": false,
+      "stack_hours": 1.5, "api_max_tasks": 6, "worker_max_tasks": 2,
+      "db": "db.r7g.large", "redis": "cache.r7g.large", "redis_nodes": 2, "turn_nodes": 2, "livekit": true,
+      "avg_api_tasks": 5, "avg_worker_tasks": 2, "alb_lcu": 5, "cdn_gb": 0, "xfer_gb": 30
+    }
+  }
+}

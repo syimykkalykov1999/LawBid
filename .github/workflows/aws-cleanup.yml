@@ -1,0 +1,70 @@
+# AWS cleanup audit 2026-10-23 - deletes ONLY the always-safe leftovers:
+# unattached EBS volumes (> 7 days), unassociated Elastic IPs, old AMIs /
+# snapshots nobody uses, untagged ECR images, and instances / volumes tagged
+# `lawbid-loadtest` (> 4 hours). Never RDS, S3 (user media, backups, web),
+# ElastiCache, ECS, load balancers, or anything tagged Protect=true /
+# Environment=production-critical (the IAM role has no right to touch them
+# either: infra/bootstrap `aws_iam_role.cleanup`).
+#
+# Actions -> "AWS cleanup" -> Run workflow. DRY RUN is the default: it only
+# prints what it would delete. Switch dry_run off for a real run.
+# The GitHub environment `aws-cleanup` must have required reviewers (like
+# `production`): the run waits for an approval click before it touches AWS.
+# Guide: docs/runbooks/AWS_CLEANUP.md.
+#
+# Repository secrets: AWS_CLEANUP_ROLE (terraform output `cleanup_role_arn`
+# in infra/bootstrap), AWS_REGION.
+name: AWS cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: only print what would be deleted (untick to really delete)"
+        type: boolean
+        default: true
+      regions:
+        description: "Regions, comma separated (empty = the main region only)"
+        required: false
+        default: ""
+      snapshot_days:
+        description: "AMIs / snapshots younger than this many days are kept (backups are 35 days)"
+        required: false
+        default: "35"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: aws-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: ${{ inputs.dry_run && 'Dry run' || 'DELETE' }} the safe leftovers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: aws-cleanup
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_CLEANUP_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Clean up
+        env:
+          DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+          REGIONS: ${{ inputs.regions || secrets.AWS_REGION }}
+          SNAPSHOT_DAYS: ${{ inputs.snapshot_days }}
+        run: |
+          set -o pipefail
+          mkdir -p out
+          scripts/aws/cleanup.sh "$REGIONS" | tee out/aws-cleanup.txt
+          {
+            echo "## AWS cleanup ($([ "$DRY_RUN" = "true" ] && echo dry run || echo real run))"
+            echo '```'
+            cat out/aws-cleanup.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

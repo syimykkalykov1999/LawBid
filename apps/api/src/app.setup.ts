@@ -177,7 +177,13 @@ export function configureApp(
         'X-Reauth-Token',
         // Owner 2026-10-22: the website's refresh-token cookie mode.
         'X-LawBid-Web-Session',
+        // Owner 2026-10-23 (web pass): the app's own HTTP cache revalidates
+        // with If-None-Match (a 304 instead of the whole answer) ...
+        'If-None-Match',
       ],
+      // ... and reads the tag from `ETag`, which a cross-origin page may
+      // not see unless it is exposed.
+      exposedHeaders: ['ETag'],
       maxAge: 600,
     }),
   );
