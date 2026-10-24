@@ -278,6 +278,29 @@ export class AdminConfigService {
     });
   }
 
+  /** Owner 2026-10-24: cloudflare cannot be switched on without its keys. */
+  private async assertCloudflareSfuReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'calls.video_provider' || value !== 'cloudflare') return;
+    const f = (await this.secrets?.get('cloudflare_sfu'))?.fields ?? {};
+    const has = (name: string, env: string) =>
+      Boolean((f[name] ?? this.config.get<string>(env) ?? '').trim());
+    const missing = [
+      has('appId', 'CLOUDFLARE_SFU_APP_ID') ? null : 'CLOUDFLARE_SFU_APP_ID',
+      has('appToken', 'CLOUDFLARE_SFU_APP_TOKEN')
+        ? null
+        : 'CLOUDFLARE_SFU_APP_TOKEN',
+    ].filter((x): x is string => x !== null);
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `Cloudflare SFU is not configured: add ${missing.join(', ')} in Integrations → Cloudflare SFU first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
   async updateConfig(
     admin: AdminActor,
     key: string,
@@ -300,6 +323,7 @@ export class AdminConfigService {
       });
     }
     await this.assertLivekitReady(key, value);
+    await this.assertCloudflareSfuReady(key, value);
     await this.assertR2Ready(key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {

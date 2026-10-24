@@ -191,6 +191,8 @@ abstract final class ApiErrorCodes {
   static const callNotAllowed = 'CALL_NOT_ALLOWED';
   static const callInProgress = 'CALL_IN_PROGRESS';
   static const callStateConflict = 'CALL_STATE_CONFLICT';
+  // Group calls via Cloudflare SFU: the media server is unreachable right now.
+  static const callMediaUnavailable = 'CALL_MEDIA_UNAVAILABLE';
   // OQ-043 direct chats / message requests.
   static const directChatNotAllowed = 'DIRECT_CHAT_NOT_ALLOWED';
   static const messageRequestDeclined = 'MESSAGE_REQUEST_DECLINED';
@@ -450,6 +452,7 @@ abstract final class ApiErrorCodes {
     callNotAllowed,
     callInProgress,
     callStateConflict,
+    callMediaUnavailable,
     directChatNotAllowed,
     messageRequestDeclined,
     messageRequestLimit,

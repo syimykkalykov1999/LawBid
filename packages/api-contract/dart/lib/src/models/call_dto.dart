@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'call_dto_media_provider.dart';
+import 'call_media_fallback_dto.dart';
 import 'call_participant_dto.dart';
 import 'call_peer_dto.dart';
 import 'call_status.dart';
@@ -28,6 +30,8 @@ class CallDto {
     this.group = false,
     this.moderated = false,
     this.channelId,
+    this.mediaProvider,
+    this.mediaFallback,
     this.hostId,
     this.vote,
     this.answeredAt,
@@ -61,6 +65,12 @@ class CallDto {
 
   /// Owner 2026-10-20: people were added; `participants` lists everyone.
   final bool group;
+
+  /// Owner 2026-10-24: how the media of this call is carried, fixed at its start. cloudflare = Cloudflare SFU (use POST /calls/:id/sfu/*); p2p = device to device (1:1 calls and the fallback).
+  final CallDtoMediaProvider? mediaProvider;
+
+  /// Owner 2026-10-24: set on group calls only; see CallMediaFallbackDto. Also sent with every call:participants event.
+  final CallMediaFallbackDto? mediaFallback;
 
   /// Who can mute / remove others (group calls).
   final String? hostId;

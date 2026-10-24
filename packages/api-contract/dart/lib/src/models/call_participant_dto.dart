@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'call_participant_dto_sfu_tracks.dart';
 import 'call_participant_status.dart';
 
 part 'call_participant_dto.g.dart';
@@ -19,6 +20,8 @@ class CallParticipantDto {
     this.username,
     this.avatarUrl,
     this.joinedAt,
+    this.sfuReady,
+    this.sfuTracks,
   });
 
   factory CallParticipantDto.fromJson(Map<String, Object?> json) =>
@@ -38,6 +41,12 @@ class CallParticipantDto {
 
   /// When they joined; the later joiner offers WebRTC.
   final DateTime? joinedAt;
+
+  /// Cloudflare SFU calls only: this person publishes at least one track, so pull them (POST /calls/:id/sfu/subscribe).
+  final bool? sfuReady;
+
+  /// Cloudflare SFU calls only: the tracks this person publishes now.
+  final List<CallParticipantDtoSfuTracks>? sfuTracks;
 
   Map<String, Object?> toJson() => _$CallParticipantDtoToJson(this);
 }

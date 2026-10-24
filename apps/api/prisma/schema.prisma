@@ -2528,6 +2528,11 @@ model Call {
   /// than `calls.solo_end_seconds`; kept in the row so every API instance
   /// and the worker agree (not a per-process timer).
   solo_since      DateTime?         @db.Timestamptz
+  /// Owner 2026-10-24: who carries the media of this call, decided once when
+  /// the call starts: p2p (device to device; 1:1 calls and the fallback) or
+  /// cloudflare (Cloudflare Realtime SFU, group calls only). Never changes
+  /// mid-call.
+  media_provider  String            @default("p2p") @db.VarChar(16)
   participants    CallParticipant[]
   votes           CallVote[]
   log_hidden      CallLogHidden[]

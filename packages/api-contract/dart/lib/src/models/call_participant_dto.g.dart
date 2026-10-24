@@ -18,6 +18,10 @@ CallParticipantDto _$CallParticipantDtoFromJson(Map<String, dynamic> json) =>
       joinedAt: json['joinedAt'] == null
           ? null
           : DateTime.parse(json['joinedAt'] as String),
+      sfuReady: json['sfuReady'] as bool?,
+      sfuTracks: (json['sfuTracks'] as List<dynamic>?)
+          ?.map((e) => CallParticipantDtoSfuTracks.fromJson(e as String))
+          .toList(),
     );
 
 Map<String, dynamic> _$CallParticipantDtoToJson(CallParticipantDto instance) =>
@@ -30,4 +34,6 @@ Map<String, dynamic> _$CallParticipantDtoToJson(CallParticipantDto instance) =>
       'muted': instance.muted,
       'mutedByHost': instance.mutedByHost,
       'joinedAt': ?instance.joinedAt?.toIso8601String(),
+      'sfuReady': ?instance.sfuReady,
+      'sfuTracks': ?instance.sfuTracks?.map((e) => e.toJson()).toList(),
     };

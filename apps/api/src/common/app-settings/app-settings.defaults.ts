@@ -667,6 +667,14 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'guest.rate_limit_per_minute': 40,
   'guest.rate_limit_per_hour': 600,
   'calls.video_provider': 'p2p',
+  /** Owner 2026-10-24: group calls on Cloudflare SFU (`video_provider` =
+   * cloudflare). People in one SFU call (default 20); the mesh cap above
+   * (`calls.max_participants`, 9) stays for device-to-device calls. */
+  'calls.sfu_max_participants': 20,
+  /** Only while Cloudflare is down or has no keys: up to this many people
+   * (4) stay device-to-device with their video; with more, everyone is
+   * audio-only (a call is never refused, seats stay as in the SFU limit). */
+  'calls.sfu_fallback_mesh_max': 4,
   'calls.channel_live_enabled': false,
   'chat.link_preview_enabled': true,
   'chat.link_preview_denylist': [] as string[],

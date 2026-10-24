@@ -767,6 +767,17 @@ export const envSchema = z
       blankToUndefined,
       z.string().optional(),
     ),
+    // Cloudflare Realtime SFU for group calls (also settable in admin ->
+    // Integrations -> Cloudflare SFU); used when calls.video_provider =
+    // cloudflare.
+    CLOUDFLARE_SFU_APP_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_SFU_APP_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // Owner 2026-10-22: LiveKit (open-source SFU) for big calls; used only
     // when `calls.video_provider` = livekit (admin → Settings). Also
     // settable in admin → Integrations → LiveKit.
