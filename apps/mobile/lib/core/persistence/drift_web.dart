@@ -1,3 +1,4 @@
+import 'dart:async' show TimeoutException;
 import 'dart:io' show Platform;
 
 import 'package:drift/drift.dart';
@@ -66,6 +67,10 @@ QueryExecutor appDriftCacheDatabase(String name) {
 class _FallbackExecutor extends QueryExecutor {
   _FallbackExecutor(this._current, this._fallback);
 
+  /// How long the persistent database may take to open (its files come
+  /// over the network: drift_worker.js 350 KB, sqlite3.wasm 750 KB).
+  static const openTimeout = Duration(seconds: 12);
+
   QueryExecutor _current;
   final Future<QueryExecutor?> Function(Uri sqlite3Wasm) _fallback;
   bool _fellBack = false;
@@ -76,7 +81,17 @@ class _FallbackExecutor extends QueryExecutor {
   @override
   Future<bool> ensureOpen(QueryExecutorUser user) async {
     try {
-      return await _current.ensureOpen(user);
+      // Owner 2026-10-24 (slow-link pass): a worker that never answers
+      // (blocked storage, a half-loaded sqlite3.wasm on a bad connection)
+      // used to hold every screen that reads the database. After
+      // [openTimeout] the tab's own in-memory database takes over, like
+      // after an error.
+      return await _current.ensureOpen(user).timeout(
+            openTimeout,
+            onTimeout: () => throw TimeoutException(
+              'local storage did not open in $openTimeout',
+            ),
+          );
     } on Object catch (e) {
       if (_fellBack) rethrow;
       final memory = await _fallback(appDriftWebOptions.sqlite3Wasm);
