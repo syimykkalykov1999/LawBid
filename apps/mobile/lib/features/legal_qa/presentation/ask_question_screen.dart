@@ -186,6 +186,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
               controller: _body,
               label: t.t('qa.field.body'),
               semanticLabel: t.t('qa.field.body'),
+              tapAnywhere: true,
               maxLines: 8,
               minHeight: 160,
               maxLength: TextLimits.of(TextLimit.questionBody),

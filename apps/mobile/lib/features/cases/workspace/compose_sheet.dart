@@ -313,6 +313,19 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     ]);
   }
 
+  /// A tap on the empty part of the description area: the keyboard opens on
+  /// the line last typed in (else the last text line).
+  void _focusDescription() {
+    final i = _focused < _lines.length
+        ? _focused
+        : _lines.lastIndexWhere((l) => !l.check);
+    if (i < 0) return;
+    _lines[i].f.requestFocus();
+    _lines[i].c.selection = TextSelection.collapsed(
+      offset: _lines[i].c.text.length,
+    );
+  }
+
   Future<void> _pickDue() async {
     final d = await pickDateTime(context, initial: _due);
     if (d != null && mounted) setState(() => _due = d);
@@ -595,176 +608,205 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
                         counterText: '',
                       ),
                     ),
-                  for (final (i, l) in _lines.indexed)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (l.check)
-                          Padding(
-                            padding: const EdgeInsetsDirectional.only(
-                              top: 12,
-                              end: 10,
-                            ),
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: l.done ? colors.goldDark : null,
-                                border: Border.all(
-                                  color: l.done
-                                      ? colors.goldDark
-                                      : colors.textSecondary,
-                                  width: 1.6,
-                                ),
-                              ),
-                            ),
-                          ),
-                        Expanded(
-                          child: Focus(
-                            onFocusChange: (has) {
-                              if (has) _focused = i;
-                            },
-                            child: TextField(
-                              controller: l.c,
-                              focusNode: l.f,
-                              autofocus: i == 0 && !_task,
-                              minLines: 1,
-                              maxLines: null,
-                              maxLength:
-                                  TextLimits.of(TextLimit.workspaceUpdate),
-                              keyboardType: TextInputType.multiline,
-                              textCapitalization: TextCapitalization.sentences,
-                              onChanged: (v) {
-                                _onLineChanged(i, v);
-                                setState(() {});
-                              },
-                              style:
-                                  type.body.copyWith(fontSize: 14, height: 1.4),
-                              decoration: InputDecoration(
-                                hintText: i == 0
-                                    ? t.t(
-                                        switch (widget.mode) {
-                                          ComposeMode.task ||
-                                          ComposeMode.planner =>
-                                            'cases.compose.taskHint',
-                                          ComposeMode.attach =>
-                                            'cases.compose.noteHint',
-                                          _ => 'cases.compose.updateHint',
-                                        },
-                                      )
-                                    : null,
-                                border: InputBorder.none,
-                                counterText: '',
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (_timed && (_due != null || _remind != null))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                  // Owner 2026-10-24: the whole area under the title is the
+                  // description - a tap anywhere in it opens the keyboard.
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _focusDescription,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: MediaQuery.sizeOf(context).height * 0.2,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (_due != null)
-                            InputChip(
-                              avatar: AppIcon(
-                                AppIcons.eventOutlined,
-                                size: 16,
-                                color: colors.text,
-                              ),
-                              label: Text(
-                                ref.read(l10nFormatsProvider).dateTime(_due!),
-                              ),
-                              onPressed: _pickDue,
-                              onDeleted: () => setState(() {
-                                _due = null;
-                                _remind = null;
-                              }),
+                          for (final (i, l) in _lines.indexed)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (l.check)
+                                  Padding(
+                                    padding: const EdgeInsetsDirectional.only(
+                                      top: 12,
+                                      end: 10,
+                                    ),
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: l.done ? colors.goldDark : null,
+                                        border: Border.all(
+                                          color: l.done
+                                              ? colors.goldDark
+                                              : colors.textSecondary,
+                                          width: 1.6,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Focus(
+                                    onFocusChange: (has) {
+                                      if (has) _focused = i;
+                                    },
+                                    child: TextField(
+                                      controller: l.c,
+                                      focusNode: l.f,
+                                      autofocus: i == 0 && !_task,
+                                      minLines: 1,
+                                      maxLines: null,
+                                      maxLength:
+                                          TextLimits.of(
+                                            TextLimit.workspaceUpdate,
+                                          ),
+                                      keyboardType: TextInputType.multiline,
+                                      textCapitalization:
+                                        TextCapitalization.sentences,
+                                      onChanged: (v) {
+                                        _onLineChanged(i, v);
+                                        setState(() {});
+                                      },
+                                      style:
+                                          type.body.copyWith(
+                                            fontSize: 14,
+                                            height: 1.4,
+                                          ),
+                                      decoration: InputDecoration(
+                                        hintText: i == 0
+                                            ? t.t(
+                                                switch (widget.mode) {
+                                                  ComposeMode.task ||
+                                                  ComposeMode.planner =>
+                                                    'cases.compose.taskHint',
+                                                  ComposeMode.attach =>
+                                                    'cases.compose.noteHint',
+                                                  _ =>
+                                                    'cases.compose.updateHint',
+                                                },
+                                              )
+                                            : null,
+                                        border: InputBorder.none,
+                                        counterText: '',
+                                        isDense: true,
+                                        contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 10,
+                                          ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          if (_due != null && _remind != null)
-                            InputChip(
-                              avatar: AppIcon(
-                                AppIcons.notificationsActiveOutlined,
-                                size: 16,
-                                color: colors.text,
+                          if (_timed && (_due != null || _remind != null))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (_due != null)
+                                    InputChip(
+                                      avatar: AppIcon(
+                                        AppIcons.eventOutlined,
+                                        size: 16,
+                                        color: colors.text,
+                                      ),
+                                      label: Text(
+                                        ref
+                                          .read(l10nFormatsProvider)
+                                          .dateTime(_due!),
+                                      ),
+                                      onPressed: _pickDue,
+                                      onDeleted: () => setState(() {
+                                        _due = null;
+                                        _remind = null;
+                                      }),
+                                    ),
+                                  if (_due != null && _remind != null)
+                                    InputChip(
+                                      avatar: AppIcon(
+                                        AppIcons.notificationsActiveOutlined,
+                                        size: 16,
+                                        color: colors.text,
+                                      ),
+                                      label: Text(taskRemindLabel(t, _remind)),
+                                      onPressed: _pickRemind,
+                                      onDeleted: () =>
+                                        setState(() => _remind = null),
+                                    ),
+                                ],
                               ),
-                              label: Text(taskRemindLabel(t, _remind)),
-                              onPressed: _pickRemind,
-                              onDeleted: () => setState(() => _remind = null),
+                            ),
+                          if (_planner &&
+                              (_caseId != null ||
+                                  _priority != TaskPriority.normal ||
+                                  _assigneeId != null))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (_caseId != null)
+                                    InputChip(
+                                      avatar: AppIcon(
+                                        AppIcons.workOutlineRounded,
+                                        size: 16,
+                                        color: colors.text,
+                                      ),
+                                      label: ConstrainedBox(
+                                        constraints:
+                                            const BoxConstraints(maxWidth: 200),
+                                        child: Text(
+                                          _caseTitle ?? '',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      onPressed: _pickCase,
+                                      onDeleted: () => setState(() {
+                                        _caseId = null;
+                                        _caseTitle = null;
+                                      }),
+                                    ),
+                                  if (_priority != TaskPriority.normal)
+                                    InputChip(
+                                      avatar: AppIcon(
+                                        AppIcons.flagOutlined,
+                                        size: 16,
+                                        color: colors.dangerText,
+                                      ),
+                                      label: Text(
+                                        taskPriorityLabel(t, _priority),
+                                      ),
+                                      onPressed: _pickPriority,
+                                      onDeleted: () => setState(
+                                        () => _priority = TaskPriority.normal,
+                                      ),
+                                    ),
+                                  if (_assigneeId != null)
+                                    InputChip(
+                                      avatar: AppIcon(
+                                        AppIcons.personOutlineRounded,
+                                        size: 16,
+                                        color: colors.text,
+                                      ),
+                                      label: Text(_assigneeName ?? ''),
+                                      onPressed: _pickAssignee,
+                                      onDeleted: () => setState(() {
+                                        _assigneeId = null;
+                                        _assigneeName = null;
+                                      }),
+                                    ),
+                                ],
+                              ),
                             ),
                         ],
                       ),
                     ),
-                  if (_planner &&
-                      (_caseId != null ||
-                          _priority != TaskPriority.normal ||
-                          _assigneeId != null))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if (_caseId != null)
-                            InputChip(
-                              avatar: AppIcon(
-                                AppIcons.workOutlineRounded,
-                                size: 16,
-                                color: colors.text,
-                              ),
-                              label: ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxWidth: 200),
-                                child: Text(
-                                  _caseTitle ?? '',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              onPressed: _pickCase,
-                              onDeleted: () => setState(() {
-                                _caseId = null;
-                                _caseTitle = null;
-                              }),
-                            ),
-                          if (_priority != TaskPriority.normal)
-                            InputChip(
-                              avatar: AppIcon(
-                                AppIcons.flagOutlined,
-                                size: 16,
-                                color: colors.dangerText,
-                              ),
-                              label: Text(taskPriorityLabel(t, _priority)),
-                              onPressed: _pickPriority,
-                              onDeleted: () => setState(
-                                () => _priority = TaskPriority.normal,
-                              ),
-                            ),
-                          if (_assigneeId != null)
-                            InputChip(
-                              avatar: AppIcon(
-                                AppIcons.personOutlineRounded,
-                                size: 16,
-                                color: colors.text,
-                              ),
-                              label: Text(_assigneeName ?? ''),
-                              onPressed: _pickAssignee,
-                              onDeleted: () => setState(() {
-                                _assigneeId = null;
-                                _assigneeName = null;
-                              }),
-                            ),
-                        ],
-                      ),
-                    ),
+                  ),
                   for (final (i, f) in _kept.indexed)
                     _KeptTile(
                       file: f,

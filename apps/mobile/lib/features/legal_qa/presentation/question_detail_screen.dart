@@ -619,6 +619,7 @@ class _Composer extends ConsumerWidget {
             controller: controller,
             hintText: t.t('qa.answer.hint'),
             semanticLabel: t.t('qa.answer.hint'),
+            tapAnywhere: true,
             maxLines: 4,
             maxLength: TextLimits.of(TextLimit.answer),
             textCapitalization: TextCapitalization.sentences,
