@@ -19,7 +19,7 @@ What it does, in a built `build/web`:
 Stays at the root (asked again each time, small): index.html, spa.html,
 flutter_bootstrap.js, flutter.js, manifest.json, version.json, boot_*.js,
 sqlite3.wasm / drift_worker.js (the database's files; Dart refers to them
-by name), icons/, pay.*, firebase-messaging-sw.js.
+by name), icons/, pay.*, firebase-messaging-sw.js, passkeys_bundle.js.
 
 Usage: scripts/deploy/web-immutable.py apps/mobile/build/web <version>
 """
