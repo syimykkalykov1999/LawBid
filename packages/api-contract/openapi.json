@@ -57578,7 +57578,7 @@
           {
             "name": "If-None-Match",
             "in": "header",
-            "description": "ETag of the bundle the client already has (ignored with `since`).",
+            "description": "ETag of the bundle (or delta) the client already has.",
             "required": false,
             "schema": {
               "type": "string"
@@ -57597,7 +57597,7 @@
             }
           },
           "304": {
-            "description": "Not modified: no `since` and If-None-Match equals the current ETag. Empty body."
+            "description": "Not modified: If-None-Match equals the current ETag (which includes `since`). Empty body."
           },
           "400": {
             "description": "Bad request: VALIDATION_ERROR",
@@ -57650,7 +57650,7 @@
             }
           }
         },
-        "summary": "GET /i18n/bundle/:lang?since=version. Bypasses the global\nResponseInterceptor's {data:...} envelope deliberately (@Res()\nwithout `passthrough`, per Nest's documented raw-response-control\npattern) — that's the only way to send a spec-correct empty-body 304\nfor a matching ETag (docs/01_FOUNDATION_AUTH.md §9.3: \"Поддержка\nETag/304\"). Every other route in this module returns normally and\ngets the standard envelope.\n\nETag/304 is the plain-GET HTTP-cache path (no `since`): if the\nclient's If-None-Match matches the language's current version, 304\nwith no body. `since` is the separate, explicit delta-poll path\n(§9.3: \"полный или дельта-набор + version\") — it always returns 200\nwith a (possibly empty) JSON body, never a 304, since it's a\nversioned query the client is actively asking for, not a cache\nrevalidation.",
+        "summary": "GET /i18n/bundle/:lang?since=version. Bypasses the global\nResponseInterceptor's {data:...} envelope deliberately (@Res()\nwithout `passthrough`, per Nest's documented raw-response-control\npattern) — that's the only way to send a spec-correct empty-body 304\nfor a matching ETag (docs/01_FOUNDATION_AUTH.md §9.3: \"Поддержка\nETag/304\"). Every other route in this module returns normally and\ngets the standard envelope.\n\nETag/304: if the client's If-None-Match matches the language's current\nversion (and, with `since`, the same `since`), 304 with no body.\n`since` is the explicit delta path (§9.3: \"полный или дельта-набор +\nversion\"); owner 2026-10-23: its answer is tagged with the `since` too,\nso repeating the same delta is a 304 as well.",
         "tags": [
           "i18n"
         ]

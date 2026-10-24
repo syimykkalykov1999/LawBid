@@ -15,6 +15,7 @@ import {
   COMMON_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { etagMatches } from '../../../common/sync/cheap-etag';
 import { I18nBundleDto, I18nLanguageDto } from '../dto/i18n-responses.dto';
 import { Public } from '../../auth/decorators/public.decorator';
 import { I18nBundleQueryDto } from '../dto/bundle-query.dto';
@@ -54,13 +55,11 @@ export class I18nController {
    * ETag/304"). Every other route in this module returns normally and
    * gets the standard envelope.
    *
-   * ETag/304 is the plain-GET HTTP-cache path (no `since`): if the
-   * client's If-None-Match matches the language's current version, 304
-   * with no body. `since` is the separate, explicit delta-poll path
-   * (§9.3: "полный или дельта-набор + version") — it always returns 200
-   * with a (possibly empty) JSON body, never a 304, since it's a
-   * versioned query the client is actively asking for, not a cache
-   * revalidation.
+   * ETag/304: if the client's If-None-Match matches the language's current
+   * version (and, with `since`, the same `since`), 304 with no body.
+   * `since` is the explicit delta path (§9.3: "полный или дельта-набор +
+   * version"); owner 2026-10-23: its answer is tagged with the `since` too,
+   * so repeating the same delta is a 304 as well.
    */
   @Public()
   @Get('bundle/:lang')
@@ -71,13 +70,12 @@ export class I18nController {
   @ApiResponse({
     status: 304,
     description:
-      'Not modified: no `since` and If-None-Match equals the current ETag. Empty body.',
+      'Not modified: If-None-Match equals the current ETag (which includes `since`). Empty body.',
   })
   @ApiHeader({
     name: 'If-None-Match',
     required: false,
-    description:
-      'ETag of the bundle the client already has (ignored with `since`).',
+    description: 'ETag of the bundle (or delta) the client already has.',
   })
   @ApiErrors({
     400: [ErrorCode.VALIDATION_ERROR],
@@ -90,9 +88,17 @@ export class I18nController {
     @Res() res: Response,
   ): Promise<void> {
     const version = await this.bundle.getCurrentVersion(lang);
-    const etag = `"${lang}-v${version}"`;
+    // Owner 2026-10-23 (web pass): a delta is a pure function of (language,
+    // version, since), so it has an ETag of its own and answers 304 too —
+    // the web app reloads with a free "nothing new". The full bundle keeps
+    // its plain `"<lang>-v<version>"` tag.
+    const etag =
+      query.since === undefined
+        ? `"${lang}-v${version}"`
+        : `"${lang}-v${version}-s${query.since}"`;
+    res.set('Cache-Control', 'private, no-cache');
 
-    if (query.since === undefined && req.header('if-none-match') === etag) {
+    if (etagMatches(req.header('if-none-match'), etag)) {
       res.status(304).set('ETag', etag).end();
       return;
     }

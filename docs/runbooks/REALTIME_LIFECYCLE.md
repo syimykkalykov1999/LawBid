@@ -35,7 +35,7 @@ Owner 2026-10-23, «связь пропала / восстановилась». 
 | `offlineSeconds` | `realtime.offline_seconds` | 8 | сколько секунд сбои должны длиться, прежде чем показать «нет связи» |
 | `probeTimeoutMs` | `realtime.probe_timeout_ms` | 3000 | таймаут пробы `/health/live` |
 | `tokenRefreshLeadSeconds` | `realtime.token_refresh_lead_seconds` | 120 | за сколько продлевать токен |
-| `pollingFallbackIntervalSeconds` | `realtime.polling_fallback_interval_seconds` | 30 | опрос сервера, пока сокета нет |
+| `pollingFallbackIntervalSeconds` | `realtime.polling_fallback_interval_seconds` | 30 | опрос `GET /realtime/missed` каждые N с, пока сокета нет (только на переднем плане; `MissedPoller`) |
 | `reconnectedDebounceSeconds` | `realtime.reconnected_debounce_seconds` | 5 | разрыв короче — не слать `reconnected`, списки не перечитывать |
 | `refetchJitterMs` | `realtime.refetch_jitter_ms` | 3000 | случайная задержка перед перечитыванием каждого списка |
 | `pingIntervalMs` / `pingTimeoutMs` | (константы сервера) | 25000 / 20000 | для сторожа |

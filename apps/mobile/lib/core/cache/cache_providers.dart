@@ -8,7 +8,8 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/cache/network_usage.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
-import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
+import 'package:lawbid/core/persistence/drift_web.dart'
+    show appDriftDatabase, isFlutterTest;
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 
 /// The one cache database of the app (plan §5). Opened lazily on first use;
@@ -136,21 +137,88 @@ class DriftHttpCacheStore implements HttpCacheStore {
   Future<void> clear() => _db.clearHttp();
 }
 
+/// Web only: the public reference data that is the same for everyone — the
+/// bootstrap, the language list and bundles, the countries — asked without
+/// a session (`anon` rows). Nothing of an account is in these.
+bool isPublicReferenceKey(String key) {
+  if (!key.startsWith('anon|')) return false;
+  final urlAt = key.indexOf('|', 5);
+  if (urlAt < 0) return false;
+  final path = Uri.tryParse(key.substring(urlAt + 1))?.path ?? '';
+  return path.contains('/i18n/') ||
+      path.endsWith('/countries') ||
+      path.endsWith('/config/bootstrap');
+}
+
+/// Owner 2026-10-23 (web pass): on the web the HTTP cache lives in the
+/// tab's memory (a shared computer keeps nothing of an account), so every
+/// reload downloaded the bootstrap, languages, bundles and countries again.
+/// Those few answers are public, so they alone go to a persistent store
+/// (IndexedDB, like the phone's file); everything else stays in memory.
+class PublicRoutedHttpCacheStore implements HttpCacheStore {
+  PublicRoutedHttpCacheStore({
+    required HttpCacheStore public,
+    required HttpCacheStore private,
+  })  : _public = public,
+        _private = private;
+
+  final HttpCacheStore _public;
+  final HttpCacheStore _private;
+
+  HttpCacheStore _of(String key) =>
+      isPublicReferenceKey(key) ? _public : _private;
+
+  @override
+  Future<HttpCacheEntry?> read(String key) => _of(key).read(key);
+
+  @override
+  Future<void> write(String key, HttpCacheEntry entry, String json) =>
+      _of(key).write(key, entry, json);
+
+  @override
+  Future<void> touch(String key, DateTime now, {required bool confirmed}) =>
+      _of(key).touch(key, now, confirmed: confirmed);
+
+  @override
+  Future<void> clear() async {
+    await _private.clear();
+    await _public.clear();
+  }
+}
+
+/// The persistent cache database of the public reference answers (web
+/// only). Opened lazily; if the browser refuses storage it falls back to
+/// the tab's memory like every other app database.
+final publicCacheDatabaseProvider = Provider<CacheDatabase>((ref) {
+  final db = CacheDatabase(appDriftDatabase('lawbid_public_cache'));
+  ref.onDispose(db.close);
+  return db;
+});
+
 /// The HTTP cache interceptor `dioProvider` installs (memory + disk).
-/// On the web the disk layer is the tab's memory database (plan §5).
-final httpCacheInterceptorProvider = Provider<HttpCacheInterceptor>(
-  (ref) => HttpCacheInterceptor(
+/// On the phones the disk layer is a file; on the web it is the tab's
+/// memory database (plan §5), except the public reference answers
+/// ([PublicRoutedHttpCacheStore]).
+final httpCacheInterceptorProvider = Provider<HttpCacheInterceptor>((ref) {
+  int limit() => ref.read(cacheLimitsProvider).limitBytes(CacheStore.http);
+  final main = DriftHttpCacheStore(ref.watch(cacheDatabaseProvider), limit);
+  return HttpCacheInterceptor(
     // Widget tests drive a fake adapter through the real Dio: they keep the
     // memory level only (the disk level has its own tests).
     disk: isFlutterTest
         ? null
-        : DriftHttpCacheStore(
-            ref.watch(cacheDatabaseProvider),
-            () => ref.read(cacheLimitsProvider).limitBytes(CacheStore.http),
-          ),
+        : kIsWeb
+            ? PublicRoutedHttpCacheStore(
+                public: DriftHttpCacheStore(
+                  ref.watch(publicCacheDatabaseProvider),
+                  limit,
+                ),
+                private: main,
+              )
+            : main,
     usage: ref.watch(networkUsageCounterProvider),
-  ),
-);
+  );
+});
 
 /// Today's network usage, persisted (SharedPreferences, one row per day,
 /// yesterday dropped) so the settings screen can show «за сегодня».
