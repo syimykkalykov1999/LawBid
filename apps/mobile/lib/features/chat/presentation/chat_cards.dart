@@ -382,6 +382,7 @@ class _ContactPickerState extends ConsumerState<_ContactPicker> {
                   horizontal: AppSpacing.screenSide,
                 ),
                 child: AppTextField(
+                  compact: true,
                   controller: _query,
                   leading: const AppIcon(AppIcons.searchRounded),
                   hintText: t.t('card.find'),

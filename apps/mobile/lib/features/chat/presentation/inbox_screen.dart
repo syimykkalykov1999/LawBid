@@ -12,9 +12,9 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/text/bidi.dart';
-import 'package:lawbid/features/calls/application/call_history_providers.dart';
 import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
     show callLogKey;
+import 'package:lawbid/features/calls/presentation/live_calls_fab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -1633,52 +1633,31 @@ class _Bell extends StatelessWidget {
 /// Owner 2026-10-20 (WhatsApp): «new chat» — opens Contacts (who is on
 /// LawBid: chat, call, video, invite).
 ///
-/// Owner 2026-10-21: while a group call runs that this person can join or
-/// return to, the «+» glows green and opens the «Calls» section, where the
-/// running calls are listed on top.
-class _NewChatButton extends ConsumerWidget {
+/// Owner 2026-10-23: a call that runs (one I am in, or one I can join) adds a
+/// call button just above the «+» (LiveCallsFab); the «+» itself stays the
+/// same. Both are the app's one floating button (AppFab); it sits 16 dp
+/// above the bottom edge of the content (on an iPhone also above the home
+/// indicator, see appFabLift).
+class _NewChatButton extends StatelessWidget {
   const _NewChatButton({required this.label});
 
   final String label;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final live =
-        (ref.watch(ongoingGroupCallsProvider).value ?? const []).isNotEmpty;
-    // Owner 2026-10-22 (WhatsApp): a floating button at the bottom right
-    // instead of the «+» in the filter row; green while a group call runs.
-    // Owner 2026-10-23: on the iPhone it sat on the home indicator. Inside
-    // the app's shell the body's own safe-area inset is removed, so the
-    // button is lifted by the DEVICE's inset (what the Scaffold lost) plus a
-    // small lift - the same gap above the bottom edge on iOS and Android.
-    final view = View.of(context);
-    final deviceInset = view.viewPadding.bottom / view.devicePixelRatio;
-    final lost = (deviceInset - MediaQuery.viewPaddingOf(context).bottom)
-        .clamp(0.0, double.infinity);
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: Padding(
-        key: const ValueKey('chats-new-chat-lift'),
-        padding: EdgeInsets.only(bottom: lost + AppSpacing.sm),
-        child: FloatingActionButton(
-          key: const ValueKey('chats-new-chat'),
-          heroTag: null,
-          backgroundColor: live ? colors.success : colors.accent,
-          foregroundColor: live ? Colors.white : colors.onAccent,
-          onPressed: () => context.push(
-            live ? '${AppRoutes.contacts}?tab=calls' : AppRoutes.contacts,
-          ),
-          child: live
-              ? const AppIcon(
-                  AppIcons.addRounded,
-                  key: ValueKey('chats-new-chat-live'),
-                )
-              : const AppIcon(AppIcons.addRounded),
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        const LiveCallsFab(),
+        AppFab(
+          buttonKey: const ValueKey('chats-new-chat'),
+          liftKey: const ValueKey('chats-new-chat-lift'),
+          semanticLabel: label,
+          liftOverInset: true,
+          onPressed: () => context.push(AppRoutes.contacts),
         ),
-      ),
+      ],
     );
   }
 }

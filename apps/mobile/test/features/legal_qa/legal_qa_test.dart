@@ -196,9 +196,47 @@ void main() {
     expect(find.byType(QaBestBadge), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     // A client can ask; the first query is «all».
-    expect(find.text('Задать вопрос'), findsOneWidget);
+    // Owner 2026-10-23: the floating «+» (label = ask a question).
+    expect(find.byKey(const ValueKey('qa-ask')), findsOneWidget);
+    expect(find.bySemanticsLabel('Задать вопрос'), findsOneWidget);
     expect(repo.queries.first.filter, QaFilter.all);
     expect(tester.takeException(), isNull);
+  });
+
+  // Owner 2026-10-23: the search is a magnifier at the end of the chips row,
+  // the filter next to it; the ask button is the app's floating «+».
+  testWidgets('search icon, filter icon and the floating «+»', (tester) async {
+    final repo = _Repo(items: [_q()]);
+    await pump(tester, const QaFeedScreen(), repo);
+    final tabs = tester.getRect(find.byKey(const ValueKey('qa-tabs')));
+    final filter =
+        tester.getRect(find.byKey(const ValueKey('qa-filter-button')));
+    final search =
+        tester.getRect(find.byKey(const ValueKey('qa-search-open')));
+    // One row: chips, then the filter, then the magnifier at the end.
+    expect(filter.center.dy, closeTo(tabs.center.dy, 1));
+    expect(search.center.dy, closeTo(tabs.center.dy, 1));
+    expect(tabs.right, lessThanOrEqualTo(filter.left + 0.5));
+    expect(filter.right, lessThanOrEqualTo(search.left + 0.5));
+    expect(search.width, greaterThanOrEqualTo(44));
+    // No full-width field until the magnifier is tapped.
+    expect(find.byKey(const ValueKey('qa-search')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('qa-search-open')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('qa-search')), findsOneWidget);
+    // The cross closes it and clears the search.
+    await tester.tap(find.byKey(const ValueKey('qa-search-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('qa-search')), findsNothing);
+    // The floating «+» asks a question.
+    final fab = find.byKey(const ValueKey('qa-ask'));
+    expect(tester.widget(fab), isA<FloatingActionButton>());
+    final r = tester.getRect(fab);
+    final body = tester.getRect(find.byType(QaFeedBody));
+    expect(body.right - r.right, closeTo(AppSpacing.screenSide, 0.5));
+    expect(body.bottom - r.bottom, closeTo(AppSpacing.screenSide, 0.5));
+    expect(r.size, const Size(56, 56));
+    expect(find.bySemanticsLabel('Задать вопрос'), findsOneWidget);
   });
 
   // Owner 2026-10-21: the time sits at the far end of the card's last row.
@@ -272,6 +310,10 @@ void main() {
     expect(find.text('Без ответа'), findsWidgets);
     expect(find.text('Лучшие'), findsWidgets);
     await tester.tap(find.text('Показать результаты'));
+    await tester.pumpAndSettle();
+    // The search opens from the magnifier at the end of the chips row.
+    expect(find.byType(EditableText), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('qa-search-open')));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(EditableText), 'deposit');
     await tester.pump(const Duration(milliseconds: 400));

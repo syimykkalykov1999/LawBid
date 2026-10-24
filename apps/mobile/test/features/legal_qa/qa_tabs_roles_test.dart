@@ -104,9 +104,11 @@ void main() {
       expect(client, lawyer);
       final segment = client.first;
       expect(segment.width, lessThanOrEqualTo(QaTabsBar.maxWidth));
-      // Wide, not cramped: most of the header, centred in it.
+      // Wide, not cramped: the header minus the round filter and search
+      // buttons (owner 2026-10-23), which are 44 dp each at its end.
       expect(segment.width, greaterThan(220));
-      expect(segment.center.dx, closeTo(180, 24));
+      expect(segment.left, closeTo(AppSpacing.screenSide, 1));
+      expect(segment.right, lessThanOrEqualTo(360 - 88));
       // Four tabs side by side, filling the segment.
       final tabs = client.skip(1).toList();
       for (var i = 1; i < tabs.length; i++) {

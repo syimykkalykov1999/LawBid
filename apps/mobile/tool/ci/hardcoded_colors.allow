@@ -17,10 +17,6 @@ lib/features/calls/presentation/call_group.dart	color: speaking ? colors.gold : 
 lib/features/calls/presentation/call_group.dart	style: type.caption.copyWith(color: Colors.white),
 lib/features/calls/presentation/call_group.dart	style: type.caption.copyWith(color: Colors.white),
 lib/features/calls/presentation/call_host.dart	child: AppIcon(icon, size: 20, color: Colors.white),
-lib/features/calls/presentation/call_host.dart	color: Colors.white,
-lib/features/calls/presentation/call_host.dart	color: Colors.white,
-lib/features/calls/presentation/call_rejoin.dart	color: Colors.white,
-lib/features/calls/presentation/call_rejoin.dart	color: Colors.white,
 lib/features/calls/presentation/call_screen.dart	.copyWith(color: Colors.white),
 lib/features/calls/presentation/call_screen.dart	: Colors.white.withValues(alpha: 0.75),
 lib/features/calls/presentation/call_screen.dart	Color.lerp(colors.navy, Colors.black, 0.55)!,
@@ -92,7 +88,6 @@ lib/features/chat/presentation/chat_video.dart	const ColoredBox(color: Colors.bl
 lib/features/chat/presentation/chat_video.dart	inactiveColor: Colors.white30,
 lib/features/chat/presentation/chat_video.dart	thumbColor: Colors.white,
 lib/features/chat/presentation/chats_icon_button.dart	color: onDark ? Colors.white : colors.text,
-lib/features/chat/presentation/inbox_screen.dart	foregroundColor: live ? Colors.white : colors.onAccent,
 lib/features/chat/presentation/message_actions.dart	: Colors.black.withValues(alpha: 0.06)),
 lib/features/chat/presentation/message_actions.dart	? Colors.black.withValues(alpha: 0.18)
 lib/features/chat/presentation/share_to_sheet.dart	disc: Colors.white,

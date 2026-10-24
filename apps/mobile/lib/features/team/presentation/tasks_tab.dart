@@ -641,146 +641,165 @@ class _TasksTabState extends ConsumerState<TasksTab> {
               ),
               if (_view != TasksView.results) ...[
                 const SizedBox(width: AppSpacing.xs),
-                _SearchButton(
+                AppRoundChipButton(
+                  key: const ValueKey('tasks-search-open'),
+                  icon: AppIcons.searchRounded,
                   label: t.t(
                     _view == TasksView.archive
                         ? 'tasks.archive.search'
                         : 'tasks.search',
                   ),
-                  open: _searchOpen,
+                  selected: _searchOpen,
                   onTap: _toggleSearch,
                 ),
               ],
-              if (canAdd &&
-                  _view != TasksView.archive &&
-                  _view != TasksView.results)
-                AddTaskButton(
-                  key: const ValueKey('tasks-add'),
-                  label: t.t('tasks.add'),
-                  onTap: _add,
-                  compact: true,
-                ),
             ],
           );
-    return Column(
+    // Owner 2026-10-23: «New task» is the app's floating «+» (the same
+    // button as Chats and Q&A), not a round button in the chips row.
+    final showAdd = canAdd &&
+        !_choosing &&
+        _view != TasksView.archive &&
+        _view != TasksView.results;
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.xs,
-            AppSpacing.screenSide,
-            0,
-          ),
-          child: header,
-        ),
-        // Audit 2026-10-18: the search box of this screen looks only in the
-        // tasks of the view shown (today / all / archive): title, notes, case,
-        // place, person, step. Its label says so. Owner 2026-10-19: it opens
-        // from the magnifier (its cross closes it and clears the search).
-        if (_view != TasksView.results) ...[
-          if (_searchOpen)
+        Column(
+          children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screenSide,
-                AppSpacing.sm,
+                AppSpacing.xs,
                 AppSpacing.screenSide,
                 0,
               ),
-              child: AppTextField(
-                key: ValueKey(
-                  _view == TasksView.archive
-                      ? 'tasks-archive-search'
-                      : 'tasks-search',
-                ),
-                controller: _search,
-                label: t.t(
-                  _view == TasksView.archive
-                      ? 'tasks.archive.search'
-                      : 'tasks.search',
-                ),
-                leading: const AppIcon(AppIcons.searchRounded),
-                autofocus: true,
-                trailing: IconButton(
-                  key: const ValueKey('tasks-search-close'),
-                  tooltip: t.t('common.close'),
-                  onPressed: _toggleSearch,
-                  icon: AppIcon(
-                    AppIcons.closeRounded,
-                    color: colors.textSecondary,
+              child: header,
+            ),
+            // Audit 2026-10-18: the search box of this screen looks only in
+            // the tasks of the view shown (today / all / archive): title,
+            // notes, case, place, person, step. Its label says so. Owner
+            // 2026-10-19: it opens from the magnifier (its cross closes it
+            // and clears the search).
+            if (_view != TasksView.results) ...[
+              if (_searchOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.screenSide,
+                    0,
+                  ),
+                  child: AppTextField(
+                    key: ValueKey(
+                      _view == TasksView.archive
+                          ? 'tasks-archive-search'
+                          : 'tasks-search',
+                    ),
+                    controller: _search,
+                    label: t.t(
+                      _view == TasksView.archive
+                          ? 'tasks.archive.search'
+                          : 'tasks.search',
+                    ),
+                    compact: true,
+                    leading: const AppIcon(AppIcons.searchRounded),
+                    autofocus: true,
+                    trailing: IconButton(
+                      key: const ValueKey('tasks-search-close'),
+                      tooltip: t.t('common.close'),
+                      onPressed: _toggleSearch,
+                      icon: AppIcon(
+                        AppIcons.closeRounded,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
-                onChanged: (_) => setState(() {}),
+              if (_view == TasksView.archive) _ArchiveNote(t: t, tasks: all),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: RefreshIndicator(
+                color: colors.gold,
+                backgroundColor: colors.sheet,
+                onRefresh: () async {
+                  await ref.read(tasksProvider(_key).notifier).refresh();
+                  if (_view == TasksView.results) {
+                    ref.invalidate(teamRequestsProvider);
+                  }
+                },
+                child: _view == TasksView.results
+                    ? _ResultsList(t: t, formats: formats, listKey: _key)
+                    : _TaskList(
+                        t: t,
+                        formats: formats,
+                        listKey: _key,
+                        view: _view,
+                        filter: _filter,
+                        query: _search.text,
+                        canAdd: canAdd,
+                        onAdd: _add,
+                        picked: _choosing ? _picked : null,
+                        onPick: _togglePick,
+                        onCheck: _quickDone,
+                        onStepCheck: _toggleStep,
+                        onMarkTap: _markTap,
+                        onTomorrow: _tomorrow,
+                        onReopen: (task) => _setDone(task, done: false),
+                        onOpenCase: _openCase,
+                        expanded: _expanded,
+                        onToggleSteps: (id) => setState(() {
+                          if (!_expanded.remove(id)) _expanded.add(id);
+                        }),
+                        onFilter: (f) => setState(() => _filter = f),
+                        attorneySide: _attorneySide,
+                        assistant: assistant,
+                      ),
               ),
             ),
-          if (_view == TasksView.archive) _ArchiveNote(t: t, tasks: all),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        Expanded(
-          child: RefreshIndicator(
-            color: colors.gold,
-            backgroundColor: colors.sheet,
-            onRefresh: () async {
-              await ref.read(tasksProvider(_key).notifier).refresh();
-              if (_view == TasksView.results) {
-                ref.invalidate(teamRequestsProvider);
-              }
-            },
-            child: _view == TasksView.results
-                ? _ResultsList(t: t, formats: formats, listKey: _key)
-                : _TaskList(
-                    t: t,
-                    formats: formats,
-                    listKey: _key,
-                    view: _view,
-                    filter: _filter,
-                    query: _search.text,
-                    canAdd: canAdd,
-                    onAdd: _add,
-                    picked: _choosing ? _picked : null,
-                    onPick: _togglePick,
-                    onCheck: _quickDone,
-                    onStepCheck: _toggleStep,
-                    onMarkTap: _markTap,
-                    onTomorrow: _tomorrow,
-                    onReopen: (task) => _setDone(task, done: false),
-                    onOpenCase: _openCase,
-                    expanded: _expanded,
-                    onToggleSteps: (id) => setState(() {
-                      if (!_expanded.remove(id)) _expanded.add(id);
-                    }),
-                    onFilter: (f) => setState(() => _filter = f),
-                    attorneySide: _attorneySide,
-                    assistant: assistant,
-                  ),
-          ),
+            if (_choosing)
+              _BulkBar(
+                t: t,
+                busy: _busy,
+                archive: _view == TasksView.archive,
+                canPlan: canAdd,
+                canAssign: canAdd,
+                onAction: (a) async {
+                  switch (a) {
+                    case 'done':
+                      await _bulk(
+                        TaskBulkAction.status,
+                        status: TaskStatus.done,
+                      );
+                    case 'assign':
+                      await _bulkAssign();
+                    case 'priority':
+                      await _bulkPriority();
+                    case 'archive':
+                      await _bulk(TaskBulkAction.archive);
+                    case 'unarchive':
+                      await _bulk(TaskBulkAction.unarchive);
+                    case 'keep':
+                      await _bulk(TaskBulkAction.keep);
+                    case 'unkeep':
+                      await _bulk(TaskBulkAction.unkeep);
+                    case 'delete':
+                      await _bulk(TaskBulkAction.delete);
+                  }
+                },
+              ),
+          ],
         ),
-        if (_choosing)
-          _BulkBar(
-            t: t,
-            busy: _busy,
-            archive: _view == TasksView.archive,
-            canPlan: canAdd,
-            canAssign: canAdd,
-            onAction: (a) async {
-              switch (a) {
-                case 'done':
-                  await _bulk(TaskBulkAction.status, status: TaskStatus.done);
-                case 'assign':
-                  await _bulkAssign();
-                case 'priority':
-                  await _bulkPriority();
-                case 'archive':
-                  await _bulk(TaskBulkAction.archive);
-                case 'unarchive':
-                  await _bulk(TaskBulkAction.unarchive);
-                case 'keep':
-                  await _bulk(TaskBulkAction.keep);
-                case 'unkeep':
-                  await _bulk(TaskBulkAction.unkeep);
-                case 'delete':
-                  await _bulk(TaskBulkAction.delete);
-              }
-            },
+        if (showAdd)
+          PositionedDirectional(
+            end: AppSpacing.screenSide,
+            bottom: AppSpacing.screenSide,
+            child: AppFab(
+              buttonKey: const ValueKey('tasks-add'),
+              semanticLabel: t.t('tasks.add'),
+              onPressed: _add,
+            ),
           ),
       ],
     );
@@ -910,11 +929,12 @@ class _TaskList extends ConsumerWidget {
         final emptyBody = sections.isEmpty || shown.isEmpty;
         return ListView(
           physics: const AlwaysScrollableScrollPhysics(),
+          // Room under the last task for the floating «+».
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenSide,
             0,
             AppSpacing.screenSide,
-            AppSpacing.xxl,
+            88,
           ),
           children: [
             if (board != null) board,
@@ -1659,46 +1679,3 @@ class TasksArchiveScreen extends ConsumerWidget {
 
 /// Owner 2026-10-19: the magnifier by «+» — a 32 px circle in the theme's
 /// chip colour, a 44 px touch area; it opens and closes the search.
-class _SearchButton extends StatelessWidget {
-  const _SearchButton({
-    required this.label,
-    required this.open,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool open;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Semantics(
-      button: true,
-      selected: open,
-      label: label,
-      excludeSemantics: true,
-      child: AppPressable(
-        key: const ValueKey('tasks-search-open'),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: colors.chip,
-              shape: BoxShape.circle,
-              border: Border.all(color: open ? colors.text : colors.border),
-            ),
-            child: AppIcon(
-              AppIcons.searchRounded,
-              size: 18,
-              color: colors.text,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

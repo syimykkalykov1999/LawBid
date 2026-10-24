@@ -11,7 +11,9 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_history_providers.dart';
+import 'package:lawbid/features/calls/application/live_calls.dart';
 import 'package:lawbid/features/calls/domain/call_history_models.dart';
+import 'package:lawbid/features/calls/presentation/live_calls_fab.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
@@ -136,7 +138,9 @@ class _CallsTabState extends ConsumerState<CallsTab> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final history = ref.watch(callHistoryProvider);
-    final ongoing = ref.watch(ongoingGroupCallsProvider).value ?? const [];
+    // Owner 2026-10-23: calls going on that I can join or return to are
+    // pinned on top (and are gone the moment the call ends).
+    final ongoing = ref.watch(liveCallsProvider);
     final picked = ref.watch(callLogSelectionProvider);
     return history.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -176,9 +180,9 @@ class _CallsTabState extends ConsumerState<CallsTab> {
             padding: EdgeInsets.only(bottom: bottom),
             children: [
               if (ongoing.isNotEmpty) ...[
-                ContactsSectionTitle(t.t('call.ongoing')),
+                ContactsSectionTitle(t.t('calls.ongoingNow')),
                 for (final c in ongoing)
-                  OngoingCallRow(key: ValueKey('ongoing-${c.id}'), call: c),
+                  LiveCallRow(key: ValueKey('ongoing-${c.id}'), call: c),
               ],
               if (groups.isNotEmpty) ContactsSectionTitle(t.t('calls.recent')),
               for (final g in groups)
@@ -207,81 +211,6 @@ class _CallsTabState extends ConsumerState<CallsTab> {
           ),
         );
       },
-    );
-  }
-}
-
-/// A group call running now: «Join» (or «Return» when I am in it).
-class OngoingCallRow extends ConsumerStatefulWidget {
-  const OngoingCallRow({required this.call, super.key});
-
-  final OngoingGroupCall call;
-
-  @override
-  ConsumerState<OngoingCallRow> createState() => _OngoingCallRowState();
-}
-
-class _OngoingCallRowState extends ConsumerState<OngoingCallRow> {
-  bool _busy = false;
-
-  Future<void> _join() async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    final t = ref.read(translatorProvider);
-    try {
-      final code = await ref.read(joinOngoingGroupCallProvider)(widget.call);
-      if (code != null && mounted) {
-        showAppSnackBar(
-          context,
-          t.t(code == kMicDenied ? 'call.micDenied' : 'error.default.message'),
-        );
-      }
-    } on Object {
-      if (mounted) showAppSnackBar(context, t.t('error.default.message'));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = widget.call;
-    final t = ref.watch(translatorProvider);
-    final f = ref.watch(l10nFormatsProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return _CallRowShell(
-      onTap: _join,
-      avatar: GoldRingAvatar(
-        url: c.groupAvatarUrl,
-        initials: avatarInitials(c.groupTitle),
-        size: 44,
-      ),
-      title: c.groupTitle,
-      subtitle: Row(
-        children: [
-          AppIcon(
-            c.video ? AppIcons.videoCameraOutlined : AppIcons.callOutlined,
-            size: 14,
-            color: colors.success,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Flexible(
-            child: _Sub('${t.t('call.members')} · ${f.digits(c.joined)}'),
-          ),
-        ],
-      ),
-      // AppButton is full-width: bound it, a long label wraps inside.
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 124),
-        child: AppButton(
-          key: ValueKey(c.mine ? 'ongoing-return' : 'ongoing-join'),
-          label: t.t(c.mine ? 'calls.return' : 'group.call.join'),
-          variant:
-              c.mine ? AppButtonVariant.secondary : AppButtonVariant.primary,
-          isLoading: _busy,
-          onPressed: _join,
-        ),
-      ),
     );
   }
 }
