@@ -758,6 +758,15 @@ export const envSchema = z
     STUN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
+    // Cloudflare Realtime TURN (also settable in admin -> Integrations).
+    CLOUDFLARE_TURN_KEY_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_TURN_API_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // Owner 2026-10-22: LiveKit (open-source SFU) for big calls; used only
     // when `calls.video_provider` = livekit (admin → Settings). Also
     // settable in admin → Integrations → LiveKit.
