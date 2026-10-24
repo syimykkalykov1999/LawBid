@@ -13,6 +13,21 @@ terraform {
 }
 
 variable "env" { type = string }
+variable "ephemeral" {
+  type        = bool
+  default     = false
+  description = "Throw-away stack for load tests (envs/loadtest): everything can be destroyed (database without deletion protection and final snapshot, buckets with objects, secrets and keys deleted fast) and the account-wide singletons (SES identity, CloudTrail/GuardDuty/Access Analyzer baseline, budget) are NOT created. Prod/staging: false."
+}
+variable "project_tag" {
+  type        = string
+  default     = "lawbid"
+  description = "Value of the Project tag. The load-test stack uses lawbid-loadtest: the watchdog and the IAM role find resources by this tag."
+}
+variable "extra_tags" {
+  type        = map(string)
+  default     = {}
+  description = "More tags on every resource (load test: CreatedAt, RunId)."
+}
 variable "azs" { type = list(string) }
 variable "vpc_cidr" {
   type    = string
@@ -369,7 +384,7 @@ variable "runbook_base_url" {
 
 locals {
   name = "lawbid-${var.env}"
-  tags = { Project = "lawbid", Env = var.env, ManagedBy = "terraform" }
+  tags = merge({ Project = var.project_tag, Env = var.env, ManagedBy = "terraform" }, var.extra_tags)
 
   # docs/06 §4.3: everything sensitive is a Secrets Manager secret; values
   # are set by the owner after the first apply (infra/README.md).
@@ -401,6 +416,7 @@ module "kms" {
   tags   = local.tags
 
   backup_copy_account_ids = var.backup_copy_account_id == "" ? [] : [var.backup_copy_account_id]
+  deletion_window_in_days = var.ephemeral ? 7 : 30
 }
 
 module "kms_replica" {
@@ -408,6 +424,8 @@ module "kms_replica" {
   providers = { aws = aws.replica }
   name      = "${local.name}-replica"
   tags      = local.tags
+
+  deletion_window_in_days = var.ephemeral ? 7 : 30
 }
 
 # Owner 2026-10-22: a separate key for wrapping application data keys
@@ -416,7 +434,7 @@ module "kms_replica" {
 # `aws kms encrypt --encryption-context app=<name>`.
 resource "aws_kms_key" "data_keys" {
   description             = "${local.name}: wraps the app data keys (messages, admin key store)"
-  deletion_window_in_days = 30
+  deletion_window_in_days = var.ephemeral ? 7 : 30
   enable_key_rotation     = true
   tags                    = local.tags
 }
@@ -474,6 +492,8 @@ module "livekit" {
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
   egress_alarm_gb_per_day = var.livekit_egress_alarm_gb_per_day
   tags                    = local.tags
+
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 module "s3" {
@@ -487,6 +507,7 @@ module "s3" {
   cors_allowed_origins         = var.s3_cors_allowed_origins
   media_web_acl_arn            = module.cdn_waf.web_acl_arn
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
+  force_destroy                = var.ephemeral
 }
 
 # Security research #5 (2026-10-22), A3: one WAF for both CloudFront
@@ -512,9 +533,11 @@ module "web" {
   api_origin             = "https://${var.api_host}"
   media_origins          = ["https://${module.s3.media_cdn_domain}"]
   tags                   = local.tags
+  force_destroy          = var.ephemeral
 }
 
 module "ses" {
+  count          = var.ephemeral ? 0 : 1 # one SES identity per domain per account
   source         = "../ses"
   domain         = var.domain
   hosted_zone_id = var.hosted_zone_id
@@ -569,6 +592,8 @@ module "redis" {
   replicas                   = var.redis_replicas
   kms_key_arn                = module.kms.key_arn
   tags                       = local.tags
+
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 module "postgres" {
@@ -583,6 +608,10 @@ module "postgres" {
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
   tags                       = local.tags
+
+  deletion_protection     = !var.ephemeral
+  skip_final_snapshot     = var.ephemeral
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 # Second Redis for caches only (owner 2026-10-22: planned, off by default).
@@ -599,6 +628,8 @@ module "redis_cache" {
   description                = "cache only (allkeys-lru)"
   kms_key_arn                = module.kms.key_arn
   tags                       = local.tags
+
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 # --- database backups (owner 2026-10-22) ----------------------------------
@@ -658,6 +689,8 @@ module "secrets" {
   kms_key_arn = module.kms.key_arn
   names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL"])
   tags        = local.tags
+
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 # --- database connection budget (scale audit 2026-10-23) ---------------------
@@ -865,9 +898,12 @@ data "aws_iam_policy_document" "task" {
     ]
     resources = ["*"]
   }
-  statement {
-    actions   = ["budgets:ViewBudget"]
-    resources = [module.budget.budget_arn]
+  dynamic "statement" {
+    for_each = module.budget[*].budget_arn
+    content {
+      actions   = ["budgets:ViewBudget"]
+      resources = [statement.value]
+    }
   }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
@@ -891,6 +927,7 @@ resource "aws_iam_role_policy" "task" {
 }
 
 module "budget" {
+  count                  = var.ephemeral ? 0 : 1 # the account budget is not per load test
   source                 = "../budget"
   name                   = local.name
   monthly_budget_usd     = var.monthly_budget_usd
@@ -928,6 +965,7 @@ module "monitoring" {
 # Security research #5 (2026-10-22), A6: CloudTrail, GuardDuty, Access
 # Analyzer, password policy; findings go to the alerts topic.
 module "security_baseline" {
+  count                = var.ephemeral ? 0 : 1 # CloudTrail / GuardDuty / Access Analyzer are account singletons
   source               = "../security-baseline"
   name                 = local.name
   alerts_topic_arn     = module.monitoring.alerts_topic_arn
@@ -970,8 +1008,8 @@ output "web_deploy_policy_arn" { value = module.web.web_deploy_policy_arn }
 output "secrets_to_fill" { value = sort(keys(module.secrets.arns)) }
 output "ses_dns" {
   value = {
-    verification_token = module.ses.verification_token
-    dkim_tokens        = module.ses.dkim_tokens
+    verification_token = one(module.ses[*].verification_token)
+    dkim_tokens        = one(module.ses[*].dkim_tokens)
   }
 }
 output "database_endpoint" { value = one(module.postgres[*].endpoint) }
@@ -979,4 +1017,44 @@ output "database_instance_id" { value = one(module.postgres[*].instance_id) }
 output "backup_vault" { value = one(module.backup[*].vault_name) }
 output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
-output "budget_name" { value = module.budget.budget_name }
+output "budget_name" { value = one(module.budget[*].budget_name) }
+output "rds_endpoint_secret_arn" { value = one(module.postgres[*].master_secret_arn) }
+output "secret_arns" { value = local.app_secret_arns }
+output "task_security_group_id" { value = aws_security_group.tasks.id }
+output "private_subnet_ids" { value = module.network.private_subnet_ids }
+output "documents_bucket" { value = module.s3.documents_bucket }
+output "media_bucket" { value = module.s3.media_bucket }
+output "name" { value = local.name }
+
+# Load-test stacks skip three account-wide modules (var.ephemeral), so they
+# got a `count`. These keep the existing prod / staging state in place:
+# without them terraform would plan to destroy and recreate SES, the budget
+# and the security baseline.
+moved {
+  from = module.ses
+  to   = module.ses[0]
+}
+moved {
+  from = module.budget
+  to   = module.budget[0]
+}
+moved {
+  from = module.security_baseline
+  to   = module.security_baseline[0]
+}
+
+# --- values the load-test environment (envs/loadtest) and its workflow read ----
+output "vpc_id" { value = module.network.vpc_id }
+output "public_subnet_ids" { value = module.network.public_subnet_ids }
+output "kms_key_arn" { value = module.kms.key_arn }
+output "redis_url_secret_arn" { value = module.redis.redis_url_secret_arn }
+output "documents_bucket_arn" { value = module.s3.documents_bucket_arn }
+output "turn_instance_ids" { value = one(module.turn[*].instance_ids) }
+output "livekit_instance_id" { value = one(module.livekit[*].instance_id) }
+output "livekit_security_group_id" { value = one(module.livekit[*].security_group_id) }
+output "alb_arn_suffix" { value = module.alb.arn_suffix }
+output "api_target_group_arn_suffix" { value = module.alb.api_target_group_arn_suffix }
+output "api_service_name" { value = module.ecs.api_service_name }
+output "worker_service_name" { value = module.ecs.worker_service_name }
+output "redis_replication_group_id" { value = "${local.name}-redis" }
+output "log_group_names" { value = module.ecs.log_group_names }

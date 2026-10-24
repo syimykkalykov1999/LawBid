@@ -11,6 +11,11 @@ terraform {
 }
 
 variable "name" { type = string }
+variable "force_destroy" {
+  type        = bool
+  default     = false
+  description = "Let terraform destroy delete a bucket that still holds objects. Only for throw-away load-test stacks."
+}
 variable "tags" { type = map(string) }
 variable "web_acl_arn" {
   type        = string
@@ -145,8 +150,9 @@ locals {
 }
 
 resource "aws_s3_bucket" "web" {
-  bucket = "${var.name}-web"
-  tags   = var.tags
+  bucket        = "${var.name}-web"
+  force_destroy = var.force_destroy
+  tags          = var.tags
 }
 
 resource "aws_s3_bucket_public_access_block" "web" {

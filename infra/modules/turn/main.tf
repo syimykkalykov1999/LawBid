@@ -216,3 +216,7 @@ output "turn_url" {
   value       = "turn:${var.realm == "" ? aws_eip.this.public_ip : "turn.${var.realm}"}:3478?transport=udp,turn:${var.realm == "" ? aws_eip.this.public_ip : "turn.${var.realm}"}:3478?transport=tcp"
   description = "Paste into admin → Интеграции → TURN → urls (after the turn.<domain> record exists)."
 }
+output "instance_ids" {
+  value       = concat([aws_instance.this.id], aws_instance.second[*].id)
+  description = "EC2 ids of the relays (the load test reads their CloudWatch CPU / network)."
+}

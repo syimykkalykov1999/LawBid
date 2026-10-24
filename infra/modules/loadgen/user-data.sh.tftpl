@@ -1,0 +1,34 @@
+#!/bin/bash
+# Load generator box (infra/modules/loadgen). Runs once at first boot, then
+# writes /var/lib/loadgen-ready; the workflow waits for that file (SSM).
+set -euo pipefail
+exec > >(tee /var/log/loadgen-init.log) 2>&1
+
+dnf install -y docker jq tar gzip postgresql16 python3 redis6 || dnf install -y docker jq tar gzip postgresql16 python3
+systemctl enable --now docker
+
+cd /tmp
+# k6 (Grafana release, arm64)
+curl -fsSL "https://github.com/grafana/k6/releases/download/${k6_version}/k6-${k6_version}-linux-arm64.tar.gz" -o k6.tgz
+tar xzf k6.tgz
+install -m 0755 k6-${k6_version}-linux-arm64/k6 /usr/local/bin/k6
+
+# LiveKit CLI (`lk load-test`)
+curl -fsSL "https://github.com/livekit/livekit-cli/releases/download/v${lk_version}/lk_${lk_version}_linux_arm64.tar.gz" -o lk.tgz
+tar xzf lk.tgz lk
+install -m 0755 lk /usr/local/bin/lk
+
+# coturn's test client (turnutils_uclient) lives in the official image
+docker pull ${coturn_image}
+
+# kernel limits for many sockets
+cat >/etc/sysctl.d/90-loadgen.conf <<CONF
+net.ipv4.ip_local_port_range = 1024 65535
+net.core.somaxconn = 65535
+fs.file-max = 2000000
+CONF
+sysctl --system >/dev/null
+echo "* soft nofile 1000000" >>/etc/security/limits.conf
+echo "* hard nofile 1000000" >>/etc/security/limits.conf
+
+mkdir -p /var/lib && touch /var/lib/loadgen-ready

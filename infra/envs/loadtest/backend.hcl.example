@@ -1,0 +1,8 @@
+# The workflow passes these on the command line; this file is for a manual
+# `terraform init -backend-config=backend.hcl` (destroy by hand, see
+# docs/runbooks/LOAD_TEST.md "Если что-то осталось").
+bucket         = "lawbid-prod-tfstate"
+key            = "loadtest/<RUN_ID>/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "lawbid-prod-tflock"
+encrypt        = true
