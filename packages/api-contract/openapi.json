@@ -116798,14 +116798,29 @@
         "properties": {
           "url": {
             "type": "string",
-            "description": "POST target (multipart/form-data): send every field, then the file as the last field named \"file\"."
+            "description": "Upload target. With method POST (default): multipart/form-data, send every field, then the file as the last field named \"file\". With method PUT: send the raw file as the body."
           },
           "fields": {
             "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Form fields signed by the server (key, policy, signature, Content-Type)."
+            "description": "Form fields signed by the server (key, policy, signature, Content-Type). Empty for method PUT."
+          },
+          "method": {
+            "enum": [
+              "POST",
+              "PUT"
+            ],
+            "type": "string",
+            "description": "HTTP method of the upload. Absent means POST (older servers)."
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers to send exactly as given with a PUT upload (Content-Type, Cache-Control)."
           }
         },
         "required": [
@@ -116882,6 +116897,10 @@
             "type": "string",
             "pattern": "^[0-9a-f]{64}$",
             "description": "Lowercase hex SHA-256 of the file."
+          },
+          "supportsPut": {
+            "type": "boolean",
+            "description": "True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST."
           }
         },
         "required": [
