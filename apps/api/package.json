@@ -42,7 +42,7 @@
     "@aws-sdk/client-ses": "^3.1137.0",
     "@aws-sdk/cloudfront-signer": "^3.1149.0",
     "@aws-sdk/s3-presigned-post": "^3.1141.0",
-    "@aws-sdk/s3-request-presigner": "^3.1141.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "^11.0.1",
