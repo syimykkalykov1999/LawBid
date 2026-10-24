@@ -126,4 +126,38 @@ void main() {
     expect(repo.calls.where((c) => c.startsWith('step')), isEmpty);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('a tap in the empty description area focuses the description',
+      (tester) async {
+    await open(tester);
+    final field = find.byType(TextField).at(1);
+    final rect = tester.getRect(field);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isFalse);
+    // Well below the one text line, still inside the area.
+    await tester.tapAt(Offset(rect.center.dx, rect.bottom + 60));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the priority picker is a raised sheet with its title',
+      (tester) async {
+    await open(tester);
+    await tester.tap(find.byIcon(AppIcons.flagOutlined).last);
+    await tester.pumpAndSettle();
+    final title = find.text('Priority');
+    expect(title, findsOneWidget);
+    expect(find.byKey(const ValueKey('compose-priority-0')), findsOneWidget);
+    final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+    // The sheet reaches well above the bottom edge and the title is clear
+    // of it.
+    expect(tester.getTopLeft(title).dy, lessThan(size.height * 0.75));
+    expect(tester.getBottomLeft(title).dy, lessThan(size.height - 100));
+    await tester.tap(find.byKey(const ValueKey('compose-priority-3')));
+    await tester.pumpAndSettle();
+    expect(find.text('Priority'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
