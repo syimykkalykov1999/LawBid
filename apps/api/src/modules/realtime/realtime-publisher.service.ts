@@ -111,6 +111,9 @@ export type RealtimeEvent =
   // the chat lists drop its unread pill locally.
   | 'conversation:read'
   | 'notification:new'
+  // Owner 2026-10-24: somebody opened a confidential file of mine - an open
+  // view list pulls the new rows (`?since=`).
+  | 'file:viewed'
   // Owner 2026-10-22 (client economy plan, package E): a case of mine
   // changed (a bid came / was accepted / declined / countered / withdrawn,
   // the case was edited / closed, a task or payment) and a consultation

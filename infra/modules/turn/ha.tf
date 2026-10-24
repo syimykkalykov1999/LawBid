@@ -57,7 +57,7 @@ locals {
     { primary = { instance_id = aws_instance.this.id, ip = aws_eip.this.public_ip } },
     local.second ? { second = { instance_id = aws_instance.second[0].id, ip = aws_eip.second[0].public_ip } } : {},
   )
-  alarms_on = var.alerts_topic_arn != null
+  alarms_on = var.alarms_enabled
 }
 
 # --- health checks and DNS ---------------------------------------------------

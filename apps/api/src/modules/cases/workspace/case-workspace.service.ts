@@ -150,7 +150,33 @@ export class CaseWorkspaceService {
     caseId: string,
   ): Promise<WorkspaceFileDto[]> {
     const s = await this.side(user, caseId);
-    return this.filesOf(caseId, s);
+    return this.withViewCounts(user.sub, await this.filesOf(caseId, s));
+  }
+
+  /** Owner 2026-10-24: the "viewed N times" badge - two indexed queries for
+   * the whole tab, only for the caller's own uploads. */
+  private async withViewCounts(
+    userId: string,
+    files: WorkspaceFileDto[],
+  ): Promise<WorkspaceFileDto[]> {
+    if (files.length === 0) return files;
+    const ids = files.map((f) => f.fileId);
+    const mine = await this.prisma.file.findMany({
+      where: { id: { in: ids }, owner_user_id: userId },
+      select: { id: true },
+    });
+    if (mine.length === 0) return files;
+    const counts = await this.prisma.fileAccessLog.groupBy({
+      by: ['file_id'],
+      where: { file_id: { in: mine.map((m) => m.id) } },
+      _count: { _all: true },
+    });
+    const byFile = new Map(counts.map((c) => [c.file_id, c._count._all]));
+    const own = new Set(mine.map((m) => m.id));
+    return files.map((f) => ({
+      ...f,
+      viewCount: own.has(f.fileId) ? (byFile.get(f.fileId) ?? 0) : null,
+    }));
   }
 
   private async filesOf(

@@ -481,6 +481,42 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'cloudflare_turn',
+    label: 'Cloudflare TURN (in-app calls)',
+    description:
+      'Cloudflare Realtime relays for calls (pay per traffic). Tried first; our own TURN server stays as the backup.',
+    fields: [
+      {
+        name: 'keyId',
+        label: 'TURN key ID',
+        secret: false,
+        required: true,
+        pattern: /^[A-Za-z0-9_-]{8,64}$/,
+        env: 'CLOUDFLARE_TURN_KEY_ID',
+      },
+      {
+        name: 'apiToken',
+        label: 'TURN key API token',
+        secret: true,
+        required: true,
+        pattern: /^\S{16,}$/,
+        env: 'CLOUDFLARE_TURN_API_TOKEN',
+      },
+    ],
+    test: (f) =>
+      probe(
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(f.keyId)}/credentials/generate-ice-servers`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${f.apiToken}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ ttl: 60 }),
+        },
+      ),
+  },
+  {
     id: 'livekit',
     label: 'LiveKit (big video calls)',
     description:

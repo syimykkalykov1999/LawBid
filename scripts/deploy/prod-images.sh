@@ -23,7 +23,14 @@ done
 CLAMAV="$REGISTRY/lawbid-clamav:1.4"
 if ! aws ecr describe-images --repository-name lawbid-clamav --image-ids imageTag=1.4 >/dev/null 2>&1; then
   echo "Копирую ClamAV в ECR …"
-  # Copies the whole multi-arch manifest (amd64 + arm64), not one platform.
+  # NB: clamav/clamav:1.4 is amd64 only (checked 2026-10-24); see 1.4-debian below.
   docker buildx imagetools create -t "$CLAMAV" clamav/clamav:1.4
+fi
+# Multi-arch ClamAV (amd64 + arm64) for Graviton tasks; the plain
+# clamav/clamav image is amd64 only. Same job: .github/workflows/mirror-clamav.yml.
+CLAMAV_DEB="$REGISTRY/lawbid-clamav:1.4-debian"
+if ! aws ecr describe-images --repository-name lawbid-clamav --image-ids imageTag=1.4-debian >/dev/null 2>&1; then
+  echo "Копирую ClamAV (multi-arch) в ECR …"
+  docker buildx imagetools create -t "$CLAMAV_DEB" clamav/clamav-debian:1.4
 fi
 echo "$TAG"

@@ -120,11 +120,18 @@ class _FilesClient implements FilesClient {
   @override
   Future<FileViewListEnvelope> views({
     required String id,
+    int? limit = 20,
+    String? cursor,
+    DateTime? since,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{
+      r'limit': limit,
+      r'cursor': cursor,
+      r'since': since?.toIso8601String(),
+    };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

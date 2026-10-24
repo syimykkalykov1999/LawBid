@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiTags } from '@nestjs/swagger';
@@ -16,6 +17,7 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import type { SyncPage } from '../../common/sync/sync.util';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import {
   CurrentUser,
@@ -24,6 +26,7 @@ import {
 import {
   FileDto,
   FileViewDto,
+  FileViewsQueryDto,
   PresignFileDto,
   PresignedFileDto,
 } from './dto/files.dto';
@@ -109,8 +112,9 @@ export class FilesController {
 
   /**
    * Security & legal pass 2026-10-24: who other than you was given a link
-   * to this file, from which device (newest first, at most 50). Only the
-   * file's owner may read it.
+   * to this file, from which device (newest first, 20 per page). Only the
+   * file's owner may read it. Owner 2026-10-24: `?since=` returns only the
+   * rows logged after that time and meta.syncedAt, `?cursor=` pages back.
    */
   @Get(':id/views')
   @ApiEnvelopeResponse(FileViewDto, { isArray: true })
@@ -118,7 +122,13 @@ export class FilesController {
   async views(
     @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<FileViewDto[]> {
-    return this.access.viewsOf(user.sub, id);
+    @Query() q: FileViewsQueryDto,
+  ): Promise<SyncPage<FileViewDto>> {
+    return this.access.viewsOf(user.sub, id, {
+      cursor: q.cursor,
+      limit: q.limit,
+      since: q.since,
+      avatarOf: (fid) => this.files.mediaUrl(fid),
+    });
   }
 }

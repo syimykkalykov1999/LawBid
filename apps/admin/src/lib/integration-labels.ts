@@ -24,6 +24,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description: 'Ретрансляторы для звонков, когда телефоны не могут соединиться напрямую.',
     warning: 'Смените секрет и на TURN-сервере (coturn) одновременно, иначе звонки через TURN перестанут работать.',
   },
+  cloudflare_turn: {
+    label: 'Cloudflare TURN (звонки в приложении)',
+    description:
+      'Ретрансляторы Cloudflare для звонков (оплата за трафик, первые 1000 ГБ в месяц бесплатно). Пробуются первыми; наш TURN-сервер остаётся запасным.',
+  },
   livekit: {
     label: 'LiveKit (большие видеозвонки)',
     description:
@@ -136,6 +141,8 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'cloudflare_r2.publicBaseUrl': 'Публичный адрес (свой домен бакета)',
   'cloudflare_r2.zoneId': 'ID зоны (необязательно, сброс кэша при удалении)',
   'cloudflare_r2.purgeToken': 'API-токен только на сброс кэша (необязательно)',
+  'cloudflare_turn.keyId': 'ID ключа TURN (Key ID)',
+  'cloudflare_turn.apiToken': 'API-токен ключа TURN',
   'livekit.url': 'Адрес сервера',
   'livekit.apiKey': 'Ключ API',
   'livekit.apiSecret': 'Секрет API',
@@ -181,6 +188,8 @@ const FIELD_EN: Record<string, string> = {
   'cloudflare_r2.publicBaseUrl': 'Custom domain',
   'cloudflare_r2.zoneId': 'Zone ID',
   'cloudflare_r2.purgeToken': 'API token (Cache Purge)',
+  'cloudflare_turn.keyId': 'TURN Key ID',
+  'cloudflare_turn.apiToken': 'API Token',
   'bunny_stream.libraryId': 'Video Library ID',
   'bunny_stream.cdnHostname': 'CDN Hostname',
   'bunny_stream.apiKey': 'API Key',
@@ -289,6 +298,8 @@ export const FIELD_ENV: Record<string, string> = {
   'apns.privateKey': 'APNS_PRIVATE_KEY',
   'turn.urls': 'TURN_URLS',
   'turn.secret': 'TURN_SECRET',
+  'cloudflare_turn.keyId': 'CLOUDFLARE_TURN_KEY_ID',
+  'cloudflare_turn.apiToken': 'CLOUDFLARE_TURN_API_TOKEN',
   'turn.stunUrls': 'STUN_URLS',
   'livekit.url': 'LIVEKIT_URL',
   'livekit.apiKey': 'LIVEKIT_API_KEY',

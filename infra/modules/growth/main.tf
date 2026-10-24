@@ -28,6 +28,16 @@ variable "alerts_topic_arn" {
   type    = string
   default = null
 }
+variable "alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the alarms (alerts_topic_arn is unknown until the topic exists, so count and for_each cannot use it)."
+}
+variable "has_source_db" {
+  type        = bool
+  default     = false
+  description = "A primary database exists (rds_source_identifier can be unknown at plan time on a fresh stack)."
+}
 
 # --- read replicas ------------------------------------------------------------
 variable "rds_read_replicas" {
@@ -106,7 +116,7 @@ data "aws_caller_identity" "current" {}
 
 # ===== read replicas ==========================================================
 resource "aws_db_instance" "replica" {
-  count               = var.rds_source_identifier != "" ? var.rds_read_replicas : 0
+  count               = var.has_source_db ? var.rds_read_replicas : 0
   identifier          = "${var.name}-postgres-replica-${count.index + 1}"
   replicate_source_db = var.rds_source_identifier
   instance_class      = var.rds_replica_instance_class != "" ? var.rds_replica_instance_class : var.rds_primary_instance_class
@@ -307,7 +317,7 @@ resource "aws_opensearch_domain" "search" {
 
 # ===== runtime alarm ==========================================================
 resource "aws_cloudwatch_metric_alarm" "event_loop" {
-  for_each            = var.event_loop_p99_alarm_ms > 0 && var.alerts_topic_arn != null ? toset(["api", "worker"]) : toset([])
+  for_each            = var.event_loop_p99_alarm_ms > 0 && var.alarms_enabled ? toset(["api", "worker"]) : toset([])
   alarm_name          = "${var.name}-${each.key}-event-loop-lag"
   alarm_description   = "A ${each.key} process answers late (event loop p99 above ${var.event_loop_p99_alarm_ms} ms for 10 minutes): CPU work on the main thread or an overloaded task. Look at LawBid/Runtime."
   namespace           = "LawBid/Runtime"
@@ -326,7 +336,7 @@ resource "aws_cloudwatch_metric_alarm" "event_loop" {
 
 # The signal for the first database step: the database processor stays high.
 resource "aws_cloudwatch_metric_alarm" "db_cpu" {
-  count               = var.rds_source_identifier != "" && var.alerts_topic_arn != null ? 1 : 0
+  count               = var.has_source_db && var.alarms_enabled ? 1 : 0
   alarm_name          = "${var.name}-db-cpu"
   alarm_description   = "The database processor is above 70 % for 15 minutes: move the database one size up (admin Экономика → Увеличить) or add a read replica (growth.rds_read_replicas)."
   namespace           = "AWS/RDS"

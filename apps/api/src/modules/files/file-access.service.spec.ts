@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { viewerContext } from '../../common/viewer/viewer-context';
-import { FileAccessService } from './file-access.service';
+import { FileAccessService, maskIp } from './file-access.service';
 
 function make(opts: { enabled?: boolean; dedupe?: boolean } = {}) {
   const prisma = {
@@ -121,11 +121,12 @@ describe('FileAccessService.viewsOf', () => {
     );
   });
 
-  it('lists viewer name, device and time, newest first', async () => {
+  it('lists viewer name, role, device, masked address and time, newest first', async () => {
     const { svc, prisma } = make();
     prisma.file.findUnique.mockResolvedValue({ owner_user_id: 'owner' });
     prisma.fileAccessLog.findMany.mockResolvedValue([
       {
+        id: 'row-1',
         viewer_user_id: 'v1',
         session_id: 'sid-1',
         ip: '203.0.113.9',
@@ -133,23 +134,68 @@ describe('FileAccessService.viewsOf', () => {
       },
     ]);
     prisma.user.findMany.mockResolvedValue([
-      { id: 'v1', first_name: 'Ann', last_name: 'Lee' },
+      {
+        id: 'v1',
+        first_name: 'Ann',
+        last_name: 'Lee',
+        role: 'attorney',
+        avatar_file_id: 'av1',
+      },
     ]);
     prisma.session.findMany.mockResolvedValue([
       { session_chain_id: 'sid-1', device_name: 'iPhone 15', platform: 'ios' },
     ]);
-    await expect(svc.viewsOf('owner', 'f1')).resolves.toEqual([
+    const res = await svc.viewsOf('owner', 'f1', {
+      avatarOf: (id) => Promise.resolve(id ? `https://img/${id}` : null),
+    });
+    expect(res.items).toEqual([
       {
+        id: 'row-1',
         viewerUserId: 'v1',
         viewerName: 'Ann Lee',
+        viewerAvatarUrl: 'https://img/av1',
+        viewerRole: 'attorney',
         viewedAt: '2026-10-24T10:00:00.000Z',
         device: 'iPhone 15',
         platform: 'ios',
-        ip: '203.0.113.9',
+        ip: '203.0.113.x',
       },
     ]);
+    expect(res.nextCursor).toBeNull();
+    expect(res.syncedAt).toBe('2026-10-24T10:00:00.000Z');
     expect(prisma.fileAccessLog.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { created_at: 'desc' } }),
+      expect.objectContaining({
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: 21,
+      }),
     );
+  });
+
+  it('since is a strict lower bound and limit is clamped', async () => {
+    const { svc, prisma } = make();
+    prisma.file.findUnique.mockResolvedValue({ owner_user_id: 'owner' });
+    await svc.viewsOf('owner', 'f1', {
+      since: '2026-10-24T10:00:00.000Z',
+      limit: 500,
+    });
+    expect(prisma.fileAccessLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          file_id: 'f1',
+          created_at: { gt: new Date('2026-10-24T10:00:00.000Z') },
+        },
+        take: 51,
+      }),
+    );
+  });
+});
+
+describe('maskIp', () => {
+  it('hides the host part and never leaks a full address', () => {
+    expect(maskIp('203.0.113.9')).toBe('203.0.113.x');
+    expect(maskIp('::ffff:203.0.113.9')).toBe('203.0.113.x');
+    expect(maskIp('2001:db8:1:2::9')).toBe('2001:db8:1::x');
+    expect(maskIp(null)).toBeNull();
+    expect(maskIp('garbage')).toBeNull();
   });
 });

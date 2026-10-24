@@ -358,6 +358,8 @@ API расшифровывает его один раз при старте (`km
 | Свой сервер групповых звонков LiveKit | `livekit_enabled = true` | ≈ **+$32** + трафик | [LIVEKIT.md](LIVEKIT.md) |
 | Проверка «жив ли сервер» дешевле | `uptime_check = "route53"` | ≈ **−$8** | [slo.md](slo.md) |
 | Серверы Fargate на Graviton | `cpu_architecture = "ARM64"` | ≈ **−20 %** платы за Fargate (−$10…15 на старте) | ниже |
+| Container Insights выключен (по умолчанию) | `container_insights = "disabled"` | ≈ **−$30** | ниже |
+| Лишние задачи на Fargate Spot | `api_spot = true`, `worker_spot = true` | до −70 % за каждую Spot-задачу | ниже |
 
 Реплика Redis + второй TURN = ≈ **+$22** (в рамках утверждённых $30–60).
 Все платные пункты вместе ≈ +$55 + трафик звонков.
@@ -380,9 +382,14 @@ API расшифровывает его один раз при старте (`km
 4. **ARM64** (порядок важен, иначе задачи не запустятся):
    a. Смёржить изменение `deploy.yml`: образы собираются под `linux/amd64` и
       `linux/arm64`. Любой деплой после этого даёт multi-arch образы.
-   b. Образ ClamAV в ECR старый (только amd64): удалить тег и скопировать
-      заново: `aws ecr batch-delete-image --repository-name lawbid-clamav --image-ids imageTag=1.4`,
-      затем `scripts/deploy/prod-images.sh` (копирует все платформы).
+   b. Образ ClamAV `clamav/clamav:1.4` у разработчиков ТОЛЬКО под amd64
+      (проверено 2026-10-24, так же `latest` и `1.5`). Берём тот же ClamAV из
+      `clamav/clamav-debian:1.4`: там есть amd64 и arm64, внутри тот же
+      `clamdcheck.sh`. Одна команда (или GitHub → Actions → «Mirror ClamAV» →
+      Run workflow; `scripts/deploy/prod-images.sh` делает то же):
+      `docker buildx imagetools create -t <ECR>/lawbid-clamav:1.4-debian clamav/clamav-debian:1.4`.
+      Потом в tfvars: `clamav_image = "<ECR>/lawbid-clamav:1.4-debian"`.
+      Лучше применить это ДО перехода на ARM64 (проверить сканер на x86).
    c. Убедиться, что в `api_image` / `admin_image` стоит тег, собранный
       **после** (a): `docker buildx imagetools inspect <образ>` показывает
       `linux/arm64`. Старый тег = только amd64.
@@ -401,3 +408,20 @@ API расшифровывает его один раз при старте (`km
 - После выката на доске «Состояние системы» «Живое соединение» несколько минут будет всплеск возвратов — это нормально. Подробности: [REALTIME_LIFECYCLE.md](REALTIME_LIFECYCLE.md).
 - Scale-in медленный (10 минут) намеренно; перед пиком поднимайте минимум расписанием, а не давайте политике сжать сервис.
 
+### Дешёвые переключатели: Insights, Spot (2026-10-24)
+
+- **Container Insights** (`container_insights`, по умолчанию `"disabled"`):
+  платил ≈ $30 в месяц за 108 метрик. Автомасштабирование воркера и тревоги
+  «нет запущенных задач» теперь не зависят от него (воркер считает себя по
+  метрике `LawBid/Runtime`, API проверяется по здоровым хостам ALB). Для
+  разбора проблем поставьте `container_insights = "enabled"`, `apply`, потом
+  верните обратно.
+- **Spot** (`api_spot`, `worker_spot`): первая задача всегда обычный Fargate,
+  остальные пополам: обычный и Spot (1:1). Если Spot-мощности нет, ECS не
+  переключается на обычный сам, поэтому половина новых задач всё равно
+  запустится. Spot-задачу AWS может забрать с предупреждением за 2 минуты;
+  очередь воркера повторяет прерванную работу. Включение на живом сервисе
+  идёт обычным «rolling»-обновлением без простоя (в коде стоит
+  `force_new_deployment`; иначе провайдер пересоздал бы сервис). Перед
+  `apply` в `plan` должно быть `update in-place` для `aws_ecs_service`, а не
+  `must be replaced`.

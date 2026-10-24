@@ -149,6 +149,121 @@ describe('Legal-grade document protection (e2e)', () => {
       .expect(404);
   });
 
+  it('views list: owner only, 20 per page, cursor pages back, ?since= brings only newer rows, masked address', async () => {
+    const owner = await signUp();
+    const viewer = await signUp();
+    const outsider = await signUp();
+    await prisma.user.update({
+      where: { id: viewer.id },
+      data: { role: 'client' },
+    });
+    const file = await prisma.file.create({
+      data: {
+        owner_user_id: owner.id,
+        purpose: 'case_attachment',
+        s3_bucket: 'lawbid-documents',
+        s3_key: `case_attachment/${owner.id}/legal-e2e-views-${seq}`,
+        mime: 'application/pdf',
+        size_bytes: 10n,
+        sha256: 'b'.repeat(64),
+        scan_status: 'clean',
+      },
+    });
+    const t0 = Date.parse('2026-10-24T08:00:00.000Z');
+    await prisma.fileAccessLog.createMany({
+      data: Array.from({ length: 45 }, (_, i) => ({
+        file_id: file.id,
+        owner_user_id: owner.id,
+        viewer_user_id: viewer.id,
+        purpose: 'case_attachment',
+        ip: i % 2 === 0 ? '203.0.113.77' : '2001:db8:1:2::9',
+        created_at: new Date(t0 + i * 60_000),
+      })),
+    });
+    type Row = { id: string; viewedAt: string; ip: string | null };
+    type Body = {
+      data: (Row & { viewerRole: string | null })[];
+      meta: { nextCursor?: string | null; syncedAt?: string };
+    };
+    const get = (qs: string, who = owner) =>
+      api().get(`/api/v1/files/${file.id}/views${qs}`).set(who.auth);
+
+    // Page 1: the 20 newest, newest first, a cursor for the rest.
+    const p1 = (await get('').expect(200)).body as Body;
+    expect(p1.data).toHaveLength(20);
+    expect(p1.data[0].viewedAt).toBe(new Date(t0 + 44 * 60_000).toISOString());
+    expect(p1.meta.nextCursor).toBeTruthy();
+    expect(p1.data[0].viewerRole).toBe('client');
+    // The address leaves the server masked, never in full.
+    const masks = new Set(p1.data.map((r) => r.ip));
+    expect(masks).toEqual(new Set(['203.0.113.x', '2001:db8:1::x']));
+    expect(JSON.stringify(p1)).not.toContain('203.0.113.77');
+
+    // Cursor chain: 20 + 20 + 5, no row twice.
+    const p2 = (await get(`?cursor=${p1.meta.nextCursor}`).expect(200))
+      .body as Body;
+    const p3 = (await get(`?cursor=${p2.meta.nextCursor}`).expect(200))
+      .body as Body;
+    expect(p2.data).toHaveLength(20);
+    expect(p3.data).toHaveLength(5);
+    expect(p3.meta.nextCursor ?? null).toBeNull();
+    const ids = [...p1.data, ...p2.data, ...p3.data].map((r) => r.id);
+    expect(new Set(ids).size).toBe(45);
+
+    // limit is honoured and clamped.
+    const small = (await get('?limit=3').expect(200)).body as Body;
+    expect(small.data).toHaveLength(3);
+    await get('?limit=500').expect(400);
+
+    // ?since= = strictly newer rows only; nothing new = empty + same cursor.
+    const since = new Date(t0 + 42 * 60_000).toISOString();
+    const delta = (await get(`?since=${since}`).expect(200)).body as Body;
+    expect(delta.data.map((r) => r.viewedAt)).toEqual([
+      new Date(t0 + 44 * 60_000).toISOString(),
+      new Date(t0 + 43 * 60_000).toISOString(),
+    ]);
+    expect(delta.meta.syncedAt).toBe(new Date(t0 + 44 * 60_000).toISOString());
+    const none = (
+      await get(`?since=${new Date(t0 + 44 * 60_000).toISOString()}`).expect(
+        200,
+      )
+    ).body as Body;
+    expect(none.data).toEqual([]);
+
+    // A delta bigger than a page is paged too (all 44 newer than the first).
+    const big = (
+      await get(`?since=${new Date(t0).toISOString()}&limit=20`).expect(200)
+    ).body as Body;
+    expect(big.data).toHaveLength(20);
+    expect(big.meta.nextCursor).toBeTruthy();
+
+    // A new view appears in the next delta.
+    await prisma.fileAccessLog.create({
+      data: {
+        file_id: file.id,
+        owner_user_id: owner.id,
+        viewer_user_id: viewer.id,
+        purpose: 'case_attachment',
+        created_at: new Date(t0 + 45 * 60_000),
+      },
+    });
+    const next = (
+      await get(`?since=${new Date(t0 + 44 * 60_000).toISOString()}`).expect(
+        200,
+      )
+    ).body as Body;
+    expect(next.data).toHaveLength(1);
+    expect(next.data[0].ip).toBeNull();
+
+    // Anybody else: 404, with or without a cursor.
+    await get('', viewer).expect(404);
+    await get('', outsider).expect(404);
+    await get(`?since=${since}`, viewer).expect(404);
+    // Bad input is a 400, not a 500.
+    await get('?since=not-a-date').expect(400);
+    await get('?cursor=%%%').expect(400);
+  });
+
   it('an attorney with a passkey is refused a password-only sign-in', async () => {
     const attorney = await signUp();
     const hash = await new PasswordService().hash('Strong-Pass-123!');

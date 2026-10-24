@@ -74,6 +74,8 @@ module "growth" {
   kms_key_arn             = module.kms.key_arn
   tasks_security_group_id = aws_security_group.tasks.id
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  alarms_enabled          = true
+  has_source_db           = var.create_database || var.existing_database_identifier != ""
 
   rds_read_replicas          = var.growth.rds_read_replicas
   rds_source_identifier      = local.growth_source_db
