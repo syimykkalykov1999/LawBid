@@ -232,6 +232,25 @@ data "aws_iam_policy_document" "ec2" {
       values   = ["lawbid-loadtest"]
     }
   }
+  # Destroy needs these: the address is moved off an instance's network
+  # interface (untagged, created by AWS) and one-time Spot requests are
+  # cancelled. The elastic IP itself stays limited by Ec2ChangeTaggedOnly,
+  # and the deny policy protects anything tagged Project=lawbid.
+  statement {
+    sid       = "Ec2AddressOnInterfaces"
+    actions   = ["ec2:AssociateAddress", "ec2:DisassociateAddress"]
+    resources = ["arn:aws:ec2:*:${local.acct}:network-interface/*", "arn:aws:ec2:*:${local.acct}:instance/*"]
+  }
+  statement {
+    sid       = "Ec2CancelTaggedSpot"
+    actions   = ["ec2:CancelSpotInstanceRequests"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
   statement {
     sid       = "Ec2RunInstancesTagged"
     actions   = ["ec2:RunInstances"]
