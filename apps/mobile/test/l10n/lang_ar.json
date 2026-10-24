@@ -407,6 +407,7 @@
 "call.status.reconnecting":"جارٍ إعادة الاتصال…",
 "call.subscription":"يحتاج المحامي إلى اشتراك نشط لإجراء المكالمات.",
 "call.updateApp":"حدّث التطبيق لإجراء المكالمات والرد عليها.",
+"call.videoBlocked":"تُجرى أعمال صيانة على الخادم. يمكن تشغيل الفيديو بعد حوالي ساعة.",
 "call.videoButton":"مكالمة فيديو",
 "call.videoLabel":"مكالمة فيديو LawBid",
 "call.videoNotNow":"ليس الآن",

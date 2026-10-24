@@ -61,11 +61,22 @@ class CallVideoLayoutNotifier extends Notifier<CallVideoLayout> {
   void swap() => state = state.copyWith(selfBig: !state.selfBig);
 
   /// Group: a tap on a person makes them big; on the big one, back to the grid.
-  void toggleFocus(String userId) => state = state.focusId == userId
-      ? state.copyWith(clearFocus: true)
-      : state.copyWith(focusId: userId);
+  void toggleFocus(String userId) {
+    state = state.focusId == userId
+        ? state.copyWith(clearFocus: true)
+        : state.copyWith(focusId: userId);
+    _tellCall();
+  }
 
-  void clearFocus() => state = state.copyWith(clearFocus: true);
+  void clearFocus() {
+    state = state.copyWith(clearFocus: true);
+    _tellCall();
+  }
+
+  /// Owner 2026-10-24: on a Cloudflare SFU call the size of the big tile
+  /// decides which simulcast layer of each camera is pulled.
+  void _tellCall() =>
+      ref.read(callControllerProvider.notifier).layoutChanged(state.focusId);
 
   void moveTo(PipCorner corner) => state = state.copyWith(corner: corner);
 
