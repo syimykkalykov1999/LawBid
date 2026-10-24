@@ -52,6 +52,7 @@ class ApiCallHistoryRepository implements CallHistoryRepository {
           video: d.video,
           joined: d.joined,
           mine: d.mine,
+          startedAt: d.startedAt,
         ),
     ];
   }

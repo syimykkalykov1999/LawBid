@@ -423,6 +423,7 @@
 "calls.clearAction":"Löschen",
 "calls.clearHint":"Die Anrufe werden nur bei dir gelöscht.",
 "calls.empty":"Noch keine Anrufe",
+"calls.ongoingNow":"Läuft gerade",
 "calls.recent":"Zuletzt",
 "calls.return":"Zurück",
 "calls.title":"Anrufe",

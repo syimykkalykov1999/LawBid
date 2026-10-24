@@ -104,6 +104,7 @@ class OngoingGroupCall {
     required this.joined,
     required this.mine,
     this.groupAvatarUrl,
+    this.startedAt,
   });
 
   final String id;
@@ -116,6 +117,9 @@ class OngoingGroupCall {
   /// I am in it now («Return» instead of «Join»).
   final bool mine;
 
+  /// Since when the call runs (the length so far).
+  final DateTime? startedAt;
+
   /// Owner 2026-10-22: the same call after a `call:ongoing` event.
   OngoingGroupCall withPeople({required int joined, required bool mine}) =>
       OngoingGroupCall(
@@ -126,5 +130,6 @@ class OngoingGroupCall {
         video: video,
         joined: joined,
         mine: mine,
+        startedAt: startedAt,
       );
 }

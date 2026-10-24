@@ -16,7 +16,6 @@ import 'package:lawbid/features/legal_qa/presentation/qa_tabs_bar.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
-import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-10-20 — «Вопрос юристу»: all questions, unanswered, solved
 /// and mine; search, topic and state; «Ask» for clients.
@@ -71,7 +70,10 @@ class QaFeedBody extends ConsumerStatefulWidget {
 
 class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
   final _search = TextEditingController();
-  final _focus = FocusNode();
+
+  /// Owner 2026-10-23: the search is a magnifier at the end of the chips row
+  /// (like Tasks); it opens the field under the row.
+  bool _searchOpen = false;
   Timer? _debounce;
   // The tab sets the filter, the search and the topic/state filters stay
   // the same across tabs (owner 2026-10-21).
@@ -89,7 +91,6 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
   void dispose() {
     _debounce?.cancel();
     _search.dispose();
-    _focus.dispose();
     _pages.dispose();
     super.dispose();
   }
@@ -98,6 +99,14 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
       if (mounted) setState(() => _query = _query.copyWith(q: text));
+    });
+  }
+
+  void _toggleSearch() {
+    setState(() {
+      _searchOpen = !_searchOpen;
+      // Closed: the search no longer narrows the list.
+      if (!_searchOpen) _search.clear();
     });
   }
 
@@ -164,22 +173,42 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide,
-                  0,
+                padding: const EdgeInsetsDirectional.only(
+                  start: AppSpacing.screenSide,
+                  end: AppSpacing.xs,
+                  top: AppSpacing.sm,
                 ),
                 // Owner 2026-10-22: one bar, placed by itself, for client and
-                // attorney.
-                child: QaTabsBar(
-                  value: _tab,
-                  onChanged: _pick,
-                  labels: [
-                    t.t('qa.tab.all'),
-                    t.t('qa.tab.mine'),
-                    t.t('qa.tab.solved'),
-                    t.t('qa.tab.unanswered'),
+                // attorney. Owner 2026-10-23: the filter and the magnifier
+                // are round buttons at its end (like Tasks).
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: QaTabsBar(
+                        value: _tab,
+                        onChanged: _pick,
+                        labels: [
+                          t.t('qa.tab.all'),
+                          t.t('qa.tab.mine'),
+                          t.t('qa.tab.solved'),
+                          t.t('qa.tab.unanswered'),
+                        ],
+                      ),
+                    ),
+                    AppRoundChipButton(
+                      key: const ValueKey('qa-filter-button'),
+                      icon: AppIcons.tuneRounded,
+                      label: t.t('search.filters'),
+                      dot: active,
+                      onTap: () => unawaited(_openFilters(attorney)),
+                    ),
+                    AppRoundChipButton(
+                      key: const ValueKey('qa-search-open'),
+                      icon: AppIcons.searchRounded,
+                      label: t.t('qa.search'),
+                      selected: _searchOpen,
+                      onTap: _toggleSearch,
+                    ),
                   ],
                 ),
               ),
@@ -187,34 +216,33 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
               if (attorney)
                 ref.watch(qaNotifySwitchProvider)?.call() ??
                     const SizedBox.shrink(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                ),
-                // Owner 2026-10-20: the compact 36 px field (as in Channels).
-                child: FlipSearchBar(
-                  controller: _search,
-                  focusNode: _focus,
-                  hints: [t.t('qa.search')],
-                  semanticLabel: t.t('qa.search'),
-                  cancelLabel: t.t('common.cancel'),
-                  clearLabel: t.t('search.clear'),
-                  showCancel: false,
-                  leading: _FilterButton(
-                    active: active,
-                    label: t.t('search.filters'),
-                    onTap: () => unawaited(_openFilters(attorney)),
+              if (_searchOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.screenSide,
+                    0,
                   ),
-                  trailing: AppIcon(
-                    AppIcons.searchRounded,
-                    color: colors.textSecondary,
+                  child: AppTextField(
+                    compact: true,
+                    key: const ValueKey('qa-search'),
+                    controller: _search,
+                    label: t.t('qa.search'),
+                    leading: const AppIcon(AppIcons.searchRounded),
+                    autofocus: true,
+                    trailing: IconButton(
+                      key: const ValueKey('qa-search-close'),
+                      tooltip: t.t('common.close'),
+                      onPressed: _toggleSearch,
+                      icon: AppIcon(
+                        AppIcons.closeRounded,
+                        color: colors.textSecondary,
+                      ),
+                    ),
                   ),
-                  onSubmitted: _onSearch,
                 ),
-              ),
+              const SizedBox(height: AppSpacing.sm),
               Expanded(
                 // Owner 2026-10-22: the first page's drag to the right is
                 // «back».
@@ -231,71 +259,18 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
             ],
           ),
         ),
+        // Owner 2026-10-23: «Ask a question» is the app's floating «+».
         if (!attorney)
           PositionedDirectional(
             end: AppSpacing.screenSide,
-            bottom: AppSpacing.lg,
-            child: SafeArea(
-              top: false,
-              child: FloatingActionButton.extended(
-                heroTag: null,
-                tooltip: t.t('qa.ask'),
-                backgroundColor: colors.accent,
-                foregroundColor: colors.onAccent,
-                onPressed: () => context.push(LegalQaRoutes.ask),
-                icon: const AppIcon(AppIcons.addRounded),
-                label: Text(t.t('qa.ask')),
-              ),
+            bottom: AppSpacing.screenSide,
+            child: AppFab(
+              buttonKey: const ValueKey('qa-ask'),
+              semanticLabel: t.t('qa.ask'),
+              onPressed: () => context.push(LegalQaRoutes.ask),
             ),
           ),
       ],
-    );
-  }
-}
-
-/// The filter button at the start of the search field; a dot shows that a
-/// filter is on.
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({
-    required this.active,
-    required this.label,
-    required this.onTap,
-  });
-
-  final bool active;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: GestureDetector(
-        key: const ValueKey('qa-filter-button'),
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            AppIcon(AppIcons.tuneRounded, color: colors.text),
-            if (active)
-              PositionedDirectional(
-                top: -2,
-                end: -2,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const SizedBox.square(dimension: 8),
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }

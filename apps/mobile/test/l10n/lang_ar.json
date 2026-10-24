@@ -423,6 +423,7 @@
 "calls.clearAction":"مسح",
 "calls.clearHint":"تُحذف المكالمات لديك فقط.",
 "calls.empty":"لا توجد مكالمات بعد",
+"calls.ongoingNow":"جارية الآن",
 "calls.recent":"الأخيرة",
 "calls.return":"عودة",
 "calls.title":"المكالمات",

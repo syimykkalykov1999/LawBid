@@ -2498,6 +2498,11 @@ model Call {
   /// Telegram group calls): `call_participants` holds everyone, the call
   /// lives while two or more are in it.
   is_group        Boolean           @default(false)
+  /// Owner 2026-10-23: since when only one person is left connected (null =
+  /// two or more, or not yet). The sweep ends the call once this is older
+  /// than `calls.solo_end_seconds`; kept in the row so every API instance
+  /// and the worker agree (not a per-process timer).
+  solo_since      DateTime?         @db.Timestamptz
   participants    CallParticipant[]
   votes           CallVote[]
   log_hidden      CallLogHidden[]
