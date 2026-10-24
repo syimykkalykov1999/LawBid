@@ -209,6 +209,13 @@ export class WorkspaceFileDto {
   addedByRole!: 'client' | 'attorney';
   @ApiProperty()
   addedAt!: string;
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Owner 2026-10-24: how many times somebody else opened this file - only on the Files tab and only for files the caller uploaded (null = not yours). Opens the view list GET /files/{fileId}/views.',
+  })
+  viewCount?: number | null;
 }
 
 export class CaseTaskEventDto {

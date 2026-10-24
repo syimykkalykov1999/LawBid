@@ -9,8 +9,11 @@ part 'file_view_dto.g.dart';
 @JsonSerializable()
 class FileViewDto {
   const FileViewDto({
+    required this.id,
     required this.viewerUserId,
     required this.viewerName,
+    required this.viewerAvatarUrl,
+    required this.viewerRole,
     required this.viewedAt,
     required this.device,
     required this.platform,
@@ -20,13 +23,23 @@ class FileViewDto {
   factory FileViewDto.fromJson(Map<String, Object?> json) =>
       _$FileViewDtoFromJson(json);
 
+  /// Journal row id (the client merges and de-duplicates by it).
+  final String id;
   final String viewerUserId;
   final String? viewerName;
+
+  /// Signed link to the viewer avatar, when they have a clean one.
+  final String? viewerAvatarUrl;
+
+  /// client | attorney | assistant (the viewer account role).
+  final String? viewerRole;
   final DateTime viewedAt;
 
   /// Device name of the viewer session, when known.
   final String? device;
   final String? platform;
+
+  /// The viewer address with its host part hidden (203.0.113.x / 2001:db8:1::x); the full address never leaves the server.
   final String? ip;
 
   Map<String, Object?> toJson() => _$FileViewDtoToJson(this);

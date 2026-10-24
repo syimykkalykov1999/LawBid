@@ -12670,6 +12670,38 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (a small page keeps the phone sync cheap).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "since",
+            "required": false,
+            "in": "query",
+            "description": "Only views logged after this time (ISO), newest first and paged like the full list; meta.syncedAt = the newest viewedAt of the answer (or `since`). The journal is append-only, so there is no SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -12749,7 +12781,7 @@
             "bearer": []
           }
         ],
-        "summary": "Security & legal pass 2026-10-24: who other than you was given a link\nto this file, from which device (newest first, at most 50). Only the\nfile's owner may read it.",
+        "summary": "Security & legal pass 2026-10-24: who other than you was given a link\nto this file, from which device (newest first, 20 per page). Only the\nfile's owner may read it. Owner 2026-10-24: `?since=` returns only the\nrows logged after that time and meta.syncedAt, `?cursor=` pages back.",
         "tags": [
           "files"
         ]
@@ -116981,6 +117013,11 @@
       "FileViewDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Journal row id (the client merges and de-duplicates by it)."
+          },
           "viewerUserId": {
             "type": "string",
             "format": "uuid"
@@ -116988,6 +117025,16 @@
           "viewerName": {
             "type": "string",
             "nullable": true
+          },
+          "viewerAvatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed link to the viewer avatar, when they have a clean one."
+          },
+          "viewerRole": {
+            "type": "string",
+            "nullable": true,
+            "description": "client | attorney | assistant (the viewer account role)."
           },
           "viewedAt": {
             "type": "string",
@@ -117004,12 +117051,16 @@
           },
           "ip": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "The viewer address with its host part hidden (203.0.113.x / 2001:db8:1::x); the full address never leaves the server."
           }
         },
         "required": [
+          "id",
           "viewerUserId",
           "viewerName",
+          "viewerAvatarUrl",
+          "viewerRole",
           "viewedAt",
           "device",
           "platform",
@@ -130341,6 +130392,11 @@
           },
           "addedAt": {
             "type": "string"
+          },
+          "viewCount": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-24: how many times somebody else opened this file - only on the Files tab and only for files the caller uploaded (null = not yours). Opens the view list GET /files/{fileId}/views."
           }
         },
         "required": [

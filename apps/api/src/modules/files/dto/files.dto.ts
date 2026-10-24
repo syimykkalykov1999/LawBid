@@ -1,6 +1,17 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { FilePurpose, ScanStatus } from '@prisma/client';
-import { IsEnum, IsInt, Matches, Max, Min } from 'class-validator';
+import {
+  IsEnum,
+  IsISO8601,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ALL_FILE_MIMES } from '../files.policy';
 
 const FILE_MIME_PATTERN = new RegExp(
@@ -119,11 +130,32 @@ export class FileDto {
 /** One entry of GET /files/:id/views — somebody other than the owner was
  * given a link to the file (security & legal pass 2026-10-24). */
 export class FileViewDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Journal row id (the client merges and de-duplicates by it).',
+  })
+  id!: string;
+
   @ApiProperty({ format: 'uuid' })
   viewerUserId!: string;
 
   @ApiProperty({ type: String, nullable: true })
   viewerName!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Signed link to the viewer avatar, when they have a clean one.',
+  })
+  viewerAvatarUrl!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'client | attorney | assistant (the viewer account role).',
+  })
+  viewerRole!: string | null;
 
   @ApiProperty({ format: 'date-time' })
   viewedAt!: string;
@@ -138,6 +170,43 @@ export class FileViewDto {
   @ApiProperty({ type: String, nullable: true })
   platform!: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'The viewer address with its host part hidden (203.0.113.x / 2001:db8:1::x); the full address never leaves the server.',
+  })
   ip!: string | null;
+}
+
+/** GET /files/:id/views query (cursor-paged, newest first). */
+export class FileViewsQueryDto {
+  @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  cursor?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 50,
+    default: 20,
+    description: 'Page size (a small page keeps the phone sync cheap).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'Only views logged after this time (ISO), newest first and paged like the full list; meta.syncedAt = the newest viewedAt of the answer (or `since`). The journal is append-only, so there is no SYNC_TOO_OLD.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  since?: string;
 }

@@ -25,6 +25,7 @@ class WorkspaceFileDto {
     this.sourceTitle,
     this.sourceId,
     this.sourceItemId,
+    this.viewCount,
   });
 
   factory WorkspaceFileDto.fromJson(Map<String, Object?> json) =>
@@ -43,6 +44,9 @@ class WorkspaceFileDto {
   final bool sample;
   final WorkspaceFileDtoAddedByRole addedByRole;
   final String addedAt;
+
+  /// Owner 2026-10-24: how many times somebody else opened this file - only on the Files tab and only for files the caller uploaded (null = not yours). Opens the view list GET /files/{fileId}/views.
+  final int? viewCount;
 
   Map<String, Object?> toJson() => _$WorkspaceFileDtoToJson(this);
 }
