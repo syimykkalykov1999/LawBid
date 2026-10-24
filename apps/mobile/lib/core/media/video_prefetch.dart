@@ -89,6 +89,16 @@ class HlsPrefetcher {
     }
   }
 
+  /// Drops the wish for [urls]: waiting ones leave the queue, running ones
+  /// are cancelled (their tiles scrolled far away). A stream that is
+  /// already warmed stays remembered.
+  void drop(Iterable<String> urls) {
+    for (final u in urls) {
+      _queue.remove(u);
+      _running[u]?.cancel();
+    }
+  }
+
   void _pump() {
     while (_running.length < maxConcurrent && _queue.isNotEmpty) {
       final url = _queue.removeFirst();
