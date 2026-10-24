@@ -113,14 +113,11 @@ class I18nApiClient {
   /// full bundle (first-ever sync for [lang]); a non-null `since` requests
   /// only the keys changed after that bundle version
   /// (docs/01_FOUNDATION_AUTH.md §9.3's "полный или дельта-набор", §9.4's
-  /// "bundle?since="). Always a plain 200 JSON body: this client never
-  /// sends `If-None-Match`, so the backend's separate ETag/304
-  /// conditional-GET path (only taken when `since` is absent AND the
-  /// request's `If-None-Match` matches — see i18n.controller.ts) never
-  /// fires here. That path exists for a browser-style "revalidate what I
-  /// already have" GET; the `since=`-based delta this client uses is the
-  /// mechanism §9.4 actually names for the background-refresh flow, and it
-  /// needs no separate empty-body branch since it's always a normal 200.
+  /// "bundle?since="). A plain 200 JSON body the first
+  /// time. Owner 2026-10-23 (web pass): the server tags a delta with its
+  /// `since` too, so the app's HTTP cache (`HttpCacheInterceptor`, which adds
+  /// `If-None-Match` by itself) turns the same call after a reload into an
+  /// empty 304.
   Future<I18nBundleResult> getBundle(String lang, {int? since}) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(

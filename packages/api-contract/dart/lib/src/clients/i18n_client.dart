@@ -27,15 +27,13 @@ abstract class I18nClient {
   /// ETag/304"). Every other route in this module returns normally and.
   /// gets the standard envelope.
   ///
-  /// ETag/304 is the plain-GET HTTP-cache path (no `since`): if the.
-  /// client's If-None-Match matches the language's current version, 304.
-  /// with no body. `since` is the separate, explicit delta-poll path.
-  /// (§9.3: "полный или дельта-набор + version") — it always returns 200.
-  /// with a (possibly empty) JSON body, never a 304, since it's a.
-  /// versioned query the client is actively asking for, not a cache.
-  /// revalidation.
+  /// ETag/304: if the client's If-None-Match matches the language's current.
+  /// version (and, with `since`, the same `since`), 304 with no body.
+  /// `since` is the explicit delta path (§9.3: "полный или дельта-набор +.
+  /// version"); owner 2026-10-23: its answer is tagged with the `since` too,.
+  /// so repeating the same delta is a 304 as well.
   ///
-  /// [ifNoneMatch] - ETag of the bundle the client already has (ignored with `since`).
+  /// [ifNoneMatch] - ETag of the bundle (or delta) the client already has.
   @GET('/i18n/bundle/{lang}')
   Future<I18nBundleEnvelope> getBundle({
     @Path('lang') required String lang,

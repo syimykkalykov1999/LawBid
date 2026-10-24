@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:lawbid/core/realtime/missed_poller.dart';
 import 'package:lawbid/core/realtime/realtime_timings.dart';
 import 'package:lawbid/core/realtime/reconnect_controller.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
@@ -40,6 +41,12 @@ class RealtimeClient {
       isConnected: () => connected,
       attempt: () => unawaited(_reopen()),
     );
+    _poller = MissedPoller(
+      interval: () =>
+          Duration(seconds: _timings().pollingFallbackIntervalSeconds),
+      canPoll: () => !_disposed && !_policy.paused && !connected,
+      poll: _pollMissed,
+    );
   }
 
   final String _origin;
@@ -52,6 +59,7 @@ class RealtimeClient {
   /// when the socket does not answer.
   final Future<Map<String, Object?>?> Function(int since)? _fetchMissed;
   late final ReconnectController _policy;
+  late final MissedPoller _poller;
   final _events = StreamController<RealtimeEvent>.broadcast();
   final Set<String> _rooms = {};
   final Set<String> _watched = {};
@@ -178,6 +186,7 @@ class RealtimeClient {
     socket
       ..onConnect((_) {
         _policy.onConnected();
+        _poller.stop();
         _reauthing = false;
         for (final id in _rooms) {
           _join(id);
@@ -198,9 +207,12 @@ class RealtimeClient {
       ..onDisconnect((reason) {
         if (reason == 'io client disconnect' || _reauthing) return;
         _policy.onFailure(serverClosed: reason == 'io server disconnect');
+        _poller.start();
       })
       ..onConnectError((_) {
-        if (!_reauthing) _policy.onFailure();
+        if (_reauthing) return;
+        _policy.onFailure();
+        _poller.start();
       })
       ..on('server:going-away', (data) {
         final ms = data is Map ? data['retryAfterMs'] : null;
@@ -307,6 +319,18 @@ class RealtimeClient {
     );
   }
 
+  /// One tick of the polling fallback: the same catch-up as after a
+  /// reconnect, over HTTP only, from the newest `seq` seen. No cursor yet
+  /// (never connected) or no answer: nothing to do, the next tick retries.
+  Future<void> _pollMissed() async {
+    final since = _lastSeq;
+    final fetch = _fetchMissed;
+    if (since == null || fetch == null) return;
+    final r = await fetch(since);
+    if (_disposed || r == null || connected) return;
+    _applyMissed(since, r);
+  }
+
   void _applyMissed(int since, Map<String, Object?> answer) {
     if (answer['complete'] == false || answer['events'] is! List) {
       final top = answer['seq'];
@@ -355,7 +379,10 @@ class RealtimeClient {
   // --- lifecycle / network (part C9) ---------------------------------------
 
   /// The app went to the background: keep the socket, stop the timers.
-  void pause() => _policy.pause();
+  void pause() {
+    _policy.pause();
+    _poller.stop();
+  }
 
   /// The app came back: renew the token if it is about to end, then
   /// reconnect at once when the socket is down.
@@ -372,6 +399,7 @@ class RealtimeClient {
       return;
     }
     _policy.resume();
+    if (!connected) _poller.start();
   }
 
   /// The network came back: reconnect at once when the socket is down.
@@ -577,6 +605,7 @@ class RealtimeClient {
     _disposed = true;
     _trailingReconnected?.cancel();
     _syncTimer?.cancel();
+    _poller.stop();
     _policy.dispose();
     _socket
       ?..clearListeners()
