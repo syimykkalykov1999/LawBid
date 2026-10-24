@@ -179,7 +179,7 @@ void main() {
     );
     expect(l.limitMb(CacheStore.http), 32);
     expect(l.limitMb(CacheStore.images), 100);
-    expect(l.limitMb(CacheStore.video), 300);
+    expect(l.limitMb(CacheStore.video), 1000);
     expect(l.keepMediaDays, 7);
     expect(l.keepMedia, KeepMedia.week);
     expect(
