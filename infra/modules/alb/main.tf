@@ -103,7 +103,7 @@ resource "aws_lb" "this" {
     content {
       bucket  = access_logs.value
       enabled = true
-      prefix  = var.name
+      prefix  = "alb"
     }
   }
   tags = var.tags

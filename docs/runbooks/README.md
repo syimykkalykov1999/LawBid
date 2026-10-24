@@ -2,6 +2,7 @@
 
 **Владельцу: начните с [OWNER.md](OWNER.md)** — какое письмо что значит и
 что делать, простыми словами. Первый запуск на AWS — [PROD_LAUNCH.md](PROD_LAUNCH.md); выкладка новых версий на уже работающий прод — [DEPLOY_PROD.md](DEPLOY_PROD.md).
+Защита документов клиентов (адвокатская тайна), что включать в облаке и сколько это стоит, чеклист утечки, текст для адвокатов — [SECURITY_LEGAL.md](SECURITY_LEGAL.md).
 Всё остальное ниже — для инженера.
 
 One page per alert of `infra/modules/monitoring` (the alarm description

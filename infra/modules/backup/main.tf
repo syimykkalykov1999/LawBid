@@ -56,6 +56,30 @@ variable "copy_account_vault_arn" {
   default     = ""
   description = "ARN of a vault in a separate backup account (same AWS Organization, cross-account backup turned on). Empty = no cross-account copy."
 }
+variable "vault_lock_mode" {
+  type        = string
+  default     = "off"
+  description = "Backup Vault Lock on both vaults. off | governance (cannot be undone by the backup role; an administrator with the right permission still can) | compliance (after `vault_lock_cooling_off_days` NOBODY, not even AWS support or the root user, can delete a recovery point early or remove the lock: ransomware and a stolen administrator cannot erase the backups). Start with governance; compliance is irreversible."
+  validation {
+    condition     = contains(["off", "governance", "compliance"], var.vault_lock_mode)
+    error_message = "vault_lock_mode must be off, governance or compliance."
+  }
+}
+variable "vault_lock_cooling_off_days" {
+  type        = number
+  default     = 7
+  description = "Compliance mode only (3-36500): days during which the lock can still be removed. After this it is permanent."
+}
+variable "vault_lock_min_retention_days" {
+  type        = number
+  default     = 7
+  description = "No recovery point may be deleted before it is this old (must not exceed retention_days)."
+}
+variable "vault_lock_max_retention_days" {
+  type        = number
+  default     = 400
+  description = "No recovery point may be kept longer than this (must be at least retention_days)."
+}
 variable "alerts_topic_arn" { type = string }
 variable "tags" {
   type    = map(string)
@@ -73,6 +97,26 @@ resource "aws_backup_vault" "dr" {
   name        = "${var.name}-db-dr"
   kms_key_arn = var.replica_kms_key_arn
   tags        = var.tags
+}
+
+# Immutable backups (SOC 2 availability, ransomware): once the lock is in
+# compliance mode the copies cannot be shortened or erased by anyone until
+# they expire. Free; the storage of the copies is what is billed.
+resource "aws_backup_vault_lock_configuration" "main" {
+  count               = var.vault_lock_mode == "off" ? 0 : 1
+  backup_vault_name   = aws_backup_vault.main.name
+  min_retention_days  = var.vault_lock_min_retention_days
+  max_retention_days  = var.vault_lock_max_retention_days
+  changeable_for_days = var.vault_lock_mode == "compliance" ? var.vault_lock_cooling_off_days : null
+}
+
+resource "aws_backup_vault_lock_configuration" "dr" {
+  count               = var.vault_lock_mode == "off" ? 0 : 1
+  provider            = aws.replica
+  backup_vault_name   = aws_backup_vault.dr.name
+  min_retention_days  = var.vault_lock_min_retention_days
+  max_retention_days  = var.vault_lock_max_retention_days
+  changeable_for_days = var.vault_lock_mode == "compliance" ? var.vault_lock_cooling_off_days : null
 }
 
 resource "aws_backup_plan" "db" {

@@ -110,14 +110,30 @@ module "stack" {
   worker_jobs_per_task         = var.worker_jobs_per_task
 
   # Security research #5 (2026-10-22): WAF, cloud detector, container.
-  waf_otp_rate_limit_per_5m    = var.waf_otp_rate_limit_per_5m
-  waf_bot_control_enabled      = var.waf_bot_control_enabled
-  waf_bot_control_block        = var.waf_bot_control_block
-  cdn_waf_rate_limit_per_5m    = var.cdn_waf_rate_limit_per_5m
-  security_hub_enabled         = var.security_hub_enabled
-  guardduty_alert_severity     = var.guardduty_alert_severity
-  ecs_readonly_root_filesystem = var.ecs_readonly_root_filesystem
-  dmarc_policy                 = var.dmarc_policy
+  waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
+  waf_bot_control_enabled   = var.waf_bot_control_enabled
+  waf_bot_control_block     = var.waf_bot_control_block
+  cdn_waf_rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
+  security_hub_enabled      = var.security_hub_enabled
+  guardduty_alert_severity  = var.guardduty_alert_severity
+
+  # Security & legal pass 2026-10-24.
+  securityhub_fsbp_enabled           = var.securityhub_fsbp_enabled
+  inspector_enabled                  = var.inspector_enabled
+  unused_access_analyzer_enabled     = var.unused_access_analyzer_enabled
+  s3_account_block_public_access     = var.s3_account_block_public_access
+  critical_api_alerts_enabled        = var.critical_api_alerts_enabled
+  documents_data_events              = var.documents_data_events
+  audit_logs_enabled                 = var.audit_logs_enabled
+  audit_logs_retention_days          = var.audit_logs_retention_days
+  audit_logs_object_lock             = var.audit_logs_object_lock
+  vpc_flow_logs_traffic              = var.vpc_flow_logs_traffic
+  macie_enabled                      = var.macie_enabled
+  macie_sampling_percentage          = var.macie_sampling_percentage
+  backup_vault_lock_mode             = var.backup_vault_lock_mode
+  backup_vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
+  ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
+  dmarc_policy                       = var.dmarc_policy
 
   # Load audit 6: growth switches (growth.tf).
   growth = var.growth
