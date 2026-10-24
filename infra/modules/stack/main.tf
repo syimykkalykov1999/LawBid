@@ -855,7 +855,7 @@ variable "pgbouncer_min_tasks" {
 }
 variable "pgbouncer_max_tasks" {
   type        = number
-  default     = 3
+  default     = 4
   description = "CPU autoscaling ceiling of the pooler. The database budget is split by this number, so a higher ceiling means smaller pools per task."
 }
 variable "pgbouncer_cpu" {

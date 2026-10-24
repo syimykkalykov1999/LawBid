@@ -167,7 +167,7 @@ variable "pgbouncer_image" {
 }
 variable "pgbouncer_max_tasks" {
   type    = number
-  default = 3
+  default = 4
 }
 variable "clamav_image" {
   type    = string
