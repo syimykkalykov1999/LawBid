@@ -89,6 +89,12 @@ void main() {
   test('fetches master, lowest playlist and only the first segment', () async {
     final net = _Net();
     final p = _make(net)..prefetch('https://cdn.test/abc/playlist.m3u8');
+    // A loaded CI runner may not have started the first fetch after one
+    // tick, so wait for the three requests (up to 2 s), then settle.
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (net.requests.length < 3 && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
     await _settle(net);
     expect(net.requests, [
       'https://cdn.test/abc/playlist.m3u8',
