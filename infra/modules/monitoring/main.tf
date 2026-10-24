@@ -18,6 +18,35 @@ variable "slack_webhook_url" {
   default   = null
   sensitive = true
 }
+# Batch A item 1 (docs/architecture/P0_AND_COST_PLAN.md): a phone page for the
+# CRITICAL composite alarms only. PagerDuty Free: 100 phone/SMS per month, so
+# only the 6 SLO composites (slo.tf) publish to the second topic.
+variable "pagerduty_https_endpoint" {
+  type        = string
+  default     = null
+  sensitive   = true
+  description = "PagerDuty Events API v2 integration URL (https://events.pagerduty.com/integration/<key>/enqueue). Kept in the Secrets Manager tfvars, never in git. null = no phone paging; the critical topic still exists and e-mails the owner."
+}
+variable "critical_email_too" {
+  type        = bool
+  default     = true
+  description = "Also e-mail alert_emails from the critical topic (a second copy of the page); false when the normal topic mail is enough."
+}
+variable "redis_memory_alarm_percent" {
+  type        = number
+  default     = 70
+  description = "Redis (queue node) memory alarm threshold in percent (Batch A item 9). 70 leaves room to act before noeviction starts failing BullMQ writes."
+}
+variable "nat_gateway_ids" {
+  type        = list(string)
+  default     = []
+  description = "NAT gateways to watch (AWS/NATGateway). Empty = no NAT traffic alarm."
+}
+variable "nat_traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 100
+  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $4.5/day. See docs/runbooks/nat-endpoints.md."
+}
 variable "alb_arn_suffix" { type = string }
 variable "api_target_group_arn_suffix" { type = string }
 variable "cluster_name" { type = string }
@@ -70,7 +99,7 @@ resource "aws_sns_topic_policy" "alerts" {
       {
         Sid       = "AlarmAndEventPublishers"
         Effect    = "Allow"
-        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com"] }
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com", "budgets.amazonaws.com"] }
         Action    = "SNS:Publish"
         Resource  = aws_sns_topic.alerts.arn
         Condition = {
@@ -95,9 +124,63 @@ resource "aws_sns_topic_subscription" "slack" {
   endpoint  = var.slack_webhook_url
 }
 
+# --- critical topic: the only one that can ring a phone -----------------
+resource "aws_sns_topic" "critical" {
+  name              = "${var.name}-critical"
+  kms_master_key_id = var.kms_key_arn
+  tags              = var.tags
+}
+
+resource "aws_sns_topic_policy" "critical" {
+  arn = aws_sns_topic.critical.arn
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "Owner"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = ["SNS:Publish", "SNS:Subscribe", "SNS:Receive", "SNS:ListSubscriptionsByTopic", "SNS:GetTopicAttributes", "SNS:SetTopicAttributes", "SNS:AddPermission", "SNS:RemovePermission", "SNS:DeleteTopic"]
+        Resource  = aws_sns_topic.critical.arn
+      },
+      {
+        Sid       = "AlarmPublishers"
+        Effect    = "Allow"
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com", "budgets.amazonaws.com"] }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.critical.arn
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      },
+    ]
+  })
+}
+
+# PagerDuty: HTTPS subscription to the Events API integration. PagerDuty
+# confirms the subscription by itself (it opens the SubscribeURL); the
+# message stays the CloudWatch JSON (raw_message_delivery must be false).
+resource "aws_sns_topic_subscription" "pagerduty" {
+  count                  = var.pagerduty_https_endpoint == null ? 0 : 1
+  topic_arn              = aws_sns_topic.critical.arn
+  protocol               = "https"
+  endpoint               = var.pagerduty_https_endpoint
+  raw_message_delivery   = false
+  endpoint_auto_confirms = true
+}
+
+resource "aws_sns_topic_subscription" "critical_email" {
+  for_each  = var.critical_email_too ? toset(var.alert_emails) : toset([])
+  topic_arn = aws_sns_topic.critical.arn
+  protocol  = "email"
+  endpoint  = each.key
+}
+
 locals {
   ns  = "LawBid/${var.name}"
   ops = [aws_sns_topic.alerts.arn]
+  # Normal mail stream + the page. Only the SLO composites use it.
+  page = [aws_sns_topic.alerts.arn, aws_sns_topic.critical.arn]
 }
 
 # --- metrics from structured logs ----------------------------------------
@@ -401,11 +484,11 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
 
 resource "aws_cloudwatch_metric_alarm" "redis_memory" {
   alarm_name          = "${var.name}-redis-memory"
-  alarm_description   = "LawBid: Быстрая память (Redis) заполнена больше чем на 80 %. Что делать: Держится больше суток — увеличьте Redis при следующем «ставь на AWS». Данные не теряются. Инструкция: ${var.runbook_base_url}/redis.md (EN: Redis memory > 80%.)"
+  alarm_description   = "LawBid: Быстрая память (Redis) заполнена больше чем на ${var.redis_memory_alarm_percent} %. Что делать: Держится больше суток — увеличьте Redis при следующем «ставь на AWS». Данные не теряются. Инструкция: ${var.runbook_base_url}/redis.md (EN: Redis memory above ${var.redis_memory_alarm_percent}%.)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   period              = 300
-  threshold           = 80
+  threshold           = var.redis_memory_alarm_percent
   statistic           = "Average"
   metric_name         = "DatabaseMemoryUsagePercentage"
   namespace           = "AWS/ElastiCache"
@@ -1000,3 +1083,47 @@ resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
   ok_actions          = local.ops
   tags                = var.tags
 }
+
+# Batch A item 15: NAT gateway data processed (in + out, the billed number).
+# Not a failure: an e-mail that a flow got big, to check VPC endpoints or a
+# runaway download before the bill does (docs/runbooks/nat-endpoints.md).
+resource "aws_cloudwatch_metric_alarm" "nat_bytes" {
+  for_each            = var.nat_traffic_alarm_gb_per_day > 0 ? { for i, id in var.nat_gateway_ids : tostring(i) => id } : {}
+  alarm_name          = "${var.name}-nat-bytes-${each.key}"
+  alarm_description   = "LawBid: Через выход в интернет (NAT) за сутки прошло больше ${var.nat_traffic_alarm_gb_per_day} ГБ — это деньги ($0,045 за ГБ). Что делать: ничего срочного, приложение работает; посмотрите, не качается ли что-то лишнее, и нужны ли VPC-эндпоинты. Инструкция: ${var.runbook_base_url}/nat-endpoints.md (EN: NAT gateway ${each.value} processed over ${var.nat_traffic_alarm_gb_per_day} GB in 24 h.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.nat_traffic_alarm_gb_per_day * 1073741824
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+
+  metric_query {
+    id = "out"
+    metric {
+      metric_name = "BytesOutToDestination"
+      namespace   = "AWS/NATGateway"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { NatGatewayId = each.value }
+    }
+  }
+  metric_query {
+    id = "in"
+    metric {
+      metric_name = "BytesInFromDestination"
+      namespace   = "AWS/NATGateway"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { NatGatewayId = each.value }
+    }
+  }
+  metric_query {
+    id          = "total"
+    expression  = "FILL(out, 0) + FILL(in, 0)"
+    label       = "NAT bytes in + out"
+    return_data = true
+  }
+}
+
+output "critical_topic_arn" { value = aws_sns_topic.critical.arn }

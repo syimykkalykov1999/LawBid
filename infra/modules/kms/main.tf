@@ -73,7 +73,7 @@ resource "aws_kms_key" "this" {
         # statement AWS drops the notification silently.
         Sid       = "AlertPublishers"
         Effect    = "Allow"
-        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com"] }
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com", "budgets.amazonaws.com"] }
         Action    = ["kms:Decrypt", "kms:GenerateDataKey*"]
         Resource  = "*"
         Condition = {
