@@ -35,6 +35,9 @@ StorageOverviewDto _$StorageOverviewDtoFromJson(
   settings: StorageSettingsDto.fromJson(
     json['settings'] as Map<String, dynamic>,
   ),
+  r2: json['r2'] == null
+      ? null
+      : StorageR2UsageDto.fromJson(json['r2'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$StorageOverviewDtoToJson(StorageOverviewDto instance) =>
@@ -51,4 +54,5 @@ Map<String, dynamic> _$StorageOverviewDtoToJson(StorageOverviewDto instance) =>
       'history': instance.history.map((e) => e.toJson()).toList(),
       'lastCleanup': ?instance.lastCleanup?.toJson(),
       'settings': instance.settings.toJson(),
+      'r2': ?instance.r2?.toJson(),
     };

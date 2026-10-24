@@ -13,6 +13,7 @@ import {
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -236,6 +237,47 @@ export class S3StorageService implements OnModuleDestroy {
       zoneId: f.zoneId?.trim() || undefined,
       purgeToken: f.purgeToken?.trim() || undefined,
     };
+  }
+
+  /** Name of the R2 bucket when R2 has keys (loads them first), else null. */
+  async publicStoreBucket(): Promise<string | null> {
+    await this.refresh();
+    return this.publicStore?.bucket ?? null;
+  }
+
+  /**
+   * Owner 2026-10-24: bucket size and object count of R2, by listing it
+   * (ListObjectsV2: 1000 keys a call, Class A, $4.50 per million calls: a
+   * million objects cost one cent). Run once a day, never per request.
+   * Null when R2 has no keys; `truncated` when [maxPages] ended the walk.
+   */
+  async publicStoreUsage(
+    maxPages = 2_000,
+  ): Promise<{ bytes: number; objects: number; truncated: boolean } | null> {
+    await this.refresh();
+    const store = this.publicStore;
+    if (!store) return null;
+    let bytes = 0;
+    let objects = 0;
+    let token: string | undefined;
+    for (let page = 0; page < maxPages; page++) {
+      const res = await store.client.send(
+        new ListObjectsV2Command({
+          Bucket: store.bucket,
+          ContinuationToken: token,
+          MaxKeys: 1000,
+        }),
+      );
+      for (const o of res.Contents ?? []) {
+        bytes += Number(o.Size ?? 0);
+        objects++;
+      }
+      if (!res.IsTruncated || !res.NextContinuationToken) {
+        return { bytes, objects, truncated: false };
+      }
+      token = res.NextContinuationToken;
+    }
+    return { bytes, objects, truncated: true };
   }
 
   /** True when [bucket] is the R2 bucket (public media only). */

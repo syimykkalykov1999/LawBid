@@ -3,8 +3,10 @@ import type { IceServerDto } from './calls.dto';
 /** Cloudflare Realtime TURN: one POST gives a short-lived login for the
  * whole Cloudflare relay fleet (UDP 3478/443, TCP 3478/80, TLS 5349/443). */
 const ENDPOINT = 'https://rtc.live.cloudflare.com/v1/turn/keys';
-/** A call must never wait long for Cloudflare — our own coturn is the fallback. */
+/** A call must never wait long for Cloudflare; one retry follows a failure. */
 export const CLOUDFLARE_TURN_TIMEOUT_MS = 3_000;
+export const CLOUDFLARE_TURN_RETRY_MS = 300;
+export const CLOUDFLARE_TURN_RETRY_TIMEOUT_MS = 1_500;
 /** The same login is reused for one user this long (the app asks about once
  * per call; a login lives 24 h, so a 30 min reuse leaves it > 23 h). */
 export const CLOUDFLARE_TURN_CACHE_MS = 30 * 60_000;
@@ -91,11 +93,18 @@ export async function cloudflareTurnFor(
   ttlSec: number,
   fetchImpl?: typeof fetch,
   now = Date.now(),
+  timeoutMs = CLOUDFLARE_TURN_TIMEOUT_MS,
 ): Promise<IceServerDto> {
   const key = `${keyId}:${userId}`;
   const hit = cache.get(key);
   if (hit && now - hit.at < CLOUDFLARE_TURN_CACHE_MS) return hit.server;
-  const server = await fetchCloudflareTurn(keyId, apiToken, ttlSec, fetchImpl);
+  const server = await fetchCloudflareTurn(
+    keyId,
+    apiToken,
+    ttlSec,
+    fetchImpl,
+    timeoutMs,
+  );
   if (cache.size >= CACHE_MAX) cache.clear();
   cache.set(key, { at: now, server });
   return server;

@@ -151,6 +151,15 @@ export class StorageLastCleanupDto extends StorageCleanupResultDto {
   @ApiProperty({ format: 'date-time' }) at!: string;
 }
 
+export class StorageR2UsageDto {
+  @ApiProperty({ description: 'Bytes in the R2 bucket (public media).' })
+  bytes!: number;
+  @ApiProperty() objects!: number;
+  @ApiProperty({ description: 'Counted only partly (a lower bound).' })
+  truncated!: boolean;
+  @ApiProperty({ format: 'date-time' }) updatedAt!: string;
+}
+
 export class StorageOverviewDto {
   @ApiProperty({ description: 'Live files as users see them.' })
   filesBytes!: number;
@@ -172,6 +181,12 @@ export class StorageOverviewDto {
   @ApiProperty({ type: StorageLastCleanupDto, nullable: true })
   lastCleanup!: StorageLastCleanupDto | null;
   @ApiProperty({ type: StorageSettingsDto }) settings!: StorageSettingsDto;
+  @ApiProperty({
+    type: StorageR2UsageDto,
+    nullable: true,
+    description: 'Cloudflare R2 size, counted daily; null when R2 is unused.',
+  })
+  r2!: StorageR2UsageDto | null;
 }
 
 export class StorageUserIdParamDto {

@@ -1,3 +1,88 @@
+# Calls: Cloudflare TURN (our own coturn is removed)
+
+**Status 2026-10-24.** Our own coturn servers were deleted from AWS
+(`turn_enabled = false`, `turn_second_enabled = false`). 1:1 calls relay through
+**Cloudflare Realtime TURN**; group calls use the **Cloudflare SFU** when
+`calls.video_provider = cloudflare`. Nothing runs on EC2 for calls any more.
+
+## What runs now
+
+- Keys: admin -> Integrations -> `cloudflare_turn` (`keyId`, `apiToken`), or the env
+  `CLOUDFLARE_TURN_KEY_ID` / `CLOUDFLARE_TURN_API_TOKEN`. Group calls: `cloudflare_sfu`.
+- `GET /calls/ice-servers` asks Cloudflare for a 24 h login per user (cached 30 min), and
+  puts it first, then STUN. Code: `apps/api/src/modules/calls/cloudflare-turn.ts`.
+- If Cloudflare does not answer, the API retries once after 300 ms (1.5 s limit). Still
+  nothing: the call goes on with STUN only (and our own TURN **only when** it is still
+  configured). The failure is counted as `turnProviderFailed` in the one-a-minute `slo`
+  log line; 5 in 5 minutes page `<env>-turn-provider-failed`. API logs: search
+  `cloudflare_turn_failed`.
+- While Cloudflare works, any old `TURN_URLS` / admin TURN entry is **ignored** on purpose
+  (dead IPs make ICE wait for timeouts) and the API logs one warning an hour. Clear it:
+  admin -> Integrations -> TURN.
+- The «video call» button counts `cloudflare_turn` keys as a configured provider.
+- Admin -> Система -> Состояние системы shows **Cloudflare TURN**, **Cloudflare SFU** and
+  **Cloudflare R2** (each probe is one tiny real request, cached 2 min; grey when unused;
+  the watchdog pages after two red checks in a row). The old «own TURN» row stays grey.
+
+## If a call alarm fires
+
+1. Admin -> Состояние системы -> Cloudflare TURN / SFU. Red = Cloudflare refused us:
+   check the key (Integrations -> `cloudflare_turn` -> «Проверить») and
+   https://www.cloudflarestatus.com.
+2. API logs: `cloudflare_turn_failed` (HTTP status in the message: 401 = key revoked,
+   429/5xx = Cloudflare side).
+3. A new key: Cloudflare dashboard -> Realtime -> TURN -> create key -> paste into the
+   admin. No deploy needed.
+
+## Cloudflare TURN facts (developers.cloudflare.com/realtime/turn)
+
+- Price: **$0.05 per GB** sent from the Cloudflare edge to the client, the first **1 000 GB
+  a month are free**. STUN (`stun.cloudflare.com`) is free. Traffic between TURN and the SFU
+  is not charged.
+- A login may live up to 48 h; we issue 24 h. Cloudflare may change TURN IPs: we never
+  hard-code them (the login response lists names).
+- Port 53 URLs are removed (browsers block them and ICE stalls).
+- Allocations can be disturbed by maintenance; Cloudflare advises clients to support ICE restart.
+
+## SFU sessions at the end of a call
+
+Cloudflare Realtime SFU API (calls-api-2024-05-21.yaml) has `sessions/new`,
+`tracks/new`, `tracks/close`, `renegotiate`, data channels and `GET sessions/{id}`.
+It has **no endpoint that closes or deletes a session**. So at the end of a call
+(finish, leave, kick, silence sweep) the API closes the person's **tracks**
+(`SfuBrokerService.closeCall` / `cleanupUser`, force-close) and forgets its own state;
+the empty session expires on Cloudflare's side by itself. Nothing is billed for an
+idle session (SFU is billed by egress GB, first 1 000 GB free). Nothing to do for the owner.
+
+## How others do it (research notes, 2026-10-24)
+
+- **Cloudflare's own guidance:** fetch short-lived credentials server-side per user, never
+  hard-code relay IPs, support ICE restart. We do exactly this.
+- **LiveKit / Jitsi / Matrix:** the ICE-server list is built by the server and handed to the
+  client; the client tries every candidate (UDP -> TCP -> TURN/TLS 443) and the browser
+  picks the first pair that works. Operators keep **two independent relays** (their own
+  plus a managed one) so that one failure only delays a call. Our equivalent: Cloudflare
+  first, STUN second; our coturn can be added back as the second relay (below).
+  Health: these projects check relays with a synthetic allocation (trickle-ICE style
+  test), not a TCP ping. Cloudflare publishes no health endpoint, so our probe really
+  requests a login (what a call does) and caches it for 2 minutes.
+- **Why a dead server must not stay in the list:** every candidate pair waits for its
+  timeout; one dead relay slows every call. Hence: no own TURN while Cloudflare works.
+
+## Bringing our own coturn back (only if ever needed)
+
+1. `infra/envs/prod/terraform.tfvars`: `turn_enabled = true` (and, for a second zone,
+   `turn_second_enabled = true`). Cost about $7-8 a month per server plus traffic.
+2. Follow sections 1-4 below (apply, DNS `turn` A-records in Cloudflare DNS now, secret,
+   admin -> Integrations -> TURN). Because Cloudflare still works, the API **ignores** the
+   TURN entry until Cloudflare fails; to make it a permanent second relay, tell the
+   developer (a code switch; today the rule is «Cloudflare ok = no own TURN»).
+3. Remove `turn_*` alarms from your inbox rules if you remove it again.
+
+The rest of this file describes the old coturn setup (kept for that case).
+
+---
+
 # TURN server for calls (coturn)
 
 Without a TURN relay calls between phones behind carrier NAT do not connect

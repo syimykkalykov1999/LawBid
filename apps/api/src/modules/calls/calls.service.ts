@@ -48,6 +48,7 @@ import type {
   CallParticipantDto,
   EndCallDto,
   InviteCallDto,
+  IceServerDto,
   IceServersDto,
   LiveKitJoinDto,
   StartCallDto,
@@ -55,7 +56,11 @@ import type {
   VideoCallConfigDto,
 } from './calls.dto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { cloudflareTurnFor } from './cloudflare-turn';
+import {
+  CLOUDFLARE_TURN_RETRY_MS,
+  CLOUDFLARE_TURN_RETRY_TIMEOUT_MS,
+  cloudflareTurnFor,
+} from './cloudflare-turn';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   SfuBrokerService,
@@ -751,24 +756,23 @@ export class CallsService {
       iceServers: [{ urls: stun, username: null, credential: null }],
       ttlSec: TURN_TTL_SEC,
     };
-    // Owner 2026-10-24: calls relay through Cloudflare Realtime TURN first;
-    // our own coturn stays behind it as the fallback. Cloudflare failing
-    // never breaks a call.
+    // Owner 2026-10-24: 1:1 calls relay through Cloudflare Realtime TURN (our
+    // own coturn servers were removed from AWS). One retry with a short
+    // backoff; if Cloudflare still fails the call goes on with STUN (and
+    // our own TURN only when it is configured), and the failure is counted
+    // for the call SLO alarm (`turnProviderFailed`).
     const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
     const cfKeyId =
       cf.keyId ?? this.config.get<string>('CLOUDFLARE_TURN_KEY_ID');
     const cfToken =
       cf.apiToken ?? this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN');
+    const cfConfigured = Boolean(cfKeyId && cfToken);
+    let cfWorks = false;
     if (cfKeyId && cfToken) {
-      try {
-        out.iceServers.unshift(
-          await cloudflareTurnFor(user.sub, cfKeyId, cfToken, TURN_TTL_SEC),
-        );
-      } catch (e) {
-        // Message only: it never holds the token or the logins.
-        this.logger.warn(
-          `Cloudflare TURN unavailable, using own TURN: ${(e as Error).message}`,
-        );
+      const relay = await this.cloudflareRelay(user.sub, cfKeyId, cfToken);
+      if (relay) {
+        out.iceServers.unshift(relay);
+        cfWorks = true;
       }
     }
     const turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
@@ -777,17 +781,72 @@ export class CallsService {
       .filter(Boolean);
     const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
     if (turn.length > 0 && secret) {
-      const urls = withTcpFallback(turn);
-      const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
-      out.iceServers.push({
-        urls,
-        username,
-        credential: createHmac('sha1', secret)
-          .update(username)
-          .digest('base64'),
-      });
+      if (cfWorks) {
+        // Dead IPs in the list slow ICE down (every candidate pair waits for
+        // its timeout), so a working Cloudflare means no own TURN at all.
+        this.warnStaleOwnTurn();
+      } else {
+        if (cfConfigured) this.warnStaleOwnTurn();
+        const urls = withTcpFallback(turn);
+        const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
+        out.iceServers.push({
+          urls,
+          username,
+          credential: createHmac('sha1', secret)
+            .update(username)
+            .digest('base64'),
+        });
+      }
     }
     return out;
+  }
+
+  private staleTurnWarnedAt = 0;
+
+  /** Own TURN_URLS next to a configured Cloudflare TURN: at most one
+   * warning an hour. The old servers are gone; the setting is dead weight. */
+  private warnStaleOwnTurn(): void {
+    const now = Date.now();
+    if (now - this.staleTurnWarnedAt < 3_600_000) return;
+    this.staleTurnWarnedAt = now;
+    this.logger.warn(
+      'Own TURN is set while Cloudflare TURN is configured; own TURN is ignored while Cloudflare works. ' +
+        'Clear it (Admin -> Integrations -> TURN, or TURN_URLS) if coturn was removed.',
+    );
+  }
+
+  /** A Cloudflare TURN login: one retry after a short backoff. Null when
+   * Cloudflare did not give one (counted for the SLO alarm). */
+  private async cloudflareRelay(
+    userId: string,
+    keyId: string,
+    token: string,
+  ): Promise<IceServerDto | null> {
+    let lastError = '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, CLOUDFLARE_TURN_RETRY_MS));
+      }
+      try {
+        return await cloudflareTurnFor(
+          userId,
+          keyId,
+          token,
+          TURN_TTL_SEC,
+          undefined,
+          Date.now(),
+          attempt === 0 ? undefined : CLOUDFLARE_TURN_RETRY_TIMEOUT_MS,
+        );
+      } catch (e) {
+        // Message only: it never holds the token or the logins.
+        lastError = (e as Error).message;
+      }
+    }
+    this.slo?.count('turnProviderFailed');
+    this.logger.warn(
+      `alert=cloudflare_turn_failed Cloudflare TURN unavailable after retry (call continues with STUN / own TURN if set): ${lastError}`,
+    );
+    return null;
   }
 
   /** Signaling relay check (RealtimeGateway): the other member of a live

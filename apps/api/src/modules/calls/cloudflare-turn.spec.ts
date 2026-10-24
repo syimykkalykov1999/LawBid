@@ -21,6 +21,7 @@ const CF_RESPONSE = {
 function make(opts: {
   cf?: Record<string, string>;
   turn?: Record<string, string>;
+  slo?: { count: jest.Mock };
 }) {
   const secrets = {
     get: (id: string) => {
@@ -32,6 +33,8 @@ function make(opts: {
   const args: unknown[] = new Array(11).fill(null);
   args[1] = config;
   args.push(secrets);
+  // entitlements, privacy, groups, redis, then the SLO counters.
+  args.push(undefined, undefined, undefined, undefined, opts.slo);
   const Ctor = CallsService as unknown as new (...a: unknown[]) => CallsService;
   return new Ctor(...args);
 }
@@ -50,7 +53,7 @@ describe('iceServers with Cloudflare TURN', () => {
     jest.restoreAllMocks();
   });
 
-  it('puts Cloudflare first, then STUN, then own coturn; keeps explicit transports; drops port 53', async () => {
+  it('puts Cloudflare first, then STUN; skips own coturn while Cloudflare works; keeps explicit transports; drops port 53', async () => {
     const fetchMock = jest.fn(() =>
       Promise.resolve(
         new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
@@ -67,10 +70,9 @@ describe('iceServers with Cloudflare TURN', () => {
       credential: 'cf-pass',
     });
     expect(res.iceServers[1].username).toBeNull(); // STUN
-    expect(res.iceServers[2].urls).toEqual([
-      'turn:own.example:3478',
-      'turn:own.example:3478?transport=tcp',
-    ]);
+    // Dead own-TURN addresses must not slow ICE: not offered at all.
+    expect(res.iceServers).toHaveLength(2);
+    expect(JSON.stringify(res)).not.toContain('own.example');
     const [url, init] = fetchMock.mock.calls[0] as unknown as [
       string,
       RequestInit,
@@ -81,14 +83,43 @@ describe('iceServers with Cloudflare TURN', () => {
     expect(JSON.stringify(res)).not.toContain(TOKEN);
   });
 
-  it('falls back to own coturn when Cloudflare fails', async () => {
-    global.fetch = jest.fn(() =>
+  it('falls back to own coturn when Cloudflare fails twice, and counts the failure', async () => {
+    const fetchMock = jest.fn(() =>
       Promise.resolve(new Response('nope', { status: 500 })),
-    ) as never;
-    const res = await make({ cf, turn: ownTurn }).iceServers(user);
+    );
+    global.fetch = fetchMock as never;
+    const slo = { count: jest.fn() };
+    const res = await make({ cf, turn: ownTurn, slo }).iceServers(user);
+    expect(fetchMock).toHaveBeenCalledTimes(2); // one retry
     expect(res.iceServers).toHaveLength(2);
     expect(res.iceServers[1].urls[0]).toBe('turn:own.example:3478');
+    expect(slo.count).toHaveBeenCalledWith('turnProviderFailed');
     expect(JSON.stringify(res)).not.toContain(TOKEN);
+  });
+
+  it('retries once: a second answer from Cloudflare is used and nothing is counted', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
+      );
+    global.fetch = fetchMock as never;
+    const slo = { count: jest.fn() };
+    const res = await make({ cf, turn: ownTurn, slo }).iceServers(user);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(res.iceServers[0].username).toBe('cf-user');
+    expect(res.iceServers).toHaveLength(2); // no own TURN
+    expect(slo.count).not.toHaveBeenCalled();
+  });
+
+  it('uses own coturn alone when Cloudflare is not configured', async () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as never;
+    const res = await make({ turn: ownTurn }).iceServers(user);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.iceServers).toHaveLength(2);
+    expect(res.iceServers[1].urls[0]).toBe('turn:own.example:3478');
   });
 
   it('falls back when Cloudflare times out', async () => {
@@ -105,7 +136,8 @@ describe('iceServers with Cloudflare TURN', () => {
           }),
       ) as never;
       const p = make({ cf, turn: ownTurn }).iceServers(user);
-      await jest.advanceTimersByTimeAsync(3_100);
+      // 3 s first try + 0.3 s backoff + 1.5 s retry.
+      await jest.advanceTimersByTimeAsync(5_000);
       const res = await p;
       expect(res.iceServers).toHaveLength(2);
       expect(res.iceServers[1].urls[0]).toBe('turn:own.example:3478');

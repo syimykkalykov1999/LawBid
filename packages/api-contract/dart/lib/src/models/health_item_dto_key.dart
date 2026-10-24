@@ -32,6 +32,12 @@ enum HealthItemDtoKey {
   push('push'),
   @JsonValue('turn')
   turn('turn'),
+  @JsonValue('cloudflare_turn')
+  cloudflareTurn('cloudflare_turn'),
+  @JsonValue('cloudflare_sfu')
+  cloudflareSfu('cloudflare_sfu'),
+  @JsonValue('r2')
+  r2('r2'),
   @JsonValue('http')
   http('http'),
   @JsonValue('realtime')

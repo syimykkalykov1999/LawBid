@@ -4,7 +4,7 @@ Owner 2026-10-22, audit #4 §7. Terraform: `infra/modules/monitoring/slo.tf`. Co
 
 ## What is measured
 
-Every API and worker process writes one log line a minute: `{"metric":"slo","signup":…,"otpSent":…,"otpVerified":…,"callConnected":…,"callFailed":…,"pushOk":…,"pushFailed":…}`. CloudWatch metric filters turn it into `LawBid/<env>/Slo*` metrics.
+Every API and worker process writes one log line a minute: `{"metric":"slo","signup":…,"otpSent":…,"otpVerified":…,"callConnected":…,"callFailed":…,"pushOk":…,"pushFailed":…,"turnProviderFailed":…}`. CloudWatch metric filters turn it into `LawBid/<env>/Slo*` metrics.
 
 | SLO | Good / total | Target |
 |---|---|---|
@@ -22,7 +22,8 @@ Every API and worker process writes one log line a minute: `{"metric":"slo","sig
 ## What to do
 
 - **OTP**: Twilio console → Monitor → Messaging logs (errors by country); balance; the country allow-list and money caps in the admin (budget.*).
-- **Calls**: TURN (`docs/runbooks/TURN.md`): instance CPU / network, credentials in Интеграции → TURN.
+- **Calls**: our own TURN servers are removed, calls use **Cloudflare TURN/SFU**. Open admin -> Система -> Состояние системы (rows Cloudflare TURN, Cloudflare SFU), then the API logs (`cloudflare_turn_failed`); keys in Интеграции -> `cloudflare_turn` / `cloudflare_sfu`; https://www.cloudflarestatus.com. Details: `docs/runbooks/TURN.md`.
+- **`<env>-turn-provider-failed`**: 5 failed Cloudflare TURN logins (after a retry) in 5 minutes; calls then fall back to STUN only. Same steps.
 - **Pushes**: Интеграции → Firebase (FCM) key, Firebase status page, worker logs `fcm send failed`.
 - **Signups**: sign up yourself on a phone; check the stores' listings.
 

@@ -180,12 +180,59 @@ export function word(item: HealthItem): Worded {
             ? undefined
             : 'Много пушей не доходит. Проверьте Безопасность → Ключи и сервисы → Firebase Cloud Messaging, кнопка «Проверить».',
       };
-    case 'turn':
+    case 'cloudflare_turn':
       return {
-        title: 'Сервер звонков (TURN)',
+        title: 'Звонки: Cloudflare TURN',
         line:
           s === 'grey'
-            ? 'TURN не настроен: звонки идут напрямую, за NAT могут не соединяться.'
+            ? 'Cloudflare TURN не настроен: без него звонки за сложными сетями не соединятся.'
+            : d.error
+              ? `Cloudflare не выдаёт доступ для звонков: ${String(d.error)}.`
+              : `Cloudflare TURN отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        todo:
+          s === 'grey'
+            ? 'Добавьте ключи в Безопасность → Ключи и сервисы → cloudflare_turn.'
+            : s === 'red'
+              ? 'Звонки за сложными сетями могут не соединяться. Проверьте ключ в Ключи и сервисы → cloudflare_turn и cloudflarestatus.com.'
+              : undefined,
+        runbook: 'TURN.md',
+      };
+    case 'cloudflare_sfu':
+      return {
+        title: 'Групповые звонки: Cloudflare SFU',
+        line:
+          s === 'grey'
+            ? 'Групповые звонки идут не через Cloudflare (или ключи не заданы).'
+            : d.error
+              ? 'Cloudflare SFU не открывает сессию.'
+              : `Cloudflare SFU отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        todo:
+          s === 'red'
+            ? 'Групповые звонки сами переключатся на прямое соединение (аудио). Проверьте ключи cloudflare_sfu и cloudflarestatus.com.'
+            : undefined,
+        runbook: 'TURN.md',
+      };
+    case 'r2':
+      return {
+        title: 'Фото и медиа (Cloudflare R2)',
+        line:
+          s === 'grey'
+            ? 'R2 не используется: публичные фото лежат в AWS.'
+            : d.error
+              ? 'Публичный адрес R2 не отвечает.'
+              : `Адрес медиа отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        todo:
+          s === 'red'
+            ? 'Фото могут не открываться. Проверьте Cloudflare (cloudflarestatus.com) и адрес в Ключи и сервисы → cloudflare_r2.'
+            : undefined,
+        runbook: 'DNS_TO_CLOUDFLARE.md',
+      };
+    case 'turn':
+      return {
+        title: 'Свой TURN-сервер (coturn)',
+        line:
+          s === 'grey'
+            ? 'Свой TURN не настроен — так и должно быть: звонки идут через Cloudflare.'
             : d.error
               ? `TURN-сервер ${String(d.host ?? '')} не отвечает.`
               : `Отвечает, соединение за ${n(d.connectMs) ?? '—'} мс.`,

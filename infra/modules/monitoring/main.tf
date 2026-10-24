@@ -826,6 +826,51 @@ resource "aws_cloudwatch_metric_alarm" "storage_growth" {
   tags                = var.tags
 }
 
+# Owner 2026-10-24 (Cloudflare R2): the same nightly storage.snapshot counts
+# the R2 bucket and logs `alert: r2_storage_high` past the 10 GB free tier
+# and `alert: r2_ops_high` when the object count jumped (paid writes).
+locals {
+  r2_alerts = {
+    r2_storage_high = {
+      metric = "R2StorageHigh"
+      text   = "LawBid: Фото и медиа в Cloudflare R2 заняли больше 10 ГБ (бесплатный лимит). Что делать: ничего срочного — дальше $0.015 за ГБ в месяц, скачивание бесплатно. Посмотрите админку → Система → Хранилище (строка Cloudflare R2) и при желании ужмите картинки. Инструкция: ${var.runbook_base_url}/DNS_TO_CLOUDFLARE.md (EN: R2 storage passed the 10 GB free tier.)"
+    }
+    r2_ops_high = {
+      metric = "R2OpsHigh"
+      text   = "LawBid: В Cloudflare R2 за сутки появилось необычно много файлов (платные операции записи). Что делать: админка → Система → Хранилище → «Кто занимает больше всего»; нет ли массовой загрузки или бота. Инструкция: ${var.runbook_base_url}/DNS_TO_CLOUDFLARE.md (EN: R2 object count grew faster than storage.growth_alert_percent.)"
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "r2" {
+  for_each       = local.r2_alerts
+  name           = "${var.name}-${replace(each.key, "_", "-")}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.alert = \"${each.key}\" }"
+  metric_transformation {
+    name      = each.value.metric
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "r2" {
+  for_each            = local.r2_alerts
+  alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
+  alarm_description   = each.value.text
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = each.value.metric
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
 # Owner 2026-10-05 «Прибыль и резерв»: the daily treasury.daily job logs
 # an `alert` when the monthly split of the Stripe balance needs the owner.
 locals {

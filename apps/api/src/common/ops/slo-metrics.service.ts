@@ -31,6 +31,9 @@ export const SLO_COUNTERS = [
   'callFailed',
   'pushOk',
   'pushFailed',
+  // Cloudflare TURN gave no login even after a retry. Not part of an SLO
+  // ratio: an alarm of its own (monitoring/slo.tf) watches it.
+  'turnProviderFailed',
 ] as const;
 export type SloCounter = (typeof SLO_COUNTERS)[number];
 
