@@ -102,6 +102,13 @@ variable "db_autoscale_enabled" {
   default = false
 }
 
+# Redis autoscale (docs/architecture/REDIS_AUTOSCALE.md) is OFF for load tests, same reason and same
+# bootstrap permissions as db_autoscale_enabled.
+variable "redis_autoscale_enabled" {
+  type    = bool
+  default = false
+}
+
 # --- size (profiles/*.tfvars) --------------------------------------------------------
 variable "database_instance_class" {
   type    = string

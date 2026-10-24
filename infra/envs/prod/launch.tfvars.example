@@ -108,3 +108,11 @@ web_create_certificate = true
 # db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
 # db_autoscale_min_class = "db.t4g.micro"
 # db_autoscale_enabled   = false              # switch the whole thing off
+
+# --- Redis autoscale (owner 2026-10-24, docs/runbooks/redis-autoscale.md) ------
+# On by default for lawbid-prod-redis. Idle until the replica has automatic
+# failover on (a pending modification pauses it). Optional:
+# redis_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# redis_autoscale_max_class = "cache.r7g.large"  # ceiling, about $320/month with one replica
+# redis_autoscale_min_class = "cache.t4g.micro"
+# redis_autoscale_enabled   = false              # switch the whole thing off
