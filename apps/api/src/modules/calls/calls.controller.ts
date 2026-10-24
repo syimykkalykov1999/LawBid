@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -36,6 +37,18 @@ import {
   StartGroupCallDto,
   VideoCallConfigDto,
 } from './calls.dto';
+import {
+  SfuAnswerDto,
+  SfuCloseDto,
+  SfuCloseResultDto,
+  SfuLayerDto,
+  SfuOkDto,
+  SfuPublishDto,
+  SfuPublishResultDto,
+  SfuSessionDto,
+  SfuSubscribeDto,
+  SfuSubscribeResultDto,
+} from './sfu.dto';
 import { CallsService } from './calls.service';
 import { RequiresDuty } from '../auth/assistant/assistant-context';
 
@@ -189,6 +202,127 @@ export class CallsController {
     @Param() p: CallIdParamDto,
   ): Promise<LiveKitJoinDto> {
     return this.calls.livekitToken(user, p.id);
+  }
+
+  // --- Cloudflare SFU group calls (owner 2026-10-24). All of these need the
+  // status `joined` in this call and a call that runs on Cloudflare; the
+  // publisher's session is always taken from our own state. 10 per second
+  // per user (Cloudflare itself allows 50 per session).
+
+  @Post('calls/:id/sfu/session')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 1_000 } })
+  @ApiOperation({ summary: 'Open your Cloudflare SFU session in this call' })
+  @ApiEnvelopeResponse(SfuSessionDto)
+  @ApiErrors({
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+    503: [ErrorCode.CALL_MEDIA_UNAVAILABLE],
+  })
+  sfuSession(@CurrentUser() user: RequestUser, @Param() p: CallIdParamDto) {
+    return this.calls.sfuSession(user, p.id);
+  }
+
+  @Post('calls/:id/sfu/publish')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 1_000 } })
+  @ApiOperation({
+    summary: 'Publish your mic / camera: send your SDP offer, get the answer',
+  })
+  @ApiEnvelopeResponse(SfuPublishResultDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+    503: [ErrorCode.CALL_MEDIA_UNAVAILABLE],
+  })
+  sfuPublish(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: SfuPublishDto,
+  ) {
+    return this.calls.sfuPublish(user, p.id, dto);
+  }
+
+  @Post('calls/:id/sfu/subscribe')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 1_000 } })
+  @ApiOperation({
+    summary:
+      'Pull other people of the call; answer the returned offer with /sfu/answer',
+  })
+  @ApiEnvelopeResponse(SfuSubscribeResultDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+    503: [ErrorCode.CALL_MEDIA_UNAVAILABLE],
+  })
+  sfuSubscribe(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: SfuSubscribeDto,
+  ) {
+    return this.calls.sfuSubscribe(user, p.id, dto ?? {});
+  }
+
+  @Post('calls/:id/sfu/answer')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 1_000 } })
+  @ApiOperation({ summary: 'Renegotiate: your answer to the SFU offer' })
+  @ApiEnvelopeResponse(SfuOkDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+    503: [ErrorCode.CALL_MEDIA_UNAVAILABLE],
+  })
+  sfuAnswer(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: SfuAnswerDto,
+  ) {
+    return this.calls.sfuAnswer(user, p.id, dto.sdp);
+  }
+
+  @Post('calls/:id/sfu/close')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 1_000 } })
+  @ApiOperation({
+    summary: 'Stop publishing your tracks / stop receiving people who left',
+  })
+  @ApiEnvelopeResponse(SfuCloseResultDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+    503: [ErrorCode.CALL_MEDIA_UNAVAILABLE],
+  })
+  sfuClose(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: SfuCloseDto,
+  ) {
+    return this.calls.sfuClose(user, p.id, dto);
+  }
+
+  @Post('calls/:id/sfu/layer')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 1_000 } })
+  @ApiOperation({ summary: 'Pick the simulcast layer (f / h / q) of a camera' })
+  @ApiEnvelopeResponse(SfuOkDto)
+  @ApiErrors({
+    404: [ErrorCode.CALL_NOT_FOUND],
+    409: [ErrorCode.CALL_STATE_CONFLICT],
+    503: [ErrorCode.CALL_MEDIA_UNAVAILABLE],
+  })
+  sfuLayer(
+    @CurrentUser() user: RequestUser,
+    @Param() p: CallIdParamDto,
+    @Body() dto: SfuLayerDto,
+  ) {
+    return this.calls.sfuLayer(user, p.id, dto);
   }
 
   @Get('calls/ice-servers')

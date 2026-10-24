@@ -26,8 +26,8 @@ export class VideoCallConfigDto {
   @ApiProperty()
   available!: boolean;
 
-  @ApiProperty({ enum: ['webrtc', 'livekit'] })
-  provider!: 'webrtc' | 'livekit';
+  @ApiProperty({ enum: ['webrtc', 'livekit', 'cloudflare'] })
+  provider!: 'webrtc' | 'livekit' | 'cloudflare';
 
   @ApiPropertyOptional({
     enum: ['flag_off', 'provider_not_configured'],
@@ -192,6 +192,41 @@ export class CallParticipantDto {
     description: 'When they joined; the later joiner offers WebRTC.',
   })
   joinedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Cloudflare SFU calls only: this person publishes at least one track, so pull them (POST /calls/:id/sfu/subscribe).',
+  })
+  sfuReady?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    enum: ['mic', 'cam'],
+    description:
+      'Cloudflare SFU calls only: the tracks this person publishes now.',
+  })
+  sfuTracks?: Array<'mic' | 'cam'>;
+}
+
+/** Owner 2026-10-24: the outage fallback of a group call, for the app. */
+export class CallMediaFallbackDto {
+  @ApiProperty({
+    description:
+      'true: Cloudflare was chosen but this call runs device to device because it was down or unconfigured at its start.',
+  })
+  active!: boolean;
+
+  @ApiProperty({ enum: ['sfu_unavailable'], nullable: true })
+  reason!: 'sfu_unavailable' | null;
+
+  @ApiProperty({
+    description:
+      'true: more people are in the call than the threshold (calls.sfu_fallback_mesh_max, 4), so the camera cannot be switched on. When the person taps video/camera, show «На сервере идут работы. Видео можно будет включить примерно через час.» instead.',
+  })
+  videoBlocked!: boolean;
+
+  @ApiProperty({ description: 'The threshold (default 4).' })
+  videoMaxParticipants!: number;
 }
 
 /** OQ-041: an in-app audio call. */
@@ -298,6 +333,20 @@ export class CallDto {
   /** Owner 2026-10-20: people were added; `participants` lists everyone. */
   @ApiProperty({ default: false })
   group!: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['p2p', 'cloudflare'],
+    description:
+      'Owner 2026-10-24: how the media of this call is carried, fixed at its start. cloudflare = Cloudflare SFU (use POST /calls/:id/sfu/*); p2p = device to device (1:1 calls and the fallback).',
+  })
+  mediaProvider?: 'p2p' | 'cloudflare';
+
+  @ApiPropertyOptional({
+    type: CallMediaFallbackDto,
+    description:
+      'Owner 2026-10-24: set on group calls only; see CallMediaFallbackDto. Also sent with every call:participants event.',
+  })
+  mediaFallback?: CallMediaFallbackDto;
 
   @ApiPropertyOptional({
     type: String,

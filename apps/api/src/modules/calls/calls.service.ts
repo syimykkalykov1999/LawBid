@@ -43,6 +43,7 @@ import { GroupsService } from '../groups/groups.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
   CallDto,
+  CallMediaFallbackDto,
   CallVoteDto,
   CallParticipantDto,
   EndCallDto,
@@ -56,6 +57,14 @@ import type {
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { cloudflareTurnFor } from './cloudflare-turn';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
+import {
+  SfuBrokerService,
+  type SfuCtx,
+  type SfuCloseInput,
+  type SfuPublishInput,
+  type SfuSubscribeInput,
+} from './sfu-broker.service';
+import type { MediaProvider } from './media-provider';
 import {
   VIDEO_CALLS_FLAG,
   WebRtcVideoProvider,
@@ -159,6 +168,8 @@ export class CallsService {
     @Optional() private readonly slo?: SloMetricsService,
     // Owner 2026-10-22: `calls.max_participants`, `calls.video_provider`.
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-24: group calls on Cloudflare Realtime SFU.
+    @Optional() private readonly sfu?: SfuBrokerService,
   ) {
     this.videoProvider = new WebRtcVideoProvider(secrets, config);
     this.livekit = new LiveKitVideoProvider(secrets, config);
@@ -204,6 +215,13 @@ export class CallsService {
     if (choice === 'livekit' && (await this.livekit.isConfigured())) {
       return this.livekit;
     }
+    if (
+      choice === 'cloudflare' &&
+      this.sfu &&
+      (await this.sfu.provider.isConfigured())
+    ) {
+      return this.sfu.provider;
+    }
     return this.videoProvider;
   }
 
@@ -245,11 +263,7 @@ export class CallsService {
     } else if (call.caller_id === user.sub) {
       role = 'host';
     }
-    await this.livekit.ensureRoom(
-      keys,
-      call.id,
-      await this.capacity(call.video),
-    );
+    await this.livekit.ensureRoom(keys, call.id, await this.capacityOf(call));
     const join = await this.livekit.issueToken(keys, call.id, user.sub, role);
     return { ...join, expiresAt: join.expiresAt.toISOString() };
   }
@@ -304,6 +318,97 @@ export class CallsService {
     }
     // Two-person call: one side left the room = hung up.
     if (call.status === 'active') await this.finish(call, 'ended', identity);
+  }
+
+  // --- Group calls on Cloudflare SFU (owner 2026-10-24) -----------------------
+
+  /** How a new group call carries its media (never refused). Without the
+   * broker: device to device. */
+  private async decideMedia(
+    isGroup: boolean,
+    video: boolean,
+    headcount: number,
+  ): Promise<{ mediaProvider: MediaProvider; video: boolean }> {
+    if (!this.sfu) return { mediaProvider: 'p2p', video };
+    const d = await this.sfu.decide({ isGroup, video, headcount });
+    return { mediaProvider: d.mediaProvider, video: d.video };
+  }
+
+  /**
+   * The door of every /calls/:id/sfu/* route: the call is live, runs on
+   * Cloudflare, and the caller has the status `joined` (an invited, left or
+   * removed person is a 404, like the rest of the call routes). The broker
+   * gets only what we know: the roster comes from our rows, never the body.
+   */
+  private async sfuCtx(user: RequestUser, id: string): Promise<SfuCtx> {
+    if (!this.sfu) throw notFound();
+    const call = await this.prisma.call.findUnique({ where: { id } });
+    if (!call || !call.is_group) throw notFound();
+    const rows = await this.rowsOf(call.id);
+    const me = rows.find((r) => r.user_id === user.sub);
+    if (me?.status !== 'joined') throw notFound();
+    if (!LIVE.includes(call.status)) throw conflict();
+    if (this.mediaOf(call) !== 'cloudflare') {
+      throw new ConflictException({
+        code: ErrorCode.CALL_STATE_CONFLICT,
+        message: 'This call runs device to device.',
+      });
+    }
+    // A channel call: only its admins speak, the other members listen.
+    const canPublish = call.channel_id
+      ? await this.isCallAdmin(call, user.sub)
+      : true;
+    return {
+      callId: call.id,
+      userId: user.sub,
+      canPublish,
+      joinedUserIds: rows
+        .filter((r) => r.status === 'joined')
+        .map((r) => r.user_id),
+    };
+  }
+
+  /** The people of the call hear that tracks appeared / went away. */
+  private async sfuChanged(callId: string): Promise<void> {
+    await this.broadcastParticipants(callId);
+  }
+
+  async sfuSession(user: RequestUser, id: string) {
+    const ctx = await this.sfuCtx(user, id);
+    return this.sfu!.createSession(ctx);
+  }
+
+  async sfuPublish(user: RequestUser, id: string, dto: SfuPublishInput) {
+    const ctx = await this.sfuCtx(user, id);
+    const out = await this.sfu!.publish(ctx, dto);
+    await this.sfuChanged(ctx.callId);
+    return out;
+  }
+
+  async sfuSubscribe(user: RequestUser, id: string, dto: SfuSubscribeInput) {
+    const ctx = await this.sfuCtx(user, id);
+    return this.sfu!.subscribe(ctx, dto);
+  }
+
+  async sfuAnswer(user: RequestUser, id: string, sdp: string) {
+    const ctx = await this.sfuCtx(user, id);
+    return this.sfu!.answer(ctx, sdp);
+  }
+
+  async sfuClose(user: RequestUser, id: string, dto: SfuCloseInput) {
+    const ctx = await this.sfuCtx(user, id);
+    const out = await this.sfu!.close(ctx, dto);
+    if (dto.trackNames?.length) await this.sfuChanged(ctx.callId);
+    return out;
+  }
+
+  async sfuLayer(
+    user: RequestUser,
+    id: string,
+    dto: { userId: string; rid: string },
+  ) {
+    const ctx = await this.sfuCtx(user, id);
+    return this.sfu!.setLayer(ctx, dto);
   }
 
   /** POST /conversations/:id/calls */
@@ -753,6 +858,14 @@ export class CallsService {
       where: { id: call.id },
     });
     if (count > 0) {
+      // Owner 2026-10-24: close every Cloudflare session of the call.
+      if (this.sfu && this.mediaOf(call) === 'cloudflare') {
+        await this.sfu.closeCall(call.id).catch((e: unknown) => {
+          this.logger.warn(
+            `SFU close of call ${call.id} failed: ${e instanceof Error ? e.message : 'error'}`,
+          );
+        });
+      }
       if (call.status === 'ringing') {
         await this.stopRingingPush(call);
       } else {
@@ -804,16 +917,90 @@ export class CallsService {
 
   // --- Calls from a group chat (owner 2026-10-20) ---------------------------
 
-  /** Audio / video of one call: 9 / 9 (mesh). */
-  private async capacity(video: boolean): Promise<number> {
+  /**
+   * Seats in one call. With `calls.video_provider` = cloudflare every group
+   * call has `calls.sfu_max_participants` seats (20) — on the SFU, and also
+   * in the fallback (owner 2026-10-24: never fewer). Otherwise device to
+   * device: `calls.max_participants`, never above 9.
+   */
+  private async capacity(
+    video: boolean,
+    mediaProvider: MediaProvider = 'p2p',
+  ): Promise<number> {
+    const choice = this.settings
+      ? await this.settings.string('calls.video_provider')
+      : 'p2p';
+    if (
+      mediaProvider === 'cloudflare' ||
+      (choice === 'cloudflare' && this.sfu)
+    ) {
+      return this.settings
+        ? await this.settings.number('calls.sfu_max_participants')
+        : 20;
+    }
     // Owner 2026-10-22: `calls.max_participants` (admin → Settings), 9 by
     // default; peer to peer never goes above 9 whatever is set.
     const set = this.settings
       ? await this.settings.number('calls.max_participants')
       : 9;
-    const p2p = (await this.activeVideoProvider()).name === 'webrtc';
+    const p2p = (await this.activeVideoProvider()).name !== 'livekit';
     const base = video ? GROUP_MAX_VIDEO : GROUP_MAX_AUDIO;
     return p2p ? Math.min(set, base) : set;
+  }
+
+  /**
+   * Fallback only (Cloudflare chosen but this call runs device to device):
+   * when more people are in the call than `calls.sfu_fallback_mesh_max`,
+   * everybody goes audio-only — also when somebody joins a running call.
+   */
+  private async downgradeFallbackVideo(
+    call: Call,
+    joinedCount: number,
+  ): Promise<Call> {
+    if (
+      !call.video ||
+      !call.is_group ||
+      this.mediaOf(call) !== 'p2p' ||
+      !this.settings ||
+      !this.sfu ||
+      (await this.settings.string('calls.video_provider')) !== 'cloudflare' ||
+      joinedCount <= (await this.settings.number('calls.sfu_fallback_mesh_max'))
+    ) {
+      return call;
+    }
+    return this.prisma.call.update({
+      where: { id: call.id },
+      data: { video: false },
+    });
+  }
+
+  /** Seats of a call that exists, by how its media is carried. */
+  private capacityOf(call: Call): Promise<number> {
+    return this.capacity(call.video, this.mediaOf(call));
+  }
+
+  /** The outage fallback of a group call as the app reads it (owner
+   * 2026-10-24): active = Cloudflare chosen but this call is device to
+   * device; videoBlocked = too many people for the camera. */
+  private async fallbackOf(
+    call: Call,
+    joinedCount: number,
+  ): Promise<CallMediaFallbackDto | undefined> {
+    if (!call.is_group || !this.settings || !this.sfu) return undefined;
+    const active =
+      this.mediaOf(call) === 'p2p' &&
+      (await this.settings.string('calls.video_provider')) === 'cloudflare';
+    const max = await this.settings.number('calls.sfu_fallback_mesh_max');
+    return {
+      active,
+      reason: active ? 'sfu_unavailable' : null,
+      videoBlocked: active && joinedCount > max,
+      videoMaxParticipants: max,
+    };
+  }
+
+  private mediaOf(call: Call): MediaProvider {
+    return call.media_provider === 'cloudflare' ? 'cloudflare' : 'p2p';
   }
 
   /** POST /groups/:id/calls — the phone / video buttons of a group chat. The
@@ -869,8 +1056,12 @@ export class CallsService {
     const wanted = [...new Set(dto.userIds ?? [...members])].filter(
       (id) => id !== user.sub && members.has(id),
     );
+    // Owner 2026-10-24: who carries this call's media (Cloudflare SFU, or
+    // device to device if Cloudflare is down), decided once, here.
+    const media = await this.decideMedia(true, video, wanted.length + 1);
+    const callVideo = media.video;
     const invitees: string[] = [];
-    const cap = await this.capacity(video);
+    const cap = await this.capacity(callVideo, media.mediaProvider);
     for (const id of wanted) {
       if (invitees.length >= cap - 1) break;
       // Blocked, "who can call me" closed or already talking: skipped.
@@ -895,8 +1086,9 @@ export class CallsService {
           callee_id: user.sub,
           status: 'active',
           answered_at: now,
-          video,
+          video: callVideo,
           is_group: true,
+          media_provider: media.mediaProvider,
         },
       });
       await tx.callParticipant.create({
@@ -1049,6 +1241,7 @@ export class CallsService {
         details: { callId: mine.id },
       });
     }
+    const media = await this.decideMedia(true, video, 1);
     const now = new Date();
     const call = await this.prisma.$transaction(async (tx) => {
       const c = await tx.call.create({
@@ -1058,8 +1251,9 @@ export class CallsService {
           callee_id: user.sub,
           status: 'active',
           answered_at: now,
-          video,
+          video: media.video,
           is_group: true,
+          media_provider: media.mediaProvider,
         },
       });
       await tx.callParticipant.create({
@@ -1202,7 +1396,7 @@ export class CallsService {
       });
     }
     const inCall = rows.filter((r) => r.status === 'joined').length;
-    if (inCall >= (await this.capacity(fresh.video))) {
+    if (inCall >= (await this.capacityOf(fresh))) {
       throw new ConflictException({
         code: ErrorCode.CALL_STATE_CONFLICT,
         message: 'The call is full.',
@@ -1237,8 +1431,10 @@ export class CallsService {
       recipientId: user.sub,
       callId: fresh.id,
     });
+    // Fallback only: too many people for video device to device = audio.
+    const after = await this.downgradeFallbackVideo(fresh, inCall + 1);
     await this.broadcastParticipants(fresh.id);
-    return this.toDto(fresh, user.sub);
+    return this.toDto(after, user.sub);
   }
 
   /** A person left / was removed from a group, or the group was deleted:
@@ -1276,6 +1472,7 @@ export class CallsService {
 
   private async participantDtos(
     rows: CallParticipant[],
+    sfuTracks?: Record<string, Array<'mic' | 'cam'>> | null,
   ): Promise<CallParticipantDto[]> {
     if (rows.length === 0) return [];
     const users = await this.prisma.user.findMany({
@@ -1308,8 +1505,36 @@ export class CallsService {
         muted: r.muted,
         mutedByHost: r.muted_by_host,
         joinedAt: r.joined_at,
+        ...(sfuTracks
+          ? {
+              sfuReady: (sfuTracks[r.user_id]?.length ?? 0) > 0,
+              sfuTracks: sfuTracks[r.user_id] ?? [],
+            }
+          : {}),
       };
     });
+  }
+
+  /** Who publishes what on Cloudflare now; null for a device-to-device call.
+   * Anyone who is no longer `joined` is cleaned up first (leave, kick, the
+   * silent sweep and the vote all end in a roster broadcast). */
+  private async sfuRoster(
+    call: Call,
+    rows: CallParticipant[],
+  ): Promise<Record<string, Array<'mic' | 'cam'>> | null> {
+    if (!this.sfu || this.mediaOf(call) !== 'cloudflare') return null;
+    try {
+      await this.sfu.reconcile(
+        call.id,
+        rows.filter((r) => r.status === 'joined').map((r) => r.user_id),
+      );
+      return (await this.sfu.readiness(call.id)).tracksByUser;
+    } catch (e) {
+      this.logger.warn(
+        `SFU roster of call ${call.id} failed: ${e instanceof Error ? e.message : 'error'}`,
+      );
+      return {};
+    }
   }
 
   /** `call:participants` to everyone in (or ringing for) the call. */
@@ -1333,7 +1558,16 @@ export class CallsService {
       await this.withSeq(callId, {
         callId,
         hostId: await this.hostFor(call, rows),
-        participants: await this.participantDtos(rows),
+        mediaProvider: this.mediaOf(call),
+        mediaFallback: await this.fallbackOf(
+          call,
+          rows.filter((r) => r.status === 'joined').length,
+        ),
+        video: call.video,
+        participants: await this.participantDtos(
+          rows,
+          await this.sfuRoster(call, rows),
+        ),
       }),
     );
     await this.announceGroupCall(call, rows);
@@ -1406,7 +1640,7 @@ export class CallsService {
       ? rows.filter((r) => IN_CALL.includes(r.status))
       : [];
     const size = call.is_group ? current.length : 2;
-    const max = await this.capacity(call.video);
+    const max = await this.capacityOf(call);
     if (current.some((r) => r.user_id === targetId))
       return this.toDto(call, user.sub);
     if (
@@ -1528,8 +1762,12 @@ export class CallsService {
       recipientId: user.sub,
       callId: call.id,
     });
+    const joined = (await this.rowsOf(call.id)).filter(
+      (r) => r.status === 'joined',
+    ).length;
+    const after = await this.downgradeFallbackVideo(call, joined);
     await this.broadcastParticipants(call.id);
-    return this.toDto(call, user.sub);
+    return this.toDto(after, user.sub);
   }
 
   /** An invited person says no (POST /calls/:id/decline). */
@@ -2316,6 +2554,11 @@ export class CallsService {
         kind: peer?.role === 'attorney' ? 'attorney' : 'client',
       },
       group: call.is_group,
+      mediaProvider: this.mediaOf(call),
+      mediaFallback: await this.fallbackOf(
+        call,
+        rows.filter((r) => r.status === 'joined').length,
+      ),
       hostId: await this.hostFor(call, rows),
       participants: await this.participantDtos(rows),
       moderated: call.is_group ? await this.isModerated(call, rows) : true,

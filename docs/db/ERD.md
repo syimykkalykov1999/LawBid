@@ -715,6 +715,7 @@ erDiagram
     Boolean video
     Boolean is_group
     DateTime solo_since "nullable"
+    String media_provider
     DateTime created_at
     DateTime updated_at
   }

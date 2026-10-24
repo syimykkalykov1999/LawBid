@@ -380,6 +380,9 @@ export enum ErrorCode {
   CALL_IN_PROGRESS = 'CALL_IN_PROGRESS',
   // 409: the call already ended / was answered elsewhere (OQ-041).
   CALL_STATE_CONFLICT = 'CALL_STATE_CONFLICT',
+  // 503: the media service of a group call (Cloudflare SFU) does not answer,
+  // or a group call cannot start without it (owner 2026-10-24).
+  CALL_MEDIA_UNAVAILABLE = 'CALL_MEDIA_UNAVAILABLE',
   // 409: direct chats are between an attorney and a client (OQ-043).
   DIRECT_CHAT_NOT_ALLOWED = 'DIRECT_CHAT_NOT_ALLOWED',
   // Owner 2026-10-17: percent fee in a criminal/family case (admin list).
