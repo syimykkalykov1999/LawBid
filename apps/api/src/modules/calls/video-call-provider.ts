@@ -31,6 +31,20 @@ export class WebRtcVideoProvider implements VideoCallProvider {
   async isConfigured(): Promise<boolean> {
     const env = this.config?.get<string>('NODE_ENV');
     if (env === 'development' || env === 'test') return true;
+    // Owner 2026-10-24: our own coturn is gone; Cloudflare Realtime TURN
+    // (Admin -> Integrations -> cloudflare_turn, or the env) is enough.
+    const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
+    const cfKeyId = (
+      cf.keyId ??
+      this.config?.get<string>('CLOUDFLARE_TURN_KEY_ID') ??
+      ''
+    ).trim();
+    const cfToken = (
+      cf.apiToken ??
+      this.config?.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
+      ''
+    ).trim();
+    if (cfKeyId && cfToken) return true;
     const f = (await this.secrets?.get('turn'))?.fields ?? {};
     const urls = f.urls ?? this.config?.get<string>('TURN_URLS') ?? '';
     const secret = f.secret ?? this.config?.get<string>('TURN_SECRET') ?? '';
