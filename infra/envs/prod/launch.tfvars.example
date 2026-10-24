@@ -106,3 +106,11 @@ web_create_certificate = true
 # lines out and the API keeps presigned S3 links.
 # documents_cdn_public_key_pem = file("cloudfront-signing.pub.pem")
 # extra_secrets                = ["CLOUDFRONT_PRIVATE_KEY_PEM"]
+
+# --- database autoscale (owner 2026-10-24, docs/runbooks/db-autoscale.md) ------
+# On by default for the database named in existing_database_identifier. Idle
+# until Multi-AZ is on (a pending modification pauses it). Optional:
+# db_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
+# db_autoscale_min_class = "db.t4g.micro"
+# db_autoscale_enabled   = false              # switch the whole thing off

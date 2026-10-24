@@ -102,6 +102,11 @@ module "stack" {
   # replica region (+ optional backup account), worker scaling on queue
   # depth, cheaper endpoint placement, optional cache-only Redis.
   database_multi_az            = var.database_multi_az
+  db_autoscale_enabled         = var.db_autoscale_enabled
+  db_autoscale_min_class       = var.db_autoscale_min_class
+  db_autoscale_max_class       = var.db_autoscale_max_class
+  db_autoscale_mode            = var.db_autoscale_mode
+  db_autoscale_tuning          = var.db_autoscale_tuning
   existing_database_identifier = var.existing_database_identifier
   backup_enabled               = var.backup_enabled
   backup_retention_days        = var.backup_retention_days

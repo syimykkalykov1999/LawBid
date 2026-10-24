@@ -75,6 +75,7 @@ module "stack" {
   create_anomaly_monitor = var.create_anomaly_monitor
 
   database_multi_az      = var.database_multi_az
+  db_autoscale_enabled   = var.db_autoscale_enabled
   backup_enabled         = var.backup_enabled
   worker_jobs_per_task   = var.worker_jobs_per_task
   interface_endpoint_azs = var.interface_endpoint_azs
