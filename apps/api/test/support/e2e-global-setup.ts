@@ -6,6 +6,12 @@ import { join } from 'node:path';
 import Redis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 import {
+  dropCrossFamilyForeignKeys,
+  seedShardMap,
+  twoDbEnabled,
+  twoDbMode,
+} from './e2e-two-db';
+import {
   baseUrls,
   e2eIsolationTag,
   e2eRedisUrl,
@@ -41,61 +47,90 @@ export default async function globalSetup(): Promise<void> {
   const { hash, count } = migrationsHash();
   const tag = e2eIsolationTag();
   const prefix = tag ? `${baseName}_e2e_${tag}_` : `${baseName}_e2e_`;
-  const dbName = `${prefix}${hash}`;
+  // Shard-ready step 5: E2E_TWO_DB=1 runs the suites on TWO databases (see
+  // e2e-two-db.ts). They get names of their own, because their foreign keys
+  // across families are dropped and a plain run must never reuse them.
+  const twoDb = twoDbEnabled();
+  const stem = twoDb ? `${prefix}2db_` : prefix;
+  const dbName = `${stem}${hash}`;
+  const dbName2 = `${dbName}_s1`;
   const url = withDatabase(databaseUrl, dbName);
+  const url2 = withDatabase(databaseUrl, dbName2);
 
   const admin = new PrismaClient({ datasourceUrl: databaseUrl });
   const existing = await admin.$queryRaw<{ database_name: string }[]>`
     SELECT datname AS database_name FROM pg_database
-    WHERE datname LIKE ${`${prefix.replace(/[_%]/g, '\\$&')}%`}`;
+    WHERE datname LIKE ${`${stem.replace(/[_%]/g, '\\$&')}%`}`;
   for (const { database_name } of existing) {
-    // Only this run's own family (same isolation tag, older hash) is
-    // dropped; an untagged run never touches tagged databases.
-    const rest = database_name.slice(prefix.length);
-    if (database_name !== dbName && /^[0-9a-f]{12}$/.test(rest)) {
+    // Only this run's own family (same isolation tag and mode, older hash)
+    // is dropped; an untagged run never touches tagged databases.
+    const rest = database_name.slice(stem.length);
+    if (
+      database_name !== dbName &&
+      database_name !== dbName2 &&
+      /^[0-9a-f]{12}(_s1)?$/.test(rest)
+    ) {
       await admin.$executeRawUnsafe(
         `DROP DATABASE IF EXISTS "${database_name}" WITH (FORCE)`,
       );
     }
   }
 
-  let ready = false;
-  if (existing.some((d) => d.database_name === dbName)) {
-    const db = new PrismaClient({ datasourceUrl: url });
-    const [{ applied }] = await db.$queryRaw<{ applied: bigint }[]>`
-      SELECT count(*) AS applied FROM _prisma_migrations
-      WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
-    ready = Number(applied) === count;
-    if (ready) {
-      const tables = await db.$queryRaw<{ table_name: string }[]>`
-        SELECT table_name FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-          AND table_name NOT IN ('_prisma_migrations', 'countries')`;
-      // `countries` is reference data the baseline migration inserts
-      // (regions point at it); the suites never change it, so it stays.
-      await db.$executeRawUnsafe(
-        `TRUNCATE ${tables.map((t) => `"${t.table_name}"`).join(', ')} CASCADE`,
-      );
+  // Creates or reuses one migrated database and empties it; true when it
+  // was migrated just now.
+  async function prepare(name: string, dbUrl: string): Promise<boolean> {
+    let ready = false;
+    if (existing.some((d) => d.database_name === name)) {
+      const db = new PrismaClient({ datasourceUrl: dbUrl });
+      const [{ applied }] = await db.$queryRaw<{ applied: bigint }[]>`
+        SELECT count(*) AS applied FROM _prisma_migrations
+        WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
+      ready = Number(applied) === count;
+      if (ready) {
+        const tables = await db.$queryRaw<{ table_name: string }[]>`
+          SELECT table_name FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+            AND table_name NOT IN ('_prisma_migrations', 'countries')`;
+        // `countries` is reference data the baseline migration inserts
+        // (regions point at it); the suites never change it, so it stays.
+        await db.$executeRawUnsafe(
+          `TRUNCATE ${tables.map((t) => `"${t.table_name}"`).join(', ')} CASCADE`,
+        );
+      }
+      await db.$disconnect();
+      if (!ready) {
+        // Half-migrated leftover of an interrupted run: rebuild it.
+        await admin.$executeRawUnsafe(`DROP DATABASE "${name}" WITH (FORCE)`);
+      }
     }
-    await db.$disconnect();
     if (!ready) {
-      // Half-migrated leftover of an interrupted run: rebuild it.
-      await admin.$executeRawUnsafe(`DROP DATABASE "${dbName}" WITH (FORCE)`);
+      await admin.$executeRawUnsafe(`CREATE DATABASE "${name}"`);
+      execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
+        cwd: join(__dirname, '../..'),
+        env: { ...process.env, DATABASE_URL: dbUrl },
+        stdio: 'ignore',
+      });
     }
+    return !ready;
   }
-  if (!ready) {
-    await admin.$executeRawUnsafe(`CREATE DATABASE "${dbName}"`);
-    execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
-      cwd: join(__dirname, '../..'),
-      env: { ...process.env, DATABASE_URL: url },
-      stdio: 'ignore',
-    });
+
+  if (await prepare(dbName, url)) {
     // Migration 20261007090000_email_flows_off seeds «Вход и письма по
     // почте» off for prod; the suites run with e-mail flows on (a missing
     // row counts as on — the same state a reused, truncated DB starts in).
     const db = new PrismaClient({ datasourceUrl: url });
     await db.featureFlag.deleteMany({ where: { key: 'email_login' } });
     await db.$disconnect();
+  }
+  // Shard-ready step 3: the suites' TRUNCATE also empties shard_map; put
+  // the routing table back (all on `primary`, or odd shards on the second
+  // database in two-DB mode).
+  await seedShardMap(url, twoDbMode());
+  if (twoDb) {
+    await prepare(dbName2, url2);
+    await dropCrossFamilyForeignKeys(url);
+    await dropCrossFamilyForeignKeys(url2);
+    process.env.E2E_DATABASE_URL_SHARDS = JSON.stringify({ db1: url2 });
   }
   // Owner 2026-10-14: production sends offers only after the licence is
   // confirmed (`trust.bids_require_cleared`); the suites place offers

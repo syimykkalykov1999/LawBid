@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { expectedPhysicalDb } from './support/e2e-two-db';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
@@ -27,13 +28,12 @@ describe('shard_id trigger (real PostgreSQL)', () => {
     await app.$disconnect();
   });
 
-  it('shard_map holds 256 shards: all on primary (odd ones on db1 in two-DB mode)', async () => {
+  it('shard_map holds 256 shards, placed as the e2e mode says', async () => {
     const rows = await raw.shardMap.findMany();
     expect(rows).toHaveLength(256);
-    const twoDb = !!process.env.DATABASE_URL_SHARDS;
-    expect(new Set(rows.map((r) => r.physical_db))).toEqual(
-      new Set(twoDb ? ['primary', 'db1'] : ['primary']),
-    );
+    for (const r of rows) {
+      expect(r.physical_db).toBe(expectedPhysicalDb(r.logical_shard));
+    }
   });
 
   it('owner key: the last byte of the owner id', async () => {

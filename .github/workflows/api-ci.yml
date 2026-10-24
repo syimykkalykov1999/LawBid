@@ -258,6 +258,18 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=4096
         run: npm run test:e2e:sharded --workspace apps/api
 
+      - name: e2e tests on TWO databases (shard-ready step 5, subset)
+        # docs/architecture/SHARDING_READY.md §10: every logical shard of
+        # the case / user / content families lives in a second database,
+        # the global family on the first, cross-family foreign keys dropped
+        # (what plan step 9 does for real). Runs the suites listed under
+        # "run" in apps/api/test/two-db-suites.json; the "knownLimitations"
+        # there are the to-do list of plan steps 6-8, not failures.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+          E2E_TWO_DB: all
+        run: npm run test:e2e:two-db --workspace apps/api
+
       - name: MinIO log (only when e2e failed)
         if: failure()
         run: tail -n 60 /tmp/minio.log || true; curl -s -o /dev/null -w "minio http %{http_code}\n" http://127.0.0.1:9000/minio/health/live || echo "MinIO is down"
