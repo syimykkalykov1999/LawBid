@@ -77,7 +77,7 @@ export class AdminStorageController {
   @ApiOperation({ summary: 'Storage: usage, savings, growth, settings' })
   @ApiEnvelopeResponse(StorageOverviewDto)
   async getStorageOverview(): Promise<StorageOverviewDto> {
-    const [usage, tables, topUsers, history, lastCleanup, settings] =
+    const [usage, tables, topUsers, history, lastCleanup, settings, r2] =
       await Promise.all([
         this.stats.usage(),
         this.stats.tables(),
@@ -85,6 +85,7 @@ export class AdminStorageController {
         this.stats.history(),
         this.cleanup.lastRun(),
         this.readSettings(),
+        this.stats.r2Usage(),
       ]);
     return {
       filesBytes: usage.filesBytes,
@@ -99,6 +100,7 @@ export class AdminStorageController {
       history,
       lastCleanup,
       settings,
+      r2,
     };
   }
 

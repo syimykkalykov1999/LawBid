@@ -1062,6 +1062,7 @@ export 'models/storage_history_point_dto.dart';
 export 'models/storage_last_cleanup_dto.dart';
 export 'models/storage_image_format.dart';
 export 'models/storage_settings_dto.dart';
+export 'models/storage_r2_usage_dto.dart';
 export 'models/storage_overview_dto.dart';
 export 'models/storage_overview_envelope.dart';
 export 'models/update_storage_settings_dto.dart';

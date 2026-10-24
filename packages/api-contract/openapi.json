@@ -140768,6 +140768,32 @@
           "growthAlertPercent"
         ]
       },
+      "StorageR2UsageDto": {
+        "type": "object",
+        "properties": {
+          "bytes": {
+            "type": "number",
+            "description": "Bytes in the R2 bucket (public media)."
+          },
+          "objects": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Counted only partly (a lower bound)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "bytes",
+          "objects",
+          "truncated",
+          "updatedAt"
+        ]
+      },
       "StorageOverviewDto": {
         "type": "object",
         "properties": {
@@ -140827,6 +140853,16 @@
           },
           "settings": {
             "$ref": "#/components/schemas/StorageSettingsDto"
+          },
+          "r2": {
+            "nullable": true,
+            "description": "Cloudflare R2 size, counted daily; null when R2 is unused.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StorageR2UsageDto"
+              }
+            ]
           }
         },
         "required": [
@@ -140841,7 +140877,8 @@
           "topUsers",
           "history",
           "lastCleanup",
-          "settings"
+          "settings",
+          "r2"
         ]
       },
       "StorageOverviewEnvelope": {
@@ -147457,6 +147494,9 @@
               "stripe_webhooks",
               "push",
               "turn",
+              "cloudflare_turn",
+              "cloudflare_sfu",
+              "r2",
               "http",
               "realtime"
             ]

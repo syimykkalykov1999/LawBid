@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { S3StorageService } from '../files/storage/s3-storage.service';
 
 export interface PurposeUsage {
   purpose: string;
@@ -28,6 +31,22 @@ export interface StorageUsage {
   pendingRemovalBytes: number;
 }
 
+/** Owner 2026-10-24: what the Cloudflare R2 bucket (public media) holds,
+ * counted once a day by the snapshot job. */
+export interface R2Usage {
+  bytes: number;
+  objects: number;
+  /** The walk stopped at its page limit: the numbers are a lower bound. */
+  truncated: boolean;
+  /** ISO time of the count. */
+  updatedAt: string;
+}
+
+/** R2 free tier: 10 GB-month of storage. */
+export const R2_FREE_BYTES = 10 * 1024 * 1024 * 1024;
+const R2_USAGE_KEY = 'ops:r2-usage';
+const R2_USAGE_TTL_SEC = 3 * 24 * 3600;
+
 export interface UserUsage {
   userId: string;
   name: string | null;
@@ -50,8 +69,75 @@ export class StorageStatsService {
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly storage?: S3StorageService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.logger.setContext(StorageStatsService.name);
+  }
+
+  /** The last daily R2 count (null: R2 not used, or not counted yet). */
+  async r2Usage(): Promise<R2Usage | null> {
+    try {
+      const raw = await this.redis?.get(R2_USAGE_KEY);
+      return raw ? (JSON.parse(raw) as R2Usage) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Counts the R2 bucket (one ListObjectsV2 walk, ~1 cent per million
+   * objects), keeps the result for the admin and raises the alerts:
+   * `r2_storage_high` past the 10 GB free tier, `r2_ops_high` when the
+   * object count jumped more than `storage.growth_alert_percent` in a day
+   * (every new object is a paid write once past the free 1M a month).
+   * Never throws: R2 trouble must not break the nightly snapshot.
+   */
+  async refreshR2Usage(now: Date = new Date()): Promise<R2Usage | null> {
+    try {
+      const counted = await this.storage?.publicStoreUsage();
+      if (!counted) return null;
+      const previous = await this.r2Usage();
+      const usage: R2Usage = { ...counted, updatedAt: now.toISOString() };
+      await this.redis?.set(
+        R2_USAGE_KEY,
+        JSON.stringify(usage),
+        'EX',
+        R2_USAGE_TTL_SEC,
+      );
+      if (usage.bytes >= R2_FREE_BYTES) {
+        this.logger.warn(
+          {
+            alert: 'r2_storage_high',
+            bytes: usage.bytes,
+            objects: usage.objects,
+          },
+          'R2 storage passed the 10 GB free tier',
+        );
+      }
+      const threshold = await this.settings.number(
+        'storage.growth_alert_percent',
+      );
+      if (
+        previous &&
+        threshold > 0 &&
+        previous.objects >= 1000 &&
+        growth(previous.objects, usage.objects, 1000) >= threshold
+      ) {
+        this.logger.warn(
+          {
+            alert: 'r2_ops_high',
+            objectsBefore: previous.objects,
+            objects: usage.objects,
+          },
+          'R2 object count grew unusually fast',
+        );
+      }
+      return usage;
+    } catch (err) {
+      this.logger.warn({ err }, 'R2 usage could not be counted');
+      return null;
+    }
   }
 
   async usage(): Promise<StorageUsage> {
@@ -201,6 +287,7 @@ export class StorageStatsService {
           growth(Number(previous.db_bytes), dbBytes),
         )
       : 0;
+    await this.refreshR2Usage(now);
     const threshold = await this.settings.number(
       'storage.growth_alert_percent',
     );
@@ -221,7 +308,11 @@ export class StorageStatsService {
 
 /** Percent growth from [before] to [after]; small bases (under 100 MB)
  * never alert — a few uploads on a new system are not a trend. */
-export function growth(before: number, after: number): number {
-  if (before < 100 * 1024 * 1024) return 0;
+export function growth(
+  before: number,
+  after: number,
+  minBase = 100 * 1024 * 1024,
+): number {
+  if (before < minBase) return 0;
   return Math.round(((after - before) / before) * 100);
 }

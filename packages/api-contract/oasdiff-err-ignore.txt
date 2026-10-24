@@ -386,3 +386,22 @@ POST /admin/system-health/message-reencrypt/restart added the new `realtime` enu
 POST /admin/system-health/restart-worker added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/scale added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
 GET /calls/video added the new `cloudflare` enum value to the `data/provider` response property for the response status `200`
+# Owner 2026-10-24: Cloudflare TURN / SFU / R2 join the status board (health item keys are read as strings)
+GET /admin/system-health added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
