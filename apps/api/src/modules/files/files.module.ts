@@ -4,6 +4,7 @@ import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.modu
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
+import { FileAccessService } from './file-access.service';
 import { filesCoreProviders } from './files-core.providers';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FilesBootstrapService } from './storage/files-bootstrap.service';
@@ -23,6 +24,7 @@ import { FilesBootstrapService } from './storage/files-bootstrap.service';
   providers: [
     ...filesCoreProviders({ mode: 'api' }),
     FilesService,
+    FileAccessService,
     FilesBootstrapService,
   ],
   exports: [FilesService, S3StorageService],

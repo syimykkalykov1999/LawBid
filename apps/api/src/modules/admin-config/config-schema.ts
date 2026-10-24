@@ -228,6 +228,24 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Firebase App Check on sign-in codes, password reset, social sign-in and the phone-status check: off | monitor (log only, default) | enforce (a request without a valid token from the app gets 403; a code by e-mail still works).',
     pattern: /^(off|monitor|enforce)$/,
   };
+  // Legal-grade protection of client documents (2026-10-24).
+  out['security.attorney_strong_auth'] = {
+    ...out['security.attorney_strong_auth'],
+    description:
+      'On (default): an attorney or assistant who has a passkey cannot sign in with the password alone (a stolen password is not enough). Accounts without a passkey are not affected. Off: password sign-in always works.',
+  };
+  out['files.confidential_url_ttl_sec'] = {
+    ...out['files.confidential_url_ttl_sec'],
+    description:
+      'Seconds a link to a case file, chat document or support attachment stays valid (60–3600, default 900). The app asks for a new link on every open and access is re-checked each time.',
+    min: 60,
+    max: 3600,
+  };
+  out['files.access_log_enabled'] = {
+    ...out['files.access_log_enabled'],
+    description:
+      'On (default): remember who other than the owner opened a confidential file and from which device; the owner can see it. Off: nothing is recorded.',
+  };
   out['verification.bar_document_for_manual_states'] = {
     ...out['verification.bar_document_for_manual_states'],
     description:

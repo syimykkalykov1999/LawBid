@@ -812,6 +812,23 @@ import {
   OWNER_CLIENT_TUNING_SETTINGS,
 } from './client-tuning';
 
+/** Legal-grade protection of client documents (security & legal pass,
+ * 2026-10-24): attorney–client privilege, ABA Model Rule 1.6(c).
+ * - `security.attorney_strong_auth`: an attorney (or assistant) who has
+ *   registered a passkey can no longer be signed in by the password alone
+ *   — a stolen password is not enough. Without a passkey nothing changes.
+ * - `files.confidential_url_ttl_sec`: how long a link to a case file, a
+ *   chat document or a support attachment lives. The app asks for a new
+ *   link on every open, and access is re-checked each time, so a person
+ *   who loses access loses the file within this time.
+ * - `files.access_log_enabled`: remember who (other than the owner)
+ *   opened a confidential file, from which device — shown to the owner. */
+export const OWNER_LEGAL_SECURITY_SETTINGS = {
+  'security.attorney_strong_auth': true,
+  'files.confidential_url_ttl_sec': 900,
+  'files.access_log_enabled': true,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -854,6 +871,7 @@ export const APP_SETTINGS = {
   ...OWNER_REALTIME_SETTINGS,
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
+  ...OWNER_LEGAL_SECURITY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

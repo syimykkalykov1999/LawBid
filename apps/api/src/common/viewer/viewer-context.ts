@@ -15,14 +15,29 @@ import { Observable } from 'rxjs';
  * not filtered.
  */
 class ViewerContext {
-  private readonly als = new AsyncLocalStorage<{ userId: string }>();
+  private readonly als = new AsyncLocalStorage<{
+    userId: string;
+    sessionId?: string;
+    ip?: string;
+  }>();
 
   viewerId(): string | null {
     return this.als.getStore()?.userId ?? null;
   }
 
-  run<T>(userId: string, fn: () => T): T {
-    return this.als.run({ userId }, fn);
+  /** The viewer's session chain (one device) and address, for the
+   * confidential-file access journal. Nulls outside a request. */
+  viewerDevice(): { sessionId: string | null; ip: string | null } {
+    const s = this.als.getStore();
+    return { sessionId: s?.sessionId ?? null, ip: s?.ip ?? null };
+  }
+
+  run<T>(
+    userId: string,
+    fn: () => T,
+    device?: { sessionId?: string; ip?: string },
+  ): T {
+    return this.als.run({ userId, ...device }, fn);
   }
 }
 
@@ -32,11 +47,16 @@ export const viewerContext = new ViewerContext();
 @Injectable()
 export class ViewerContextInterceptor implements NestInterceptor {
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const req = ctx.switchToHttp().getRequest<{ user?: { sub?: string } }>();
+    const req = ctx
+      .switchToHttp()
+      .getRequest<{ user?: { sub?: string; sid?: string }; ip?: string }>();
     const id = req?.user?.sub;
     if (!id) return next.handle();
     return new Observable((subscriber) =>
-      viewerContext.run(id, () => next.handle().subscribe(subscriber)),
+      viewerContext.run(id, () => next.handle().subscribe(subscriber), {
+        sessionId: req.user?.sid,
+        ip: req.ip,
+      }),
     );
   }
 }

@@ -623,3 +623,73 @@ describe('FilesService', () => {
     });
   });
 });
+
+describe('confidential file links (security & legal pass 2026-10-24)', () => {
+  function withFiles(ttl: number) {
+    const { service, deps } = make();
+    (deps.settings as unknown as { number: unknown }).number = jest.fn(
+      (key: string) =>
+        Promise.resolve(key === 'files.confidential_url_ttl_sec' ? ttl : 10),
+    );
+    const rows = [
+      {
+        id: 'c1',
+        owner_user_id: 'owner',
+        purpose: 'chat_attachment',
+        s3_bucket: 'documents',
+        s3_key: 'chat/owner/c1',
+        mime: 'application/pdf',
+        size_bytes: 10n,
+        width: null,
+        height: null,
+      },
+    ];
+    (deps.prisma.file as unknown as Record<string, unknown>).findMany = jest
+      .fn()
+      .mockResolvedValue(rows);
+    return { service, deps };
+  }
+
+  const ttlOf = (deps: ReturnType<typeof make>['deps']): unknown =>
+    (deps.storage.signedGetUrl.mock.calls[0] as unknown[])[2];
+
+  it('chat documents are signed for files.confidential_url_ttl_sec, not for an hour', async () => {
+    const { service, deps } = withFiles(900);
+    await service.attachmentUrls(['c1']);
+    expect(ttlOf(deps)).toBe(900);
+  });
+
+  it('the setting is clamped to 60..3600 seconds', async () => {
+    const low = withFiles(5);
+    await low.service.attachmentUrls(['c1']);
+    expect(ttlOf(low.deps)).toBe(60);
+    const high = withFiles(999999);
+    await high.service.attachmentUrls(['c1']);
+    expect(ttlOf(high.deps)).toBe(3600);
+  });
+
+  it('reports each opened file to the access journal', async () => {
+    const { deps } = withFiles(900);
+    const access = { recordViews: jest.fn().mockResolvedValue(undefined) };
+    const service = new FilesService(
+      deps.prisma as unknown as PrismaService,
+      deps.redis as unknown as Redis,
+      deps.storage as unknown as S3StorageService,
+      deps.settings as unknown as AppSettingsService,
+      deps.costGuard as unknown as CostGuardService,
+      deps.rateLimit as unknown as RateLimitService,
+      deps.config as unknown as ConfigService,
+      deps.scans as unknown as FileScanRunner,
+      deps.logger as unknown as PinoLogger,
+      deps.flags as never,
+      undefined,
+      undefined,
+      undefined,
+      access as never,
+    );
+    await service.attachmentUrls(['c1']);
+    expect(access.recordViews).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'c1', owner_user_id: 'owner' }),
+    ]);
+  });
+});

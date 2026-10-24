@@ -21,7 +21,13 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
-import { FileDto, PresignFileDto, PresignedFileDto } from './dto/files.dto';
+import {
+  FileDto,
+  FileViewDto,
+  PresignFileDto,
+  PresignedFileDto,
+} from './dto/files.dto';
+import { FileAccessService } from './file-access.service';
 import { FilesService } from './files.service';
 
 const E = ErrorCode;
@@ -36,7 +42,10 @@ const E = ErrorCode;
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller('files')
 export class FilesController {
-  constructor(private readonly files: FilesService) {}
+  constructor(
+    private readonly files: FilesService,
+    private readonly access: FileAccessService,
+  ) {}
 
   @Post('presign')
   @UseInterceptors(IdempotencyInterceptor)
@@ -96,5 +105,20 @@ export class FilesController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<FileDto> {
     return this.files.get(user.sub, id);
+  }
+
+  /**
+   * Security & legal pass 2026-10-24: who other than you was given a link
+   * to this file, from which device (newest first, at most 50). Only the
+   * file's owner may read it.
+   */
+  @Get(':id/views')
+  @ApiEnvelopeResponse(FileViewDto, { isArray: true })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  async views(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<FileViewDto[]> {
+    return this.access.viewsOf(user.sub, id);
   }
 }
