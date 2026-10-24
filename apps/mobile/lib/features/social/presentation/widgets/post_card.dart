@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
+import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -263,6 +264,7 @@ class PostCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    PerfMarks.feedCardBuilt();
     final p =
         ref.watch(postOverridesProvider.select((m) => m[post.id])) ?? post;
     final t = ref.watch(translatorProvider);
