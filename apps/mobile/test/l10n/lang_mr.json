@@ -407,6 +407,7 @@
 "call.status.reconnecting":"पुन्हा कनेक्ट होत आहे…",
 "call.subscription":"कॉलसाठी वकिलाकडे सक्रिय सबस्क्रिप्शन असणे आवश्यक आहे.",
 "call.updateApp":"कॉल करण्यासाठी आणि उचलण्यासाठी अ‍ॅप अपडेट करा.",
+"call.videoBlocked":"सर्व्हरवर काम सुरू आहे. सुमारे एका तासात व्हिडिओ सुरू करता येईल.",
 "call.videoButton":"व्हिडिओ कॉल",
 "call.videoLabel":"LawBid व्हिडिओ कॉल",
 "call.videoNotNow":"आता नाही",
