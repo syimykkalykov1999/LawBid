@@ -77,6 +77,10 @@ monthly_budget_usd = 350
 # Each is a separate `terraform apply`; steps and prices: docs/runbooks/DEPLOY_PROD.md
 # «Отказоустойчивость и звонки».
 turn_second_enabled = true # owner 2026-10-23: second coturn in the other AZ (+ ≈ $9)
+# Owner 2026-10-23: prod TURN is t4g.small (quota 500 allocations ≈ 250 relayed calls per server;
+# the variable default is the same). ≈ +$9/month per server vs t4g.nano ($12.3 vs $3.1, us-east-1
+# on-demand list price, approximate), ≈ +$18 for the pair. Ladder: docs/runbooks/TURN.md.
+turn_instance_type = "t4g.small"
 # livekit_enabled     = true # own LiveKit SFU for group calls (+ ≈ $35 + traffic)
 uptime_check        = "route53" # owner 2026-10-23: external probe ≈ $2 instead of ≈ $10
 # cpu_architecture    = "ARM64"   # Fargate Graviton ≈ −20 %: ONLY after a deploy

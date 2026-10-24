@@ -71,6 +71,8 @@ module "stack" {
   turn_enabled                    = var.turn_enabled
   turn_second_enabled             = var.turn_second_enabled
   turn_traffic_alarm_gb_per_day   = var.turn_traffic_alarm_gb_per_day
+  turn_instance_type              = var.turn_instance_type
+  turn_total_quota                = var.turn_total_quota
   livekit_enabled                 = var.livekit_enabled
   livekit_instance_type           = var.livekit_instance_type
   livekit_use_redis               = var.livekit_use_redis

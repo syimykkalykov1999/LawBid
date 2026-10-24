@@ -261,6 +261,16 @@ variable "turn_second_enabled" {
   default     = false
   description = "Second coturn in another AZ (≈ $9/month with health checks); needs turn_enabled."
 }
+variable "turn_instance_type" {
+  type        = string
+  default     = "t4g.small"
+  description = "Owner 2026-10-23: t4g.small (quota 500 per server) instead of t4g.nano (100): about +$9.2/month per server (approx. us-east-1 on-demand $12.3 vs $3.1), +$18 with the second server. Sizes and quotas: modules/turn/main.tf."
+}
+variable "turn_total_quota" {
+  type        = number
+  default     = null
+  description = "Override coturn total-quota per server; null = from turn_instance_type."
+}
 variable "turn_traffic_alarm_gb_per_day" {
   type    = number
   default = 20
