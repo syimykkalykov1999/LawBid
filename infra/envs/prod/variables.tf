@@ -106,6 +106,11 @@ variable "min_tasks" {
   default     = 2
   description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
 }
+variable "container_insights" {
+  type        = string
+  default     = "disabled"
+  description = "ECS Container Insights: disabled (saves about $30/month) or enabled (per-task graphs, turn on only to debug). The worker autoscaling and the no-running-tasks alarms do not need it."
+}
 variable "worker_spot" {
   type        = bool
   default     = false

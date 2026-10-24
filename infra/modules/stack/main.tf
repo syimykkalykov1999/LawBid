@@ -339,6 +339,11 @@ variable "cpu_architecture" {
   default     = "X86_64"
   description = "ARM64 (Graviton) is about 20 % cheaper; needs linux/arm64 images."
 }
+variable "container_insights" {
+  type        = string
+  default     = "disabled"
+  description = "ECS Container Insights: disabled (saves about $30/month) or enabled (debugging graphs)."
+}
 variable "worker_spot" {
   type        = bool
   default     = false
@@ -967,6 +972,7 @@ module "ecs" {
   worker_memory                    = var.worker_memory
   clamav_image                     = var.clamav_image
   cpu_architecture                 = var.cpu_architecture
+  container_insights               = var.container_insights
   worker_spot                      = var.worker_spot
   api_spot                         = var.api_spot
   night_scale_down                 = var.night_scale_down
