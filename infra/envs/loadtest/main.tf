@@ -75,6 +75,8 @@ module "stack" {
   api_image           = var.api_image
   admin_image         = var.admin_image
   clamav_image        = var.clamav_image
+  db_pooler_enabled   = var.db_pooler_enabled
+  pgbouncer_image     = var.pgbouncer_image
   alert_emails        = var.alert_emails
   stripe_price_id     = ""
 

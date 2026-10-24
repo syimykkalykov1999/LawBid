@@ -154,6 +154,21 @@ variable "create_anomaly_monitor" {
   default     = true
   description = "false when the AWS account already has a service-level Cost Anomaly monitor (one allowed per account)."
 }
+# Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md,
+# runbook docs/runbooks/DB_POOLER.md). false = direct database connection.
+variable "db_pooler_enabled" {
+  type    = bool
+  default = false
+}
+variable "pgbouncer_image" {
+  type        = string
+  default     = ""
+  description = "<ECR_REGISTRY>/lawbid-pgbouncer:<tag> (workflow Build PgBouncer)."
+}
+variable "pgbouncer_max_tasks" {
+  type    = number
+  default = 3
+}
 variable "clamav_image" {
   type    = string
   default = "clamav/clamav:1.4"

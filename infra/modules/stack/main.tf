@@ -838,6 +838,49 @@ variable "database_max_connections" {
   description = "max_connections of the database. 0 = estimate from database_instance_class with the RDS default formula (memory / 9531392); set it when the database is not ours (create_database = false) or the parameter group changes it."
 }
 
+# --- own connection pooler (docs/architecture/DB_POOLER.md) -------------------------
+variable "db_pooler_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: run our own PgBouncer between the app and the database. true: api / worker connect to it (DB_POOLER_HOST), so up to 70 tasks never exhaust the database connections. false (default): direct DATABASE_URL, exactly as before - this is the rollback switch."
+}
+variable "pgbouncer_image" {
+  type        = string
+  default     = ""
+  description = "ECR image of the pooler: <registry>/lawbid-pgbouncer:<tag> (build it with .github/workflows/build-pgbouncer.yml). Required when db_pooler_enabled."
+}
+variable "pgbouncer_min_tasks" {
+  type    = number
+  default = 2
+}
+variable "pgbouncer_max_tasks" {
+  type        = number
+  default     = 3
+  description = "CPU autoscaling ceiling of the pooler. The database budget is split by this number, so a higher ceiling means smaller pools per task."
+}
+variable "pgbouncer_cpu" {
+  type    = number
+  default = 512
+}
+variable "pgbouncer_memory" {
+  type    = number
+  default = 1024
+}
+variable "pgbouncer_reserve_pool_size" {
+  type        = number
+  default     = 3
+  description = "Extra database connections per pooler task, used only when clients already waited 3 s."
+}
+variable "db_pooler_max_client_conn" {
+  type        = number
+  default     = 5000
+  description = "Client connections one pooler task accepts (every app task holds up to 10)."
+}
+variable "pgbouncer_query_wait_timeout" {
+  type    = number
+  default = 30
+}
+
 locals {
   db_memory_gib = lookup({
     "db.t4g.micro" = 1, "db.t4g.small" = 2, "db.t4g.medium" = 4,
@@ -854,13 +897,35 @@ locals {
   # Rolling deploy: up to twice the tasks run together.
   db_peak_tasks = 2 * (var.api_max_tasks + var.worker_max_tasks)
   # 80 % of max_connections shared by the peak tasks; 3..10 per task.
-  db_pool_size = max(3, min(10, floor(0.8 * local.db_max_connections / local.db_peak_tasks)))
+  direct_pool_size = max(3, min(10, floor(0.8 * local.db_max_connections / local.db_peak_tasks)))
+
+  # --- own PgBouncer (db_pooler_enabled; docs/architecture/DB_POOLER.md) -------
+  # App tasks then connect to the pooler, which keeps a FIXED number of
+  # database connections: pgbouncer_max_tasks x (pool + reserve). 70 % of
+  # max_connections is given to it; the other 30 % stay for the direct users
+  # (migrate task, retention / demo roles, the admin, monitoring, superuser
+  # reserve). The app-side Prisma pool is then cheap (it only holds
+  # connections to the pooler), so it is 10 per task.
+  db_pooler_budget         = floor(0.7 * local.db_max_connections)
+  pgb_server_per_task      = min(200, floor(local.db_pooler_budget / var.pgbouncer_max_tasks))
+  pgb_reserve              = var.pgbouncer_reserve_pool_size
+  pgb_pool_size            = local.pgb_server_per_task - local.pgb_reserve
+  pgb_server_connections   = var.pgbouncer_max_tasks * (local.pgb_pool_size + local.pgb_reserve)
+  db_pool_size             = var.db_pooler_enabled ? 10 : local.direct_pool_size
+  pgb_max_clients_possible = local.db_peak_tasks * 10 # every app task fully busy, a deploy at the same time
 }
 
 check "db_connection_budget" {
   assert {
-    condition     = local.db_pool_size * local.db_peak_tasks <= local.db_max_connections
-    error_message = "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts: lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or put a connection pooler (RDS Proxy / PgBouncer) in front."
+    condition = var.db_pooler_enabled ? (
+      var.pgbouncer_image != "" &&
+      local.pgb_pool_size >= 5 &&
+      local.pgb_server_connections <= local.db_pooler_budget &&
+      local.pgb_max_clients_possible <= var.db_pooler_max_client_conn
+      ) : (
+      local.direct_pool_size * local.db_peak_tasks <= local.db_max_connections
+    )
+    error_message = var.db_pooler_enabled ? "db_pooler_enabled = true needs: pgbouncer_image set (ECR lawbid-pgbouncer, .github/workflows/build-pgbouncer.yml); at least 5 database connections per pooler task after the reserve (pgbouncer_max_tasks too high or the database too small); and db_pooler_max_client_conn >= 10 x (api_max_tasks + worker_max_tasks) x 2." : "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts: lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or turn on our own pooler (db_pooler_enabled = true, docs/architecture/DB_POOLER.md)."
   }
 }
 
@@ -932,6 +997,45 @@ locals {
   )
 }
 
+# --- own connection pooler: PgBouncer service, internal NLB, alarms ----------------
+module "pgbouncer" {
+  count  = var.db_pooler_enabled ? 1 : 0
+  source = "../pgbouncer"
+
+  name                       = local.name
+  vpc_id                     = module.network.vpc_id
+  private_subnet_ids         = module.network.private_subnet_ids
+  cluster_arn                = module.ecs.cluster_arn
+  cluster_name               = module.ecs.cluster_name
+  client_security_group_id   = aws_security_group.tasks.id
+  database_security_group_id = var.create_database ? module.postgres[0].security_group_id : ""
+  database_url_secret_arn    = module.secrets.arns["DATABASE_URL"]
+  kms_key_arn                = module.kms.key_arn
+  image                      = var.pgbouncer_image
+  cpu_architecture           = var.cpu_architecture
+  cpu                        = var.pgbouncer_cpu
+  memory                     = var.pgbouncer_memory
+  min_tasks                  = var.pgbouncer_min_tasks
+  max_tasks                  = var.pgbouncer_max_tasks
+  pool_size                  = local.pgb_pool_size
+  reserve_pool_size          = local.pgb_reserve
+  max_client_conn            = var.db_pooler_max_client_conn
+  query_wait_timeout         = var.pgbouncer_query_wait_timeout
+  metrics_namespace          = "LawBid/${local.name}/PgBouncer"
+  alarm_actions              = [module.monitoring.alerts_topic_arn]
+  runbook_url                = "${var.runbook_base_url}/db-pooler.md"
+  tags                       = local.tags
+}
+
+# What the api / worker get when the pooler is on (src/prisma/pooler-url.ts
+# swaps host and port of DATABASE_URL; the secret itself is untouched).
+locals {
+  db_pooler_env = var.db_pooler_enabled ? {
+    DB_POOLER_HOST = module.pgbouncer[0].endpoint
+    DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
+  } : {}
+}
+
 module "ecs" {
   source                   = "../ecs"
   name                     = local.name
@@ -944,7 +1048,7 @@ module "ecs" {
   api_image                = var.api_image
   admin_image              = var.admin_image
   kms_key_arn              = module.kms.key_arn
-  api_env                  = local.api_env
+  api_env                  = merge(local.api_env, local.db_pooler_env)
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
@@ -1196,6 +1300,9 @@ output "livekit_instance_id" { value = one(module.livekit[*].instance_id) }
 output "livekit_security_group_id" { value = one(module.livekit[*].security_group_id) }
 output "alb_arn_suffix" { value = module.alb.arn_suffix }
 output "api_target_group_arn_suffix" { value = module.alb.api_target_group_arn_suffix }
+output "pgbouncer_service_name" { value = one(module.pgbouncer[*].service_name) }
+output "db_pooler_endpoint" { value = one(module.pgbouncer[*].endpoint) }
+output "db_pooler_server_connections_max" { value = var.db_pooler_enabled ? local.pgb_server_connections : null }
 output "api_service_name" { value = module.ecs.api_service_name }
 output "worker_service_name" { value = module.ecs.worker_service_name }
 output "redis_replication_group_id" { value = "${local.name}-redis" }
