@@ -166,6 +166,7 @@ class _DetailsSheetState extends ConsumerState<_DetailsSheet> {
                 label: t.t('cases.details.title'),
                 hintText: t.t('cases.field.privateDetailsHint'),
                 autofocus: true,
+                tapAnywhere: true,
                 maxLines: 8,
                 maxLength: CaseLimits.privateDetailsMax,
                 textCapitalization: TextCapitalization.sentences,

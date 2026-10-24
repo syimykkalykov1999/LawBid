@@ -567,6 +567,7 @@ class _CounterSheetState extends State<_CounterSheet> {
               AppTextField(
                 controller: _message,
                 label: t.t('cases.counter.message'),
+                tapAnywhere: true,
                 maxLines: 3,
                 maxLength: _messageMax,
                 textCapitalization: TextCapitalization.sentences,
