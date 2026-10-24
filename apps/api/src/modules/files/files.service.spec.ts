@@ -20,6 +20,8 @@ function make(
     file?: Partial<File> | null;
     usedBytes?: bigint;
     quotaMb?: number | null;
+    /** The public-media switch is on: `media` resolves to the R2 bucket. */
+    r2?: boolean;
   } = {},
 ) {
   const file =
@@ -57,6 +59,22 @@ function make(
     },
     storage: {
       bucket: jest.fn((k: string) => `lawbid-${k}`),
+      resolveBucket: jest.fn((k: string) =>
+        Promise.resolve(
+          overrides.r2 && k === 'media' ? 'lawbid-r2' : `lawbid-${k}`,
+        ),
+      ),
+      awsBucket: jest.fn((k: string) => `lawbid-${k}`),
+      isPublicStoreBucket: jest.fn((b: string) => b === 'lawbid-r2'),
+      publicObjectUrl: jest.fn((b: string, k: string) =>
+        b === 'lawbid-r2' ? `https://media.example/${k}` : null,
+      ),
+      presignPut: jest.fn().mockResolvedValue({
+        url: 'https://r2/put',
+        fields: {},
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg' },
+      }),
       presignPost: jest
         .fn()
         .mockResolvedValue({ url: 'http://s3/b', fields: { key: 'k' } }),
@@ -107,6 +125,74 @@ const code = (p: Promise<unknown>) =>
   );
 
 describe('FilesService', () => {
+  describe('presign with Cloudflare R2 (owner 2026-10-24)', () => {
+    const photo = {
+      purpose: 'post_image' as const,
+      mime: 'image/jpeg',
+      sizeBytes: 500,
+      sha256: SHA,
+    };
+
+    it('switch off: public media is a normal POST to the AWS media bucket', async () => {
+      const { service, deps } = make();
+      await service.presign('u1', { ...photo, supportsPut: true });
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-media' }),
+      );
+      expect(deps.storage.presignPut).not.toHaveBeenCalled();
+    });
+
+    it('switch on + app supports PUT: a presigned PUT to the R2 bucket', async () => {
+      const { service, deps } = make({ r2: true });
+      const res = await service.presign('u1', { ...photo, supportsPut: true });
+      expect(deps.storage.presignPut).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bucket: 'lawbid-r2',
+          size: 500,
+          contentType: 'image/jpeg',
+        }),
+      );
+      expect(deps.storage.presignPost).not.toHaveBeenCalled();
+      expect(res.upload.method).toBe('PUT');
+      const [, value] = deps.redis.set.mock.calls[0] as [string, string];
+      expect(JSON.parse(value)).toMatchObject({ bucket: 'lawbid-r2' });
+    });
+
+    it('switch on but an older app (no PUT): stays on AWS with POST', async () => {
+      const { service, deps } = make({ r2: true });
+      await service.presign('u1', photo);
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-media' }),
+      );
+      expect(deps.storage.presignPut).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      'chat_attachment',
+      'chat_voice',
+      'case_photo',
+      'case_attachment',
+      'verification_document',
+      'verification_selfie',
+      'support_attachment',
+      'task_attachment',
+    ] as const)('switch on: %s stays private on AWS', async (purpose) => {
+      const { service, deps } = make({ r2: true });
+      const mime = purpose === 'chat_voice' ? 'audio/mp4' : 'image/jpeg';
+      await service.presign('u1', {
+        purpose,
+        mime,
+        sizeBytes: 500,
+        sha256: SHA,
+        supportsPut: true,
+      });
+      expect(deps.storage.presignPut).not.toHaveBeenCalled();
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-documents' }),
+      );
+    });
+  });
+
   describe('presign', () => {
     it('issues an exact-size, exact-type POST policy for the purpose bucket and consumes budgets', async () => {
       const { service, deps } = make();

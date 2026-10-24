@@ -334,6 +334,36 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  cloudflare_r2: {
+    steps: [
+      'Нужен аккаунт Cloudflare. Домен lawbid.dev должен быть добавлен в Cloudflare (смена серверов имён в Namecheap; все текущие DNS-записи перенесите как есть, без оранжевого облака).',
+      'Cloudflare → R2 → Create bucket (имя, например, lawbid-public-media; НЕ такое же, как бакеты AWS).',
+      'Бакет → Settings → Custom Domains → Connect Domain → media.lawbid.dev. Не включайте r2.dev. В Settings → CORS разрешите PUT с адресов приложения и админки, заголовки Content-Type и Cache-Control.',
+      'R2 → Manage API Tokens → Create API token → права «Object Read & Write», только на этот бакет. Скопируйте Access Key ID и Secret Access Key (показывается один раз).',
+      'Account ID — справа на странице R2 (или в адресе дашборда).',
+      'Необязательно: Cache Purge. Создайте токен с правом Zone → Cache Purge на lawbid.dev и вставьте его вместе с Zone ID — тогда удалённые фото пропадают из кэша сразу, а не через сутки.',
+    ],
+    links: [
+      { label: 'Cloudflare R2', url: 'https://dash.cloudflare.com/?to=/:account/r2/overview' },
+      { label: 'API-токены R2', url: 'https://dash.cloudflare.com/?to=/:account/r2/api-tokens' },
+    ],
+    enable: [
+      'Пока ничего не включено — всё работает как раньше (AWS).',
+      'Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить».',
+      'Затем Настройки → media.public_store = r2: новые публичные фото пойдут в R2. Старые остаются на AWS и продолжают открываться (их можно перенести скриптом migrate-public-media-to-r2).',
+      'Откат: media.public_store = aws. Файлы, уже лежащие в R2, остаются доступными, пока ключи R2 сохранены.',
+    ],
+    fields: {
+      accountId: { how: 'Cloudflare → R2 → Account ID (32 символа).', example: '0123456789abcdef0123456789abcdef' },
+      accessKeyId: { how: 'R2 → Manage API Tokens → Create API token → Access Key ID.' },
+      secretAccessKey: { how: 'Там же, Secret Access Key. Показывается один раз.' },
+      bucket: { how: 'Имя созданного бакета R2. Должно отличаться от бакетов AWS.', example: 'lawbid-public-media' },
+      publicBaseUrl: { how: 'Свой домен, подключённый к бакету (Settings → Custom Domains), с https, без пути.', example: 'https://media.lawbid.dev' },
+      zoneId: { how: 'Cloudflare → ваш домен → Overview → справа Zone ID. Можно оставить пустым.' },
+      purgeToken: { how: 'Токен с правом Zone → Cache Purge на этот домен. Можно оставить пустым.' },
+    },
+  },
+
   sentry: {
     steps: [
       'sentry.io → Settings → Projects → проект сервера → Client Keys (DSN) → скопируйте DSN в первое поле.',

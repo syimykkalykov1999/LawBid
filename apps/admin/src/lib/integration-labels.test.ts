@@ -25,7 +25,7 @@ function readRegistry(): RegField[] {
   let fieldAt = -1;
   const lines = readFileSync(REGISTRY, 'utf8').split('\n');
   lines.forEach((line, i) => {
-    const id = /^ {4}id: '([a-z_]+)',/.exec(line);
+    const id = /^ {4}id: '([a-z0-9_]+)',/.exec(line);
     if (id) provider = id[1];
     const field = /^ {8}name: '(\w+)',/.exec(line);
     if (field) {

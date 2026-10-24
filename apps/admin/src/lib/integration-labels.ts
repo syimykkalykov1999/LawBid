@@ -47,6 +47,13 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     warning:
       'Если сменить бакеты, файлы из старых бакетов станут недоступны — меняйте только ключи, если файлы не переносили.',
   },
+  cloudflare_r2: {
+    label: 'Публичные фото (Cloudflare R2)',
+    description:
+      'Аватары, фото постов и отзывов, стикеры — раздаются из Cloudflare R2 без платы за исходящий трафик. Приватные файлы (чаты, дела, документы, верификация) сюда никогда не попадают и остаются на AWS. Включается настройкой media.public_store = r2.',
+    warning:
+      'Имя бакета R2 должно отличаться от бакетов AWS. Не меняйте бакет после того, как в нём появились файлы.',
+  },
   sentry: { label: 'Sentry (отчёты об ошибках)', description: 'Отчёты о сбоях и ошибках сервера, приложения и админки.' },
   apns: {
     label: 'Apple Push (APNs) — звонки на iPhone',
@@ -122,6 +129,13 @@ const FIELD_BY_NAME: Record<string, string> = {
 };
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
+  'cloudflare_r2.accountId': 'ID аккаунта Cloudflare',
+  'cloudflare_r2.accessKeyId': 'ID ключа доступа R2',
+  'cloudflare_r2.secretAccessKey': 'Секретный ключ доступа R2',
+  'cloudflare_r2.bucket': 'Имя бакета R2',
+  'cloudflare_r2.publicBaseUrl': 'Публичный адрес (свой домен бакета)',
+  'cloudflare_r2.zoneId': 'ID зоны (необязательно, сброс кэша при удалении)',
+  'cloudflare_r2.purgeToken': 'API-токен только на сброс кэша (необязательно)',
   'livekit.url': 'Адрес сервера',
   'livekit.apiKey': 'Ключ API',
   'livekit.apiSecret': 'Секрет API',
@@ -160,6 +174,13 @@ export function providerWarning(id: string, fallback: string | null | undefined)
 /** Owner 2026-10-07: the exact English name the service itself uses on its
  * site, shown next to the Russian one so it's clear what to copy where. */
 const FIELD_EN: Record<string, string> = {
+  'cloudflare_r2.accountId': 'Account ID',
+  'cloudflare_r2.accessKeyId': 'Access Key ID',
+  'cloudflare_r2.secretAccessKey': 'Secret Access Key',
+  'cloudflare_r2.bucket': 'Bucket name',
+  'cloudflare_r2.publicBaseUrl': 'Custom domain',
+  'cloudflare_r2.zoneId': 'Zone ID',
+  'cloudflare_r2.purgeToken': 'API token (Cache Purge)',
   'bunny_stream.libraryId': 'Video Library ID',
   'bunny_stream.cdnHostname': 'CDN Hostname',
   'bunny_stream.apiKey': 'API Key',
@@ -230,6 +251,13 @@ const FIELD_EN: Record<string, string> = {
  * keeps them in step.
  */
 export const FIELD_ENV: Record<string, string> = {
+  'cloudflare_r2.accountId': 'CLOUDFLARE_R2_ACCOUNT_ID',
+  'cloudflare_r2.accessKeyId': 'CLOUDFLARE_R2_ACCESS_KEY_ID',
+  'cloudflare_r2.secretAccessKey': 'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
+  'cloudflare_r2.bucket': 'CLOUDFLARE_R2_BUCKET',
+  'cloudflare_r2.publicBaseUrl': 'CLOUDFLARE_R2_PUBLIC_BASE_URL',
+  'cloudflare_r2.zoneId': 'CLOUDFLARE_R2_ZONE_ID',
+  'cloudflare_r2.purgeToken': 'CLOUDFLARE_R2_PURGE_TOKEN',
   'bunny_stream.libraryId': 'BUNNY_LIBRARY_ID',
   'bunny_stream.cdnHostname': 'BUNNY_CDN_HOSTNAME',
   'bunny_stream.apiKey': 'BUNNY_API_KEY',
