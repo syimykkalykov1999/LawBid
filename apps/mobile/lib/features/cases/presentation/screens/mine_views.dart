@@ -37,9 +37,25 @@ enum _CaseSection { active, completed }
 // Invitations.
 enum _AttorneyTab { cases, planner, qa }
 
-enum _BidsSection { active, bids, completed }
+/// Owner 2026-10-23: the attorney's four chips on one row - Active · Bids
+/// (my bids, the ones «waiting for the client» included: that was the same
+/// list) · Invitations · Done.
+enum AttorneyCasesSection {
+  active,
+  bids,
+  invites,
+  completed;
 
-enum _BidKind { waiting, invites }
+  /// A filter id of the old five-chip row (a link, a notification, a saved
+  /// choice) lands on the chip that now holds it.
+  static AttorneyCasesSection? fromLegacy(String id) => switch (id) {
+        'active' => active,
+        'bids' || 'waiting' => bids,
+        'invites' => invites,
+        'completed' || 'done' => completed,
+        _ => null,
+      };
+}
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
 /// Completed and Saved (posts). Cases show as compact rows (owner
@@ -248,7 +264,10 @@ class _ClientCasesGrid extends ConsumerWidget {
 /// Owner 2026-09-30 — attorney "Mine": My bids, In progress, Completed
 /// and Saved, each a searchable, filterable grid of case squares.
 class AttorneyMineView extends ConsumerStatefulWidget {
-  const AttorneyMineView({super.key});
+  const AttorneyMineView({this.initialSection, super.key});
+
+  /// A legacy filter id (see [AttorneyCasesSection.fromLegacy]).
+  final String? initialSection;
 
   @override
   ConsumerState<AttorneyMineView> createState() => _AttorneyMineViewState();
@@ -256,8 +275,10 @@ class AttorneyMineView extends ConsumerStatefulWidget {
 
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
   _AttorneyTab _tab = _AttorneyTab.cases;
-  _BidsSection _section = _BidsSection.active;
-  _BidKind _kind = _BidKind.waiting;
+  late AttorneyCasesSection _section = AttorneyCasesSection.fromLegacy(
+        widget.initialSection ?? '',
+      ) ??
+      AttorneyCasesSection.active;
   bool _saved = false;
   _SavedKind _savedKind = _SavedKind.cases;
   MineSearch _search = const MineSearch();
@@ -300,63 +321,45 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
           ? (_savedKind == _SavedKind.chats
               ? 'saved.search'
               : 'mine.search.saved')
-          : _section == _BidsSection.active
+          : _section == AttorneyCasesSection.active
               ? 'mine.search.hint'
               : 'mine.search.bids',
       chips: _saved
           ? null
-          : FilterChips<_BidsSection>(
+          : FilterChips<AttorneyCasesSection>(
               key: const ValueKey('bids-sections'),
               compact: true,
               padding: EdgeInsets.zero,
               value: _section,
               options: [
-                (_BidsSection.active, t.t('mine.filter.active')),
-                (_BidsSection.bids, t.t('mine.bids.title')),
-                (_BidsSection.completed, t.t('mine.chip.done')),
+                (AttorneyCasesSection.active, t.t('mine.filter.active')),
+                (AttorneyCasesSection.bids, t.t('mine.bids.title')),
+                (AttorneyCasesSection.invites, t.t('invites.section')),
+                (AttorneyCasesSection.completed, t.t('mine.chip.done')),
               ],
               onChanged: (v) => setState(() => _section = v),
             ),
     );
-    // «Bids» holds the bids waiting for the client and the invitations.
-    final kinds = !_saved && _section == _BidsSection.bids
-        ? Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.sm),
-            child: FilterChips<_BidKind>(
-              key: const ValueKey('bids-kinds'),
-              value: _kind,
-              options: [
-                (_BidKind.waiting, t.t('mine.bids.waiting')),
-                (_BidKind.invites, t.t('invites.section')),
-              ],
-              onChanged: (v) => setState(() => _kind = v),
-            ),
-          )
-        : const SizedBox.shrink();
-    Widget gridFor(_BidsSection section) => switch (section) {
+    Widget gridFor(AttorneyCasesSection section) => switch (section) {
           // The cases in work.
-          _BidsSection.active => _WorkGrid(
+          AttorneyCasesSection.active => _WorkGrid(
               key: const ValueKey('active'),
               filter: WorkFilter.active,
               search: _search,
               cards: true,
             ),
-          // Bids waiting for the client, and the invitations (swipe between).
-          _BidsSection.bids => SwipePages<_BidKind>(
-              value: _kind,
-              values: _BidKind.values,
-              onChanged: (v) => setState(() => _kind = v),
-              pageBuilder: (_, kind) => kind == _BidKind.invites
-                  ? const InvitesList(key: ValueKey('invites'))
-                  : _BidsGrid(
-                      key: const ValueKey('waiting'),
-                      filter: MyBidsFilter.active,
-                      search: _search,
-                    ),
+          // My bids: the ones waiting for the client and the rest of the
+          // open ones (the old «Waiting» chip was this same list).
+          AttorneyCasesSection.bids => _BidsGrid(
+              key: const ValueKey('waiting'),
+              filter: MyBidsFilter.active,
+              search: _search,
             ),
+          AttorneyCasesSection.invites =>
+            const InvitesList(key: ValueKey('invites')),
           // Chosen and finished, declined, withdrawn, expired — everything
           // that is over.
-          _BidsSection.completed => _BidsGrid(
+          AttorneyCasesSection.completed => _BidsGrid(
               key: const ValueKey('completed'),
               filter: MyBidsFilter.completed,
               search: _search,
@@ -371,9 +374,9 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
             kind: _savedKind,
             onKind: (v) => setState(() => _savedKind = v),
           )
-        : SwipePages<_BidsSection>(
+        : SwipePages<AttorneyCasesSection>(
             value: _section,
-            values: _BidsSection.values,
+            values: AttorneyCasesSection.values,
             onChanged: (v) => setState(() => _section = v),
             pageBuilder: (_, section) => gridFor(section),
           );
@@ -388,7 +391,6 @@ class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
                     children: [
                       topRow,
                       filters,
-                      kinds,
                       const DeadlineMineEntry(),
                       const SizedBox(height: AppSpacing.sm),
                     ],

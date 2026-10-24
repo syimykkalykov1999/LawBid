@@ -13,6 +13,7 @@ import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
+import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -91,6 +92,8 @@ void main() {
             promotionsOffOverride,
             legalQaRepositoryProvider.overrideWithValue(_EmptyRepo()),
             actsAsAttorneyProvider.overrideWithValue(attorney),
+            qaNotifySwitchProvider
+                .overrideWithValue(() => const QaNotifySwitch()),
             notificationsRepositoryProvider.overrideWithValue(repo),
             currentUserIdProvider.overrideWithValue('u1'),
             currentUserRoleProvider.overrideWithValue(

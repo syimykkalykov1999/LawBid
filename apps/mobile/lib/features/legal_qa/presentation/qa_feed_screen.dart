@@ -12,7 +12,6 @@ import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_filter_sheet.dart';
-import 'package:lawbid/features/legal_qa/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_tabs_bar.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
@@ -185,7 +184,9 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
                 ),
               ),
               // Owner 2026-10-23: new questions never ring until switched on.
-              if (attorney) const QaNotifySwitch(),
+              if (attorney)
+                ref.watch(qaNotifySwitchProvider)?.call() ??
+                    const SizedBox.shrink(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenSide,

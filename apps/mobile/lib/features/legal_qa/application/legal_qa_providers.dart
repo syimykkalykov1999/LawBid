@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -13,6 +14,11 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Owner 2026-10-20: the `legal_qa` flag hides every entry point.
 const kLegalQaFlag = 'legal_qa';
+
+/// Owner 2026-10-23: the «new questions» notification switch shown at the
+/// top of the Q&A for attorneys. Provided by the app (run_app) so that the
+/// Q&A feature does not import the notifications feature.
+final qaNotifySwitchProvider = Provider<Widget Function()?>((ref) => null);
 
 final legalQaEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled(kLegalQaFlag),
