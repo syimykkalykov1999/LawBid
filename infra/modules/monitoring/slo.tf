@@ -70,6 +70,8 @@ locals {
     callFailed    = "SloCallFailed"
     pushOk        = "SloPushOk"
     pushFailed    = "SloPushFailed"
+    # Cloudflare TURN gave no login after a retry (own alarm below, not an SLO ratio).
+    turnProviderFailed = "SloTurnProviderFailed"
   }
   slo_log_groups = {
     api    = var.api_log_group
@@ -95,7 +97,7 @@ locals {
       total  = null
       bad    = "SloCallFailed"
       target = var.slo_targets.call
-      text   = "LawBid: Звонки не соединяются (видео/аудио не поднимается). Что делать: проверить TURN-сервер и его нагрузку. Инструкция: ${var.runbook_base_url}/slo.md (EN: Call connect rate is burning its error budget; check TURN.)"
+      text   = "LawBid: Звонки не соединяются (видео/аудио не поднимается). Что делать: открыть админку → Система → Состояние системы и посмотреть строки Cloudflare TURN и Cloudflare SFU (красные — проблема у Cloudflare, https://www.cloudflarestatus.com), затем логи API (поиск: cloudflare_turn_failed). Наши TURN-серверы удалены, звонки идут через Cloudflare. Инструкция: ${var.runbook_base_url}/TURN.md (EN: Call connect rate is burning its error budget; check Cloudflare TURN/SFU in admin system health and the API logs.)"
     }
     push = {
       good   = "SloPushOk"
@@ -193,6 +195,24 @@ resource "aws_cloudwatch_composite_alarm" "slo" {
   alarm_actions     = local.ops
   ok_actions        = local.ops
   tags              = var.tags
+}
+
+# Cloudflare TURN refused to hand out logins (after a retry) several times in
+# five minutes: calls fall back to STUN only and may not connect behind NAT.
+resource "aws_cloudwatch_metric_alarm" "turn_provider_failed" {
+  alarm_name          = "${var.name}-turn-provider-failed"
+  alarm_description   = "LawBid: Cloudflare TURN не выдаёт доступ для звонков (повторная попытка тоже не удалась). Что делать: админка → Система → Состояние системы → Cloudflare TURN; проверить ключ в Интеграции → cloudflare_turn и https://www.cloudflarestatus.com; в логах API ищите cloudflare_turn_failed. Инструкция: ${var.runbook_base_url}/TURN.md (EN: Cloudflare TURN credential requests failed after retry.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 5
+  statistic           = "Sum"
+  metric_name         = "SloTurnProviderFailed"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
 }
 
 # Signups stopped (a broken sign-up screen, SMS or store listing).
