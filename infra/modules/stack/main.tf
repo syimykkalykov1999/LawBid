@@ -566,6 +566,7 @@ module "turn" {
   # Second relay in the next Availability Zone, health checks, alarms.
   secondary_subnet_id      = var.turn_second_enabled ? module.network.public_subnet_ids[1] : null
   alerts_topic_arn         = module.monitoring.alerts_topic_arn
+  alarms_enabled           = true
   traffic_alarm_gb_per_day = var.turn_traffic_alarm_gb_per_day
   instance_type            = var.turn_instance_type
   turn_total_quota         = var.turn_total_quota
@@ -796,7 +797,7 @@ check "existing_database_settings" {
 }
 
 module "backup" {
-  count               = var.backup_enabled && local.database_arn != "" ? 1 : 0
+  count               = var.backup_enabled && (var.create_database || var.existing_database_identifier != "") ? 1 : 0
   source              = "../backup"
   providers           = { aws = aws, aws.replica = aws.replica }
   name                = local.name
