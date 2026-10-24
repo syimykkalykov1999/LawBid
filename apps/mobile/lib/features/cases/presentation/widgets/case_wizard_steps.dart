@@ -605,6 +605,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
               label: t.t('cases.field.brief'),
               hintText: t.t('cases.field.briefHint'),
               helperText: t.t('cases.field.noContacts'),
+              tapAnywhere: true,
               maxLines: 6,
               maxLength: CaseLimits.descriptionMax,
               textCapitalization: TextCapitalization.sentences,
@@ -631,6 +632,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
               controller: _details,
               label: t.t('cases.field.privateDetails'),
               hintText: t.t('cases.field.privateDetailsHint'),
+              tapAnywhere: true,
               maxLines: 6,
               maxLength: CaseLimits.privateDetailsMax,
               textCapitalization: TextCapitalization.sentences,
@@ -790,7 +792,7 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
     ];
     return SafeArea(
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.8,
+        height: MediaQuery.sizeOf(context).height * 0.65,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             AppSpacing.screenSide,

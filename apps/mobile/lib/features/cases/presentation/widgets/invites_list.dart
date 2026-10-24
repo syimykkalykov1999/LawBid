@@ -275,6 +275,7 @@ class _DeclineDialogState extends ConsumerState<_DeclineDialog> {
         key: const ValueKey('invite-decline-reason'),
         controller: _reason,
         hintText: t.t('invites.decline.reason'),
+        tapAnywhere: true,
         maxLines: 3,
         maxLength: 500,
         textCapitalization: TextCapitalization.sentences,

@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show initialsOf;
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/raised_sheet.dart';
 
 /// Initials of a free-form name ("Anna Kowalski" → "AK").
 String personInitials(String name) {
@@ -67,57 +68,17 @@ Future<int?> showChoiceSheet(
   int? selected,
   String keyPrefix = 'choice',
 }) =>
-    showAppBottomSheet<int>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final colors = Theme.of(ctx).extension<AppColorTokens>()!;
-        final typography = Theme.of(ctx).extension<AppTypographyTokens>()!;
-        final height = MediaQuery.sizeOf(ctx).height;
-        // Owner 2026-10-24: a picker is a proper sheet — raised to about the
-        // middle of the screen (a short list), with a handle and a roomy
-        // title; a long list scrolls under the title.
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: height * 0.3,
-              maxHeight: height * 0.6,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const AppSheetHandle(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenSide,
-                    AppSpacing.xs,
-                    AppSpacing.screenSide,
-                    AppSpacing.md,
-                  ),
-                  child: Text(
-                    title,
-                    style: typography.titleMedium.copyWith(color: colors.text),
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                    children: [
-                      for (final (i, l) in labels.indexed)
-                        AppListRow(
-                          key: ValueKey('$keyPrefix-$i'),
-                          label: l,
-                          selected: i == selected,
-                          showChevron: false,
-                          onTap: () => Navigator.of(ctx).pop(i),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    showRaisedSheet<int>(
+      context,
+      title: title,
+      rows: (ctx) => [
+        for (final (i, l) in labels.indexed)
+          AppListRow(
+            key: ValueKey('$keyPrefix-$i'),
+            label: l,
+            selected: i == selected,
+            showChevron: false,
+            onTap: () => Navigator.of(ctx).pop(i),
           ),
-        );
-      },
+      ],
     );

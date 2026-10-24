@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/raised_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-05: addresses open in Google / Apple Maps and contacts
@@ -48,56 +49,40 @@ Future<void> showPlaceActions(
   Translator t,
   TaskPlace place,
 ) async {
-  final choice = await showAppBottomSheet<String>(
-    context: context,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              0,
-              AppSpacing.screenSide,
-              AppSpacing.sm,
-            ),
-            child: Text(
-              place.label == null
-                  ? place.address
-                  : '${place.label} · ${place.address}',
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          AppListRow(
-            key: const ValueKey('place-google'),
-            icon: AppIcons.mapOutlined,
-            label: t.t('tasks.place.google'),
-            onTap: () => Navigator.of(ctx).pop('google'),
-          ),
-          if (defaultTargetPlatform == TargetPlatform.iOS)
-            AppListRow(
-              key: const ValueKey('place-apple'),
-              icon: AppIcons.mapOutlined,
-              label: t.t('tasks.place.apple'),
-              onTap: () => Navigator.of(ctx).pop('apple'),
-            ),
-          AppListRow(
-            key: const ValueKey('place-route'),
-            icon: AppIcons.directionsCarOutlined,
-            label: t.t('tasks.place.route'),
-            onTap: () => Navigator.of(ctx).pop('route'),
-          ),
-          AppListRow(
-            key: const ValueKey('place-copy'),
-            icon: AppIcons.linkRounded,
-            label: t.t('tasks.place.copy'),
-            onTap: () => Navigator.of(ctx).pop('copy'),
-          ),
-        ],
-      ),
+  final choice = await showRaisedSheet<String>(
+    context,
+    header: Text(
+      place.label == null ? place.address : '${place.label} · ${place.address}',
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
     ),
+    rows: (ctx) => [
+      AppListRow(
+        key: const ValueKey('place-google'),
+        icon: AppIcons.mapOutlined,
+        label: t.t('tasks.place.google'),
+        onTap: () => Navigator.of(ctx).pop('google'),
+      ),
+      if (defaultTargetPlatform == TargetPlatform.iOS)
+        AppListRow(
+          key: const ValueKey('place-apple'),
+          icon: AppIcons.mapOutlined,
+          label: t.t('tasks.place.apple'),
+          onTap: () => Navigator.of(ctx).pop('apple'),
+        ),
+      AppListRow(
+        key: const ValueKey('place-route'),
+        icon: AppIcons.directionsCarOutlined,
+        label: t.t('tasks.place.route'),
+        onTap: () => Navigator.of(ctx).pop('route'),
+      ),
+      AppListRow(
+        key: const ValueKey('place-copy'),
+        icon: AppIcons.linkRounded,
+        label: t.t('tasks.place.copy'),
+        onTap: () => Navigator.of(ctx).pop('copy'),
+      ),
+    ],
   );
   if (choice == null || !context.mounted) return;
   switch (choice) {

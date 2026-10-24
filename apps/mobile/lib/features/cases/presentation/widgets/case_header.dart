@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/shared/presentation/raised_sheet.dart';
 
 /// A tinted notice (pending completion, archive, locked contacts…).
 class NoticeCard extends StatelessWidget {
@@ -81,64 +82,58 @@ Future<void> showActionSheet(
 ) =>
     showAppBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (context) {
         final colors = Theme.of(context).extension<AppColorTokens>()!;
         final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              AppSpacing.md,
-              AppSpacing.screenSide,
-              AppSpacing.lg,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const AppSheetHandle(),
-                const SizedBox(height: AppSpacing.md),
-                for (final item in items)
-                  Semantics(
-                    button: true,
-                    label: item.label,
-                    excludeSemantics: true,
-                    child: AppPressable(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        item.onTap();
-                      },
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minHeight: AppSizes.hitTarget + AppSpacing.sm,
-                        ),
-                        child: Row(
-                          children: [
-                            AppIconMedallion(
-                              icon: item.icon,
-                              tone: item.destructive
-                                  ? AppMedallionTone.danger
-                                  : AppMedallionTone.gold,
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: Text(
-                                item.label,
-                                style: typography.body.copyWith(
-                                  color: item.destructive
-                                      ? colors.dangerText
-                                      : colors.text,
-                                  fontWeight: FontWeight.w600,
-                                ),
+        // Owner 2026-10-24: the same raised, roomy sheet as every «Мои» menu.
+        return RaisedSheetBody(
+          children: [
+            for (final item in items)
+              Semantics(
+                button: true,
+                label: item.label,
+                excludeSemantics: true,
+                child: AppPressable(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    item.onTap();
+                  },
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: AppSizes.hitTarget + AppSpacing.sm,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenSide,
+                      ),
+                      child: Row(
+                        children: [
+                          AppIconMedallion(
+                            icon: item.icon,
+                            tone: item.destructive
+                                ? AppMedallionTone.danger
+                                : AppMedallionTone.gold,
+                          ),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(
+                            child: Text(
+                              item.label,
+                              style: typography.body.copyWith(
+                                color: item.destructive
+                                    ? colors.dangerText
+                                    : colors.text,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-              ],
-            ),
-          ),
+                ),
+              ),
+          ],
         );
       },
     );

@@ -20,6 +20,7 @@ import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sh
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/flip_search_bar.dart';
+import 'package:lawbid/shared/presentation/raised_sheet.dart';
 
 /// Owner 2026-09-30: one square of the "Mine" grid — the case's first photo
 /// (or our art of its qualification), a short title and its status.
@@ -436,38 +437,32 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
   Future<void> _filters() async {
     final t = ref.read(translatorProvider);
     final s = widget.search;
-    final choice = await showAppBottomSheet<String>(
-      context: context,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AppSheetHandle(),
-            AppListRow(
-              icon: AppIcons.gridViewRounded,
-              label: t.t('mine.search.practice'),
-              trailingText: s.practice == null
-                  ? t.t('mine.search.any')
-                  : practiceLabel(ref, s.practice!),
-              onTap: () => Navigator.of(sheet).pop('practice'),
-            ),
-            AppListRow(
-              icon: AppIcons.mapOutlined,
-              label: t.t('mine.search.state'),
-              trailingText: s.state ?? t.t('mine.search.any'),
-              onTap: () => Navigator.of(sheet).pop('state'),
-            ),
-            if (s.filterCount > 0)
-              AppListRow(
-                icon: AppIcons.filterAltOffOutlined,
-                label: t.t('mine.search.clear'),
-                showChevron: false,
-                onTap: () => Navigator.of(sheet).pop('clear'),
-              ),
-            const SizedBox(height: AppSpacing.md),
-          ],
+    final choice = await showRaisedSheet<String>(
+      context,
+      title: t.t('search.filters'),
+      rows: (sheet) => [
+        AppListRow(
+          icon: AppIcons.gridViewRounded,
+          label: t.t('mine.search.practice'),
+          trailingText: s.practice == null
+              ? t.t('mine.search.any')
+              : practiceLabel(ref, s.practice!),
+          onTap: () => Navigator.of(sheet).pop('practice'),
         ),
-      ),
+        AppListRow(
+          icon: AppIcons.mapOutlined,
+          label: t.t('mine.search.state'),
+          trailingText: s.state ?? t.t('mine.search.any'),
+          onTap: () => Navigator.of(sheet).pop('state'),
+        ),
+        if (s.filterCount > 0)
+          AppListRow(
+            icon: AppIcons.filterAltOffOutlined,
+            label: t.t('mine.search.clear'),
+            showChevron: false,
+            onTap: () => Navigator.of(sheet).pop('clear'),
+          ),
+      ],
     );
     if (!mounted || choice == null) return;
     if (choice == 'clear') {

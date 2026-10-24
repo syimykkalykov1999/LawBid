@@ -22,6 +22,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show showReportSheet;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/presentation/raised_sheet.dart';
 
 /// Owner 2026-10-20: a question with its answers. The author marks the
 /// best answer; verified attorneys answer, like, message and report.
@@ -144,55 +145,49 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   void _openMenu(Question q) {
     final t = ref.read(translatorProvider);
     unawaited(
-      showAppBottomSheet<void>(
-        context: context,
-        builder: (sheet) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppSheetHandle(),
-              if (q.isMine && !q.closed)
-                AppListRow(
-                  icon: AppIcons.checkRounded,
-                  label: t.t('qa.close'),
-                  showChevron: false,
-                  onTap: () {
-                    Navigator.of(sheet).pop();
-                    unawaited(_closeQuestion());
-                  },
-                ),
-              if (q.isMine)
-                AppListRow(
-                  icon: AppIcons.deleteOutlineRounded,
-                  label: t.t('qa.delete'),
-                  destructive: true,
-                  showChevron: false,
-                  onTap: () {
-                    Navigator.of(sheet).pop();
-                    unawaited(_deleteQuestion());
-                  },
-                )
-              else
-                AppListRow(
-                  icon: AppIcons.flagOutlined,
-                  label: t.t('qa.report'),
-                  destructive: true,
-                  showChevron: false,
-                  onTap: () {
-                    Navigator.of(sheet).pop();
-                    unawaited(
-                      showReportSheet(
-                        context,
-                        ref,
-                        ReportTarget.legalQuestion,
-                        q.id,
-                      ),
-                    );
-                  },
-                ),
-            ],
-          ),
-        ),
+      showRaisedSheet<void>(
+        context,
+        rows: (sheet) => [
+          if (q.isMine && !q.closed)
+            AppListRow(
+              icon: AppIcons.checkRounded,
+              label: t.t('qa.close'),
+              showChevron: false,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                unawaited(_closeQuestion());
+              },
+            ),
+          if (q.isMine)
+            AppListRow(
+              icon: AppIcons.deleteOutlineRounded,
+              label: t.t('qa.delete'),
+              destructive: true,
+              showChevron: false,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                unawaited(_deleteQuestion());
+              },
+            )
+          else
+            AppListRow(
+              icon: AppIcons.flagOutlined,
+              label: t.t('qa.report'),
+              destructive: true,
+              showChevron: false,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                unawaited(
+                  showReportSheet(
+                    context,
+                    ref,
+                    ReportTarget.legalQuestion,
+                    q.id,
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }

@@ -86,24 +86,28 @@ class _QaFilterSheetState extends ConsumerState<_QaFilterSheet> {
           ),
           onTap: onTap,
         );
+    final height = MediaQuery.sizeOf(context).height;
+    // Owner 2026-10-24: same raised, roomy sheet as every «Мои» picker —
+    // handle, padded title row, 30–60% of the screen.
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+          minHeight: height * 0.3,
+          maxHeight: height * 0.6,
         ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.md,
-            AppSpacing.screenSide,
-            AppSpacing.lg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AppSheetHandle(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenSide,
+                AppSpacing.xs,
+                AppSpacing.screenSide,
+                AppSpacing.md,
+              ),
+              child: Row(
                 children: [
                   Expanded(
                     child: Text(
@@ -129,25 +133,40 @@ class _QaFilterSheetState extends ConsumerState<_QaFilterSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.sm),
-              picker(
-                _q.practiceLabel ?? t.t('qa.allAreas'),
-                _pickArea,
-                selected: _q.practiceAreaId != null,
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  0,
+                  AppSpacing.screenSide,
+                  AppSpacing.lg,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    picker(
+                      _q.practiceLabel ?? t.t('qa.allAreas'),
+                      _pickArea,
+                      selected: _q.practiceAreaId != null,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    picker(
+                      _q.stateCode ?? t.t('qa.allStates'),
+                      _pickState,
+                      selected: _q.stateCode != null,
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    AppButton(
+                      label: t.t('search.filter.apply'),
+                      onPressed: () => Navigator.of(context).pop(_q),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              picker(
-                _q.stateCode ?? t.t('qa.allStates'),
-                _pickState,
-                selected: _q.stateCode != null,
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              AppButton(
-                label: t.t('search.filter.apply'),
-                onPressed: () => Navigator.of(context).pop(_q),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
