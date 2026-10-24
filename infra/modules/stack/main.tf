@@ -251,7 +251,7 @@ variable "audit_logs_retention_days" {
 variable "audit_logs_object_lock" {
   type        = bool
   default     = false
-  description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs."
+  description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs. WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
 variable "vpc_flow_logs_traffic" {
   type    = string
@@ -439,6 +439,68 @@ variable "uptime_check" {
   type        = string
   default     = "synthetics"
   description = "External uptime probe: \"synthetics\" (CloudWatch canary, ≈ $10/month) or \"route53\" (HTTPS health check, ≈ $2/month, us-east-1 only). Off: uptime_canary_enabled = false."
+}
+# --- Batch A (docs/architecture/P0_AND_COST_PLAN.md): paging, budgets, NAT, backup alarm ---
+variable "pagerduty_https_endpoint" {
+  type        = string
+  default     = null
+  description = "Batch A item 1: PagerDuty Events API integration URL (https://events.pagerduty.com/integration/<key>/enqueue) for the CRITICAL topic (the 6 SLO composite alarms). Secret: lives only in the Secrets Manager tfvars. null = no phone paging. Runbook docs/runbooks/paging.md."
+  sensitive   = true
+}
+variable "critical_email_too" {
+  type        = bool
+  default     = true
+  description = "E-mail alert_emails from the critical topic as well (a second copy of the page)."
+}
+variable "redis_memory_alarm_percent" {
+  type        = number
+  default     = 70
+  description = "Redis (queue node) memory alarm threshold, percent."
+}
+variable "nat_traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 100
+  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
+}
+variable "budget_forecast_thresholds" {
+  type        = list(number)
+  default     = [80, 100]
+  description = "AWS Budgets FORECASTED alerts, percent of monthly_budget_usd."
+}
+variable "budget_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Also send the budget notifications to the alerts SNS topic (Slack/e-mail subscribers), not only to alert_emails."
+}
+variable "anomaly_existing_monitor_arn" {
+  type        = string
+  default     = ""
+  description = "With create_anomaly_monitor = false: ARN of the account's existing service anomaly monitor (aws ce get-anomaly-monitors). Together with anomaly_extra_emails adds a subscription with threshold anomaly_threshold_usd."
+}
+variable "anomaly_extra_emails" {
+  type        = list(string)
+  default     = []
+  description = "E-mails of the extra Cost Anomaly subscription on the existing monitor."
+}
+variable "anomaly_threshold_usd" {
+  type        = number
+  default     = 20
+  description = "Cost anomaly e-mail threshold (USD impact)."
+}
+variable "backup_age_missing_data" {
+  type        = string
+  default     = "breaching"
+  description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
+}
+variable "guardduty_ebs_malware" {
+  type        = bool
+  default     = false
+  description = "GuardDuty EBS malware protection ($0.03/GB scanned, only after a finding). We run Fargate: leave off."
+}
+variable "guardduty_runtime_monitoring" {
+  type        = bool
+  default     = false
+  description = "GuardDuty Runtime Monitoring on Fargate, $1.50/vCPU/month (about $5-50). Changes task start (sidecar): staging first."
 }
 variable "create_anomaly_monitor" {
   type    = bool
@@ -809,8 +871,9 @@ module "backup" {
   copy_account_vault_arn = var.backup_copy_account_id == "" ? "" : (
     "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
-  alerts_topic_arn = module.monitoring.alerts_topic_arn
-  tags             = local.tags
+  alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  backup_age_missing_data = var.backup_age_missing_data
+  tags                    = local.tags
 
   vault_lock_mode             = var.backup_vault_lock_mode
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
@@ -916,7 +979,7 @@ variable "pgbouncer_min_tasks" {
 }
 variable "pgbouncer_max_tasks" {
   type        = number
-  default     = 3
+  default     = 4
   description = "CPU autoscaling ceiling of the pooler. The database budget is split by this number, so a higher ceiling means smaller pools per task."
 }
 variable "pgbouncer_cpu" {
@@ -1243,27 +1306,38 @@ module "budget" {
   alert_emails           = var.alert_emails
   create_anomaly_monitor = var.create_anomaly_monitor
   tags                   = local.tags
+
+  forecast_thresholds          = var.budget_forecast_thresholds
+  subscriber_sns_topic_arns    = var.budget_to_alerts_topic ? [module.monitoring.alerts_topic_arn] : []
+  anomaly_threshold_usd        = var.anomaly_threshold_usd
+  anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
+  anomaly_extra_emails         = var.anomaly_extra_emails
 }
 
 module "monitoring" {
-  source                      = "../monitoring"
-  name                        = local.name
-  alert_emails                = var.alert_emails
-  slack_webhook_url           = var.slack_webhook_url
-  alb_arn_suffix              = module.alb.arn_suffix
-  api_target_group_arn_suffix = module.alb.api_target_group_arn_suffix
-  cluster_name                = module.ecs.cluster_name
-  api_service_name            = module.ecs.api_service_name
-  worker_service_name         = module.ecs.worker_service_name
-  redis_replication_group_id  = "${local.name}-redis"
-  redis_replicas              = var.redis_replicas
-  db_instance_id              = var.create_database ? "${local.name}-postgres" : ""
-  db_max_connections          = local.db_max_connections
-  api_log_group               = module.ecs.log_group_names["api"]
-  worker_log_group            = module.ecs.log_group_names["worker"]
-  p95_target_ms               = var.p95_target_ms
-  runbook_base_url            = var.runbook_base_url
-  kms_key_arn                 = module.kms.key_arn
+  source                       = "../monitoring"
+  name                         = local.name
+  alert_emails                 = var.alert_emails
+  slack_webhook_url            = var.slack_webhook_url
+  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
+  critical_email_too           = var.critical_email_too
+  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
+  nat_gateway_ids              = module.network.nat_gateway_ids
+  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
+  alb_arn_suffix               = module.alb.arn_suffix
+  api_target_group_arn_suffix  = module.alb.api_target_group_arn_suffix
+  cluster_name                 = module.ecs.cluster_name
+  api_service_name             = module.ecs.api_service_name
+  worker_service_name          = module.ecs.worker_service_name
+  redis_replication_group_id   = "${local.name}-redis"
+  redis_replicas               = var.redis_replicas
+  db_instance_id               = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections           = local.db_max_connections
+  api_log_group                = module.ecs.log_group_names["api"]
+  worker_log_group             = module.ecs.log_group_names["worker"]
+  p95_target_ms                = var.p95_target_ms
+  runbook_base_url             = var.runbook_base_url
+  kms_key_arn                  = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check      = var.uptime_check
@@ -1343,6 +1417,9 @@ module "security_baseline" {
   critical_api_alerts_enabled    = var.critical_api_alerts_enabled
   documents_data_events          = var.documents_data_events
   documents_bucket_arn           = module.s3.documents_bucket_arn
+
+  guardduty_ebs_malware        = var.guardduty_ebs_malware
+  guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
 }
 
 resource "aws_route53_record" "hosts" {
@@ -1388,6 +1465,7 @@ output "database_instance_id" { value = one(module.postgres[*].instance_id) }
 output "backup_vault" { value = one(module.backup[*].vault_name) }
 output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
+output "critical_topic_arn" { value = module.monitoring.critical_topic_arn }
 output "db_autoscale_function" { value = one(module.db_autoscale[*].function_name) }
 output "redis_autoscale_function" { value = one(module.redis_autoscale[*].function_name) }
 output "budget_name" { value = one(module.budget[*].budget_name) }

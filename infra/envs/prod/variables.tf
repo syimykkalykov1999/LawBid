@@ -149,6 +149,68 @@ variable "monthly_budget_usd" {
   type    = number
   default = 350 # 2026-10-22: 200 → 350, see modules/stack monthly_budget_usd
 }
+# --- Batch A (docs/architecture/P0_AND_COST_PLAN.md) ---
+variable "pagerduty_https_endpoint" {
+  type        = string
+  default     = null
+  description = "Batch A item 1: PagerDuty Events API integration URL (https://events.pagerduty.com/integration/<key>/enqueue) for the CRITICAL topic (the 6 SLO composite alarms). Secret: lives only in the Secrets Manager tfvars. null = no phone paging. Runbook docs/runbooks/paging.md."
+  sensitive   = true
+}
+variable "critical_email_too" {
+  type        = bool
+  default     = true
+  description = "E-mail alert_emails from the critical topic as well (a second copy of the page)."
+}
+variable "redis_memory_alarm_percent" {
+  type        = number
+  default     = 70
+  description = "Redis (queue node) memory alarm threshold, percent."
+}
+variable "nat_traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 100
+  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
+}
+variable "budget_forecast_thresholds" {
+  type        = list(number)
+  default     = [80, 100]
+  description = "AWS Budgets FORECASTED alerts, percent of monthly_budget_usd."
+}
+variable "budget_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Also send the budget notifications to the alerts SNS topic (Slack/e-mail subscribers), not only to alert_emails."
+}
+variable "anomaly_existing_monitor_arn" {
+  type        = string
+  default     = ""
+  description = "With create_anomaly_monitor = false: ARN of the account's existing service anomaly monitor (aws ce get-anomaly-monitors). Together with anomaly_extra_emails adds a subscription with threshold anomaly_threshold_usd."
+}
+variable "anomaly_extra_emails" {
+  type        = list(string)
+  default     = []
+  description = "E-mails of the extra Cost Anomaly subscription on the existing monitor."
+}
+variable "anomaly_threshold_usd" {
+  type        = number
+  default     = 20
+  description = "Cost anomaly e-mail threshold (USD impact)."
+}
+variable "backup_age_missing_data" {
+  type        = string
+  default     = "breaching"
+  description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
+}
+variable "guardduty_ebs_malware" {
+  type        = bool
+  default     = false
+  description = "GuardDuty EBS malware protection ($0.03/GB scanned, only after a finding). We run Fargate: leave off."
+}
+variable "guardduty_runtime_monitoring" {
+  type        = bool
+  default     = false
+  description = "GuardDuty Runtime Monitoring on Fargate, $1.50/vCPU/month (about $5-50). Changes task start (sidecar): staging first."
+}
 variable "create_anomaly_monitor" {
   type        = bool
   default     = true
@@ -167,7 +229,7 @@ variable "pgbouncer_image" {
 }
 variable "pgbouncer_max_tasks" {
   type    = number
-  default = 3
+  default = 4
 }
 variable "clamav_image" {
   type    = string
@@ -460,8 +522,9 @@ variable "audit_logs_retention_days" {
   default = 400
 }
 variable "audit_logs_object_lock" {
-  type    = bool
-  default = false
+  type        = bool
+  default     = false
+  description = "S3 Object Lock on the audit log bucket (irreversible per bucket). WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
 variable "vpc_flow_logs_traffic" {
   type    = string

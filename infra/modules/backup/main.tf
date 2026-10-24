@@ -81,6 +81,15 @@ variable "vault_lock_max_retention_days" {
   description = "No recovery point may be kept longer than this (must be at least retention_days)."
 }
 variable "alerts_topic_arn" { type = string }
+variable "backup_age_missing_data" {
+  type        = string
+  default     = "breaching"
+  description = "How the 24 h backup-age alarm treats a day with no data. breaching = a stopped plan alarms (the safe steady state). notBreaching = use ONLY between the first apply and the first completed backup job, so the alarm cannot fire falsely before a recovery point exists; switch back to breaching afterwards (docs/runbooks/restore-drill.md)."
+  validation {
+    condition     = contains(["breaching", "notBreaching", "ignore", "missing"], var.backup_age_missing_data)
+    error_message = "backup_age_missing_data must be breaching, notBreaching, ignore or missing."
+  }
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -209,7 +218,7 @@ resource "aws_cloudwatch_event_target" "job_failed" {
 }
 
 # Nothing completed in a day (the schedule is daily): catches a plan that
-# silently stopped, not only a failed job. Missing data = no job = alarm.
+# silently stopped, not only a failed job. Missing data = no job = alarm (backup_age_missing_data).
 resource "aws_cloudwatch_metric_alarm" "backup_age" {
   alarm_name          = "${var.name}-db-backup-age"
   alarm_description   = "LawBid: за последние сутки нет ни одной готовой резервной копии базы. Что делать: AWS Backup → Jobs, инструкция docs/runbooks/backup-failed.md (EN: no completed AWS Backup job for the database in 24 h.)"
@@ -221,7 +230,7 @@ resource "aws_cloudwatch_metric_alarm" "backup_age" {
   evaluation_periods  = 1
   comparison_operator = "LessThanThreshold"
   threshold           = 1
-  treat_missing_data  = "breaching"
+  treat_missing_data  = var.backup_age_missing_data
   alarm_actions       = [var.alerts_topic_arn]
   ok_actions          = [var.alerts_topic_arn]
   tags                = var.tags
