@@ -9,14 +9,13 @@ function hideBoot() {
     }
     window.addEventListener('flutter-first-frame', hideBoot);
 
-/* Owner 2026-10-23: the passkeys bridge (corbado, pinned release) is added
-       after the first frame, only in browsers that have WebAuthn. The page's
-       CSP (infra/modules/web, script-src) must allow this address for it to
-       run; if it is refused or offline the app simply has no passkey button
-       (third_party/passkeys_web no longer aborts the start). To serve it from
-       our own domain instead, put the file next to index.html and change this
-       address to 'passkeys_bundle.js'. */
-    var PASSKEYS_SRC = 'https://github.com/corbado/flutter-passkeys/releases/download/2.4.0/bundle.js';
+/* Owner 2026-10-23: the passkeys bridge (corbado flutter-passkeys 2.4.0
+       bundle.js, sha256 dd06b085…c0be49, BSD-3) is served from our own
+       domain, so the page's CSP needs only 'self'. It is added after the
+       first frame, only in browsers that have WebAuthn; if it fails the app
+       simply has no passkey button (third_party/passkeys_web no longer
+       aborts the start). Upgrading passkeys_web means replacing this file. */
+    var PASSKEYS_SRC = 'passkeys_bundle.js';
     window.addEventListener('flutter-first-frame', function () {
       if (!window.PublicKeyCredential) return;
       var s = document.createElement('script');

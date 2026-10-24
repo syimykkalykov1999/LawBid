@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
   // docs/06 §6.1: the admin runs as its own ECS service from a standalone
   // server bundle (apps/admin/Dockerfile).
   output: 'standalone',
+  // «План роста» reads apps/admin/content/*.md at run time; make sure the
+  // standalone bundle carries the folder.
+  outputFileTracingIncludes: { '/growth-plan': ['./content/**/*'] },
   async headers() {
     return [
       { source: '/(.*)', headers: securityHeaders },

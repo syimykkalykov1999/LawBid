@@ -271,6 +271,8 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
       { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
+      // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
+      { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', hint: 'что включать, когда людей становится больше: по шагам' },
       { href: '/crashes', label: 'Вылеты', icon: 'bug', area: 'settings', hint: 'ошибки приложения: где, на каких телефонах' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', hint: 'флаги, скрытые функции' },
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', hint: 'лимиты, версии приложения' },
