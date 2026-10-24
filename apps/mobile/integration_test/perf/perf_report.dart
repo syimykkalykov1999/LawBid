@@ -133,6 +133,7 @@ class PerfResult {
     required this.memory,
     required this.video,
     this.nativeStart,
+    this.notes = const [],
   });
 
   /// `{platform, model, refresh_rate_hz, mode, ...}`.
@@ -155,6 +156,9 @@ class PerfResult {
 
   /// Name -> start times in ms.
   final Map<String, List<double>> video;
+
+  /// Failed or skipped steps, in words (shown first in the report).
+  final List<String> notes;
 
   double get refreshHz => (device['refresh_rate_hz'] as num?)?.toDouble() ?? 60;
 
@@ -278,6 +282,7 @@ class PerfResult {
             'p90': FrameStats.percentile(e.value, 0.9),
           },
       },
+      'notes': notes,
       'checks': [for (final c in checks) c.toJson()],
     };
   }
@@ -293,7 +298,15 @@ class PerfResult {
           '(${checks.where((c) => c.ok).length}/${checks.length} checks)')
       ..writeln()
       ..writeln('Device: `${jsonEncode(device)}`')
-      ..writeln()
+      ..writeln();
+    if (notes.isNotEmpty) {
+      b.writeln('## Notes (failed or skipped)\n');
+      for (final n in notes) {
+        b.writeln('- $n');
+      }
+      b.writeln();
+    }
+    b
       ..writeln('## Budgets')
       ..writeln()
       ..writeln('| Check | Value | Limit | |')

@@ -3,8 +3,12 @@
 #
 #   apps/mobile/tool/perf/run_device_perf.sh <device-id> [label]
 #
-# 1. checks the local API answers (the suite signs in with the dev seed's
-#    test attorney, or a demo invite: PERF_DEMO_CODE) - never a real account;
+# 1. checks the local API answers (the suite signs in with the perf attorney
+#    from `npm run seed:perf --workspace apps/api`, +12125550190, or a demo
+#    invite: PERF_DEMO_CODE) - never a real account. Run the seed first (it
+#    also clears that account's old sessions, one device at a time);
+#    reels play only with the fake Bunny running (apps/api/tools/fake-bunny.mjs
+#    with FAKE_BUNNY_DIR=apps/api/.fake-bunny);
 # 2. cold start of the real process, COLD_RUNS times, with
 #    `flutter run --profile --trace-startup` (engine start -> first frame);
 # 3. builds PROFILE and runs integration_test/perf/perf_suite_test.dart with
@@ -19,6 +23,7 @@
 #                  http://<this Mac's LAN address>:3000/api/v1
 #   PERF_DEMO_CODE demo invite code instead of the seed attorney
 #   PERF_PHONE / PERF_PASSWORD   other seed login
+#   PERF_ONLY      run only some scenarios: feed,reels,search,chats,cases,taps
 #   COLD_RUNS      cold starts to take the median of (default 3, 0 = skip)
 #   PERF_NO_FAIL=1 exit 0 even when a budget failed
 set -euo pipefail
@@ -58,6 +63,8 @@ if [ -z "${API_BASE_URL:-}" ]; then
   elif [ "$PLATFORM" = android ]; then
     [ -n "$ADB" ] && "$ADB" -s "$DEVICE" reverse tcp:3000 tcp:3000 >/dev/null
     API_BASE_URL="http://127.0.0.1:3000/api/v1"
+    # The dev fake Bunny (reels): localhost:4010 on the phone = the Mac's.
+    [ -n "$ADB" ] && "$ADB" -s "$DEVICE" reverse tcp:4010 tcp:4010 >/dev/null
   elif [ "$EMU" = True ]; then
     API_BASE_URL="http://127.0.0.1:3000/api/v1"
   else
@@ -91,6 +98,7 @@ DEFS=(
 )
 [ -n "${PERF_DEMO_CODE:-}" ] && DEFS+=("--dart-define=PERF_DEMO_CODE=$PERF_DEMO_CODE")
 [ -n "${PERF_PHONE:-}" ] && DEFS+=("--dart-define=PERF_PHONE=$PERF_PHONE")
+[ -n "${PERF_ONLY:-}" ] && DEFS+=("--dart-define=PERF_ONLY=$PERF_ONLY")
 [ -n "${PERF_PASSWORD:-}" ] && DEFS+=("--dart-define=PERF_PASSWORD=$PERF_PASSWORD")
 
 # --- 1. cold starts of the real process --------------------------------------
@@ -139,7 +147,12 @@ if [ "$PLATFORM" = ios ] && [ "$EMU" = False ]; then
 fi
 
 if [ ! -f "$OUT/perf_result.json" ]; then
+  # Never "no result": leave a stub that says why.
   echo "perf: no result was produced (drive exit $DRIVE); see $OUT/drive.log"
+  printf '{"passed": false, "error": "no result (flutter drive exit %s)"}\n' \
+    "$DRIVE" >"$OUT/perf_result.json"
+  printf '# LawBid on-device performance\n\nNo result: flutter drive exited with %s. See drive.log.\n' \
+    "$DRIVE" >"$OUT/perf_result.md"
   exit 1
 fi
 echo
