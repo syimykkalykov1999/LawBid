@@ -385,3 +385,4 @@ POST /admin/system-health/heavy-jobs added the new `realtime` enum value to the 
 POST /admin/system-health/message-reencrypt/restart added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/restart-worker added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/scale added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+GET /calls/video added the new `cloudflare` enum value to the `data/provider` response property for the response status `200`
