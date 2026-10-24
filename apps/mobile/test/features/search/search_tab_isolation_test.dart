@@ -126,5 +126,22 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 3));
     });
+
+    testWidgets('owner 2026-10-23: the QR scanner shows on People only',
+        (tester) async {
+      await pump(tester);
+      final qr = find.byKey(const ValueKey('search-scan-qr'));
+      expect(qr, findsOneWidget);
+      for (final tab in ['Posts', 'Topics']) {
+        await tester.tap(find.text(tab));
+        await tester.pumpAndSettle();
+        expect(qr, findsNothing, reason: tab);
+      }
+      await tester.tap(find.text('People'));
+      await tester.pumpAndSettle();
+      expect(qr, findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 3));
+    });
   });
 }
