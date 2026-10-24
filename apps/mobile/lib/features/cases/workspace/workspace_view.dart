@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/file_views/presentation/file_views_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
@@ -371,60 +372,127 @@ class _FileRow extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final isImage = file.mime.startsWith('image/');
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.lg,
-        vertical: AppSpacing.md,
-      ),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox.square(
-              dimension: 48,
-              child: isImage
-                  ? Image(
-                      image: appNetworkImage(file.previewUrl, 600),
-                      fit: BoxFit.cover,
-                    )
-                  : ColoredBox(
-                      color: colors.chip,
-                      child: AppIcon(
-                        AppIcons.descriptionOutlined,
-                        color: colors.iconTint,
+    // Owner 2026-10-24: only the uploader's own files carry a view count.
+    final views = file.viewCount;
+    return GestureDetector(
+      // Long-press = the same «Просмотры» as the badge.
+      onLongPress:
+          views == null ? null : () => openFileViews(context, file.fileId),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.border)),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox.square(
+                dimension: 48,
+                child: isImage
+                    ? Image(
+                        image: appNetworkImage(file.previewUrl, 600),
+                        fit: BoxFit.cover,
+                      )
+                    : ColoredBox(
+                        color: colors.chip,
+                        child: AppIcon(
+                          AppIcons.descriptionOutlined,
+                          color: colors.iconTint,
+                        ),
                       ),
-                    ),
+              ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  (file.description ?? '').isEmpty
-                      ? fileKindLabel(t, file)
-                      : file.description!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.body.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _origin,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: type.caption.copyWith(color: colors.textSecondary),
-                ),
-              ],
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (file.description ?? '').isEmpty
+                        ? fileKindLabel(t, file)
+                        : file.description!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.body.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _origin,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
             ),
+            if (views != null && views > 0) ...[
+              const SizedBox(width: AppSpacing.sm),
+              _ViewsBadge(
+                count: views,
+                label: t.t('fileViews.badge', {'count': formats.digits(views)}),
+                onTap: () => openFileViews(context, file.fileId),
+              ),
+            ],
+            const SizedBox(width: AppSpacing.sm),
+            FileOpenButton(file: file),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// «👁 3»: this file was opened by others that many times; a tap opens
+/// the list.
+class _ViewsBadge extends StatelessWidget {
+  const _ViewsBadge({
+    required this.count,
+    required this.label,
+    required this.onTap,
+  });
+
+  final int count;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: InkWell(
+        key: const ValueKey('file-views-badge'),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.sm,
           ),
-          const SizedBox(width: AppSpacing.sm),
-          FileOpenButton(file: file),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(
+                AppIcons.visibilityOutlined,
+                size: AppSizes.iconSm,
+                color: colors.textSecondary,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                count > 99 ? '99+' : '$count',
+                style: type.caption.copyWith(color: colors.textSecondary),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

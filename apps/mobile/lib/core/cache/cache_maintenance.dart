@@ -70,7 +70,9 @@ class CacheMaintenance {
       guard(() => _pages?.pagesBytes() ?? Future.value(0)),
       guard(_images.size),
       guard(_chatMedia.size),
-      guard(_db.translationsBytes),
+      guard(
+        () async => await _db.translationsBytes() + await _db.fileViewsBytes(),
+      ),
     ]);
     return CacheReport(
       bytes: {
@@ -136,6 +138,9 @@ class CacheMaintenance {
       }
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));
+      // Owner 2026-10-24: the view lists of case documents live in «Прочее»
+      // and may take at most a fifth of its limit.
+      await _db.trimFileViews(l.limitBytes(CacheStore.other) ~/ 5);
     } on Object catch (e) {
       debugPrint('cache enforce: $e');
     }

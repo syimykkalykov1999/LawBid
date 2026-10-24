@@ -116,6 +116,8 @@ class RealtimeClient {
     'call:ongoing_ended',
     'typing',
     'notification:new',
+    // Owner 2026-10-24: somebody opened a file of mine («Просмотры»).
+    'file:viewed',
     'badge:update',
     'conversation:update',
     // Owner 2026-10-01: a chat partner came online / left.
