@@ -116,6 +116,16 @@ variable "turn_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when the TURN relays send more than this many GB in 24 h (0 = off)."
 }
+variable "turn_instance_type" {
+  type        = string
+  default     = "t4g.nano"
+  description = "TURN server size (modules/turn size ladder: nano 100, micro 200, small 500, medium 1000, large 2000 allocations). Default stays cheap; prod sets t4g.small."
+}
+variable "turn_total_quota" {
+  type        = number
+  default     = null
+  description = "Override of the coturn quota per server; null = from the instance type."
+}
 variable "livekit_enabled" {
   type        = bool
   default     = false
@@ -451,6 +461,8 @@ module "turn" {
   secondary_subnet_id      = var.turn_second_enabled ? module.network.public_subnet_ids[1] : null
   alerts_topic_arn         = module.monitoring.alerts_topic_arn
   traffic_alarm_gb_per_day = var.turn_traffic_alarm_gb_per_day
+  instance_type            = var.turn_instance_type
+  turn_total_quota         = var.turn_total_quota
   hosted_zone_id           = var.hosted_zone_id
   # Route 53 health-check metrics exist in us-east-1 only.
   health_checks = data.aws_region.current.name == "us-east-1"

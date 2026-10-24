@@ -28,7 +28,7 @@ static-auth-secret=$SECRET
 no-cli
 no-multicast-peers
 no-tcp-relay
-total-quota=100
+total-quota=${quota}
 bps-capacity=0
 stale-nonce=600
 syslog
@@ -40,5 +40,31 @@ chmod 640 /etc/turnserver.conf
 chown root:turnserver /etc/turnserver.conf
 
 sed -i 's/^#\?TURNSERVER_ENABLED=.*/TURNSERVER_ENABLED=1/' /etc/default/coturn
+# Allocation count -> CloudWatch (LawBid/TURN, Allocations) once a minute.
+# Every allocation binds one UDP relay port in 49152-65535, so counting those
+# sockets = counting allocations (no coturn CLI or Prometheus needed).
+IID="$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)"
+cat > /usr/local/bin/turn-report <<'SCRIPT'
+#!/bin/bash
+N="$(ss -H -uan | awk '{n=split($4,a,":"); if (a[n] >= 49152) c++} END {print c+0}')"
+/snap/bin/aws cloudwatch put-metric-data --region "$1" --namespace LawBid/TURN \
+  --metric-name Allocations --dimensions "InstanceId=$2" --value "$N" --unit Count
+SCRIPT
+chmod 755 /usr/local/bin/turn-report
+cat > /etc/systemd/system/turn-report.service <<UNIT
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/turn-report ${region} $IID
+UNIT
+cat > /etc/systemd/system/turn-report.timer <<'UNIT'
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now turn-report.timer
+
 systemctl enable coturn
 systemctl restart coturn

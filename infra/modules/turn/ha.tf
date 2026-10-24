@@ -41,6 +41,7 @@ resource "aws_instance" "second" {
     secret_param = aws_ssm_parameter.secret.name
     region       = data.aws_region.current.name
     denied       = var.denied_peer_cidrs
+    quota        = local.quota
   })
   user_data_replace_on_change = true
 }
@@ -176,4 +177,108 @@ resource "aws_cloudwatch_metric_alarm" "traffic" {
       }
     }
   }
+}
+
+# --- "close to the limit" alarms (owner 2026-10-23) ----------------------------
+# No agent needed: network (NetworkIn/Out, 5-minute points) against the type's
+# sustained baseline, CPU, CPU credits (t types), and the allocation count that
+# the box itself publishes (user-data timer -> LawBid/TURN Allocations).
+locals {
+  baseline_bytes_per_5min = local.baseline_mbps * 1000000 / 8 * 300
+}
+
+resource "aws_cloudwatch_metric_alarm" "network" {
+  for_each            = local.alarms_on ? local.relays : {}
+  alarm_name          = "${var.name}-turn-${each.key}-network"
+  alarm_description   = "LawBid: Сервер звонков (TURN, ${each.key}) гонит трафик выше 70 % своего постоянного предела (${local.baseline_mbps} Мбит/с) 10 минут. Скоро звонки начнут заикаться. Что делать: взять сервер побольше (turn_instance_type в tfvars), docs/runbooks/TURN.md «Смена размера» (EN: NetworkIn/Out above 70% of the instance baseline for 10 min.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  threshold           = local.baseline_bytes_per_5min * 0.7
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alerts_topic_arn]
+  ok_actions          = [var.alerts_topic_arn]
+  tags                = var.tags
+
+  metric_query {
+    id          = "worst"
+    expression  = "MAX([in, out])"
+    label       = "bytes per 5 min, worse direction"
+    return_data = true
+  }
+  metric_query {
+    id = "in"
+    metric {
+      metric_name = "NetworkIn"
+      namespace   = "AWS/EC2"
+      period      = 300
+      stat        = "Sum"
+      dimensions  = { InstanceId = each.value.instance_id }
+    }
+  }
+  metric_query {
+    id = "out"
+    metric {
+      metric_name = "NetworkOut"
+      namespace   = "AWS/EC2"
+      period      = 300
+      stat        = "Sum"
+      dimensions  = { InstanceId = each.value.instance_id }
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu" {
+  for_each            = local.alarms_on ? local.relays : {}
+  alarm_name          = "${var.name}-turn-${each.key}-cpu"
+  alarm_description   = "LawBid: Сервер звонков (TURN, ${each.key}) загружен процессором выше 70 % 10 минут. Что делать: сервер побольше, docs/runbooks/TURN.md «Смена размера» (EN: CPU above 70% for 10 min.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = 70
+  statistic           = "Average"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  dimensions          = { InstanceId = each.value.instance_id }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alerts_topic_arn]
+  ok_actions          = [var.alerts_topic_arn]
+  tags                = var.tags
+}
+
+# t4g: when the credits run out the CPU is throttled to its baseline share.
+resource "aws_cloudwatch_metric_alarm" "cpu_credits" {
+  for_each            = local.alarms_on && local.burstable ? local.relays : {}
+  alarm_name          = "${var.name}-turn-${each.key}-cpu-credits"
+  alarm_description   = "LawBid: У сервера звонков (TURN, ${each.key}) почти кончился запас процессора (кредиты). Дальше он замедлится и звонки начнут прерываться. Что делать: сервер побольше или без кредитов (c6gn/c7gn), docs/runbooks/TURN.md «Смена размера» (EN: CPUCreditBalance under 20 for 15 min.)"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 3
+  period              = 300
+  threshold           = 20
+  statistic           = "Minimum"
+  metric_name         = "CPUCreditBalance"
+  namespace           = "AWS/EC2"
+  dimensions          = { InstanceId = each.value.instance_id }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alerts_topic_arn]
+  ok_actions          = [var.alerts_topic_arn]
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "allocations" {
+  for_each            = local.alarms_on ? local.relays : {}
+  alarm_name          = "${var.name}-turn-${each.key}-allocations"
+  alarm_description   = "LawBid: На сервере звонков (TURN, ${each.key}) занято больше 70 % мест (${floor(local.quota * 0.7)} из ${local.quota}). При 100 % новые звонки через этот сервер не соединятся. Что делать: сервер побольше или turn_total_quota, docs/runbooks/TURN.md «Смена размера» (EN: relay allocations above 70% of total-quota for 10 min.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = local.quota * 0.7
+  statistic           = "Maximum"
+  metric_name         = "Allocations"
+  namespace           = "LawBid/TURN"
+  dimensions          = { InstanceId = each.value.instance_id }
+  # No data = the reporter is not running (box down: other alarms fire).
+  treat_missing_data = "notBreaching"
+  alarm_actions      = [var.alerts_topic_arn]
+  ok_actions         = [var.alerts_topic_arn]
+  tags               = var.tags
 }
