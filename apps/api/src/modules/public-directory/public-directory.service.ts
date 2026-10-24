@@ -4,6 +4,7 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { S3StorageService } from '../files/storage/s3-storage.service';
 import type { PublicAttorneyDto } from './public-directory.dto';
 
 export interface PublicAttorneysPage {
@@ -25,6 +26,8 @@ export class PublicDirectoryService {
     // needs the media CDN — a signed link would expire inside a static page.
     @Optional() private readonly config?: ConfigService,
     @Optional() private readonly secrets?: SecretsService,
+    // Owner 2026-10-24: avatars stored in R2 have their own public domain.
+    @Optional() private readonly storage?: S3StorageService,
   ) {}
 
   private async cdnBase(): Promise<string | null> {
@@ -111,33 +114,39 @@ export class PublicDirectoryService {
     const page = rows.slice(0, limit);
     const next = rows.length > limit ? rows[limit].username_lower : null;
     // Owner 2026-10-22 (audit #4 §9): a stable public photo for og:image —
-    // a clean avatar of someone who shows it to everyone, on the CDN.
+    // a clean avatar of someone who shows it to everyone, on a public CDN
+    // link (R2 domain for R2 objects, the media CDN for AWS ones).
     const cdn = await this.cdnBase();
-    const avatarIds = cdn
-      ? page
-          .filter(
-            (r) =>
-              (r.user.privacy_settings?.photo_from ?? 'everyone') ===
-              'everyone',
-          )
-          .map((r) => r.user.avatar_file_id)
-          .filter((x): x is string => !!x)
-      : [];
-    const photos = new Map(
-      avatarIds.length
-        ? (
-            await this.prisma.file.findMany({
-              where: {
-                id: { in: avatarIds },
-                purpose: 'avatar',
-                scan_status: 'clean',
-                deleted_at: null,
-              },
-              select: { id: true, s3_key: true },
-            })
-          ).map((f) => [f.id, `${cdn}/${f.s3_key}`])
-        : [],
-    );
+    await this.storage?.ready();
+    const avatarIds =
+      cdn || this.storage
+        ? page
+            .filter(
+              (r) =>
+                (r.user.privacy_settings?.photo_from ?? 'everyone') ===
+                'everyone',
+            )
+            .map((r) => r.user.avatar_file_id)
+            .filter((x): x is string => !!x)
+        : [];
+    const photos = new Map<string, string>();
+    if (avatarIds.length) {
+      const files = await this.prisma.file.findMany({
+        where: {
+          id: { in: avatarIds },
+          purpose: 'avatar',
+          scan_status: 'clean',
+          deleted_at: null,
+        },
+        select: { id: true, s3_key: true, s3_bucket: true },
+      });
+      for (const f of files) {
+        const url =
+          this.storage?.publicObjectUrl(f.s3_bucket, f.s3_key) ??
+          (cdn ? `${cdn}/${f.s3_key}` : null);
+        if (url) photos.set(f.id, url);
+      }
+    }
     return {
       items: page.map((r) => ({
         username: r.username,
