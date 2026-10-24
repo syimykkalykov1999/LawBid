@@ -51,8 +51,24 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'string',
     defaultValue: 'p2p',
     description:
-      'Who carries video calls: p2p (device to device, up to 9 people) or livekit (media server; needs the LiveKit keys in Integrations).',
-    pattern: /^(p2p|livekit)$/,
+      'Who carries video calls: p2p (device to device, up to 9 people), livekit (media server; needs the LiveKit keys in Integrations) or cloudflare (Cloudflare SFU for group calls; needs the Cloudflare SFU keys in Integrations).',
+    pattern: /^(p2p|livekit|cloudflare)$/,
+  };
+  out['calls.sfu_max_participants'] = {
+    type: 'integer',
+    defaultValue: 20,
+    description:
+      'Most people in one group call while calls run on Cloudflare SFU (calls.video_provider = cloudflare).',
+    min: 2,
+    max: 100,
+  };
+  out['calls.sfu_fallback_mesh_max'] = {
+    type: 'integer',
+    defaultValue: 4,
+    description:
+      'Only while Cloudflare is down or not configured: group calls up to this many people keep their video (device to device); with more people everyone is audio only. Calls are never refused.',
+    min: 2,
+    max: 100,
   };
   out['calls.max_participants'] = {
     type: 'integer',

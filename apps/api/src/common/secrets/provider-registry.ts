@@ -515,6 +515,43 @@ export const PROVIDERS: ProviderDefinition[] = [
       ),
   },
   {
+    id: 'cloudflare_sfu',
+    label: 'Cloudflare SFU (group video calls)',
+    description:
+      'Cloudflare Realtime SFU for group calls (pay per outgoing traffic). Used only when «calls.video_provider» is set to cloudflare in Settings; calls fall back to device-to-device (video up to 4 people, then audio only) if Cloudflare is down.',
+    fields: [
+      {
+        name: 'appId',
+        label: 'App ID (CLOUDFLARE_SFU_APP_ID)',
+        secret: false,
+        required: true,
+        pattern: /^[0-9a-f]{32}$/,
+        patternHint: '32 hex characters',
+        env: 'CLOUDFLARE_SFU_APP_ID',
+      },
+      {
+        name: 'appToken',
+        label: 'App Secret (CLOUDFLARE_SFU_APP_TOKEN)',
+        secret: true,
+        required: true,
+        pattern: /^\S{16,}$/,
+        env: 'CLOUDFLARE_SFU_APP_TOKEN',
+      },
+    ],
+    // Creates one empty session (it expires on its own), read-only in effect.
+    test: (f) =>
+      probe(
+        `https://rtc.live.cloudflare.com/v1/apps/${encodeURIComponent(f.appId)}/sessions/new`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${f.appToken}`,
+            'content-type': 'application/json',
+          },
+        },
+      ),
+  },
+  {
     id: 'livekit',
     label: 'LiveKit (big video calls)',
     description:

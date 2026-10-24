@@ -29,6 +29,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description:
       'Ретрансляторы Cloudflare для звонков (оплата за трафик, первые 1000 ГБ в месяц бесплатно). Пробуются первыми; наш TURN-сервер остаётся запасным.',
   },
+  cloudflare_sfu: {
+    label: 'Cloudflare SFU (групповые видеозвонки)',
+    description:
+      'Cloudflare раздаёт видео участникам группового звонка, телефон отправляет его один раз. Работает только когда в Настройках «calls.video_provider» = cloudflare. Оплата за исходящий трафик, первые 1000 ГБ в месяц бесплатно (общие с TURN). Если Cloudflare недоступен, звонки до 4 человек идут напрямую между телефонами с видео, а больше — только с аудио.',
+  },
   livekit: {
     label: 'LiveKit (большие видеозвонки)',
     description:
@@ -129,6 +134,8 @@ const FIELD_BY_NAME: Record<string, string> = {
 const FIELD_BY_PROVIDER: Record<string, string> = {
   'cloudflare_turn.keyId': 'ID ключа TURN (Key ID)',
   'cloudflare_turn.apiToken': 'API-токен ключа TURN',
+  'cloudflare_sfu.appId': 'ID приложения Realtime SFU (App ID)',
+  'cloudflare_sfu.appToken': 'Секрет приложения (App Secret)',
   'livekit.url': 'Адрес сервера',
   'livekit.apiKey': 'Ключ API',
   'livekit.apiSecret': 'Секрет API',
@@ -169,6 +176,8 @@ export function providerWarning(id: string, fallback: string | null | undefined)
 const FIELD_EN: Record<string, string> = {
   'cloudflare_turn.keyId': 'TURN Key ID',
   'cloudflare_turn.apiToken': 'API Token',
+  'cloudflare_sfu.appId': 'App ID',
+  'cloudflare_sfu.appToken': 'App Secret',
   'bunny_stream.libraryId': 'Video Library ID',
   'bunny_stream.cdnHostname': 'CDN Hostname',
   'bunny_stream.apiKey': 'API Key',
@@ -272,6 +281,8 @@ export const FIELD_ENV: Record<string, string> = {
   'turn.secret': 'TURN_SECRET',
   'cloudflare_turn.keyId': 'CLOUDFLARE_TURN_KEY_ID',
   'cloudflare_turn.apiToken': 'CLOUDFLARE_TURN_API_TOKEN',
+  'cloudflare_sfu.appId': 'CLOUDFLARE_SFU_APP_ID',
+  'cloudflare_sfu.appToken': 'CLOUDFLARE_SFU_APP_TOKEN',
   'turn.stunUrls': 'STUN_URLS',
   'livekit.url': 'LIVEKIT_URL',
   'livekit.apiKey': 'LIVEKIT_API_KEY',
