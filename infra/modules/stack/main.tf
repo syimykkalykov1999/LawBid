@@ -997,7 +997,7 @@ locals {
   )
 }
 
-# --- own connection pooler: PgBouncer service, internal NLB, alarms ----------------
+# --- own connection pooler: PgBouncer service, Cloud Map name, alarms ----------------
 module "pgbouncer" {
   count  = var.db_pooler_enabled ? 1 : 0
   source = "../pgbouncer"

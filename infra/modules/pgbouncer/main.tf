@@ -5,7 +5,7 @@
 # small number of connections to PostgreSQL. 70 app tasks (or 700) never use
 # more database connections than `pool_size * max_tasks` of this module.
 #
-#   api / worker tasks --TLS--> internal NLB :5432 --> pgbouncer task(s) --TLS--> RDS
+#   api / worker tasks --TLS--> pgbouncer.<name>.internal (Cloud Map DNS, A records of the tasks) --TLS--> RDS
 #
 # * Image: ECR lawbid-pgbouncer (infra/pgbouncer, built by
 #   .github/workflows/build-pgbouncer.yml, amd64 + arm64).
@@ -13,10 +13,14 @@
 #   Manager, injected by ECS) and builds its user list from it at start. No
 #   password is in Terraform state beyond the secret's ARN.
 # * Reachability: only the client security group (api / worker / migrate
-#   tasks share one) reaches the NLB; only the NLB reaches the pooler; only
-#   the pooler (plus the existing task rule) reaches RDS.
-# * Discovery: internal Network Load Balancer (about 18 USD / month) - a
-#   fixed DNS name, health-checked, no client-side DNS caching problems.
+#   tasks share one) reaches the pooler; only the pooler (plus the existing
+#   task rule) reaches RDS.
+# * Discovery: AWS Cloud Map private DNS namespace "<name>.internal", ECS
+#   service registry, A records with a 10 s TTL, multivalue answers (both
+#   tasks, rough load spreading). About 0.5 USD / month (the private hosted
+#   zone Cloud Map creates). Trade-off: no health-checked load balancer - a
+#   client may hold the address of a task that just stopped; see
+#   docs/architecture/DB_POOLER.md section 2.1.
 # * Capacity: tasks x (default_pool_size + reserve) <= the database budget
 #   worked out by modules/stack (check "db_connection_budget").
 terraform {
@@ -184,45 +188,20 @@ resource "aws_iam_role" "task" {
 }
 
 # --- network ----------------------------------------------------------------
-resource "aws_security_group" "nlb" {
-  name        = "${var.name}-pgbouncer-nlb"
-  description = "Pooler load balancer: app tasks in, pooler out"
-  vpc_id      = var.vpc_id
-  tags        = merge(var.tags, { Name = "${var.name}-pgbouncer-nlb" })
-}
-
 resource "aws_security_group" "svc" {
   name        = "${var.name}-pgbouncer"
-  description = "PgBouncer tasks: load balancer in, database and AWS APIs out"
+  description = "PgBouncer tasks: app tasks in, database and AWS APIs out"
   vpc_id      = var.vpc_id
   tags        = merge(var.tags, { Name = "${var.name}-pgbouncer" })
 }
 
-resource "aws_vpc_security_group_ingress_rule" "nlb_from_clients" {
-  security_group_id            = aws_security_group.nlb.id
+resource "aws_vpc_security_group_ingress_rule" "svc_from_clients" {
+  security_group_id            = aws_security_group.svc.id
   referenced_security_group_id = var.client_security_group_id
   ip_protocol                  = "tcp"
   from_port                    = 5432
   to_port                      = 5432
   description                  = "api / worker tasks"
-}
-
-resource "aws_vpc_security_group_egress_rule" "nlb_to_svc" {
-  security_group_id            = aws_security_group.nlb.id
-  referenced_security_group_id = aws_security_group.svc.id
-  ip_protocol                  = "tcp"
-  from_port                    = 5432
-  to_port                      = 5432
-  description                  = "pooler tasks"
-}
-
-resource "aws_vpc_security_group_ingress_rule" "svc_from_nlb" {
-  security_group_id            = aws_security_group.svc.id
-  referenced_security_group_id = aws_security_group.nlb.id
-  ip_protocol                  = "tcp"
-  from_port                    = 5432
-  to_port                      = 5432
-  description                  = "load balancer (traffic and health checks)"
 }
 
 resource "aws_vpc_security_group_egress_rule" "svc_to_db" {
@@ -254,49 +233,32 @@ resource "aws_vpc_security_group_ingress_rule" "db_from_pooler" {
   description                  = "PgBouncer"
 }
 
-# --- internal network load balancer -------------------------------------------
-resource "aws_lb" "this" {
-  name                             = "${var.name}-pgb"
-  load_balancer_type               = "network"
-  internal                         = true
-  subnets                          = var.private_subnet_ids
-  security_groups                  = [aws_security_group.nlb.id]
-  enable_cross_zone_load_balancing = true
-  # Deleting the pooler must stay possible (rollback); the data is elsewhere.
-  enable_deletion_protection = false
-  tags                       = var.tags
+# --- service discovery: Cloud Map private DNS --------------------------------------
+# <svc>.<name>.internal resolves (inside this VPC only) to the private IPs of
+# the running pooler tasks. ECS adds a task's address when it starts and
+# removes it when it stops (before the stop signal; stopTimeout 30 s outlives
+# the 10 s TTL, so a cached address stays usable while the task drains).
+resource "aws_service_discovery_private_dns_namespace" "this" {
+  name        = "${var.name}.internal"
+  description = "LawBid internal names (database pooler)"
+  vpc         = var.vpc_id
+  tags        = var.tags
 }
 
-resource "aws_lb_target_group" "this" {
-  name                   = "${var.name}-pgb"
-  port                   = 5432
-  protocol               = "TCP"
-  target_type            = "ip"
-  vpc_id                 = var.vpc_id
-  deregistration_delay   = 30
-  preserve_client_ip     = false
-  connection_termination = false
-  health_check {
-    protocol            = "TCP"
-    port                = "traffic-port"
-    interval            = 10
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
+resource "aws_service_discovery_service" "this" {
+  name = local.svc
+  dns_config {
+    namespace_id   = aws_service_discovery_private_dns_namespace.this.id
+    routing_policy = "MULTIVALUE"
+    dns_records {
+      type = "A"
+      ttl  = 10
+    }
+  }
+  health_check_custom_config {
+    failure_threshold = 1
   }
   tags = var.tags
-}
-
-resource "aws_lb_listener" "this" {
-  load_balancer_arn = aws_lb.this.arn
-  port              = 5432
-  protocol          = "TCP"
-  # The NLB default (350 s) would silently drop idle pooled connections of the
-  # app; a long idle timeout keeps them valid (PgBouncer closes idle ones).
-  tcp_idle_timeout_seconds = 3600
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.this.arn
-  }
 }
 
 # --- task and service -----------------------------------------------------------
@@ -365,7 +327,6 @@ resource "aws_ecs_service" "this" {
   # the pooler off-peak.
   deployment_minimum_healthy_percent = 50
   deployment_maximum_percent         = 100
-  health_check_grace_period_seconds  = 30
   enable_execute_command             = false
   propagate_tags                     = "SERVICE"
   force_new_deployment               = true
@@ -375,18 +336,15 @@ resource "aws_ecs_service" "this" {
     security_groups  = [aws_security_group.svc.id]
     assign_public_ip = false
   }
-  load_balancer {
-    target_group_arn = aws_lb_target_group.this.arn
-    container_name   = local.svc
-    container_port   = 5432
+  service_registries {
+    registry_arn = aws_service_discovery_service.this.arn
   }
   deployment_circuit_breaker {
     enable   = true
     rollback = true
   }
   lifecycle { ignore_changes = [desired_count] }
-  tags       = var.tags
-  depends_on = [aws_lb_listener.this]
+  tags = var.tags
 }
 
 # --- autoscaling on CPU (the single PgBouncer thread is the first limit) ---------
@@ -476,51 +434,47 @@ resource "aws_cloudwatch_metric_alarm" "server_connections" {
   tags                = var.tags
 }
 
-# No healthy pooler task behind the load balancer = the app has no database.
+# Every pooler task prints its metrics every 30 s, so each task adds at least
+# 2 samples a minute. No samples = no pooler task is running (or all are stuck).
 resource "aws_cloudwatch_metric_alarm" "no_healthy" {
   alarm_name          = "${var.name}-pgbouncer-no-healthy"
-  alarm_description   = "LawBid: Ни одного живого сервера пула соединений - приложение не достаёт базу. Что делать: вернуть прямое подключение (db_pooler_enabled = false) и применить.${local.runbook} (EN: no healthy PgBouncer target behind the NLB.)"
+  alarm_description   = "LawBid: Ни один сервер пула соединений не работает - приложение не достаёт базу. Что делать: вернуть прямое подключение (db_pooler_enabled = false) и применить.${local.runbook} (EN: no PgBouncer metrics for 3 minutes.)"
   comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 2
+  evaluation_periods  = 3
   period              = 60
   threshold           = 1
-  statistic           = "Minimum"
-  metric_name         = "HealthyHostCount"
-  namespace           = "AWS/NetworkELB"
-  dimensions = {
-    LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.this.arn_suffix
-  }
-  treat_missing_data = "breaching"
-  alarm_actions      = var.alarm_actions
-  ok_actions         = var.alarm_actions
-  tags               = var.tags
+  statistic           = "SampleCount"
+  metric_name         = "ServerConnections"
+  namespace           = var.metrics_namespace
+  dimensions          = { Service = "pgbouncer" }
+  treat_missing_data  = "breaching"
+  alarm_actions       = var.alarm_actions
+  ok_actions          = var.alarm_actions
+  tags                = var.tags
 }
 
+# Fewer samples than min_tasks tasks produce = a task is down.
 resource "aws_cloudwatch_metric_alarm" "unhealthy" {
   alarm_name          = "${var.name}-pgbouncer-unhealthy"
-  alarm_description   = "LawBid: Один из серверов пула соединений нездоров уже 10 минут (второй держит нагрузку).${local.runbook} (EN: an unhealthy PgBouncer target for 10 minutes.)"
-  comparison_operator = "GreaterThanThreshold"
+  alarm_description   = "LawBid: Работает меньше серверов пула соединений, чем нужно (должно быть два), уже 10 минут.${local.runbook} (EN: fewer PgBouncer tasks reporting than min_tasks for 10 minutes.)"
+  comparison_operator = "LessThanThreshold"
   evaluation_periods  = 10
   period              = 60
-  threshold           = 0
-  statistic           = "Maximum"
-  metric_name         = "UnHealthyHostCount"
-  namespace           = "AWS/NetworkELB"
-  dimensions = {
-    LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.this.arn_suffix
-  }
-  treat_missing_data = "notBreaching"
-  alarm_actions      = var.alarm_actions
-  ok_actions         = var.alarm_actions
-  tags               = var.tags
+  threshold           = var.min_tasks * 2
+  statistic           = "SampleCount"
+  metric_name         = "ServerConnections"
+  namespace           = var.metrics_namespace
+  dimensions          = { Service = "pgbouncer" }
+  treat_missing_data  = "breaching"
+  alarm_actions       = var.alarm_actions
+  ok_actions          = var.alarm_actions
+  tags                = var.tags
 }
 
 # --- outputs ----------------------------------------------------------------------
 output "endpoint" {
-  value       = aws_lb.this.dns_name
-  description = "DNS name apps connect to (DB_POOLER_HOST)."
+  value       = "${aws_service_discovery_service.this.name}.${aws_service_discovery_private_dns_namespace.this.name}"
+  description = "DNS name apps connect to (DB_POOLER_HOST); resolves to the pooler task addresses."
 }
 output "port" { value = 5432 }
 output "security_group_id" { value = aws_security_group.svc.id }
