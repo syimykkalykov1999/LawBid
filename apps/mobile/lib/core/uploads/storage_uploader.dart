@@ -7,19 +7,35 @@ import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
-/// Where one file goes: the presigned S3 POST of `POST /files/presign`.
+/// Where one file goes: the presigned upload of `POST /files/presign`.
+///
+/// Owner 2026-10-24 (public media on Cloudflare R2): private files and old
+/// servers answer a presigned S3 POST (multipart [fields]); public media
+/// stored in R2 answers a presigned PUT (the raw file as the body, with
+/// exactly [headers]). The app handles both by what the API returns.
 class StorageTarget {
   const StorageTarget({
     required this.fileId,
     required this.url,
     required this.fields,
+    this.method = 'POST',
+    this.headers = const {},
   });
 
   final String fileId;
   final String url;
 
   /// The policy fields; the file part always goes LAST (S3 POST policy).
+  /// Empty for a PUT.
   final Map<String, String> fields;
+
+  /// `POST` (multipart form) or `PUT` (raw body).
+  final String method;
+
+  /// Headers a PUT must send as given (Content-Type, Cache-Control).
+  final Map<String, String> headers;
+
+  bool get isPut => method.toUpperCase() == 'PUT';
 }
 
 /// Sends the bytes of one [StorageTarget]. [DioStorageTransport] in the
@@ -86,6 +102,25 @@ class DioStorageTransport implements StorageTransport {
   }) async {
     for (var failures = 0;; failures++) {
       try {
+        if (target.isPut) {
+          // R2: the raw bytes with the signed headers; a fresh stream per
+          // attempt (a retried PUT cannot reuse a consumed one).
+          await _storage.put<void>(
+            target.url,
+            data: body.open(),
+            options: Options(
+              headers: {
+                ...target.headers,
+                Headers.contentLengthHeader: await body.length(),
+              },
+            ),
+            cancelToken: cancel,
+            onSendProgress: (sent, total) {
+              if (total > 0) onProgress?.call(sent / total);
+            },
+          );
+          return;
+        }
         await _storage.post<void>(
           target.url,
           data: FormData.fromMap({
@@ -155,6 +190,8 @@ class StorageUploader {
           mime: mime,
           sizeBytes: sizeBytes,
           sha256: sha256,
+          // Owner 2026-10-24: this app can do a presigned PUT (R2).
+          supportsPut: true,
         ),
         extras: const {RequestFlags.createsResource: true},
       ),
@@ -164,6 +201,8 @@ class StorageUploader {
       fileId: d.fileId,
       url: d.upload.url,
       fields: d.upload.fields,
+      method: d.upload.method?.name.toUpperCase() ?? 'POST',
+      headers: d.upload.headers ?? const {},
     );
   }
 

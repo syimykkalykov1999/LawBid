@@ -17,6 +17,7 @@ function make(opts: {
   status?: string;
   purpose?: string;
   readError?: Error;
+  bucket?: string;
 }) {
   const prisma = {
     file: {
@@ -24,7 +25,7 @@ function make(opts: {
         id: 'f1',
         purpose: opts.purpose ?? 'verification_document',
         scan_status: opts.status ?? 'pending',
-        s3_bucket: 'b',
+        s3_bucket: opts.bucket ?? 'b',
         s3_key: 'k',
       }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -64,6 +65,25 @@ describe('FileScanProcessor', () => {
       where: { id: 'f1', scan_status: 'pending' },
       data: expect.objectContaining({ scan_status: 'clean' }) as unknown,
     });
+  });
+
+  it('an object in the R2 bucket is read, scanned and deleted in that same bucket', async () => {
+    const infected = make({
+      scanner: new DevEicarScanner(),
+      data: Buffer.from(`%PDF-1.4 ${EICAR_SIGNATURE}`),
+      bucket: 'lawbid-public-r2',
+    });
+    expect(await infected.processor.run('f1', false)).toBe('infected');
+    expect(infected.storage.read).toHaveBeenCalledWith('lawbid-public-r2', 'k');
+    expect(infected.storage.remove).toHaveBeenCalledWith('lawbid-public-r2', [
+      'k',
+    ]);
+    const clean = make({
+      scanner: new DevEicarScanner(),
+      bucket: 'lawbid-public-r2',
+    });
+    expect(await clean.processor.run('f1', false)).toBe('clean');
+    expect(clean.storage.read).toHaveBeenCalledWith('lawbid-public-r2', 'k');
   });
 
   it('EICAR → infected, object deleted, never processed', async () => {

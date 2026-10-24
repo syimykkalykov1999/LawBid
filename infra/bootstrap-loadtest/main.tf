@@ -215,6 +215,23 @@ data "aws_iam_policy_document" "ec2" {
       values   = ["lawbid-loadtest"]
     }
   }
+  # AWS also checks the parent objects: a new subnet or security group is
+  # authorized against its VPC, a NAT gateway against its subnet and address,
+  # an endpoint against its subnets, route tables and groups. Allowed only when
+  # that parent is itself tagged Project=lawbid-loadtest.
+  statement {
+    sid     = "Ec2CreateInsideTaggedParents"
+    actions = ["ec2:CreateSubnet", "ec2:CreateSecurityGroup", "ec2:CreateRouteTable", "ec2:CreateNatGateway", "ec2:CreateVpcEndpoint"]
+    resources = [
+      "arn:aws:ec2:*:${local.acct}:vpc/*", "arn:aws:ec2:*:${local.acct}:subnet/*", "arn:aws:ec2:*:${local.acct}:security-group/*",
+      "arn:aws:ec2:*:${local.acct}:route-table/*", "arn:aws:ec2:*:${local.acct}:elastic-ip/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
   statement {
     sid       = "Ec2RunInstancesTagged"
     actions   = ["ec2:RunInstances"]
@@ -318,6 +335,13 @@ data "aws_iam_policy_document" "runtime" {
     actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:PutCompositeAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:TagResource", "cloudwatch:UntagResource", "cloudwatch:EnableAlarmActions", "cloudwatch:DisableAlarmActions"]
     resources = ["arn:aws:cloudwatch:*:${local.acct}:alarm:${local.lt}-*"]
   }
+  # PutCompositeAlarm is authorized against alarm:* (it reads the child alarms).
+  # The deny policy forbids touching lawbid-prod-* / lawbid-staging-* alarms.
+  statement {
+    sid       = "CompositeAlarmsWide"
+    actions   = ["cloudwatch:PutCompositeAlarm"]
+    resources = ["*"]
+  }
   statement {
     sid       = "SnsByName"
     actions   = ["sns:*"]
@@ -390,7 +414,7 @@ data "aws_iam_policy_document" "data" {
   statement {
     sid       = "KmsAliasByName"
     actions   = ["kms:CreateAlias", "kms:DeleteAlias", "kms:UpdateAlias"]
-    resources = ["arn:aws:kms:*:${local.acct}:alias/${local.lt}-*"]
+    resources = ["arn:aws:kms:*:${local.acct}:alias/${local.lt}", "arn:aws:kms:*:${local.acct}:alias/${local.lt}-*"]
   }
   statement {
     sid       = "SecretsByName"
@@ -423,7 +447,7 @@ data "aws_iam_policy_document" "data" {
 data "aws_iam_policy_document" "edge" {
   statement {
     sid       = "CloudFrontDistributionsTagged"
-    actions   = ["cloudfront:CreateDistributionWithTags", "cloudfront:TagResource"]
+    actions   = ["cloudfront:CreateDistribution", "cloudfront:CreateDistributionWithTags", "cloudfront:TagResource"]
     resources = ["*"]
     condition {
       test     = "StringEquals"
@@ -452,6 +476,7 @@ data "aws_iam_policy_document" "edge" {
       "cloudfront:CreateKeyGroup", "cloudfront:UpdateKeyGroup", "cloudfront:DeleteKeyGroup",
       "cloudfront:CreatePublicKey", "cloudfront:UpdatePublicKey", "cloudfront:DeletePublicKey",
       "cloudfront:CreateKeyValueStore", "cloudfront:UpdateKeyValueStore", "cloudfront:DeleteKeyValueStore",
+      "cloudfront:DescribeFunction", "cloudfront:GetFunction", "cloudfront:DescribeKeyValueStore",
     ]
     resources = ["*"]
   }
@@ -491,6 +516,12 @@ data "aws_iam_policy_document" "edge" {
 # Belt and braces: whatever the allow statements say, nothing tagged
 # Project=lawbid (production, staging) can be touched by these roles.
 data "aws_iam_policy_document" "deny_prod" {
+  statement {
+    sid       = "NeverTouchProdAlarms"
+    effect    = "Deny"
+    actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:PutCompositeAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:DisableAlarmActions", "cloudwatch:SetAlarmState"]
+    resources = ["arn:aws:cloudwatch:*:${local.acct}:alarm:lawbid-prod-*", "arn:aws:cloudwatch:*:${local.acct}:alarm:lawbid-staging-*"]
+  }
   statement {
     sid       = "NeverTouchProductionOrStaging"
     effect    = "Deny"

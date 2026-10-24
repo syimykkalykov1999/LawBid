@@ -681,6 +681,11 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
 };
 
 export const OWNER_STORAGE_SETTINGS = {
+  // Owner 2026-10-24: where NEW public media (avatars, post / review
+  // photos, stickers) is stored: 'aws' (S3, default) or 'r2' (Cloudflare
+  // R2, no egress fee; needs Integrations → Cloudflare R2). Private
+  // content is always on AWS. docs/architecture/R2_PUBLIC_MEDIA.md.
+  'media.public_store': 'aws',
   'storage.dedup': true,
   'storage.auto_cleanup': true,
   'storage.orphan_grace_hours': 24,

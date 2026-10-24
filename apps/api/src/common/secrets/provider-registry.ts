@@ -6,6 +6,8 @@
  * (database, Redis, JWT, S3/IAM, the master key itself) are deliberately
  * NOT here — a wrong value there would take the whole app down.
  */
+import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+
 export interface ProviderField {
   name: string;
   label: string;
@@ -763,6 +765,100 @@ export const PROVIDERS: ProviderDefinition[] = [
         normalize: normalizePem,
       },
     ],
+  },
+  // Owner 2026-10-24: Cloudflare R2 for PUBLIC media only (avatars, post
+  // and review photos, stickers). No egress fee. Private files stay on AWS.
+  // Switched on with the setting media.public_store = r2.
+  {
+    id: 'cloudflare_r2',
+    label: 'Public media storage (Cloudflare R2)',
+    description:
+      'Avatars, post and review photos and stickers, served from Cloudflare R2 (no egress fee) through a public custom domain. Private files (chats, cases, documents, verification) never go here. Turn on with the setting media.public_store = r2.',
+    warning:
+      'The R2 bucket must have a different name from the AWS buckets. Do not change the bucket after files were stored there.',
+    fields: [
+      {
+        name: 'accountId',
+        label: 'Cloudflare account ID',
+        secret: false,
+        required: true,
+        pattern: /^[a-f0-9]{32}$/,
+        patternHint: '32 hex characters',
+        env: 'CLOUDFLARE_R2_ACCOUNT_ID',
+      },
+      {
+        name: 'accessKeyId',
+        label: 'R2 access key ID',
+        secret: false,
+        required: true,
+        pattern: /^[A-Za-z0-9]{20,64}$/,
+        env: 'CLOUDFLARE_R2_ACCESS_KEY_ID',
+      },
+      {
+        name: 'secretAccessKey',
+        label: 'R2 secret access key',
+        secret: true,
+        required: true,
+        pattern: /^[A-Za-z0-9/+=]{32,}$/,
+        env: 'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
+      },
+      {
+        name: 'bucket',
+        label: 'R2 bucket name',
+        secret: false,
+        required: true,
+        pattern: /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/,
+        env: 'CLOUDFLARE_R2_BUCKET',
+      },
+      {
+        name: 'publicBaseUrl',
+        label: 'Public base URL (custom domain of the bucket)',
+        secret: false,
+        required: true,
+        pattern: /^https:\/\/[^\s/]+$/,
+        patternHint: 'https://media.lawbid.dev',
+        env: 'CLOUDFLARE_R2_PUBLIC_BASE_URL',
+        normalize: (v) => cleanPasted(v).replace(/\/+$/, ''),
+      },
+      // Optional: instant removal of cached copies of deleted media.
+      {
+        name: 'zoneId',
+        label: 'Zone ID (optional, cache purge on delete)',
+        secret: false,
+        required: false,
+        pattern: /^[a-f0-9]{32}$/,
+        env: 'CLOUDFLARE_R2_ZONE_ID',
+      },
+      {
+        name: 'purgeToken',
+        label: 'API token with Cache Purge only (optional)',
+        secret: true,
+        required: false,
+        pattern: /^[A-Za-z0-9_-]{30,}$/,
+        env: 'CLOUDFLARE_R2_PURGE_TOKEN',
+      },
+    ],
+    test: async (f) => {
+      const client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${f.accountId}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: f.accessKeyId,
+          secretAccessKey: f.secretAccessKey,
+        },
+      });
+      try {
+        await client.send(new HeadBucketCommand({ Bucket: f.bucket }), {
+          abortSignal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+      } catch (e) {
+        throw new Error(
+          `R2 refused the keys or the bucket: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      } finally {
+        client.destroy();
+      }
+    },
   },
   {
     id: 'sentry',

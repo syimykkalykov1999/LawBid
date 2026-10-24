@@ -37,6 +37,7 @@ function harness(opts: {
   budgetExceeded?: boolean;
   twin?: Record<string, unknown> | null;
   postIds?: string[];
+  bucket?: string;
 }) {
   const checks = new Map<string, Record<string, unknown>>();
   const reports: Record<string, unknown>[] = [];
@@ -47,7 +48,7 @@ function harness(opts: {
     scan_status: 'clean',
     deleted_at: null,
     sha256: 'a'.repeat(64),
-    s3_bucket: 'media',
+    s3_bucket: opts.bucket ?? 'media',
     s3_key: 'k',
   };
   const prisma: Record<string, unknown> = {
@@ -174,6 +175,7 @@ function harness(opts: {
     checks,
     reports,
     provider,
+    storage,
     costGuard,
     moderation,
     queue,
@@ -216,6 +218,12 @@ describe('toCheckJpeg', () => {
 });
 
 describe('MediaModerationService.checkFile', () => {
+  it('an R2 object is read as bytes from its own bucket (no S3Object reference)', async () => {
+    const h = harness({ labels: [], bucket: 'lawbid-public-r2' });
+    expect(await h.svc.checkFile('f1')).toBe('clean');
+    expect(h.storage.read).toHaveBeenCalledWith('lawbid-public-r2', 'k');
+  });
+
   it('a clean picture is marked clean, nothing hidden', async () => {
     const h = harness({ labels: [] });
     expect(await h.svc.checkFile('f1')).toBe('clean');
