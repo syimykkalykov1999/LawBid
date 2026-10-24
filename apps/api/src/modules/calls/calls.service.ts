@@ -6,6 +6,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -53,6 +54,7 @@ import type {
   VideoCallConfigDto,
 } from './calls.dto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { cloudflareTurnFor } from './cloudflare-turn';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   VIDEO_CALLS_FLAG,
@@ -130,6 +132,8 @@ const conflict = () =>
  */
 @Injectable()
 export class CallsService {
+  private readonly logger = new Logger(CallsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -642,6 +646,26 @@ export class CallsService {
       iceServers: [{ urls: stun, username: null, credential: null }],
       ttlSec: TURN_TTL_SEC,
     };
+    // Owner 2026-10-24: calls relay through Cloudflare Realtime TURN first;
+    // our own coturn stays behind it as the fallback. Cloudflare failing
+    // never breaks a call.
+    const cf = (await this.secrets?.get('cloudflare_turn'))?.fields ?? {};
+    const cfKeyId =
+      cf.keyId ?? this.config.get<string>('CLOUDFLARE_TURN_KEY_ID');
+    const cfToken =
+      cf.apiToken ?? this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN');
+    if (cfKeyId && cfToken) {
+      try {
+        out.iceServers.unshift(
+          await cloudflareTurnFor(user.sub, cfKeyId, cfToken, TURN_TTL_SEC),
+        );
+      } catch (e) {
+        // Message only: it never holds the token or the logins.
+        this.logger.warn(
+          `Cloudflare TURN unavailable, using own TURN: ${(e as Error).message}`,
+        );
+      }
+    }
     const turn = (turnKeys.urls ?? this.config.get<string>('TURN_URLS') ?? '')
       .split(',')
       .map((u) => u.trim())

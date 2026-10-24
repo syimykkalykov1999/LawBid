@@ -24,6 +24,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description: 'Ретрансляторы для звонков, когда телефоны не могут соединиться напрямую.',
     warning: 'Смените секрет и на TURN-сервере (coturn) одновременно, иначе звонки через TURN перестанут работать.',
   },
+  cloudflare_turn: {
+    label: 'Cloudflare TURN (звонки в приложении)',
+    description:
+      'Ретрансляторы Cloudflare для звонков (оплата за трафик, первые 1000 ГБ в месяц бесплатно). Пробуются первыми; наш TURN-сервер остаётся запасным.',
+  },
   livekit: {
     label: 'LiveKit (большие видеозвонки)',
     description:
@@ -122,6 +127,8 @@ const FIELD_BY_NAME: Record<string, string> = {
 };
 
 const FIELD_BY_PROVIDER: Record<string, string> = {
+  'cloudflare_turn.keyId': 'ID ключа TURN (Key ID)',
+  'cloudflare_turn.apiToken': 'API-токен ключа TURN',
   'livekit.url': 'Адрес сервера',
   'livekit.apiKey': 'Ключ API',
   'livekit.apiSecret': 'Секрет API',
@@ -160,6 +167,8 @@ export function providerWarning(id: string, fallback: string | null | undefined)
 /** Owner 2026-10-07: the exact English name the service itself uses on its
  * site, shown next to the Russian one so it's clear what to copy where. */
 const FIELD_EN: Record<string, string> = {
+  'cloudflare_turn.keyId': 'TURN Key ID',
+  'cloudflare_turn.apiToken': 'API Token',
   'bunny_stream.libraryId': 'Video Library ID',
   'bunny_stream.cdnHostname': 'CDN Hostname',
   'bunny_stream.apiKey': 'API Key',
@@ -261,6 +270,8 @@ export const FIELD_ENV: Record<string, string> = {
   'apns.privateKey': 'APNS_PRIVATE_KEY',
   'turn.urls': 'TURN_URLS',
   'turn.secret': 'TURN_SECRET',
+  'cloudflare_turn.keyId': 'CLOUDFLARE_TURN_KEY_ID',
+  'cloudflare_turn.apiToken': 'CLOUDFLARE_TURN_API_TOKEN',
   'turn.stunUrls': 'STUN_URLS',
   'livekit.url': 'LIVEKIT_URL',
   'livekit.apiKey': 'LIVEKIT_API_KEY',
