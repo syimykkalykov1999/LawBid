@@ -173,8 +173,9 @@ resource "aws_cloudwatch_metric_alarm" "slo_burn" {
     return_data = false
   }
   metric_query {
-    id          = "err"
-    expression  = "IF(total >= ${var.slo_min_events}, MAX([0, total - FILL(good, 0)]) / total, 0)"
+    id = "err"
+    # CloudWatch rejects MAX over a scalar and a series together, so the floor is a series too.
+    expression  = "IF(total >= ${var.slo_min_events}, MAX([total * 0, total - FILL(good, 0)]) / total, 0)"
     label       = "error rate"
     return_data = true
   }
