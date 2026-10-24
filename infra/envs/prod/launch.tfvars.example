@@ -15,6 +15,12 @@ ses_from_address  = "no-reply@lawbid.dev"
 api_image         = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
 admin_image       = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
 clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4"
+# Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md, runbook
+# docs/runbooks/DB_POOLER.md). Order: apply infra/bootstrap (ECR repo) -> run
+# the "Build PgBouncer" workflow -> set the two lines below -> terraform apply.
+# Rollback: db_pooler_enabled = false -> terraform apply.
+db_pooler_enabled = false # true after the image exists
+pgbouncer_image   = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-pgbouncer:1.24.0-1"
 alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.dev has no inbox yet)
 # Subscription prices and all third-party keys are set in the admin.
 

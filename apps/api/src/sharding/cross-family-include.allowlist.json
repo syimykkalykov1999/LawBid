@@ -1,0 +1,133 @@
+{
+  "common/calls/ongoing-call.ts": [
+    "CallParticipant.user"
+  ],
+  "jobs/handlers/case-deadline-reminder.job.ts": [
+    "User.quiet_hours"
+  ],
+  "jobs/handlers/tasks-planner.jobs.ts": [
+    "AttorneyTask.assignee"
+  ],
+  "modules/admin-cases/admin-case-management.service.ts": [
+    "Bid.attorney",
+    "Case.client",
+    "CaseInvite.attorney",
+    "CasePhoto.file"
+  ],
+  "modules/admin-content/admin-content-extras.service.ts": [
+    "ClientReview.attorney",
+    "ClientReview.client",
+    "Post.video_asset"
+  ],
+  "modules/admin-content/admin-content.service.ts": [
+    "Bid.attorney",
+    "Case.practice_area",
+    "CaseComment.author",
+    "Comment.author",
+    "Post.author",
+    "Post.practice_area",
+    "Review.attorney",
+    "Review.client"
+  ],
+  "modules/admin-data-requests/legal-export.builder.ts": [
+    "ChannelPost.video_asset",
+    "Post.video_asset",
+    "Story.video_asset"
+  ],
+  "modules/admin-data-requests/legal-lookup.service.ts": [
+    "Conversation.attorney",
+    "Conversation.client"
+  ],
+  "modules/admin-media/admin-channels.service.ts": [
+    "Channel.owner"
+  ],
+  "modules/admin-media/admin-videos.service.ts": [
+    "VideoAsset.post"
+  ],
+  "modules/assistants/task-series.ts": [
+    "User.quiet_hours"
+  ],
+  "modules/assistants/tasks.service.ts": [
+    "Conversation.attorney",
+    "Conversation.client"
+  ],
+  "modules/bids/bids.service.ts": [
+    "Case.practice_area",
+    "CaseExtraPractice.practice_area"
+  ],
+  "modules/bids/conflict/conflict-check.service.ts": [
+    "Case.client"
+  ],
+  "modules/blocks/blocks.service.ts": [
+    "Follow.followee",
+    "Follow.follower",
+    "UserBlock.blocked"
+  ],
+  "modules/case-payments/case-payments.service.ts": [
+    "User.quiet_hours"
+  ],
+  "modules/cases/mine/mine.service.ts": [
+    "Case.client",
+    "Case.practice_area"
+  ],
+  "modules/cases/services/case-photos.service.ts": [
+    "CasePhoto.file"
+  ],
+  "modules/cases/workspace/case-workspace.service.ts": [
+    "Case.practice_area"
+  ],
+  "modules/client-reviews/client-reviews.service.ts": [
+    "ClientReview.attorney",
+    "ClientReview.client"
+  ],
+  "modules/follows/follows.service.ts": [
+    "Follow.followee",
+    "Follow.follower"
+  ],
+  "modules/media-moderation/media-moderation.service.ts": [
+    "VideoAsset.post"
+  ],
+  "modules/notifications/push/push-dispatcher.ts": [
+    "Call.callee",
+    "Call.caller",
+    "CallParticipant.invited_by",
+    "CallParticipant.user",
+    "ChatGroupMessage.file",
+    "Message.file",
+    "Notification.user",
+    "User.quiet_hours"
+  ],
+  "modules/posts/post-presenter.service.ts": [
+    "PostTag.tag"
+  ],
+  "modules/posts/posts.service.ts": [
+    "Post.author"
+  ],
+  "modules/posts/shared-post-cards.service.ts": [
+    "Post.author"
+  ],
+  "modules/privacy/account-anonymization.service.ts": [
+    "Follow.followee",
+    "Follow.follower"
+  ],
+  "modules/promotions/promotion-delivery.service.ts": [
+    "Case.practice_area"
+  ],
+  "modules/recommendations/recommendations.service.ts": [
+    "Case.practice_area",
+    "Post.practice_area"
+  ],
+  "modules/reviews/reviews.service.ts": [
+    "Review.attorney",
+    "Review.client"
+  ],
+  "modules/stickers/stickers.service.ts": [
+    "UserRecentSticker.sticker",
+    "UserStickerPack.pack"
+  ],
+  "modules/videos/videos.service.ts": [
+    "VideoAsset.channel_post",
+    "VideoAsset.post",
+    "VideoAsset.story"
+  ]
+}

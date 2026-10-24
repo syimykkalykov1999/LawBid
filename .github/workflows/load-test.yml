@@ -162,6 +162,10 @@ jobs:
           echo "api_image=$ECR_REGISTRY/lawbid-api:$tag" >>"$GITHUB_OUTPUT"
           echo "admin_image=$ECR_REGISTRY/lawbid-admin:$tag" >>"$GITHUB_OUTPUT"
           echo "clamav_image=$ECR_REGISTRY/lawbid-clamav:1.4" >>"$GITHUB_OUTPUT"
+          # Our own PgBouncer (docs/architecture/DB_POOLER.md): the load test runs
+          # THROUGH it. Build it first: Actions -> "Build PgBouncer".
+          aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag=1.24.0-1 >/dev/null || { echo "::error::lawbid-pgbouncer:1.24.0-1 not in ECR - run the Build PgBouncer workflow first"; exit 1; }
+          echo "pgbouncer_image=$ECR_REGISTRY/lawbid-pgbouncer:1.24.0-1" >>"$GITHUB_OUTPUT"
           echo "Testing image tag \`$tag\`" >>"$GITHUB_STEP_SUMMARY"
 
       # ---- everything from here on is cleaned up by the always() steps at the end ----
@@ -183,7 +187,8 @@ jobs:
             -var "run_id=$RUN_ID" -var "created_at=$created" -var "profile=$PROFILE" \
             -var "certificate_arn=$CERT" \
             -var "api_image=${{ steps.img.outputs.api_image }}" -var "admin_image=${{ steps.img.outputs.admin_image }}" \
-            -var "clamav_image=${{ steps.img.outputs.clamav_image }}"
+            -var "clamav_image=${{ steps.img.outputs.clamav_image }}" \
+            -var "pgbouncer_image=${{ steps.img.outputs.pgbouncer_image }}"
           terraform output -json stack >"$RUNNER_TEMP/stack.json"
           terraform output -json generator_instance_ids >"$RUNNER_TEMP/gens.json"
           echo "Stack created: $(jq -r .alb_dns_name "$RUNNER_TEMP/stack.json")" >>"$GITHUB_STEP_SUMMARY"
@@ -207,6 +212,7 @@ jobs:
             echo "subnets=$(jq -r '.private_subnet_ids | join(",")' "$s")"
             echo "api_service=$(g api_service_name)"
             echo "worker_service=$(g worker_service_name)"
+            echo "pgbouncer_service=$(g pgbouncer_service_name)"
             echo "turn_ip=$(g turn_public_ip)"
             echo "turn_param=$(g turn_secret_parameter)"
             echo "livekit_id=$(g livekit_instance_id)"
@@ -256,8 +262,16 @@ jobs:
           CLUSTER: ${{ steps.out.outputs.cluster }}
           API: ${{ steps.out.outputs.api_service }}
           WORKER: ${{ steps.out.outputs.worker_service }}
+          PGB: ${{ steps.out.outputs.pgbouncer_service }}
           ALB: ${{ steps.out.outputs.alb }}
         run: |
+          # The pooler first: it reads DATABASE_URL (now filled) at start; the API and
+          # worker reach the database through it (db_pooler_enabled in infra/envs/loadtest).
+          if [ -n "$PGB" ]; then
+            aws ecs update-service --cluster "$CLUSTER" --service "$PGB" --force-new-deployment >/dev/null
+            aws ecs wait services-stable --cluster "$CLUSTER" --services "$PGB"
+            echo "pgbouncer is up"
+          fi
           for s in "$API" "$WORKER"; do aws ecs update-service --cluster "$CLUSTER" --service "$s" --force-new-deployment >/dev/null; done
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$API" "$WORKER"
           for i in $(seq 1 60); do
