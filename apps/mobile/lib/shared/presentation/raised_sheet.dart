@@ -1,56 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 
-/// Owner 2026-10-24: every menu, picker and filter of «Мои» (Дела, Задачи,
-/// Вопросы) is one comfortable raised sheet, like the iOS Reminders or Notes
-/// ones: a drag handle, a roomy title, rows under it. It wraps its content
-/// (never a giant sheet), is at least [minFraction] and at most
-/// [maxFraction] of the screen tall, and a long list scrolls under the title.
+/// Owner 2026-10-24: the menus, pickers and filters of «Мои» (Дела, Задачи,
+/// Вопросы) keep their size and place — the sheet wraps its rows (at most
+/// 70% of the screen, a long list scrolls) — and get a little more room
+/// under the last row so it is not squeezed at the bottom.
 class RaisedSheetBody extends StatelessWidget {
   const RaisedSheetBody({
     required this.children,
     this.title,
     this.header,
-    this.minFraction = 0.3,
-    this.maxFraction = 0.6,
+    this.handle = false,
     super.key,
   });
 
   /// The rows (or any widgets) of the sheet.
   final List<Widget> children;
 
-  /// A bold title under the handle.
+  /// A bold title above the rows.
   final String? title;
 
   /// A custom block under the title (e.g. an address the menu is about).
   final Widget? header;
 
-  final double minFraction;
-  final double maxFraction;
+  /// Whether the sheet shows a drag handle (as the menu always did).
+  final bool handle;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final height = MediaQuery.sizeOf(context).height;
     return SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          minHeight: height * minFraction,
-          maxHeight: height * maxFraction,
+          maxHeight: MediaQuery.sizeOf(context).height * 0.7,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: AppSpacing.xl),
           children: [
-            const AppSheetHandle(),
+            if (handle) const AppSheetHandle(),
             if (title != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenSide,
-                  AppSpacing.xs,
+                  0,
                   AppSpacing.screenSide,
-                  AppSpacing.md,
+                  AppSpacing.sm,
                 ),
                 child: Text(
                   title!,
@@ -63,17 +59,11 @@ class RaisedSheetBody extends StatelessWidget {
                   AppSpacing.screenSide,
                   0,
                   AppSpacing.screenSide,
-                  AppSpacing.md,
+                  AppSpacing.sm,
                 ),
                 child: header,
               ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                children: children,
-              ),
-            ),
+            ...children,
           ],
         ),
       ),
@@ -88,6 +78,7 @@ Future<T?> showRaisedSheet<T>(
   required List<Widget> Function(BuildContext sheet) rows,
   String? title,
   Widget? header,
+  bool handle = false,
 }) =>
     showAppBottomSheet<T>(
       context: context,
@@ -95,6 +86,7 @@ Future<T?> showRaisedSheet<T>(
       builder: (sheet) => RaisedSheetBody(
         title: title,
         header: header,
+        handle: handle,
         children: rows(sheet),
       ),
     );

@@ -47,13 +47,12 @@ void main() {
   double screenHeight(WidgetTester tester) =>
       tester.view.physicalSize.height / tester.view.devicePixelRatio;
 
-  /// The sheet is at least 30% and at most 60% of the screen tall.
+  /// The sheet keeps its size (wraps its rows, never above 70% of the
+  /// screen) and leaves room under the last row.
   void expectRoomy(WidgetTester tester) {
     final h = screenHeight(tester);
     final box = tester.getRect(find.byType(RaisedSheetBody));
-    expect(box.height, greaterThanOrEqualTo(h * 0.3 - 1));
-    expect(box.height, lessThanOrEqualTo(h * 0.6 + 1));
-    expect(find.byType(AppSheetHandle), findsOneWidget);
+    expect(box.height, lessThanOrEqualTo(h * 0.7 + 1));
   }
 
   for (final (name, theme) in [

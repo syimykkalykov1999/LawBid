@@ -792,7 +792,7 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
     ];
     return SafeArea(
       child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * 0.65,
+        height: MediaQuery.sizeOf(context).height * 0.8,
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             AppSpacing.screenSide,

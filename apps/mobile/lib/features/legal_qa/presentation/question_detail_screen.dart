@@ -147,6 +147,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     unawaited(
       showRaisedSheet<void>(
         context,
+        handle: true,
         rows: (sheet) => [
           if (q.isMine && !q.closed)
             AppListRow(

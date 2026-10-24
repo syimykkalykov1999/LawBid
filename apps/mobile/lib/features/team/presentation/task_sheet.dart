@@ -181,7 +181,6 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const AppSheetHandle(),
             Text(
               t.t('tasks.steps.new'),
               style: typography.titleMedium.copyWith(color: colors.text),
@@ -364,7 +363,6 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     if (!hasAny) return;
     final choice = await showRaisedSheet<String>(
       context,
-      title: step.title,
       rows: (ctx) => [
         if (checkable) ...[
           AppListRow(
@@ -566,7 +564,6 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
           AppSpacing.xxl,
         ),
         children: [
-          const AppSheetHandle(),
           Row(
             children: [
               TaskKindMedallion(kind: task.kind, size: 48),
@@ -1336,7 +1333,6 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppSheetHandle(),
           Text(
             t.t(widget.done ? 'tasks.done' : 'tasks.notDone'),
             style: typography.titleMedium.copyWith(color: colors.text),

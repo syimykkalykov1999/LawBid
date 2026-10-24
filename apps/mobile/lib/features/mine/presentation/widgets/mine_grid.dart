@@ -439,7 +439,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
     final s = widget.search;
     final choice = await showRaisedSheet<String>(
       context,
-      title: t.t('search.filters'),
+      handle: true,
       rows: (sheet) => [
         AppListRow(
           icon: AppIcons.gridViewRounded,

@@ -142,7 +142,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the priority picker is a raised sheet with its title',
+  testWidgets('the priority picker shows its title and rows',
       (tester) async {
     await open(tester);
     await tester.tap(find.byIcon(AppIcons.flagOutlined).last);

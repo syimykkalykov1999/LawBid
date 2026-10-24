@@ -88,6 +88,7 @@ Future<void> showActionSheet(
         final typography = Theme.of(context).extension<AppTypographyTokens>()!;
         // Owner 2026-10-24: the same raised, roomy sheet as every «Мои» menu.
         return RaisedSheetBody(
+          handle: true,
           children: [
             for (final item in items)
               Semantics(

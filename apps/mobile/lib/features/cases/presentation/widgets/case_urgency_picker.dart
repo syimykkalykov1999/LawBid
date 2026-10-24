@@ -433,61 +433,53 @@ class _UrgencySheetState extends ConsumerState<_UrgencySheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
-    final height = MediaQuery.sizeOf(context).height;
-    // Owner 2026-10-24: the same raised, roomy sheet as every «Мои» picker.
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minHeight: height * 0.3,
-            maxHeight: height * 0.75,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.screenSide,
+            AppSpacing.xl,
           ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              AppSpacing.md,
-              AppSpacing.screenSide,
-              AppSpacing.xl,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Center(child: AppSheetHandle()),
-                const SizedBox(height: AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Center(child: AppSheetHandle()),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                t.t('cases.deadline.editTitle'),
+                style: typography.titleMedium.copyWith(color: colors.text),
+              ),
+              if (widget.hired) ...[
+                const SizedBox(height: AppSpacing.xs),
                 Text(
-                  t.t('cases.deadline.editTitle'),
-                  style: typography.titleMedium.copyWith(color: colors.text),
-                ),
-                if (widget.hired) ...[
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    t.t('cases.deadline.otherSideTold'),
-                    style: typography.bodySmall
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                CaseUrgencyPicker(
-                  value: _value,
-                  showDateError: _tried,
-                  onChanged: (v) => setState(() => _value = v),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    _error!,
-                    style: typography.bodySmall.copyWith(color: colors.danger),
-                  ),
-                ],
-                const SizedBox(height: AppSpacing.xl),
-                AppButton(
-                  label: t.t('cases.deadline.save'),
-                  isLoading: _busy,
-                  onPressed: _save,
+                  t.t('cases.deadline.otherSideTold'),
+                  style: typography.bodySmall
+                      .copyWith(color: colors.textSecondary),
                 ),
               ],
-            ),
+              const SizedBox(height: AppSpacing.lg),
+              CaseUrgencyPicker(
+                value: _value,
+                showDateError: _tried,
+                onChanged: (v) => setState(() => _value = v),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  _error!,
+                  style: typography.bodySmall.copyWith(color: colors.danger),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xl),
+              AppButton(
+                label: t.t('cases.deadline.save'),
+                isLoading: _busy,
+                onPressed: _save,
+              ),
+            ],
           ),
         ),
       ),

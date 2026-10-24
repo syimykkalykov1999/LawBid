@@ -5,7 +5,6 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show initialsOf;
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/shared/presentation/raised_sheet.dart';
 
 /// Initials of a free-form name ("Anna Kowalski" → "AK").
 String personInitials(String name) {
@@ -68,17 +67,46 @@ Future<int?> showChoiceSheet(
   int? selected,
   String keyPrefix = 'choice',
 }) =>
-    showRaisedSheet<int>(
-      context,
-      title: title,
-      rows: (ctx) => [
-        for (final (i, l) in labels.indexed)
-          AppListRow(
-            key: ValueKey('$keyPrefix-$i'),
-            label: l,
-            selected: i == selected,
-            showChevron: false,
-            onTap: () => Navigator.of(ctx).pop(i),
+    showAppBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final colors = Theme.of(ctx).extension<AppColorTokens>()!;
+        final typography = Theme.of(ctx).extension<AppTypographyTokens>()!;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
+            ),
+            // Owner 2026-10-24: same place as before, only a little more
+            // room under the last row so it is not squeezed at the bottom.
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    0,
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                  ),
+                  child: Text(
+                    title,
+                    style: typography.titleMedium.copyWith(color: colors.text),
+                  ),
+                ),
+                for (final (i, l) in labels.indexed)
+                  AppListRow(
+                    key: ValueKey('$keyPrefix-$i'),
+                    label: l,
+                    selected: i == selected,
+                    showChevron: false,
+                    onTap: () => Navigator.of(ctx).pop(i),
+                  ),
+              ],
+            ),
           ),
-      ],
+        );
+      },
     );
