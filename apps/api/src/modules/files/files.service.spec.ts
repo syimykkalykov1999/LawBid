@@ -93,7 +93,7 @@ function make(
       configured: true,
     },
     settings: {
-      number: jest.fn(() => Promise.resolve(10)),
+      number: jest.fn<Promise<number>, [string]>(() => Promise.resolve(10)),
       // Owner 2026-10-07 (bug 17): «Загрузки и файлы» (unset = defaults).
       raw: jest.fn().mockResolvedValue(undefined),
     },

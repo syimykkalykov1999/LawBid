@@ -179,8 +179,11 @@ export class OtpService {
       // 2026-10-24 (abuse batch B, item 10): SMS pumping. A tripped prefix
       // sends nothing but answers like a normal request (no signal to the
       // attacker); the sign-up daily cap throws 503.
+      // Local dev and e2e (NODE_ENV development / test) send no real SMS and
+      // tests reuse one number range, so it is not pumping.
       if (
         this.smsAbuse &&
+        this.smsCostsMoney() &&
         (await this.smsAbuse.check(identifier, purpose, country)) === 'blocked'
       ) {
         return;
@@ -306,6 +309,13 @@ export class OtpService {
       this.codeTtlSeconds,
     );
     return token;
+  }
+
+  /** False in local dev and e2e: no carrier is paid there, and tests reuse
+   * one number range (staging / production never run on the mock). */
+  private smsCostsMoney(): boolean {
+    const env = this.config.get<string>('NODE_ENV') ?? 'production';
+    return env !== 'development' && env !== 'test';
   }
 
   /** Also used by support's phone change (admin-users). */
