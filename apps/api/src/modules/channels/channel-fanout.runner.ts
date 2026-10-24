@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
+import { shardCarry, shardContext } from '../../sharding/shard-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -39,6 +40,8 @@ export interface ChannelFanoutJob {
   after: string | null;
   /** The demo world (src/common/demo): the job reads the demo database. */
   demo?: boolean;
+  /** Shard context of the enqueuer (shard-ready step 4), `shard:N`. */
+  shardKey?: string;
 }
 
 /**
@@ -113,6 +116,7 @@ export class ChannelFanoutRunner
       ...job,
       after: null,
       ...(demoContext.isDemo() ? { demo: true } : {}),
+      ...shardCarry(),
     };
     if (!this.queue) {
       let after: string | null = null;
@@ -128,16 +132,20 @@ export class ChannelFanoutRunner
   }
 
   async process(data: ChannelFanoutJob): Promise<void> {
-    await demoContext.run(data.demo === true, async () => {
-      const next = await this.emitBatch(data);
-      if (next && this.queue) {
-        await this.queue.add(
-          'batch',
-          { ...data, after: next },
-          { ...JOB_OPTS, jobId: `${data.postId}-${next}` },
-        );
-      }
-    });
+    await demoContext.run(data.demo === true, () =>
+      shardContext.runFromKey(data.shardKey, () => this.processBatch(data)),
+    );
+  }
+
+  private async processBatch(data: ChannelFanoutJob): Promise<void> {
+    const next = await this.emitBatch(data);
+    if (next && this.queue) {
+      await this.queue.add(
+        'batch',
+        { ...data, after: next },
+        { ...JOB_OPTS, jobId: `${data.postId}-${next}` },
+      );
+    }
   }
 
   /** Notifies one batch of subscribers who have not muted the channel

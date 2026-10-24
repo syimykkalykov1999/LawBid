@@ -71,6 +71,14 @@ class ShardContext {
     return this.als.getStore();
   }
 
+  /** The current logical shard as a job-data key (`shard:N`), or undefined
+   * without a context: enqueue code spreads `{ shardKey: ... }` into the job
+   * so the worker can `runFromKey` it. */
+  currentKey(): ShardKeyString | undefined {
+    const shard = this.als.getStore()?.shard;
+    return shard === undefined ? undefined : shardKeyOf.shard(shard);
+  }
+
   /** Runs `fn` on a logical shard. */
   run<T>(shard: number, fn: () => T, source = 'explicit'): T {
     if (!Number.isInteger(shard) || shard < 0 || shard >= LOGICAL_SHARDS) {
@@ -118,3 +126,10 @@ function safeShard(f: (id: string) => number, id: string): number {
 }
 
 export const shardContext = new ShardContext();
+
+/** Spread into job data when enqueueing: carries the current shard context
+ * (nothing without one). The worker restores it with `runFromKey`. */
+export function shardCarry(): { shardKey?: ShardKeyString } {
+  const shardKey = shardContext.currentKey();
+  return shardKey ? { shardKey } : {};
+}

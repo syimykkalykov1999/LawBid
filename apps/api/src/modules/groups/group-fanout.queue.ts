@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
+import { shardCarry } from '../../sharding/shard-context';
 
 /**
  * Owner 2026-10-22 (server load audit, finding 7): a group message used to
@@ -46,6 +47,8 @@ export interface GroupFanoutJob {
   push?: boolean;
   /** The demo world (src/common/demo): the job reads the demo database. */
   demo?: boolean;
+  /** Shard context of the enqueuer (shard-ready step 4), `shard:N`. */
+  shardKey?: string;
 }
 
 /** FNV-1a: a group's partition, stable across processes and restarts. */
@@ -115,7 +118,7 @@ export class GroupFanoutQueue
   /** Queues [job] (jobId [jobId]: a retried request queues nothing new)
    * on its group's partition, or runs [inline]. */
   async enqueue(
-    job: Omit<GroupFanoutJob, 'demo'>,
+    job: Omit<GroupFanoutJob, 'demo' | 'shardKey'>,
     jobId: string,
     inline: () => Promise<void>,
   ): Promise<void> {
@@ -124,7 +127,11 @@ export class GroupFanoutQueue
     try {
       await queue.add(
         GROUP_FANOUT_JOB,
-        { ...job, ...(demoContext.isDemo() ? { demo: true } : {}) },
+        {
+          ...job,
+          ...(demoContext.isDemo() ? { demo: true } : {}),
+          ...shardCarry(),
+        },
         { ...GROUP_FANOUT_JOB_OPTS, jobId },
       );
     } catch (error) {

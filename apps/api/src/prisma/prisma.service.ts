@@ -195,7 +195,9 @@ export class PrismaService
       if (info.family === 'global') return real;
       const ctx = shardContext.current();
       if (!ctx) shardStats.noContext(info.model);
-      else if (ctx.source === 'auth') shardStats.weakContext(info.model);
+      else if (ctx.source === 'auth' || ctx.source === 'socket') {
+        shardStats.weakContext(info.model);
+      }
       return byContext();
     };
 
