@@ -145,6 +145,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   user_activity_days: 'who opened the app on which day (testers)',
   app_event_days: 'app event counts by day (testers)',
   system_incidents: 'status-board outages of the test period',
+  search_outbox: 'pending search-engine updates of tester content',
+  search_index_state: 'search-engine fill progress (rebuilt by the indexer)',
   search_clicks: 'results testers opened',
   search_learned_links: 'topics learned from tester clicks',
   reviews: 'reviews of attorneys',
