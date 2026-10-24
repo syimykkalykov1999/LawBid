@@ -1,0 +1,95 @@
+# Builds our own connection pooler image (infra/pgbouncer: official Alpine +
+# Alpine's pgbouncer package) for amd64 AND arm64 and pushes it to ECR
+# `lawbid-pgbouncer` (docs/architecture/DB_POOLER.md). Fargate never pulls
+# from Docker Hub, hence ECR.
+#
+# Run once before db_pooler_enabled = true: Actions -> "Build PgBouncer" ->
+# Run workflow. Then set in the tfvars:
+#   pgbouncer_image = "<ECR_REGISTRY>/lawbid-pgbouncer:<tag>"
+# ECR tags are IMMUTABLE: to change the image, change infra/pgbouncer and use a
+# new tag (the tag is also printed in the run summary).
+# Secrets used: AWS_DEPLOY_ROLE_PROD, AWS_REGION, ECR_REGISTRY (same as deploy.yml).
+# The repository lawbid-pgbouncer is created by infra/bootstrap (apply it first).
+name: Build PgBouncer
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag in ECR lawbid-pgbouncer (immutable)"
+        required: false
+        default: "1.24.0-1"
+  pull_request:
+    paths:
+      - "infra/pgbouncer/**"
+      - ".github/workflows/build-pgbouncer.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: build-pgbouncer-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+
+jobs:
+  # Pull requests: build both architectures, push nothing.
+  check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Build amd64 + arm64 (no push)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: infra/pgbouncer
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+  push:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Does the tag exist already?
+        id: exists
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            echo "::notice::lawbid-pgbouncer:$TAG already in ECR (tags are immutable), nothing to do"
+            echo "found=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "found=false" >>"$GITHUB_OUTPUT"
+          fi
+      - name: Build amd64 + arm64 and push
+        if: steps.exists.outputs.found == 'false'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: infra/pgbouncer
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.ECR_REGISTRY }}/lawbid-pgbouncer:${{ inputs.tag }}
+      - name: Proof - the image has both architectures
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          docker buildx imagetools inspect "$ECR_REGISTRY/lawbid-pgbouncer:$TAG" | tee /tmp/inspect.txt
+          grep -q "linux/arm64" /tmp/inspect.txt && grep -q "linux/amd64" /tmp/inspect.txt
+          echo "pgbouncer_image = \"$ECR_REGISTRY/lawbid-pgbouncer:$TAG\"" >>"$GITHUB_STEP_SUMMARY"

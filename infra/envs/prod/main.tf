@@ -56,6 +56,9 @@ module "stack" {
   extra_secrets                   = var.extra_secrets
   documents_cdn_public_key_pem    = var.documents_cdn_public_key_pem
   clamav_image                    = var.clamav_image
+  db_pooler_enabled               = var.db_pooler_enabled
+  pgbouncer_image                 = var.pgbouncer_image
+  pgbouncer_max_tasks             = var.pgbouncer_max_tasks
   fcm_project_id                  = var.fcm_project_id
   fcm_client_email                = var.fcm_client_email
   google_client_ids               = var.google_client_ids

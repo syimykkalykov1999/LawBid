@@ -1,7 +1,7 @@
 # One-time prerequisites of infra/envs/prod (infra/README.md «Prerequisites»),
 # run once from the owner's Mac before the first prod apply:
 #   - S3 bucket + DynamoDB table for the prod Terraform state and lock
-#   - ECR repositories lawbid-api / lawbid-admin / lawbid-clamav (a copy of
+#   - ECR repositories lawbid-api / lawbid-admin / lawbid-clamav / lawbid-pgbouncer (clamav: a copy of
 #     the official ClamAV image: Fargate never pulls from Docker Hub, whose
 #     anonymous pull limit would stall a scale-out)
 #   - ACM certificate for api.<domain> and admin.<domain> (DNS validation:
@@ -104,7 +104,7 @@ resource "aws_dynamodb_table" "tflock" {
 
 # --- Container images ----------------------------------------------------------
 resource "aws_ecr_repository" "app" {
-  for_each             = toset(["lawbid-api", "lawbid-admin", "lawbid-clamav"])
+  for_each             = toset(["lawbid-api", "lawbid-admin", "lawbid-clamav", "lawbid-pgbouncer"])
   name                 = each.key
   image_tag_mutability = "IMMUTABLE"
   image_scanning_configuration { scan_on_push = true }
@@ -118,7 +118,7 @@ resource "aws_ecr_repository" "app" {
 # newest 60 images of api / admin (≈ a week of heavy merging, about $2/month),
 # 5 of ClamAV (one fixed tag, `1.4`). ≈ $0.10/GB-month.
 locals {
-  ecr_keep = { "lawbid-api" = 60, "lawbid-admin" = 60, "lawbid-clamav" = 5 }
+  ecr_keep = { "lawbid-api" = 60, "lawbid-admin" = 60, "lawbid-clamav" = 5, "lawbid-pgbouncer" = 5 }
 }
 
 resource "aws_ecr_lifecycle_policy" "app" {

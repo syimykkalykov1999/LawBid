@@ -23,6 +23,11 @@ RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build /repo/apps/admin/.next/standalone ./
 COPY --from=build /repo/apps/admin/.next/static ./apps/admin/.next/static
+# readonlyRootFilesystem on ECS: /tmp and the Next.js cache are task volumes.
+# As VOLUMEs with `app` ownership they are seeded writable for the app user
+# (an empty mount is root-owned and the admin fails its health check).
+RUN mkdir -p /app/apps/admin/.next/cache && chown -R app:app /app/apps/admin/.next/cache
+VOLUME ["/tmp", "/app/apps/admin/.next/cache"]
 USER app
 EXPOSE 3001
 CMD ["node", "apps/admin/server.js"]

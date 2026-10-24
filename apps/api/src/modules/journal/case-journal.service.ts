@@ -32,10 +32,12 @@ export interface JournalAppendInput {
   attorneyId?: string | null;
 }
 
-/** The hashed fields of a row: everything except row_hash itself. The
+/** The hashed fields of a row: everything except row_hash itself (and the
+ * `shard_id` routing column, which the shard extension fills on create and
+ * which is deliberately not part of the hash). The
  * payload is typed loosely: the same row is hashed on insert (input JSON)
  * and on verification (JSON read back from JSONB). */
-type HashedRow = Omit<CaseJournal, 'row_hash' | 'payload'> & {
+type HashedRow = Omit<CaseJournal, 'row_hash' | 'payload' | 'shard_id'> & {
   payload: unknown;
 };
 

@@ -80,6 +80,17 @@ variable "admin_image" {
   type    = string
   default = "unset"
 }
+# Owner 2026-10-24: the load tests run THROUGH our own PgBouncer (on by default
+# here), so they prove it. Turn it off to compare with the direct connection.
+variable "db_pooler_enabled" {
+  type    = bool
+  default = true
+}
+variable "pgbouncer_image" {
+  type        = string
+  default     = ""
+  description = "<ECR_REGISTRY>/lawbid-pgbouncer:<tag>; the workflow passes it."
+}
 variable "clamav_image" {
   type    = string
   default = "clamav/clamav:1.4"

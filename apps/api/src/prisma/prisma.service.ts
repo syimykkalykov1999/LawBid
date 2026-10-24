@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { demoContext } from '../common/demo/demo-context';
+import { withPoolerRouting } from './pooler-url';
 import {
   slowQueryExtension,
   slowQueryThresholdMs,
 } from './slow-query.extension';
 import { softDeleteExtension } from './soft-delete.extension';
+import { parentShardLookup, shardExtension } from '../sharding/shard.extension';
 
 /**
  * The application's database client. Every query made through it (and
@@ -49,6 +51,7 @@ const slowLog = new Logger('SlowQuery');
 export function extend(client: PrismaClient) {
   return client
     .$extends(softDeleteExtension())
+    .$extends(shardExtension(parentShardLookup(client)))
     .$extends(
       slowQueryExtension(slowQueryThresholdMs(), (q) =>
         slowLog.warn(`${q.operation} took ${q.ms} ms`),
@@ -96,7 +99,10 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
-    const datasourceUrl = withPoolDefaults(process.env.DATABASE_URL);
+    // DB_POOLER_HOST set: the main client goes through our PgBouncer.
+    const datasourceUrl = withPoolDefaults(
+      withPoolerRouting(process.env.DATABASE_URL),
+    );
     super(datasourceUrl ? { datasourceUrl } : undefined);
     // WARNING: do not add instance fields to this class. The constructor
     // returns a proxy, so per-instance state set here is lost for every
