@@ -6,7 +6,7 @@ function res(status: number) {
 }
 const args = [
   'api.stripe.com',
-  443,
+  '443',
   '/v1/x',
   'GET',
   {},

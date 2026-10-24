@@ -18,7 +18,8 @@ describe('SearchService ranked cache', () => {
     const store = new Map<string, string>();
     const cache = {
       get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
-      set: jest.fn((k: string, v: string) => {
+      set: jest.fn((k: string, v: string, ...rest: unknown[]) => {
+        void rest;
         store.set(k, v);
         return Promise.resolve('OK');
       }),
