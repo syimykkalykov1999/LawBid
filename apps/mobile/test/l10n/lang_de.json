@@ -407,6 +407,7 @@
 "call.status.reconnecting":"Verbindung wird wiederhergestellt …",
 "call.subscription":"Für Anrufe benötigt der Anwalt ein aktives Abo.",
 "call.updateApp":"Aktualisiere die App, um Anrufe zu tätigen und anzunehmen.",
+"call.videoBlocked":"Auf dem Server laufen Wartungsarbeiten. Das Video kann in etwa einer Stunde eingeschaltet werden.",
 "call.videoButton":"Videoanruf",
 "call.videoLabel":"LawBid-Videoanruf",
 "call.videoNotNow":"Jetzt nicht",

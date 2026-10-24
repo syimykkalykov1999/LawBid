@@ -17,7 +17,9 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
+import 'package:lawbid/features/calls/application/cloudflare_sfu_call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
+import 'package:lawbid/features/calls/data/calls_sfu_api.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
@@ -295,6 +297,10 @@ const kNoticeVoteFailed = 'VOTE_FAILED';
 /// this many people (a mesh: every camera goes to every member).
 const kVideoSwitchMaxPeople = 9;
 
+/// Owner 2026-10-24: the same on a Cloudflare SFU call (one upload, not one
+/// per member), up to its default size.
+const kSfuVideoSwitchMaxPeople = callMaxSfu;
+
 /// The link must come up this fast after pick-up, else "failed".
 const kCallConnectTimeout = Duration(seconds: 45);
 
@@ -379,6 +385,16 @@ class CallController extends Notifier<CallSession> {
   final _reconnect = <String, ({Timer grace, Timer retry})>{};
   bool _syncingLinks = false;
   bool _syncAgain = false;
+
+  /// The live media when this call runs on the Cloudflare SFU.
+  SfuCallMedia? get _sfu {
+    final m = _media;
+    return m is SfuCallMedia ? m : null;
+  }
+
+  /// Owner 2026-10-24: a crowded call while Cloudflare is down is audio
+  /// only — the camera cannot be switched on (a short message says so).
+  bool get videoBlocked => state.call?.mediaFallback?.videoBlocked ?? false;
 
   String? get _me => ref.read(callMyIdProvider);
 
@@ -695,10 +711,11 @@ class CallController extends Notifier<CallSession> {
         await _onSignal(e.data, from: e.from);
       }
       if (invited) {
-        await _offerTo(call.id, call.peer.id);
+        // On the SFU there is nobody to offer to: the roster pulls them.
+        if (_sfu == null) await _offerTo(call.id, call.peer.id);
         await _syncLinks();
       }
-      unawaited(_nudgeSignals(call.id));
+      if (_sfu == null) unawaited(_nudgeSignals(call.id));
     } on ApiException catch (e) {
       callTrace('accept ${call.id}: server refused ${e.statusCode} ${e.code}');
       if (gen != _gen) return;
@@ -964,6 +981,38 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  /// Owner 2026-10-24: the media facts the server sends with the member list.
+  /// A crowded call that dropped to audio (Cloudflare is down) turns our
+  /// camera off too.
+  void _applyMedia({bool? video, CallMediaFallback? fallback}) {
+    final call = state.call;
+    if (call == null || (video == null && fallback == null)) return;
+    state = state.copyWith(
+      call: call.copyWith(video: video, mediaFallback: fallback),
+    );
+    if (video == false &&
+        (fallback?.videoBlocked ?? false) &&
+        state.video &&
+        state.cameraOn) {
+      unawaited(_cameraOffForAudioOnly());
+    }
+  }
+
+  Future<void> _cameraOffForAudioOnly() async {
+    final media = _media;
+    state = state.copyWith(
+      cameraOn: false,
+      video: _anyPeerVideo(),
+      clearVideoPrompt: true,
+    );
+    try {
+      await media?.disableVideo();
+    } on Object {
+      // The camera is already gone.
+    }
+    _shareVideo(on: false);
+  }
+
   void _applyMembers(
     String? hostId,
     List<CallMember> members, {
@@ -1020,6 +1069,16 @@ class CallController extends Notifier<CallSession> {
           for (final m in call.participants)
             if (m.joined && m.userId != me) m,
         ];
+        if (media is SfuCallMedia) {
+          // One connection: no links to add or drop — pull what the others
+          // publish, let go of those who left.
+          _pushLayers();
+          await media.syncRoster({
+            for (final m in others) m.userId: m.sfuTracks,
+          });
+          if (gen != _gen) return;
+          continue;
+        }
         final ids = {for (final m in others) m.userId};
         for (final p in media.peers.toList()) {
           if (ids.contains(p)) continue;
@@ -1040,6 +1099,44 @@ class CallController extends Notifier<CallSession> {
     } finally {
       _syncingLinks = false;
     }
+  }
+
+  /// The person shown big, as the layout told us (null = the grid). The
+  /// layout provider watches this controller, so it pushes the change here
+  /// rather than being read from here.
+  String? _focusId;
+
+  /// The call layout changed (a tile was made big, or the grid came back):
+  /// the layers pulled may change with it.
+  void layoutChanged(String? focusId) {
+    _focusId = focusId;
+    _pushLayers();
+  }
+
+  /// Owner 2026-10-24: the picture of each camera we pull is asked in the
+  /// size of its tile — the big picture full, a strip tile or a crowded grid
+  /// tile the quarter layer (the screens are not told; only the traffic
+  /// changes).
+  void _pushLayers() {
+    final sfu = _sfu;
+    final call = state.call;
+    if (sfu == null || call == null || !state.video) return;
+    final me = _me;
+    final shown = [
+      for (final m in call.participants)
+        if ((m.joined || m.ringing) && m.userId != me) m.userId,
+    ];
+    final focus = _focusId;
+    sfu.setLayers({
+      for (final u in shown)
+        u: sfuRidForTile(
+          nominalTileSize(
+            total: shown.length + 1,
+            focused: focus == u,
+            anyFocus: focus != null,
+          ),
+        ),
+    });
   }
 
   /// Of two members the later joiner offers (same time: the larger id).
@@ -1098,6 +1195,7 @@ class CallController extends Notifier<CallSession> {
   Future<void> toggleCamera() async {
     if (!state.video) return;
     final on = !state.cameraOn;
+    if (on && videoBlocked) return;
     state = state.copyWith(cameraOn: on);
     try {
       await _media?.setCameraOn(on);
@@ -1135,7 +1233,7 @@ class CallController extends Notifier<CallSession> {
       return false;
     }
     return call.participants.where((m) => m.joined).length <=
-        kVideoSwitchMaxPeople;
+        (call.viaSfu ? kSfuVideoSwitchMaxPeople : kVideoSwitchMaxPeople);
   }
 
   /// Owner 2026-10-22 (WhatsApp / Zoom): the camera button. A voice call
@@ -1154,6 +1252,9 @@ class CallController extends Notifier<CallSession> {
     final media = _media;
     if (call == null || media == null || !canSwitchVideo) return;
     final on = !(state.video && state.cameraOn);
+    // Owner 2026-10-24: too many people for the camera while Cloudflare is
+    // down — the screen says so; the camera stays off.
+    if (on && videoBlocked) return;
     if (on) {
       final speaker = state.speaker;
       state = state.copyWith(
@@ -1178,8 +1279,12 @@ class CallController extends Notifier<CallSession> {
       // Like a video call from the start: the picture comes with the
       // loudspeaker (WhatsApp).
       if (!speaker) await toggleSpeaker();
-      for (final p in media.peers.toList()) {
-        if (p.isNotEmpty) await _renegotiate(call.id, p);
+      // The SFU carries the new camera by itself (published in enableVideo);
+      // a mesh needs a new offer on every link.
+      if (media is! SfuCallMedia) {
+        for (final p in media.peers.toList()) {
+          if (p.isNotEmpty) await _renegotiate(call.id, p);
+        }
       }
     } else {
       state = state.copyWith(
@@ -1485,9 +1590,19 @@ class CallController extends Notifier<CallSession> {
     final gen = _gen;
     final servers = await _iceServers();
     if (gen != _gen || !ref.mounted) return;
-    final media = ref.read(callMediaFactoryProvider)();
+    // Owner 2026-10-24: a call carried by the Cloudflare SFU has ONE
+    // connection to it; every other call (1:1, the mesh, the outage
+    // fallback) keeps the device-to-device media exactly as before.
+    final sfu = state.call?.viaSfu ?? false;
+    final media = sfu
+        ? ref.read(sfuCallMediaFactoryProvider)(
+            callId,
+            ref.read(callsSfuApiProvider),
+          )
+        : ref.read(callMediaFactoryProvider)();
     _media = media;
     _startedVideo = video;
+    final link = sfu ? kSfuLinkId : peer;
     await media.open(
       servers,
       video: video,
@@ -1497,8 +1612,9 @@ class CallController extends Notifier<CallSession> {
         s,
         to: peer.isEmpty ? null : peer,
       ),
-      onState: (s) => _onLinkState(peer, s),
+      onState: (s) => _onLinkState(link, s),
     );
+
     if (gen != _gen) {
       // The call ended while the mic was being asked for.
       unawaited(media.close());
@@ -1556,12 +1672,22 @@ class CallController extends Notifier<CallSession> {
   Future<void> _restartAll() async {
     final media = _media;
     if (media == null || !state.busy) return;
+    if (media is SfuCallMedia) {
+      // One connection: an ICE restart on it, else a new session.
+      await media.reconnect();
+      return;
+    }
     for (final p in media.peers.toList()) {
       await _restartOrAsk(p);
     }
   }
 
   Future<void> _restartOrAsk(String peer) async {
+    final sfu = _sfu;
+    if (sfu != null) {
+      if (state.busy) await sfu.reconnect();
+      return;
+    }
     if (_offered.contains(peer)) return _restartIce(peer);
     final call = state.call;
     if (call == null || !state.busy) return;
@@ -1737,6 +1863,14 @@ class CallController extends Notifier<CallSession> {
       return;
     }
     final peer = from ?? call.peer.id;
+    // An SFU call has no offers between members; its media is not touched
+    // by a stray one (only the camera / video flags below apply).
+    if (media is SfuCallMedia &&
+        (data['type'] == 'offer' ||
+            data['type'] == 'answer' ||
+            data['type'] == 'candidate')) {
+      return;
+    }
     try {
       switch (data['type']) {
         case 'offer':
@@ -1882,6 +2016,7 @@ class CallController extends Notifier<CallSession> {
       case 'call:participants':
         final m = CallMappers.participantsFromEvent(data);
         if (m == null || m.callId != state.call?.id || !state.busy) return;
+        _applyMedia(video: m.video, fallback: m.fallback);
         _applyMembers(m.hostId, m.members);
       case 'call:vote':
         final v = CallMappers.voteFromEvent(data);
@@ -2073,6 +2208,7 @@ class CallController extends Notifier<CallSession> {
     _media = null;
     _mediaOpen = false;
     _earlySignals.clear();
+    _focusId = null;
     _offered.clear();
     _renegotiating.clear();
     _videoPeers.clear();

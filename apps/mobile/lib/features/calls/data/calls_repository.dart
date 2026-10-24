@@ -271,7 +271,10 @@ class ApiCallsRepository implements CallsRepository {
   Future<bool> providerSupported() async {
     try {
       final config = (await guardApiCall(_api.callVideoConfig)).data;
-      return config.provider == api.VideoCallConfigDtoProvider.webrtc;
+      // Owner 2026-10-24: `cloudflare` (group calls over the SFU) is
+      // carried by this build; only LiveKit and unknown values are not.
+      return config.provider == api.VideoCallConfigDtoProvider.webrtc ||
+          config.provider == api.VideoCallConfigDtoProvider.cloudflare;
     } on Object {
       return true;
     }
@@ -320,6 +323,22 @@ abstract final class CallMappers {
         participants: d.participants.map(member).toList(),
         moderated: d.moderated,
         vote: d.vote == null ? null : voteOf(d.vote!),
+        mediaProvider: mediaProviderOf(d.mediaProvider?.json),
+        mediaFallback:
+            d.mediaFallback == null ? null : fallbackOf(d.mediaFallback!),
+      );
+
+  static CallMediaProvider mediaProviderOf(String? raw) =>
+      raw == 'cloudflare'
+          ? CallMediaProvider.cloudflare
+          : CallMediaProvider.p2p;
+
+  static CallMediaFallback fallbackOf(api.CallMediaFallbackDto f) =>
+      CallMediaFallback(
+        active: f.active,
+        reason: f.reason?.json,
+        videoBlocked: f.videoBlocked,
+        videoMaxParticipants: f.videoMaxParticipants.toInt(),
       );
 
   static CallVote voteOf(api.CallVoteDto v) => CallVote(
@@ -369,11 +388,26 @@ abstract final class CallMappers {
         muted: p.muted,
         mutedByHost: p.mutedByHost,
         joinedAt: p.joinedAt,
+        sfuTracks: p.sfuTracks == null
+            ? null
+            : {
+                for (final t in p.sfuTracks!)
+                  if (t.json != null) t.json!,
+              },
       );
 
-  /// A realtime `call:participants` payload.
-  static ({String callId, String? hostId, List<CallMember> members})?
-      participantsFromEvent(Object? data) {
+  /// A realtime `call:participants` payload. Besides the members it carries
+  /// the media facts of the call (owner 2026-10-24): `mediaProvider`, the
+  /// current `video` flag (it turns false when a crowded call drops to
+  /// audio) and the outage `fallback`.
+  static ({
+    String callId,
+    String? hostId,
+    List<CallMember> members,
+    CallMediaProvider? mediaProvider,
+    bool? video,
+    CallMediaFallback? fallback,
+  })? participantsFromEvent(Object? data) {
     if (data is! Map || data['callId'] is! String) return null;
     final list = data['participants'];
     if (list is! List) return null;
@@ -389,6 +423,17 @@ abstract final class CallMappers {
               ),
             ),
         ],
+        mediaProvider: data['mediaProvider'] is String
+            ? mediaProviderOf(data['mediaProvider'] as String)
+            : null,
+        video: data['video'] is bool ? data['video'] as bool : null,
+        fallback: data['mediaFallback'] is Map
+            ? fallbackOf(
+                api.CallMediaFallbackDto.fromJson(
+                  Map<String, Object?>.from(data['mediaFallback'] as Map),
+                ),
+              )
+            : null,
       );
     } on Object {
       return null;

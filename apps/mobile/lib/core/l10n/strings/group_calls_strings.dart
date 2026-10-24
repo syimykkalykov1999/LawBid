@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // Owner 2026-10-21 (inbox 20e/20f, Telegram «Видеочат»): the people list of
 // a group / channel call. Other languages: docs/i18n-pending/group-calls.json.
 //
@@ -18,6 +19,9 @@ const groupCallsRu = <String, String>{
   'call.people.empty':
       'Здесь появятся ваши контакты, люди из чатов и взаимные подписки.',
   'call.people.noMatch': 'Никого не найдено',
+  // Owner 2026-10-24: Cloudflare is down and the call is too big for video.
+  'call.videoBlocked':
+      'На сервере идут работы. Видео можно будет включить примерно через час.',
 };
 
 const groupCallsEn = <String, String>{
@@ -34,4 +38,6 @@ const groupCallsEn = <String, String>{
   'call.people.empty':
       'Your contacts, people from your chats and mutual follows appear here.',
   'call.people.noMatch': 'No one found',
+  'call.videoBlocked':
+      'Maintenance is under way on the server. Video can be turned on in about an hour.',
 };

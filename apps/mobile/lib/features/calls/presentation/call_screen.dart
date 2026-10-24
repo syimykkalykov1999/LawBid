@@ -104,6 +104,25 @@ class _CallScreenState extends ConsumerState<CallScreen>
     });
   }
 
+  /// The video / camera button. Owner 2026-10-24: while a crowded call runs
+  /// audio only (Cloudflare is down) the camera cannot go on — a short
+  /// message in the app's usual snackbar says so; switching it OFF and every
+  /// other press work as before.
+  void _videoTap(
+    CallController c,
+    CallSession s,
+    Future<void> Function() toggle,
+  ) {
+    if (c.videoBlocked && !(s.video && s.cameraOn)) {
+      showAppSnackBar(
+        context,
+        ref.read(translatorProvider).t('call.videoBlocked'),
+      );
+      return;
+    }
+    unawaited(toggle());
+  }
+
   /// The red button. In a group call the host chooses like in Telegram:
   /// end it for everyone, or just leave (the others go on, and the host's
   /// rights come back when they return).
@@ -637,10 +656,17 @@ class _CallScreenState extends ConsumerState<CallScreen>
                                         // video call keeps the plain camera
                                         // pause.
                                         onVideo: c.canSwitchVideo
-                                            ? () => unawaited(c.toggleVideo())
+                                            ? () => _videoTap(
+                                                  c,
+                                                  s,
+                                                  c.toggleVideo,
+                                                )
                                             : s.video && s.busy
-                                                ? () =>
-                                                    unawaited(c.toggleCamera())
+                                                ? () => _videoTap(
+                                                      c,
+                                                      s,
+                                                      c.toggleCamera,
+                                                    )
                                                 : null,
                                         onMute: s.busy ? c.toggleMute : null,
                                         onEnd: s.busy
