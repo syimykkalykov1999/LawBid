@@ -76,6 +76,9 @@ class PillTabs<T> extends StatelessWidget {
                     ),
                   Expanded(
                     child: _Segment(
+                      // Stable address for tests / the perf suite:
+                      // `pill-SearchTab.posts` (an enum value's toString).
+                      key: ValueKey('pill-${tabs[i].$1}'),
                       label: tabs[i].$2,
                       selected: tabs[i].$1 == value,
                       motion: motion,
@@ -107,6 +110,7 @@ class _Segment extends StatelessWidget {
     required this.colors,
     required this.typography,
     required this.onTap,
+    super.key,
     this.onDark = false,
   });
 
