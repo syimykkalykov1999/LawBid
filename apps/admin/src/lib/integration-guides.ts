@@ -223,6 +223,21 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  cloudflare_turn: {
+    steps: [
+      'Cloudflare → Realtime → TURN Server → Create. Дайте ключу имя (например lawbid-calls).',
+      'Cloudflare покажет Key ID и API Token (токен виден один раз) — скопируйте оба значения.',
+      'Вставьте их в поля ниже → «Сохранить». Наш собственный TURN-сервер остаётся запасным: если Cloudflare не ответит, звонок пойдёт через него.',
+      'Цена: оплата за трафик, $0.05 за ГБ; первые 1000 ГБ в месяц бесплатно.',
+    ],
+    links: [{ label: 'Cloudflare Realtime TURN', url: 'https://developers.cloudflare.com/realtime/turn/' }],
+    enable: ['Заполните ID ключа и API-токен → «Сохранить» → «Проверить» → «Включить».'],
+    fields: {
+      keyId: { how: 'Realtime → TURN Server → ваш ключ → Key ID.' },
+      apiToken: { how: 'Токен, который Cloudflare показал при создании ключа (один раз).' },
+    },
+  },
+
   livekit: {
     steps: [
       'Поднимите LiveKit: свой сервер (бесплатно, open-source, livekit.io/self-hosting) или аккаунт LiveKit Cloud (cloud.livekit.io) — платный, включайте, когда появится выручка.',
