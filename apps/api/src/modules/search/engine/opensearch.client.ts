@@ -13,6 +13,9 @@ export interface EngineCreds {
   password?: string;
   /** Index name prefix, default `lawbid`. */
   prefix: string;
+  /** Copies of each index (OPENSEARCH_REPLICAS, set by Terraform: 1 once the
+   * domain has two or more nodes). */
+  replicas: number;
 }
 
 export class EngineError extends Error {
@@ -71,11 +74,13 @@ export class OpenSearchClient {
       this.config?.get<string>('OPENSEARCH_PREFIX') ??
       'lawbid'
     ).trim();
+    const replicas = Number(this.config?.get<string>('OPENSEARCH_REPLICAS'));
     return {
       url,
       username: username || undefined,
       password: password || undefined,
       prefix: prefix || 'lawbid',
+      replicas: Number.isInteger(replicas) && replicas >= 0 ? replicas : 0,
     };
   }
 
@@ -181,14 +186,15 @@ export class OpenSearchClient {
   }
 
   /** Creates the index with its mapping when it does not exist yet. */
-  async ensureIndex(entity: SearchEntity, replicas = 0): Promise<boolean> {
+  async ensureIndex(entity: SearchEntity, replicas?: number): Promise<boolean> {
     const index = indexName(await this.prefix(), entity);
     const head = await this.call('HEAD', `/${index}`);
     if (head.status === 200) return false;
     const def = structuredClone(MAPPINGS[entity]) as {
       settings: Record<string, unknown>;
     };
-    def.settings.number_of_replicas = replicas;
+    def.settings.number_of_replicas =
+      replicas ?? (await this.creds())?.replicas ?? 0;
     const r = await this.call('PUT', `/${index}`, JSON.stringify(def), 30_000);
     if (r.status >= 300) {
       throw new EngineError(

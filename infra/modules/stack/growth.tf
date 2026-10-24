@@ -8,7 +8,7 @@ variable "growth" {
       rds_replica_instance_class "" = same class as the primary.
       db_proxy_enabled           RDS Proxy in front of the database (needs db_proxy_secret_arn).
       db_proxy_secret_arn        Secrets Manager secret {username,password} of the app role.
-      opensearch_enabled         OpenSearch domain for the search-engine step (the app side is a separate step).
+      opensearch_enabled         OpenSearch domain for the search engine. The app finds it by itself (OPENSEARCH_URL); admin Settings: search.engine = shadow, then engine, turns it on. docs/architecture/SEARCH_READY.md.
       opensearch_instance_type / _count / _volume_gb   size of that domain.
       redis_cluster_mode         NOT BUILT: validation refuses true (the app's Lua scripts are single-slot only today).
       livekit_nodes              NOT BUILT: validation refuses > 1 (modules/livekit is one box).
