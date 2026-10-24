@@ -193,6 +193,7 @@ data "aws_iam_policy_document" "base" {
       "sns:GetTopicAttributes", "sns:ListTagsForResource", "sns:ListSubscriptionsByTopic", "sns:GetSubscriptionAttributes", "sns:ListTopics",
       "iam:Get*", "iam:List*", "secretsmanager:DescribeSecret", "secretsmanager:ListSecrets", "secretsmanager:GetResourcePolicy",
       "application-autoscaling:Describe*", "application-autoscaling:ListTagsForResource",
+      "servicediscovery:Get*", "servicediscovery:List*", "servicediscovery:DiscoverInstances",
       "ssm:GetParameter", "ssm:GetParameters", "ssm:DescribeParameters", "ssm:ListTagsForResource",
       "ssm:GetCommandInvocation", "ssm:ListCommandInvocations", "ssm:ListCommands", "ssm:DescribeInstanceInformation",
       "ecr:GetAuthorizationToken", "ecr:DescribeImages", "ecr:DescribeRepositories",
@@ -306,7 +307,7 @@ data "aws_iam_policy_document" "ec2" {
     condition {
       test     = "StringEquals"
       variable = "iam:AWSServiceName"
-      values   = ["spot.amazonaws.com", "ecs.amazonaws.com", "elasticache.amazonaws.com", "rds.amazonaws.com", "autoscaling.amazonaws.com", "ecs.application-autoscaling.amazonaws.com", "elasticloadbalancing.amazonaws.com"]
+      values   = ["spot.amazonaws.com", "ecs.amazonaws.com", "elasticache.amazonaws.com", "rds.amazonaws.com", "autoscaling.amazonaws.com", "ecs.application-autoscaling.amazonaws.com", "elasticloadbalancing.amazonaws.com", "servicediscovery.amazonaws.com"]
     }
   }
 }
@@ -532,6 +533,53 @@ data "aws_iam_policy_document" "edge" {
   }
 }
 
+# ------------------------------------- 5. private DNS names (Cloud Map) ----
+# A separate policy: each managed policy has a size limit.
+data "aws_iam_policy_document" "dns" {
+  # Cloud Map private DNS (the database pooler's name, docs/architecture/DB_POOLER.md):
+  # a namespace and its services are created and changed only with / on the tag
+  # Project=lawbid-loadtest.
+  statement {
+    sid       = "CloudMapCreateTagged"
+    actions   = ["servicediscovery:CreatePrivateDnsNamespace", "servicediscovery:CreateService", "servicediscovery:TagResource"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  statement {
+    sid       = "CloudMapManageTagged"
+    actions   = ["servicediscovery:DeleteNamespace", "servicediscovery:DeleteService", "servicediscovery:UpdateService", "servicediscovery:UpdatePrivateDnsNamespace", "servicediscovery:UntagResource", "servicediscovery:TagResource", "servicediscovery:RegisterInstance", "servicediscovery:DeregisterInstance"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  # Cloud Map creates the private hosted zone (and removes it) with the CALLER's
+  # rights. Zones cannot be limited by tag at creation; record changes are limited
+  # to names under <lt>.internal. The production DNS is not in Route 53
+  # (hosted_zone_id = null), so there is no production zone to harm.
+  statement {
+    sid       = "Route53PrivateZoneForCloudMap"
+    actions   = ["route53:CreateHostedZone", "route53:DeleteHostedZone", "route53:AssociateVPCWithHostedZone", "route53:DisassociateVPCFromHostedZone", "route53:ChangeTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "Route53RecordsUnderInternalName"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = ["arn:aws:route53:::hostedzone/*"]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "route53:ChangeResourceRecordSetsNormalizedRecordNames"
+      values   = ["*${local.lt}.internal", "*${local.lt}.internal."]
+    }
+  }
+}
+
 # Belt and braces: whatever the allow statements say, nothing tagged
 # Project=lawbid (production, staging) can be touched by these roles.
 data "aws_iam_policy_document" "deny_prod" {
@@ -544,7 +592,7 @@ data "aws_iam_policy_document" "deny_prod" {
   statement {
     sid       = "NeverTouchProductionOrStaging"
     effect    = "Deny"
-    actions   = ["ec2:*", "ecs:*", "rds:*", "elasticache:*", "elasticloadbalancing:*", "kms:*", "secretsmanager:*", "cloudfront:*", "wafv2:*", "sns:*", "s3:*", "logs:*", "ssm:*"]
+    actions   = ["ec2:*", "ecs:*", "rds:*", "elasticache:*", "elasticloadbalancing:*", "kms:*", "secretsmanager:*", "cloudfront:*", "wafv2:*", "sns:*", "s3:*", "logs:*", "ssm:*", "servicediscovery:*"]
     resources = ["*"]
     condition {
       test     = "StringEquals"
@@ -561,6 +609,7 @@ locals {
     runtime = data.aws_iam_policy_document.runtime.json
     data    = data.aws_iam_policy_document.data.json
     edge    = data.aws_iam_policy_document.edge.json
+    dns     = data.aws_iam_policy_document.dns.json
     deny    = data.aws_iam_policy_document.deny_prod.json
   }
   roles = { github = aws_iam_role.github.name, watchdog = aws_iam_role.watchdog.name }

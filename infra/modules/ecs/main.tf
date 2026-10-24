@@ -470,7 +470,9 @@ resource "aws_ecs_task_definition" "migrate" {
     essential = true
     command   = ["npx", "prisma", "migrate", "deploy"]
     # npx / Prisma want a writable cache and home: both under /tmp.
-    environment = concat(local.api_environment, [
+    # No DB_POOLER_*: `prisma migrate` must reach the database directly
+    # (docs/architecture/DB_POOLER.md).
+    environment = concat([for e in local.api_environment : e if !startswith(e.name, "DB_POOLER_")], [
       { name = "HOME", value = "/tmp" },
       { name = "npm_config_cache", value = "/tmp/npm-cache" },
       { name = "npm_config_update_notifier", value = "false" },
