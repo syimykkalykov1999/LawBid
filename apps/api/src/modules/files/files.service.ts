@@ -171,7 +171,16 @@ export class FilesService {
     if (dto.sizeBytes > maxBytes) {
       throw this.tooLarge(maxBytes);
     }
-    const bucket = this.storage.bucket(rule.bucket); // 503 if S3 is off
+    // 503 if S3 is off. Owner 2026-10-24: public media goes to R2 (a
+    // presigned PUT) only when the switch is on AND this app can do a PUT;
+    // an older app keeps getting the AWS POST. Private kinds: AWS always.
+    const resolved = await this.storage.resolveBucket(rule.bucket);
+    const bucket =
+      rule.bucket === 'media' &&
+      this.storage.isPublicStoreBucket(resolved) &&
+      !dto.supportsPut
+        ? this.storage.awsBucket('media')
+        : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
       await this.assertQuota(userId, dto.sizeBytes);
     }
@@ -199,13 +208,16 @@ export class FilesService {
 
     const fileId = randomUUID();
     const key = `${demoKeyPrefix()}${dto.purpose}/${userId}/${fileId}`;
-    const upload = await this.storage.presignPost({
+    const target = {
       bucket,
       key,
       contentType: dto.mime,
       size: dto.sizeBytes,
       expiresSec: PRESIGN_TTL_SEC,
-    });
+    };
+    const upload = this.storage.isPublicStoreBucket(bucket)
+      ? await this.storage.presignPut(target)
+      : await this.storage.presignPost(target);
     const intent: UploadIntent = {
       userId,
       purpose: dto.purpose,
@@ -911,7 +923,14 @@ export class FilesService {
     }
     const maxBytes = await this.maxBytes(purpose);
     if (Number(src.size_bytes) > maxBytes) throw this.tooLarge(maxBytes);
-    const bucket = this.storage.bucket(rule.bucket);
+    // Owner 2026-10-24: bytes of a PRIVATE file (documents bucket) are never
+    // copied to R2, even when the new purpose is a public one.
+    const srcPrivate = PURPOSE_RULES[src.purpose].bucket === 'documents';
+    const resolved = await this.storage.resolveBucket(rule.bucket);
+    const bucket =
+      srcPrivate && this.storage.isPublicStoreBucket(resolved)
+        ? this.storage.awsBucket(rule.bucket)
+        : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
       await this.assertQuota(userId, Number(src.size_bytes));
     }
@@ -1060,6 +1079,10 @@ export class FilesService {
    * origin access control); dev/e2e without a CDN keep short-lived signed
    * S3 links. Documents never take this path. */
   private async mediaLink(bucket: string, key: string): Promise<string> {
+    // Owner 2026-10-24: an object stored in R2 is served from its own
+    // public domain (the AWS CDN base below does not hold it).
+    const r2 = this.storage.publicObjectUrl(bucket, key);
+    if (r2) return r2;
     // Owner 2026-10-01: the CDN can be set in Admin → Integrations → Storage.
     const cdn =
       (await this.secrets?.field('storage', 'cdnBaseUrl')) ??

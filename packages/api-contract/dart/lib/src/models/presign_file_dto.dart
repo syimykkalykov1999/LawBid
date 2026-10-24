@@ -15,6 +15,7 @@ class PresignFileDto {
     required this.mime,
     required this.sizeBytes,
     required this.sha256,
+    this.supportsPut,
   });
 
   factory PresignFileDto.fromJson(Map<String, Object?> json) =>
@@ -30,6 +31,9 @@ class PresignFileDto {
 
   /// Lowercase hex SHA-256 of the file.
   final String sha256;
+
+  /// True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST.
+  final bool? supportsPut;
 
   Map<String, Object?> toJson() => _$PresignFileDtoToJson(this);
 }
