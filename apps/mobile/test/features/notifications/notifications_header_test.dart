@@ -83,6 +83,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      // Owner 2026-10-23: the bell never moves between Chats and Notifications.
+      final bellOnChats =
+          tester.getCenter(find.byKey(const ValueKey('inbox-bell')));
       await tester.tap(find.byKey(const ValueKey('inbox-bell')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
@@ -92,9 +95,11 @@ void main() {
           tester.getCenter(find.byKey(const ValueKey('notif-filter')));
       final search =
           tester.getCenter(find.byKey(const ValueKey('notif-search-top')));
-      expect(bell.dx, lessThan(filter.dx));
+      // filter · magnifier · bell, the bell at the same place as on Chats.
       expect(filter.dx, lessThan(search.dx));
-      expect(search.dx - bell.dx, lessThan(130));
+      expect(search.dx, lessThan(bell.dx));
+      expect(bell.dx - filter.dx, lessThan(130));
+      expect((bell.dx - bellOnChats.dx).abs(), lessThan(1));
       expect((bell.dy - filter.dy).abs(), lessThan(1));
       expect((filter.dy - search.dy).abs(), lessThan(1));
 

@@ -27,32 +27,32 @@ final class ChatColors extends ThemeExtension<ChatColors> {
   factory ChatColors.forTokens(AppColorTokens c, Brightness brightness) {
     if (c.bg == AppColorsGreen.bg) {
       return ChatColors(
-        wallpaper: const Color(0xFFDDF0E4),
-        pattern: AppColorsGreen.brand.withValues(alpha: 0.06),
-        mine: const Color(0xFFBFEBD0),
+        wallpaper: AppColorsGreen.chatWallpaper,
+        pattern: c.text.withValues(alpha: 0.05),
+        mine: AppColorsGreen.chatMine,
         onMine: c.text,
-        mineMeta: c.textSecondary,
+        mineMeta: const Color(0xFFEAF7EA),
         theirs: c.surface,
         theirsBorder: c.border,
         onTheirs: c.text,
         theirsMeta: c.textSecondary,
         tick: c.textSecondary,
-        tickRead: const Color(0xFF2F80ED),
+        tickRead: const Color(0xFF53BDEB),
       );
     }
     if (c.bg == AppColorsBlue.bg) {
       return ChatColors(
         wallpaper: AppColorsBlue.chatWallpaper,
-        pattern: c.accent.withValues(alpha: 0.05),
+        pattern: c.text.withValues(alpha: 0.05),
         mine: AppColorsBlue.chatMine,
         onMine: c.text,
-        mineMeta: c.textSecondary,
+        mineMeta: const Color(0xFFE3EFFA),
         theirs: c.surface,
         theirsBorder: c.border,
         onTheirs: c.text,
         theirsMeta: c.textSecondary,
         tick: c.textSecondary,
-        tickRead: const Color(0xFF2F80ED),
+        tickRead: const Color(0xFF53BDEB),
       );
     }
     if (brightness == Brightness.light) {

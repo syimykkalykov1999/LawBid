@@ -128,86 +128,90 @@ abstract final class AppColorsDark {
   static const Color dangerText = Color(0xFFE36464);
 }
 
-/// Blue theme raw palette (owner 2026-10-22, the Citi bank-app look): the
-/// top bar is a wash from deep Citi navy [deep] (#002D72-ish) to a lighter
-/// sky blue with white ink; below it a light blue-grey page, white cards
-/// with deep-blue ink, light-blue chips, a brand blue (#0A5AB5, near Citi's
-/// #056DAE) primary button with a white label.
+/// Blue theme raw palette (owner 2026-10-23, the Citi app look): built like
+/// Night, a solid deep-blue page (#003B70) with white ink, lighter-blue
+/// cards, and a white primary button whose label is the page blue. The
+/// brand blue [brand] (#056DAE) is for my chat bubble and big marks.
+/// Contrast (WCAG): text/bg 11.29, text/surface 9.01, secondary/bg 7.73,
+/// secondary/surface 6.17, button label 11.29, white on [brand] 5.52.
 abstract final class AppColorsBlue {
-  static const Color bg = Color(0xFFEAF2FB);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color deep = Color(0xFF04397A);
-  static const List<Color> headerGradient = [
-    Color(0xFF04397A),
-    Color(0xFF0A58B0),
-    Color(0xFF1F78D1),
-  ];
-  static const Color onHeader = Color(0xFFFFFFFF);
-  static const Color text = Color(0xFF0A2F66);
-  static const Color textSecondary = Color(0xFF47608C);
-  static const Color border = Color(0xFFC9DCF2);
-  static const Color chip = Color(0xFFDCEBFA);
-  static const Color accent = Color(0xFF0A5AB5);
-  static const Color onAccent = Color(0xFFFFFFFF);
+  static const Color bg = Color(0xFF003B70);
+  static const Color surface = Color(0xFF0A4A85);
+
+  /// Top bar / bottom bar: one step darker than the page.
+  static const Color bar = Color(0xFF00305F);
+  static const Color text = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFFC3D8EE);
+  static const Color border = Color(0xFF2F6AA3);
+  static const Color chip = Color(0xFF1A5A94);
+  static const Color brand = Color(0xFF056DAE);
+
+  /// Primary button: white with the page blue as its label.
+  static const Color accent = Color(0xFFFFFFFF);
+  static const Color onAccent = Color(0xFF003B70);
 
   /// Chat: my bubble and wallpaper.
-  static const Color chatMine = Color(0xFFCFE3F8);
-  static const Color chatWallpaper = Color(0xFFDCEAF8);
-  static const Color gold = Color(0xFFC8A765);
-  static const Color goldStroke = Color(0xFFB39350);
-  static const Color goldLight = Color(0xFFE6D3A3);
-  static const Color goldDark = Color(0xFF806128);
+  static const Color chatMine = brand;
+  static const Color chatWallpaper = Color(0xFF002F5C);
+  static const Color gold = Color(0xFFFFE9A3);
+  static const Color goldStroke = Color(0xFFFFE9A3);
+  static const Color goldLight = Color(0xFFFFF2C7);
+  static const Color goldDark = Color(0xFFE6C76A);
   static const Color navy = Color(0xFF0A1A3F);
-  static const double watermarkOpacity = 0.07;
-  static const Color shadow = Color(0x1A04397A);
-  static const Color goldTint = Color(0x1FC8A765);
-  static const Color dangerTint = Color(0x1AD64545);
-  static const Color successTint = Color(0x1A1F9D67);
-  static const Color infoTint = Color(0x1A2F80ED);
-  static const Color skeletonBase = Color(0xFFDCEBFA);
-  static const Color skeletonHighlight = Color(0xFFF2F7FD);
-  static const Color dangerText = Color(0xFFC53A3A);
-  static const Color successText = Color(0xFF0B6A3F);
+  static const double watermarkOpacity = 0.10;
+  static const Color shadow = Color(0x66001A33);
+  static const Color goldTint = Color(0x26FFE9A3);
+  static const Color dangerTint = Color(0x26FF8A8A);
+  static const Color successTint = Color(0x268FE0B0);
+  static const Color infoTint = Color(0x267FB8EE);
+  static const Color skeletonBase = Color(0xFF1A5A94);
+  static const Color skeletonHighlight = Color(0xFF2B6AA5);
+  static const Color danger = Color(0xFFFF8A8A);
+  static const Color dangerText = Color(0xFFFFC9C9);
+  static const Color success = Color(0xFF8FE0B0);
+  static const Color warning = Color(0xFFFFD27A);
+  static const Color info = Color(0xFF7FB8EE);
 }
 
-/// Green theme raw palette (owner 2026-10-22, the Credit Karma look): a
-/// light, fresh page with soft green cards, deep-green ink and a green
-/// primary button with a white label. Brand green #0BA360 is for icons and
-/// big marks; the button is the darker [accent] so its white label is AA.
+/// Green theme raw palette (owner 2026-10-23, the Credit Karma look): built
+/// like Night, a solid green page (#007200) with white ink, DARKER green
+/// cards, and a white primary button whose label is a deep green. Contrast
+/// (WCAG): text/bg 6.16, text/surface 7.86, secondary/bg 5.36,
+/// secondary/surface 6.84, button label 7.86, white on [chatMine] 12.5.
 abstract final class AppColorsGreen {
-  static const Color bg = Color(0xFFE6F5EC);
-  static const Color surface = Color(0xFFF7FDF9);
-  static const Color deep = Color(0xFF0B6B3A);
+  static const Color bg = Color(0xFF007200);
+  static const Color surface = Color(0xFF006000);
 
-  /// The top-bar wash: deep green to the brand green.
-  static const List<Color> headerGradient = [
-    Color(0xFF0B6B3A),
-    Color(0xFF088048),
-    Color(0xFF08874C),
-  ];
-  static const Color onHeader = Color(0xFFFFFFFF);
-  static const Color text = Color(0xFF0B3D24);
-  static const Color textSecondary = Color(0xFF3F6350);
-  static const Color border = Color(0xFFBFE3CE);
-  static const Color chip = Color(0xFFD3EEDD);
-  static const Color brand = Color(0xFF0BA360);
-  static const Color accent = Color(0xFF087F47);
-  static const Color onAccent = Color(0xFFFFFFFF);
-  static const Color gold = Color(0xFFC8A765);
-  static const Color goldStroke = Color(0xFFB39350);
-  static const Color goldLight = Color(0xFFE6D3A3);
-  static const Color goldDark = Color(0xFF806128);
+  /// Top bar / bottom bar: one step darker than the page.
+  static const Color bar = Color(0xFF006600);
+  static const Color text = Color(0xFFFFFFFF);
+  static const Color textSecondary = Color(0xFFE2F4E2);
+  static const Color border = Color(0xFF3CAE3C);
+  static const Color chip = Color(0xFF005400);
+
+  /// Primary button: white with a deep green label.
+  static const Color accent = Color(0xFFFFFFFF);
+  static const Color onAccent = Color(0xFF006000);
+  static const Color chatMine = Color(0xFF003D0A);
+  static const Color chatWallpaper = Color(0xFF005A00);
+  static const Color gold = Color(0xFFFFE9A3);
+  static const Color goldStroke = Color(0xFFFFE9A3);
+  static const Color goldLight = Color(0xFFFFF2C7);
+  static const Color goldDark = Color(0xFFE6C76A);
   static const Color navy = Color(0xFF0A1A3F);
-  static const double watermarkOpacity = 0.07;
-  static const Color shadow = Color(0x140B6B3A);
-  static const Color goldTint = Color(0x1FC8A765);
-  static const Color dangerTint = Color(0x1AD64545);
-  static const Color successTint = Color(0x1A0BA360);
-  static const Color infoTint = Color(0x1A2F80ED);
-  static const Color skeletonBase = Color(0xFFD3EEDD);
-  static const Color skeletonHighlight = Color(0xFFEAF8EF);
-  static const Color dangerText = Color(0xFFC53A3A);
-  static const Color focusRingGlow = Color(0x400BA360);
+  static const double watermarkOpacity = 0.10;
+  static const Color shadow = Color(0x66002200);
+  static const Color goldTint = Color(0x26FFE9A3);
+  static const Color dangerTint = Color(0x26FFD3D3);
+  static const Color successTint = Color(0x40004000);
+  static const Color infoTint = Color(0x26BFE0FF);
+  static const Color skeletonBase = Color(0xFF005400);
+  static const Color skeletonHighlight = Color(0xFF007A10);
+  static const Color danger = Color(0xFFFFD3D3);
+  static const Color dangerText = Color(0xFFFFD3D3);
+  static const Color success = Color(0xFFBDF2CC);
+  static const Color warning = Color(0xFFFFE9A3);
+  static const Color info = Color(0xFFBFE0FF);
 }
 
 /// Status colors, shared by both themes: file 07 §2 says `danger`,

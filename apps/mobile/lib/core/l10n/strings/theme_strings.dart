@@ -9,7 +9,7 @@ const themeRu = <String, String>{
   'theme.night.name': 'Ночь',
   'theme.night.desc': 'Чёрная, как сейчас',
   'theme.blue.name': 'Синяя',
-  'theme.blue.desc': 'Яркий синий, как в банке',
+  'theme.blue.desc': 'Насыщенный синий',
   'theme.green.name': 'Зелёная',
   'theme.green.desc': 'Свежая зелёная',
 };
@@ -20,7 +20,7 @@ const themeEn = <String, String>{
   'theme.night.name': 'Night',
   'theme.night.desc': 'Black, as it is now',
   'theme.blue.name': 'Blue',
-  'theme.blue.desc': 'Bright bank blue',
+  'theme.blue.desc': 'Rich blue',
   'theme.green.name': 'Green',
   'theme.green.desc': 'Fresh green',
 };

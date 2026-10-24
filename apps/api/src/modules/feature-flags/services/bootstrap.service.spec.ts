@@ -102,6 +102,10 @@ describe('BootstrapService.build', () => {
       // Owner 2026-10-22 (client economy plan §5): the on-device cache
       // ceilings, always sent (the defaults until the admin stores a value).
       ...OWNER_CACHE_SETTINGS,
+      // Owner 2026-10-23: guest browsing - off in the apps, on for the web,
+      // always sent.
+      'client.guest_browse_app_enabled': false,
+      'client.guest_browse_web_enabled': true,
     });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });

@@ -51,3 +51,28 @@
   add('modulepreload', 'canvaskit/' + engine + '.js');
   add('preload', 'canvaskit/' + engine + '.wasm', 'fetch', true);
 })();
+
+/* Owner 2026-10-23: a person who picked the Blue or Green theme sees that
+   colour from the first paint (the app's own theme tokens: AppColorsBlue /
+   AppColorsGreen), not a white or black flash. shared_preferences keeps the
+   choice in localStorage as a JSON string under "flutter.<key>". */
+(function () {
+  var themes = {
+    blue: { bg: '#003B70', fg: '#FFFFFF', dim: '#C3D8EE', ring: '#FFFFFF', track: '#2F6AA3', btn: '#003B70' },
+    green: { bg: '#007200', fg: '#FFFFFF', dim: '#E2F4E2', ring: '#FFFFFF', track: '#3CAE3C', btn: '#006000' }
+  };
+  try {
+    var raw = window.localStorage.getItem('flutter.design_system.theme_mode');
+    var t = themes[raw ? JSON.parse(raw) : null];
+    if (!t) return;
+    var s = document.documentElement.style;
+    s.setProperty('--boot-bg', t.bg);
+    s.setProperty('--boot-fg', t.fg);
+    s.setProperty('--boot-dim', t.dim);
+    s.setProperty('--boot-ring', t.ring);
+    s.setProperty('--boot-track', t.track);
+    s.setProperty('--boot-btn', t.btn);
+    var metas = document.querySelectorAll('meta[name="theme-color"]');
+    for (var i = 0; i < metas.length; i++) metas[i].setAttribute('content', t.bg);
+  } catch (e) { /* no storage: the default colours stay */ }
+})();
