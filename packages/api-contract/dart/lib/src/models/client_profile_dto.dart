@@ -13,6 +13,7 @@ part 'client_profile_dto.g.dart';
 class ClientProfileDto {
   const ClientProfileDto({
     required this.id,
+    required this.version,
     required this.username,
     required this.usernameNextChangeAt,
     required this.firstName,
@@ -27,6 +28,9 @@ class ClientProfileDto {
       _$ClientProfileDtoFromJson(json);
 
   final String id;
+
+  /// Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION).
+  final int version;
 
   /// OQ-026: the client @username.
   final String username;

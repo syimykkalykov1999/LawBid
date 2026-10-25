@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
+import { pipeline } from '../../redis/redis-cluster-safe';
 
 /** A socket counts as online this long after its last heartbeat. */
 export const PRESENCE_TTL_MS = 120_000;
@@ -104,7 +105,7 @@ export class PresenceService {
     const shown = shownByFlag.filter((id) => allowed.has(id));
     if (shown.length === 0) return out;
     const now = Date.now();
-    const pipe = this.redis.pipeline();
+    const pipe = pipeline(this.redis);
     for (const id of shown) pipe.zcount(key(id), now, '+inf');
     const counts = (await pipe.exec()) ?? [];
     shown.forEach((id, i) => {

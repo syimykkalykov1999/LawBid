@@ -1,14 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ck } from '../../redis/redis-cluster-safe';
 
 /** docs/06 §2.1: "Сессия 8 часов, простой 30 минут". */
 export const ADMIN_SESSION_TTL_SECONDS = 8 * 3600;
 export const ADMIN_IDLE_SECONDS = 30 * 60;
 
-const sessKey = (jti: string) => `adm:sess:${jti}`;
-const userKey = (userId: string) => `adm:sess:user:${userId}`;
-const metaKey = (jti: string) => `adm:sess:meta:${jti}`;
+const sessKey = (jti: string) => ck('adm', `adm:sess:${jti}`);
+const userKey = (userId: string) => ck('adm', `adm:sess:user:${userId}`);
+const metaKey = (jti: string) => ck('adm', `adm:sess:meta:${jti}`);
 
 /** What the super admin sees for each live session. */
 export interface AdminSessionInfo {
@@ -145,7 +146,7 @@ export class AdminSessionService {
   async revoke(jti: string, userId: string): Promise<void> {
     await this.redis
       .multi()
-      .del(sessKey(jti), metaKey(jti), `adm:stepup:${jti}`)
+      .del(sessKey(jti), metaKey(jti), ck('adm', `adm:stepup:${jti}`))
       .srem(userKey(userId), jti)
       .exec();
   }

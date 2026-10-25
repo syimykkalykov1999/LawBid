@@ -18,6 +18,7 @@ import {
   routingOf,
 } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { newFileKey } from '../files/files.public';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { REQUIRED_CONSENTS } from '../users/services/onboarding.service';
 import { DEMO_AVATAR_SIZE, renderDemoAvatarPng } from './demo-avatar';
@@ -475,7 +476,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       try {
         const png = renderDemoAvatarPng(u.id);
         const fileId = randomUUID();
-        const key = `demo/avatar/${u.id}/${fileId}`;
+        const key = `demo/${newFileKey({ purpose: 'avatar', ownerId: u.id, fileId })}`;
         await this.storage.put(bucket, key, png, 'image/png');
         await demo.file.create({
           data: {
