@@ -23,13 +23,21 @@
 - В него публикуют **только** 6 составных тревог `lawbid-prod-slo-<otp|call|push>-<fast|slow>`
   (`infra/modules/monitoring/slo.tf`), и при тревоге, и при «OK» (PagerDuty
   сам закрывает инцидент по OK).
-- Подписка PagerDuty: HTTPS на ссылку интеграции (переменная
-  `pagerduty_https_endpoint`, **секретная**, лежит только в Secrets
-  Manager `lawbid-prod/terraform-tfvars`, в git её нет). Пока переменная
-  `null`, подписки нет; письмо на `alert_emails` с топика critical
-  по-прежнему приходит (`critical_email_too = true`).
-- Откат: `pagerduty_https_endpoint = null` → apply (подписка удаляется,
-  тревоги продолжают приходить письмом).
+- Подписка PagerDuty: HTTPS на ссылку интеграции. Есть **два пути, берите
+  один**:
+  1. **Из админки (с 2026-10-24, рекомендуется):** ссылка вставляется в
+     «Ключи и сервисы» → PagerDuty, сервер сам подписывает её на топик
+     через AWS (`sns:Subscribe`). Ни apply, ни tfvars не нужны. Эту
+     подписку Terraform **не ведёт и не трогает** (её нет в его состоянии).
+  2. Старый путь через Terraform: переменная `pagerduty_https_endpoint`
+     (секретная, лежит только в Secrets Manager
+     `lawbid-prod/terraform-tfvars`). Пока `null`, этой подписки нет.
+  Письмо на `alert_emails` с топика critical приходит в любом случае
+  (`critical_email_too = true`).
+- Откат: из админки — «Ключи и сервисы» → PagerDuty → удалить ключи
+  (сервер сам отпишет ссылку). Через Terraform —
+  `pagerduty_https_endpoint = null` → apply. Тревоги продолжают
+  приходить письмом.
 
 ## Что делает владелец (руками, агент это не может)
 
@@ -44,19 +52,45 @@
    Это секрет: не в чат, не в git.
 4. User settings → Notification rules: для High urgency включить **Push,
    потом Phone call через 1 минуту**, для SMS не включать (экономим квоту).
-5. Вставить ссылку в секрет `lawbid-prod/terraform-tfvars` одной строкой:
+5. **Из админки (рекомендуется).** Админка → Безопасность → «Ключи и
+   сервисы» → карточка **PagerDuty (звонок на телефон при аварии)** →
+   вставить Integration URL → «Сохранить» (код 2FA) → «Проверить» →
+   «Включить». Сервер сам подпишет ссылку на топик
+   `lawbid-prod-critical` и отпишет прежнюю, если вы её меняли.
+   (Один раз нужен `terraform apply` с правами на SNS для сервера — см.
+   ниже «Права AWS».)
+6. Админка → Система → **Запуск** → блок «Тревоги на телефон»: статус
+   **Pending** (ждёт) → через минуту **Confirmed** (PagerDuty подтверждает
+   сам). Кнопка **«Отправить тестовую тревогу»** публикует тестовое
+   сообщение в топик: телефон должен зазвонить (это 1 из 100 бесплатных
+   звонков в месяц; не чаще 3 раз в час). Acknowledge, потом Resolve.
+7. Старый путь (если не хотите админку): вставить ссылку в секрет
+   `lawbid-prod/terraform-tfvars` одной строкой
+   `pagerduty_https_endpoint = "https://events.pagerduty.com/integration/XXXX/enqueue"`,
+   дальше обычный порядок: `terraform plan` через
+   `scripts/deploy/plan-guard.sh` → смотреть план → «ставь на AWS».
+   Статус **Confirmed** виден там же, на «Запуске».
 
-   ```hcl
-   pagerduty_https_endpoint = "https://events.pagerduty.com/integration/XXXX/enqueue"
-   ```
+## Права AWS (владелец применяет один раз)
 
-   Дальше обычный порядок: `terraform plan` через `scripts/deploy/plan-guard.sh`
-   → смотреть план → «ставь на AWS».
-6. Подписка PagerDuty подтверждается сама (он открывает ссылку
-   подтверждения). Проверить: AWS SNS → Topics → `lawbid-prod-critical` →
-   Subscriptions: статус **Confirmed**.
+В Terraform (`infra/modules/stack/main.tf`, роль задачи API) добавлены
+минимальные права, только на топик `lawbid-prod-critical`:
+`sns:Subscribe`, `sns:ListSubscriptionsByTopic`, `sns:Publish` на сам
+топик и `sns:Unsubscribe` на подписки этого топика. Плюс (для «Запуска»,
+«Масштаба», «Расходов»): `budgets:ViewBudget` на бюджеты аккаунта,
+`budgets:ModifyBudget` только на `lawbid-prod-monthly` и «LawBid Monthly»,
+`budgets:DeleteBudget` только на «LawBid Monthly», и чтение расходов
+`ce:GetCostAndUsage`, `ce:GetCostForecast`, `ce:ListCostAllocationTags`
+(только чтение, Cost Explorer берёт $0.01 за запрос, поэтому сервер
+спрашивает его не чаще раза в 6 часов). Применить: `terraform plan` через
+`scripts/deploy/plan-guard.sh` → смотреть план → «ставь на AWS». До apply
+страницы работают, но кнопки AWS отвечают «нет прав».
 
-## Проверка (после первого apply, один раз)
+Потолок расходов, который владелец меняет в админке («Масштаб» → Бюджеты
+AWS), Terraform больше не перезаписывает (`ignore_changes = [limit_amount]`
+в `modules/budget`): `monthly_budget_usd` — только стартовое значение.
+
+## Проверка из терминала (запасной способ)
 
 ```sh
 aws sns publish --region us-east-1 \

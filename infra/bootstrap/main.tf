@@ -385,6 +385,94 @@ resource "aws_iam_role_policy" "cleanup" {
   policy = data.aws_iam_policy_document.cleanup.json
 }
 
+# --- Terraform drift check role (P1, 2026-10-24) --------------------------------
+# Used ONLY by the nightly workflow "Terraform drift" (terraform plan, never
+# apply). Read-only on the account (AWS ReadOnlyAccess) + read of the prod state
+# and of the secrets Terraform refreshes. Trusted from the main branch only
+# (scheduled runs always run on the default branch). It has NO write permission
+# anywhere: the S3 state bucket is read-only (explicit Deny on writes) and the
+# plan runs with -lock=false, so it needs nothing on the lock table.
+data "aws_iam_policy_document" "plan_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:${var.github_repo}:ref:refs/heads/main",
+        "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "plan" {
+  name                 = "${local.name}-github-plan"
+  assume_role_policy   = data.aws_iam_policy_document.plan_trust.json
+  max_session_duration = 3600
+}
+
+resource "aws_iam_role_policy_attachment" "plan_readonly" {
+  role       = aws_iam_role.plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+resource "aws_iam_role_policy" "plan" {
+  role = aws_iam_role.plan.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadPlanState"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = [aws_s3_bucket.tfstate.arn, "${aws_s3_bucket.tfstate.arn}/prod/*"]
+      },
+      {
+        Sid      = "DecryptState"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+        Condition = {
+          StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" }
+        }
+      },
+      {
+        # The prod tfvars backup, and the secret values Terraform refreshes.
+        # The same values are already in the state this role may read.
+        Sid      = "ReadProdSecrets"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*"
+      },
+      {
+        Sid    = "NeverWriteState"
+        Effect = "Deny"
+        Action = [
+          "s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion",
+          "s3:PutObjectAcl", "s3:PutBucketPolicy", "s3:PutBucketVersioning",
+        ]
+        Resource = [aws_s3_bucket.tfstate.arn, "${aws_s3_bucket.tfstate.arn}/*"]
+      },
+    ]
+  })
+}
+
+output "plan_role_arn" {
+  description = "Repository secret AWS_PLAN_ROLE (workflow `Terraform drift`)."
+  value       = aws_iam_role.plan.arn
+}
+
 output "inventory_role_arn" {
   description = "Repository secret AWS_INVENTORY_ROLE (workflow `AWS inventory`)."
   value       = aws_iam_role.inventory.arn

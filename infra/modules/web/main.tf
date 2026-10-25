@@ -327,7 +327,7 @@ resource "aws_cloudfront_function" "seo_index" {
   key_value_store_associations = [aws_cloudfront_key_value_store.web.arn]
   code                         = <<-EOT
     import cf from 'cloudfront';
-    var kvs = cf.kvs('${aws_cloudfront_key_value_store.web.id}');
+    var kvs = cf.kvs('${element(split("/", aws_cloudfront_key_value_store.web.arn), 1)}'); // the store ID (ARN tail); .id is the NAME and fails with KVSNamespaceNotFound
     var PUBLIC = /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/;
     var ROOT_FILES = ['/sitemap.xml', '/robots.txt', '/public-paths.txt'];
     // Owner 2026-10-23 (web speed pass): the app and the engine have a

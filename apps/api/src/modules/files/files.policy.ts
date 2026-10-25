@@ -269,6 +269,23 @@ export function variantKey(key: string, px: number): string {
   return `${key}_w${px}`;
 }
 
+/** Owner 2026-10-25: the AVIF twin of an object (`<key>.avif`,
+ * `<key>_w1080.avif`) written next to the WebP/JPEG one when
+ * `images.avif_enabled` is on. Served only to clients that ask for it. */
+export const AVIF_PURPOSES: ReadonlySet<string> = new Set([
+  'avatar',
+  'post_image',
+  'review_photo',
+  'case_photo',
+  'case_attachment',
+  'chat_attachment',
+  'support_attachment',
+]);
+
+export function avifKey(key: string): string {
+  return `${key}.avif`;
+}
+
 export function isImageMime(mime: string): boolean {
   return IMAGE_MIMES.has(mime);
 }
@@ -287,6 +304,13 @@ export const IMAGE_MIMES: ReadonlySet<string> = new Set([
 export const ALL_VARIANT_PX: readonly number[] = [
   ...new Set([...AVATAR_VARIANT_PX, ...POST_IMAGE_VARIANT_PX]),
 ];
+
+/** Every object that may sit next to [key] (variants and AVIF twins) —
+ * removing a file removes all of them (missing keys are not an error). */
+export function derivedKeys(key: string): string[] {
+  const variants = ALL_VARIANT_PX.map((px) => variantKey(key, px));
+  return [...variants, avifKey(key), ...variants.map(avifKey)];
+}
 
 /**
  * Owner 2026-10-05 (storage like Telegram): files that end up as the same

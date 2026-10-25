@@ -549,6 +549,9 @@ export const OWNER_REASON_SETTINGS = {
 // before it runs. Default $500. 0 = every one needs it.
 export const OWNER_DUAL_APPROVAL_SETTINGS = {
   'billing.dual_approval_min_cents': 50_000,
+  // Owner 2026-10-24: one owner, no second admin. false = every action
+  // runs at once after the 2FA code; true = the rule above is enforced.
+  'admin.dual_control': false,
 } as const;
 
 /** Every typed app_config tunable with its spec default. */
@@ -761,6 +764,18 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.purge_after_days': 7,
   'storage.deleted_posts_media_days': 30,
   'storage.image_format': 'webp',
+  /** Owner 2026-10-25: AVIF twins of public photos (≈40-50% smaller than
+   * WebP). OFF by default. `images.avif_enabled` writes the twins at
+   * upload; they are served only to clients that send
+   * `X-Image-Formats: avif`, and only for files uploaded after
+   * `images.avif_since` (ISO time, empty = serve none). Qualities 1-100,
+   * effort 0-9 (higher = smaller but slower to make). */
+  'images.avif_enabled': false,
+  'images.avif_since': '',
+  'images.avif_quality': 60,
+  'images.avif_effort': 2,
+  'images.webp_quality': 88,
+  'images.jpeg_quality': 90,
   'storage.user_quota_mb': 10240,
   'storage.chat_quota_mb': 5120,
   /** 2026-10-24 (abuse batch B, item 5): most MB one person may upload in

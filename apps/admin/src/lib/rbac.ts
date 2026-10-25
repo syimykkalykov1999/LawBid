@@ -238,7 +238,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
       // Owner 2026-10-22 (maker-checker): big payouts and refunds wait for a second admin.
-      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'выплаты и возвраты, которые ждут второго админа' },
+      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'запросы второго админа (сейчас проверка выключена: всё выполняется сразу)' },
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
     ],
@@ -273,6 +273,11 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
       // Batch D (2026-10-24): every part that grows by itself, its ceiling and buttons, and the open alarms.
       { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
+      // Owner 2026-10-24: the owner's launch steps with a light each, and the money per service.
+      { href: '/launch', label: 'Запуск', icon: 'rocket-launch', area: 'super', hint: 'ваши шаги перед запуском: что готово, что осталось' },
+      // Owner 2026-10-25: step-by-step guides for everything done outside our code.
+      { href: '/guides', label: 'Инструкции', icon: 'article', area: 'super', hint: 'где зарегистрироваться, что нажать и куда вставить: по шагам' },
+      { href: '/spend', label: 'Расходы', icon: 'chart-line', area: 'super', hint: 'сколько денег уходит каждому сервису и сколько держать на счету' },
       { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
       // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', hint: 'что включать, когда людей становится больше: по шагам' },

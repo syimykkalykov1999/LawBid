@@ -12,6 +12,15 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     label: 'Google Translate (перевод в чате)',
     description: 'Кнопка «Перевести» под сообщениями в чате. Включите также флаг «Перевод в чате».',
   },
+  pagerduty: {
+    label: 'PagerDuty (звонок на телефон при аварии)',
+    description:
+      'Ссылка интеграции PagerDuty. После «Включить» сервер сам подписывает её на критический топик тревог AWS; подписка и тестовая тревога — на странице «Запуск».',
+  },
+  github: {
+    label: 'GitHub (только чтение, для страницы «Запуск»)',
+    description: 'Чтобы страница «Запуск» сама видела, что запущена последняя версия main. Токен нужен только на чтение.',
+  },
   stripe: { label: 'Stripe (платежи)', description: 'Подписки, оплата, личный кабинет клиента.' },
   twilio: { label: 'Twilio (SMS-коды)', description: 'Коды для входа и подтверждения по SMS.' },
   ses: {
@@ -101,6 +110,8 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
 };
 
 const FIELD_BY_NAME: Record<string, string> = {
+  integrationUrl: 'Ссылка интеграции (Integration URL)',
+  repo: 'Репозиторий (владелец/имя)',
   libraryId: 'ID видеобиблиотеки',
   cdnHostname: 'Адрес CDN',
   apiKey: 'API-ключ',
