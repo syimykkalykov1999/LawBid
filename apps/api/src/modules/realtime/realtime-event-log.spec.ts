@@ -67,7 +67,23 @@ function fakeRedis(clock: () => number) {
     },
   };
   const redis = {
-    eval: jest.fn(async () => {
+    eval: jest.fn(async (script: string, n: number, ...rest: unknown[]) => {
+      if (script.includes("'ZADD'")) {
+        // the batch append: [keys..., seq, member, floor, max, ttl]
+        const keys = rest.slice(0, n) as string[];
+        const [seq, member, floor, max] = rest.slice(n) as [
+          number,
+          string,
+          number,
+          number,
+        ];
+        for (const k of keys) {
+          ops.zadd(k, seq, member);
+          ops.zremrangebyscore(k, '-inf', `(${floor}`);
+          ops.zremrangebyrank(k, 0, -(max + 1));
+        }
+        return keys.length;
+      }
       const now = clock() * 1000;
       last = last >= now ? last + 1 : now;
       epoch ??= String(now - 1);

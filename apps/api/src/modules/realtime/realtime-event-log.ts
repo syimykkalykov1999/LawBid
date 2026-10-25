@@ -41,6 +41,22 @@ redis.call('SET', KEYS[2], now - 1, 'NX')
 return nxt
 `;
 
+/**
+ * S1-5: one round trip for the whole audience (a 1000-member group used to
+ * send 4000 commands): every key gets the event, the entries older than
+ * the window and beyond the newest [max] are trimmed, the key's TTL moves.
+ * KEYS = one log per person; ARGV = seq, member, window floor, max, ttl.
+ */
+const APPEND_LUA = `
+for i = 1, #KEYS do
+  redis.call('ZADD', KEYS[i], ARGV[1], ARGV[2])
+  redis.call('ZREMRANGEBYSCORE', KEYS[i], '-inf', '(' .. ARGV[3])
+  redis.call('ZREMRANGEBYRANK', KEYS[i], 0, -(tonumber(ARGV[4]) + 1))
+  redis.call('EXPIRE', KEYS[i], ARGV[5])
+end
+return #KEYS
+`;
+
 export interface LoggedEvent {
   seq: number;
   event: string;
@@ -121,15 +137,18 @@ export class RealtimeEventLog {
     }
     const floor = windowStartSeq(Date.now());
     const ttlSec = Math.ceil(EVENT_LOG_WINDOW_MS / 1000) + 30;
-    const pipe = this.redis.pipeline();
-    for (const id of new Set(userIds)) {
-      const key = logKey(id);
-      pipe.zadd(key, seq, member);
-      pipe.zremrangebyscore(key, '-inf', `(${floor}`);
-      pipe.zremrangebyrank(key, 0, -(EVENT_LOG_MAX + 1));
-      pipe.expire(key, ttlSec);
-    }
-    await pipe.exec();
+    const keys = [...new Set(userIds)].map(logKey);
+    if (keys.length === 0) return;
+    await this.redis.eval(
+      APPEND_LUA,
+      keys.length,
+      ...keys,
+      seq,
+      member,
+      floor,
+      EVENT_LOG_MAX,
+      ttlSec,
+    );
   }
 
   /** Everything logged for [userIds] after [since], oldest first. */
