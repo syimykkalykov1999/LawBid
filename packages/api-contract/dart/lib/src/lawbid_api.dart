@@ -83,6 +83,7 @@ import 'clients/admin_review_appeals_client.dart';
 import 'clients/contacts_sync_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
+import 'clients/admin_shards_client.dart';
 import 'clients/admin_launch_client.dart';
 import 'clients/admin_spend_client.dart';
 import 'clients/admin_economy_client.dart';
@@ -220,6 +221,7 @@ class LawbidApi {
   ContactsSyncClient? _contactsSync;
   AdminIntegrationsClient? _adminIntegrations;
   AdminOpsClient? _adminOps;
+  AdminShardsClient? _adminShards;
   AdminLaunchClient? _adminLaunch;
   AdminSpendClient? _adminSpend;
   AdminEconomyClient? _adminEconomy;
@@ -494,6 +496,9 @@ class LawbidApi {
 
   AdminOpsClient get adminOps =>
       _adminOps ??= AdminOpsClient(_dio, baseUrl: _baseUrl);
+
+  AdminShardsClient get adminShards =>
+      _adminShards ??= AdminShardsClient(_dio, baseUrl: _baseUrl);
 
   AdminLaunchClient get adminLaunch =>
       _adminLaunch ??= AdminLaunchClient(_dio, baseUrl: _baseUrl);
