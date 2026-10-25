@@ -7,7 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -15,6 +18,8 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { conditionalGet } from '../../common/sync/cheap-etag';
+import { VersionEtagService } from '../../common/sync/version-etag.service';
 import {
   CurrentUser,
   type RequestUser,
@@ -62,17 +67,28 @@ export class ChatController {
   constructor(
     private readonly chat: ChatService,
     private readonly translation: ChatTranslationService,
+    private readonly versionEtag: VersionEtagService,
   ) {}
 
   @Get()
   @ApiOperation({ summary: 'My conversations, newest first (§8.1)' })
   @ApiEnvelopeResponse(ConversationDto, { isArray: true })
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
-  listConversations(
+  async listConversations(
     @CurrentUser() user: RequestUser,
     @Query() q: ConversationsQueryDto,
-  ): Promise<ConversationPage> {
-    return this.chat.list(user, q.cursor, q.updatedSince, q.folder, q.q);
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ConversationPage | undefined> {
+    // Owner 2026-10-25 (S2-12): a version tag from the newest chat stamps
+    // (own chats only); a text search is never tagged this way.
+    return conditionalGet(
+      req,
+      res,
+      q.q ? null : await this.versionEtag.conversations(user.sub),
+      () => Promise.resolve(),
+      () => this.chat.list(user, q.cursor, q.updatedSince, q.folder, q.q),
+    );
   }
 
   @Get('folders/counts')

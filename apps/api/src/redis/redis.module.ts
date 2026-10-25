@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from './redis.constants';
 import { failSoftRedis } from './fail-soft-redis';
+import { CacheRedisModeService, switchableRedis } from './cache-redis-mode';
 
 /** Cache connections this module opened (closed on shutdown). */
 const cacheOwn = new Set<Redis>();
@@ -42,9 +43,11 @@ const cacheOwn = new Set<Redis>();
         // Without a listener a dead node would log an unhandled 'error'.
         raw.on('error', () => undefined);
         cacheOwn.add(raw);
-        return failSoftRedis(raw);
+        // `cache.redis_mode` = off (admin): the main Redis serves caches.
+        return switchableRedis(failSoftRedis(raw), failSoftRedis(main));
       },
     },
+    CacheRedisModeService,
   ],
   exports: [REDIS_CLIENT, REDIS_CACHE_CLIENT],
 })

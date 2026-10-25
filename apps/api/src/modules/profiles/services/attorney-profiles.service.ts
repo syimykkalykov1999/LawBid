@@ -1,4 +1,8 @@
 import { ConfigService } from '@nestjs/config';
+import type Redis from 'ioredis';
+import { cached } from '../../../common/cache/cached';
+import { imageFormatContext } from '../../files/files.public';
+import { REDIS_CACHE_CLIENT } from '../../../redis/redis.constants';
 import { attorneyPublicUrl } from '../../../common/utils/public-urls';
 import { AttorneyAdvertisingService } from '../../countries/attorney-advertising.service';
 import { UsernamePolicyService } from '../../usernames/username-policy.service';
@@ -6,6 +10,7 @@ import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   OnApplicationShutdown,
   Optional,
@@ -87,6 +92,31 @@ const LICENSE_SELECT = {
  * narrow select — bar numbers, documents and contacts are never read for
  * it, so they cannot leak through a later refactor of the DTO.
  */
+/** The part of GET /attorneys/:username that is the same for every viewer
+ * (cached in Redis, so JSON-safe: no Date / Decimal / undefined). */
+type PublicCore = Pick<
+  PublicAttorneyProfileDto,
+  | 'username'
+  | 'firstName'
+  | 'lastName'
+  | 'bio'
+  | 'firmName'
+  | 'firms'
+  | 'firm'
+  | 'avatarUrl'
+  | 'avatarUrl256'
+  | 'languages'
+  | 'verifiedBadge'
+  | 'advertisingLabel'
+  | 'publicUrl'
+  | 'trustLevel'
+  | 'licensedStates'
+  | 'practiceAreas'
+  | 'qa'
+  | 'rating'
+  | 'counters'
+> & { userId: string; consultationBookable: boolean };
+
 @Injectable()
 export class AttorneyProfilesService implements OnApplicationShutdown {
   constructor(
@@ -105,6 +135,9 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     // canonical public link.
     @Optional() private readonly advertising?: AttorneyAdvertisingService,
     @Optional() private readonly config?: ConfigService,
+    // Caching round 2 (S2-8): the viewer-independent body of the public
+    // profile is cached per username on the evictable cache Redis.
+    @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
   ) {}
 
   /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
@@ -205,6 +238,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       'profile.username_change_cooldown_days',
     );
 
+    const touched = new Set<string>();
     try {
       await withTxRetry(this.prisma, async (tx) => {
         const current = await tx.attorneyProfile.findUnique({
@@ -212,6 +246,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           include: { user: { select: { first_name: true, last_name: true } } },
         });
         if (!current) throw notFound();
+        touched.add(current.username_lower);
 
         const data: Prisma.AttorneyProfileUpdateInput = {
           ...(dto.bio !== undefined && { bio: dto.bio || null }),
@@ -267,6 +302,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           }
           data.username = dto.username;
           data.username_lower = lower;
+          touched.add(lower);
           data.username_changed_at = now;
         }
 
@@ -296,6 +332,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       }
       throw error;
     }
+    // S2-8: the cached public body of the old and new @username is stale.
+    await this.dropPublicCore(...touched);
     return this.getOwn(userId, now);
   }
 
@@ -436,13 +474,98 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     );
   }
 
+  /** Key of the cached public body: the @username and whether the client
+   * decodes AVIF (the avatar links differ). */
+  private publicCoreKey(usernameLower: string): string {
+    return `attorney:public:${usernameLower}:${imageFormatContext.wantsAvif() ? 'a' : 'w'}`;
+  }
+
+  /** Drops the cached public body of [usernames] (both image flavours). */
+  private async dropPublicCore(...usernames: string[]): Promise<void> {
+    if (!this.cache || usernames.length === 0) return;
+    const keys = usernames.flatMap((u) => [
+      `attorney:public:${u}:a`,
+      `attorney:public:${u}:w`,
+    ]);
+    await this.cache.del(...keys).catch(() => undefined);
+  }
+
   async getPublic(
     username: string,
     viewerId: string,
   ): Promise<PublicAttorneyProfileDto> {
     if (!isValidUsername(username)) throw notFound();
+    // Caching round 2 (S2-8): everything that is the same for every viewer
+    // is loaded once per `cache.attorney_profile_sec` (default 60 s, 0 =
+    // off, an own-profile edit drops it); the viewer's own parts (privacy,
+    // follow, block, "is it me") are computed per request below.
+    const ttl = this.cache
+      ? await this.settings.number('cache.attorney_profile_sec')
+      : 0;
+    const lower = username.toLowerCase();
+    const core =
+      this.cache && ttl > 0
+        ? await cached<PublicCore>(
+            this.cache,
+            this.publicCoreKey(lower),
+            { ttlSec: ttl },
+            () => this.loadPublicCore(lower),
+          )
+        : await this.loadPublicCore(lower);
+    if (core.userId !== viewerId) this.recordView(core.userId);
+    const [follow, [photoOk, aboutOk], relation] = await Promise.all([
+      this.prisma.follow.findUnique({
+        where: {
+          follower_id_followee_id: {
+            follower_id: viewerId,
+            followee_id: core.userId,
+          },
+        },
+        select: { follower_id: true },
+      }),
+      this.privacy
+        ? Promise.all([
+            this.privacy.visibleTo(viewerId, [core.userId], 'photo_from'),
+            this.privacy.visibleTo(viewerId, [core.userId], 'about_from'),
+          ])
+        : Promise.resolve([new Set([core.userId]), new Set([core.userId])]),
+      this.blocks.relation(viewerId, core.userId),
+    ]);
+    return {
+      id: core.userId,
+      username: core.username,
+      firstName: core.firstName,
+      lastName: core.lastName,
+      bio: aboutOk.has(core.userId) ? core.bio : null,
+      firmName: core.firmName,
+      firms: core.firms,
+      firm: core.firm,
+      avatarUrl: photoOk.has(core.userId) ? core.avatarUrl : null,
+      avatarUrl256: photoOk.has(core.userId) ? core.avatarUrl256 : null,
+      languages: core.languages,
+      verifiedBadge: core.verifiedBadge,
+      advertisingLabel: core.advertisingLabel,
+      publicUrl: core.publicUrl,
+      trustLevel: core.trustLevel,
+      licensedStates: core.licensedStates,
+      practiceAreas: core.practiceAreas,
+      qa: core.qa,
+      rating: core.rating,
+      counters: core.counters,
+      isSelf: core.userId === viewerId,
+      isFollowing: follow !== null,
+      consultationEnabled:
+        core.userId !== viewerId && core.consultationBookable,
+      ...relation,
+    };
+  }
+
+  /** The viewer-independent part of the public profile (JSON-safe, so it
+   * can sit in Redis). 404 for an unknown / unavailable profile (never
+   * cached: the loader throws). */
+  private async loadPublicCore(usernameLower: string): Promise<PublicCore> {
     const row = await this.prisma.attorneyProfile.findUnique({
-      where: { username_lower: username.toLowerCase() },
+      where: { username_lower: usernameLower },
       select: {
         user_id: true,
         username: true,
@@ -485,58 +608,35 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     ) {
       throw notFound('Profile is unavailable.');
     }
-    if (row.user_id !== viewerId) this.recordView(row.user_id);
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
     // Public photo only (a clean `avatar` file); documents never.
-    const [
-      avatar,
-      practiceAreas,
-      follow,
-      pPosts,
-      pFollowers,
-      pFollowing,
-      membership,
-    ] = await Promise.all([
-      this.files.avatarUrls(row.user.avatar_file_id),
-      this.practices.selectedOf(row.user_id),
-      this.prisma.follow.findUnique({
-        where: {
-          follower_id_followee_id: {
-            follower_id: viewerId,
-            followee_id: row.user_id,
-          },
-        },
-        select: { follower_id: true },
-      }),
-      // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
-      this.counters.pending('attorney', 'posts_count', [row.user_id]),
-      this.counters.pending('attorney', 'followers_count', [row.user_id]),
-      this.counters.pending('attorney', 'following_count', [row.user_id]),
-      this.prisma.firmMember.findFirst({
-        where: { attorney_id: row.user_id, status: 'active' },
-        select: { firm: { select: { id: true, name: true } } },
-      }),
-    ]);
+    const [avatar, practiceAreas, pPosts, pFollowers, pFollowing, membership] =
+      await Promise.all([
+        this.files.avatarUrls(row.user.avatar_file_id),
+        this.practices.selectedOf(row.user_id),
+        // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
+        this.counters.pending('attorney', 'posts_count', [row.user_id]),
+        this.counters.pending('attorney', 'followers_count', [row.user_id]),
+        this.counters.pending('attorney', 'following_count', [row.user_id]),
+        this.prisma.firmMember.findFirst({
+          where: { attorney_id: row.user_id, status: 'active' },
+          select: { firm: { select: { id: true, name: true } } },
+        }),
+      ]);
     const plus = (base: number, m: Map<string, number>) =>
       Math.max(0, base + (m.get(row.user_id) ?? 0));
-    const [photoOk, aboutOk] = this.privacy
-      ? await Promise.all([
-          this.privacy.visibleTo(viewerId, [row.user_id], 'photo_from'),
-          this.privacy.visibleTo(viewerId, [row.user_id], 'about_from'),
-        ])
-      : [new Set([row.user_id]), new Set([row.user_id])];
     return {
-      id: row.user_id,
+      userId: row.user_id,
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
-      bio: aboutOk.has(row.user_id) ? row.bio : null,
+      bio: row.bio,
       firmName: row.firm_name,
       firms: firmsOf(row),
       firm: membership?.firm ?? null,
-      avatarUrl: photoOk.has(row.user_id) ? avatar.url : null,
-      avatarUrl256: photoOk.has(row.user_id) ? avatar.url256 : null,
+      avatarUrl: avatar.url ?? null,
+      avatarUrl256: avatar.url256 ?? null,
       languages: row.languages,
       verifiedBadge: row.trust_badge,
       advertisingLabel: await this.labelFor(states.keys()),
@@ -551,12 +651,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
         followers: plus(row.followers_count, pFollowers),
         following: plus(row.following_count, pFollowing),
       },
-      isSelf: row.user_id === viewerId,
-      isFollowing: follow !== null,
-      consultationEnabled:
-        row.user_id !== viewerId &&
-        ((await this.consultations?.isBookable(row.user_id)) ?? false),
-      ...(await this.blocks.relation(viewerId, row.user_id)),
+      consultationBookable:
+        (await this.consultations?.isBookable(row.user_id)) ?? false,
     };
   }
 

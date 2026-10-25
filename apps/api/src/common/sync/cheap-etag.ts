@@ -51,3 +51,28 @@ export function notModified(
   }
   return false;
 }
+
+/**
+ * Conditional GET for a version-stamp tag (VersionEtagService). On a match
+ * `verify` runs (access / ownership checks and side effects the normal
+ * path has, e.g. an "opened" ping) and the answer is a 304; otherwise
+ * `build` makes the body and the same tag goes on it. A null tag means
+ * "no cheap tag": just build.
+ */
+export async function conditionalGet<T>(
+  req: Pick<Request, 'headers'>,
+  res: Pick<Response, 'setHeader' | 'status'>,
+  tag: string | null,
+  verify: () => Promise<void>,
+  build: () => Promise<T>,
+): Promise<T | undefined> {
+  if (tag && etagMatches(req.headers['if-none-match'], tag)) {
+    await verify();
+    res.setHeader('ETag', tag);
+    res.status(304);
+    return undefined;
+  }
+  const body = await build();
+  if (tag) res.setHeader('ETag', tag);
+  return body;
+}

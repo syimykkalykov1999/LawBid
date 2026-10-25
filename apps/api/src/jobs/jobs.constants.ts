@@ -150,6 +150,9 @@ export const CRON_JOBS = {
   adminSummaries: 'admin.summaries',
   // Shard-ready step 7: the cross-family outbox relay.
   outboxSweep: 'outbox.sweep',
+  /** Owner 2026-10-25 (S2-1): queued CloudFront invalidations of removed
+   * files, one batched request per distribution. */
+  cdnInvalidate: 'cdn.invalidate',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -248,6 +251,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: applies cross-family events a request could not (retries
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
+  // Every other minute: batches the paths of removed files (S2-1).
+  { name: CRON_JOBS.cdnInvalidate, pattern: '1-59/2 * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

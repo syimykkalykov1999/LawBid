@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
+import { L1Cache } from '../../../common/cache/l1-cache';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { FLAG_CATALOG } from '../flag-catalog';
 import { lockFlags } from '../../../common/feature-flags/locked-flags';
@@ -39,6 +40,11 @@ export const FLAGS_CACHE_KEY = 'config:feature_flags';
 @Injectable()
 export class FeatureFlagsService implements OnModuleInit {
   private readonly logger = new Logger(FeatureFlagsService.name);
+  /** Caching round 2 (S2-7): the flag map in memory for a few seconds, so a
+   * flag read is not a Redis round trip on every request. `invalidate()`
+   * clears it at once on this instance; another instance within the TTL
+   * (`CACHE_L1_TTL_SEC`, default 5, 0 = off). */
+  private readonly l1 = new L1Cache<Record<string, boolean>>('flags');
 
   constructor(
     private readonly prisma: PrismaService,
@@ -69,6 +75,7 @@ export class FeatureFlagsService implements OnModuleInit {
       });
       if (made.count > 0) {
         await this.redis.del(FLAGS_CACHE_KEY);
+        this.l1.clear();
         this.logger.log(
           `feature flags created from the catalog: ${made.count}`,
         );
@@ -82,7 +89,11 @@ export class FeatureFlagsService implements OnModuleInit {
     return lockFlags(await this.readFlags());
   }
 
-  private async readFlags(): Promise<Record<string, boolean>> {
+  private readFlags(): Promise<Record<string, boolean>> {
+    return this.l1.getOrLoad('flags', () => this.readFlagsFromRedis());
+  }
+
+  private async readFlagsFromRedis(): Promise<Record<string, boolean>> {
     const cached = await this.redis.get(FLAGS_CACHE_KEY);
     if (cached !== null) return JSON.parse(cached) as Record<string, boolean>;
 
@@ -117,6 +128,7 @@ export class FeatureFlagsService implements OnModuleInit {
   /** Drops the cached flag set so the next read goes to the DB — for a
    * writer that changes `feature_flags` (admin panel, file 6; e2e). */
   async invalidate(): Promise<void> {
+    this.l1.clear();
     await this.redis.del(FLAGS_CACHE_KEY);
     await bumpConfigVersion(this.redis);
   }

@@ -3,6 +3,8 @@ import type Redis from 'ioredis';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../../redis/redis.constants';
+import { cached } from '../../../common/cache/cached';
+import { PRACTICE_TREE_CACHE_KEY } from '../../../common/cache/cache-keys';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import type {
   PracticeAreaCategoryDto,
@@ -17,7 +19,7 @@ import {
 
 /** The tree changes only by a seed/migration (docs/02 §3.2), so a short
  * shared cache keeps every app start from re-reading ~400 rows. */
-export const PRACTICE_TREE_CACHE_KEY = 'practice_areas:tree:v1';
+export { PRACTICE_TREE_CACHE_KEY };
 export const PRACTICE_TREE_CACHE_TTL_SECONDS = 300;
 
 export interface PracticeTree {
@@ -77,34 +79,34 @@ export class PracticeAreasService {
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
   ) {}
 
-  async tree(): Promise<PracticeTree> {
-    const cached = await this.redis.get(PRACTICE_TREE_CACHE_KEY);
-    if (cached !== null) return JSON.parse(cached) as PracticeTree;
-
-    const rows = await this.prisma.practiceArea.findMany({
-      where: { is_active: true },
-      select: {
-        id: true,
-        parent_id: true,
-        code: true,
-        name_en: true,
-        i18n_key: true,
-        sort: true,
-      },
-    });
-    const categories = buildPracticeTree(rows);
-    const hash = createHash('sha256')
-      .update(JSON.stringify(categories))
-      .digest('hex')
-      .slice(0, 24);
-    const tree: PracticeTree = { etag: `"pa-${hash}"`, categories };
-    await this.redis.set(
+  /** Caching round 2 (S2-5 / S2-6): the shared helper (single-flight,
+   * lease, jitter); an admin edit deletes the key (AdminContentService), so
+   * a switched-off area leaves the list at once, not after 5 minutes. */
+  tree(): Promise<PracticeTree> {
+    return cached<PracticeTree>(
+      this.redis,
       PRACTICE_TREE_CACHE_KEY,
-      JSON.stringify(tree),
-      'EX',
-      PRACTICE_TREE_CACHE_TTL_SECONDS,
+      { ttlSec: PRACTICE_TREE_CACHE_TTL_SECONDS },
+      async () => {
+        const rows = await this.prisma.practiceArea.findMany({
+          where: { is_active: true },
+          select: {
+            id: true,
+            parent_id: true,
+            code: true,
+            name_en: true,
+            i18n_key: true,
+            sort: true,
+          },
+        });
+        const categories = buildPracticeTree(rows);
+        const hash = createHash('sha256')
+          .update(JSON.stringify(categories))
+          .digest('hex')
+          .slice(0, 24);
+        return { etag: `"pa-${hash}"`, categories };
+      },
     );
-    return tree;
   }
 
   /** The attorney's selected, still-active specializations. */

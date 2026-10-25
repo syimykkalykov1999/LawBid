@@ -51,7 +51,8 @@ import {
   postPracticeWhere,
 } from './hidden-tags';
 import type Redis from 'ioredis';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { bumpFeedVersion } from '../../common/cache/feed-version';
 import { cachedBlockSet } from '../blocks/block-set.cache';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
@@ -124,7 +125,8 @@ export class PostsService {
     private readonly notifications: NotificationsService,
     private readonly attachmentsPolicy: PostAttachmentsPolicy,
     private readonly settings: AppSettingsService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Caching round 2 (S2-2): block set + feed version are per-user caches.
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     @Optional() private readonly flags?: FeatureFlagsService,
@@ -352,6 +354,8 @@ export class PostsService {
     // Owner 2026-10-18: an archived post is not public (it counts and
     // alerts when the author shows it in the profile again).
     if (!post || post.archived_at) return;
+    // S2-3: the author's own feed (first page cache) shows the new post now.
+    await bumpFeedVersion(this.redis, post.author_id);
     // Shard-ready step 6: the author's role from the user directory.
     const author = await userDirectory(this.prisma).one(post.author_id, {
       role: true,
@@ -605,6 +609,8 @@ export class PostsService {
       data: { deleted_at: new Date(), pin_slot: null, pin_group: null },
     });
     if (count !== 1) throw postNotFound();
+    // S2-3: the deleted post leaves the author's cached first page at once.
+    await bumpFeedVersion(this.redis, user.sub);
     const post = await this.prisma.post.findFirst({
       where: { id },
       select: { status: true, video_asset_id: true, archived_at: true },
@@ -799,6 +805,19 @@ export class PostsService {
   }
 
   /** GET /posts/:id — the author also sees their own hidden post. */
+  /** 404 unless [user] may see the post (the cheap check before a 304). */
+  async assertVisible(user: RequestUser, id: string): Promise<void> {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id,
+        deleted_at: null,
+        OR: [VISIBLE_POST_WHERE, { author_id: user.sub }],
+      },
+      select: { id: true },
+    });
+    if (!post) throw postNotFound();
+  }
+
   async get(user: RequestUser, id: string): Promise<PostDto> {
     const post = await this.prisma.post.findFirst({
       where: {

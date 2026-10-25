@@ -94,6 +94,18 @@ export class MineService {
     private readonly files: FilesService,
   ) {}
 
+  /** The ownership check and the "opened" ping of [ownerCase], without
+   * building the answer (the cheap path of a 304). */
+  async touchOwnerCase(user: RequestUser, caseId: string): Promise<void> {
+    if (user.role !== 'client') throw caseNotFound();
+    const kase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: { client_id: true },
+    });
+    if (!kase || kase.client_id !== user.sub) throw caseNotFound();
+    await touchClientActive(this.prisma, caseId, user.sub);
+  }
+
   /** GET /users/me/cases/:id (owner only; deleted cases are 404). */
   async ownerCase(
     user: RequestUser,

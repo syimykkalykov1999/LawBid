@@ -4,3 +4,5 @@ export { FileDto, PresignedFileDto } from './dto/files.dto';
 // own (media moderation).
 export { S3StorageService } from './storage/s3-storage.service';
 export { FileReleaseService } from './storage/file-release.service';
+// Caching round 2 (S2-8): does the client being answered decode AVIF?
+export { imageFormatContext } from './processing/image-format-context';
