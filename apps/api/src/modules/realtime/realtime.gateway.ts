@@ -441,11 +441,13 @@ export class RealtimeGateway
           ? header.slice(7)
           : undefined;
     const claims = token ? await this.verify(token) : null;
-    if (await ipLimited) {
+    // Never awaited: the limit check adds no latency to the handshake; an
+    // over-limit socket is closed as soon as the answer arrives.
+    void ipLimited.then((limited) => {
+      if (!limited) return;
       socket.emit('auth:error', { code: 'RATE_LIMITED' });
       socket.disconnect(true);
-      return;
-    }
+    });
     if (!token || !claims) {
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
       socket.disconnect(true);
