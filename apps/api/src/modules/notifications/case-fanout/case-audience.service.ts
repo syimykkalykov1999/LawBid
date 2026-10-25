@@ -4,7 +4,7 @@ import {
   effectiveUrgency,
   loadUrgencyThresholds,
   URGENT_LEVELS,
-} from '../../cases/domain/case-urgency';
+} from '../../cases/cases.public';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { readsAreSplit } from '../../../sharding/split-reads';
 import type { FanoutCandidate } from './case-fanout.scoring';

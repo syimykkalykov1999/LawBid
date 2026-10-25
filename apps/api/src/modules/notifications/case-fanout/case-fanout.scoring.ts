@@ -5,7 +5,7 @@ import {
   HOUR_MS,
   saturate,
   weighted,
-} from '../../recommendations/ranking.math';
+} from '../../../common/utils/ranking-math';
 
 /**
  * New-case alerts (owner 2026-10-25): who hears about a case first.
