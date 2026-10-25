@@ -14,6 +14,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { MentionsService } from '../mentions/mentions.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
@@ -74,6 +75,8 @@ export class CommentsService {
     // Owner 2026-10-22 (client economy plan, package F): a new comment
     // reaches the sockets that have the post open (`post:watch`).
     @Optional() private readonly realtime?: RealtimePublisher,
+    // DB-ops S5-6: comment lists read the replica (tight 3 s budget).
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   async create(
@@ -333,12 +336,20 @@ export class CommentsService {
         ),
       ),
     ];
-    const rows = await this.prisma.comment.findMany({
+    // DB-ops S5-6: the list itself may be a few seconds old (budget 3 s). The
+    // viewer's likes and own relations stay on the primary, and so do the
+    // viewer's own comments of the last 30 s on the first page (a reload
+    // right after commenting must still show it: read-your-writes).
+    const reader = this.read?.readDb({ maxStalenessMs: 3000 }) ?? this.prisma;
+    const filter = {
+      ...where,
+      ...LIVE,
+      author: { status: 'active' as const },
+      ...(hidden.length ? { author_id: { notIn: hidden } } : {}),
+    };
+    let rows = await reader.comment.findMany({
       where: {
-        ...where,
-        ...LIVE,
-        author: { status: 'active' },
-        ...(hidden.length ? { author_id: { notIn: hidden } } : {}),
+        ...filter,
         ...(c
           ? {
               OR: [
@@ -351,6 +362,28 @@ export class CommentsService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: COMMENTS_PAGE + 1,
     });
+    if (reader !== this.prisma && !c) {
+      const own = await this.prisma.comment.findMany({
+        where: {
+          ...filter,
+          author_id: { equals: userId },
+          created_at: { gte: new Date(Date.now() - 30_000) },
+        },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: 10,
+      });
+      const have = new Set(rows.map((r) => r.id));
+      const extra = own.filter((r) => !have.has(r.id));
+      if (extra.length) {
+        rows = [...rows, ...extra]
+          .sort(
+            (a, b) =>
+              b.created_at.getTime() - a.created_at.getTime() ||
+              (a.id < b.id ? 1 : -1),
+          )
+          .slice(0, COMMENTS_PAGE + 1);
+      }
+    }
     const page = rows.slice(0, COMMENTS_PAGE);
     const last = page[page.length - 1];
     return {

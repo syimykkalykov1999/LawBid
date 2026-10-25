@@ -1127,108 +1127,124 @@ export class ChatService {
     }
     let message: Message;
     try {
-      message = await withTxRetry(this.prisma, async (tx) => {
-        // Serializes with the file-04 transactions that close the chat or
-        // unlock contacts.
-        const [locked] = await tx.$queryRaw<
-          {
-            status: string;
-            contacts_unlocked: boolean;
-            disappear_after_s: number | null;
-          }[]
-        >`SELECT status, contacts_unlocked, disappear_after_s FROM conversations
+      message = await withTxRetry(
+        this.prisma,
+        async (tx) => {
+          // Serializes with the file-04 transactions that close the chat or
+          // unlock contacts.
+          const [locked] = await tx.$queryRaw<
+            {
+              status: string;
+              contacts_unlocked: boolean;
+              disappear_after_s: number | null;
+            }[]
+          >`SELECT status, contacts_unlocked, disappear_after_s FROM conversations
             WHERE id = ${id}::UUID FOR UPDATE`;
-        if (!locked || locked.status === 'closed') throw closed();
-        if (attachment && !locked.contacts_unlocked) {
-          throw new ForbiddenException({
-            code: ErrorCode.CHAT_ATTACHMENTS_LOCKED,
-            message: 'Files can be sent once the bid is accepted.',
-          });
-        }
-        const masked =
-          voice || contact || post || locked.contacts_unlocked
-            ? { text: body, masked: false }
-            : maskContactInfo(body);
-        const giftNote = gift && masked.text ? masked.text.slice(0, 200) : null;
-        const given = gift
-          ? await this.stars.giveGift(tx, {
-              giftId: dto.giftId!,
-              senderId: user.sub,
-              recipientId:
-                user.sub === conv.client_id ? conv.attorney_id : conv.client_id,
-              conversationId: id,
-              note: giftNote,
-            })
-          : null;
-        // Audit #6: the id is chosen here, the sealed bodies are bound to it.
-        const messageId = randomUUID();
-        const m = await tx.message.create({
-          data: {
-            id: messageId,
-            conversation_id: id,
-            sender_id: user.sub,
-            sent_by_membership_id: user.assistant?.membershipId ?? null,
-            sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
-            type: voice
-              ? 'voice'
-              : attachment
-                ? 'attachment'
-                : sticker
-                  ? 'sticker'
-                  : gift
-                    ? 'gift'
-                    : contact
-                      ? 'contact'
-                      : place
-                        ? 'place'
-                        : post
-                          ? 'post'
-                          : 'text',
-            body_original: this.seal(gift ? '' : body, messageId),
-            body_display: this.seal(gift ? '' : masked.text, messageId),
-            contact_masked: masked.masked,
-            client_message_id: dto.clientMessageId,
-            reply_to_id: replyToId,
-            // Owner 2026-10-21: disappearing messages.
-            expires_at: expiresAtFor(locked.disappear_after_s),
-            forwarded: dto.forwarded === true,
-            forwarded_from_name: dto.forwardedFromName ?? null,
-            ...(voice
-              ? {
-                  file_id: dto.fileId,
-                  duration_ms: dto.durationMs,
-                  waveform: dto.waveform ?? [],
-                }
-              : attachment
+          if (!locked || locked.status === 'closed') throw closed();
+          if (attachment && !locked.contacts_unlocked) {
+            throw new ForbiddenException({
+              code: ErrorCode.CHAT_ATTACHMENTS_LOCKED,
+              message: 'Files can be sent once the bid is accepted.',
+            });
+          }
+          const masked =
+            voice || contact || post || locked.contacts_unlocked
+              ? { text: body, masked: false }
+              : maskContactInfo(body);
+          const giftNote =
+            gift && masked.text ? masked.text.slice(0, 200) : null;
+          const given = gift
+            ? await this.stars.giveGift(tx, {
+                giftId: dto.giftId!,
+                senderId: user.sub,
+                recipientId:
+                  user.sub === conv.client_id
+                    ? conv.attorney_id
+                    : conv.client_id,
+                conversationId: id,
+                note: giftNote,
+              })
+            : null;
+          // Audit #6: the id is chosen here, the sealed bodies are bound to it.
+          const messageId = randomUUID();
+          const m = await tx.message.create({
+            data: {
+              id: messageId,
+              conversation_id: id,
+              sender_id: user.sub,
+              sent_by_membership_id: user.assistant?.membershipId ?? null,
+              sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
+              type: voice
+                ? 'voice'
+                : attachment
+                  ? 'attachment'
+                  : sticker
+                    ? 'sticker'
+                    : gift
+                      ? 'gift'
+                      : contact
+                        ? 'contact'
+                        : place
+                          ? 'place'
+                          : post
+                            ? 'post'
+                            : 'text',
+              body_original: this.seal(gift ? '' : body, messageId),
+              body_display: this.seal(gift ? '' : masked.text, messageId),
+              contact_masked: masked.masked,
+              client_message_id: dto.clientMessageId,
+              reply_to_id: replyToId,
+              // Owner 2026-10-21: disappearing messages.
+              expires_at: expiresAtFor(locked.disappear_after_s),
+              forwarded: dto.forwarded === true,
+              forwarded_from_name: dto.forwardedFromName ?? null,
+              ...(voice
                 ? {
                     file_id: dto.fileId,
-                    file_name: cleanFileName(dto.fileName!),
+                    duration_ms: dto.durationMs,
+                    waveform: dto.waveform ?? [],
                   }
-                : sticker
-                  ? { sticker_id: dto.stickerId }
-                  : given
-                    ? { gift_send_id: given.send.id }
-                    : {}),
-          },
-        });
-        await tx.conversation.update({
-          where: { id },
-          data: { last_message_at: m.created_at, last_message_id: m.id },
-        });
-        // A new message brings a removed chat back for both sides.
-        await tx.conversationParticipant.updateMany({
-          where: { conversation_id: id, hidden_at: { not: null } },
-          data: { hidden_at: null },
-        });
-        // Your own message is read by you.
-        await tx.conversationParticipant.update({
-          where: {
-            conversation_id_user_id: { conversation_id: id, user_id: user.sub },
-          },
-          data: { last_read_message_id: m.id, last_read_at: new Date() },
-        });
-        return m;
-      });
+                : attachment
+                  ? {
+                      file_id: dto.fileId,
+                      file_name: cleanFileName(dto.fileName!),
+                    }
+                  : sticker
+                    ? { sticker_id: dto.stickerId }
+                    : given
+                      ? { gift_send_id: given.send.id }
+                      : {}),
+            },
+          });
+          await tx.conversation.update({
+            where: { id },
+            data: { last_message_at: m.created_at, last_message_id: m.id },
+          });
+          // A new message brings a removed chat back for both sides.
+          await tx.conversationParticipant.updateMany({
+            where: { conversation_id: id, hidden_at: { not: null } },
+            data: { hidden_at: null },
+          });
+          // Your own message is read by you.
+          await tx.conversationParticipant.update({
+            where: {
+              conversation_id_user_id: {
+                conversation_id: id,
+                user_id: user.sub,
+              },
+            },
+            data: { last_read_message_id: m.id, last_read_at: new Date() },
+          });
+          return m;
+        },
+        {
+          // S5-7: the conversation row is locked FOR UPDATE above, which
+          // already serializes senders, so a plain message needs no SSI.
+          // A gift moves stars (money): that keeps Serializable.
+          ...(gift ? {} : { isolation: 'readCommitted' as const }),
+          op: 'chat.send',
+        },
+      );
     } catch (error) {
       // A concurrent retry with the same clientMessageId won the insert.
       if (

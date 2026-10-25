@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3StorageService } from '../files/files.public';
 import type { PublicAttorneyDto } from './public-directory.dto';
@@ -28,7 +29,13 @@ export class PublicDirectoryService {
     @Optional() private readonly secrets?: SecretsService,
     // Owner 2026-10-24: avatars stored in R2 have their own public domain.
     @Optional() private readonly storage?: S3StorageService,
+    // DB-ops S5-6: a CDN-cached public list tolerates replica lag.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
+
+  private get db(): PrismaService {
+    return this.read?.db ?? this.prisma;
+  }
 
   private async cdnBase(): Promise<string | null> {
     const cdn =
@@ -73,7 +80,7 @@ export class PublicDirectoryService {
           }
         : {}),
     };
-    const rows = await this.prisma.attorneyProfile.findMany({
+    const rows = await this.db.attorneyProfile.findMany({
       where,
       orderBy: [
         { trust_level: 'desc' },
@@ -131,7 +138,7 @@ export class PublicDirectoryService {
         : [];
     const photos = new Map<string, string>();
     if (avatarIds.length) {
-      const files = await this.prisma.file.findMany({
+      const files = await this.db.file.findMany({
         where: {
           id: { in: avatarIds },
           purpose: 'avatar',

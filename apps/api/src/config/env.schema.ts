@@ -99,6 +99,12 @@ export const envSchema = z
     DB_POOLER_HOST: z.string().min(1).optional(),
     DB_POOLER_PORT: z.coerce.number().int().positive().optional(),
     DB_POOLER_QUERY: z.string().optional(),
+    // Read replica seam (src/prisma/prisma-read.service.ts). The replica is
+    // used only while it is at most DB_REPLICA_MAX_LAG_MS behind (default
+    // 5000); DB_REPLICA_POOLER_HOST sends the replica URL through a PgBouncer
+    // IN FRONT OF THE REPLICA (never the primary's one).
+    DB_REPLICA_MAX_LAG_MS: z.coerce.number().int().nonnegative().optional(),
+    DB_REPLICA_POOLER_HOST: z.string().min(1).optional(),
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
     // How long one Redis command may wait before failing. The e2e harness
     // raises it: a busy CI runner stalls the event loop past 2 s while an
