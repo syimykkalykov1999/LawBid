@@ -20,6 +20,7 @@ import {
   type CronJobName,
 } from './jobs.constants';
 import { CronProcessor } from './cron.processor';
+import { bullOptions } from '../redis/redis-connection';
 
 export interface JobsModuleOptions {
   /** 'api': runs only when JOBS_ENABLED (default true, until the separate
@@ -105,7 +106,7 @@ export class JobsRunner
 
   private async start(): Promise<void> {
     const url = this.config.getOrThrow<string>('REDIS_URL');
-    this.queue = new Queue(CRON_QUEUE, { connection: { url } });
+    this.queue = new Queue(CRON_QUEUE, bullOptions(CRON_QUEUE, url));
     await this.ensureSchedules(this.queue);
     if (this.stopping) return;
 
@@ -114,7 +115,7 @@ export class JobsRunner
       (job: Job) => this.processor.process(job.name),
       {
         // Required by BullMQ for the worker's blocking connection.
-        connection: { url, maxRetriesPerRequest: null },
+        ...bullOptions(CRON_QUEUE, url, { worker: true }),
         // One maintenance job at a time per process: DB-heavy sweeps, not
         // latency-sensitive.
         concurrency: 1,

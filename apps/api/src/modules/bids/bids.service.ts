@@ -9,6 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
+import { BUMP_VERSION } from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -331,7 +332,12 @@ export class BidsService {
           await tx.bidOffer.deleteMany({ where: { bid_id: previous.id } });
           created = await tx.bid.update({
             where: { id: previous.id },
-            data: { ...fresh, decided_at: null, created_at: now },
+            data: {
+              ...fresh,
+              decided_at: null,
+              created_at: now,
+              ...BUMP_VERSION,
+            },
           });
         } else {
           created = await tx.bid.create({
@@ -425,6 +431,7 @@ export class BidsService {
     user: RequestUser,
     bidId: string,
     dto: CounterOfferDto,
+    expectedVersion?: number,
   ): Promise<BidDto> {
     const { bid, by } = await this.loadForEitherParty(bidId, user);
     // OQ-054: a counter from the client is their own action on the case.
@@ -443,6 +450,7 @@ export class BidsService {
       return this.applyAndRespond(bid.id, 'counter', by, {
         percentBps: bps,
         message: dto.message ?? null,
+        expectedVersion,
       });
     }
     if (dto.amountCents === undefined) {
@@ -455,6 +463,7 @@ export class BidsService {
     return this.applyAndRespond(bid.id, 'counter', by, {
       amountCents: dto.amountCents,
       message: dto.message ?? null,
+      expectedVersion,
     });
   }
 
@@ -555,6 +564,7 @@ export class BidsService {
       amountCents?: number;
       percentBps?: number;
       message?: string | null;
+      expectedVersion?: number;
     },
   ): Promise<BidDto> {
     const chat: ChatChange[] = [];
@@ -576,6 +586,7 @@ export class BidsService {
         amountCents: extra.amountCents,
         percentBps: extra.percentBps,
         message: extra.message,
+        expectedVersion: extra.expectedVersion,
       });
       await this.journal.append(tx, {
         caseId: before.case_id,
@@ -818,6 +829,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
       : null,
     estimatedDurationDays: bid.estimated_duration_days,
     roundCount: bid.round_count,
+    version: bid.version,
     turn: bid.turn,
     outsidePractice: bid.outside_practice,
     outsideLicensedStates: bid.outside_licensed_states,

@@ -11,6 +11,10 @@ import type {
   PartyRole,
   Prisma,
 } from '@prisma/client';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { assertOfferTransition } from '../../negotiations/domain/offer-state-machine';
 
@@ -238,6 +242,8 @@ export interface ApplyBidActionInput {
   percentBps?: number;
   /** counter only: optional note (≤500 chars, validated by the DTO). */
   message?: string | null;
+  /** If-Match from the client; a different stored version is 409 STALE_VERSION. */
+  expectedVersion?: number;
 }
 
 /** Negotiation operations lock the bid row (§6.3 "SELECT ... FOR UPDATE по
@@ -268,9 +274,13 @@ export class BidStateMachine {
     }
     const bid = await tx.bid.findUnique({ where: { id: input.bidId } });
     if (!bid) throw bidNotFound();
+    assertExpectedVersion(bid.version, input.expectedVersion);
     const plan = planBidTransition(bid, input.action, input.by, now);
 
-    const data: Prisma.BidUncheckedUpdateManyInput = { ...plan.data };
+    const data: Prisma.BidUncheckedUpdateManyInput = {
+      ...plan.data,
+      ...BUMP_VERSION,
+    };
     if (plan.newOffer && bid.fee_type === 'contingency') {
       const bps = input.percentBps;
       if (bps === undefined || !Number.isInteger(bps) || bps <= 0) {
@@ -290,6 +300,7 @@ export class BidStateMachine {
         status: 'active',
         round_count: bid.round_count,
         turn: bid.turn,
+        version: bid.version,
       },
       data,
     });
@@ -360,7 +371,7 @@ export class BidStateMachine {
     }));
     const { count } = await tx.bid.updateMany({
       where: { id: { in: bids.map((b) => b.id) }, status: 'active' },
-      data: results[0].plan.data,
+      data: { ...results[0].plan.data, ...BUMP_VERSION },
     });
     if (count !== bids.length) {
       throw conflict(
