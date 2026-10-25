@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
+import { delSafe, mgetSafe } from '../redis/redis-cluster-safe';
 import type { PrismaService } from '../prisma/prisma.service';
 import { withDeleted } from '../prisma/soft-delete.extension';
 
@@ -153,8 +154,9 @@ export class UserDirectory {
     const missing: string[] = [];
     if (ttl > 0 && this.redis) {
       try {
-        const hits = await this.redis.mget(
-          ...unique.map((i) => CACHE_PREFIX + i),
+        const hits = await mgetSafe(
+          this.redis as unknown as Redis,
+          unique.map((i) => CACHE_PREFIX + i),
         );
         unique.forEach((id, i) => {
           const raw = hits[i];
@@ -190,9 +192,10 @@ export class UserDirectory {
   /** Call after changing a user's name / avatar / username / badge. */
   async invalidate(...ids: string[]): Promise<void> {
     if (!this.redis || ids.length === 0) return;
-    await this.redis
-      .del(...ids.map((i) => CACHE_PREFIX + i))
-      .catch(() => undefined);
+    await delSafe(
+      this.redis as unknown as Redis,
+      ids.map((i) => CACHE_PREFIX + i),
+    ).catch(() => undefined);
   }
 
   private cacheTtl(): number {

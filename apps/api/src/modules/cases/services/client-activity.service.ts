@@ -4,6 +4,7 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PresenceService } from '../../presence/presence.service';
+import { mgetSafe, pipeline } from '../../../redis/redis-cluster-safe';
 
 /** Owner 2026-10-18 (OQ-054): the activity line on the feed card. */
 export interface ClientActivityView {
@@ -74,7 +75,7 @@ export class ClientActivityService {
     if (clientIds.length === 0) return fast;
     let cached: (string | null)[] = clientIds.map(() => null);
     try {
-      cached = await this.redis.mget(clientIds.map(cacheKey));
+      cached = await mgetSafe(this.redis, clientIds.map(cacheKey));
     } catch {
       // No cache: compute everything.
     }
@@ -145,7 +146,7 @@ export class ClientActivityService {
     const yes = new Set(rows.map((r) => r.client_id));
     for (const id of yes) fast.add(id);
     try {
-      const pipe = this.redis.pipeline();
+      const pipe = pipeline(this.redis);
       for (const id of missing) {
         pipe.set(
           cacheKey(id),

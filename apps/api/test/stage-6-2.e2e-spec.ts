@@ -313,10 +313,13 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .send({ permissions: { users: 'manage', support: 'view' } })
       .expect(403);
     expect((noStepUp.body as Body).error?.code).toBe('ADMIN_STEP_UP_REQUIRED');
+    // The code of the NEXT 30 s step: the sign-in code is the current step
+    // (single-use), and an earlier step collides with it when the clock
+    // crosses a step boundary between the two calls.
     await api()
       .post('/api/v1/admin/auth/step-up')
       .set(mgr.auth)
-      .send({ code: totpCode(mgr.totpSecret, Date.now() - 30_000) })
+      .send({ code: totpCode(mgr.totpSecret, Date.now() + 30_000) })
       .expect(200);
     await api()
       .patch(`/api/v1/admin/admins/${staffId}/permissions`)
@@ -494,7 +497,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     await api()
       .post('/api/v1/admin/auth/step-up')
       .set(sup.auth)
-      .send({ code: totpCode(sup.totpSecret, Date.now() - 30_000) })
+      .send({ code: totpCode(sup.totpSecret, Date.now() + 30_000) })
       .expect(200);
     await api()
       .patch(`/api/v1/admin/admins/${id}/role`)
