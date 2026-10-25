@@ -28,6 +28,9 @@ abstract final class ApiErrorCodes {
   /// older than the server keeps — reload the list from the first page.
   static const syncTooOld = 'SYNC_TOO_OLD';
 
+  /// A write sent an old `version` (409): somebody else saved first.
+  static const staleVersion = 'STALE_VERSION';
+
   // Auth (docs/01 §10, stage 1.4). TOKEN_EXPIRED is the one code
   // AuthInterceptor's silent refresh keys off (§10.4).
   static const tokenExpired = 'TOKEN_EXPIRED';
@@ -336,6 +339,7 @@ abstract final class ApiErrorCodes {
     idempotencyKeyConflict,
     appUpdateRequired,
     syncTooOld,
+    staleVersion,
     tokenExpired,
     authOtpInvalid,
     authOtpExpired,

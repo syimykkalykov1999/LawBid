@@ -10,6 +10,7 @@ import {
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { pipeline } from '../../redis/redis-cluster-safe';
 
 /** Owner 2026-10-22: the minute's counts are also kept in Redis (26 h) so the
  * status board can read the push success rate without a log service. */
@@ -71,7 +72,7 @@ export class SloMetricsService implements OnModuleInit, OnApplicationShutdown {
     this.logger.info({ metric: 'slo', ...line }, 'slo counters');
     if (this.redis) {
       const key = SLO_REDIS_PREFIX + Math.floor(Date.now() / 60_000);
-      const pipe = this.redis.pipeline();
+      const pipe = pipeline(this.redis);
       for (const [k, n] of Object.entries(line)) {
         if (n > 0) pipe.hincrby(key, k, n);
       }
