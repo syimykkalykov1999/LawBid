@@ -13,6 +13,8 @@ import type {
 import {
   LEGAL_SETTINGS_KEY,
   legalLangOf,
+  parseLegalTexts,
+  parseTextsNeedReview,
   readLegalSettings,
   type LegalSettings,
 } from './legal.settings';
@@ -21,6 +23,22 @@ export const LEGAL_AUDIT = {
   settings: 'legal.settings',
   dmcaDecide: 'legal.dmca.decide',
 } as const;
+
+/** Per language, field by field: what the admin sent wins, the rest stays. */
+function mergeTexts(
+  current: LegalSettings['texts'],
+  sent: object,
+): Record<string, Record<string, unknown>> {
+  const out: Record<string, Record<string, unknown>> = {};
+  const src = sent as Record<string, Record<string, unknown> | undefined>;
+  for (const lang of Object.keys(current)) {
+    const fields = Object.fromEntries(
+      Object.entries(src[lang] ?? {}).filter(([, v]) => v !== undefined),
+    );
+    out[lang] = { ...current[lang as keyof typeof current], ...fields };
+  }
+  return out;
+}
 
 const toJson = (v: unknown): Prisma.InputJsonValue =>
   JSON.parse(JSON.stringify(v ?? null)) as Prisma.InputJsonValue;
@@ -68,11 +86,18 @@ export class LegalService {
     admin: AdminActor,
     dto: LegalSettingsDto,
   ): Promise<LegalSettings> {
+    const current = await this.settings();
     const next: LegalSettings = {
       dmcaAgent: { ...dto.dmcaAgent },
       incidentContact: { ...dto.incidentContact },
       dmcaStrikesToSuspend: dto.dmcaStrikesToSuspend,
-      texts: { en: { ...dto.texts.en }, ru: { ...dto.texts.ru } },
+      // Missing languages / fields keep their defaults (parse), so an older
+      // admin client that only sends en and ru still works.
+      texts: parseLegalTexts(mergeTexts(current.texts, dto.texts)),
+      textsNeedReview: parseTextsNeedReview({
+        ...current.textsNeedReview,
+        ...dto.textsNeedReview,
+      }),
     };
     const value = toJson(next);
     await withTxRetry(this.prisma, async (tx) => {
