@@ -879,6 +879,67 @@ export const OWNER_BOOKING_QA_SETTINGS = {
   'qa.allow_anonymous': true,
 };
 
+/**
+ * Owner 2026-10-28 (legal safety pass): «Вопрос юристу», шаблоны и сроки —
+ * это общая информация, а не юридическая консультация (unauthorized practice
+ * of law, ABA Model Rule 5.5 / 7.1); публичный вопрос не должен раскрывать
+ * личные данные и детали дела; спам и «индивидуальные советы» ограничены.
+ * Defaults keep today's behaviour: the disclaimer is added to responses, the
+ * private-info check only records (`warn`), the new limits are generous.
+ */
+export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
+  /** The server adds a «general information, not legal advice» notice
+   * (`meta.disclaimer`) to Q&A, template and deadline responses. */
+  'legal.disclaimer.enabled': true,
+  'legal.disclaimer.text':
+    'General information only, not legal advice. Using this service does not create an attorney-client relationship. Laws differ by state and change over time; talk to a licensed attorney about your situation.',
+  /** JSON {"CA":"text", "NY":"text"}: a state's own wording replaces the
+   * default text for that state. */
+  'legal.disclaimer.by_state': '{}',
+  /** Added after the main text on document templates. */
+  'legal.disclaimer.template_extra':
+    'Templates are general forms and may not fit your state or facts; have an attorney review a document before you use it.',
+  /** Added after the main text on deadline calculations. */
+  'legal.disclaimer.deadline_extra':
+    'Deadlines are computed from published rules and may not reflect local court rules, tolling or the method of service; confirm with the court or an attorney before relying on a date.',
+
+  /** Private info in a public question or answer (SSN, address, case
+   * number, opposing party name ...): off | warn (keep the text, record and
+   * return the kinds) | redact (replace with a mask) | block (400). */
+  'qa.pii_mode': 'warn',
+  /** Kinds the check looks for, comma list. */
+  'qa.pii_kinds':
+    'ssn,card,address,case_number,party_name,immigration_id,dob,id_number,phone,email',
+
+  /** A new account cannot ask a public question for this many hours (0 = no
+   * cooldown). */
+  'qa.new_account_cooldown_hours': 0,
+  /** More links than this in one question or answer is refused (links are
+   * masked anyway). */
+  'qa.max_links': 5,
+  /** Days in which the same text is a duplicate (0 = check off). */
+  'qa.duplicate_window_days': 7,
+  /** The same question text from this many different people in the window
+   * is treated as spam. */
+  'qa.duplicate_cross_user_max': 3,
+  /** The same answer text may be posted this many times by one attorney in
+   * the window (canned replies are spam, not advice). */
+  'qa.answer_duplicate_max': 3,
+  /** Answers (and edits) one attorney may post in a day. */
+  'rate_limit.answer_per_day': 150,
+  /** Answers that read as individualized advice from someone who is not
+   * licensed in the question's state: off | flag (the admin sees it) | hold
+   * (hidden until a moderator restores it). */
+  'qa.advice_flag_mode': 'flag',
+
+  /** A user's new sticker image waits for the media scan before others see
+   * it (off = published at once, as before). */
+  'stickers.scan_uploads': true,
+  /** The NCMEC CyberTipline API call for a CSAM report. Off = reports are
+   * opened and logged as «file by hand» without calling the API. */
+  'moderation.csam.ncmec_submit_enabled': true,
+};
+
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
 import {
@@ -940,6 +1001,7 @@ export const APP_SETTINGS = {
   ...OWNER_FEED_SETTINGS,
   ...OWNER_POST_ATTACHMENT_SETTINGS,
   ...OWNER_BOOKING_QA_SETTINGS,
+  ...OWNER_LEGAL_QA_SAFETY_SETTINGS,
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
   ...OWNER_REALTIME_SETTINGS,

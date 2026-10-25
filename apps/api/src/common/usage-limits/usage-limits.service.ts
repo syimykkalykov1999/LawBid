@@ -35,7 +35,8 @@ export type LimitedAction =
   | 'channel_comment'
   | 'consultation_book'
   | 'question_create'
-  | 'answer_create';
+  | 'answer_create'
+  | 'answer_create_daily';
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -94,6 +95,11 @@ export const USAGE_LIMITS: Record<
   },
   question_create: { setting: 'rate_limit.question_per_day', windowSec: DAY },
   answer_create: { setting: 'rate_limit.answer_per_hour', windowSec: HOUR },
+  // Owner 2026-10-28 (legal safety): a daily ceiling on top of the hourly one.
+  answer_create_daily: {
+    setting: 'rate_limit.answer_per_day',
+    windowSec: DAY,
+  },
 };
 
 /**

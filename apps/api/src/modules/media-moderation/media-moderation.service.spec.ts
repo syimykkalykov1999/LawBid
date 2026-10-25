@@ -19,6 +19,7 @@ const SETTINGS: Record<string, number | boolean> = {
   'moderation.image.hide_confidence': 90,
   'moderation.image.review_confidence': 60,
   'moderation.image.min_confidence': 50,
+  'moderation.csam.ncmec_submit_enabled': true,
 };
 
 async function png(): Promise<Buffer> {

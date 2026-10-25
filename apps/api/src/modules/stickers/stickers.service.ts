@@ -1,19 +1,24 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
-import type { Sticker, StickerPack } from '@prisma/client';
+import type { Prisma, Sticker, StickerPack } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
+import { MediaModerationQueue } from '../media-moderation/media-moderation.queue';
+import { ReportsService } from '../reports/reports.module';
 import { StarsService } from '../stars/stars.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type {
+  ReportStickerPackDto,
   StickerDto,
   StickerLibraryDto,
   StickerPackDto,
@@ -45,6 +50,9 @@ export class StickersService {
     private readonly settings: AppSettingsService,
     private readonly limits: UsageLimitsService,
     private readonly stars: StarsService,
+    private readonly reports: ReportsService,
+    // Owner 2026-10-28: the scan of a user's new image (media moderation).
+    @Optional() private readonly mediaQueue?: MediaModerationQueue,
   ) {}
 
   /** GET /stickers — recent + my installed packs. */
@@ -61,7 +69,7 @@ export class StickersService {
           pack: {
             include: {
               stickers: {
-                where: { deleted_at: null },
+                where: this.visible(userId),
                 orderBy: { position: 'asc' },
               },
             },
@@ -73,6 +81,7 @@ export class StickersService {
           user_id: userId,
           sticker: {
             deleted_at: null,
+            moderation_status: 'active',
             pack: { deleted_at: null, status: 'active' },
           },
         },
@@ -98,14 +107,14 @@ export class StickersService {
       where: { is_official: true, status: 'active', deleted_at: null },
       orderBy: { install_count: 'desc' },
       take: 50,
-      include: this.withStickers,
+      include: this.withStickers(userId),
     });
     return this.present(packs, userId);
   }
 
   /** GET /stickers/packs/:ref — a pack by id or short name. */
   async get(userId: string, ref: string): Promise<StickerPackDto> {
-    const pack = await this.find(ref);
+    const pack = await this.find(ref, false, userId);
     const [dto] = await this.present([pack], userId);
     return dto;
   }
@@ -127,7 +136,7 @@ export class StickersService {
           short_name: `s${randomBytes(6).toString('hex')}`,
           install_count: 1,
         },
-        include: this.withStickers,
+        include: this.withStickers(userId),
       });
       await tx.userStickerPack.create({
         data: { user_id: userId, pack_id: p.id, position: -1 },
@@ -185,6 +194,9 @@ export class StickersService {
       });
     }
     await this.limits.consume('sticker_add', userId);
+    // Owner 2026-10-28 (legal safety, App Store 1.2): a new image of a user
+    // is published only after the media scan (Rekognition + CSAM hash).
+    const moderation = await this.initialModeration(fileId);
     const sticker = await this.prisma.$transaction(async (tx) => {
       const s = await tx.sticker.create({
         data: {
@@ -192,6 +204,7 @@ export class StickersService {
           file_id: fileId,
           emoji: (emoji ?? '').trim() || '🙂',
           position: pack.sticker_count,
+          moderation_status: moderation,
         },
       });
       await tx.stickerPack.update({
@@ -200,7 +213,32 @@ export class StickersService {
       });
       return s;
     });
+    if (moderation === 'pending') {
+      // The upload already queued the check; this makes sure it exists.
+      await this.mediaQueue?.enqueueFile(fileId, 'sticker');
+    }
     return this.sticker(sticker, await this.urls([sticker]));
+  }
+
+  /** POST /stickers/packs/:ref/report - into the usual reports queue. */
+  async report(
+    userId: string,
+    ref: string,
+    dto: ReportStickerPackDto,
+  ): Promise<void> {
+    const pack = await this.find(ref, true);
+    if (pack.owner_user_id === userId) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'You cannot report your own pack.',
+      });
+    }
+    await this.reports.create(userId, {
+      targetType: 'sticker_pack',
+      targetId: pack.id,
+      reason: dto.reason,
+      note: dto.note,
+    });
   }
 
   /** DELETE /stickers/:id — a sticker from my pack. */
@@ -283,7 +321,13 @@ export class StickersService {
       where: { id: stickerId },
       include: { pack: true },
     });
-    if (!s || s.deleted_at || s.pack.deleted_at || s.pack.status !== 'active') {
+    if (
+      !s ||
+      s.deleted_at ||
+      s.moderation_status !== 'active' ||
+      s.pack.deleted_at ||
+      s.pack.status !== 'active'
+    ) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,
         message: 'Sticker not found.',
@@ -324,16 +368,59 @@ export class StickersService {
 
   // ── helpers ──────────────────────────────────────────────────────────
 
-  private readonly withStickers = {
-    stickers: {
-      where: { deleted_at: null },
-      orderBy: { position: 'asc' as const },
-    },
-  };
+  /** Stickers [viewerId] sees: published ones, plus their own waiting
+   * for the scan. A hidden (flagged / CSAM) one is never shown. */
+  private visible(viewerId?: string): Prisma.StickerWhereInput {
+    return {
+      deleted_at: null,
+      OR: [
+        { moderation_status: 'active' },
+        ...(viewerId
+          ? [
+              {
+                moderation_status: 'pending',
+                pack: { owner_user_id: viewerId },
+              },
+            ]
+          : []),
+      ],
+    };
+  }
+
+  private withStickers(viewerId?: string) {
+    return {
+      stickers: {
+        where: this.visible(viewerId),
+        orderBy: { position: 'asc' as const },
+      },
+    };
+  }
+
+  /** The state a new user image starts in. */
+  private async initialModeration(
+    fileId: string,
+  ): Promise<'pending' | 'active' | 'hidden'> {
+    if (!(await this.settings.boolean('stickers.scan_uploads')))
+      return 'active';
+    if (!(await this.settings.boolean('moderation.image.enabled')))
+      return 'active';
+    const check = await this.prisma.mediaModerationCheck.findUnique({
+      where: { file_id: fileId },
+      select: { status: true, decision: true },
+    });
+    if (check?.decision === 'approved') return 'active';
+    if (check?.decision === 'removed') return 'hidden';
+    if (check?.status === 'clean' || check?.status === 'skipped')
+      return 'active';
+    if (check?.status === 'hidden' || check?.status === 'csam_match')
+      return 'hidden';
+    return 'pending';
+  }
 
   private async find(
     ref: string,
     allowHidden = false,
+    viewerId?: string,
   ): Promise<PackWithStickers> {
     const pack = await this.prisma.stickerPack.findFirst({
       where: {
@@ -341,7 +428,7 @@ export class StickersService {
         deleted_at: null,
         ...(allowHidden ? {} : { status: 'active' }),
       },
-      include: this.withStickers,
+      include: this.withStickers(viewerId),
     });
     if (!pack) {
       throw new NotFoundException({
@@ -353,7 +440,7 @@ export class StickersService {
   }
 
   private async own(userId: string, ref: string): Promise<PackWithStickers> {
-    const pack = await this.find(ref, true);
+    const pack = await this.find(ref, true, userId);
     if (pack.owner_user_id !== userId) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,

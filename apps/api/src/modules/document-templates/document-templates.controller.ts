@@ -16,6 +16,7 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { LegalDisclaimerNotice } from '../../common/legal-disclaimer/legal-disclaimer.interceptor';
 import {
   CurrentUser,
   type RequestUser,
@@ -45,6 +46,7 @@ export class DocumentTemplatesController {
   // cacheable in the browser, revalidated in the background.
   @Get()
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
+  @LegalDisclaimerNotice('template')
   @ApiOperation({
     summary:
       'Published templates: search, practice area, state (every-state ones included), language',
@@ -60,6 +62,7 @@ export class DocumentTemplatesController {
 
   @Get(':id')
   @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
+  @LegalDisclaimerNotice('template')
   @ApiOperation({ summary: 'One published template' })
   @ApiEnvelopeResponse(DocumentTemplateDto)
   @ApiErrors({
@@ -76,6 +79,7 @@ export class DocumentTemplatesController {
 
   @Post(':id/download')
   @HttpCode(HttpStatus.OK)
+  @LegalDisclaimerNotice('template')
   @ApiOperation({
     summary: 'A short signed download link (counted once per user a day)',
   })
@@ -93,6 +97,7 @@ export class DocumentTemplatesController {
   }
 
   @Post(':id/copy')
+  @LegalDisclaimerNotice('template')
   @ApiOperation({
     summary:
       'My own copy as a chat or case attachment (then send / attach it as usual)',

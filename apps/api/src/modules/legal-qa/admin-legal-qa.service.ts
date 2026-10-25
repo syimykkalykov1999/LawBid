@@ -97,6 +97,7 @@ export class AdminLegalQaService {
           isBest: a.is_best,
           likeCount: a.like_count,
           attorney: { id: a.attorney_id, name: p ? name(p) : '' },
+          safetyFlags: a.safety_flags,
           createdAt: a.created_at.toISOString(),
         };
       }),
@@ -145,6 +146,7 @@ export class AdminLegalQaService {
       stateCode: r.state_code,
       practiceArea: r.practice_area?.name_en ?? null,
       author: { id: r.author.id, name: name(r.author) },
+      safetyFlags: r.safety_flags,
       createdAt: r.created_at.toISOString(),
     };
   }

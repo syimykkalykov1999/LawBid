@@ -26,6 +26,7 @@ import {
   AddStickerDto,
   CreateStickerPackDto,
   ReorderStickerPacksDto,
+  ReportStickerPackDto,
   StickerDto,
   StickerIdParamDto,
   StickerLibraryDto,
@@ -141,6 +142,24 @@ export class StickersController {
     @Body() dto: AddStickerDto,
   ): Promise<StickerDto> {
     return this.stickers.add(user.sub, p.ref, dto.fileId, dto.emoji);
+  }
+
+  // Owner 2026-10-28 (legal safety, App Store 1.2): report a user's pack -
+  // the same queue and auto-hide threshold as POST /reports.
+  @Post('packs/:ref/report')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Report a sticker pack (inappropriate, abuse ...)' })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    429: [E.RATE_LIMITED],
+  })
+  reportStickerPack(
+    @CurrentUser() user: RequestUser,
+    @Param() p: StickerPackRefParamDto,
+    @Body() dto: ReportStickerPackDto,
+  ): Promise<void> {
+    return this.stickers.report(user.sub, p.ref, dto);
   }
 
   @Post('packs/:ref/install')

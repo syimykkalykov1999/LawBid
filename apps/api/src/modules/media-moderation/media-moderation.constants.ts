@@ -20,6 +20,9 @@ export const MODERATED_PURPOSES = [
   'post_image',
   'avatar',
   'review_photo',
+  // Owner 2026-10-28 (legal safety): a user's sticker image is public to
+  // everyone who installs the pack — scanned before it is published.
+  'sticker',
 ] as const;
 export type ModeratedPurpose = (typeof MODERATED_PURPOSES)[number];
 

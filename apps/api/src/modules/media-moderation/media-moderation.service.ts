@@ -44,7 +44,13 @@ import { MediaModerationQueue } from './media-moderation.queue';
 /** Content hidden by a verdict, so an approval restores exactly that. */
 export interface HiddenTarget {
   type:
-    'post' | 'story' | 'channel_post' | 'review' | 'client_review' | 'avatar';
+    | 'post'
+    | 'story'
+    | 'channel_post'
+    | 'review'
+    | 'client_review'
+    | 'avatar'
+    | 'sticker';
   id: string;
 }
 
@@ -330,11 +336,37 @@ export class MediaModerationService {
     status: CheckStatus,
     data: Prisma.MediaModerationCheckUpdateInput = {},
   ): Promise<CheckStatus> {
-    await this.prisma.mediaModerationCheck.update({
+    const row = await this.prisma.mediaModerationCheck.update({
       where: { id },
       data: { ...data, status, checked_at: new Date() },
     });
+    if (row?.purpose === 'sticker' && row.file_id) {
+      await this.settleStickerByVerdict(row.file_id, status);
+    }
     return status;
+  }
+
+  /**
+   * Owner 2026-10-28: a user's new sticker waits (`pending`) for this check.
+   * clean / skipped (nothing could scan it: switched off, no keys, format) →
+   * published; hidden / CSAM → hidden (hide() also does it); flagged → stays
+   * pending until a moderator decides in Модерация → Медиа.
+   */
+  private async settleStickerByVerdict(
+    fileId: string,
+    status: CheckStatus,
+  ): Promise<void> {
+    if (status === 'clean' || status === 'skipped') {
+      await this.prisma.sticker.updateMany({
+        where: { file_id: fileId, moderation_status: 'pending' },
+        data: { moderation_status: 'active' },
+      });
+    } else if (status === 'hidden' || status === 'csam_match') {
+      await this.prisma.sticker.updateMany({
+        where: { file_id: fileId, moderation_status: { not: 'hidden' } },
+        data: { moderation_status: 'hidden' },
+      });
+    }
   }
 
   // --- hiding and restoring -------------------------------------------------
@@ -392,6 +424,13 @@ export class MediaModerationService {
       for (const r of clientReviews)
         out.push({ type: 'client_review', id: r.id });
       for (const u of users) out.push({ type: 'avatar', id: u.id });
+      if (check.purpose === 'sticker') {
+        const stickers = await this.prisma.sticker.findMany({
+          where: { file_id: f },
+          select: { id: true },
+        });
+        for (const st of stickers) out.push({ type: 'sticker', id: st.id });
+      }
     }
     if (check.video_asset_id) {
       const v = check.video_asset_id;
@@ -459,11 +498,15 @@ export class MediaModerationService {
         changed.push(t);
         continue;
       }
+      if (t.type === 'sticker') {
+        if (await this.applySticker(t.id, action)) changed.push(t);
+        continue;
+      }
       const after: (() => Promise<void>)[] = [];
       const did = await withTxRetry(this.prisma, async (tx) => {
         after.length = 0;
         const target = await this.moderation.resolve(
-          t.type as Exclude<HiddenTarget['type'], 'avatar'>,
+          t.type as Exclude<HiddenTarget['type'], 'avatar' | 'sticker'>,
           t.id,
           tx,
         );
@@ -481,6 +524,45 @@ export class MediaModerationService {
       if (did) changed.push(t);
     }
     return changed;
+  }
+
+  /** hide: out of every pack view and chat picker; remove: deleted from its
+   * pack; restore: published again. */
+  private async applySticker(
+    id: string,
+    action: ContentAction,
+  ): Promise<boolean> {
+    const s = await this.prisma.sticker.findUnique({
+      where: { id },
+      select: { id: true, pack_id: true, deleted_at: true },
+    });
+    if (!s) return false;
+    if (action === 'restore') {
+      await this.prisma.sticker.update({
+        where: { id },
+        data: { moderation_status: 'active' },
+      });
+      return true;
+    }
+    if (action === 'hide') {
+      await this.prisma.sticker.update({
+        where: { id },
+        data: { moderation_status: 'hidden' },
+      });
+      return true;
+    }
+    if (s.deleted_at) return false;
+    await this.prisma.$transaction([
+      this.prisma.sticker.update({
+        where: { id },
+        data: { moderation_status: 'hidden', deleted_at: new Date() },
+      }),
+      this.prisma.stickerPack.update({
+        where: { id: s.pack_id },
+        data: { sticker_count: { decrement: 1 } },
+      }),
+    ]);
+    return true;
   }
 
   // --- the admin queue ------------------------------------------------------
@@ -568,6 +650,12 @@ export class MediaModerationService {
     const hidden = (check.hidden_targets as unknown as HiddenTarget[]) ?? [];
     if (decision === 'approve') {
       await this.apply(hidden, 'restore');
+      if (check.purpose === 'sticker' && check.file_id) {
+        await this.prisma.sticker.updateMany({
+          where: { file_id: check.file_id, moderation_status: 'pending' },
+          data: { moderation_status: 'active' },
+        });
+      }
       for (const t of hidden.filter((h) => h.type === 'avatar')) {
         if (check.file_id) {
           await this.prisma.user.updateMany({
@@ -623,9 +711,40 @@ export class MediaModerationService {
       where: { check_id: check.id, status: { not: 'failed' } },
     });
     if (existing) return existing;
+    let audit: CsamAuditEvent[] = [
+      csamEvent('opened', adminId, {
+        source: adminId ? 'admin' : 'hash_match',
+        purpose: check.purpose,
+      }),
+    ];
     const report = await this.prisma.csamReport.create({
-      data: { check_id: check.id, created_by: adminId },
+      data: {
+        check_id: check.id,
+        created_by: adminId,
+        audit: audit as unknown as Prisma.InputJsonValue,
+      },
     });
+    const finish = (
+      data: Prisma.CsamReportUpdateInput,
+      event: CsamAuditEvent,
+    ) => {
+      audit = [...audit, event];
+      return this.prisma.csamReport.update({
+        where: { id: report.id },
+        data: { ...data, audit: audit as unknown as Prisma.InputJsonValue },
+      });
+    };
+    // Owner 2026-10-28: the switch for the CyberTipline API call. Off — the
+    // report is still opened and the evidence kept, but nothing is sent: the
+    // owner files it by hand (docs/SECURITY_TODO.md).
+    if (
+      !(await this.settings.boolean('moderation.csam.ncmec_submit_enabled'))
+    ) {
+      return finish(
+        { status: 'manual_required' },
+        csamEvent('submit_skipped', null, { reason: 'switch_off' }),
+      );
+    }
     try {
       const r = await this.reporter.submit({
         reportId: report.id,
@@ -638,25 +757,44 @@ export class MediaModerationService {
           videoAssetId: check.video_asset_id,
         },
       });
-      return await this.prisma.csamReport.update({
-        where: { id: report.id },
-        data: {
+      return await finish(
+        {
           status: r.status,
           external_report_id: r.externalReportId ?? null,
           submitted_at: r.status === 'submitted' ? new Date() : null,
         },
-      });
+        csamEvent(r.status, null, {
+          provider: this.reporter.name,
+          externalReportId: r.externalReportId ?? null,
+        }),
+      );
     } catch (err) {
       this.logger.error(
         { reportId: report.id, alert: 'csam_report_failed', err: String(err) },
         'CSAM report could not be submitted — file it by hand',
       );
-      return this.prisma.csamReport.update({
-        where: { id: report.id },
-        data: { status: 'failed', error: String(err).slice(0, 500) },
-      });
+      return finish(
+        { status: 'failed', error: String(err).slice(0, 500) },
+        csamEvent('failed', null, { error: String(err).slice(0, 200) }),
+      );
     }
   }
+}
+
+/** One line of the append-only trail kept on a CSAM report. */
+export interface CsamAuditEvent {
+  at: string;
+  event: string;
+  actor: string | null;
+  detail: Record<string, unknown>;
+}
+
+function csamEvent(
+  event: string,
+  actor: string | null,
+  detail: Record<string, unknown> = {},
+): CsamAuditEvent {
+  return { at: new Date().toISOString(), event, actor, detail };
 }
 
 /** Any image → JPEG ≤ CHECK_MAX_PX (Rekognition takes JPEG / PNG ≤ 5 MB;
