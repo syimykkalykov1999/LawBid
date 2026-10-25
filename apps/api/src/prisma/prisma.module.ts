@@ -9,6 +9,7 @@ import {
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { ShardMapSync } from '../sharding/shard-map-sync';
 import { ShardStatsService } from '../sharding/shard-stats';
+import { ReplicaAdminService } from './replica-admin.service';
 import { PrismaReadService } from './prisma-read.service';
 import { PrismaService, routingOf } from './prisma.service';
 
@@ -17,6 +18,8 @@ import { PrismaService, routingOf } from './prisma.service';
   providers: [
     PrismaService,
     PrismaReadService,
+    // Owner 2026-10-24: admin button for the read replica (off until tapped).
+    ReplicaAdminService,
     // Shard-ready steps 3 and 4: shard_map cache invalidation over Redis and
     // the "sharded query without shard context" log counter.
     ShardMapSync,
@@ -36,6 +39,12 @@ import { PrismaService, routingOf } from './prisma.service';
       },
     },
   ],
-  exports: [PrismaService, PrismaReadService, UserDirectory, CrossFamilyOutbox],
+  exports: [
+    PrismaService,
+    PrismaReadService,
+    ReplicaAdminService,
+    UserDirectory,
+    CrossFamilyOutbox,
+  ],
 })
 export class PrismaModule {}

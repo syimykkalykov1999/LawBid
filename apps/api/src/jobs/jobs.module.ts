@@ -49,6 +49,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import { PartitionService } from '../partitioning/partition.service';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
@@ -161,6 +162,7 @@ export class JobsModule {
         AdminSummariesJob,
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
+        PartitionService,
         SearchIndexerService,
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,

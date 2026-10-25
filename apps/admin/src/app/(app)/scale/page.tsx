@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
+import { ScaleSwitches } from '@/components/scale-switches';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -329,6 +330,9 @@ export default function ScalePage() {
               );
             })}
           </div>
+
+          <SectionTitle>База: копия для чтения и разделение таблиц</SectionTitle>
+          <ScaleSwitches />
 
           <SectionTitle>Пулер, поиск и внешние сервисы</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">

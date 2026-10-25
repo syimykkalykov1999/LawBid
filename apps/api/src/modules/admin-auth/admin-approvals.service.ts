@@ -44,7 +44,12 @@ export type ApprovalKind =
   // payout marked paid, from the same limit.
   | 'payroll_bonus'
   | 'partner_payout'
-  | 'partner_commission_paid';
+  | 'partner_commission_paid'
+  // Owner 2026-10-24: scale buttons that change the database layout / bill.
+  | 'ops_db_replica'
+  | 'ops_partition_start'
+  | 'ops_partition_undo'
+  | 'ops_partition_finalize';
 
 export interface ApprovalKindSpec {
   kind: ApprovalKind;

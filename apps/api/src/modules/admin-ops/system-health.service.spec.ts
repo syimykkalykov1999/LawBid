@@ -130,6 +130,7 @@ describe('SystemHealthService', () => {
       queues: 'yellow',
       backup: 'grey',
       message_keys: 'grey',
+      table_growth: 'grey',
       cost: 'grey',
     });
     expect(r.overall).toBe('yellow');

@@ -548,3 +548,9 @@ variable "backup_vault_lock_cooling_off_days" {
   type    = number
   default = 7
 }
+
+variable "db_replica_toggle" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (two admins + 2FA). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
+}

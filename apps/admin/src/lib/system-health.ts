@@ -154,6 +154,26 @@ export function word(item: HealthItem): Worded {
                 : undefined,
       };
     }
+    case 'table_growth': {
+      const over = (d.over as { table: string; rows: number }[] | undefined) ?? [];
+      const top = (d.top as { table: string; rows: number }[] | undefined) ?? [];
+      const mln = (r: number) => `${(r / 1e6).toFixed(r >= 1e7 ? 0 : 1)} млн`;
+      return {
+        title: 'Размер больших таблиц',
+        line:
+          s === 'grey'
+            ? 'Размеры таблиц недоступны.'
+            : over.length
+              ? `Больше 50 млн строк и не разделены по месяцам: ${over.map((o) => `${o.table} (${mln(o.rows)})`).join(', ')}.`
+              : top.length
+                ? `Самая большая: ${top[0].table}, ${mln(top[0].rows)} строк. До порога в 50 млн далеко.`
+                : 'Все таблицы в норме.',
+        todo: over.length
+          ? 'Откройте «Масштаб», карточка таблицы → «Разделить таблицу по месяцам» (если таблица не заблокирована причинами на карточке).'
+          : undefined,
+        runbook: 'table-partitioning.md',
+      };
+    }
     case 'stripe_webhooks':
       return {
         title: 'Платежи Stripe (вебхуки)',

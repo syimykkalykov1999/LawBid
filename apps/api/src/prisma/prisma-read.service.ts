@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { demoContext } from '../common/demo/demo-context';
+import { resolveReplicaUrl } from './replica-url';
+import { shardContext } from '../sharding/shard-context';
 import { extend, PrismaService, withPoolDefaults } from './prisma.service';
 
 /** Connection-level Prisma errors: the replica is unreachable, not "wrong". */
@@ -36,6 +38,7 @@ export class PrismaReadService implements OnModuleDestroy {
   private readonly log = new Logger('PrismaRead');
   private raw: PrismaClient | null = null;
   private replica: PrismaService | null = null;
+  private replicaUrl = '';
   private downUntil = 0;
 
   constructor(private readonly primary: PrismaService) {}
@@ -51,11 +54,26 @@ export class PrismaReadService implements OnModuleDestroy {
   }
 
   private client(): PrismaService | null {
-    const url = process.env.DATABASE_REPLICA_URL?.trim();
+    const url = resolveReplicaUrl();
     if (!url || process.env.DB_REPLICA_ENABLED === 'false') return null;
     if (demoContext.isDemo()) return null;
+    // The replica copies the PRIMARY family only (one replica set per shard
+    // family is not built, docs/architecture/SHARDING_READY.md). A request
+    // pinned to another physical database, or any request once extra shard
+    // databases are configured, reads from its own primary: never a row from
+    // the wrong family. Unsharded production: no effect.
+    if (shardContext.current()?.physical) return null;
+    if (process.env.DATABASE_URL_SHARDS?.trim()) return null;
     if (Date.now() < this.downUntil) return null;
+    if (this.replica && this.replicaUrl !== url) {
+      // The replica moved (admin button: deleted and created again).
+      const old = this.raw;
+      this.replica = null;
+      this.raw = null;
+      if (old) void old.$disconnect().catch(() => undefined);
+    }
     if (!this.replica) {
+      this.replicaUrl = url;
       const datasourceUrl = withPoolDefaults(
         url,
         process.env,

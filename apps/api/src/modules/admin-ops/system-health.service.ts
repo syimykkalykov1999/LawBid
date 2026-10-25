@@ -11,6 +11,7 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
 import { OBSERVED_QUEUES } from '../../jobs/handlers/ops-metrics.job';
+import { PartitionService } from '../../partitioning/partition.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -66,6 +67,8 @@ export class SystemHealthService implements OnModuleDestroy {
     // Owner 2026-10-22: the status board's extra probes and incident list.
     @Optional() private readonly probes?: StatusProbesService,
     @Optional() private readonly incidents?: IncidentsService,
+    // Owner 2026-10-24: «a table passed 50 million rows» signal.
+    @Optional() private readonly partitions?: PartitionService,
   ) {}
 
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
@@ -80,6 +83,7 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('backup', () => this.backup(now)),
       this.safe('cost', () => this.cost()),
       this.safe('message_keys', () => this.messageKeys()),
+      this.safe('table_growth', () => this.tableGrowth()),
     ]);
     const extra = this.probes ? await this.probes.extra() : [];
     items.push(...extra.filter((e) => !items.some((i) => i.key === e.key)));
@@ -233,6 +237,25 @@ export class SystemHealthService implements OnModuleDestroy {
       status: latencyMs > slowMs ? 'yellow' : 'green',
       detail: { latencyMs, slowMs },
     };
+  }
+
+  /**
+   * Owner 2026-10-24: yellow when a table that is NOT partitioned holds 50
+   * million rows or more (time to run «Разделить таблицу по месяцам» on the
+   * «Масштаб» page). Estimates from pg_class, free to read. Grey when the
+   * probe is not available (tests, local).
+   */
+  private async tableGrowth(): Promise<Omit<HealthItemDto, 'key'>> {
+    if (!this.partitions) return { status: 'grey', detail: {} };
+    try {
+      const g = await this.partitions.growthSignal();
+      return {
+        status: g.over.length > 0 ? 'yellow' : 'green',
+        detail: { over: g.over, top: g.top, thresholdRows: 50_000_000 },
+      };
+    } catch {
+      return { status: 'grey', detail: {} };
+    }
   }
 
   private async redisItem(): Promise<Omit<HealthItemDto, 'key'>> {

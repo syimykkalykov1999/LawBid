@@ -150,6 +150,10 @@ export const CRON_JOBS = {
   adminSummaries: 'admin.summaries',
   // Shard-ready step 7: the cross-family outbox relay.
   outboxSweep: 'outbox.sweep',
+  /** Owner 2026-10-24: pre-create the next months of the partitioned tables. */
+  partitionMaintain: 'partition.maintain',
+  /** Owner 2026-10-24: advance an admin-started online partition conversion. */
+  partitionTick: 'partition.tick',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -248,6 +252,12 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: applies cross-family events a request could not (retries
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
+  // 02:40 UTC daily: the next 2 months always exist (rows beyond the last
+  // partition would fall into the DEFAULT one).
+  { name: CRON_JOBS.partitionMaintain, pattern: '40 2 * * *' },
+  // Every minute; a no-op unless PARTITION_DATABASE_URL is set and a
+  // conversion was started from the admin.
+  { name: CRON_JOBS.partitionTick, pattern: '* * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');
