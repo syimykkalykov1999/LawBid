@@ -168,7 +168,7 @@ variable "redis_memory_alarm_percent" {
 }
 variable "nat_traffic_alarm_gb_per_day" {
   type        = number
-  default     = 100
+  default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
 variable "budget_forecast_thresholds" {
@@ -448,7 +448,7 @@ variable "cpu_architecture" {
 # Security research #5 (2026-10-22): WAF, cloud detector, container.
 variable "waf_otp_rate_limit_per_5m" {
   type    = number
-  default = 20
+  default = 20 # raise to 60 when the per-device rules are on (waf_device_header)
 }
 variable "waf_bot_control_enabled" {
   type    = bool
@@ -594,4 +594,75 @@ variable "anomaly_to_alerts_topic" {
   type        = bool
   default     = true
   description = "Cost Anomaly findings also to the alerts topic (free)."
+}
+
+# S4-1 (audit 2026-10-25): separate `ops` role for the admin scale / launch /
+# cost calls. Order: ship the API release with OPS_ROLE_ARN support, then set
+# ops_role_split = true and ops_role_external_id in the tfvars secret.
+# docs/runbooks/aws-guardrails.md.
+variable "ops_role_split" {
+  type    = bool
+  default = false
+}
+variable "ops_role_external_id" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+variable "api_min_tasks" {
+  type        = number
+  default     = null
+  description = "Separate api floor (null = min_tasks). 2 = one api task per AZ (S4-11)."
+}
+
+# S4-3 / S4-6 (audit 2026-10-25): see modules/stack/main.tf and
+# docs/runbooks/infra-hardening.md for the owner steps.
+variable "adopt_existing_database" {
+  type    = bool
+  default = false
+}
+variable "database_deletion_protection" {
+  type    = bool
+  default = true
+}
+variable "rds_cross_region_backups" {
+  type    = bool
+  default = false
+}
+variable "rds_cross_region_backup_retention_days" {
+  type    = number
+  default = 14
+}
+
+variable "replicate_media" {
+  type        = bool
+  default     = true
+  description = "S4-5: copy new media objects to the replica Region (delete markers stay behind). Costs the media storage in us-west-2."
+}
+
+# S4-7 / S4-8 / S4-10 (audit 2026-10-25): load balancer and edge rules.
+variable "waf_device_header" {
+  type    = string
+  default = "" # "x-device-id" turns on the per-device rules (+$2/month)
+}
+variable "waf_auth_rules_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_auth_rate_action" {
+  type    = string
+  default = "count"
+}
+variable "alb_deletion_protection" {
+  type    = bool
+  default = true
+}
+variable "alb_least_outstanding_requests" {
+  type    = bool
+  default = false
+}
+variable "alb_websocket_target_group" {
+  type    = bool
+  default = false
 }

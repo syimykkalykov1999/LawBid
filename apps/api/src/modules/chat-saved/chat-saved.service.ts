@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import type { SavedChatKind } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import {
   decodeCursor,
   encodeCursor,
@@ -39,10 +40,13 @@ export class ChatSavedService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly chat: ChatService,
+    // Owner 2026-10-25: saves per minute against scripts.
+    @Optional() private readonly limits?: UsageLimitsService,
   ) {}
 
   /** Saves a message (idempotent). */
   async save(user: RequestUser, messageId: string): Promise<void> {
+    await this.limits?.consume('chat_save', user.sub);
     const { kind, conversationId } = await this.chat.savableKind(
       user,
       messageId,
