@@ -426,7 +426,8 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         // Last verified license expires -> unverified + notification.
         await prisma.attorneyLicense.updateMany({
           where: { attorney_id: a.userId, state_code: 'NY' },
-          data: { expires_at: new Date(today.getTime() - DAY) },
+          // Past the 14-day grace, so it now counts as expired.
+          data: { expires_at: new Date(today.getTime() - 15 * DAY) },
         });
         await job.run();
         profile = await prisma.attorneyProfile.findUniqueOrThrow({
