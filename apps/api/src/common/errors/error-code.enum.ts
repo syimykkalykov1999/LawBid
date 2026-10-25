@@ -48,6 +48,8 @@ export enum ErrorCode {
   AUTH_PROVIDER_DISABLED = 'AUTH_PROVIDER_DISABLED',
   // Owner 2026-10-13: wrong phone / e-mail or password (one generic answer).
   AUTH_INVALID_CREDENTIALS = 'AUTH_INVALID_CREDENTIALS',
+  // Owner 2026-10-25: a new password found in a breach / the common list.
+  AUTH_PASSWORD_COMPROMISED = 'AUTH_PASSWORD_COMPROMISED',
   ACCOUNT_EXISTS_USE_OTHER_METHOD = 'ACCOUNT_EXISTS_USE_OTHER_METHOD',
   IDENTIFIER_ALREADY_LINKED = 'IDENTIFIER_ALREADY_LINKED',
   CONTACT_DOMAIN_BLOCKED = 'CONTACT_DOMAIN_BLOCKED',
@@ -546,4 +548,9 @@ export enum ErrorCode {
   // Owner 2026-10-22 (client economy plan §4). 409: `updatedSince` is
   // older than 7 days — the app reloads the list from page 1.
   SYNC_TOO_OLD = 'SYNC_TOO_OLD',
+
+  // Day-one foundations (2026-10-24). 409: the client sent `If-Match: <version>`
+  // and the row was saved by someone else since; reload and retry. details:
+  // { currentVersion }.
+  STALE_VERSION = 'STALE_VERSION',
 }

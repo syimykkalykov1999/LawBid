@@ -18,27 +18,28 @@ part 'task_dto.g.dart';
 @JsonSerializable()
 class TaskDto {
   const TaskDto({
-    required this.createdAt,
+    required this.priority,
+    required this.version,
     required this.kind,
     required this.title,
-    required this.files,
+    required this.canDelete,
     required this.id,
+    required this.files,
     required this.status,
-    required this.canComplete,
+    required this.repeat,
     required this.canEdit,
-    required this.priority,
     required this.people,
     required this.places,
-    required this.steps,
     required this.keepForever,
+    required this.canComplete,
     required this.assignedToMe,
-    required this.repeat,
-    required this.canDelete,
+    required this.steps,
+    required this.createdAt,
     this.createdByName,
-    this.rescheduledTo,
-    this.outcomeNote,
-    this.doneAt,
     this.contactEmail,
+    this.rescheduledTo,
+    this.doneAt,
+    this.outcomeNote,
     this.contactPhone,
     this.contactName,
     this.casePracticeCode,
@@ -47,20 +48,23 @@ class TaskDto {
     this.remindBeforeMin,
     this.assigneeMembershipId,
     this.assigneeName,
-    this.location,
+    this.caseId,
     this.conversationId,
     this.archivedAt,
     this.dueAt,
     this.purgeAt,
     this.consultationId,
     this.notes,
-    this.caseId,
+    this.location,
   });
 
   factory TaskDto.fromJson(Map<String, Object?> json) =>
       _$TaskDtoFromJson(json);
 
   final String id;
+
+  /// Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION).
+  final int version;
   final AttorneyTaskKind kind;
   final String title;
   final String? notes;

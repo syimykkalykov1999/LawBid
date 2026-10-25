@@ -50,6 +50,8 @@ import { NotificationsRetentionJob } from './handlers/notifications-retention.jo
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { LedgerModule } from '../modules/ledger/ledger.public';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
 import { SearchIndexerService } from '../modules/search/search-indexer.service';
@@ -120,6 +122,8 @@ export class JobsModule {
         LegalExportsCoreModule,
         // Owner 2026-10-05: `treasury.daily` (profit and reserve).
         TreasuryCoreModule,
+        // Day-one foundations: `ledger.reconcile`.
+        LedgerModule,
         // Owner 2026-10-20: `consultations.sweep`.
         ConsultationsCoreModule,
       ],
@@ -161,6 +165,7 @@ export class JobsModule {
         AdminSummariesJob,
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
+        LedgerReconcileJob,
         SearchIndexerService,
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,

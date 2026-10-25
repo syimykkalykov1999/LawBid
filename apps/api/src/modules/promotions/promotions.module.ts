@@ -14,12 +14,14 @@ import { PayLinkModule } from '../billing/pay-link.module';
 /** The promotion service alone — imported by billing (checkout webhook),
  * the jobs module (`promotions.expire`) and the HTTP module below. Uses
  * the global PAYMENT_PROVIDER when present. */
+import { LedgerModule } from '../ledger/ledger.public';
 @Module({
   imports: [
     ReferralsCoreModule,
     NotificationsModule,
     StarsCoreModule,
     PayLinkModule,
+    LedgerModule,
   ],
   // PayLinkModule: the card page's signed links (owner 2026-10-22).
   providers: [PromotionsService, PromotionDeliveryService],

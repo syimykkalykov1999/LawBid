@@ -7,7 +7,7 @@ part of 'case_dto.dart';
 // **************************************************************************
 
 CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
-  lastActivityAt: json['lastActivityAt'] as String,
+  status: CaseStatus.fromJson(json['status'] as String),
   title: json['title'] as String,
   description: json['description'] as String,
   privateDetails: json['privateDetails'] as String?,
@@ -24,12 +24,15 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   budgetMode: BudgetMode.fromJson(json['budgetMode'] as String),
   id: json['id'] as String,
   stillNeededPending: json['stillNeededPending'] as bool,
-  canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
   createdAt: json['createdAt'] as String,
+  canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
+  version: (json['version'] as num).toInt(),
   bidsCount: (json['bidsCount'] as num).toInt(),
   viewCount: (json['viewCount'] as num).toInt(),
-  status: CaseStatus.fromJson(json['status'] as String),
-  budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
+  lastActivityAt: json['lastActivityAt'] as String,
+  deadlineKind: json['deadlineKind'] == null
+      ? null
+      : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
   deadlineAt: json['deadlineAt'] == null
       ? null
       : DateTime.parse(json['deadlineAt'] as String),
@@ -39,7 +42,7 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   urgency: json['urgency'] == null
       ? null
       : CaseUrgency.fromJson(json['urgency'] as String),
-  coverKey: json['coverKey'] as String?,
+  budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
   archivesAt: json['archivesAt'] as String?,
   archivedAt: json['archivedAt'] as String?,
   clientCompletedAt: json['clientCompletedAt'] as String?,
@@ -52,9 +55,7 @@ CaseDto _$CaseDtoFromJson(Map<String, dynamic> json) => CaseDto(
   budgetCents: (json['budgetCents'] as num?)?.toInt(),
   city: json['city'] as String?,
   hidesAt: json['hidesAt'] as String?,
-  deadlineKind: json['deadlineKind'] == null
-      ? null
-      : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
+  coverKey: json['coverKey'] as String?,
 );
 
 Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
@@ -80,6 +81,7 @@ Map<String, dynamic> _$CaseDtoToJson(CaseDto instance) => <String, dynamic>{
   'status': instance.status.toJson(),
   'viewCount': instance.viewCount,
   'bidsCount': instance.bidsCount,
+  'version': instance.version,
   'createdAt': instance.createdAt,
   'lastActivityAt': instance.lastActivityAt,
   'archivedAt': ?instance.archivedAt,
