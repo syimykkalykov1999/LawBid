@@ -77,11 +77,11 @@ const base: MessageJobData = {
 };
 
 describe('PushDispatcher message events', () => {
-  it('a new message collapses per conversation (newest wins; dedupe stays per message)', async () => {
+  it('a new message collapses by message id', async () => {
     const { d, sent } = setup();
     expect(await d.dispatch(base, 'j')).toBe('sent');
     expect(sent[0].key).toBe('m:m1');
-    expect(sent[0].message.collapseKey).toBe('chat-c1');
+    expect(sent[0].message.collapseKey).toBe('msg-m1');
   });
 
   it('a reaction names who reacted and is deduped per person and emoji', async () => {

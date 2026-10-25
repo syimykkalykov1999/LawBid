@@ -192,6 +192,9 @@ describe('PushDispatcher message collapse', () => {
     return { d, sent, job };
   }
 
+  beforeEach(() => {
+    process.env.PUSH_CHAT_COLLAPSE = '1';
+  });
   afterEach(() => {
     delete process.env.PUSH_CHAT_COLLAPSE;
   });
@@ -211,8 +214,8 @@ describe('PushDispatcher message collapse', () => {
     expect(b.sent[0].collapseKey).toBe('chatm-g1');
   });
 
-  it('PUSH_CHAT_COLLAPSE=0 goes back to one alert per message', async () => {
-    process.env.PUSH_CHAT_COLLAPSE = '0';
+  it('off by default: one alert per message', async () => {
+    delete process.env.PUSH_CHAT_COLLAPSE;
     const { d, sent, job } = setup(false, false);
     await d.dispatch(job, 'j');
     expect(sent[0].collapseKey).toBe('msg-m1');

@@ -137,10 +137,11 @@ export class PushDispatcher
     this.logger.setContext(PushDispatcher.name);
   }
 
-  /** Owner 2026-10-24: chat pushes collapse per conversation (chat-push.ts
-   * chatCollapseKey); PUSH_CHAT_COLLAPSE=0 turns it off. */
+  /** Per-conversation chat collapse (chat-push.ts chatCollapseKey) is opt-in:
+   * FCM keeps at most 4 collapse keys per offline device and advises against
+   * collapsing chat, so it could drop alerts. PUSH_CHAT_COLLAPSE=1 turns it on. */
   private chatCollapse(): boolean {
-    return process.env.PUSH_CHAT_COLLAPSE !== '0';
+    return process.env.PUSH_CHAT_COLLAPSE === '1';
   }
 
   /** The push words in [lang] (the app's own 85-language keys; built-in
