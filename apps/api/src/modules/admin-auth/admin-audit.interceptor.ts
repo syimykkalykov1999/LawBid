@@ -4,16 +4,21 @@ import {
   Injectable,
   Logger,
   type NestInterceptor,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Prisma } from '@prisma/client';
 import type { Request } from 'express';
-import { catchError, mergeMap, throwError, type Observable } from 'rxjs';
+import { catchError, from, mergeMap, throwError, type Observable } from 'rxjs';
+import { ErrorCode } from '../../common/errors/error-code.enum';
+import { routeArea } from './admin-permissions';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AUDIT_ACTION_KEY,
   JUSTIFICATION_KEY,
+  PRIVATE_READ_KEY,
   SKIP_AUTO_AUDIT_KEY,
+  STRICT_AUDIT_KEY,
   type RequestAdmin,
 } from './admin-auth.decorators';
 
@@ -22,13 +27,33 @@ const UUID_RE =
 const BODY_MAX_CHARS = 4000;
 const SECRET_KEYS = /token|code|secret|password|recovery|answer|question/i;
 
+/** Sections whose every action is audited fail-closed (owner 2026-10-28):
+ * money, keys, admin accounts and sessions, government data requests,
+ * exports, the audit log itself. Individual routes opt in with
+ * @StrictAudit() / @PrivateRead(). */
+const STRICT_AREAS: ReadonlySet<string> = new Set([
+  'money',
+  'payroll',
+  'keys',
+  'admins',
+  'sessions',
+  'data_requests',
+  'exports',
+  'audit',
+]);
+
 /**
  * docs/06 §2.1 "Все действия администраторов пишутся в audit_log": a
  * generic row for every successful mutating admin request and every
  * @Justification() view. Handlers whose service already records a richer
  * row (before/after of the changed entity) opt out with @SkipAutoAudit()
- * so an action is never logged twice. Failures of the audit write are
- * logged, not surfaced — the action itself already committed.
+ * so an action is never logged twice.
+ *
+ * Owner 2026-10-28 (fail closed): on a SENSITIVE route (STRICT_AREAS,
+ * @StrictAudit(), @PrivateRead()) the row is written BEFORE the handler
+ * runs; if it cannot be written the action does not run and the caller
+ * gets 503 AUDIT_UNAVAILABLE. Elsewhere a failed audit write is logged
+ * and the (already committed) action still answers, as before.
  */
 @Injectable()
 export class AdminAuditInterceptor implements NestInterceptor {
@@ -55,25 +80,69 @@ export class AdminAuditInterceptor implements NestInterceptor {
       return next.handle();
     }
     const admin = req.admin;
-    const name =
-      this.reflector.get<string | undefined>(
-        AUDIT_ACTION_KEY,
-        context.getHandler(),
-      ) ?? `${req.method.toLowerCase()} ${routeOf(req)}`;
+    const privateKind = this.reflector.getAllAndOverride<string | undefined>(
+      PRIVATE_READ_KEY,
+      targets,
+    );
+    const name = privateKind
+      ? `private_read.${privateKind}`
+      : (this.reflector.get<string | undefined>(
+          AUDIT_ACTION_KEY,
+          context.getHandler(),
+        ) ?? `${req.method.toLowerCase()} ${routeOf(req)}`);
+    const strict =
+      !!this.reflector.getAllAndOverride<boolean>(STRICT_AUDIT_KEY, targets) ||
+      STRICT_AREAS.has(routeArea(req.originalUrl || req.url) ?? '');
+    const row = (after: Prisma.InputJsonValue | null) => ({
+      adminId: admin.id,
+      action: `admin.${name}`,
+      targetType: targetTypeOf(req),
+      targetId: targetIdOf(req),
+      after,
+      ip: req.ip ?? null,
+      justification: admin.justification,
+      reasonCode: admin.reasonCode ?? null,
+    });
+    const failedRow = async (error: unknown) => {
+      const status =
+        typeof (error as { getStatus?: () => number }).getStatus === 'function'
+          ? (error as { getStatus: () => number }).getStatus()
+          : 500;
+      try {
+        await this.audit.record(row({ outcome: 'failed', status }));
+      } catch (e) {
+        this.logger.error(`audit_log write failed: ${String(e)}`);
+      }
+    };
+
+    if (strict) {
+      return from(
+        this.audit
+          .record(row(isView ? null : scrubBody(req.body)))
+          .catch((e: unknown) => {
+            this.logger.error(`audit_log write failed (refused): ${String(e)}`);
+            throw new ServiceUnavailableException({
+              code: ErrorCode.AUDIT_UNAVAILABLE,
+              message:
+                'The action was refused because it could not be written to the audit log.',
+            });
+          }),
+      ).pipe(
+        mergeMap(() => next.handle()),
+        catchError((error: unknown) =>
+          from(failedRow(error)).pipe(
+            mergeMap(() => throwError(() => error)),
+          ),
+        ),
+      );
+    }
+
     // Awaited (not fire-and-forget): the row must exist when the response
     // leaves — "каждое действие есть в audit_log" is checked right after.
     return next.handle().pipe(
       mergeMap(async (body: unknown) => {
         try {
-          await this.audit.record({
-            adminId: admin.id,
-            action: `admin.${name}`,
-            targetType: targetTypeOf(req),
-            targetId: targetIdOf(req),
-            after: isView ? null : scrubBody(req.body),
-            ip: req.ip ?? null,
-            justification: admin.justification,
-          });
+          await this.audit.record(row(isView ? null : scrubBody(req.body)));
         } catch (e) {
           this.logger.error(`audit_log write failed: ${String(e)}`);
         }
@@ -82,31 +151,9 @@ export class AdminAuditInterceptor implements NestInterceptor {
       // Security review: denied / failed privileged calls leave a row too
       // (`outcome: failed` + HTTP status), so the trail cannot be emptied
       // by making an action fail.
-      catchError((error: unknown) => {
-        const status =
-          typeof (error as { getStatus?: () => number }).getStatus ===
-          'function'
-            ? (error as { getStatus: () => number }).getStatus()
-            : 500;
-        return throwError(() => error).pipe(
-          catchError(async (err: unknown) => {
-            try {
-              await this.audit.record({
-                adminId: admin.id,
-                action: `admin.${name}`,
-                targetType: targetTypeOf(req),
-                targetId: targetIdOf(req),
-                after: { outcome: 'failed', status },
-                ip: req.ip ?? null,
-                justification: admin.justification,
-              });
-            } catch (e) {
-              this.logger.error(`audit_log write failed: ${String(e)}`);
-            }
-            throw err;
-          }),
-        );
-      }),
+      catchError((error: unknown) =>
+        from(failedRow(error)).pipe(mergeMap(() => throwError(() => error))),
+      ),
     );
   }
 }

@@ -155,6 +155,7 @@ module "stack" {
   audit_logs_enabled                 = var.audit_logs_enabled
   audit_logs_retention_days          = var.audit_logs_retention_days
   audit_logs_object_lock             = var.audit_logs_object_lock
+  admin_audit_export_enabled         = var.admin_audit_export_enabled
   vpc_flow_logs_traffic              = var.vpc_flow_logs_traffic
   macie_enabled                      = var.macie_enabled
   macie_sampling_percentage          = var.macie_sampling_percentage

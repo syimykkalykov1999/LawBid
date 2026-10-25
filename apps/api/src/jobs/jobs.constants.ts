@@ -43,6 +43,10 @@ export const CRON_JOBS = {
   searchTagTopics: 'search.tag-topics',
   /** Owner 2026-10-24: search-engine outbox → engine (off = prune only). */
   searchIndex: 'search.index',
+  /** Owner 2026-10-28: daily copy of the admin audit log to the locked S3 bucket. */
+  adminAuditExport: 'admin.audit-export',
+  /** Owner 2026-10-28: monthly e-mail of admin access to private content. */
+  adminAccessReport: 'admin.access-report',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -189,6 +193,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.searchLearn, pattern: '30 3 * * *' },
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
+  { name: CRON_JOBS.adminAuditExport, pattern: '30 1 * * *' },
+  { name: CRON_JOBS.adminAccessReport, pattern: '15 7 1 * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },

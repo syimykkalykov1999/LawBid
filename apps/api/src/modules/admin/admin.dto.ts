@@ -407,10 +407,51 @@ export class AuditLogEntryDto {
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   targetId!: string | null;
   @ApiProperty({ type: String, nullable: true }) justification!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Coded reason of a private-content read.',
+  })
+  reasonCode!: string | null;
   @ApiProperty({ type: Object, nullable: true }) before!: unknown;
   @ApiProperty({ type: Object, nullable: true }) after!: unknown;
   @ApiProperty({ type: String, nullable: true }) ip!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
+}
+
+export class AccessReportQueryDto {
+  @ApiPropertyOptional({
+    description: 'UTC month, YYYY-MM. Default: last month.',
+    example: '2026-09',
+  })
+  @IsOptional()
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+  month?: string;
+}
+
+export class AccessReportRowDto {
+  @ApiProperty({ format: 'uuid' }) adminId!: string;
+  @ApiProperty({ type: String, nullable: true }) adminEmail!: string | null;
+  @ApiProperty({ description: 'chat_messages, message_body, call_metadata, case_files, private_document' })
+  kind!: string;
+  @ApiProperty({ type: String, nullable: true }) reasonCode!: string | null;
+  @ApiProperty() count!: number;
+}
+
+export class AccessReportDto {
+  @ApiProperty() month!: string;
+  @ApiProperty({ format: 'date-time' }) from!: string;
+  @ApiProperty({ format: 'date-time' }) to!: string;
+  @ApiProperty() total!: number;
+  @ApiProperty({ type: AccessReportRowDto, isArray: true })
+  rows!: AccessReportRowDto[];
+}
+
+export class ChainCheckDto {
+  @ApiProperty() checked!: number;
+  @ApiProperty({ type: Number, nullable: true }) brokenAtSeq!: number | null;
+  @ApiProperty({ type: String, nullable: true }) headHash!: string | null;
+  @ApiProperty({ type: Number, nullable: true }) headSeq!: number | null;
 }
 
 export interface AuditLogPage {

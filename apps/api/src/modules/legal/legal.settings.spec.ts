@@ -16,6 +16,9 @@ describe('legal settings', () => {
     expect(s.texts.en.partnerTerms).toContain('16 CFR Part 255');
     expect(s.texts.ru.partnerTerms).toContain('W-9');
     expect(s.texts.en.caseCreate).toContain('not a law firm');
+    // Owner 2026-10-28: the privileged-content policy page (both languages).
+    expect(s.texts.en.privilegedContentPolicy).toContain('do not read them');
+    expect(s.texts.ru.privilegedContentPolicy).toContain('не читают');
     for (const lang of ['en', 'ru'] as const)
       for (const [k, max] of Object.entries(LEGAL_TEXT_LIMITS))
         expect(

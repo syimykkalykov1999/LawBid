@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -9,9 +9,15 @@ import {
   ALL_ADMIN_ROLES,
   AdminEndpoint,
   CurrentAdmin,
+  Roles,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AuditLogService } from '../admin-access/audit-log.service';
+import { AdminAccessReportService, previousMonth } from './admin-access-report.service';
 import {
+  AccessReportDto,
+  AccessReportQueryDto,
+  ChainCheckDto,
   AuditLogEntryDto,
   AuditLogQueryDto,
   type AuditLogPage,
@@ -23,7 +29,11 @@ import { AuditLogQueryService } from './audit-log.service';
 @AdminEndpoint(...ALL_ADMIN_ROLES)
 @Controller('admin/audit-log')
 export class AuditLogController {
-  constructor(private readonly auditLog: AuditLogQueryService) {}
+  constructor(
+    private readonly auditLog: AuditLogQueryService,
+    private readonly chain: AuditLogService,
+    private readonly report: AdminAccessReportService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Audit log, newest first (cursor)' })
@@ -34,5 +44,33 @@ export class AuditLogController {
     @Query() query: AuditLogQueryDto,
   ): Promise<AuditLogPage> {
     return this.auditLog.list(actor, query);
+  }
+
+  @Get('access-report')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-28: who read private content in a month, how often and why',
+  })
+  @ApiEnvelopeResponse(AccessReportDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
+  async accessReport(
+    @Query() query: AccessReportQueryDto,
+  ): Promise<AccessReportDto> {
+    const month = query.month ?? previousMonth(new Date());
+    const built = await this.report.build(month);
+    if (!built) throw new BadRequestException('Bad month.');
+    return built;
+  }
+
+  @Get('verify-chain')
+  @Roles('super_admin')
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-28: re-check the audit log hash chain (each row stores the hash of the previous one)',
+  })
+  @ApiEnvelopeResponse(ChainCheckDto)
+  verifyChain(): Promise<ChainCheckDto> {
+    return this.chain.verifyChain();
   }
 }

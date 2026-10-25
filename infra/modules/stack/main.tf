@@ -253,6 +253,11 @@ variable "audit_logs_object_lock" {
   default     = false
   description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs. WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
+variable "admin_audit_export_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-28: the API copies the admin audit log once a day into the audit_logs bucket (prefix admin-audit/). Needs audit_logs_enabled = true. For a copy that nobody can rewrite, also set audit_logs_object_lock (only at bucket creation; see its warning). Guide: docs/runbooks/ADMIN_HARDENING.md."
+}
 variable "vpc_flow_logs_traffic" {
   type    = string
   default = "ALL"
@@ -1074,6 +1079,7 @@ check "db_connection_budget" {
 }
 
 locals {
+  admin_audit_export_on = var.admin_audit_export_enabled && var.audit_logs_enabled && !var.ephemeral
   api_env = {
     NODE_ENV            = "production"
     DB_POOL_SIZE        = tostring(local.db_pool_size)
@@ -1084,6 +1090,8 @@ locals {
     S3_REGION           = data.aws_region.current.name
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
+    # Owner 2026-10-28: empty = no daily export of the admin audit log.
+    ADMIN_AUDIT_EXPORT_BUCKET = local.admin_audit_export_on ? module.audit_logs[0].bucket : ""
     MEDIA_CDN_BASE_URL  = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
     # Owner 2026-10-22: private media through CloudFront signed URLs (empty
     # until the owner supplies documents_cdn_public_key_pem; the private key
@@ -1259,6 +1267,15 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["s3:ListBucket"]
     resources = [module.s3.documents_bucket_arn, module.s3.media_bucket_arn]
+  }
+  # Owner 2026-10-28: the daily admin audit export. Write only, one prefix;
+  # the bucket policy denies deletes to everybody.
+  dynamic "statement" {
+    for_each = local.admin_audit_export_on ? [1] : []
+    content {
+      actions   = ["s3:PutObject"]
+      resources = ["${module.audit_logs[0].bucket_arn}/admin-audit/*"]
+    }
   }
   statement {
     actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]

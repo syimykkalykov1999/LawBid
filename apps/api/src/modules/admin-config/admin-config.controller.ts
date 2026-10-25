@@ -42,11 +42,16 @@ import {
 import { AdminBudgetsService } from './admin-budgets.service';
 import { AdminConfigService } from './admin-config.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
+import { AdminSecurityService } from '../admin-auth/admin-security.service';
 
 /** Settings whose change weakens a money control: a fresh 2FA code first
  * (owner 2026-10-22, system audit #2 item 11). */
 export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'billing.dual_approval_min_cents',
+  // Owner 2026-10-28: the admin hardening switches.
+  'admin.ip_allowlist_enabled',
+  'admin.ip_allowlist',
+  'admin.max_concurrent_sessions',
 ]);
 
 const E = ErrorCode;
@@ -62,6 +67,7 @@ export class AdminConfigController {
     private readonly config: AdminConfigService,
     private readonly budgets: AdminBudgetsService,
     private readonly auth: AdminAuthService,
+    private readonly security: AdminSecurityService,
   ) {}
 
   @Get('feature-flags')
@@ -137,6 +143,8 @@ export class AdminConfigController {
     if (STEP_UP_CONFIG_KEYS.has(params.key)) {
       await this.auth.assertStepUp(admin.sessionId);
     }
+    // Owner 2026-10-28: the allowlist must not lock its own editor out.
+    await this.security.assertSafeToChange(params.key, dto.value, admin.ip);
     return this.config.updateConfig(admin, params.key, dto.value);
   }
 
