@@ -17,6 +17,9 @@ SessionDto _$SessionDtoFromJson(Map<String, dynamic> json) => SessionDto(
       : DateTime.parse(json['lastUsedAt'] as String),
   createdAt: DateTime.parse(json['createdAt'] as String),
   isCurrent: json['isCurrent'] as bool,
+  ipHint: json['ipHint'] as String?,
+  country: json['country'] as String?,
+  browser: json['browser'] as String?,
 );
 
 Map<String, dynamic> _$SessionDtoToJson(SessionDto instance) =>
@@ -29,4 +32,7 @@ Map<String, dynamic> _$SessionDtoToJson(SessionDto instance) =>
       'lastUsedAt': ?instance.lastUsedAt?.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
       'isCurrent': instance.isCurrent,
+      'ipHint': ?instance.ipHint,
+      'country': ?instance.country,
+      'browser': ?instance.browser,
     };

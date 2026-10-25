@@ -1260,6 +1260,73 @@
         ]
       }
     },
+    "/auth/wasnt-me": {
+      "post": {
+        "operationId": "wasntMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggedOutEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "\"This wasn't me\" on a new-device / new-country alert: every session of\nthe account ends, this one included (S14-4). Audited.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/sessions": {
       "get": {
         "operationId": "listSessions",
@@ -114028,6 +114095,15 @@
             "type": "string",
             "description": "Magic-link binding (email login only): base64url SHA-256 of a random\nverifier that stays on the requesting device. The emailed link then\ncarries a one-time token redeemable only together with that verifier\n(POST /auth/otp/verify-link), so a leaked link is useless. Omit it and\nthe email contains the code only.",
             "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "purpose": {
+            "type": "string",
+            "description": "What the code is for. Omit it for a sign-in / sign-up code. `reauth`\n(a step-up before a sensitive change) and `link` (adding a sign-in\nmethod) need the caller's bearer token: the code is then good only for\nthat flow and that session (POST /auth/reauth, POST /auth/identifiers).",
+            "enum": [
+              "login",
+              "reauth",
+              "link"
+            ]
           }
         },
         "required": [
@@ -114304,6 +114380,21 @@
           "isCurrent": {
             "type": "boolean",
             "description": "True for the session making this request."
+          },
+          "ipHint": {
+            "type": "string",
+            "nullable": true,
+            "description": "Masked address the session was last used from (203.0.113.x); null when unknown."
+          },
+          "country": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO-3166 alpha-2 country the session was last used from, when the CDN reported it."
+          },
+          "browser": {
+            "type": "string",
+            "nullable": true,
+            "description": "Browser and system label for web sessions (\"Chrome · macOS\")."
           }
         },
         "required": [
@@ -114314,7 +114405,10 @@
           "appVersion",
           "lastUsedAt",
           "createdAt",
-          "isCurrent"
+          "isCurrent",
+          "ipHint",
+          "country",
+          "browser"
         ]
       },
       "SessionListEnvelope": {

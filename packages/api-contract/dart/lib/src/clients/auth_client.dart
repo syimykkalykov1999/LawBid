@@ -108,6 +108,11 @@ abstract class AuthClient {
   @POST('/auth/logout-all')
   Future<LoggedOutEnvelope> logoutAll({@Extras() Map<String, dynamic>? extras});
 
+  /// "This wasn't me" on a new-device / new-country alert: every session of.
+  /// the account ends, this one included (S14-4). Audited.
+  @POST('/auth/wasnt-me')
+  Future<LoggedOutEnvelope> wasntMe({@Extras() Map<String, dynamic>? extras});
+
   @GET('/auth/sessions')
   Future<SessionListEnvelope> listSessions({
     @Extras() Map<String, dynamic>? extras,
