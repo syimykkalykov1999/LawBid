@@ -426,3 +426,9 @@ POST /admin/system-health/scale added the new `cloudflare_usage` enum value to t
 GET /admin/economy added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
 POST /admin/economy/increase added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
 PATCH /admin/economy/settings added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
+GET /admin/system-health added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
