@@ -29,9 +29,9 @@ export interface PartitionSpec {
 
 /**
  * Tables the online runner may convert later (whitelist: no free SQL names).
- * audit_log, auth_events and search_query_log are ALREADY partitioned by the
- * migration 20261025130000; `messages` and `notifications` are listed so the
- * admin card can say honestly why they cannot be converted yet.
+ * audit_log, auth_events are ALREADY partitioned by month (migration
+ * 20261025130000); messages, chat_group_messages and notifications by HASH
+ * (migration 20261026200000, see HASH_PARTITIONED).
  */
 export const PARTITION_TABLES: readonly PartitionSpec[] = [
   {
@@ -39,8 +39,30 @@ export const PARTITION_TABLES: readonly PartitionSpec[] = [
     key: 'accessed_at',
     label: 'Журнал доступа к данным',
   },
-  { table: 'notifications', key: 'created_at', label: 'Уведомления' },
-  { table: 'messages', key: 'created_at', label: 'Сообщения чатов' },
+];
+
+/**
+ * Partitioned by the migration 20261026200000 with native HASH partitioning
+ * (16 partitions): no monthly job, nothing to keep up. The label says the key
+ * (the admin card reads "хеш" and shows «по хешу» instead of «по месяцам»).
+ * `key` is the hash column.
+ */
+export const HASH_PARTITIONED: readonly PartitionSpec[] = [
+  {
+    table: 'messages',
+    key: 'conversation_id',
+    label: 'Сообщения чатов (по хешу чата)',
+  },
+  {
+    table: 'chat_group_messages',
+    key: 'group_id',
+    label: 'Сообщения групп (по хешу группы)',
+  },
+  {
+    table: 'notifications',
+    key: 'user_id',
+    label: 'Уведомления (по хешу человека)',
+  },
 ];
 
 /** Partitioned by the migration; the daily job keeps their future months. */
@@ -50,9 +72,11 @@ export const MIGRATED_PARTITIONED: readonly PartitionSpec[] = [
 ];
 
 export function specOf(table: string): PartitionSpec | undefined {
-  return [...PARTITION_TABLES, ...MIGRATED_PARTITIONED].find(
-    (s) => s.table === table,
-  );
+  return [
+    ...PARTITION_TABLES,
+    ...MIGRATED_PARTITIONED,
+    ...HASH_PARTITIONED,
+  ].find((s) => s.table === table);
 }
 
 export const GROWTH_ALARM_ROWS = 50_000_000;

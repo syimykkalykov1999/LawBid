@@ -54,8 +54,8 @@ export class LegalRetentionService {
       messages: await this.batched(
         (limit) => this.prisma.$executeRaw`
           UPDATE messages SET body_original = '', body_display = '', file_name = NULL
-          WHERE id IN (
-            SELECT m.id FROM messages m
+          WHERE (id, conversation_id) IN (
+            SELECT m.id, m.conversation_id FROM messages m
             JOIN conversations c ON c.id = m.conversation_id
             WHERE (m.deleted_at < ${cut} OR m.revoked_at < ${cut})
               AND (m.body_original <> '' OR m.body_display <> '')
@@ -71,6 +71,7 @@ export class LegalRetentionService {
           WHERE id IN (
             SELECT e.id FROM message_edits e
             JOIN messages m ON m.id = e.message_id
+                           AND m.conversation_id = e.conversation_id
             JOIN conversations c ON c.id = m.conversation_id
             WHERE (m.deleted_at < ${cut} OR m.revoked_at < ${cut})
               AND e.body_original <> ''
@@ -83,8 +84,8 @@ export class LegalRetentionService {
       groupMessages: await this.batched(
         (limit) => this.prisma.$executeRaw`
           UPDATE chat_group_messages SET body = '', file_name = NULL
-          WHERE id IN (
-            SELECT m.id FROM chat_group_messages m
+          WHERE (id, group_id) IN (
+            SELECT m.id, m.group_id FROM chat_group_messages m
             WHERE m.deleted_at < ${cut} AND m.body <> ''
               AND NOT ${held('group', Prisma.sql`m.group_id`)}
               AND (m.sender_id IS NULL OR NOT ${held('user', Prisma.sql`m.sender_id`)})

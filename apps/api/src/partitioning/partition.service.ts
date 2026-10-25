@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   FINALIZE_AFTER_DAYS,
   GROWTH_ALARM_ROWS,
+  HASH_PARTITIONED,
   MIGRATED_PARTITIONED,
   PARTITION_TABLES,
   PartitionRunner,
@@ -161,7 +162,11 @@ export class PartitionService implements OnModuleDestroy {
     const read = this.runnerRead();
     const jobs = await this.jobs();
     const out: PartitionCard[] = [];
-    for (const spec of [...MIGRATED_PARTITIONED, ...PARTITION_TABLES]) {
+    for (const spec of [
+      ...MIGRATED_PARTITIONED,
+      ...HASH_PARTITIONED,
+      ...PARTITION_TABLES,
+    ]) {
       out.push(await this.card(read, spec, jobs.get(spec.table) ?? null));
     }
     return out;

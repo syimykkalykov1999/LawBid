@@ -267,7 +267,7 @@ function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => v
   const monthly = c.state === 'monthly';
   const tone: Tone = monthly || c.state === 'swapped' ? 'success' : c.state === 'error' ? 'danger' : c.state === 'blocked' ? 'neutral' : c.state === 'idle' ? (c.overThreshold ? 'warning' : 'neutral') : 'warning';
   const label =
-    monthly ? 'По месяцам' : c.state === 'running' ? 'Идёт' : c.state === 'paused' ? 'Пауза' : c.state === 'swapped' ? 'Готово, можно вернуть' : c.state === 'error' ? 'Ошибка' : c.state === 'blocked' ? 'Пока нельзя' : c.overThreshold ? 'Пора' : 'Не разделена';
+    monthly ? (c.label.includes('хеш') ? 'По хешу' : 'По месяцам') : c.state === 'running' ? 'Идёт' : c.state === 'paused' ? 'Пауза' : c.state === 'swapped' ? 'Готово, можно вернуть' : c.state === 'error' ? 'Ошибка' : c.state === 'blocked' ? 'Пока нельзя' : c.overThreshold ? 'Пора' : 'Не разделена';
   return (
     <Card className="flex min-w-0 flex-col gap-2 p-4">
       <div className="flex items-start gap-2">
@@ -278,7 +278,7 @@ function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => v
       </div>
       <p className="text-sm text-muted">
         Строк: <span className="text-ink">{count(c.rows)}</span> · размер: <span className="text-ink">{size(c.bytes)}</span> ·
-        по месяцам: <span className="text-ink">{c.partitioned ? `да (${c.partitions} кусков)` : 'нет'}</span>
+        {c.label.includes('хеш') ? 'по хешу' : 'по месяцам'}: <span className="text-ink">{c.partitioned ? `да (${c.partitions} кусков)` : 'нет'}</span>
       </p>
       {c.overThreshold ? (
         <p className="text-sm text-ink">Больше 50 млн строк: самое время разделить.</p>

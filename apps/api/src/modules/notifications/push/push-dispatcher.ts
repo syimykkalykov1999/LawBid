@@ -436,8 +436,11 @@ export class PushDispatcher
     data: NotificationJobData,
     jobId: string,
   ): Promise<DispatchResult> {
-    const n = await this.prisma.notification.findUnique({
-      where: { id: data.notificationId },
+    const n = await this.prisma.notification.findFirst({
+      where: {
+        id: data.notificationId,
+        ...(data.userId ? { user_id: data.userId } : {}),
+      },
       select: {
         id: true,
         type: true,
@@ -601,7 +604,7 @@ export class PushDispatcher
     data: GroupMessagesJobData,
   ): Promise<DispatchResult> {
     const [message, group] = await Promise.all([
-      this.groupMessageRow(data.messageId),
+      this.groupMessageRow(data.messageId, data.groupId),
       this.groupRow(data.groupId),
     ]);
     if (!message || !group || group.deleted_at) return 'no_user';
@@ -641,9 +644,13 @@ export class PushDispatcher
     return 'sent';
   }
 
-  groupMessageRow(messageId: string) {
-    return this.prisma.chatGroupMessage.findUnique({
-      where: { id: messageId, deleted_at: {} },
+  groupMessageRow(messageId: string, groupId?: string) {
+    return this.prisma.chatGroupMessage.findFirst({
+      where: {
+        id: messageId,
+        ...(groupId ? { group_id: groupId } : {}),
+        deleted_at: {},
+      },
       select: {
         body: true,
         type: true,
@@ -694,7 +701,9 @@ export class PushDispatcher
         },
         select: { muted_until: true, left_at: true },
       }),
-      shared ? shared.message : this.groupMessageRow(data.messageId),
+      shared
+        ? shared.message
+        : this.groupMessageRow(data.messageId, data.groupId),
       shared ? shared.group : this.groupRow(data.groupId),
     ]);
     if (
@@ -846,7 +855,12 @@ export class PushDispatcher
         },
       }),
       this.prisma.message.findUnique({
-        where: { id: data.messageId },
+        where: {
+          id_conversation_id: {
+            id: data.messageId,
+            conversation_id: data.conversationId,
+          },
+        },
         select: {
           created_at: true,
           body_display: true,
@@ -869,7 +883,12 @@ export class PushDispatcher
     if (data.event === 'edit') {
       if (part.last_read_message_id) {
         const lastRead = await this.prisma.message.findUnique({
-          where: { id: part.last_read_message_id },
+          where: {
+            id_conversation_id: {
+              id: part.last_read_message_id,
+              conversation_id: data.conversationId,
+            },
+          },
           select: { created_at: true },
         });
         if (lastRead && lastRead.created_at >= message.created_at) {
@@ -881,7 +900,12 @@ export class PushDispatcher
     // message was read in the meantime.
     if (data.deferred && part.last_read_message_id) {
       const lastRead = await this.prisma.message.findUnique({
-        where: { id: part.last_read_message_id },
+        where: {
+          id_conversation_id: {
+            id: part.last_read_message_id,
+            conversation_id: data.conversationId,
+          },
+        },
         select: { created_at: true },
       });
       if (lastRead && lastRead.created_at >= message.created_at) {

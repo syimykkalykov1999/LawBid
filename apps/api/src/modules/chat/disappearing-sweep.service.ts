@@ -95,13 +95,13 @@ export class DisappearingSweepService {
   private async expireMessages(now: Date, limit: number) {
     const rows = await this.prisma.$queryRaw<Expired[]>`
       WITH due AS (
-        SELECT id FROM messages
+        SELECT id, conversation_id FROM messages
         WHERE expires_at <= ${now} AND deleted_at IS NULL
         ORDER BY expires_at
         LIMIT ${limit}
         FOR UPDATE SKIP LOCKED)
       UPDATE messages m SET deleted_at = ${now}
-      FROM due WHERE m.id = due.id
+      FROM due WHERE m.id = due.id AND m.conversation_id = due.conversation_id
       RETURNING m.id::TEXT AS id, m.conversation_id::TEXT AS chat_id,
                 m.file_id::TEXT AS file_id`;
     if (rows.length === 0) return { count: 0, files: [] };
@@ -125,13 +125,13 @@ export class DisappearingSweepService {
   private async expireGroupMessages(now: Date, limit: number) {
     const rows = await this.prisma.$queryRaw<Expired[]>`
       WITH due AS (
-        SELECT id FROM chat_group_messages
+        SELECT id, group_id FROM chat_group_messages
         WHERE expires_at <= ${now} AND deleted_at IS NULL
         ORDER BY expires_at
         LIMIT ${limit}
         FOR UPDATE SKIP LOCKED)
       UPDATE chat_group_messages m SET deleted_at = ${now}, mention_ids = '{}'
-      FROM due WHERE m.id = due.id
+      FROM due WHERE m.id = due.id AND m.group_id = due.group_id
       RETURNING m.id::TEXT AS id, m.group_id::TEXT AS chat_id,
                 m.file_id::TEXT AS file_id`;
     if (rows.length === 0) return { count: 0, files: [] };

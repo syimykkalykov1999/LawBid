@@ -578,7 +578,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
     expect((r.body as Body).data.status).toBe('removed');
     expect(
       (
-        await prisma.message.findUniqueOrThrow({
+        await prisma.message.findFirstOrThrow({
           where: withDeleted({ id: msg.id }),
         })
       ).deleted_at,

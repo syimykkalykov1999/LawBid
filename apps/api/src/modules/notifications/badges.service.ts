@@ -341,6 +341,7 @@ export class BadgesService {
       FROM conversation_participants cp
       JOIN conversations c ON c.id = cp.conversation_id
       LEFT JOIN messages lr ON lr.id = cp.last_read_message_id
+                           AND lr.conversation_id = cp.conversation_id
       WHERE cp.user_id = ${userId}::UUID
         -- A chat I hid doesn't count (a new message unhides it).
         AND cp.hidden_at IS NULL

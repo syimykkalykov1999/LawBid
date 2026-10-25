@@ -207,8 +207,8 @@ export class AccountAnonymizationService {
         SET body_original = ${DELETED_MESSAGE_BODY},
             body_display = ${DELETED_MESSAGE_BODY},
             contact_masked = false
-        WHERE ctid IN (
-          SELECT ctid FROM messages
+        WHERE (id, conversation_id) IN (
+          SELECT id, conversation_id FROM messages
           WHERE sender_id = ${userId}::UUID
             AND body_display <> ${DELETED_MESSAGE_BODY}
           LIMIT 5000)`;
@@ -223,8 +223,8 @@ export class AccountAnonymizationService {
       const n = await this.prisma.$executeRaw`
         UPDATE chat_group_messages
         SET body = ${DELETED_MESSAGE_BODY}, mention_ids = '{}'
-        WHERE ctid IN (
-          SELECT ctid FROM chat_group_messages
+        WHERE (id, group_id) IN (
+          SELECT id, group_id FROM chat_group_messages
           WHERE sender_id = ${userId}::UUID
             AND type::TEXT IN ('text', 'attachment')
             AND body <> ${DELETED_MESSAGE_BODY}

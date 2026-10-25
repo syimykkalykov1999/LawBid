@@ -43,11 +43,12 @@ export function parentShardLookup(client: PrismaClient): ParentShardLookup {
       client as unknown as Record<
         string,
         {
-          findUnique(a: unknown): Promise<{ shard_id: number } | null>;
+          findFirst(a: unknown): Promise<{ shard_id: number } | null>;
         }
       >
     )[model[0].toLowerCase() + model.slice(1)];
-    const row = await delegate.findUnique({
+    // findFirst: a model with a composite key has no unique `id` filter.
+    const row = await delegate.findFirst({
       where: { id },
       select: { shard_id: true },
     });
@@ -77,7 +78,12 @@ function metaFor(model: string): ModelMeta | undefined {
           relationOf.set(f.relationFromFields[0], f.name);
         }
       }
-      const idField = m.fields.find((f) => f.isId);
+      // `isId` is false for a composite key (@@id([id, conversation_id]) on
+      // the hash partitioned messages / notifications): the column called
+      // `id` is still the row's own uuid.
+      const idField =
+        m.fields.find((f) => f.isId) ??
+        m.fields.find((f) => f.name === 'id' && f.kind === 'scalar');
       const def = idField?.default as
         { name?: string; args?: unknown[] } | undefined;
       const generateId =

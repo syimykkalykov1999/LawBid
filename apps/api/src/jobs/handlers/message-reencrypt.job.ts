@@ -163,7 +163,12 @@ export class MessageReencryptJob {
   private async messagesBatch(state: MessageReencryptState): Promise<boolean> {
     const rows = await this.prisma.message.findMany({
       where: { id: { gt: state.cursor } },
-      select: { id: true, body_original: true, body_display: true },
+      select: {
+        id: true,
+        conversation_id: true,
+        body_original: true,
+        body_display: true,
+      },
       orderBy: { id: 'asc' },
       take: MESSAGE_REENCRYPT_BATCH,
     });
@@ -184,7 +189,15 @@ export class MessageReencryptJob {
         data[col] = next;
       }
       if (Object.keys(data).length > 0) {
-        await this.prisma.message.update({ where: { id: row.id }, data });
+        await this.prisma.message.update({
+          where: {
+            id_conversation_id: {
+              id: row.id,
+              conversation_id: row.conversation_id,
+            },
+          },
+          data,
+        });
         state.rewritten += 1;
       }
       if (stuck) state.failed += 1;
