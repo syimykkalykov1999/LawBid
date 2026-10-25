@@ -3637,6 +3637,14 @@ model AuditLog {
   // computed column, indexed as (created_shard, created_at). Replaces a
   // USING HASH index, which crashes Prisma's introspection. Read-only.
   created_shard Int      @default(0) @db.SmallInt
+  // Owner 2026-10-28 (privilege hardening): why a private item was read
+  // (a code from admin-privileged-content.ts) and the tamper-evident chain.
+  // `seq`, `prev_hash` and `row_hash` are set by the audit_log_chain
+  // trigger (raw SQL) — never by the application.
+  reason_code   String?
+  seq           BigInt?  @unique
+  prev_hash     String?
+  row_hash      String?
 
   @@index([admin_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "audit_log_created_at_idx")

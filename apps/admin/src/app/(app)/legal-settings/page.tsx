@@ -52,6 +52,7 @@ const TEXT_FIELDS: { key: keyof LegalTexts; label: string; hint: string; max: nu
   { key: 'supportNote', label: 'Поддержка', hint: 'на экране нового обращения: поддержка не даёт юридических советов', max: 300, rows: 2 },
   { key: 'partnerDisclosure', label: 'Партнёр: раскрытие', hint: 'на экране партнёра и перед подключением: «#ad» / «партнёрская ссылка» (FTC)', max: 600, rows: 3 },
   { key: 'partnerTerms', label: 'Партнёр: правила', hint: 'обычный текст без markdown, нумерованные правила; партнёр принимает их при подключении', max: 6000, rows: 12 },
+  { key: 'privilegedContentPolicy', label: 'Приватный контент: политика', hint: 'страница «кто из сотрудников и когда может читать приватные чаты, звонки и файлы» (привилегия адвокат-клиент)', max: 4000, rows: 10 },
 ];
 
 /**

@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -22,8 +23,11 @@ import {
 import {
   ADMIN_ROLES_KEY,
   JUSTIFICATION_KEY,
+  PRIVATE_READ_KEY,
   type RequestAdmin,
 } from './admin-auth.decorators';
+import { readReasonCode } from './admin-private-content';
+import { AdminSecurityService } from './admin-security.service';
 import {
   canAccess,
   effectiveCountries,
@@ -90,6 +94,7 @@ export class AdminAuthGuard implements CanActivate {
     private readonly prisma: PrismaService,
     @Optional() private readonly audit?: AuditLogService,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly security?: AdminSecurityService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -116,6 +121,20 @@ export class AdminAuthGuard implements CanActivate {
         throw unauthorized('Invalid admin token.');
       }
       throw error;
+    }
+
+    // Owner 2026-10-28: the optional IP allowlist (OFF by default).
+    try {
+      await this.security?.assertIpAllowed(req.ip);
+    } catch (e) {
+      void this.note(
+        'admin.ip_denied',
+        claims.sub,
+        req.method,
+        req.originalUrl || req.url,
+        req.ip,
+      );
+      throw e;
     }
 
     const sessionUser = await this.sessions.touch(claims.jti);
@@ -205,7 +224,13 @@ export class AdminAuthGuard implements CanActivate {
       ) {
         // Owner 2026-10-05: a section the admin has no right to answers
         // like it doesn't exist (404, not 403), and the attempt is audited.
-        this.note('admin.access_denied', claims.sub, req.method, path, req.ip);
+        void this.note(
+          'admin.access_denied',
+          claims.sub,
+          req.method,
+          path,
+          req.ip,
+        );
         throw hidden();
       }
       // Owner 2026-10-05: who looked at money is visible in the audit log.
@@ -216,7 +241,16 @@ export class AdminAuthGuard implements CanActivate {
         VIEW_AUDITED_AREAS.has(area) &&
         levelForMethod(req.method) === 'view'
       ) {
-        this.note('admin.view', claims.sub, req.method, path, req.ip);
+        // Owner 2026-10-28: fail closed — money is not shown when the
+        // "who looked" row cannot be written.
+        await this.note(
+          'admin.view',
+          claims.sub,
+          req.method,
+          path,
+          req.ip,
+          true,
+        );
       }
     }
 
@@ -224,8 +258,18 @@ export class AdminAuthGuard implements CanActivate {
       JUSTIFICATION_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const privateKind = this.reflector.getAllAndOverride<string | undefined>(
+      PRIVATE_READ_KEY,
+      [context.getHandler(), context.getClass()],
+    );
     let justification: string | null = null;
-    if (needsJustification) {
+    let reasonCode: string | null = null;
+    if (privateKind) {
+      // Owner 2026-10-28: private content is never read without a coded
+      // reason AND free text — not even by the owner.
+      reasonCode = readReasonCode(req.header('x-reason-code'));
+      justification = readJustification(req.header('x-justification'));
+    } else if (needsJustification) {
       // Owner 2026-10-05: the owner never has to explain; the access is
       // still written to the log (with the text when one is given). A
       // legal data-request package keeps its basis (subpoena record).
@@ -246,6 +290,7 @@ export class AdminAuthGuard implements CanActivate {
       adminRole,
       sessionId: claims.jti,
       justification,
+      reasonCode,
       permissions,
       manageAdmins,
       partner,
@@ -295,30 +340,43 @@ export class AdminAuthGuard implements CanActivate {
   /** One audit row per action + admin + route per minute (a page
    * refetching in a loop must not flood the log). Fire and forget. */
   private readonly recent = new Map<string, number>();
-  private note(
-    action: 'admin.access_denied' | 'admin.view',
+  private async note(
+    action: 'admin.access_denied' | 'admin.view' | 'admin.ip_denied',
     adminId: string,
     method: string,
     url: string,
     ip: string | undefined,
-  ): void {
+    strict = false,
+  ): Promise<void> {
     if (!this.audit) return;
     const path = url.split('?')[0];
     const key = `${action} ${adminId} ${method} ${path}`;
     const now = Date.now();
     if ((this.recent.get(key) ?? 0) > now - 60_000) return;
     if (this.recent.size > 5_000) this.recent.clear();
-    this.recent.set(key, now);
-    void this.audit
-      .record({
-        adminId,
-        action,
-        targetType: 'route',
-        targetId: null,
-        after: { method, path },
-        ip: ip ?? null,
-      })
-      .catch(() => undefined);
+    const write = this.audit.record({
+      adminId,
+      action,
+      targetType: 'route',
+      targetId: null,
+      after: { method, path },
+      ip: ip ?? null,
+    });
+    if (!strict) {
+      this.recent.set(key, now);
+      void write.catch(() => undefined);
+      return;
+    }
+    try {
+      await write;
+      this.recent.set(key, now);
+    } catch {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.AUDIT_UNAVAILABLE,
+        message:
+          'The page was refused because the view could not be written to the audit log.',
+      });
+    }
   }
 }
 

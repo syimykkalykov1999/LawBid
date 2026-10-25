@@ -199,6 +199,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
       { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },
       { href: '/legal-qa', label: 'Вопросы юристу', icon: 'article', area: 'moderation', hint: 'публичные вопросы и ответы адвокатов' },
+      { href: '/private-content', label: 'Приватные чаты и файлы', icon: 'lock', area: 'moderation', hint: 'чтение только с кодом причины, текстом и кодом 2FA; всё пишется в журнал' },
       { href: '/group-chats', label: 'Группы', icon: 'users-three', area: 'moderation', hint: 'групповые чаты, участники' },
       { href: '/sanctions', label: 'Санкции', icon: 'prohibit', area: 'sanctions', hint: 'блокировки и баны' },
       { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },

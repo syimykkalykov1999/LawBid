@@ -728,8 +728,19 @@ const HTTP_VERB: Record<string, string> = {
  * Russian text for an audit action. Service rows use dotted names (map
  * above); the generic interceptor writes `admin.<method> admin/<route>`.
  */
+/** Owner 2026-10-28: kinds of private content an admin can read. */
+export const PRIVATE_KIND_LABEL: Record<string, string> = {
+  chat_messages: 'переписка (без текста)',
+  message_body: 'текст сообщения',
+  call_metadata: 'данные звонков',
+  case_files: 'файлы кейса (список)',
+  private_document: 'файл кейса (открыт)',
+};
+
 export function auditActionLabel(action: string): string {
   if (AUDIT_ACTION[action]) return AUDIT_ACTION[action];
+  const priv = /^admin\.private_read\.(\w+)$/.exec(action);
+  if (priv) return `Чтение приватного: ${PRIVATE_KIND_LABEL[priv[1]] ?? priv[1]}`;
   const exp = /^admin\.export\.(.+)$/.exec(action);
   if (exp) return `Выгрузка CSV: ${AUDIT_TARGET[exp[1]] ?? exp[1]}`;
   const restore = /^admin\.(\w+)\.restore$/.exec(action);

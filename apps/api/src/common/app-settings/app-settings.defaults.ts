@@ -544,6 +544,28 @@ export const OWNER_REASON_SETTINGS = {
   ],
 } as const;
 
+// Owner 2026-10-28 (attorney-client privilege + admin hardening). Everything
+// here is OFF (or today's behaviour) until the owner switches it on in
+// Настройки; the guide is docs/runbooks/ADMIN_HARDENING.md.
+export const OWNER_ADMIN_HARDENING_SETTINGS = {
+  /** Only the addresses in `admin.ip_allowlist` may use the admin panel. */
+  'admin.ip_allowlist_enabled': false,
+  /** Allowed addresses: plain IPv4/IPv6 or IPv4 CIDR (203.0.113.0/24). */
+  'admin.ip_allowlist': [] as string[],
+  /** E-mail the owner when an admin signs in from a new device or address. */
+  'admin.login_alert_enabled': true,
+  /** Live sessions per admin; a newer sign-in ends the oldest. 0 = no cap. */
+  'admin.max_concurrent_sessions': 0,
+  /** Revealing a private message needs a 2FA code entered within this
+   * many seconds (max 300 = the step-up lifetime). */
+  'admin.private_stepup_seconds': 120,
+  /** Daily copy of the audit log into the locked audit bucket (needs the
+   * bucket from Terraform; without it this does nothing). */
+  'admin.audit_export_enabled': true,
+  /** Monthly e-mail of who read private content (to the owner). */
+  'admin.access_report_enabled': true,
+} as const;
+
 // Owner 2026-10-22 (system audit #2, item 11): a bulk payout or a refund
 // of this many cents or more needs a SECOND admin's approval (maker-checker)
 // before it runs. Default $500. 0 = every one needs it.
@@ -927,6 +949,7 @@ export const APP_SETTINGS = {
   ...OWNER_TRIAL_SETTINGS,
   ...OWNER_REASON_SETTINGS,
   ...OWNER_DUAL_APPROVAL_SETTINGS,
+  ...OWNER_ADMIN_HARDENING_SETTINGS,
   ...OWNER_TRANSLATE_SETTINGS,
   ...OWNER_SUPPORT_DESK_SETTINGS,
   ...OWNER_REWARDS_SETTINGS,

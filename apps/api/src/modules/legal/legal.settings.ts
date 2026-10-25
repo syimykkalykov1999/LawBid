@@ -25,6 +25,9 @@ export interface LegalTexts {
   partnerDisclosure: string;
   /** The partner rules the partner accepts (plain text, no markdown). */
   partnerTerms: string;
+  /** Owner 2026-10-28: the privileged-content policy page — who at LawBid
+   * may read private chats and files, when, and what is recorded. */
+  privilegedContentPolicy: string;
 }
 export type LegalTextsByLang = Record<LegalLang, LegalTexts>;
 
@@ -34,6 +37,7 @@ export const LEGAL_TEXT_LIMITS: Record<keyof LegalTexts, number> = {
   supportNote: 300,
   partnerDisclosure: 600,
   partnerTerms: 6000,
+  privilegedContentPolicy: 4000,
 };
 
 export interface DmcaAgent {
@@ -101,6 +105,26 @@ const PARTNER_TERMS_RU = [
   '10. LawBid может прекратить партнёрство в любой момент; уже заработанное и не отменённое вознаграждение выплачивается.',
 ].join('\n');
 
+const PRIVILEGED_POLICY_EN = [
+  'Privileged and private content',
+  'Your chats, calls, case files and documents are private. LawBid staff do not read them.',
+  'Staff may open private content only to: (1) review a report that you or another user filed; (2) prevent imminent harm to a person; (3) respond to valid legal process; (4) fix a technical problem, with your consent.',
+  'Every such access needs a coded reason and a written explanation, is recorded in a tamper-evident audit log before any content is shown, and message texts stay hidden until a staff member confirms with a fresh two-factor code for that single item.',
+  'Every month the owner of LawBid receives a report of all staff access to private content.',
+  'Automated safety checks and translation (if you use it) process message text by machine. Do not put privileged information into translation or other automated features unless you accept that.',
+  'LawBid is not a law firm. Attorneys remain responsible for their own duties of confidentiality.',
+].join('\n\n');
+
+const PRIVILEGED_POLICY_RU = [
+  'Привилегированный и приватный контент',
+  'Ваши чаты, звонки, файлы кейсов и документы приватны. Сотрудники LawBid их не читают.',
+  'Сотрудник может открыть приватный контент только чтобы: (1) рассмотреть жалобу, поданную вами или другим пользователем; (2) предотвратить непосредственный вред человеку; (3) ответить на законный юридический запрос; (4) устранить техническую проблему — с вашего согласия.',
+  'Каждый такой доступ требует кода причины и письменного пояснения, записывается в журнал с защитой от подмены до показа любого содержимого, а тексты сообщений остаются скрытыми, пока сотрудник не подтвердит каждое сообщение свежим кодом двухфакторной защиты.',
+  'Каждый месяц владелец LawBid получает отчёт обо всех обращениях сотрудников к приватному контенту.',
+  'Автоматические проверки безопасности и перевод (если вы им пользуетесь) обрабатывают текст сообщений машиной. Не помещайте привилегированную информацию в перевод и другие автоматические функции, если вы с этим не согласны.',
+  'LawBid не юридическая фирма. Адвокаты сами отвечают за свои обязанности по конфиденциальности.',
+].join('\n\n');
+
 export const DEFAULT_LEGAL_TEXTS: LegalTextsByLang = {
   en: {
     caseCreate:
@@ -112,6 +136,7 @@ export const DEFAULT_LEGAL_TEXTS: LegalTextsByLang = {
     partnerDisclosure:
       'When you tell people about LawBid for a reward you must say so clearly in every post, video or message (for example “#ad” or “partner link”). This is required by the FTC Endorsement Guides.',
     partnerTerms: PARTNER_TERMS_EN,
+    privilegedContentPolicy: PRIVILEGED_POLICY_EN,
   },
   ru: {
     caseCreate:
@@ -123,6 +148,7 @@ export const DEFAULT_LEGAL_TEXTS: LegalTextsByLang = {
     partnerDisclosure:
       'Если вы рассказываете о LawBid за вознаграждение, ясно сообщайте об этом в каждом посте, видео или сообщении (например, «#реклама» или «партнёрская ссылка»). Этого требуют правила FTC о рекомендациях.',
     partnerTerms: PARTNER_TERMS_RU,
+    privilegedContentPolicy: PRIVILEGED_POLICY_RU,
   },
 };
 
@@ -164,6 +190,7 @@ export function parseLegalTexts(raw: unknown): LegalTextsByLang {
       supportNote: pick('supportNote'),
       partnerDisclosure: pick('partnerDisclosure'),
       partnerTerms: pick('partnerTerms'),
+      privilegedContentPolicy: pick('privilegedContentPolicy'),
     };
   }
   return out;
