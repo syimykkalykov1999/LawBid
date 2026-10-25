@@ -33,6 +33,14 @@ Platform-level (not Connect) events: a failed refund of a platform charge, an ea
 * The client's own "cancel" and the "new payment supersedes the old one" paths do the same Stripe check; a late payment can no longer be taken against a payment we show as cancelled.
 * `stripe-ops.sweep` (05:45 UTC): re-reads recent payments (setting `stripe_ops.sweep_lookback_days`, default 7): pending/cancelled ones that Stripe says are paid, refunds made in the Dashboard, refunds stuck `pending` for a day, disputes whose webhook never arrived (`reconcile_drift` item). Then the dispute-rate check.
 
+## Durability of the money queue (what survives a Redis failover)
+
+Redis (BullMQ) is only a delivery channel; the truth is Stripe plus our database. Three layers, none needs Redis state:
+
+1. **Stored first.** The webhook intake saves the event row, then queues the job (`jobId` = event id). If Redis is down, Stripe gets a 500 and retries; on the retry the duplicate row is detected and, if it is still unprocessed and no live job exists (`queue.getJob`), the job is queued again (a replay used to be answered 200 and lost).
+2. **`stripe-webhooks.requeue` (every minute).** Queues every stored, handled event with `processed_at` null older than 2 minutes (idempotent, jobId = event id; a live job is never doubled). A Redis failover that loses the queue is repaired within minutes.
+3. **Pull reconcile** (`case-payments.expire` every 10 min, `stripe-ops.sweep` nightly): re-reads pending payments and subscriptions from Stripe, so even an event Stripe never delivered is recovered from Stripe truth.
+
 ## Disputes
 
 * One transaction per dispute event: status, dispute id/reason/amount/deadline, the chargeback refund row and its ledger entry.

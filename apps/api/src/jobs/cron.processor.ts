@@ -226,6 +226,8 @@ export class CronProcessor {
         return this.ledgerReconcile?.run() ?? null;
       case CRON_JOBS.stripeOpsSweep:
         return this.stripeOps?.sweep() ?? null;
+      case CRON_JOBS.stripeWebhooksRequeue:
+        return this.stripeOps?.requeueWebhooks() ?? null;
       case CRON_JOBS.stripeOpsDisputeReminders:
         return this.stripeOps?.remindDisputes() ?? null;
       case CRON_JOBS.adminSummaries:

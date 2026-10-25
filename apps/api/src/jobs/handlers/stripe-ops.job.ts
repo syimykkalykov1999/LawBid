@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { CasePaymentsService } from '../../modules/case-payments/case-payments.service';
+import { StripeWebhookRequeueService } from '../../modules/stripe-ops/stripe-webhook-requeue.service';
 import { DisputeService } from '../../modules/stripe-ops/dispute.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { withJobLock } from './job-lock';
@@ -20,6 +21,7 @@ export class StripeOpsJob {
   constructor(
     private readonly casePayments: CasePaymentsService,
     private readonly disputes: DisputeService,
+    private readonly webhookRequeue: StripeWebhookRequeueService,
     private readonly settings: AppSettingsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
@@ -46,6 +48,12 @@ export class StripeOpsJob {
       'stripe-ops.dispute-reminders',
       5 * 60_000,
       () => this.disputes.remindDeadlines(),
+    );
+  }
+
+  requeueWebhooks(): Promise<unknown> {
+    return withJobLock(this.redis, 'stripe-webhooks.requeue', 50_000, () =>
+      this.webhookRequeue.sweep(),
     );
   }
 }

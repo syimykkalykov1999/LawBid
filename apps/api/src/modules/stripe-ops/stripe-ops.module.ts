@@ -3,6 +3,7 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminStripeOpsController } from './admin-stripe-ops.controller';
 import { DisputeService } from './dispute.service';
+import { StripeWebhookRequeueService } from './stripe-webhook-requeue.service';
 import { StripeReviewService } from './stripe-review.service';
 
 /**
@@ -13,8 +14,8 @@ import { StripeReviewService } from './stripe-review.service';
  */
 @Module({
   imports: [NotificationsModule],
-  providers: [StripeReviewService, DisputeService],
-  exports: [StripeReviewService, DisputeService],
+  providers: [StripeReviewService, DisputeService, StripeWebhookRequeueService],
+  exports: [StripeReviewService, DisputeService, StripeWebhookRequeueService],
 })
 export class StripeOpsCoreModule {}
 

@@ -17,6 +17,7 @@ import {
   WEBHOOK_JOB_OPTS,
 } from './billing.constants';
 import type { PaymentProvider } from './payment-provider';
+import { requeueStripeEvent } from './stripe-webhook.requeue';
 
 export interface StripeWebhookJobData {
   eventId: string;
@@ -72,6 +73,27 @@ export class StripeWebhookIntakeService
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === 'P2002'
       ) {
+        // A retry of an event stored earlier whose queue.add failed (Redis
+        // down): re-queue it unless a live job exists.
+        const stored = await this.prisma.stripeWebhookEvent.findUnique({
+          where: { stripe_event_id: event.id },
+          select: { processed_at: true },
+        });
+        if (
+          stored &&
+          !stored.processed_at &&
+          HANDLED_STRIPE_EVENTS.has(event.type)
+        ) {
+          if (!this.queue)
+            throw new Error(
+              'stripe webhook queue is not available (REDIS_URL)',
+            );
+          const added = await requeueStripeEvent(this.queue, event.id);
+          this.logger.warn(
+            `stripe event ${event.id} was stored but unprocessed: ${added ? 're-queued' : 'a live job exists'}`,
+          );
+          return added;
+        }
         this.logger.debug(`duplicate stripe event ${event.id} ignored`);
         return false;
       }

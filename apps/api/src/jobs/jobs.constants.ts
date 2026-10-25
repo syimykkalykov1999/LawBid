@@ -49,6 +49,7 @@ export const CRON_JOBS = {
   stripeOpsSweep: 'stripe-ops.sweep',
   /** …and the hourly dispute deadline reminders. */
   stripeOpsDisputeReminders: 'stripe-ops.dispute-reminders',
+  stripeWebhooksRequeue: 'stripe-webhooks.requeue',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -254,6 +255,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Stripe robustness: after the ledger check, then hourly reminders.
   { name: CRON_JOBS.stripeOpsSweep, pattern: '45 5 * * *' },
   { name: CRON_JOBS.stripeOpsDisputeReminders, pattern: '23 * * * *' },
+  // Every minute: a stored webhook event whose queue job was lost (Redis
+  // down / failover) is queued again; idempotent (jobId = event id).
+  { name: CRON_JOBS.stripeWebhooksRequeue, pattern: '* * * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
   // Every minute: applies cross-family events a request could not (retries
