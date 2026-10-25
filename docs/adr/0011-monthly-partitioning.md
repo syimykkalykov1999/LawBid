@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "accepted"   # built in PR #334 for audit_log and auth_events
 date: 2026-10-24
 decision-makers: owner + Claude
 ---
@@ -20,22 +20,33 @@ says partitioning these first buys the most headroom.
 
 ## Considered options
 
-- Monthly range partitions managed by `pg_partman` once a table passes about 50M rows (proposed)
+- Monthly range partitions, created by our own daily job (chosen; `pg_partman` was considered but RDS extension setup and a second config surface were not worth it for two tables)
+- Monthly range partitions managed by `pg_partman` once a table passes about 50M rows
 - Never partition, rely on shards
 - Move history to cold storage only
 
 ## Decision outcome
 
-Proposed, not built: no migration in the repo uses `PARTITION BY` today.
-Trigger: any table above about 50M rows. Order: audit log, notifications, messages.
+Accepted and built (PR #334, 2026-10-25): `audit_log` and `auth_events` are
+`PARTITION BY RANGE (created_at)` by month from migration
+`20261025130000_partition_audit_auth` (primary key `(id, created_at)`; the migration
+refuses tables above 2M rows and runs with `lock_timeout 5s`). The daily job
+`partition.maintain` pre-creates two future months. Other tables are converted later
+through the admin cards (online runner `apps/api/src/partitioning/partition-runner.ts`:
+pause / resume / abort / undo by rename until «Завершить»), off until the owner sets
+`PARTITION_DATABASE_URL`. `messages`, `notifications` and `search_query_log` are NOT
+range-partitioned by time (their FKs and unique keys need the partition column); messages
+and notifications get HASH partitions by `conversation_id` / `user_id` in a follow-up PR.
+Trigger for the next tables: the `table_growth` health signal at 50M rows.
 Partition key is time; with sharding the table is partitioned inside each shard.
+Measured: deep audit pages 91 ms → 5.7 ms on 1.5M rows; short queries within noise.
 
 ### Consequences
 
 - Good: retention jobs become `DROP`/detach of old partitions.
-- Bad: primary keys and unique indexes must include the partition column; the migration safety check and Prisma need care; needs the `pg_partman` extension on RDS.
-- Confirmation: a table-size alarm or admin Storage page showing a table above the threshold.
+- Bad: primary keys and unique indexes must include the partition column; the migration safety check and Prisma need care. No extension needed (own job instead of `pg_partman`).
+- Confirmation: `partition-runner.spec.ts`, `partition-runner.int.spec.ts`, `sh scripts/ops/partition-selftest.sh`; the `table_growth` signal and the admin «Масштаб» cards.
 
 ## More information
 
-[BENCHMARK_BIG_APPS.md](../architecture/BENCHMARK_BIG_APPS.md) (partitioning row, 6 agent-hours), [SHARDING_READY.md](../architecture/SHARDING_READY.md) section 9. Back-filled 2026-10-25.
+[TABLE_PARTITIONING_READY.md](../architecture/TABLE_PARTITIONING_READY.md), runbook [table-partitioning.md](../runbooks/table-partitioning.md), [BENCHMARK_BIG_APPS.md](../architecture/BENCHMARK_BIG_APPS.md), [SHARDING_READY.md](../architecture/SHARDING_READY.md) section 9. Back-filled 2026-10-25, accepted the same day with PR #334.

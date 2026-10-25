@@ -33,8 +33,9 @@ PostgreSQL 16 everywhere. The baseline migration is `20261014100000_postgres_bas
 
 - Good: one engine; `docker-compose.yml` and CI use the same major version.
 - Bad: no built-in horizontal scale, so we prepared sharding at app level
-  (ADR-0003). Some old comments, `apps/api/.env.example` and `.env.test` still show a
-  Cockroach-style URL (port 26257); use the local Postgres URL from `docs/ONBOARDING.md`.
+  (ADR-0003). `apps/api/.env.example` and `.env.test` point at the local Postgres 16
+  (port 5432); a few old code comments and spec fixtures still show a Cockroach-style
+  URL (port 26257) — harmless, the URL is only parsed.
 - Confirmation: `api-ci.yml` runs against a Postgres 16 service.
 
 ## More information

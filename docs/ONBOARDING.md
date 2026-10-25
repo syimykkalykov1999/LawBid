@@ -64,10 +64,8 @@ API (`apps/api`):
 
 ```sh
 cp apps/api/.env.example apps/api/.env
-# IMPORTANT: .env.example still has an old CockroachDB URL (port 26257).
-# Docker Postgres from docker-compose.yml listens on 5432: use
-# DATABASE_URL=postgresql://root:lawbid@localhost:5432/lawbid
-# (dev-only password from docker-compose.yml). Fix the example in a PR when you can.
+# .env.example points at the Docker Postgres from docker-compose.yml
+# (localhost:5432, user root, dev-only password lawbid).
 cd apps/api && npx prisma generate && npx prisma migrate deploy
 npm run seed:demo --workspace apps/api      # demo world with users, cases, content
 npm run start:dev --workspace apps/api      # http://localhost:3000, watch mode

@@ -41,8 +41,8 @@ links. Template: [0000-template.md](0000-template.md).
 | [0007](0007-r2-public-media.md) | Cloudflare R2 for public media, behind a switch | accepted |
 | [0008](0008-opensearch-behind-switch.md) | OpenSearch behind a three-way switch | accepted |
 | [0009](0009-append-only-ledgers.md) | Money in cents, append-only ledgers and journals | accepted |
-| [0010](0010-no-second-admin-approvals.md) | No second-admin approvals | accepted (code change pending) |
-| [0011](0011-monthly-partitioning.md) | Monthly partitioning of big tables | proposed |
+| [0010](0010-no-second-admin-approvals.md) | No second-admin approvals | accepted (in code, PR #336) |
+| [0011](0011-monthly-partitioning.md) | Monthly partitioning of big tables | accepted (PR #334) |
 | [0012](0012-autoscale-db-and-redis.md) | Database and Redis scale themselves up and down | accepted |
 | [0013](0013-expand-contract-rolling-deploy.md) | Expand/contract migrations, rolling deploy, alarm rollback | accepted |
 | [0014](0014-no-silent-mock-in-prod.md) | Provider switches never fall back to a mock in prod | accepted |
