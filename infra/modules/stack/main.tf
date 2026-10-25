@@ -19,65 +19,145 @@ variable "ephemeral" {
   description = "Throw-away stack for load tests (envs/loadtest): everything can be destroyed (database without deletion protection and final snapshot, buckets with objects, secrets and keys deleted fast) and the account-wide singletons (SES identity, CloudTrail/GuardDuty/Access Analyzer baseline, budget) are NOT created. Prod/staging: false."
 }
 variable "project_tag" {
+  type        = string
+  default     = "lawbid"
+  description = "Value of the Project tag. The load-test stack uses lawbid-loadtest: the watchdog and the IAM role find resources by this tag."
 }
 variable "extra_tags" {
+  type        = map(string)
+  default     = {}
+  description = "More tags on every resource (load test: CreatedAt, RunId)."
 }
 variable "azs" { type = list(string) }
 variable "vpc_cidr" {
+  type    = string
+  default = "10.20.0.0/16"
 }
 variable "nat_per_az" {
+  type    = bool
+  default = true
 }
 variable "interface_endpoints" {
+  type    = list(string)
+  default = ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "kms"]
 }
 variable "admin_allowed_cidrs" {
+  type        = list(string)
+  default     = []
+  description = "When set, admin.<domain> answers only these CIDRs (WAF); empty = open, 2FA only."
 }
 variable "s3_cors_allowed_origins" {
+  type        = list(string)
+  default     = ["https://syimykkalykov1999.github.io"]
+  description = "Web origins allowed to upload to / read from the S3 buckets directly (presigned POST / signed GET)."
 }
 variable "create_database" {
+  type        = bool
+  default     = false
+  description = "Create the RDS PostgreSQL with daily backups (modules/postgres). Off: the launch database is any managed PostgreSQL (infra/README.md)."
 }
 variable "database_instance_class" {
+  type    = string
+  default = "db.t4g.medium"
 }
 variable "database_backup_retention_days" {
+  type    = number
+  default = 14
 }
 variable "database_multi_az" {
+  type        = bool
+  default     = false
+  description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
 }
 variable "existing_database_identifier" {
+  type        = string
+  default     = ""
+  description = "RDS identifier of a database created outside Terraform (prod: lawbid-prod-postgres). Used for the AWS Backup plan and the plan-time settings check; never modified."
 }
 variable "backup_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Backup plan for the database: daily copy in this region + the replica region (modules/backup). Prod: true."
 }
 variable "backup_retention_days" {
+  type    = number
+  default = 35
 }
 variable "backup_copy_account_id" {
+  type        = string
+  default     = ""
+  description = "Optional separate backup AWS account (same Organization). Empty = no cross-account copy. Its vault must exist first (docs/runbooks/backups.md)."
 }
 variable "backup_copy_vault_name" {
+  type    = string
+  default = "lawbid-backup-copy"
 }
 variable "backup_copy_region" {
+  type        = string
+  default     = ""
+  description = "Region of the backup account's vault; empty = the main region."
 }
 variable "interface_endpoint_azs" {
+  type        = number
+  default     = 0
+  description = "0 = interface endpoints in every AZ; 1 = first AZ only (launch size, half the price)."
 }
 variable "redis_cache_node" {
+  type        = bool
+  default     = false
+  description = "Second Redis only for caches (allkeys-lru), so the queue / socket Redis (noeviction) never fills with cache keys. Its URL is injected as REDIS_CACHE_URL; the app uses it once it reads that variable (docs/runbooks/redis.md)."
 }
 variable "redis_cache_node_type" {
+  type    = string
+  default = "cache.t4g.micro"
 }
 variable "worker_jobs_per_task" {
+  type        = number
+  default     = 50
+  description = "Worker autoscaling on queue depth: waiting jobs per worker task. 0 = CPU only."
 }
 variable "turn_enabled" {
+  type        = bool
+  default     = false
+  description = "coturn relay for calls on a small EC2 (modules/turn, ≈ $7–8/month); docs/runbooks/TURN.md."
 }
 variable "turn_second_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-22: a second coturn in another Availability Zone (≈ $7–8/month + Route 53 health checks ≈ $1.5), same secret; needs turn_enabled. docs/runbooks/TURN.md."
 }
 variable "turn_traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 20
+  description = "Alarm when the TURN relays send more than this many GB in 24 h (0 = off)."
 }
 variable "turn_instance_type" {
+  type        = string
+  default     = "t4g.nano"
+  description = "TURN server size (modules/turn size ladder: nano 100, micro 200, small 500, medium 1000, large 2000 allocations). Default stays cheap; prod sets t4g.small."
 }
 variable "turn_total_quota" {
+  type        = number
+  default     = null
+  description = "Override of the coturn quota per server; null = from the instance type."
 }
 variable "livekit_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-22: self-hosted LiveKit SFU for group calls on one EC2 box (modules/livekit, ≈ $35/month + traffic). Nothing is created until true. docs/runbooks/LIVEKIT.md."
 }
 variable "livekit_instance_type" {
+  type    = string
+  default = "c7g.medium"
 }
 variable "livekit_use_redis" {
+  type        = bool
+  default     = true
+  description = "LiveKit shares the main ElastiCache (database 1); required before a second node is added."
 }
 variable "livekit_egress_alarm_gb_per_day" {
+  type    = number
+  default = 50
 }
 variable "domain" { type = string }
 variable "api_host" { type = string }
@@ -85,85 +165,176 @@ variable "admin_host" { type = string }
 variable "app_link_base_url" { type = string }
 variable "certificate_arn" { type = string }
 variable "web_host" {
+  type        = string
+  default     = ""
+  description = "Host of the web app (e.g. app.<domain>); empty = only the CloudFront address."
 }
 variable "web_cross_origin_isolation" {
+  type        = bool
+  default     = false
+  description = "COOP/COEP headers on the web app (the engine renders on a worker thread)."
 }
 variable "web_certificate_arn" {
+  type        = string
+  default     = ""
+  description = "ACM certificate for web_host in us-east-1 (CloudFront only reads that region)."
 }
 variable "web_create_certificate" {
+  type        = bool
+  default     = false
+  description = "Terraform requests the web certificate itself (DNS validation, records added by hand)."
 }
 variable "web_extra_hosts" {
+  type    = list(string)
+  default = []
 }
 variable "hosted_zone_id" {
+  type    = string
+  default = null
 }
 variable "dmarc_rua" { type = string }
 variable "dmarc_policy" {
+  type    = string
+  default = "quarantine"
 }
 # Security research #5 (2026-10-22), A6 / A8.
 variable "security_hub_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Security Hub with the CIS 1.4 standard (a few dollars a month)."
 }
 variable "guardduty_alert_severity" {
+  type    = number
+  default = 7
 }
 # Security & legal pass 2026-10-24 (docs/runbooks/SECURITY_LEGAL.md): every
 # switch with its monthly cost. Free ones default on, paid ones off.
 variable "securityhub_fsbp_enabled" {
+  type        = bool
+  default     = false
+  description = "Security Hub: AWS Foundational Security Best Practices standard (needs security_hub_enabled). ~$5-15/month (approximate)."
 }
 variable "inspector_enabled" {
+  type        = bool
+  default     = false
+  description = "Amazon Inspector for ECR images. ~$1-6/month (approximate)."
 }
 variable "unused_access_analyzer_enabled" {
+  type        = bool
+  default     = false
+  description = "IAM Access Analyzer unused-access findings. ~$0.20 per role/user per month (approximate)."
 }
 variable "s3_account_block_public_access" {
+  type        = bool
+  default     = true
+  description = "Account-wide S3 Block Public Access. Free."
 }
 variable "critical_api_alerts_enabled" {
+  type        = bool
+  default     = true
+  description = "Alert on key deletion, CloudTrail off, backup vault/lock deletion, Block Public Access lifted, root user use. Free."
 }
 variable "documents_data_events" {
+  type        = bool
+  default     = false
+  description = "CloudTrail data events on the documents bucket. ~$0.10 per 100 000 events (approximate)."
 }
 variable "audit_logs_enabled" {
+  type        = bool
+  default     = false
+  description = "Locked-down log bucket with the ALB access log, the documents-bucket access log and VPC flow logs. ~$2-12/month (approximate, depends on traffic)."
 }
 variable "audit_logs_retention_days" {
+  type    = number
+  default = 400
 }
 variable "audit_logs_object_lock" {
+  type        = bool
+  default     = false
+  description = "S3 Object Lock (governance) on the log bucket; only at creation; see modules/audit-logs. WARNING (AWS docs, checked 2026-10-24): a bucket with Object Lock cannot receive S3 server access logs, so with this on the documents access log (modules/s3) stops being delivered. Keep false; the bucket already denies deletes by IAM and versioning keeps history."
 }
 variable "vpc_flow_logs_traffic" {
+  type    = string
+  default = "ALL"
 }
 variable "macie_enabled" {
+  type        = bool
+  default     = false
+  description = "Amazon Macie monthly sensitive-data scan of the documents bucket. ~$1 per GB inspected x sampling, see macie_sampling_percentage (approximate)."
 }
 variable "macie_sampling_percentage" {
+  type    = number
+  default = 10
 }
 variable "backup_vault_lock_mode" {
+  type        = string
+  default     = "off"
+  description = "off | governance | compliance (irreversible after the cooling-off days). Free."
 }
 variable "backup_vault_lock_cooling_off_days" {
+  type    = number
+  default = 7
 }
 variable "ecs_readonly_root_filesystem" {
+  type    = bool
+  default = true
 }
 variable "deploy_alarm_rollback" {
+  type        = bool
+  default     = true
+  description = "P1 deploy safety: ECS rolling deployment also rolls back when a CloudWatch alarm (ALB 5xx ratio, p95, unhealthy hosts; worker no-tasks; admin 5xx) fires during the rollout. false = circuit breaker only. docs/runbooks/DEPLOY_SAFETY.md."
 }
 variable "deploy_rollback_on_slo" {
+  type        = bool
+  default     = false
+  description = "Also roll the api back on the FAST-burn SLO composites (call / push / otp). Off: they depend on third parties (Twilio, FCM, Cloudflare)."
 }
 variable "ses_from_address" { type = string }
 variable "api_image" { type = string }
 variable "admin_image" { type = string }
 variable "alert_emails" { type = list(string) }
 variable "slack_webhook_url" {
+  type      = string
+  default   = null
   sensitive = true
 }
 variable "stripe_price_id" {
+  type        = string
+  default     = ""
+  description = "Fallback only: subscription prices are set in the admin (Деньги → Цены)."
 }
 variable "fcm_project_id" {
+  type    = string
+  default = ""
 }
 variable "fcm_client_email" {
+  type    = string
+  default = ""
 }
 variable "google_client_ids" {
+  type    = string
+  default = ""
 }
 variable "apple_bundle_ids" {
+  type    = string
+  default = ""
 }
 variable "apple_team_id" {
+  type    = string
+  default = ""
 }
 variable "redis_node_type" {
+  type    = string
+  default = "cache.t4g.medium"
 }
 variable "redis_replicas" {
+  type    = number
+  default = 1
 }
 variable "redis_cluster_mode" {
+  type        = string
+  default     = "off"
+  description = <<-EOT
     Redis cluster mode (sharded), docs/runbooks/redis-cluster.md. One line to switch:
       off      today: one standalone group.
       standby  a second group (cluster mode enabled) is BUILT and idle; the app still uses the standalone one. Cost: the new nodes.
@@ -176,119 +347,257 @@ variable "redis_cluster_mode" {
   }
 }
 variable "redis_cluster_shards" {
+  type    = number
+  default = 2
 }
 variable "redis_cluster_replicas_per_shard" {
+  type    = number
+  default = 1
 }
 variable "redis_cluster_node_type" {
+  type        = string
+  default     = ""
+  description = "Empty = redis_node_type."
 }
 variable "api_max_tasks" {
+  type    = number
+  default = 20
 }
 variable "worker_max_tasks" {
+  type    = number
+  default = 10
 }
 variable "min_tasks" {
+  type        = number
+  default     = 2
+  description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
 }
 variable "api_min_tasks" {
+  type        = number
+  default     = null
+  description = "Separate api floor (null = min_tasks). 2 = one api task per AZ (S4-11); the worker can stay at 1."
 }
 variable "cpu_architecture" {
+  type        = string
+  default     = "X86_64"
+  description = "ARM64 (Graviton) is about 20 % cheaper; needs linux/arm64 images."
 }
 variable "container_insights" {
+  type        = string
+  default     = "disabled"
+  description = "ECS Container Insights: disabled (saves about $30/month) or enabled (debugging graphs)."
 }
 variable "worker_spot" {
+  type        = bool
+  default     = false
+  description = "Worker on Fargate Spot (one task stays on regular Fargate)."
 }
 variable "api_spot" {
+  type        = bool
+  default     = false
+  description = "Extra API tasks (above the first) on Fargate Spot, up to 70 % cheaper."
 }
 variable "night_scale_down" {
+  type        = bool
+  default     = false
+  description = "Lower the minimum task count at night (07:00-12:00 UTC)."
 }
 variable "night_min_tasks" {
+  type    = number
+  default = 1
 }
 variable "admin_tasks" {
+  type    = number
+  default = 2
 }
 variable "api_cpu" {
+  type    = number
+  default = 1024
 }
 variable "api_memory" {
+  type    = number
+  default = 2048
 }
 variable "worker_cpu" {
+  type    = number
+  default = 512
 }
 variable "worker_memory" {
+  type    = number
+  default = 1024
 }
 # Scale audit 2026-10-23: one mobile-carrier (CGNAT) or office address carries
 # thousands of people; 3000 / 5 min (10 per second) cut real users off the
 # moment a city came online. Signed-in users are limited per account by the
 # API itself (100 / min), so this edge rule only has to stop floods.
 variable "waf_rate_limit_per_5m" {
+  type    = number
+  default = 10000
 }
 # Security research #5 (2026-10-22), A3: the sign-in code / password reset
 # paths get their own, much lower per-IP limit at the WAF (the API's own
 # OTP limits stay; this stops a flood before it reaches the API at all).
 variable "waf_otp_rate_limit_per_5m" {
+  type        = number
+  default     = 20
+  description = "Requests to the OTP / password-reset / phone-status paths from one IP in 5 minutes before the ALB WAF blocks it (backstop for callers without a device header; S4-8: one CGNAT address carries many people)."
 }
 variable "waf_device_header" {
+  type        = string
+  default     = ""
+  description = "S4-8: second WAF rate-limit key next to the IP (per-device rules, 2 WAF rules = +$2/month). Empty = off (default); set x-device-id to turn on."
 }
 variable "waf_auth_rules_enabled" {
+  type        = bool
+  default     = false
+  description = "S4-8: add the login-path rate rule (and the refresh rule when waf_device_header is set); each is a WAF rule at $1/month. Off by default."
 }
 variable "waf_auth_rate_action" {
+  type        = string
+  default     = "count"
+  description = "S4-8: login / refresh rate rules: count (measure) or block."
 }
 variable "alb_deletion_protection" {
+  type        = bool
+  default     = false
+  description = "S4-10: ALB deletion protection. Prod: true (never on load-test stacks)."
 }
 variable "alb_least_outstanding_requests" {
+  type        = bool
+  default     = false
+  description = "S4-7: least_outstanding_requests instead of round_robin for the API target group (has no effect while stickiness is on for it; see alb_websocket_target_group)."
 }
 variable "alb_websocket_target_group" {
+  type        = bool
+  default     = false
+  description = "S4-7: separate sticky target group for /socket.io only; the API group loses stickiness and uses least_outstanding_requests. Replaces the ECS api service in the AWS provider (short blip): apply in a quiet window."
 }
 # AWS Bot Control (paid: ~$10/month + $1 per million requests). Off by
 # default; on, it only COUNTS (labels in the WAF metrics) until
 # `waf_bot_control_block` is switched on after reading them for a while.
 variable "waf_bot_control_enabled" {
+  type    = bool
+  default = false
 }
 variable "waf_bot_control_block" {
+  type        = bool
+  default     = false
+  description = "Block the Bot Control verdicts instead of counting them (only with waf_bot_control_enabled)."
 }
 variable "cdn_waf_rate_limit_per_5m" {
+  type        = number
+  default     = 2000
+  description = "Per-IP requests in 5 minutes on the web app and media CloudFront distributions."
 }
 variable "p95_target_ms" {
+  type    = number
+  default = 600
 }
 # Owner 2026-10-22 (audit #4 §7): the external uptime canary (~$10/month at
 # one run every 5 minutes) and the "signups stopped" alarm (0 = off).
 variable "uptime_canary_enabled" {
+  type    = bool
+  default = true
 }
 variable "min_daily_signups" {
+  type    = number
+  default = 0
 }
 variable "monthly_budget_usd" {
+  type        = number
+  default     = 350
+  description = "Monthly AWS spend (USD): e-mails at 50/80/100 %, autoscaling capped at the minimum at 100 %. 350 = the ≈ $150–170 launch size + Redis replica, second TURN, LiveKit (≈ $65–110) + traffic, with headroom so growth is not throttled by the budget (docs/runbooks/cost.md)."
 }
 variable "uptime_check" {
+  type        = string
+  default     = "synthetics"
+  description = "External uptime probe: \"synthetics\" (CloudWatch canary, ≈ $10/month) or \"route53\" (HTTPS health check, ≈ $2/month, us-east-1 only). Off: uptime_canary_enabled = false."
 }
 # --- Batch A (docs/architecture/P0_AND_COST_PLAN.md): paging, budgets, NAT, backup alarm ---
 variable "pagerduty_https_endpoint" {
+  type        = string
+  default     = null
+  description = "Batch A item 1: PagerDuty Events API integration URL (https://events.pagerduty.com/integration/<key>/enqueue) for the CRITICAL topic (the 6 SLO composite alarms). Secret: lives only in the Secrets Manager tfvars. null = no phone paging. Runbook docs/runbooks/paging.md."
+  sensitive   = true
 }
 variable "critical_email_too" {
+  type        = bool
+  default     = true
+  description = "E-mail alert_emails from the critical topic as well (a second copy of the page)."
 }
 variable "redis_memory_alarm_percent" {
+  type        = number
+  default     = 70
+  description = "Redis (queue node) memory alarm threshold, percent."
 }
 variable "nat_traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 20
+  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
 variable "budget_forecast_thresholds" {
+  type        = list(number)
+  default     = [80, 100]
+  description = "AWS Budgets FORECASTED alerts, percent of monthly_budget_usd."
 }
 variable "budget_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Also send the budget notifications to the alerts SNS topic (Slack/e-mail subscribers), not only to alert_emails."
 }
 variable "anomaly_existing_monitor_arn" {
+  type        = string
+  default     = ""
+  description = "With create_anomaly_monitor = false: ARN of the account's existing service anomaly monitor (aws ce get-anomaly-monitors). Together with anomaly_extra_emails adds a subscription with threshold anomaly_threshold_usd."
 }
 variable "anomaly_extra_emails" {
+  type        = list(string)
+  default     = []
+  description = "E-mails of the extra Cost Anomaly subscription on the existing monitor."
 }
 variable "anomaly_threshold_usd" {
+  type        = number
+  default     = 20
+  description = "Cost anomaly e-mail threshold (USD impact)."
 }
 variable "backup_age_missing_data" {
+  type        = string
+  default     = "breaching"
+  description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
 }
 variable "guardduty_ebs_malware" {
+  type        = bool
+  default     = false
+  description = "GuardDuty EBS malware protection ($0.03/GB scanned, only after a finding). We run Fargate: leave off."
 }
 variable "guardduty_runtime_monitoring" {
+  type        = bool
+  default     = false
+  description = "GuardDuty Runtime Monitoring on Fargate, $1.50/vCPU/month (about $5-50). Changes task start (sidecar): staging first."
 }
 variable "create_anomaly_monitor" {
+  type    = bool
+  default = true
 }
 variable "clamav_image" {
+  type        = string
+  default     = "clamav/clamav:1.4"
+  description = "Antivirus sidecar image; prod uses the ECR copy (scripts/deploy/prod-images.sh)."
 }
 variable "documents_cdn_public_key_pem" {
+  type        = string
+  default     = ""
+  description = "Owner 2026-10-22: PEM public key for CloudFront signed URLs on private media (docs/runbooks/DEPLOY_PROD.md «CloudFront для приватных файлов»). Empty = presigned S3 links as before. Pair it with CLOUDFRONT_PRIVATE_KEY_PEM in extra_secrets."
 }
 variable "extra_secrets" {
+  type        = list(string)
+  default     = []
+  description = "Optional env-var secrets (e.g. SENTRY_DSN, TWILIO_AUTH_TOKEN) — add a name only after its value is set, or ECS cannot start the tasks."
 }
 variable "runbook_base_url" {
+  type        = string
+  default     = "https://github.com/syimykkalykov1999/LawBid/blob/main/docs/runbooks"
+  description = "Alert e-mails link the matching runbook here."
 }
 
 # Owner 2026-10-24: the media CDN answered the web app's image fetches
@@ -336,6 +645,8 @@ data "aws_caller_identity" "current" {}
 
 module "kms" {
   source = "../kms"
+  name   = local.name
+  tags   = local.tags
 
   allow_macie = var.macie_enabled
 
@@ -344,8 +655,12 @@ module "kms" {
 }
 
 module "kms_replica" {
+  source    = "../kms"
   providers = { aws = aws.replica }
+  name      = "${local.name}-replica"
+  tags      = local.tags
 
+  deletion_window_in_days = var.ephemeral ? 7 : 30
 }
 
 # Owner 2026-10-22: a separate key for wrapping application data keys
@@ -353,27 +668,37 @@ module "kms_replica" {
 # with it; the owner (account admin) encrypts new data keys with
 # `aws kms encrypt --encryption-context app=<name>`.
 resource "aws_kms_key" "data_keys" {
+  description             = "${local.name}: wraps the app data keys (messages, admin key store)"
+  deletion_window_in_days = var.ephemeral ? 7 : 30
   enable_key_rotation     = true
+  tags                    = local.tags
 }
 
 resource "aws_kms_alias" "data_keys" {
+  name          = "alias/${local.name}-data-keys"
   target_key_id = aws_kms_key.data_keys.key_id
 }
 
 module "network" {
+  source              = "../network"
+  name                = local.name
   cidr                = var.vpc_cidr
   azs                 = var.azs
   nat_per_az          = var.nat_per_az
   interface_endpoints = var.interface_endpoints
+  tags                = local.tags
 
   interface_endpoint_azs = var.interface_endpoint_azs
 }
 
 module "turn" {
   count     = var.turn_enabled ? 1 : 0
+  source    = "../turn"
+  name      = local.name
   vpc_id    = module.network.vpc_id
   subnet_id = module.network.public_subnet_ids[0]
   realm     = var.domain
+  tags      = local.tags
 
   # Second relay in the next Availability Zone, health checks, alarms.
   secondary_subnet_id      = var.turn_second_enabled ? module.network.public_subnet_ids[1] : null
@@ -389,19 +714,33 @@ module "turn" {
 
 # Owner 2026-10-22: self-hosted LiveKit SFU (off until livekit_enabled).
 module "livekit" {
+  count                   = var.livekit_enabled ? 1 : 0
+  source                  = "../livekit"
+  name                    = local.name
+  vpc_id                  = module.network.vpc_id
+  subnet_id               = module.network.public_subnet_ids[0]
   domain                  = var.domain
+  hosted_zone_id          = var.hosted_zone_id
+  instance_type           = var.livekit_instance_type
   use_redis               = var.livekit_use_redis
   redis_endpoint          = module.redis.primary_endpoint
   redis_url_secret_arn    = module.redis.redis_url_secret_arn
   redis_security_group_id = module.redis.security_group_id
   kms_key_arn             = module.kms.key_arn
+  alerts_topic_arn        = module.monitoring.alerts_topic_arn
   egress_alarm_gb_per_day = var.livekit_egress_alarm_gb_per_day
+  tags                    = local.tags
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 module "s3" {
+  source              = "../s3"
+  providers           = { aws = aws, aws.replica = aws.replica }
+  name                = local.name
+  kms_key_arn         = module.kms.key_arn
   replica_kms_key_arn = module.kms_replica.key_arn
+  tags                = local.tags
 
   cors_allowed_origins         = local.web_cors_origins
   media_web_acl_arn            = module.cdn_waf.web_acl_arn
@@ -412,52 +751,83 @@ module "s3" {
 }
 
 variable "replicate_media" {
+  type        = bool
+  default     = false
+  description = "S4-5: replicate the media bucket to the replica Region (no delete markers). Prod: true. Never on load-test stacks."
 }
 
 # Security & legal pass 2026-10-24: the access logs that prove who touched
 # what, in a bucket nobody can delete from.
 module "audit_logs" {
+  count               = var.audit_logs_enabled && !var.ephemeral ? 1 : 0
+  source              = "../audit-logs"
+  name                = local.name
   enabled             = true
   retention_days      = var.audit_logs_retention_days
   object_lock_enabled = var.audit_logs_object_lock
+  vpc_id              = module.network.vpc_id
   flow_logs_traffic   = var.vpc_flow_logs_traffic
+  tags                = local.tags
 }
 
 # Sensitive-data discovery on the documents bucket (default off).
 module "macie" {
+  count               = var.macie_enabled && !var.ephemeral ? 1 : 0
+  source              = "../macie"
+  name                = local.name
   bucket_names        = [module.s3.documents_bucket]
   sampling_percentage = var.macie_sampling_percentage
+  alerts_topic_arn    = module.monitoring.alerts_topic_arn
+  tags                = local.tags
 }
 
 # Security research #5 (2026-10-22), A3: one WAF for both CloudFront
 # distributions (the web app below and the media CDN in module "s3").
 module "cdn_waf" {
+  source            = "../cdn-waf"
+  name              = local.name
   rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
+  tags              = local.tags
 }
 
 # Owner 2026-10-15: the web version of the app (S3 + CloudFront).
 module "web" {
+  source                 = "../web"
   web_acl_arn            = module.cdn_waf.web_acl_arn
+  name                   = local.name
   web_host               = var.web_host
   certificate_arn        = var.web_certificate_arn
   create_certificate     = var.web_create_certificate
   extra_hosts            = var.web_extra_hosts
   cross_origin_isolation = var.web_cross_origin_isolation
+  hosted_zone_id         = var.hosted_zone_id == null ? "" : var.hosted_zone_id
   api_origin             = "https://${var.api_host}"
   media_origins          = ["https://${module.s3.media_cdn_domain}"]
+  tags                   = local.tags
+  force_destroy          = var.ephemeral
 }
 
 module "ses" {
+  count          = var.ephemeral ? 0 : 1 # one SES identity per domain per account
+  source         = "../ses"
+  domain         = var.domain
+  hosted_zone_id = var.hosted_zone_id
   dmarc_rua      = var.dmarc_rua
   dmarc_policy   = var.dmarc_policy
+  tags           = local.tags
 }
 
 module "alb" {
+  source                = "../alb"
+  name                  = local.name
+  vpc_id                = module.network.vpc_id
   public_subnet_ids     = module.network.public_subnet_ids
+  certificate_arn       = var.certificate_arn
   api_host              = var.api_host
   admin_host            = var.admin_host
   waf_rate_limit_per_5m = var.waf_rate_limit_per_5m
   admin_allowed_cidrs   = var.admin_allowed_cidrs
+  tags                  = local.tags
 
   waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
   waf_device_header         = var.waf_device_header
@@ -474,6 +844,9 @@ module "alb" {
 }
 
 resource "aws_security_group" "tasks" {
+  name        = "${local.name}-tasks"
+  description = "ECS tasks: ALB in, everything out"
+  vpc_id      = module.network.vpc_id
   ingress {
     from_port       = 3000
     to_port         = 3001
@@ -481,35 +854,67 @@ resource "aws_security_group" "tasks" {
     security_groups = [module.alb.security_group_id]
   }
   egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+  tags = local.tags
 }
 
 module "redis" {
+  source                     = "../redis"
+  name                       = local.name
+  vpc_id                     = module.network.vpc_id
   subnet_ids                 = module.network.private_subnet_ids
   allowed_security_group_ids = [aws_security_group.tasks.id]
   node_type                  = var.redis_node_type
   replicas                   = var.redis_replicas
+  kms_key_arn                = module.kms.key_arn
+  tags                       = local.tags
 
   cluster_mode            = var.redis_cluster_mode != "off"
   num_node_groups         = var.redis_cluster_shards
   replicas_per_node_group = var.redis_cluster_replicas_per_shard
   cluster_node_type       = var.redis_cluster_node_type
 
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 module "postgres" {
+  count                      = var.create_database ? 1 : 0
+  source                     = "../postgres"
+  name                       = local.name
+  vpc_id                     = module.network.vpc_id
+  subnet_ids                 = module.network.private_subnet_ids
+  allowed_security_group_ids = [aws_security_group.tasks.id]
+  kms_key_arn                = module.kms.key_arn
   instance_class             = var.database_instance_class
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
+  tags                       = local.tags
 
+  deletion_protection     = !var.ephemeral
   skip_final_snapshot     = var.ephemeral
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 # Second Redis for caches only (owner 2026-10-22: planned, off by default).
 module "redis_cache" {
+  count                      = var.redis_cache_node ? 1 : 0
+  source                     = "../redis"
+  name                       = "${local.name}-cache"
+  vpc_id                     = module.network.vpc_id
+  subnet_ids                 = module.network.private_subnet_ids
+  allowed_security_group_ids = [aws_security_group.tasks.id]
+  node_type                  = var.redis_cache_node_type
+  replicas                   = 0
   maxmemory_policy           = "allkeys-lru"
+  description                = "cache only (allkeys-lru)"
+  kms_key_arn                = module.kms.key_arn
+  tags                       = local.tags
 
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 # --- database backups (owner 2026-10-22) ----------------------------------
@@ -526,16 +931,23 @@ locals {
 # Read-only: the existing instance's settings (plan fails if the named
 # instance does not exist — a typo in existing_database_identifier).
 data "aws_db_instance" "existing" {
+  count                  = !var.create_database && var.existing_database_identifier != "" ? 1 : 0
   db_instance_identifier = var.existing_database_identifier
 }
 
 # A failed assertion is a warning in `terraform plan`, never an error.
 check "existing_database_settings" {
   assert {
+    condition     = alltrue([for d in data.aws_db_instance.existing : d.multi_az || !var.database_multi_az])
+    error_message = "Production database is not Multi-AZ. RDS console → Modify → Multi-AZ DB instance (docs/runbooks/backups.md, «Консоль RDS»)."
   }
   assert {
+    condition     = alltrue([for d in data.aws_db_instance.existing : d.backup_retention_period >= var.database_backup_retention_days])
+    error_message = "Production database keeps automated backups for fewer days than database_backup_retention_days (14). RDS console → Modify → Backup retention period."
   }
   assert {
+    condition     = alltrue([for d in data.aws_db_instance.existing : d.storage_encrypted])
+    error_message = "Production database storage is not encrypted."
   }
 }
 
@@ -550,24 +962,35 @@ check "existing_database_settings" {
 # prevent_destroy: a plan that would delete the database fails instead.
 # First plan: review it; only the declared attributes below may show a diff.
 variable "adopt_existing_database" {
+  type        = bool
+  default     = false
+  description = "Manage the database named in existing_database_identifier as aws_db_instance.existing (imported by envs/prod/imports.tf). Needs create_database = false. Never replaces or deletes it."
 }
 variable "database_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Deletion protection of the adopted database (drift shows when it is off)."
 }
 
 resource "aws_db_instance" "existing" {
+  count      = var.adopt_existing_database && !var.create_database && var.existing_database_identifier != "" ? 1 : 0
   identifier = var.existing_database_identifier
 
   # Required by the provider; the real values are kept (ignore_changes).
   engine         = "postgres"
+  instance_class = var.database_instance_class
 
   # Declared, drift-checked attributes.
+  multi_az                              = var.database_multi_az
   backup_retention_period               = var.database_backup_retention_days
+  deletion_protection                   = var.database_deletion_protection
   storage_encrypted                     = true
   publicly_accessible                   = false
   copy_tags_to_snapshot                 = true
   auto_minor_version_upgrade            = true
   performance_insights_enabled          = true
   performance_insights_retention_period = 7
+  skip_final_snapshot                   = false
   final_snapshot_identifier             = "${local.name}-postgres-final"
 
   lifecycle {
@@ -590,61 +1013,110 @@ resource "aws_db_instance" "existing" {
 # (about the size of the database) in us-west-2. Works on any instance, so it
 # does not need S4-3. Off by default.
 variable "rds_cross_region_backups" {
+  type        = bool
+  default     = false
+  description = "Replicate RDS automated backups (snapshots and WAL) to the replica Region with PITR there (aws_db_instance_automated_backups_replication). Needs create_database or existing_database_identifier, and the instance's backup_retention_period > 0."
 }
 variable "rds_cross_region_backup_retention_days" {
+  type        = number
+  default     = 14
+  description = "Retention of the replicated automated backups (1-35)."
 }
 
 resource "aws_db_instance_automated_backups_replication" "this" {
   provider               = aws.replica
+  count                  = var.rds_cross_region_backups && local.database_arn != "" ? 1 : 0
   source_db_instance_arn = local.database_arn
   kms_key_id             = module.kms_replica.key_arn
   retention_period       = var.rds_cross_region_backup_retention_days
 }
 
 module "backup" {
+  count               = var.backup_enabled && (var.create_database || var.existing_database_identifier != "") ? 1 : 0
+  source              = "../backup"
+  providers           = { aws = aws, aws.replica = aws.replica }
+  name                = local.name
   resource_arns       = [local.database_arn]
+  kms_key_arn         = module.kms.key_arn
+  replica_kms_key_arn = module.kms_replica.key_arn
+  retention_days      = var.backup_retention_days
   copy_retention_days = var.backup_retention_days
   copy_account_vault_arn = var.backup_copy_account_id == "" ? "" : (
     "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.name : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
+  alerts_topic_arn        = module.monitoring.alerts_topic_arn
   backup_age_missing_data = var.backup_age_missing_data
+  tags                    = local.tags
 
   vault_lock_mode             = var.backup_vault_lock_mode
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
 }
 
 module "secrets" {
+  source      = "../secrets"
+  name        = local.name
+  kms_key_arn = module.kms.key_arn
   names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL"])
+  tags        = local.tags
 
+  recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 # --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) --
 variable "db_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "The database grows one size under load and shrinks one size after 3 quiet days, by itself (modules/db-autoscale). Needs a database named by create_database or existing_database_identifier."
 }
 variable "db_autoscale_min_class" {
+  type    = string
+  default = "db.t4g.micro"
 }
 variable "db_autoscale_max_class" {
+  type        = string
+  default     = "db.r7g.xlarge"
+  description = "Ceiling for the bill. Above it the owner gets an e-mail."
 }
 variable "db_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run | off. Later changes are made in SSM (docs/runbooks/db-autoscale.md)."
 }
 variable "db_autoscale_ladder" {
+  type = list(string)
+  default = [
     "db.t4g.micro", "db.t4g.small", "db.t4g.medium", "db.t4g.large",
     "db.r7g.large", "db.r7g.xlarge", "db.r7g.2xlarge",
   ]
 }
 variable "db_autoscale_tuning" {
+  type    = map(number)
+  default = {}
 }
 
 # --- Redis autoscale (owner 2026-10-24, docs/architecture/REDIS_AUTOSCALE.md) --
 variable "redis_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "Redis grows one node type under load and shrinks one after 3 quiet days, by itself (modules/redis-autoscale). Needs redis_replicas >= 1 (online resize through failover); idle until automatic failover is on."
 }
 variable "redis_autoscale_min_class" {
+  type    = string
+  default = "cache.t4g.micro"
 }
 variable "redis_autoscale_max_class" {
+  type        = string
+  default     = "cache.r7g.large"
+  description = "Ceiling for the bill: ≈ $320/month with one replica. Above it the owner gets an e-mail."
 }
 variable "redis_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run | off. Later changes are made in SSM (docs/runbooks/redis-autoscale.md)."
 }
 variable "redis_autoscale_tuning" {
+  type    = map(number)
+  default = {}
 }
 
 locals {
@@ -658,26 +1130,52 @@ locals {
 # tasks) - more than a db.t4g.medium accepts (about 400). The pool is now
 # worked out from the database size and the task ceilings.
 variable "database_max_connections" {
+  type        = number
+  default     = 0
+  description = "max_connections of the database. 0 = estimate from database_instance_class with the RDS default formula (memory / 9531392); set it when the database is not ours (create_database = false) or the parameter group changes it."
 }
 
 # --- own connection pooler (docs/architecture/DB_POOLER.md) -------------------------
 variable "db_pooler_enabled" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: run our own PgBouncer between the app and the database. true: api / worker connect to it (DB_POOLER_HOST), so up to 70 tasks never exhaust the database connections. false (default): direct DATABASE_URL, exactly as before - this is the rollback switch."
 }
 variable "pgbouncer_image" {
+  type        = string
+  default     = ""
+  description = "ECR image of the pooler: <registry>/lawbid-pgbouncer:<tag> (build it with .github/workflows/build-pgbouncer.yml). Required when db_pooler_enabled."
 }
 variable "pgbouncer_min_tasks" {
+  type    = number
+  default = 2
 }
 variable "pgbouncer_max_tasks" {
+  type        = number
+  default     = 4
+  description = "CPU autoscaling ceiling of the pooler. The database budget is split by this number, so a higher ceiling means smaller pools per task."
 }
 variable "pgbouncer_cpu" {
+  type    = number
+  default = 512
 }
 variable "pgbouncer_memory" {
+  type    = number
+  default = 1024
 }
 variable "pgbouncer_reserve_pool_size" {
+  type        = number
+  default     = 3
+  description = "Extra database connections per pooler task, used only when clients already waited 3 s."
 }
 variable "db_pooler_max_client_conn" {
+  type        = number
+  default     = 5000
+  description = "Client connections one pooler task accepts (every app task holds up to 10)."
 }
 variable "pgbouncer_query_wait_timeout" {
+  type    = number
+  default = 30
 }
 
 locals {
@@ -726,6 +1224,7 @@ locals {
 
 check "db_connection_budget" {
   assert {
+    condition = var.db_pooler_enabled ? (
       var.pgbouncer_image != "" &&
       local.pgb_pool_size >= 5 &&
       local.pgb_server_connections <= local.db_pooler_budget &&
@@ -733,6 +1232,7 @@ check "db_connection_budget" {
       ) : (
       local.direct_pool_size * local.db_peak_tasks <= local.db_ceiling_connections
     )
+    error_message = var.db_pooler_enabled ? "db_pooler_enabled = true needs: pgbouncer_image set (ECR lawbid-pgbouncer, .github/workflows/build-pgbouncer.yml); at least 5 database connections per pooler task after the reserve (pgbouncer_max_tasks too high or the database too small); and db_pooler_max_client_conn >= 10 x (api_max_tasks + worker_max_tasks) x 2." : "Even the smallest pool (3 per task) at the peak task count (api_max_tasks + worker_max_tasks, twice during a deploy) needs more connections than the database accepts (with db_autoscale_enabled: even at db_autoscale_max_class): lower api_max_tasks / worker_max_tasks, choose a bigger database_instance_class, or turn on our own pooler (db_pooler_enabled = true, docs/architecture/DB_POOLER.md)."
   }
 }
 
@@ -833,13 +1333,18 @@ locals {
 
 # --- own connection pooler: PgBouncer service, Cloud Map name, alarms ----------------
 module "pgbouncer" {
+  count  = var.db_pooler_enabled ? 1 : 0
+  source = "../pgbouncer"
 
+  name                       = local.name
+  vpc_id                     = module.network.vpc_id
   private_subnet_ids         = module.network.private_subnet_ids
   cluster_arn                = module.ecs.cluster_arn
   cluster_name               = module.ecs.cluster_name
   client_security_group_id   = aws_security_group.tasks.id
   database_security_group_id = var.create_database ? module.postgres[0].security_group_id : ""
   database_url_secret_arn    = module.secrets.arns["DATABASE_URL"]
+  kms_key_arn                = module.kms.key_arn
   image                      = var.pgbouncer_image
   cpu_architecture           = var.cpu_architecture
   cpu                        = var.pgbouncer_cpu
@@ -853,6 +1358,7 @@ module "pgbouncer" {
   metrics_namespace          = "LawBid/${local.name}/PgBouncer"
   alarm_actions              = [module.monitoring.alerts_topic_arn]
   runbook_url                = "${var.runbook_base_url}/db-pooler.md"
+  tags                       = local.tags
 }
 
 # What the api / worker get when the pooler is on (src/prisma/pooler-url.ts
@@ -881,14 +1387,21 @@ locals {
 }
 
 module "ecs" {
+  source                   = "../ecs"
+  name                     = local.name
   readonly_root_filesystem = var.ecs_readonly_root_filesystem
+  vpc_id                   = module.network.vpc_id
+  private_subnet_ids       = module.network.private_subnet_ids
   tasks_security_group_id  = aws_security_group.tasks.id
   api_target_group_arn     = module.alb.api_target_group_arn
   api_ws_target_group_arn  = module.alb.api_ws_target_group_arn
   admin_target_group_arn   = module.alb.admin_target_group_arn
   api_image                = var.api_image
   admin_image              = var.admin_image
+  kms_key_arn              = module.kms.key_arn
+  api_env                  = merge(local.api_env, local.db_pooler_env, local.db_replica_env)
   admin_env = {
+    NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
     COOKIE_SECURE = "true"
     # Audit #8: the admin CSP connect-src (apps/admin/src/lib/csp.ts) — the
@@ -907,6 +1420,7 @@ module "ecs" {
   alb_resource_label               = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                    = var.api_max_tasks
   worker_max_tasks                 = var.worker_max_tasks
+  min_tasks                        = var.min_tasks
   api_min_tasks                    = var.api_min_tasks
   admin_tasks                      = var.admin_tasks
   api_cpu                          = var.api_cpu
@@ -914,11 +1428,13 @@ module "ecs" {
   worker_cpu                       = var.worker_cpu
   worker_memory                    = var.worker_memory
   clamav_image                     = var.clamav_image
+  cpu_architecture                 = var.cpu_architecture
   container_insights               = var.container_insights
   worker_spot                      = var.worker_spot
   api_spot                         = var.api_spot
   night_scale_down                 = var.night_scale_down
   night_min_tasks                  = var.night_min_tasks
+  tags                             = local.tags
 
   # P1 deploy safety: rolling + alarm rollback (docs/runbooks/DEPLOY_SAFETY.md).
   deployment_alarm_rollback     = var.deploy_alarm_rollback
@@ -927,6 +1443,7 @@ module "ecs" {
   admin_deployment_alarm_names  = module.monitoring.admin_deployment_alarm_names
 
   # Same namespace as modules/monitoring (QueueWaitingTotal).
+  metrics_namespace    = "LawBid/${local.name}"
   worker_jobs_per_task = var.worker_jobs_per_task
 }
 
@@ -950,12 +1467,18 @@ data "aws_iam_policy_document" "task" {
     resources = ["${module.s3.documents_bucket_arn}/*", "${module.s3.media_bucket_arn}/*"]
   }
   statement {
+    actions   = ["s3:ListBucket"]
+    resources = [module.s3.documents_bucket_arn, module.s3.media_bucket_arn]
   }
   statement {
+    actions   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
+    resources = [module.kms.key_arn]
   }
   # Owner 2026-10-22 (SECURITY_TODO «KMS-wrapped keys»): the task may only
   # unwrap the message / key-store data keys, nothing else on this key.
   statement {
+    actions   = ["kms:Decrypt"]
+    resources = [aws_kms_key.data_keys.arn]
     condition {
       test     = "StringEquals"
       variable = "kms:EncryptionContext:app"
@@ -963,6 +1486,8 @@ data "aws_iam_policy_document" "task" {
     }
   }
   statement {
+    actions   = ["ses:SendEmail", "ses:SendRawEmail"]
+    resources = ["*"]
     condition {
       test     = "StringEquals"
       variable = "ses:FromAddress"
@@ -979,13 +1504,18 @@ data "aws_iam_policy_document" "ops" {
   # Zero maintenance: restart the worker, cap / restore autoscaling, read
   # this month's spend. Only these two services and this one budget.
   statement {
+    actions   = ["ecs:UpdateService", "ecs:DescribeServices"]
+    resources = [module.ecs.api_service_arn, module.ecs.worker_service_arn]
   }
   statement {
+    actions = [
       "application-autoscaling:RegisterScalableTarget",
       "application-autoscaling:DescribeScalableTargets",
     ]
+    resources = ["*"]
   }
   dynamic "statement" {
+    for_each = module.budget[*].budget_arn
     content {
       actions   = ["budgets:ViewBudget"]
       resources = [statement.value]
@@ -996,8 +1526,12 @@ data "aws_iam_policy_document" "ops" {
   # test alarm. Only this topic (Unsubscribe is checked against the
   # subscription ARN, which starts with the topic ARN).
   statement {
+    actions   = ["sns:Subscribe", "sns:ListSubscriptionsByTopic", "sns:Publish"]
+    resources = [local.critical_topic_arn]
   }
   statement {
+    actions   = ["sns:Unsubscribe"]
+    resources = ["${local.critical_topic_arn}:*"]
   }
   # Owner 2026-10-24 (admin «Масштаб»): list the account's budgets (read),
   # change the limit of the production budget and delete the obsolete
@@ -1005,28 +1539,41 @@ data "aws_iam_policy_document" "ops" {
   # DeleteBudget with only ModifyBudget, the separate DeleteBudget action
   # below (obsolete budget only) covers it.
   statement {
+    actions   = ["budgets:ViewBudget"]
+    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/*"]
   }
   statement {
+    actions = ["budgets:ModifyBudget"]
+    resources = [
       "arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/${local.name}-monthly",
       "arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/LawBid Monthly",
     ]
   }
   statement {
+    actions   = ["budgets:DeleteBudget"]
+    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/LawBid Monthly"]
   }
   # Owner 2026-10-24 (admin «Запуск» and «Расходы»): read-only cost data.
   # Cost Explorer has no resource-level scope; each request costs $0.01, so
   # the app asks at most every 6 hours (common/ops/spend/spend.service.ts).
   statement {
+    actions   = ["ce:GetCostAndUsage", "ce:GetCostForecast", "ce:ListCostAllocationTags"]
+    resources = ["*"]
   }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
   statement {
+    actions   = ["cloudwatch:GetMetricStatistics"]
+    resources = ["*"]
   }
   statement {
+    actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
+    resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
   }
   # Admin button «Копия базы для чтения»: create / describe / delete exactly one
   # instance named <database>-readreplica. Nothing else on RDS changes.
   dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
     content {
       actions = ["rds:DescribeDBInstances"]
       resources = [
@@ -1036,6 +1583,7 @@ data "aws_iam_policy_document" "ops" {
     }
   }
   dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
     content {
       actions = ["rds:CreateDBInstanceReadReplica", "rds:AddTagsToResource"]
       resources = [
@@ -1049,12 +1597,14 @@ data "aws_iam_policy_document" "ops" {
     }
   }
   dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
     content {
       actions   = ["rds:DeleteDBInstance"]
       resources = ["arn:aws:rds:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:db:${local.db_identifier}-readreplica"]
     }
   }
   dynamic "statement" {
+    for_each = var.db_replica_toggle && var.db_replica_monitoring ? [1] : []
     content {
       actions   = ["iam:PassRole"]
       resources = [aws_iam_role.db_replica_monitoring[0].arn]
@@ -1067,22 +1617,33 @@ data "aws_iam_policy_document" "ops" {
   }
   # The replica uses the primary's KMS key (storage and Performance Insights).
   dynamic "statement" {
+    for_each = var.db_replica_toggle ? [1] : []
     content {
       actions   = ["kms:DescribeKey", "kms:CreateGrant", "kms:Decrypt", "kms:GenerateDataKeyWithoutPlaintext", "kms:ReEncrypt*"]
       resources = [module.kms.key_arn]
     }
   }
   statement {
+    actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
+    resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
 }
 
 # --- admin button: read copy of the database (owner 2026-10-24) -------------------
 variable "db_replica_toggle" {
+  type        = bool
+  default     = false
+  description = "Owner 2026-10-24: lets the API task create and delete ONE read replica of the database from the admin «Масштаб» page (one 2FA step-up). false (default): no IAM, no env, the button says it is unavailable. The replica is created by the API, not by Terraform, so apply never touches it. docs/runbooks/db-replica.md."
 }
 variable "db_replica_monitoring" {
+  type        = bool
+  default     = true
+  description = "Give the admin-made replica Enhanced Monitoring (60 s). Needs the small IAM role created here."
 }
 
 resource "aws_iam_role" "db_replica_monitoring" {
+  count = var.db_replica_toggle && var.db_replica_monitoring ? 1 : 0
+  name  = "${local.name}-rds-replica-monitoring"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -1091,44 +1652,93 @@ resource "aws_iam_role" "db_replica_monitoring" {
       Principal = { Service = "monitoring.rds.amazonaws.com" }
     }]
   })
+  tags = local.tags
 }
 
 resource "aws_iam_role_policy_attachment" "db_replica_monitoring" {
+  count      = length(aws_iam_role.db_replica_monitoring)
   role       = aws_iam_role.db_replica_monitoring[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 variable "ops_role_split" {
+  type        = bool
+  default     = false
+  description = "S4-1: move the admin scale / launch / cost permissions off the api+worker task role into a separate role `<name>-ops` that the app assumes through STS (needs ops_role_external_id). DEPLOY THE API CODE WITH OPS_ROLE_ARN SUPPORT FIRST, then turn this on (docs/runbooks/aws-guardrails.md)."
+}
 variable "ops_role_external_id" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Shared secret the app must present when assuming the ops role (sts:ExternalId). 32+ random characters, kept in the Secrets Manager tfvars. It lives only in a Secrets Manager secret injected into the task as OPS_ROLE_EXTERNAL_ID, so stolen task credentials alone cannot assume the ops role."
   validation {
+    condition     = var.ops_role_external_id == "" || length(var.ops_role_external_id) >= 32
+    error_message = "ops_role_external_id must be empty (split off) or at least 32 characters."
+  }
+}
+
 data "aws_iam_policy_document" "ops_trust" {
+  count = var.ops_role_split ? 1 : 0
   statement {
+    actions = ["sts:AssumeRole"]
     principals {
       type        = "AWS"
       identifiers = [module.ecs.task_role_arn]
+    }
     condition {
       test     = "StringEquals"
       variable = "sts:ExternalId"
       values   = [var.ops_role_external_id]
+    }
+  }
+}
+
 resource "aws_iam_role" "ops" {
+  count                = var.ops_role_split ? 1 : 0
+  name                 = "${local.name}-ops"
+  assume_role_policy   = data.aws_iam_policy_document.ops_trust[0].json
   max_session_duration = 3600
+  tags                 = local.tags
+
   lifecycle {
     precondition {
       condition     = var.ops_role_external_id != ""
       error_message = "ops_role_split = true needs ops_role_external_id (32+ random characters)."
+    }
+  }
+}
+
 resource "aws_iam_role_policy" "ops" {
+  count  = var.ops_role_split ? 1 : 0
+  role   = aws_iam_role.ops[0].id
   policy = data.aws_iam_policy_document.ops.json
+}
+
 resource "aws_secretsmanager_secret" "ops_external_id" {
+  count                   = var.ops_role_split ? 1 : 0
+  name                    = "${local.name}/OPS_ROLE_EXTERNAL_ID"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
 resource "aws_secretsmanager_secret_version" "ops_external_id" {
+  count         = var.ops_role_split ? 1 : 0
   secret_id     = aws_secretsmanager_secret.ops_external_id[0].id
   secret_string = var.ops_role_external_id
 }
 
 resource "aws_iam_role_policy" "task" {
+  role   = module.ecs.task_role_name
+  policy = data.aws_iam_policy_document.task.json
 }
 
 module "budget" {
+  count                  = var.ephemeral ? 0 : 1 # the account budget is not per load test
+  source                 = "../budget"
+  name                   = local.name
   monthly_budget_usd     = var.monthly_budget_usd
   alert_emails           = var.alert_emails
   create_anomaly_monitor = var.create_anomaly_monitor
+  tags                   = local.tags
 
   forecast_thresholds          = var.budget_forecast_thresholds
   subscriber_sns_topic_arns    = var.budget_to_alerts_topic ? [module.monitoring.alerts_topic_arn] : []
@@ -1139,6 +1749,9 @@ module "budget" {
 }
 
 module "monitoring" {
+  source                        = "../monitoring"
+  name                          = local.name
+  alert_emails                  = var.alert_emails
   slack_webhook_url             = var.slack_webhook_url
   pagerduty_https_endpoint      = var.pagerduty_https_endpoint
   critical_email_too            = var.critical_email_too
@@ -1149,44 +1762,69 @@ module "monitoring" {
   api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
   admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
   deploy_rollback_on_slo        = var.deploy_rollback_on_slo
+  cluster_name                  = module.ecs.cluster_name
   api_service_name              = module.ecs.api_service_name
   worker_service_name           = module.ecs.worker_service_name
   redis_replication_group_id    = "${local.name}-redis"
   redis_replicas                = var.redis_replicas
   db_instance_id                = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections            = local.db_max_connections
   acm_certificate_arns          = [var.certificate_arn]
   api_log_group                 = module.ecs.log_group_names["api"]
   worker_log_group              = module.ecs.log_group_names["worker"]
   p95_target_ms                 = var.p95_target_ms
   runbook_base_url              = var.runbook_base_url
+  kms_key_arn                   = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check      = var.uptime_check
   min_daily_signups = var.min_daily_signups
+  tags              = local.tags
 }
 
 # Owner 2026-10-24: database size follows the load (up fast, down at night).
 module "db_autoscale" {
+  count            = local.db_autoscale_on ? 1 : 0
+  source           = "../db-autoscale"
+  name             = local.name
+  db_instance_id   = local.db_identifier
+  cluster_name     = module.ecs.cluster_name
   service_names    = [module.ecs.api_service_name, module.ecs.worker_service_name]
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  kms_key_arn      = module.kms.key_arn
   ladder           = var.db_autoscale_ladder
   min_class        = var.db_autoscale_min_class
   max_class        = var.db_autoscale_max_class
   mode             = var.db_autoscale_mode
   tuning           = var.db_autoscale_tuning
+  tags             = local.tags
 }
 
 # Owner 2026-10-24: Redis size follows the load too (modules/redis ignores
 # node_type changes, so terraform apply never undoes it).
 module "redis_autoscale" {
   # Not for a cluster-mode group (the Lambda would skip it anyway: cluster_mode).
+  count                = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on ? 1 : 0
+  source               = "../redis-autoscale"
+  name                 = local.name
   replication_group_id = "${local.name}-redis"
+  replicas             = var.redis_replicas
+  cluster_name         = module.ecs.cluster_name
+  service_names        = [module.ecs.api_service_name, module.ecs.worker_service_name]
+  alerts_topic_arn     = module.monitoring.alerts_topic_arn
+  kms_key_arn          = module.kms.key_arn
   min_node_type        = var.redis_autoscale_min_class
   max_node_type        = var.redis_autoscale_max_class
+  mode                 = var.redis_autoscale_mode
+  tuning               = var.redis_autoscale_tuning
+  tags                 = local.tags
   depends_on           = [module.redis]
 }
 
 check "redis_autoscale_needs_replica" {
   assert {
+    condition     = !var.redis_autoscale_enabled || var.redis_replicas > 0
+    error_message = "redis_autoscale_enabled needs redis_replicas >= 1: a single Redis node is replaced with minutes of downtime on every resize, so the autoscaler is not created."
   }
 }
 
@@ -1194,14 +1832,21 @@ check "redis_autoscale_needs_replica" {
 # cannot grow alone; the autoscaler pauses (and e-mails) while replicas exist.
 check "db_autoscale_vs_replicas" {
   assert {
+    condition     = !local.db_autoscale_on || var.growth.rds_read_replicas == 0
+    error_message = "db_autoscale_enabled and growth.rds_read_replicas > 0: the autoscaler will not resize a database that has replicas (it pauses and sends an e-mail). Size the primary and the replicas by hand, or set db_autoscale_enabled = false."
   }
 }
 
 # Security research #5 (2026-10-22), A6: CloudTrail, GuardDuty, Access
 # Analyzer, password policy; findings go to the alerts topic.
 module "security_baseline" {
+  count                = var.ephemeral ? 0 : 1 # CloudTrail / GuardDuty / Access Analyzer are account singletons
+  source               = "../security-baseline"
+  name                 = local.name
+  alerts_topic_arn     = module.monitoring.alerts_topic_arn
   alert_severity       = var.guardduty_alert_severity
   security_hub_enabled = var.security_hub_enabled
+  tags                 = local.tags
 
   securityhub_fsbp_enabled       = var.securityhub_fsbp_enabled
   inspector_enabled              = var.inspector_enabled
@@ -1218,35 +1863,71 @@ module "security_baseline" {
 # AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md).
 # AWS Config: recorder + 11 AWS-managed rules. ~$1-4/month, default off.
 module "aws_config" {
+  count            = var.ephemeral ? 0 : 1 # account singleton, like CloudTrail
+  source           = "../aws-config"
+  name             = local.name
+  enabled          = var.config_enabled
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  retention_days   = var.config_retention_days
+  tags             = local.tags
 }
 
 # Emergency administrator role (MFA, named principals, pages on use). Free.
 module "break_glass" {
+  count                  = var.ephemeral ? 0 : 1
+  source                 = "../break-glass"
+  name                   = local.name
+  enabled                = var.break_glass_enabled
   trusted_principal_arns = var.break_glass_principal_arns
+  critical_topic_arn     = module.monitoring.critical_topic_arn
+  tags                   = local.tags
 }
 
 # Athena over the CloudTrail bucket with saved investigation queries. ~$0 idle.
 module "cloudtrail_athena" {
+  count        = var.ephemeral || !var.cloudtrail_athena_enabled ? 0 : 1
+  source       = "../cloudtrail-athena"
+  name         = local.name
   trail_bucket = module.security_baseline[0].cloudtrail_bucket
   regions      = distinct([data.aws_region.current.name, "us-east-1"])
+  tags         = local.tags
 }
 
 variable "config_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Config recorder (6 resource types, daily) + 11 AWS-managed rules + alert on NON_COMPLIANT. About $1-4/month (approximate; $0.012 per daily item, $0.001 per rule evaluation)."
 }
 variable "config_retention_days" {
+  type    = number
+  default = 400
 }
 variable "break_glass_enabled" {
+  type        = bool
+  default     = false
+  description = "Emergency administrator role (MFA, named principals, pages the critical topic). Free. Needs break_glass_principal_arns."
 }
 variable "break_glass_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "Named IAM users/roles that may assume the break-glass role (with MFA)."
 }
 variable "cloudtrail_athena_enabled" {
+  type        = bool
+  default     = true
+  description = "Athena workgroup, Glue table (partition projection) and saved queries over the CloudTrail bucket. ~$0 idle; $5 per TB scanned."
 }
 variable "anomaly_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Also send each Cost Anomaly Detection finding to the alerts topic at once (free)."
 }
 
 resource "aws_route53_record" "hosts" {
   for_each = var.hosted_zone_id == null ? {} : { api = var.api_host, admin = var.admin_host }
   zone_id  = var.hosted_zone_id
+  name     = each.value
+  type     = "A"
   alias {
     name                   = module.alb.dns_name
     zone_id                = module.alb.zone_id
@@ -1306,8 +1987,12 @@ moved {
   to   = module.ses[0]
 }
 moved {
+  from = module.budget
+  to   = module.budget[0]
 }
 moved {
+  from = module.security_baseline
+  to   = module.security_baseline[0]
 }
 
 # --- values the load-test environment (envs/loadtest) and its workflow read ----
