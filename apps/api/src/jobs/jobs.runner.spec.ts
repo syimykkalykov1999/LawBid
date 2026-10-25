@@ -242,8 +242,9 @@ describe('JobsRunner', () => {
     // Owner 2026-10-22 (SECURITY_TODO): + messages.reencrypt (every 5 min);
     // + ops.status-watchdog (every minute).
     // Owner 2026-10-23: + admin.summaries (every 2 minutes).
+    // Shard-ready step 7: + outbox.sweep (every minute).
     // Owner 2026-10-24: + search.index (every minute).
-    expect(upserts).toHaveLength(64);
+    expect(upserts).toHaveLength(65);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

@@ -146,6 +146,8 @@ export const CRON_JOBS = {
   /** Owner 2026-10-23 (admin economy pass): the admin's heavy aggregates
    * (dashboard, billing overview, trust scan) counted once into Redis. */
   adminSummaries: 'admin.summaries',
+  // Shard-ready step 7: the cross-family outbox relay.
+  outboxSweep: 'outbox.sweep',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -239,6 +241,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
+  // Every minute: applies cross-family events a request could not (retries
+  // with backoff, dead letter); a no-op while there is one database.
+  { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

@@ -20,7 +20,15 @@ import {
 } from '../sharding/shard-databases';
 import { delegateInfo } from '../sharding/shard-delegates';
 import { PRIMARY_DB, ShardMapRow, ShardRouter } from '../sharding/shard-router';
+import { crossFamilyStitchExtension } from '../sharding/cross-family-stitch';
+import {
+  canScatter,
+  mergeScatter,
+  perDatabaseArgs,
+} from '../sharding/scatter-gather';
+import { shardFromArgs } from '../sharding/shard-args';
 import { shardStats } from '../sharding/shard-stats';
+import { withGlobalFacade } from '../sharding/tx-global-facade';
 
 /**
  * The application's database client. Every query made through it (and
@@ -77,8 +85,8 @@ function shardMapTtlMs(
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-export function extend(client: PrismaClient) {
-  return client
+export function extend(client: PrismaClient, primary?: () => unknown) {
+  const base = client
     .$extends(softDeleteExtension())
     .$extends(shardExtension(parentShardLookup(client)))
     .$extends(
@@ -86,6 +94,9 @@ export function extend(client: PrismaClient) {
         slowLog.warn(`${q.operation} took ${q.ms} ms`),
       ),
     );
+  // Shard-ready step 6: a client of a NON-primary database loads the global
+  // rows an include asks for (user, practice area ...) from the primary one.
+  return primary ? base.$extends(crossFamilyStitchExtension(primary)) : base;
 }
 
 /** `postgresql://u@h:26257/lawbid?x=y` → `postgresql://u@h:26257/lawbid_demo?x=y` */
@@ -167,7 +178,7 @@ export class PrismaService
       const raw = new PrismaClient({
         datasourceUrl: withPoolDefaults(url, process.env, 'DB_POOL_SIZE_SHARD'),
       });
-      const ext = extend(raw) as unknown as PrismaService;
+      const ext = extend(raw, () => real) as unknown as PrismaService;
       shardClients.set(key, { raw, ext });
       return ext;
     };
@@ -204,6 +215,66 @@ export class PrismaService
       }
       return byContext();
     };
+
+    const multiDb = (): boolean => Object.keys(shardUrls).length > 0;
+
+    /** A delegate whose every operation picks its database from its own
+     * arguments, falling back to the context / primary (see shard-args.ts). */
+    const argRouted = (prop: string, model: string): unknown =>
+      new Proxy(
+        {},
+        {
+          get(_t, op) {
+            if (typeof op !== 'string') return undefined;
+            return (args?: unknown) => {
+              const shard = shardFromArgs(model, op, args);
+              // Names no shard: ask every database that holds one and merge
+              // (scatter-gather, scatter-gather.ts); anything not exactly
+              // mergeable keeps the context / primary routing.
+              if (shard === undefined && canScatter(op, args)) {
+                const keys = router.physicalKeys();
+                if (keys.length === 1 && keys[0] !== PRIMARY_DB) {
+                  // Every shard lives on one non-primary database.
+                  const c = clientFor(keys[0]) as unknown as Record<
+                    string,
+                    Record<string, unknown>
+                  >;
+                  return (c[prop][op] as (a?: unknown) => unknown).call(
+                    c[prop],
+                    args,
+                  );
+                }
+                if (keys.length > 1) {
+                  shardStats.scatter(model);
+                  const per = perDatabaseArgs(op, args);
+                  return Promise.all(
+                    keys.map((k) => {
+                      const c = clientFor(k) as unknown as Record<
+                        string,
+                        Record<string, unknown>
+                      >;
+                      return (c[prop][op] as (a?: unknown) => unknown).call(
+                        c[prop],
+                        per,
+                      );
+                    }),
+                  ).then((results) => mergeScatter(op, args, results));
+                }
+              }
+              const client = (shard === undefined
+                ? pick(prop)
+                : clientFor(router.physicalFor(shard))) as unknown as Record<
+                string,
+                Record<string, unknown>
+              >;
+              return (client[prop][op] as (a?: unknown) => unknown).call(
+                client[prop],
+                args,
+              );
+            };
+          },
+        },
+      );
 
     /** Explicit routing: a physical database, or the demo one in demo mode. */
     const explicit = (key: () => string): PrismaService =>
@@ -279,8 +350,50 @@ export class PrismaService
           return (userId: string) => explicit(() => router.forUser(userId));
         }
         if (prop === 'global') return () => explicit(() => PRIMARY_DB);
+        // Shard-ready step 4/7: with several physical databases, a query on a
+        // sharded model that has no strong shard context (a job, a webhook,
+        // a socket packet, a script) is routed by the entity named in its
+        // own arguments (shard-args.ts); nothing named = the old fallback.
+        if (typeof prop === 'string' && multiDb() && !demoContext.isDemo()) {
+          const info = delegateInfo(prop);
+          const ctx = shardContext.current();
+          if (
+            info &&
+            info.family !== 'global' &&
+            (!ctx || ctx.source === 'auth' || ctx.source === 'socket')
+          ) {
+            return argRouted(prop, info.model);
+          }
+        }
         const client = pick(prop) as unknown as Record<PropertyKey, unknown>;
         const value = client[prop];
+        // Shard-ready step 7: a transaction on a NON-primary database gets a
+        // `tx` whose global-family delegates answer from the primary
+        // database (see tx-global-facade.ts). One database: unchanged.
+        if (
+          prop === '$transaction' &&
+          typeof value === 'function' &&
+          (client as unknown) !== (real as unknown) &&
+          !demoContext.isDemo()
+        ) {
+          return (arg: unknown, ...rest: unknown[]) =>
+            typeof arg === 'function'
+              ? (value as (...a: unknown[]) => unknown).call(
+                  client,
+                  (tx: object) =>
+                    (arg as (t: object) => unknown)(
+                      withGlobalFacade(tx, real, (model, op) =>
+                        shardStats.globalWriteInShardTx(model, op),
+                      ),
+                    ),
+                  ...rest,
+                )
+              : (value as (...a: unknown[]) => unknown).call(
+                  client,
+                  arg,
+                  ...rest,
+                );
+        }
         // Jest spies must stay as they are: binding would hide .mockXxx().
         if (
           typeof value === 'function' &&

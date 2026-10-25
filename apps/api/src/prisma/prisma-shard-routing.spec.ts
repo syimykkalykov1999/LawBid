@@ -59,6 +59,8 @@ describe('PrismaService shard routing (shard-ready steps 3-4)', () => {
         byModel: { Case: 1 },
         weakTotal: 1,
         weakByModel: { Case: 1 },
+        globalWrites: {},
+        scatters: {},
       });
     });
 
@@ -96,7 +98,6 @@ describe('PrismaService shard routing (shard-ready steps 3-4)', () => {
     it('sharded models follow the context, global models stay on primary', () => {
       const primary = svc.global();
       const db1 = svc.forShard(1);
-      expect(svc.case).toBe(primary.case); // no context
       shardContext.run(1, () => {
         expect(svc.case).toBe(db1.case);
         expect(svc.user).toBe(primary.user);
@@ -105,6 +106,67 @@ describe('PrismaService shard routing (shard-ready steps 3-4)', () => {
       });
       shardContext.run(2, () => expect(svc.case).toBe(primary.case));
       shardContext.runOnPhysical('db1', () => expect(svc.post).toBe(db1.post));
+    });
+
+    it('without a context a query is routed by the entity it names, else scattered', async () => {
+      const primary = svc.global();
+      const db1 = svc.forShard(1);
+      const onPrimary = jest
+        .spyOn(primary.case, 'findMany')
+        .mockResolvedValue([{ id: 'p', n: 2 }] as never);
+      const onDb1 = jest
+        .spyOn(db1.case, 'findMany')
+        .mockResolvedValue([{ id: 'd', n: 1 }] as never);
+      // client_id ...03 hashes to shard 3 (db1), ...02 to shard 2 (primary)
+      await svc.case.findMany({
+        where: { client_id: '00000000-0000-4000-8000-000000000003' },
+      });
+      expect([onPrimary.mock.calls.length, onDb1.mock.calls.length]).toEqual([
+        0, 1,
+      ]);
+      await svc.case.findMany({
+        where: { client_id: '00000000-0000-4000-8000-000000000002' },
+      });
+      expect([onPrimary.mock.calls.length, onDb1.mock.calls.length]).toEqual([
+        1, 1,
+      ]);
+      // Names nothing: both databases, merged and re-sorted.
+      const merged = await svc.case.findMany({ orderBy: { id: 'asc' } });
+      expect([onPrimary.mock.calls.length, onDb1.mock.calls.length]).toEqual([
+        2, 2,
+      ]);
+      expect(merged).toEqual([
+        { id: 'd', n: 1 },
+        { id: 'p', n: 2 },
+      ]);
+      onPrimary.mockRestore();
+      onDb1.mockRestore();
+    });
+
+    it('a global-family write inside a transaction on db1 goes to primary', async () => {
+      const primary = svc.global();
+      const db1 = svc.forShard(1);
+      const seen: string[] = [];
+      jest.spyOn(db1 as never, '$transaction').mockImplementation(((
+        fn: (tx: unknown) => unknown,
+      ) =>
+        fn({
+          case: { tag: 'db1-case' },
+          userConsent: { tag: 'db1' },
+        })) as never);
+      jest.spyOn(primary.userConsent, 'create').mockImplementation((() => {
+        seen.push('primary.userConsent.create');
+        return Promise.resolve({});
+      }) as never);
+      await shardContext.run(1, () =>
+        svc.$transaction(async (tx) => {
+          expect((tx as unknown as { case: { tag: string } }).case.tag).toBe(
+            'db1-case',
+          );
+          await tx.userConsent.create({ data: {} as never });
+        }),
+      );
+      expect(seen).toEqual(['primary.userConsent.create']);
     });
 
     it('demo mode wins over every shard', () => {

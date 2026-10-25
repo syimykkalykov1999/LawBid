@@ -32,6 +32,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
@@ -139,6 +140,8 @@ export class CronProcessor {
     @Optional() private readonly accountDeletion?: AccountDeletionRunner,
     // Owner 2026-10-23: `admin.summaries`.
     @Optional() private readonly adminSummaries?: AdminSummariesJob,
+    // Shard-ready step 7: `outbox.sweep`.
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
   ) {}
@@ -213,6 +216,8 @@ export class CronProcessor {
         return this.searchIndex?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
+      case CRON_JOBS.outboxSweep:
+        return this.outbox?.sweep() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:

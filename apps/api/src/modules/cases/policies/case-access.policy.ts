@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { caseNotFound } from '../domain/case-state-machine';
+import { readsAreSplit } from '../../../sharding/split-reads';
 
 export interface CaseViewer {
   userId: string;
@@ -53,6 +54,14 @@ export const GENERAL_PRACTICE_CODES = [
 
 type Db = Pick<Prisma.TransactionClient, 'case' | '$queryRaw'>;
 
+interface DecideRow {
+  participant: boolean;
+  visible: boolean;
+  browsable: boolean;
+  in_practice: boolean;
+  in_licensed_state: boolean;
+}
+
 /**
  * Deny-by-default access to a single case (.cursorrules: "Доступ к
  * объектам только через policy (CaseAccessPolicy и др.). Deny by
@@ -86,6 +95,13 @@ export class CaseAccessPolicy {
     // exception), constrained by the case's primary key. The feed (stage
     // 4.3) uses the index-friendly list shape (visibleQuery in
     // test/db-roles-indexes.e2e-spec.ts).
+    // Shard-ready step 6: with several databases the statement below (it
+    // joins cases with attorney / block / practice tables) is answered by
+    // one query per family instead.
+    if (readsAreSplit(this.prisma)) {
+      const split = await this.decideRowSplit(a, caseId, db);
+      return split ? this.accessOf(split) : null;
+    }
     const rows = await db.$queryRaw<
       {
         participant: boolean;
@@ -146,6 +162,10 @@ export class CaseAccessPolicy {
       WHERE c.id = ${caseId}::UUID AND c.deleted_at IS NULL`;
     const row = rows[0];
     if (!row) return null;
+    return this.accessOf(row);
+  }
+
+  private accessOf(row: DecideRow): CaseAccess | null {
     const inPractice = row.in_practice;
     const inLicensedState = row.in_licensed_state;
     if (row.participant) {
@@ -173,6 +193,98 @@ export class CaseAccessPolicy {
       };
     }
     return null;
+  }
+
+  /**
+   * The same five answers as the single statement of decide(), computed
+   * from one read of the case family (the case, its bids / conversations /
+   * states / extra topics) and a few reads of the global family (profile,
+   * licences, blocks, practice areas). Identical results: both paths are
+   * exercised by the same e2e suites (SHARD_SPLIT_READS=on).
+   */
+  private async decideRowSplit(
+    a: string,
+    caseId: string,
+    db: Db,
+  ): Promise<DecideRow | null> {
+    const c = await db.case.findFirst({
+      where: { id: caseId, deleted_at: null },
+      select: {
+        status: true,
+        client_id: true,
+        practice_area_id: true,
+        states: { select: { state_code: true } },
+        extra_practices: { select: { practice_area_id: true } },
+      },
+    });
+    if (!c) return null;
+    const stateCodes = c.states.map((x) => x.state_code);
+    const caseAreaIds = [
+      c.practice_area_id,
+      ...c.extra_practices.map((x) => x.practice_area_id),
+    ];
+    const [bid, conv, verified, licences, block, mine, pa, general] =
+      await Promise.all([
+        this.prisma.bid.findFirst({
+          where: { case_id: caseId, attorney_id: a },
+          select: { id: true },
+        }),
+        this.prisma.conversation.findFirst({
+          where: { case_id: caseId, attorney_id: a },
+          select: { id: true },
+        }),
+        this.prisma.attorneyProfile.findFirst({
+          where: { user_id: a, verification_status: 'verified' },
+          select: { user_id: true },
+        }),
+        stateCodes.length
+          ? this.prisma.attorneyLicense.findFirst({
+              where: {
+                attorney_id: a,
+                license_status: 'verified',
+                state_code: { in: stateCodes },
+              },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
+        this.prisma.userBlock.findFirst({
+          where: {
+            OR: [
+              { blocker_id: a, blocked_id: c.client_id },
+              { blocker_id: c.client_id, blocked_id: a },
+            ],
+          },
+          select: { blocker_id: true },
+        }),
+        this.prisma.attorneyPracticeArea.findMany({
+          where: { attorney_id: a },
+          select: { practice_area_id: true },
+        }),
+        this.prisma.practiceArea.findUnique({
+          where: { id: c.practice_area_id },
+          select: { code: true },
+        }),
+        this.prisma.practiceArea.findMany({
+          where: { code: { in: [...GENERAL_PRACTICE_CODES] } },
+          select: { id: true },
+        }),
+      ]);
+    const open = c.status === 'open';
+    const isVerified = verified !== null;
+    const blocked = block !== null;
+    const mineIds = new Set(mine.map((m) => m.practice_area_id));
+    const generalIds = new Set(general.map((g) => g.id));
+    const inPractice =
+      caseAreaIds.some((id) => mineIds.has(id)) ||
+      (pa?.code === NOT_SURE_OR_OTHER_CODE &&
+        [...mineIds].some((id) => generalIds.has(id)));
+    return {
+      participant: bid !== null || conv !== null,
+      visible: open && isVerified && licences !== null && !blocked,
+      browsable: open && isVerified && !blocked,
+      in_practice: inPractice,
+      in_licensed_state: licences !== null,
+    };
   }
 
   /** Batched decide() for attorney lists (saved cases): the ids among

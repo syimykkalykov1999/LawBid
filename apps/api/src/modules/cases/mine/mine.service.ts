@@ -47,6 +47,7 @@ import {
   type SavedCaseItemDto,
   type WorkItemDto,
 } from './dto/mine.dto';
+import { userDirectory } from '../../../sharding/user-directory';
 
 const FINISHED_BIDS: BidStatus[] = [
   'accepted',
@@ -311,13 +312,7 @@ export class MineService {
               practice_area: {
                 select: { name_en: true, i18n_key: true, code: true },
               },
-              client: {
-                select: {
-                  first_name: true,
-                  last_name: true,
-                  avatar_file_id: true,
-                },
-              },
+              client_id: true,
             },
           },
         },
@@ -339,9 +334,18 @@ export class MineService {
     );
     // Owner 2026-10-15: the client's small avatar on the card — shown
     // under the same rule as the name (locked without a subscription).
+    // Shard-ready step 6: the client's name card from the user directory.
+    const clients = await userDirectory(this.prisma).select(
+      page.map((b) => b.accepted_for_case?.client_id),
+      { first_name: true, last_name: true, avatar_file_id: true },
+    );
     const avatars = active
       ? await this.files.avatarUrlsMany(
-          page.map((b) => b.accepted_for_case?.client.avatar_file_id ?? null),
+          page.map(
+            (b) =>
+              clients.get(b.accepted_for_case?.client_id ?? '')
+                ?.avatar_file_id ?? null,
+          ),
         )
       : new Map<string, { url256: string | null }>();
     return {
@@ -360,6 +364,7 @@ export class MineService {
       items: page.flatMap((b) => {
         const k = b.accepted_for_case;
         if (!k) return [];
+        const client = clients.get(k.client_id)!;
         return [
           {
             caseId: k.id,
@@ -372,12 +377,12 @@ export class MineService {
             practiceAreaI18nKey: k.practice_area.i18n_key,
             practiceAreaCode: k.practice_area.code,
             clientName: active
-              ? [k.client.first_name, k.client.last_name]
+              ? [client.first_name, client.last_name]
                   .filter(Boolean)
                   .join(' ') || null
               : null,
-            clientAvatarUrl: k.client.avatar_file_id
-              ? (avatars.get(k.client.avatar_file_id)?.url256 ?? null)
+            clientAvatarUrl: client.avatar_file_id
+              ? (avatars.get(client.avatar_file_id)?.url256 ?? null)
               : null,
             feeType: b.fee_type,
             amountCents: b.amount_cents,

@@ -64,6 +64,16 @@ function setup() {
     case: { findMany: jest.fn((): Promise<unknown[]> => Promise.resolve([])) },
     userBlock: { findFirst: jest.fn(() => Promise.resolve(null)) },
     user: {
+      // Shard-ready step 6: names come from the user directory (one batch).
+      findMany: jest.fn((args: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(
+          args.where.id.in.map((id) => ({
+            id,
+            first_name: 'Anna',
+            last_name: 'Kowalski',
+          })),
+        ),
+      ),
       findUnique: jest.fn(() =>
         Promise.resolve({
           status: 'active',

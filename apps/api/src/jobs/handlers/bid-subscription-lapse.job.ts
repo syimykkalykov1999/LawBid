@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BidsService } from '../../modules/bids/bids.service';
 import { SubscriptionAccessService } from '../../modules/subscriptions/subscription-access.service';
@@ -52,28 +53,32 @@ export class BidSubscriptionLapseJob {
       attorneysChecked: 0,
       bidsWithdrawn: 0,
     };
-    let cursor: string | undefined;
-    for (;;) {
-      const rows = await this.prisma.bid.groupBy({
-        by: ['attorney_id'],
-        where: {
-          status: 'active',
-          ...(cursor ? { attorney_id: { gt: cursor } } : {}),
-        },
-        orderBy: { attorney_id: 'asc' },
-        take: BID_SUBSCRIPTION_LAPSE_BATCH,
-      });
-      for (const row of rows) {
-        result.attorneysChecked += 1;
-        if (await this.subscriptions.isActive(row.attorney_id)) continue;
-        const withdrawn = await this.bids.withdrawActiveBidsForAttorney(
-          row.attorney_id,
-        );
-        result.bidsWithdrawn += withdrawn;
+    // Shard-ready step 8: attorneys with active bids are found database by
+    // database (the sweep names no case); the withdraw itself covers all.
+    await forEachDatabase(this.prisma, async () => {
+      let cursor: string | undefined;
+      for (;;) {
+        const rows = await this.prisma.bid.groupBy({
+          by: ['attorney_id'],
+          where: {
+            status: 'active',
+            ...(cursor ? { attorney_id: { gt: cursor } } : {}),
+          },
+          orderBy: { attorney_id: 'asc' },
+          take: BID_SUBSCRIPTION_LAPSE_BATCH,
+        });
+        for (const row of rows) {
+          result.attorneysChecked += 1;
+          if (await this.subscriptions.isActive(row.attorney_id)) continue;
+          const withdrawn = await this.bids.withdrawActiveBidsForAttorney(
+            row.attorney_id,
+          );
+          result.bidsWithdrawn += withdrawn;
+        }
+        if (rows.length < BID_SUBSCRIPTION_LAPSE_BATCH) break;
+        cursor = rows[rows.length - 1].attorney_id;
       }
-      if (rows.length < BID_SUBSCRIPTION_LAPSE_BATCH) break;
-      cursor = rows[rows.length - 1].attorney_id;
-    }
+    });
     this.logger.info({ ...result }, 'bid subscription lapse sweep finished');
     return result;
   }
