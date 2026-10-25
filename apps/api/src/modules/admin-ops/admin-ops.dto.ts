@@ -24,6 +24,9 @@ export class HealthItemDto {
       'r2',
       'http',
       'realtime',
+      'breakers',
+      'cloudflare_usage',
+      'bunny_usage',
     ],
   })
   key!: string;

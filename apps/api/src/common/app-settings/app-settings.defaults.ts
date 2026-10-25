@@ -765,6 +765,20 @@ export const OWNER_OPS_SETTINGS = {
   'ops.auto_scale_down_on_budget': true,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
+  /** Batch C item 14 (2026-10-24): how long a ranked search result list
+   * (people, attorneys, cases, posts) is shared by everyone asking the same
+   * query. Short = fresher, 0 would be uncached; keep 30–60. */
+  'search.ranked_cache_ttl_sec': 60,
+  /** Batch C items 11 and 16 (2026-10-24): outside usage alarms, GB per
+   * month; 0 = that alarm is off. Cloudflare Realtime (TURN + SFU) is free
+   * up to 1000 GB/month, then $0.05/GB. */
+  'usage.cloudflare_egress_warn_gb': 700,
+  'usage.cloudflare_egress_crit_gb': 950,
+  /** Bunny Stream: CDN traffic this month and stored video, GB. */
+  'usage.bunny_bandwidth_warn_gb': 1000,
+  'usage.bunny_bandwidth_crit_gb': 2000,
+  'usage.bunny_storage_warn_gb': 200,
+  'usage.bunny_storage_crit_gb': 500,
   /** Owner 2026-10-16 «Экономика»: third-party spend may be at most this
    * percent of the last 30 days' revenue … */
   'economy.max_spend_percent': 50,

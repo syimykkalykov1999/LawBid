@@ -13,7 +13,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import { AppConfigService } from '../feature-flags/services/app-config.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -57,7 +57,16 @@ export class TranslationService {
     @Optional() private readonly entitlements?: EntitlementsService,
     // Audit 2026-10-05: the global budget guard for paid providers.
     @Optional() private readonly costGuard?: CostGuardService,
+    // Batch C item 9: translated texts are a pure cache → cache Redis; the
+    // daily quota counter (money) stays on the main one.
+    @Optional()
+    @Inject(REDIS_CACHE_CLIENT)
+    private readonly cacheRedis?: Redis,
   ) {}
+
+  private get cache(): Redis {
+    return this.cacheRedis ?? this.redis;
+  }
 
   /** The Google key when [zone] may be translated, else null. */
   async apiKey(zone: TranslateZone): Promise<string | null> {
@@ -97,7 +106,7 @@ export class TranslationService {
     // The text's hash is part of the key: an edited post is re-translated.
     const hash = createHash('sha256').update(text).digest('hex').slice(0, 12);
     const cacheKey = `tr:${cacheId}:${hash}:${target}`;
-    const hit = await this.redis.get(cacheKey);
+    const hit = await this.cache.get(cacheKey);
     if (hit) return JSON.parse(hit) as TextTranslation;
 
     const day = new Date().toISOString().slice(0, 10);
@@ -133,7 +142,7 @@ export class TranslationService {
     if ((await this.redis.incr(quotaKey)) === 1) {
       await this.redis.expire(quotaKey, 26 * 3600);
     }
-    await this.redis.set(cacheKey, JSON.stringify(out), 'EX', CACHE_TTL_S);
+    await this.cache.set(cacheKey, JSON.stringify(out), 'EX', CACHE_TTL_S);
     return out;
   }
 

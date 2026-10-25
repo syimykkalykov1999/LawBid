@@ -1127,3 +1127,114 @@ resource "aws_cloudwatch_metric_alarm" "nat_bytes" {
 }
 
 output "critical_topic_arn" { value = aws_sns_topic.critical.arn }
+
+# --- outside usage that costs money without a hard limit ---------------------
+# Batch C items 11 and 16 (2026-10-24): the worker's daily `ops.usage-poll`
+# job (src/jobs/handlers/usage-poll.job.ts) reads Cloudflare Realtime TURN
+# egress (GraphQL callsTurnUsageAdaptiveGroups; free 1000 GB/month, shared
+# with SFU) and Bunny traffic / storage, logs the numbers as metrics and logs
+# `alert: usage_*` lines when a threshold set in the admin (Settings,
+# usage.*) is passed. Thresholds live in the admin (one place); these filters
+# only turn the log lines into mails (warn) and a page (crit).
+resource "aws_cloudwatch_log_metric_filter" "cf_realtime_egress" {
+  name           = "${var.name}-cf-realtime-egress-gb"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"cf_realtime_egress_gb\" }"
+  metric_transformation {
+    name      = "CloudflareRealtimeEgressGb"
+    namespace = local.ns
+    value     = "$.gb"
+    unit      = "Gigabytes"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "bunny_usage" {
+  for_each = {
+    BunnyBandwidthGb = "bandwidthGb"
+    BunnyStorageGb   = "storageGb"
+  }
+  name           = "${var.name}-bunny-${lower(each.value)}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"bunny_usage\" }"
+  metric_transformation {
+    name      = each.key
+    namespace = local.ns
+    value     = "$.${each.value}"
+    unit      = "Gigabytes"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "usage_alert" {
+  for_each = {
+    usage_cf_warn              = "UsageCfWarn"
+    usage_cf_crit              = "UsageCfCrit"
+    usage_bunny_bandwidth_warn = "UsageBunnyBandwidthWarn"
+    usage_bunny_bandwidth_crit = "UsageBunnyBandwidthCrit"
+    usage_bunny_storage_warn   = "UsageBunnyStorageWarn"
+    usage_bunny_storage_crit   = "UsageBunnyStorageCrit"
+    usage_poll_failed          = "UsagePollFailed"
+  }
+  name           = "${var.name}-${replace(each.key, "_", "-")}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.alert = \"${each.key}\" }"
+  metric_transformation {
+    name      = each.value
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "usage_alert" {
+  for_each = {
+    usage_cf_warn = {
+      metric = "UsageCfWarn"
+      page   = false
+      text   = "Звонки Cloudflare за месяц дошли до порога предупреждения (по умолчанию 700 ГБ из бесплатных 1000). Что делать: ничего срочного; дальше 0,05 $ за ГБ. Порог меняется в админке → Настройки (usage.cloudflare_egress_warn_gb). EN: Cloudflare Realtime egress passed the warning threshold."
+    }
+    usage_cf_crit = {
+      metric = "UsageCfCrit"
+      page   = true
+      text   = "Звонки Cloudflare за месяц дошли до 950 ГБ из бесплатных 1000, дальше платно (0,05 $ за ГБ). Что делать: напишите Claude «трафик звонков», он посмотрит, кто тратит. EN: Cloudflare Realtime egress is about to leave the free 1000 GB."
+    }
+    usage_bunny_bandwidth_warn = {
+      metric = "UsageBunnyBandwidthWarn"
+      page   = false
+      text   = "Трафик видео Bunny за месяц превысил порог предупреждения. Пороги: админка → Настройки (usage.bunny_bandwidth_warn_gb). EN: Bunny CDN traffic passed the warning threshold."
+    }
+    usage_bunny_bandwidth_crit = {
+      metric = "UsageBunnyBandwidthCrit"
+      page   = true
+      text   = "Трафик видео Bunny за месяц превысил срочный порог. Что делать: напишите Claude «трафик видео». Сразу можно снизить rate_limit.video_upload_per_day в админке. EN: Bunny CDN traffic passed the urgent threshold."
+    }
+    usage_bunny_storage_warn = {
+      metric = "UsageBunnyStorageWarn"
+      page   = false
+      text   = "Хранилище видео Bunny выросло выше порога предупреждения (usage.bunny_storage_warn_gb). EN: Bunny storage passed the warning threshold."
+    }
+    usage_bunny_storage_crit = {
+      metric = "UsageBunnyStorageCrit"
+      page   = true
+      text   = "Хранилище видео Bunny выросло выше срочного порога (usage.bunny_storage_crit_gb). Что делать: напишите Claude «хранилище видео». EN: Bunny storage passed the urgent threshold."
+    }
+    usage_poll_failed = {
+      metric = "UsagePollFailed"
+      page   = false
+      text   = "Ежедневная проверка расхода Cloudflare/Bunny не смогла получить данные (ключ устарел или сервис не ответил). Что делать: админка → Безопасность → Ключи и сервисы, проверьте токен аналитики Cloudflare и ключ аккаунта Bunny. EN: the daily usage poll failed."
+    }
+  }
+  alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
+  alarm_description   = "LawBid: ${each.value.text}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 86400
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = each.value.metric
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = each.value.page ? local.page : local.ops
+  tags                = var.tags
+
+  depends_on = [aws_cloudwatch_log_metric_filter.usage_alert]
+}

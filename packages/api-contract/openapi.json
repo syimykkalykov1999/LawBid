@@ -147682,7 +147682,10 @@
               "cloudflare_sfu",
               "r2",
               "http",
-              "realtime"
+              "realtime",
+              "breakers",
+              "cloudflare_usage",
+              "bunny_usage"
             ]
           },
           "status": {
