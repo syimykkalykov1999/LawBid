@@ -175,6 +175,8 @@ function Archive() {
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-medium text-heading">Архив рекламы (последние версии)</h3>
+        {/* A file download from a route handler, not an app page. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a className="text-sm underline" href="/api/proxy/admin/attorney-ads/archive/export">Скачать CSV</a>
       </div>
       <Table>
