@@ -15,8 +15,8 @@ OUT=${OUT:-/tmp/hash-bench}
 SECS=${BENCH_SECONDS:-10}
 PARTMIG=20261029300000_partition_messages_notifications
 mkdir -p "$OUT"
-docker rm -f "$NAME" >/dev/null 2>&1 || true
-[ -n "${BENCH_SEED_ONLY:-}" ] || trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
+docker rm -fv "$NAME" >/dev/null 2>&1 || true
+[ -n "${BENCH_SEED_ONLY:-}" ] || trap 'docker rm -fv "$NAME" >/dev/null 2>&1 || true' EXIT
 docker run -d --name "$NAME" -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=b -p "$PORT:5432" postgres:16 \
   -c shared_buffers=1GB -c max_wal_size=8GB -c fsync=off -c synchronous_commit=off -c work_mem=32MB >/dev/null
 until docker exec "$NAME" pg_isready -U postgres -d b >/dev/null 2>&1; do sleep 1; done
@@ -27,7 +27,7 @@ psql_ -c "CREATE TABLE _prisma_migrations (id text)"
 for d in $(ls "$MIG" | grep -v migration_lock | grep -v "$PARTMIG"); do
   cat "$MIG/$d/migration.sql"; echo
 done | psql_ >/dev/null
-psql_ < "$HERE/hash-partition-seed.sql"
+psql_ -v scale="${BENCH_SCALE:-1}" < "$HERE/hash-partition-seed.sql"
 if [ -n "${BENCH_SEED_ONLY:-}" ]; then
   # Keep the container with a template copy of the seeded (flat) database for experiments.
   docker exec -i "$NAME" psql -U postgres -d postgres -c "CREATE DATABASE b_flat TEMPLATE b"

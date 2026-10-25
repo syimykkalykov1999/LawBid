@@ -1,5 +1,6 @@
 -- Seed for the hash-partition benchmark (docs/architecture/TABLE_PARTITIONING_READY.md):
 -- 4 000 users, 20 000 chats, 2 000 000 messages, 2 000 000 notifications.
+-- psql variable `scale` divides the messages and notifications (default 1).
 -- Run on a throw-away database only (scripts/perf/hash-partition-bench.sh).
 -- Foreign keys are skipped while seeding (the generated ids are consistent);
 -- the migration re-validates them when it rebuilds the tables.
@@ -27,7 +28,7 @@ UNION ALL SELECT c.id, c.client_id, now() FROM conversations c;
 -- about 100 messages per chat (50..150), spread over a year
 CREATE UNLOGGED TABLE _seed_msg AS
 SELECT row_number() OVER () AS n, c.cn, k
-  FROM (SELECT g AS cn, 50 + (g * 7919 % 101) AS cnt FROM generate_series(1, 20000) g) c,
+  FROM (SELECT g AS cn, (50 + (g * 7919 % 101)) / :scale AS cnt FROM generate_series(1, 20000) g) c,
        LATERAL generate_series(1, c.cnt) k;
 DELETE FROM _seed_msg WHERE n > 2000000;
 
@@ -78,7 +79,7 @@ SELECT gen_random_uuid(),
        now() - (g % 365000) * interval '86 seconds',
        now() - (g % 365000) * interval '86 seconds',
        CASE WHEN g % 33 = 0 THEN 'k-' || g END
-  FROM generate_series(1, 2000000) g;
+  FROM generate_series(1, 2000000 / :scale) g;
 
 RESET session_replication_role;
 

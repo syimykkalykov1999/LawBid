@@ -718,6 +718,7 @@ erDiagram
   saved_chat_messages {
     String user_id PK,FK
     String message_id PK,FK
+    String conversation_id FK
     enum_SavedChatKind kind
     DateTime created_at
     Int shard_id
@@ -812,7 +813,7 @@ erDiagram
   }
   messages {
     String id PK
-    String conversation_id FK
+    String conversation_id PK,FK
     String sender_id FK "nullable"
     enum_MessageType type
     String body_original
@@ -840,12 +841,14 @@ erDiagram
   }
   message_hidden {
     String message_id PK,FK
+    String conversation_id FK
     String user_id PK
     DateTime created_at
     Int shard_id
   }
   message_reactions {
     String message_id PK,FK
+    String conversation_id FK
     String user_id PK
     String emoji
     DateTime created_at
@@ -854,13 +857,14 @@ erDiagram
   message_edits {
     String id PK
     String message_id FK
+    String conversation_id FK
     String body_original
     DateTime edited_at
     Int shard_id
   }
   message_pins {
     String message_id PK,FK
-    String conversation_id
+    String conversation_id FK
     String pinned_by
     DateTime pinned_at
     Int shard_id
@@ -918,7 +922,7 @@ erDiagram
   }
   chat_group_messages {
     String id PK
-    String group_id FK
+    String group_id PK,FK
     String sender_id FK "nullable"
     enum_GroupMessageType type
     String body
@@ -1005,7 +1009,7 @@ erDiagram
   }
   notifications {
     String id PK
-    String user_id FK
+    String user_id PK,FK
     enum_NotificationType type
     enum_NotificationCategory category
     Json payload
@@ -3192,7 +3196,7 @@ erDiagram
   user_blocks }o--|| users : "blocked_id"
   saved_items }o--|| users : "user_id"
   saved_chat_messages }o--|| users : "user_id"
-  saved_chat_messages }o--|| messages : "message_id"
+  saved_chat_messages }o--|| messages : "conversation_id, message_id"
   conversations }o--o| cases : "case_id"
   conversations }o--|| users : "attorney_id"
   conversations }o--|| users : "client_id"
@@ -3214,11 +3218,11 @@ erDiagram
   messages }o--o| files : "file_id"
   messages }o--o| stickers : "sticker_id"
   messages }o--o| gift_sends : "gift_send_id"
-  messages }o--o| messages : "reply_to_id"
-  message_hidden }o--|| messages : "message_id"
-  message_reactions }o--|| messages : "message_id"
-  message_edits }o--|| messages : "message_id"
-  message_pins |o--|| messages : "message_id"
+  messages }o--o| messages : "conversation_id, reply_to_id"
+  message_hidden }o--|| messages : "conversation_id, message_id"
+  message_reactions }o--|| messages : "conversation_id, message_id"
+  message_edits }o--|| messages : "conversation_id, message_id"
+  message_pins }o--|| messages : "conversation_id, message_id"
   chat_groups }o--o| files : "avatar_file_id"
   chat_groups }o--|| users : "created_by"
   chat_group_members }o--|| chat_groups : "group_id"
@@ -3226,7 +3230,7 @@ erDiagram
   chat_group_messages }o--|| chat_groups : "group_id"
   chat_group_messages }o--o| users : "sender_id"
   chat_group_messages }o--o| chat_group_topics : "topic_id"
-  chat_group_messages }o--o| chat_group_messages : "reply_to_id"
+  chat_group_messages }o--o| chat_group_messages : "group_id, reply_to_id"
   chat_group_messages }o--o| files : "file_id"
   chat_group_topics }o--|| chat_groups : "group_id"
   chat_group_topic_reads }o--|| chat_group_topics : "topic_id"
@@ -3235,7 +3239,7 @@ erDiagram
   chat_group_join_requests }o--|| users : "user_id"
   chat_group_invites }o--|| chat_groups : "group_id"
   chat_group_polls }o--|| chat_groups : "group_id"
-  chat_group_polls |o--|| chat_group_messages : "message_id"
+  chat_group_polls }o--|| chat_group_messages : "group_id, message_id"
   chat_group_polls }o--|| users : "creator_id"
   chat_group_poll_options }o--|| chat_group_polls : "poll_id"
   chat_group_poll_votes }o--|| chat_group_polls : "poll_id"

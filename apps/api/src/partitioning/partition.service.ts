@@ -288,7 +288,9 @@ export class PartitionService implements OnModuleDestroy {
         WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND NOT c.relispartition
         ORDER BY 2 DESC LIMIT 8`,
     );
-    const partitioned = new Set(MIGRATED_PARTITIONED.map((s) => s.table));
+    const partitioned = new Set(
+      [...MIGRATED_PARTITIONED, ...HASH_PARTITIONED].map((s) => s.table),
+    );
     const all = (rows ?? []).map((r) => ({
       table: r.t,
       rows: Math.round(Number(r.rows)),

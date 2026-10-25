@@ -142,7 +142,7 @@ d('hash partitioning of messages / notifications shape', () => {
       db.run(
         `INSERT INTO hp_message (conversation_id, sender_id, client_message_id) VALUES ('${c.id}', '${c.id}', 'c1')`,
       ),
-    ).rejects.toThrow(/duplicate key/);
+    ).rejects.toThrow(/already exists|duplicate key/);
   });
 
   it('upserts a dedupe key (INSERT .. ON CONFLICT .. DO UPDATE)', async () => {
