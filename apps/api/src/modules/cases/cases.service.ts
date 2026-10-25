@@ -1,4 +1,5 @@
 import { notAvailable } from '../countries/countries.service';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { CasePhotosService } from './services/case-photos.service';
 import {
   BadRequestException,
@@ -378,6 +379,8 @@ export class CasesService {
     @Optional() private readonly fraud?: ClientFraudService,
     // Shard-ready step 7: cross-family writes ride the outbox.
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Owner 2026-10-25: cases per day against scripts.
+    @Optional() private readonly limits?: UsageLimitsService,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -388,6 +391,7 @@ export class CasesService {
   ): Promise<CaseDto> {
     await this.assertClientReady(user.sub);
     await this.fraud?.assertNotRestricted(user.sub);
+    await this.limits?.consume('case_create', user.sub);
     await this.assertUnderCaseLimit(user.sub);
 
     assertNoContactInfo({

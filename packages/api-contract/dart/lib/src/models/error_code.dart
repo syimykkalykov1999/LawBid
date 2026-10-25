@@ -56,6 +56,8 @@ enum ErrorCode {
   authProviderDisabled('AUTH_PROVIDER_DISABLED'),
   @JsonValue('AUTH_INVALID_CREDENTIALS')
   authInvalidCredentials('AUTH_INVALID_CREDENTIALS'),
+  @JsonValue('AUTH_PASSWORD_COMPROMISED')
+  authPasswordCompromised('AUTH_PASSWORD_COMPROMISED'),
   @JsonValue('ACCOUNT_EXISTS_USE_OTHER_METHOD')
   accountExistsUseOtherMethod('ACCOUNT_EXISTS_USE_OTHER_METHOD'),
   @JsonValue('IDENTIFIER_ALREADY_LINKED')
