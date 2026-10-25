@@ -30,7 +30,7 @@ import type {
 } from './referrals.dto';
 import {
   parseReferralSettings,
-  QUALIFYING_EVENT_FOR_ROLE,
+  qualifyingEventFor,
   REFERRAL_SETTINGS_KEY,
   presentReward,
   remainingDays,
@@ -358,10 +358,10 @@ export class ReferralsService {
 
     // The qualifying action may already have happened (e.g. the client
     // posted a case before entering the code).
-    if (await this.hasQualifyingAction(userId, refereeRole)) {
+    if (await this.hasQualifyingAction(userId, refereeRole, settings)) {
       await this.onQualifyingEvent(
         userId,
-        QUALIFYING_EVENT_FOR_ROLE[refereeRole],
+        qualifyingEventFor(refereeRole, settings),
       );
     }
     if (refereeRole === 'client' && (await this.hasAcceptedBid(userId))) {
@@ -397,8 +397,20 @@ export class ReferralsService {
       });
       const role = asRole(r?.referee_role);
       if (r && role && r.status === 'pending') {
-        if (QUALIFYING_EVENT_FOR_ROLE[role] === kind) {
-          if (await this.qualify(r.id)) await this.tryReward(r.id);
+        const settings = await this.settings();
+        if (qualifyingEventFor(role, settings) === kind) {
+          if (this.windowExpired(r.created_at, settings)) {
+            // Owner 2026-10-24: the invitation's end date has passed.
+            await this.prisma.referral.updateMany({
+              where: { id: r.id, status: 'pending' },
+              data: {
+                status: 'rejected',
+                rejected_reason: 'qualify_window_expired',
+              },
+            });
+          } else if (await this.qualify(r.id)) {
+            await this.tryReward(r.id);
+          }
         }
       }
       if (kind === 'subscription_payment') {
@@ -427,6 +439,18 @@ export class ReferralsService {
         'referral qualification failed',
       );
     }
+  }
+
+  /** The invitee did the action after `qualifyWindowDays` (0 = no limit). */
+  private windowExpired(
+    appliedAt: Date,
+    settings: ReferralProgramSettings,
+    now = new Date(),
+  ): boolean {
+    return (
+      settings.qualifyWindowDays > 0 &&
+      now.getTime() - appliedAt.getTime() > settings.qualifyWindowDays * DAY_MS
+    );
   }
 
   /** pending → qualified; false when it was not pending (idempotent). */
@@ -544,10 +568,20 @@ export class ReferralsService {
   private async hasQualifyingAction(
     userId: string,
     role: ReferralRole,
+    settings: Pick<ReferralProgramSettings, 'clientQualifyOn'> = {
+      clientQualifyOn: 'case_completed',
+    },
   ): Promise<boolean> {
     if (role === 'client') {
       return (
-        (await this.prisma.case.count({ where: { client_id: userId } })) > 0
+        (await this.prisma.case.count({
+          where: {
+            client_id: userId,
+            ...(settings.clientQualifyOn === 'case_completed' && {
+              status: 'closed' as const,
+            }),
+          },
+        })) > 0
       );
     }
     return (

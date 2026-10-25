@@ -14,6 +14,9 @@ export const REWARD_TYPES = [
 ] as const;
 export type RewardType = (typeof REWARD_TYPES)[number];
 
+export const CLIENT_QUALIFY_ON = ['case_published', 'case_completed'] as const;
+export type ClientQualifyOn = (typeof CLIENT_QUALIFY_ON)[number];
+
 export interface ReferralReward {
   type: RewardType;
   value: number;
@@ -37,6 +40,13 @@ export interface ReferralProgramSettings {
   applyWindowDays: number;
   /** Most people one user can invite (rejected ones don't count); 0 = no limit. */
   maxInvitesPerReferrer: number;
+  /** Owner 2026-10-24: the end date of a single invitation. The invitee
+   * must do the qualifying action within this many days of entering the
+   * code, otherwise the referral is rejected (no reward). 0 = no limit. */
+  qualifyWindowDays: number;
+  /** Owner 2026-10-24: what qualifies an invited CLIENT: the first
+   * published case, or the first case that was completed (closed). */
+  clientQualifyOn: ClientQualifyOn;
   /** Words the owner writes: shown in the app, per language. */
   texts: ReferralTextsByLang;
 }
@@ -64,7 +74,7 @@ export const DEFAULT_REFERRAL_TEXTS: ReferralTextsByLang = {
     summary:
       'Share your code. When your friend gets started, you both get a reward.',
     terms:
-      'The reward is issued after the invited person makes their first paid subscription payment (attorneys) or publishes their first case (clients). One code per person, entered within the first days after sign-up. Self-invites and abuse are rejected.',
+      'The reward is issued after the invited person makes their first paid subscription payment (attorneys) or completes their first case (clients), within the time limit of the program. One code per person, entered within the first days after sign-up. Self-invites and abuse are rejected.',
     shareMessage: 'Join me on LawBid! Use my code {{code}}: {{url}}',
   },
   ru: {
@@ -72,7 +82,7 @@ export const DEFAULT_REFERRAL_TEXTS: ReferralTextsByLang = {
     summary:
       'Поделитесь кодом. Когда друг начнёт пользоваться, вы оба получите награду.',
     terms:
-      'Награда выдаётся после первой оплаты подписки приглашённым адвокатом или первого опубликованного кейса приглашённым клиентом. Один код на человека, вводится в первые дни после регистрации. Приглашения самого себя и злоупотребления отклоняются.',
+      'Награда выдаётся после первой оплаты подписки приглашённым адвокатом или первого завершённого кейса приглашённым клиентом в пределах срока программы. Один код на человека, вводится в первые дни после регистрации. Приглашения самого себя и злоупотребления отклоняются.',
     shareMessage: 'Присоединяйся к LawBid! Мой код {{code}}: {{url}}',
   },
 };
@@ -126,6 +136,10 @@ export const DEFAULT_REFERRAL_SETTINGS: ReferralProgramSettings = {
   clientRefereeReward: { type: 'promotion_days', value: 1 },
   applyWindowDays: 14,
   maxInvitesPerReferrer: 0,
+  // Industry practice (Uber, Airbnb style): pay after the first completed
+  // job, inside a bounded window; 90 days is the default.
+  qualifyWindowDays: 90,
+  clientQualifyOn: 'case_completed',
   texts: DEFAULT_REFERRAL_TEXTS,
 };
 
@@ -134,12 +148,18 @@ export const DEFAULT_REFERRAL_SETTINGS: ReferralProgramSettings = {
  * `bid_accepted` (the client hired an attorney) is reported by bids for the
  * partner program (owner 2026-10-05) and ignored here. */
 export type QualifyingEventKind =
-  'subscription_payment' | 'case_published' | 'bid_accepted';
+  'subscription_payment' | 'case_published' | 'case_completed' | 'bid_accepted';
 
-export const QUALIFYING_EVENT_FOR_ROLE: Record<
-  'attorney' | 'client',
-  QualifyingEventKind
-> = { attorney: 'subscription_payment', client: 'case_published' };
+/** Owner 2026-10-24: the client's event follows `clientQualifyOn`. */
+export function qualifyingEventFor(
+  role: 'attorney' | 'client',
+  settings: Pick<ReferralProgramSettings, 'clientQualifyOn'>,
+): QualifyingEventKind {
+  if (role === 'attorney') return 'subscription_payment';
+  return settings.clientQualifyOn === 'case_published'
+    ? 'case_published'
+    : 'case_completed';
+}
 
 export type ReferralRole = 'attorney' | 'client';
 
@@ -286,6 +306,17 @@ export function parseReferralSettings(raw: unknown): ReferralProgramSettings {
       r.maxInvitesPerReferrer >= 0
         ? r.maxInvitesPerReferrer
         : d.maxInvitesPerReferrer,
+    qualifyWindowDays:
+      typeof r.qualifyWindowDays === 'number' &&
+      Number.isInteger(r.qualifyWindowDays) &&
+      r.qualifyWindowDays >= 0
+        ? r.qualifyWindowDays
+        : d.qualifyWindowDays,
+    clientQualifyOn: (CLIENT_QUALIFY_ON as readonly unknown[]).includes(
+      r.clientQualifyOn,
+    )
+      ? (r.clientQualifyOn as ClientQualifyOn)
+      : d.clientQualifyOn,
     texts: parseReferralTexts(r.texts),
   };
 }

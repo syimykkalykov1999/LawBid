@@ -1,6 +1,6 @@
 import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
 import { type CountryScope, userInScope } from '../../countries/country-scope';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import type {
   AttorneyLicense,
   Prisma,
@@ -52,6 +52,8 @@ import {
   IDENTITY_DOC_TYPES,
 } from '../verification.constants';
 import { stateBarLookupUrl } from '../state-bar-links';
+import { licenseRenewalState } from '../license-renewal';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   httpError,
   invalidStatus,
@@ -108,7 +110,30 @@ export class VerificationAdminService {
     private readonly journal: CaseJournalService,
     private readonly trust: AttorneyTrustService,
     private readonly blocks: BarNumberBlocksService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** Grace period and reminder window for the renewal state of a license. */
+  private async renewalOpts(now = new Date()): Promise<RenewalOpts> {
+    return {
+      now,
+      graceDays: this.settings
+        ? Math.max(
+            0,
+            Math.floor(
+              await this.settings.number(
+                'verification.license_expiry_grace_days',
+              ),
+            ),
+          )
+        : 0,
+      notifyDays: this.settings
+        ? await this.settings.numberList(
+            'verification.license_expiry_notify_days',
+          )
+        : [],
+    };
+  }
 
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
   async queue(
@@ -198,6 +223,7 @@ export class VerificationAdminService {
       include: CARD_INCLUDE,
     });
     if (!row) throw notFound('Verification request not found.');
+    const renewal = await this.renewalOpts();
     const history = await this.prisma.verificationRequest.findMany({
       where: { attorney_id: row.attorney_id, id: { not: row.id } },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -226,7 +252,7 @@ export class VerificationAdminService {
         username: row.attorney.username,
         verificationStatus: row.attorney.verification_status,
       },
-      licenses: row.attorney.licenses.map(licenseDto),
+      licenses: row.attorney.licenses.map((l) => licenseDto(l, renewal)),
       documents: row.documents.map((d) => ({
         id: d.id,
         docType: d.doc_type,
@@ -694,7 +720,11 @@ export class VerificationAdminService {
       where: { id: license.id },
       include: { state: true },
     });
-    return { license: licenseDto(fresh), result: outcome.result, requestId };
+    return {
+      license: licenseDto(fresh, await this.renewalOpts()),
+      result: outcome.result,
+      requestId,
+    };
   }
 
   /**
@@ -727,6 +757,7 @@ export class VerificationAdminService {
     const risk = (flag: string | null) =>
       flag === 'not_found' ? 3 : flag === 'name_mismatch' ? 2 : 1;
     rows.sort((x, y) => risk(y.registry_flag) - risk(x.registry_flag));
+    const renewal = await this.renewalOpts();
     return rows.slice(0, limit).map((l) => ({
       attorney: {
         id: l.attorney.user_id,
@@ -735,7 +766,7 @@ export class VerificationAdminService {
         username: l.attorney.username,
         verificationStatus: l.attorney.verification_status,
       },
-      license: licenseDto(l),
+      license: licenseDto(l, renewal),
       latestRequestId: l.attorney.verification_requests[0]?.id ?? null,
     }));
   }
@@ -787,7 +818,7 @@ export class VerificationAdminService {
       include: { state: true },
     });
     return {
-      license: licenseDto(fresh),
+      license: licenseDto(fresh, await this.renewalOpts()),
       result: outcome.result,
       details: outcome.details,
     };
@@ -821,7 +852,59 @@ export class VerificationAdminService {
       type: 'admin',
       id: admin.id,
     });
-    return licenseDto(updated);
+    return licenseDto(updated, await this.renewalOpts());
+  }
+
+  /**
+   * Owner 2026-10-24: the admin enters (or clears) the expiry date of a
+   * license by hand — a state without a registry date. Source = admin
+   * (the registry never overwrites it). The badge is recomputed, so
+   * moving the date into the future brings it back at once.
+   */
+  async setLicenseExpiry(
+    admin: AdminActor,
+    licenseId: string,
+    expiresAt: string | null,
+  ): Promise<AdminLicenseDto> {
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+    });
+    if (!license) throw notFound('License not found.');
+    if (license.license_status === 'expired') {
+      throw httpError(
+        HttpStatus.CONFLICT,
+        ErrorCode.VERIFICATION_INVALID_STATUS,
+        'The license has expired: it is renewed through a new verification.',
+        { licenseStatus: license.license_status },
+      );
+    }
+    const date = expiresAt ? new Date(`${expiresAt}T00:00:00Z`) : null;
+    if (date && Number.isNaN(date.getTime())) {
+      throw httpError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+        'expiresAt must be a real date.',
+      );
+    }
+    const updated = await this.prisma.attorneyLicense.update({
+      where: { id: licenseId },
+      data: { expires_at: date, expires_source: date ? 'admin' : null },
+      include: { state: true },
+    });
+    await this.audit.record({
+      adminId: admin.id,
+      action: AUDIT_ACTION.licenseExpiry,
+      targetType: 'attorney_license',
+      targetId: license.id,
+      before: { expiresAt: isoDay(license.expires_at) },
+      after: { expiresAt },
+      ip: admin.ip,
+    });
+    await this.trust.recompute(license.attorney_id, {
+      type: 'admin',
+      id: admin.id,
+    });
+    return licenseDto(updated, await this.renewalOpts());
   }
 
   /**
@@ -1130,7 +1213,16 @@ export class VerificationAdminService {
   }
 }
 
-function licenseDto(l: AttorneyLicense & { state: State }): AdminLicenseDto {
+interface RenewalOpts {
+  graceDays: number;
+  notifyDays: readonly number[];
+  now: Date;
+}
+
+function licenseDto(
+  l: AttorneyLicense & { state: State },
+  renewal?: RenewalOpts,
+): AdminLicenseDto {
   return {
     id: l.id,
     stateCode: l.state_code,
@@ -1138,6 +1230,21 @@ function licenseDto(l: AttorneyLicense & { state: State }): AdminLicenseDto {
     barNumber: l.bar_number,
     status: l.license_status,
     expiresAt: isoDay(l.expires_at),
+    expiresSource: l.expires_source,
+    renewalState: renewal
+      ? licenseRenewalState(
+          l.license_status,
+          l.expires_at,
+          renewal.now,
+          renewal,
+        )
+      : null,
+    graceEndsAt:
+      renewal && l.expires_at
+        ? isoDay(
+            new Date(l.expires_at.getTime() + renewal.graceDays * 86_400_000),
+          )
+        : null,
     autoCheckResult: asObject(l.auto_check_result),
     lookupUrl: stateBarLookupUrl(l.state_code, l.bar_number),
     rejectionCode: l.rejection_code,

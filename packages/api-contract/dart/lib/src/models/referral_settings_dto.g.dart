@@ -25,6 +25,12 @@ ReferralSettingsDto _$ReferralSettingsDtoFromJson(
   texts: ReferralTextsByLangDto.fromJson(json['texts'] as Map<String, dynamic>),
   applyWindowDays: (json['applyWindowDays'] as num?)?.toInt() ?? 14,
   maxInvitesPerReferrer: (json['maxInvitesPerReferrer'] as num?)?.toInt() ?? 0,
+  qualifyWindowDays: (json['qualifyWindowDays'] as num?)?.toInt() ?? 90,
+  clientQualifyOn: json['clientQualifyOn'] == null
+      ? ReferralSettingsDtoClientQualifyOn.caseCompleted
+      : ReferralSettingsDtoClientQualifyOn.fromJson(
+          json['clientQualifyOn'] as String,
+        ),
 );
 
 Map<String, dynamic> _$ReferralSettingsDtoToJson(
@@ -37,5 +43,7 @@ Map<String, dynamic> _$ReferralSettingsDtoToJson(
   'clientRefereeReward': instance.clientRefereeReward.toJson(),
   'applyWindowDays': instance.applyWindowDays,
   'maxInvitesPerReferrer': instance.maxInvitesPerReferrer,
+  'qualifyWindowDays': instance.qualifyWindowDays,
+  'clientQualifyOn': instance.clientQualifyOn.toJson(),
   'texts': instance.texts.toJson(),
 };
