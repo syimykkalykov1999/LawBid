@@ -69,10 +69,22 @@ describe('Key sets + payroll (e2e)', () => {
 
   afterAll(async () => {
     await prisma.appConfig.deleteMany({
-      where: { key: 'billing.dual_approval_min_cents' },
+      where: {
+        key: { in: ['billing.dual_approval_min_cents', 'admin.dual_control'] },
+      },
     });
     await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
   });
+
+  /** Owner 2026-10-24: the second-admin rule is off by default. */
+  async function setDualControl(on: boolean): Promise<void> {
+    await prisma.appConfig.upsert({
+      where: { key: 'admin.dual_control' },
+      create: { key: 'admin.dual_control', value: on },
+      update: { value: on },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+  }
 
   async function setDualLimit(cents: number): Promise<void> {
     await prisma.appConfig.upsert({
@@ -719,7 +731,44 @@ describe('Key sets + payroll (e2e)', () => {
       );
     }
   });
-  it('maker-checker: a payout from the limit on waits for a second admin and runs once', async () => {
+  it('default (admin.dual_control off): a payout above the limit runs right away after 2FA, nothing waits', async () => {
+    const owner = await adminSession(base, prisma, 'finance');
+    await adminStepUp(base, owner);
+    const sPeriod = `${period}-solo`;
+    const id = (
+      (
+        await api()
+          .post('/api/v1/admin/payroll/employees')
+          .set(owner.auth)
+          .send({ name: `Solo ${period}`, amountCents: 60_000 })
+          .expect(201)
+      ).body as { data: { id: string } }
+    ).data.id;
+    await setDualControl(false);
+    await setDualLimit(60_000);
+    try {
+      const before = await prisma.adminApproval.count();
+      await api()
+        .post('/api/v1/admin/payroll/payouts/bulk')
+        .set(owner.auth)
+        .send({ employeeIds: [id], period: sPeriod })
+        .expect(200);
+      expect(
+        await prisma.payrollPayout.count({ where: { period: sPeriod } }),
+      ).toBe(1);
+      // No request was stored; one audit row says the rule was skipped.
+      expect(await prisma.adminApproval.count()).toBe(before);
+      expect(
+        await prisma.auditLog.count({
+          where: { admin_id: owner.userId, action: 'admin.approval_skipped' },
+        }),
+      ).toBeGreaterThanOrEqual(1);
+    } finally {
+      await setDualLimit(1_000_000_000);
+    }
+  });
+
+  it('admin.dual_control on: a payout from the limit on waits for a second admin and runs once', async () => {
     const maker = await adminSession(base, prisma, 'finance');
     const checker = await adminSession(base, prisma, 'finance');
     for (const s of [maker, checker]) await adminStepUp(base, s);
@@ -733,6 +782,7 @@ describe('Key sets + payroll (e2e)', () => {
           .expect(201)
       ).body as { data: { id: string } }
     ).data.id;
+    await setDualControl(true);
     await setDualLimit(60_000);
     try {
       const asked = await api()
@@ -785,6 +835,7 @@ describe('Key sets + payroll (e2e)', () => {
         'admin.approval_executed',
       ]);
     } finally {
+      await setDualControl(false);
       await setDualLimit(1_000_000_000);
     }
   });
