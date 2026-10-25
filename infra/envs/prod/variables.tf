@@ -291,6 +291,24 @@ variable "existing_database_identifier" {
   default     = ""
   description = "The production RDS created outside Terraform (lawbid-prod-postgres): backed up by AWS Backup and checked at plan time, never modified."
 }
+# --- automatic secret rotation (owner 2026-10-25, docs/runbooks/secrets-rotation.md) --
+variable "secret_rotation" {
+  type = object({
+    db_enabled               = optional(bool, false)
+    db_master_secret_arn     = optional(string, "")
+    db_master_secret_kms_arn = optional(string, "")
+    db_every_days            = optional(number, 30)
+    redis_enabled            = optional(bool, false)
+    redis_every_days         = optional(number, 90)
+    keys_enabled             = optional(bool, false)
+    keys_every_days          = optional(number, 90)
+    grace_hours              = optional(number, 6)
+    strict_hours             = optional(number, 24)
+    jwt_retire_days          = optional(number, 2)
+  })
+  default     = {}
+  description = "OFF by default. db_enabled / redis_enabled / keys_enabled switch each part on one by one; order and checks: docs/runbooks/secrets-rotation.md."
+}
 # --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) -----
 variable "db_autoscale_enabled" {
   type        = bool
