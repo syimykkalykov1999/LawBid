@@ -428,11 +428,10 @@ export class RealtimeGateway
       socket.disconnect(true);
       return;
     }
-    if (await this.overIpConnectLimit(socket)) {
-      socket.emit('auth:error', { code: 'RATE_LIMITED' });
-      socket.disconnect(true);
-      return;
-    }
+    // Runs alongside the token check below (not before it): a socket is
+    // usable the moment it connects, so a serial extra round trip here would
+    // widen the window where a first packet arrives before `socket.data`.
+    const ipLimited = this.overIpConnectLimit(socket);
     const auth = socket.handshake.auth as { token?: unknown } | undefined;
     const header = socket.handshake.headers.authorization;
     const token =
@@ -442,6 +441,11 @@ export class RealtimeGateway
           ? header.slice(7)
           : undefined;
     const claims = token ? await this.verify(token) : null;
+    if (await ipLimited) {
+      socket.emit('auth:error', { code: 'RATE_LIMITED' });
+      socket.disconnect(true);
+      return;
+    }
     if (!token || !claims) {
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
       socket.disconnect(true);
