@@ -102,6 +102,14 @@ export class SwitchingSearchProvider implements SearchProvider {
     await Promise.all([...this.pending]);
   }
 
+  /** One metric line per search answered by Postgres: the CloudWatch metric
+   * filter `search-pg-latency` (infra/modules/monitoring) takes the p95 of
+   * `ms`; above 300 ms for 15 minutes the owner is told to turn the separate
+   * search on (admin: search.engine). */
+  private latency(op: string, engine: string, ms: number): void {
+    this.log.log({ metric: 'search_latency', op, engine, ms });
+  }
+
   private async timeoutMs(): Promise<number> {
     try {
       return (await this.settings?.number('search.engine_timeout_ms')) ?? 800;
@@ -116,12 +124,20 @@ export class SwitchingSearchProvider implements SearchProvider {
     ids: (r: T) => string[],
   ): Promise<T> {
     const mode = await this.mode();
-    if (mode === 'postgres') return run(this.pg);
+    if (mode === 'postgres') {
+      const t0 = this.now();
+      try {
+        return await run(this.pg);
+      } finally {
+        this.latency(op, 'postgres', this.now() - t0);
+      }
+    }
 
     if (mode === 'shadow') {
       const t0 = this.now();
       const result = await run(this.pg);
       const pgMs = this.now() - t0;
+      this.latency(op, 'postgres', pgMs);
       const task = this.shadow(op, run, ids(result), pgMs).finally(() =>
         this.pending.delete(task),
       );

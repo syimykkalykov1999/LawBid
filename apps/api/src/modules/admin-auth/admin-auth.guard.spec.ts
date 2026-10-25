@@ -159,6 +159,7 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
       id: 'u1',
       adminRole: 'verifier',
       sessionId: 's1',
+      reasonCode: null,
       justification: null,
       permissions: { verification: 'manage' },
       manageAdmins: false,

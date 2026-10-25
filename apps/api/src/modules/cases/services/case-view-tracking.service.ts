@@ -10,9 +10,10 @@ import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withJobLock } from '../../../jobs/handlers/job-lock';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { ck } from '../../../redis/redis-cluster-safe';
 
-const SEEN_KEY = (caseId: string): string => `cv:seen:${caseId}`;
-const PENDING_KEY = 'cv:pending';
+const SEEN_KEY = (caseId: string): string => ck('cv', `cv:seen:${caseId}`);
+const PENDING_KEY_FN = (): string => ck('cv', 'cv:pending');
 const FLUSH_INTERVAL_MS = 15_000;
 /** Fields drained per Lua call / rows per UPDATE (bounded work per step). */
 const FLUSH_BATCH = 500;
@@ -95,7 +96,7 @@ export class CaseViewTrackingService
       RECORD_VIEW,
       2,
       SEEN_KEY(caseId),
-      PENDING_KEY,
+      PENDING_KEY_FN(),
       attorneyId,
       SEEN_TTL_SECONDS,
       caseId,
@@ -126,7 +127,7 @@ export class CaseViewTrackingService
     do {
       // HSCAN, not HKEYS: never blocks Redis on a large pending hash.
       const [next, flat] = await this.redis.hscan(
-        PENDING_KEY,
+        PENDING_KEY_FN(),
         cursor,
         'COUNT',
         FLUSH_BATCH,
@@ -147,7 +148,7 @@ export class CaseViewTrackingService
     const raw = (await this.redis.eval(
       DRAIN_BATCH,
       1,
-      PENDING_KEY,
+      PENDING_KEY_FN(),
       ...caseIds,
     )) as (string | null)[];
 
@@ -173,7 +174,7 @@ export class CaseViewTrackingService
       // Put the drained deltas back so the next flush retries them
       // instead of silently losing views.
       const restore = this.redis.multi();
-      ids.forEach((id, i) => restore.hincrby(PENDING_KEY, id, deltas[i]));
+      ids.forEach((id, i) => restore.hincrby(PENDING_KEY_FN(), id, deltas[i]));
       await restore.exec();
       throw error;
     }

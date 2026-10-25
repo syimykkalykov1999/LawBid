@@ -13,6 +13,7 @@ import {
   REHIDE_DELAY_MS,
   isModeratedPurpose,
 } from './media-moderation.constants';
+import { bullOptions } from '../../redis/redis-connection';
 
 export type MediaCheckJobData =
   | { kind: 'file'; fileId: string }
@@ -50,9 +51,10 @@ export class MediaModerationQueue
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
-    this.queue = new Queue<MediaCheckJobData>(MEDIA_MODERATION_QUEUE, {
-      connection: { url },
-    });
+    this.queue = new Queue<MediaCheckJobData>(
+      MEDIA_MODERATION_QUEUE,
+      bullOptions(MEDIA_MODERATION_QUEUE, url),
+    );
   }
 
   /** A clean public file (post photo, avatar, review photo). */

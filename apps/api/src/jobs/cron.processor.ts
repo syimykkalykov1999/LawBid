@@ -34,6 +34,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
@@ -151,6 +152,8 @@ export class CronProcessor {
     // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
     @Optional() private readonly auditExport?: AuditExportService,
     @Optional() private readonly accessReport?: AdminAccessReportService,
+    // Day-one foundations: `ledger.reconcile`.
+    @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -225,6 +228,8 @@ export class CronProcessor {
         return this.auditExport?.run() ?? null;
       case CRON_JOBS.adminAccessReport:
         return this.accessReport?.sendMonthly() ?? null;
+      case CRON_JOBS.ledgerReconcile:
+        return this.ledgerReconcile?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:

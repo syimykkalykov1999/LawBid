@@ -95,6 +95,7 @@ export class AdminAuditInterceptor implements NestInterceptor {
           context.getHandler(),
         ) ?? `${req.method.toLowerCase()} ${routeOf(req)}`);
     const strict =
+      !!privateKind ||
       !!this.reflector.getAllAndOverride<boolean>(STRICT_AUDIT_KEY, targets) ||
       STRICT_AREAS.has(routeArea(req.originalUrl || req.url) ?? '');
     const row = (after: Prisma.InputJsonValue | null) => ({

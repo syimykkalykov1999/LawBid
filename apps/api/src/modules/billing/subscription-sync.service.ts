@@ -3,6 +3,7 @@ import { ClientPlansService } from '../plans/client-plans.service';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, Subscription, SubscriptionStatus } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { BidsService } from '../bids/bids.service';
@@ -67,6 +68,8 @@ export class SubscriptionSyncService {
     @Optional() private readonly stars?: StarsService,
     // Owner 2026-10-22: finds the assistant-seat item on a subscription.
     @Optional() private readonly pricing?: PricingService,
+    // Day-one foundations: the double-entry money ledger (same transaction).
+    @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
 
   async handleEvent(event: ProviderEvent): Promise<void> {
@@ -297,12 +300,15 @@ export class SubscriptionSyncService {
         select: { id: true, amount_cents: true },
       });
       for (const row of rows) {
-        await this.prisma.payment.update({
-          where: { id: row.id },
-          data: {
-            tax_cents: taxCents,
-            subtotal_cents: Math.max(0, row.amount_cents - taxCents),
-          },
+        await this.prisma.$transaction(async (tx) => {
+          await tx.payment.update({
+            where: { id: row.id },
+            data: {
+              tax_cents: taxCents,
+              subtotal_cents: Math.max(0, row.amount_cents - taxCents),
+            },
+          });
+          await this.ledger?.paymentTaxLearned(tx, row.id, taxCents);
         });
       }
     }
@@ -343,29 +349,39 @@ export class SubscriptionSyncService {
       }
       if (!paid) return;
     }
-    await this.prisma.payment.upsert({
-      where: { stripe_invoice_id: invoice.id },
-      create: {
-        user_id: sub.user_id,
-        stripe_invoice_id: invoice.id,
-        stripe_payment_intent_id: invoice.paymentIntentId,
-        amount_cents: invoice.amountCents,
-        tax_cents: invoice.taxCents ?? null,
-        subtotal_cents: invoice.subtotalCents ?? null,
-        currency: invoice.currency,
-        status: paid ? 'succeeded' : 'failed',
-        paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
-        failure_code: paid ? null : (invoice.failureCode ?? type),
-      },
-      update: {
-        stripe_payment_intent_id: invoice.paymentIntentId,
-        amount_cents: invoice.amountCents,
-        tax_cents: invoice.taxCents ?? null,
-        subtotal_cents: invoice.subtotalCents ?? null,
-        status: paid ? 'succeeded' : 'failed',
-        paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
-        failure_code: paid ? null : (invoice.failureCode ?? type),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.upsert({
+        where: { stripe_invoice_id: invoice.id },
+        create: {
+          user_id: sub.user_id,
+          stripe_invoice_id: invoice.id,
+          stripe_payment_intent_id: invoice.paymentIntentId,
+          amount_cents: invoice.amountCents,
+          tax_cents: invoice.taxCents ?? null,
+          subtotal_cents: invoice.subtotalCents ?? null,
+          currency: invoice.currency,
+          status: paid ? 'succeeded' : 'failed',
+          paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
+          failure_code: paid ? null : (invoice.failureCode ?? type),
+        },
+        update: {
+          stripe_payment_intent_id: invoice.paymentIntentId,
+          amount_cents: invoice.amountCents,
+          tax_cents: invoice.taxCents ?? null,
+          subtotal_cents: invoice.subtotalCents ?? null,
+          status: paid ? 'succeeded' : 'failed',
+          paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
+          failure_code: paid ? null : (invoice.failureCode ?? type),
+        },
+      });
+      // The money event and its ledger entry commit together (idempotent).
+      if (paid) {
+        await this.ledger?.paymentReceived(
+          tx,
+          payment,
+          'revenue_subscriptions',
+        );
+      }
     });
     if (!paid) {
       // docs/06 §8 "всплеск неуспешных платежей": metric filter on this line.
@@ -521,9 +537,19 @@ export class SubscriptionSyncService {
       where: { stripe_payment_intent_id: charge.paymentIntentId },
       select: { id: true, user_id: true },
     });
-    await this.prisma.payment.updateMany({
-      where: { stripe_payment_intent_id: charge.paymentIntentId },
-      data: { status: 'refunded' },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.updateMany({
+        where: { stripe_payment_intent_id: charge.paymentIntentId! },
+        data: { status: 'refunded' },
+      });
+      // What the ledger has not seen yet (the admin refund books its own).
+      for (const p of refunded) {
+        await this.ledger?.paymentRefundSynced(tx, {
+          paymentId: p.id,
+          userId: p.user_id,
+          totalRefundedCents: charge.amountRefundedCents,
+        });
+      }
     });
     // Owner 2026-10-20: a refunded stars top-up takes its stars back (debt
     // when they are spent; never a negative balance).

@@ -64,7 +64,7 @@ export class AdminPrivateContentController {
   })
   @ApiEnvelopeResponse(PrivateMessagesPageDto)
   @ApiErrors({ ...READ_ERRORS, 503: [E.AUDIT_UNAVAILABLE] })
-  listMessages(
+  listPrivateMessages(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: ConversationIdParamDto,
     @Query() query: PrivateMessagesQueryDto,
@@ -86,7 +86,7 @@ export class AdminPrivateContentController {
   })
   @ApiEnvelopeResponse(RevealedMessageDto)
   @ApiErrors(REVEAL_ERRORS)
-  revealMessage(
+  revealPrivateMessage(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: MessageIdParamDto,
   ): Promise<RevealedMessageDto> {
@@ -98,7 +98,7 @@ export class AdminPrivateContentController {
   @ApiOperation({ summary: 'Call metadata of one conversation (audited)' })
   @ApiEnvelopeResponse(PrivateCallsDto)
   @ApiErrors({ ...READ_ERRORS, 503: [E.AUDIT_UNAVAILABLE] })
-  listCalls(
+  listPrivateCalls(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: ConversationIdParamDto,
   ): Promise<PrivateCallsDto> {
@@ -110,7 +110,7 @@ export class AdminPrivateContentController {
   @ApiOperation({ summary: 'Files of one case, metadata only (audited)' })
   @ApiEnvelopeResponse(PrivateCaseFilesDto)
   @ApiErrors({ ...READ_ERRORS, 503: [E.AUDIT_UNAVAILABLE] })
-  listCaseFiles(
+  listPrivateCaseFiles(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: CaseIdParamDto,
   ): Promise<PrivateCaseFilesDto> {
@@ -126,7 +126,7 @@ export class AdminPrivateContentController {
   })
   @ApiEnvelopeResponse(PrivateFileUrlDto)
   @ApiErrors(REVEAL_ERRORS)
-  caseFileUrl(
+  privateCaseFileUrl(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: CaseFileParamDto,
   ): Promise<PrivateFileUrlDto> {

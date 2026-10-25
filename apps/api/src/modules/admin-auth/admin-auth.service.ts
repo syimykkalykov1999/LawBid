@@ -66,6 +66,7 @@ import {
   otpauthUri,
   verifyTotp,
 } from './totp.util';
+import { ck } from '../../redis/redis-cluster-safe';
 
 const TICKET_TTL_SECONDS = 5 * 60;
 /** Installing an authenticator app takes longer than typing a code. */
@@ -1432,7 +1433,8 @@ const invalid = (message: string) =>
   new BadRequestException({ code: ErrorCode.VALIDATION_ERROR, message });
 
 /** Redis flag of a passed step-up, per admin session. */
-export const stepUpKey = (sessionId: string) => `adm:stepup:${sessionId}`;
+export const stepUpKey = (sessionId: string) =>
+  ck('adm', `adm:stepup:${sessionId}`);
 
 const inviteGone = () =>
   new NotFoundException({
