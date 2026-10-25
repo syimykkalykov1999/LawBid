@@ -38,6 +38,20 @@ import { userDirectory } from '../../sharding/user-directory';
 
 const PAGE = 20;
 
+/**
+ * Shard-ready step 9: there is no foreign key from a review to its author
+ * any more, so a missing user is possible (the nightly orphan checker
+ * reports it). The list shows this placeholder instead of crashing.
+ */
+const GONE_AUTHOR = {
+  role: 'attorney' as const,
+  first_name: null,
+  last_name: null,
+  avatar_file_id: null,
+  phone_verified_at: null,
+  attorney_profile: null,
+};
+
 /** Owner 2026-09-30: an appeal nobody decided removes the review then. */
 export const REVIEW_APPEAL_AUTO_REMOVE_DAYS = 30;
 
@@ -465,8 +479,10 @@ export class ClientReviewsService {
       ),
     ]);
     const last = page[page.length - 1];
-    const name = (u: { first_name: string | null; last_name: string | null }) =>
-      [u.first_name, u.last_name].filter(Boolean).join(' ') || '—';
+    const name = (u: {
+      first_name?: string | null;
+      last_name?: string | null;
+    }) => [u.first_name, u.last_name].filter(Boolean).join(' ') || '—';
     return {
       items: page.map((a) => ({
         id: a.id,
@@ -477,15 +493,16 @@ export class ClientReviewsService {
         reviewId: a.review_id,
         rating: a.review.rating,
         body: a.review.body,
-        authorName: name(attorneys.get(a.review.attorney_id)!),
+        // Step 9: no foreign key guarantees the author still exists.
+        authorName: name(attorneys.get(a.review.attorney_id) ?? {}),
         authorRole:
-          attorneys.get(a.review.attorney_id)!.role === 'client'
+          attorneys.get(a.review.attorney_id)?.role === 'client'
             ? 'client'
-            : attorneys.get(a.review.attorney_id)!.role === 'assistant'
+            : attorneys.get(a.review.attorney_id)?.role === 'assistant'
               ? 'assistant'
               : 'attorney',
         clientId: a.review.client_id,
-        clientName: name(clients.get(a.review.client_id)!),
+        clientName: name(clients.get(a.review.client_id) ?? {}),
       })),
       nextCursor:
         rows.length > PAGE && last
@@ -817,7 +834,7 @@ export class ClientReviewsService {
       },
     );
     const avatars = await this.files.avatarUrlsMany(
-      rows.map((r) => authorsById.get(r.attorney_id)!.avatar_file_id),
+      rows.map((r) => authorsById.get(r.attorney_id)?.avatar_file_id ?? null),
     );
     const photos = await this.files.postImageUrls(
       rows.flatMap((r) => r.photo_ids),
@@ -855,7 +872,7 @@ export class ClientReviewsService {
     return ids.flatMap((id) => {
       const r = byId.get(id);
       if (!r) return [];
-      const a = authorsById.get(r.attorney_id)!;
+      const a = authorsById.get(r.attorney_id) ?? GONE_AUTHOR;
       const username = a.attorney_profile?.username ?? '';
       return [
         {

@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import type { PrismaService } from '../prisma/prisma.service';
 import { withDeleted } from '../prisma/soft-delete.extension';
+import { ghostRow } from './ghost-row';
 
 /**
  * Shard-ready step 6 (docs/architecture/SHARDING_READY.md §3, §7): the user
@@ -275,8 +276,16 @@ export async function attachUsers<
     rows.map((r) => r[idField] as string | null),
     select,
   );
-  return rows.map((r) => ({
-    ...r,
-    [as]: users.get(r[idField] as string) ?? null,
-  }));
+  // Step 9: an id whose user is gone (no foreign key any more) becomes a
+  // ghost (selected fields null), not null: the old include never returned
+  // null for a required relation. A null id stays null.
+  return rows.map((r) => {
+    const id = r[idField] as string | null | undefined;
+    return {
+      ...r,
+      [as]: id ? (users.get(id) ?? ghostRow(select)) : null,
+    };
+  }) as unknown as Array<
+    R & { [P in K]: Prisma.UserGetPayload<{ select: S }> | null }
+  >;
 }

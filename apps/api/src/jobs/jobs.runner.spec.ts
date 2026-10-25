@@ -243,7 +243,9 @@ describe('JobsRunner', () => {
     // + ops.status-watchdog (every minute).
     // Owner 2026-10-23: + admin.summaries (every 2 minutes).
     // Shard-ready step 7: + outbox.sweep (every minute).
-    expect(upserts).toHaveLength(64);
+    // Shard-ready steps 9-10: + shard.move-tick (every minute) and
+    // shard.orphan-check (nightly).
+    expect(upserts).toHaveLength(66);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-242 tables.
+246 tables.
 
 ```mermaid
 erDiagram
@@ -189,6 +189,44 @@ erDiagram
     String last_error "nullable"
     DateTime created_at
     DateTime processed_at "nullable"
+  }
+  shard_moves {
+    String id PK
+    Int logical_shard
+    String from_db
+    String to_db
+    String state
+    String status
+    Json progress
+    Json plan "nullable"
+    String error "nullable"
+    String requested_by "nullable"
+    DateTime heartbeat_at "nullable"
+    DateTime flipped_at "nullable"
+    String leftover_db "nullable"
+    DateTime cleanup_after "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  shard_move_track {
+    Int logical_shard PK
+    String move_id
+    DateTime frozen_until "nullable"
+    DateTime created_at
+  }
+  shard_change_log {
+    BigInt id PK
+    String table_name
+    Json pk
+    Int shard_id
+    String op
+    DateTime at
+  }
+  shard_dropped_fk {
+    String constraint_name PK
+    String table_name PK
+    String definition
+    DateTime dropped_at
   }
   cross_family_inbox {
     String idempotency_key PK

@@ -23,6 +23,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:e2e:sharded": "node scripts/run-e2e-sharded.mjs",
     "test:e2e:two-db": "node scripts/run-e2e-two-db.mjs",
+    "shard:move": "ts-node --transpile-only scripts/shard-move.ts",
     "db:erd": "ts-node --transpile-only scripts/generate-erd.ts",
     "openapi:export": "nest build && node dist/src/openapi/export-openapi.js",
     "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js",

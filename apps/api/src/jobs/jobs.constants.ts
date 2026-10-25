@@ -146,6 +146,10 @@ export const CRON_JOBS = {
   adminSummaries: 'admin.summaries',
   // Shard-ready step 7: the cross-family outbox relay.
   outboxSweep: 'outbox.sweep',
+  // Shard-ready steps 9-10: resume/continue shard moves + delete old rows
+  // after 7 days; nightly check for rows whose cross-family parent is gone.
+  shardMoveTick: 'shard.move-tick',
+  shardOrphanCheck: 'shard.orphan-check',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -241,6 +245,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: applies cross-family events a request could not (retries
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
+  { name: CRON_JOBS.shardMoveTick, pattern: '* * * * *' },
+  { name: CRON_JOBS.shardOrphanCheck, pattern: '30 2 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

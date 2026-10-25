@@ -187,6 +187,9 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
  */
 export const PER_DATABASE_MODELS: ReadonlySet<string> = new Set([
   'CrossFamilyOutbox',
+  'ShardChangeLog',
+  'ShardMoveTrack',
+  'ShardDroppedFk',
 ]);
 
 export const GLOBAL_MODELS: readonly string[] = [
@@ -207,6 +210,11 @@ export const GLOBAL_MODELS: readonly string[] = [
   // primary-only inbox.
   'CrossFamilyOutbox',
   'CrossFamilyInbox',
+  // Step 10: the move tool (ShardMove on primary; the other three per database).
+  'ShardMove',
+  'ShardChangeLog',
+  'ShardMoveTrack',
+  'ShardDroppedFk',
   'I18nLanguage',
   'I18nKey',
   'I18nTranslation',

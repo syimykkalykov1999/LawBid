@@ -73,7 +73,8 @@ describe('UserDirectory (shard-ready step 6)', () => {
     );
     expect(rows).toEqual([
       { id: 'r1', client_id: 'u1', client: { first_name: 'N-u1' } },
-      { id: 'r2', client_id: 'gone', client: null },
+      // Step 9: a missing user is a ghost (selected fields null), not null.
+      { id: 'r2', client_id: 'gone', client: { first_name: null } },
     ]);
   });
 

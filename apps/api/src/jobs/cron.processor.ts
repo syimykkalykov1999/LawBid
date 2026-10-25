@@ -33,6 +33,8 @@ import { NotificationsRetentionJob } from './handlers/notifications-retention.jo
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
+import { ShardMoveService } from '../sharding/move/shard-move.service';
+import { OrphanChecker } from '../sharding/orphan-checker';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
@@ -141,6 +143,9 @@ export class CronProcessor {
     @Optional() private readonly adminSummaries?: AdminSummariesJob,
     // Shard-ready step 7: `outbox.sweep`.
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Shard-ready steps 9-10.
+    @Optional() private readonly shardMoves?: ShardMoveService,
+    @Optional() private readonly orphans?: OrphanChecker,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -213,6 +218,10 @@ export class CronProcessor {
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:
         return this.outbox?.sweep() ?? null;
+      case CRON_JOBS.shardMoveTick:
+        return this.shardMoves?.tick() ?? null;
+      case CRON_JOBS.shardOrphanCheck:
+        return this.orphans?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:
