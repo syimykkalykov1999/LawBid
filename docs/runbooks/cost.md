@@ -41,3 +41,33 @@ S3), CloudWatch Logs ingestion (debug logging left on), ECS tasks stuck at
 Цена SMS в `cost-prices.ts`: США/Канада 1 150 милли-центов (было 830 —
 занижена, бюджет считался с недооценкой). Если реальный счёт Twilio
 расходится больше чем на 20 % — править таблицу и этот файл вместе.
+
+## Теги затрат: включить в консоли (делает владелец, один раз)
+
+Что уже в коде (2026-10-24): все ресурсы Terraform получают теги через
+`default_tags` провайдера: `Project` (`lawbid`; у нагрузочного стенда
+`lawbid-loadtest`), `Env` (`prod` / `staging` / `loadtest`), `ManagedBy`.
+Задачи Fargate наследуют теги сервиса (`propagate_tags = SERVICE`), а сервисы
+`api`, `worker`, `admin`, `pgbouncer` теперь ещё несут тег `Component` — так в
+счёте видно, сколько стоит каждая часть. Это изменение тегов «на месте»,
+без пересоздания.
+
+Теги в счёте появляются только после активации (по умолчанию выключены):
+
+1. Войти под **управляющим** аккаунтом (management account).
+2. AWS Billing and Cost Management → **Cost allocation tags** → вкладка
+   **User-defined cost allocation tags**.
+3. Отметить `Project`, `Env`, `Component`, `ManagedBy` (появляются в списке
+   в течение суток после первого ресурса с тегом) → **Activate**.
+4. Данные в Cost Explorer появляются примерно через 24 часа. Чтобы подтянуть
+   прошлое: на той же странице **Backfill tags** → выбрать месяц (назад до 12
+   месяцев; раз в 24 часа; считаются только периоды, когда тег уже стоял на
+   ресурсе).
+5. Cost Explorer → Group by → Tag → `Component` или `Env`.
+
+Хранилище S3: медиа и документы уже переходят в Intelligent-Tiering (правило
+`intelligent-tiering` в `infra/modules/s3/main.tf`, файлы от 128 КБ), добавлять
+нечего.
+
+Источник: docs.aws.amazon.com/awsaccountbilling (Backfill cost allocation
+tags), проверено 2026-10-24.
