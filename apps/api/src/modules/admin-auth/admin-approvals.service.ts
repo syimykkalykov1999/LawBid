@@ -44,7 +44,11 @@ export type ApprovalKind =
   // payout marked paid, from the same limit.
   | 'payroll_bonus'
   | 'partner_payout'
-  | 'partner_commission_paid';
+  | 'partner_commission_paid'
+  // Owner 2026-10-24: AWS Budgets from the admin («Масштаб»). Always
+  // needs a second admin, whatever the amount.
+  | 'aws_budget_limit'
+  | 'aws_budget_delete';
 
 export interface ApprovalKindSpec {
   kind: ApprovalKind;
@@ -58,8 +62,17 @@ export interface ApprovalKindSpec {
 
 export const APPROVAL_TTL_HOURS = 72;
 export const DUAL_APPROVAL_SETTING = 'billing.dual_approval_min_cents';
+/**
+ * Owner 2026-10-24 («я же один работаю»): the second-admin rule is OFF.
+ * While `admin.dual_control` is false, gate() lets every action run at once
+ * for the admin who asks (after the 2FA step-up the endpoint already did),
+ * and writes one `admin.approval_skipped` audit row. Turn it on and the
+ * whole maker-checker flow below works as before.
+ */
+export const DUAL_CONTROL_SETTING = 'admin.dual_control';
 
 export const APPROVAL_AUDIT = {
+  skipped: 'admin.approval_skipped',
   requested: 'admin.approval_requested',
   approved: 'admin.approval_approved',
   rejected: 'admin.approval_rejected',
@@ -110,6 +123,11 @@ export class AdminApprovalsService {
     this.specs.set(spec.kind, spec);
   }
 
+  /** The second-admin rule is on (default off: one owner). */
+  async dualControl(): Promise<boolean> {
+    return this.settings.boolean(DUAL_CONTROL_SETTING);
+  }
+
   /** The current limit, cents (never negative). */
   async limitCents(): Promise<number> {
     return Math.max(0, await this.settings.number(DUAL_APPROVAL_SETTING));
@@ -129,10 +147,27 @@ export class AdminApprovalsService {
       payload: object;
       amountCents: number;
       summary: string;
+      /** Not about money: a second admin is always needed. */
+      always?: boolean;
     },
   ): Promise<void> {
+    if (!(await this.dualControl())) {
+      await this.audit.record({
+        adminId: actor.id,
+        action: APPROVAL_AUDIT.skipped,
+        targetType: 'admin_approval',
+        targetId: null,
+        after: {
+          kind: input.kind,
+          amountCents: input.amountCents,
+          summary: input.summary.slice(0, 300),
+        },
+        ip: actor.ip,
+      });
+      return;
+    }
     const limit = await this.limitCents();
-    if (input.amountCents < limit) return;
+    if (!input.always && input.amountCents < limit) return;
     const payload = JSON.parse(JSON.stringify(input.payload)) as object;
     const hash = payloadHash(input.kind, payload);
     const existing = await this.prisma.adminApproval.findFirst({

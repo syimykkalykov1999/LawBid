@@ -1133,16 +1133,26 @@ locals {
     OPS_POOLER_MAX      = tostring(var.pgbouncer_max_tasks)
     OPS_BUDGET_NAME     = "${local.name}-monthly"
     OPS_AWS_ACCOUNT_ID  = data.aws_caller_identity.current.account_id
-    AWS_REGION          = data.aws_region.current.name
+    # Owner 2026-10-24 (admin «Запуск», «Масштаб», «Расходы»): the critical
+    # SNS topic the admin subscribes PagerDuty to (built from the name so the
+    # app env does not depend on the monitoring module), the obsolete budget
+    # the admin may delete, the cost tags that must be active, ARM / Spot.
+    OPS_CRITICAL_TOPIC_ARN   = local.critical_topic_arn
+    OPS_OBSOLETE_BUDGET_NAME = "LawBid Monthly"
+    OPS_COST_TAG_KEYS        = join(",", sort(keys(local.tags)))
+    OPS_API_SPOT             = var.api_spot ? "on" : "off"
+    OPS_WORKER_SPOT          = var.worker_spot ? "on" : "off"
+    AWS_REGION               = data.aws_region.current.name
     # Search engine (growth.opensearch_enabled, modules/stack/growth.tf):
     # empty while off. The app uses it only when the admin sets
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
     OPENSEARCH_URL      = var.growth.opensearch_enabled ? "https://${module.growth.opensearch_endpoint}" : ""
     OPENSEARCH_REPLICAS = tostring(module.growth.opensearch_replicas)
   }
-  arm_factor      = var.cpu_architecture == "ARM64" ? 0.8 : 1
-  api_task_usd    = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
-  worker_task_usd = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
+  critical_topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
+  arm_factor         = var.cpu_architecture == "ARM64" ? 0.8 : 1
+  api_task_usd       = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
+  worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
     { REDIS_URL = module.redis.redis_url_secret_arn },
@@ -1304,6 +1314,45 @@ data "aws_iam_policy_document" "task" {
       resources = [statement.value]
     }
   }
+  # Owner 2026-10-24 (admin «Запуск»): subscribe the PagerDuty link the owner
+  # pastes in the admin to the CRITICAL topic, drop the old one, publish a
+  # test alarm. Only this topic (Unsubscribe is checked against the
+  # subscription ARN, which starts with the topic ARN).
+  statement {
+    actions   = ["sns:Subscribe", "sns:ListSubscriptionsByTopic", "sns:Publish"]
+    resources = [local.critical_topic_arn]
+  }
+  statement {
+    actions   = ["sns:Unsubscribe"]
+    resources = ["${local.critical_topic_arn}:*"]
+  }
+  # Owner 2026-10-24 (admin «Масштаб»): list the account's budgets (read),
+  # change the limit of the production budget and delete the obsolete
+  # «LawBid Monthly» one - by name, nothing else. If AWS refuses
+  # DeleteBudget with only ModifyBudget, the separate DeleteBudget action
+  # below (obsolete budget only) covers it.
+  statement {
+    actions   = ["budgets:ViewBudget"]
+    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/*"]
+  }
+  statement {
+    actions = ["budgets:ModifyBudget"]
+    resources = [
+      "arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/${local.name}-monthly",
+      "arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/LawBid Monthly",
+    ]
+  }
+  statement {
+    actions   = ["budgets:DeleteBudget"]
+    resources = ["arn:aws:budgets::${data.aws_caller_identity.current.account_id}:budget/LawBid Monthly"]
+  }
+  # Owner 2026-10-24 (admin «Запуск» and «Расходы»): read-only cost data.
+  # Cost Explorer has no resource-level scope; each request costs $0.01, so
+  # the app asks at most every 6 hours (common/ops/spend/spend.service.ts).
+  statement {
+    actions   = ["ce:GetCostAndUsage", "ce:GetCostForecast", "ce:ListCostAllocationTags"]
+    resources = ["*"]
+  }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
   statement {
@@ -1339,6 +1388,7 @@ module "budget" {
   anomaly_threshold_usd        = var.anomaly_threshold_usd
   anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
   anomaly_extra_emails         = var.anomaly_extra_emails
+  anomaly_sns_topic_arn        = var.anomaly_to_alerts_topic ? module.monitoring.alerts_topic_arn : ""
 }
 
 module "monitoring" {
@@ -1449,6 +1499,69 @@ module "security_baseline" {
 
   guardduty_ebs_malware        = var.guardduty_ebs_malware
   guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
+}
+
+# AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md).
+# AWS Config: recorder + 11 AWS-managed rules. ~$1-4/month, default off.
+module "aws_config" {
+  count            = var.ephemeral ? 0 : 1 # account singleton, like CloudTrail
+  source           = "../aws-config"
+  name             = local.name
+  enabled          = var.config_enabled
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  retention_days   = var.config_retention_days
+  tags             = local.tags
+}
+
+# Emergency administrator role (MFA, named principals, pages on use). Free.
+module "break_glass" {
+  count                  = var.ephemeral ? 0 : 1
+  source                 = "../break-glass"
+  name                   = local.name
+  enabled                = var.break_glass_enabled
+  trusted_principal_arns = var.break_glass_principal_arns
+  critical_topic_arn     = module.monitoring.critical_topic_arn
+  tags                   = local.tags
+}
+
+# Athena over the CloudTrail bucket with saved investigation queries. ~$0 idle.
+module "cloudtrail_athena" {
+  count        = var.ephemeral || !var.cloudtrail_athena_enabled ? 0 : 1
+  source       = "../cloudtrail-athena"
+  name         = local.name
+  trail_bucket = module.security_baseline[0].cloudtrail_bucket
+  regions      = distinct([data.aws_region.current.name, "us-east-1"])
+  tags         = local.tags
+}
+
+variable "config_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Config recorder (6 resource types, daily) + 11 AWS-managed rules + alert on NON_COMPLIANT. About $1-4/month (approximate; $0.012 per daily item, $0.001 per rule evaluation)."
+}
+variable "config_retention_days" {
+  type    = number
+  default = 400
+}
+variable "break_glass_enabled" {
+  type        = bool
+  default     = false
+  description = "Emergency administrator role (MFA, named principals, pages the critical topic). Free. Needs break_glass_principal_arns."
+}
+variable "break_glass_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "Named IAM users/roles that may assume the break-glass role (with MFA)."
+}
+variable "cloudtrail_athena_enabled" {
+  type        = bool
+  default     = true
+  description = "Athena workgroup, Glue table (partition projection) and saved queries over the CloudTrail bucket. ~$0 idle; $5 per TB scanned."
+}
+variable "anomaly_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Also send each Cost Anomaly Detection finding to the alerts topic at once (free)."
 }
 
 resource "aws_route53_record" "hosts" {

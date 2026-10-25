@@ -580,6 +580,57 @@ data "aws_iam_policy_document" "dns" {
   }
 }
 
+# --------------------------------- 6. GameDay: AWS FIS (docs/runbooks/GAMEDAY.md) ----
+# Experiment templates are created by Terraform (envs/loadtest, module
+# fis-gameday) and started by loadtest/scripts/gameday.sh. Everything is limited
+# to templates tagged Project=lawbid-loadtest; the service role the experiment
+# runs with is named lawbid-loadtest-fis and can only touch that stack.
+data "aws_iam_policy_document" "fis" {
+  statement {
+    sid       = "FisCreateTemplateTagged"
+    actions   = ["fis:CreateExperimentTemplate"]
+    resources = ["arn:aws:fis:*:${local.acct}:experiment-template/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  statement {
+    sid       = "FisChangeTaggedTemplates"
+    actions   = ["fis:UpdateExperimentTemplate", "fis:DeleteExperimentTemplate", "fis:TagResource", "fis:UntagResource", "fis:StartExperiment"]
+    resources = ["arn:aws:fis:*:${local.acct}:experiment-template/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  # StartExperiment is authorized against the template (above, tag-guarded)
+  # and against the new experiment object (here).
+  statement {
+    sid       = "FisExperiments"
+    actions   = ["fis:StartExperiment", "fis:StopExperiment", "fis:TagResource"]
+    resources = ["arn:aws:fis:*:${local.acct}:experiment/*"]
+  }
+  # Wide on purpose: read-only calls cannot be limited by tag.
+  statement {
+    sid       = "FisRead"
+    actions   = ["fis:GetExperiment", "fis:GetExperimentTemplate", "fis:ListExperiments", "fis:ListExperimentTemplates", "fis:ListTagsForResource", "fis:GetAction", "fis:ListActions", "fis:GetTargetResourceType", "fis:ListTargetResourceTypes"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "FisPassOnlyItsRole"
+    actions   = ["iam:PassRole"]
+    resources = ["arn:aws:iam::${local.acct}:role/${local.lt}-*"]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["fis.amazonaws.com"]
+    }
+  }
+}
+
 # Belt and braces: whatever the allow statements say, nothing tagged
 # Project=lawbid (production, staging) can be touched by these roles.
 data "aws_iam_policy_document" "deny_prod" {
@@ -588,6 +639,17 @@ data "aws_iam_policy_document" "deny_prod" {
     effect    = "Deny"
     actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:PutCompositeAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:DisableAlarmActions", "cloudwatch:SetAlarmState"]
     resources = ["arn:aws:cloudwatch:*:${local.acct}:alarm:lawbid-prod-*", "arn:aws:cloudwatch:*:${local.acct}:alarm:lawbid-staging-*"]
+  }
+  statement {
+    sid       = "NeverTouchProductionExperiments"
+    effect    = "Deny"
+    actions   = ["fis:*"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid"]
+    }
   }
   statement {
     sid       = "NeverTouchProductionOrStaging"
@@ -609,6 +671,7 @@ locals {
     runtime = data.aws_iam_policy_document.runtime.json
     data    = data.aws_iam_policy_document.data.json
     edge    = data.aws_iam_policy_document.edge.json
+    fis     = data.aws_iam_policy_document.fis.json
     dns     = data.aws_iam_policy_document.dns.json
     deny    = data.aws_iam_policy_document.deny_prod.json
   }

@@ -178,3 +178,11 @@ variable "growth" {
   type    = any
   default = {}
 }
+
+# GameDay (docs/runbooks/GAMEDAY.md): creates the AWS FIS experiment templates
+# and makes the database Multi-AZ (a failover needs a standby). Set by the
+# workflow input `gameday`; needs infra/bootstrap-loadtest re-applied (fis).
+variable "gameday_enabled" {
+  type    = bool
+  default = false
+}

@@ -47,6 +47,7 @@ import { AdminAuthService } from '../admin-auth/admin-auth.service';
  * (owner 2026-10-22, system audit #2 item 11). */
 export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'billing.dual_approval_min_cents',
+  'admin.dual_control',
 ]);
 
 const E = ErrorCode;

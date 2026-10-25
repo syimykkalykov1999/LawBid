@@ -106,6 +106,14 @@ resource "aws_sns_topic_policy" "alerts" {
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
         }
       },
+      {
+        # Cost Anomaly Detection (modules/budget, IMMEDIATE subscription).
+        Sid       = "CostAnomalyPublisher"
+        Effect    = "Allow"
+        Principal = { Service = "costalerts.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alerts.arn
+      },
     ]
   })
 }
@@ -157,6 +165,12 @@ resource "aws_sns_topic_policy" "critical" {
   })
 }
 
+# Owner 2026-10-24: the owner can also paste the PagerDuty link in the admin
+# (Ключи и сервисы -> PagerDuty); the API then subscribes it itself. That
+# subscription is NOT in this state, so Terraform never touches it. Use ONE
+# path: either this variable or the admin. (If both name the same link SNS
+# returns the same subscription and removing it in one place removes it for
+# both.) The admin path needs no apply and no secret in the tfvars.
 # PagerDuty: HTTPS subscription to the Events API integration. PagerDuty
 # confirms the subscription by itself (it opens the SubscribeURL); the
 # message stays the CloudWatch JSON (raw_message_delivery must be false).

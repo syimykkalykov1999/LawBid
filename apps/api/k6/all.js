@@ -30,5 +30,12 @@ export const options = {
     'http_req_duration{scenario:message}': WRITE_THRESHOLDS.http_req_duration,
     'http_req_duration{scenario:login}': WRITE_THRESHOLDS.http_req_duration,
     'http_req_duration{scenario:webhook}': WRITE_THRESHOLDS.http_req_duration,
+    'http_req_failed{scenario:feed}': ['rate<0.005'],
+    'http_req_failed{scenario:search}': ['rate<0.005'],
+    'http_req_failed{scenario:cases}': ['rate<0.005'],
+    'http_req_failed{scenario:bid}': ['rate<0.005'],
+    'http_req_failed{scenario:message}': ['rate<0.005'],
+    'http_req_failed{scenario:login}': ['rate<0.005'],
+    'http_req_failed{scenario:webhook}': ['rate<0.005'],
   },
 };
