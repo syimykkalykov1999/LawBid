@@ -5,6 +5,17 @@ import { activeClientBadgeIds } from '../client-badge/client-badge.util';
 import { FilesService } from '../files/files.service';
 import { VideosService } from '../videos/videos.service';
 import { VISIBLE_POST_WHERE } from './post-presenter.service';
+import { userDirectory } from '../../sharding/user-directory';
+
+const AUTHOR_SELECT = {
+  id: true,
+  role: true,
+  first_name: true,
+  last_name: true,
+  avatar_file_id: true,
+  client_profile: { select: { username: true } },
+  attorney_profile: { select: { username: true, trust_badge: true } },
+} as const;
 
 /** Owner 2026-10-21 (Instagram «Поделиться»): who wrote a shared post. */
 export class SharedPostAuthorDto {
@@ -105,25 +116,24 @@ export class SharedPostCardsService {
     const out = new Map<string, SharedPostCardDto>();
     const unique = [...new Set(ids)];
     if (unique.length === 0) return out;
-    const posts = await this.prisma.post.findMany({
+    const rows = await this.prisma.post.findMany({
       where: { ...VISIBLE_POST_WHERE, id: { in: unique } },
       select: {
         id: true,
         title: true,
         body: true,
         video_asset_id: true,
-        author: {
-          select: {
-            id: true,
-            role: true,
-            first_name: true,
-            last_name: true,
-            avatar_file_id: true,
-            client_profile: { select: { username: true } },
-            attorney_profile: { select: { username: true, trust_badge: true } },
-          },
-        },
+        author_id: true,
       },
+    });
+    // Shard-ready step 6: authors from the user directory, not a join.
+    const authorsById = await userDirectory(this.prisma).select(
+      rows.map((p) => p.author_id),
+      AUTHOR_SELECT,
+    );
+    const posts = rows.flatMap((p) => {
+      const author = authorsById.get(p.author_id);
+      return author ? [{ ...p, author }] : [];
     });
     const postIds = posts.map((p) => p.id);
     const assetIds = posts.flatMap((p) =>

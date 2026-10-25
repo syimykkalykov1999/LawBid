@@ -18,6 +18,7 @@ import {
 import { FilesService } from '../files/files.service';
 import { cachedBlockSet, dropBlockSets } from './block-set.cache';
 import type { BlockedUserDto } from './blocks.dto';
+import { userDirectory } from '../../sharding/user-directory';
 
 type Db = PrismaService | Prisma.TransactionClient;
 
@@ -70,29 +71,29 @@ export class BlocksService {
       // No follows either way while blocked.
       const rows = await tx.follow.findMany({
         where: between,
-        select: {
-          follower_id: true,
-          followee_id: true,
-          follower: { select: { role: true } },
-          followee: { select: { role: true } },
-        },
+        select: { follower_id: true, followee_id: true },
       });
       await tx.follow.deleteMany({ where: between });
       return rows;
     });
+    // Shard-ready step 6: roles come from the user directory, not a join.
+    const roles = await userDirectory(this.prisma).select(
+      removed.flatMap((f) => [f.follower_id, f.followee_id]),
+      { role: true },
+    );
     // Owner 2026-10-18 (speed): both users' cached block sets are stale now.
     await dropBlockSets(this.redis, userId, targetId);
     // Audit 2026-10-01: the removed follows leave both profiles' counters
     // (followers / following) — as an unfollow does.
     for (const f of removed) {
       await this.counters.bump(
-        profileEntity(f.followee.role),
+        profileEntity(roles.get(f.followee_id)?.role ?? null),
         f.followee_id,
         'followers_count',
         -1,
       );
       await this.counters.bump(
-        profileEntity(f.follower.role),
+        profileEntity(roles.get(f.follower_id)?.role ?? null),
         f.follower_id,
         'following_count',
         -1,
@@ -161,26 +162,26 @@ export class BlocksService {
       where: { blocker_id: userId },
       orderBy: { created_at: 'desc' },
       take: 500,
-      select: {
-        created_at: true,
-        blocked: {
-          select: {
-            id: true,
-            role: true,
-            first_name: true,
-            last_name: true,
-            avatar_file_id: true,
-            attorney_profile: { select: { username: true } },
-            client_profile: { select: { username: true } },
-          },
-        },
-      },
+      select: { created_at: true, blocked_id: true },
     });
+    const blockedUsers = await userDirectory(this.prisma).select(
+      rows.map((r) => r.blocked_id),
+      {
+        id: true,
+        role: true,
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        attorney_profile: { select: { username: true } },
+        client_profile: { select: { username: true } },
+      },
+    );
     const avatars = await this.files.avatarUrlsMany(
-      rows.map((r) => r.blocked.avatar_file_id),
+      rows.map((r) => blockedUsers.get(r.blocked_id)?.avatar_file_id ?? null),
     );
     return rows.flatMap((r) => {
-      const u = r.blocked;
+      const u = blockedUsers.get(r.blocked_id);
+      if (!u) return [];
       if (u.role !== 'attorney' && u.role !== 'client') return [];
       return [
         {
