@@ -9,6 +9,21 @@
 # an SPDX SBOM attestation; the prod job verifies the signature before it
 # touches anything. Repository variable SIGN_REQUIRED=true makes signing and
 # verification hard failures (default: warning only until proven on ECR).
+# OWNER STEP: after the first Deploy run that shows "signature OK" in the log,
+# set SIGN_REQUIRED=true (Settings -> Secrets and variables -> Actions ->
+# Variables) and signing_guard_enabled=true in Terraform.
+#
+# S11 hardening (2026-10-25):
+#  * `gate` first: the build starts only after every CI check of the commit
+#    finished green (scripts/ci/require-green.sh); a red or untested main never
+#    reaches the approval prompt. A manual run with `image_tag` (an image that is
+#    already built) skips the gate on purpose: it is how a known-good tag is redeployed.
+#  * Trivy blocks CRITICAL on the pushed digest (both architectures) before signing.
+#  * prod: real backup age (RDS LatestRestorableTime), a named snapshot before a
+#    contract migration, then roll api -> smoke (asserts the answering tasks run
+#    THIS tag) -> worker -> admin -> synthetic user flow; only then the tag is
+#    written to SSM as last_good_tag (Rollback's default target).
+#  * any failure -> notify-failure.yml (issue + SNS alerts topic + chat webhook).
 #
 # Required repository/environment secrets (never in the repo):
 #   AWS_DEPLOY_ROLE_STAGING / AWS_DEPLOY_ROLE_PROD  — OIDC role ARNs
@@ -51,11 +66,30 @@ env:
   IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
 
 jobs:
+  gate:
+    name: Wait for green CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Every CI check of this commit is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/require-green.sh "$GITHUB_SHA" \
+            '^(API |Admin CI|Build image \+ Trivy|gitleaks|CodeQL)' \
+            '^(Wait for green CI|Build & push|Deploy|Web deploy|Build and publish|Notify|Mobile release)'
+
   build:
     name: Build & push images
+    needs: [gate]
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
+    if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag && needs.gate.result == 'success' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: OIDC diagnostics (prints the token's sub, never the token)
@@ -115,6 +149,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # S11-10: scan the digest we really ship (both architectures) and stop on a
+      # fixable CRITICAL before it is signed.
+      - name: Trivy on the pushed digests (CRITICAL blocks)
+        if: steps.have.outputs.exists != 'true'
+        env:
+          API_DIGEST: ${{ steps.build_api.outputs.digest }}
+          ADMIN_DIGEST: ${{ steps.build_admin.outputs.digest }}
+        run: |
+          set -eu
+          export TRIVY_USERNAME=AWS
+          TRIVY_PASSWORD=$(aws ecr get-login-password --region "$AWS_REGION"); export TRIVY_PASSWORD
+          scripts/ci/trivy-image.sh "$ECR_REGISTRY/lawbid-api@$API_DIGEST" CRITICAL
+          scripts/ci/trivy-image.sh "$ECR_REGISTRY/lawbid-admin@$ADMIN_DIGEST" CRITICAL
+
       # --- P1 supply chain (2026-10-24): sign + SBOM, by digest ----------------
       # Keyless: the signature is bound to this workflow's GitHub OIDC identity
       # (Sigstore Fulcio certificate + Rekor log), no key to store or rotate.
@@ -163,8 +211,8 @@ jobs:
 
   deploy-staging:
     name: Deploy staging
-    needs: [build]
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.STAGING_ENABLED == 'true' && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    needs: [gate, build]
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.STAGING_ENABLED == 'true' && always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment:
@@ -190,12 +238,14 @@ jobs:
           ROLL_TIMEOUT_SECONDS: "1800"
         run: scripts/deploy/roll-services.sh lawbid-staging "$IMAGE_TAG"
       - name: Smoke
-        run: scripts/deploy/smoke.sh "${{ secrets.STAGING_API_URL }}" "${{ secrets.STAGING_ADMIN_URL }}"
+        run: scripts/deploy/smoke.sh "${{ secrets.STAGING_API_URL }}" "${{ secrets.STAGING_ADMIN_URL }}" "$IMAGE_TAG"
 
   deploy-prod:
     name: Deploy production (manual approval)
-    needs: [build, deploy-staging]
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy-staging.result == 'success' || needs.deploy-staging.result == 'skipped') }}
+    # `gate` is skipped only for a manual redeploy of an existing image_tag; a
+    # failed gate (red CI) is neither success nor skipped and stops everything.
+    needs: [gate, build, deploy-staging]
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy-staging.result == 'success' || needs.deploy-staging.result == 'skipped') }}
     runs-on: ubuntu-latest
     # The GitHub environment `production` carries the required reviewers:
     # docs/06 §7.3 "ручное подтверждение".
@@ -205,6 +255,10 @@ jobs:
       name: production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # snapshot-if-contract.sh diffs the migrations of the running release
+          # against this one.
+          fetch-depth: 0
       - name: OIDC diagnostics (prints the token's sub, never the token)
         continue-on-error: true
         run: scripts/deploy/oidc-sub.sh
@@ -224,8 +278,24 @@ jobs:
               --certificate-identity-regexp "(?i)^https://github\.com/${{ github.repository }}/\.github/workflows/deploy\.yml@refs/heads/main$" >/dev/null
             echo "signature OK: $repo@$DIGEST"
           done
+      - name: Release running now (SSM last_good_tag)
+        run: |
+          LAST=$(aws ssm get-parameter --name "/lawbid-prod/deploy/last_good_tag" --query Parameter.Value --output text 2>/dev/null || true)
+          echo "LAST_GOOD_TAG=${LAST}" >> "$GITHUB_ENV"
+          echo "running release: ${LAST:-unknown}"
+      # S11-14: the real check: the database's newest restorable point (RDS
+      # LatestRestorableTime) must be younger than 26 h. BACKUP_CHECK_STRICT=true
+      # (repository variable) also fails when the role may not read it.
       - name: Fresh backup exists (docs/06 §6.4 "перед каждой продовой миграцией")
+        env:
+          BACKUP_CHECK_STRICT: ${{ vars.BACKUP_CHECK_STRICT }}
         run: scripts/deploy/check-backup.sh
+      # Cost switch: repository variable PRE_MIGRATE_SNAPSHOT=false turns it off.
+      # A snapshot is taken only for a `contract` migration (rare), costs about
+      # $0.095 per GB-month while it exists: delete it after a week (RDS -> Snapshots).
+      - name: Snapshot before contract migrations (only when this release has one)
+        if: ${{ vars.PRE_MIGRATE_SNAPSHOT != 'false' }}
+        run: scripts/deploy/snapshot-if-contract.sh "$LAST_GOOD_TAG" "$IMAGE_TAG"
       - name: Migrations (expand/contract only, docs/02 §7.1)
         run: scripts/deploy/run-migrations.sh lawbid-prod "$IMAGE_TAG"
       - name: Translations (all 85 languages from translations_seed.xlsx)
@@ -235,10 +305,48 @@ jobs:
         run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" i18n
       # ECS rolls back on the circuit breaker or on the 5xx / p95 / unhealthy
       # alarms. The script waits for rolloutState COMPLETED of OUR revision
-      # (not just "stable") and goes red on FAILED.
-      - name: Rolling deploy api / worker / admin
+      # (not just "stable") and goes red on FAILED. S11-14: api first, smoked
+      # against the tag, then worker and admin, so one bad shared change does not
+      # hit all three services at once.
+      - name: Rolling deploy api
         env:
           ROLL_TIMEOUT_SECONDS: "2400"
-        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG"
-      - name: Smoke
-        run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}"
+        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" api
+      - name: Smoke api (the answering tasks run this tag)
+        run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$IMAGE_TAG"
+      - name: Rolling deploy worker and admin
+        env:
+          ROLL_TIMEOUT_SECONDS: "2400"
+        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" "worker admin"
+      - name: Smoke (all services)
+        run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$IMAGE_TAG"
+      - name: Synthetic user flow (scripts/ops/synthetic-check.mjs)
+        env:
+          SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
+          SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
+        run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}" --expect-version "$IMAGE_TAG"
+      # S11-9: only a release that passed every check above becomes the
+      # rollback default. Needs ssm:PutParameter on /lawbid-prod/deploy/* (infra/bootstrap);
+      # until that is applied the deploy still succeeds (warning).
+      - name: Remember this release as last_good_tag
+        continue-on-error: true
+        run: |
+          if [ -n "${LAST_GOOD_TAG:-}" ] && [ "$LAST_GOOD_TAG" != "$IMAGE_TAG" ]; then
+            aws ssm put-parameter --name "/lawbid-prod/deploy/previous_good_tag" --type String --overwrite --value "$LAST_GOOD_TAG" >/dev/null
+          fi
+          aws ssm put-parameter --name "/lawbid-prod/deploy/last_good_tag" --type String --overwrite --value "$IMAGE_TAG" >/dev/null
+          echo "last_good_tag = $IMAGE_TAG (was ${LAST_GOOD_TAG:-none})" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  notify:
+    name: Tell the owner
+    needs: [gate, build, deploy-staging, deploy-prod]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Production deploy failed (red CI gate, build, migration, roll or smoke)"
+      kind: deploy
+    secrets: inherit

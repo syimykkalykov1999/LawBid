@@ -3,6 +3,8 @@
 name: Container scan
 
 on:
+  merge_group:
+    types: [checks_requested]
   pull_request:
     branches: [main, master]
     paths:
@@ -72,3 +74,19 @@ jobs:
         continue-on-error: true
         with:
           sarif_file: trivy.sarif
+
+  # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [trivy]
+    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Container scan failed on main (CRITICAL/HIGH vulnerability in the API image)"
+      kind: scan
+      remind_after_minutes: 720
+    secrets: inherit
