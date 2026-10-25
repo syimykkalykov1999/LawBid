@@ -34,6 +34,7 @@ import {
   type MatchAction,
   type SignalCode,
 } from './client-fraud.constants';
+import { activeHeldIds } from '../../common/legal-hold/legal-holds';
 import { fingerprintHash, isComparableText } from './fingerprint.util';
 import {
   decideStatus,
@@ -869,6 +870,7 @@ export class ClientFraudService {
     const blockedStale = new Date(
       now.getTime() - cfg.blockedRetentionDays * DAY_MS,
     );
+    const heldUsers = await activeHeldIds(this.prisma, 'user', now);
     const suspended = await this.prisma.user.findMany({
       where: { status: 'suspended' },
       select: { id: true },
@@ -879,11 +881,15 @@ export class ClientFraudService {
       where: {
         banned_at: null,
         last_seen_at: { lt: stale },
-        ...(keep.length ? { user_id: { notIn: keep } } : {}),
+        user_id: { notIn: [...new Set([...keep, ...heldUsers])] },
       },
     });
     const deleted = await this.prisma.user.findMany({
-      where: { status: 'deleted', anonymized_at: { not: null } },
+      where: {
+        status: 'deleted',
+        anonymized_at: { not: null },
+        id: { notIn: heldUsers },
+      },
       select: { id: true },
       take: 5000,
     });
@@ -894,6 +900,7 @@ export class ClientFraudService {
       : { count: 0 };
     const c = await this.prisma.identityFingerprint.deleteMany({
       where: {
+        user_id: { notIn: heldUsers },
         OR: [
           { banned_at: { lt: blockedStale } },
           ...(keep.length

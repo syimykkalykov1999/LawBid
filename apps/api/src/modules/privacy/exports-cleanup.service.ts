@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { activeHeldIds, notInHeld } from '../../common/legal-hold/legal-holds';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 
@@ -45,8 +46,13 @@ export class ExportsCleanupService {
     now: Date = new Date(),
   ): Promise<{ expired: number; failed: number; webhookEvents: number }> {
     const webhookEvents = await this.pruneWebhookEvents(now);
+    const held = await activeHeldIds(this.prisma, 'user', now);
     const due = await this.prisma.dataExportJob.findMany({
-      where: { status: 'ready', expires_at: { lt: now } },
+      where: {
+        status: 'ready',
+        expires_at: { lt: now },
+        user_id: notInHeld(held),
+      },
       include: {
         file: { select: { id: true, s3_bucket: true, s3_key: true } },
       },

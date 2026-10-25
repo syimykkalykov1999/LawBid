@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { Prisma } from '@prisma/client';
+import { activeHeldIds, notHeldSql } from '../../common/legal-hold/legal-holds';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Rows per DELETE: small transactions, no long locks. */
@@ -19,6 +21,7 @@ export class NotificationsRetentionJob {
   async run(now: Date = new Date()): Promise<{ deleted: number }> {
     const days = await this.settings.number('notifications.retention_days');
     const before = new Date(now.getTime() - days * 24 * 3600 * 1000);
+    const held = await activeHeldIds(this.prisma, 'user', now);
     let deleted = 0;
     while (deleted < MAX_PER_RUN) {
       const n = await this.prisma.$executeRaw`
@@ -26,6 +29,7 @@ export class NotificationsRetentionJob {
         WHERE ctid IN (
           SELECT ctid FROM notifications
           WHERE created_at < ${before}
+            AND ${notHeldSql(Prisma.sql`user_id`, held)}
           ORDER BY created_at
           LIMIT ${BATCH})`;
       deleted += n;

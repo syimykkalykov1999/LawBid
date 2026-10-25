@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Injectable, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import archiver from 'archiver';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -9,6 +10,7 @@ import { withDeleted } from '../../prisma/soft-delete.extension';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import type { LegalSection } from './legal-export.dto';
 import { renderLegalReportPdf } from './legal-export.pdf';
+import { signManifest } from './legal-manifest.signer';
 
 const DAY_MS = 24 * 3600 * 1000;
 /** A `running` row older than this is a dead worker: the next tick retries. */
@@ -39,6 +41,7 @@ export class LegalExportBuilder {
     private readonly settings: AppSettingsService,
     private readonly logger: PinoLogger,
     @Optional() private readonly cipher?: MessageBodyCipher,
+    @Optional() private readonly config?: ConfigService,
   ) {
     this.logger.setContext(LegalExportBuilder.name);
   }
@@ -123,22 +126,33 @@ export class LegalExportBuilder {
         .sort()
         .join('\n');
       files.set('SHA256SUMS.txt', Buffer.from(`${sums}\n`));
-      files.set(
-        'manifest.json',
-        json({
-          exportId: job.id,
-          requestId: job.request_id,
-          referenceNumber: job.request.reference_number,
-          generatedAt: now.toISOString(),
-          selection,
-          counts,
-          truncatedAtRows: gathered.truncated.length ? maxRows : null,
-          truncated: gathered.truncated,
-          hashes: Object.fromEntries(
-            [...files.entries()].map(([n, b]) => [n, sha256(b)]),
-          ),
-        }),
-      );
+      const manifestBytes = json({
+        exportId: job.id,
+        requestId: job.request_id,
+        referenceNumber: job.request.reference_number,
+        issuingAuthority: job.request.agency,
+        legalBasis: job.request.legal_basis,
+        requestedBy: job.requested_by,
+        requestedAt: job.created_at.toISOString(),
+        generatedAt: now.toISOString(),
+        selection,
+        counts,
+        truncatedAtRows: gathered.truncated.length ? maxRows : null,
+        truncated: gathered.truncated,
+        hashes: Object.fromEntries(
+          [...files.entries()].map(([n, b]) => [n, sha256(b)]),
+        ),
+      });
+      files.set('manifest.json', manifestBytes);
+      // Chain of custody: the manifest is sealed; `manifest.sig` travels in
+      // the ZIP and the same seal is stored on the row.
+      const seal = signManifest(manifestBytes, {
+        privateKeyPem: this.config
+          ?.get<string>('LEGAL_MANIFEST_SIGNING_KEY')
+          ?.replace(/\\n/g, '\n'),
+        fallbackSecret: this.config?.get<string>('OTP_KEY_PEPPER') ?? 'lawbid',
+      });
+      files.set('manifest.sig', json(seal));
 
       const zip = await zipBuffer(files);
       const bucket = this.storage.bucket('documents');
@@ -153,6 +167,9 @@ export class LegalExportBuilder {
             file_key: key,
             size_bytes: BigInt(zip.length),
             sha256: sha256(zip),
+            manifest_sha256: seal.manifestSha256,
+            manifest_signature: seal.signature,
+            signature_alg: seal.alg,
             row_counts: counts,
             error: null,
             finished_at: new Date(),

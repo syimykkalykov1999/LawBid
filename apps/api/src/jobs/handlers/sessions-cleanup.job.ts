@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { activeHeldIds, notHeldSql } from '../../common/legal-hold/legal-holds';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Terminally revoked rows (logout, logout_all, reuse_detected, admin
@@ -66,6 +67,9 @@ export class SessionsCleanupJob {
     const revokedBefore = new Date(
       now.getTime() - REVOKED_SESSION_RETENTION_DAYS * 24 * 60 * 60 * 1000,
     );
+    // Owner 2026-10-28: a legal hold on a person keeps their sessions (login
+    // evidence) even when expired.
+    const held = await activeHeldIds(this.prisma, 'user', now);
     let cursor = ZERO_UUID;
     let scanned = 0;
     let deleted = 0;
@@ -73,7 +77,7 @@ export class SessionsCleanupJob {
     for (;;) {
       const [row] = await this.prisma.$queryRaw<BatchRow[]>(Prisma.sql`
         WITH batch AS (
-          SELECT id, expires_at, revoked_at, revoked_reason
+          SELECT id, user_id, expires_at, revoked_at, revoked_reason
           FROM sessions
           WHERE id > ${cursor}::UUID
           ORDER BY id
@@ -83,9 +87,10 @@ export class SessionsCleanupJob {
           DELETE FROM sessions
           WHERE id IN (
             SELECT id FROM batch
-            WHERE expires_at < ${now}
+            WHERE (expires_at < ${now}
                OR (revoked_at < ${revokedBefore}
-                   AND revoked_reason IS DISTINCT FROM 'rotated')
+                   AND revoked_reason IS DISTINCT FROM 'rotated'))
+              AND ${notHeldSql(Prisma.sql`user_id`, held)}
           )
           RETURNING id
         )
