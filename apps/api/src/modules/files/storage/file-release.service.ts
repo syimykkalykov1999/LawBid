@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { ALL_VARIANT_PX, variantKey } from '../files.policy';
+import { derivedKeys } from '../files.policy';
 import { S3StorageService } from './s3-storage.service';
 
 /** Why a file row was deleted (files.deleted_reason). */
@@ -104,10 +104,7 @@ export class FileReleaseService {
     const failed = new Set<string>();
     if (this.storage.configured) {
       for (const [bucket, keys] of byBucket) {
-        const objects = [...keys].flatMap((k) => [
-          k,
-          ...ALL_VARIANT_PX.map((px) => variantKey(k, px)),
-        ]);
+        const objects = [...keys].flatMap((k) => [k, ...derivedKeys(k)]);
         try {
           for (let i = 0; i < objects.length; i += KEYS_PER_CALL) {
             await this.storage.remove(

@@ -562,5 +562,36 @@ variable "backup_vault_lock_cooling_off_days" {
 variable "db_replica_toggle" {
   type        = bool
   default     = false
-  description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (two admins + 2FA). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
+  description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (one 2FA step-up). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
+}
+
+# AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md)
+variable "config_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Config recorder + 11 managed rules. ~$1-4/month. One recorder per account and region: turn on in ONE env if prod and staging share an account."
+}
+variable "config_retention_days" {
+  type    = number
+  default = 400
+}
+variable "break_glass_enabled" {
+  type        = bool
+  default     = false
+  description = "Emergency administrator role (MFA, named principals, pages on use). Free."
+}
+variable "break_glass_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "Named IAM users/roles that may assume the break-glass role."
+}
+variable "cloudtrail_athena_enabled" {
+  type        = bool
+  default     = true
+  description = "Athena + saved CloudTrail queries. ~$0 idle."
+}
+variable "anomaly_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Cost Anomaly findings also to the alerts topic (free)."
 }
