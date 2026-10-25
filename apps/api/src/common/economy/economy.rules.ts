@@ -165,6 +165,59 @@ export function nextTier(
   return i >= 0 && i + 1 < tiers.length ? tiers[i + 1] : null;
 }
 
+/** The next smaller tier, or null (unknown class or already the smallest). */
+export function prevTier(
+  tiers: readonly Tier[],
+  current: string | null | undefined,
+): Tier | null {
+  const i = tiers.findIndex((t) => t.name === current);
+  return i > 0 ? tiers[i - 1] : null;
+}
+
+/** Shrink only when the load is as low as the autoscaler itself requires
+ * (docs/architecture/DB_AUTOSCALE.md: CPU at most 30 %, connections at most
+ * 40 % of the limit). Redis: the used memory must fit in half of the
+ * smaller node. */
+export const SHRINK_DB_CPU_PERCENT = 30;
+export const SHRINK_DB_CONN_PERCENT = 40;
+export const SHRINK_REDIS_MEM_PERCENT = 50;
+
+/** Why a manual «уменьшить» must be refused, or null when it is safe.
+ * Unknown load (no metric) refuses: never shrink blind. */
+export function shrinkBlocker(
+  target: 'db' | 'redis',
+  from: Tier,
+  to: Tier,
+  m: {
+    dbCpuPercent: number | null;
+    dbConnections: number | null;
+    redisMemoryPercent: number | null;
+  },
+): string | null {
+  if (target === 'db') {
+    if (m.dbCpuPercent == null || m.dbConnections == null) {
+      return 'Нагрузка базы неизвестна: уменьшать вслепую нельзя.';
+    }
+    if (m.dbCpuPercent > SHRINK_DB_CPU_PERCENT) {
+      return `Процессор занят на ${Math.round(m.dbCpuPercent)} %: на меньшем размере базе будет тесно (нужно не больше ${SHRINK_DB_CPU_PERCENT} %).`;
+    }
+    const limit = dbMaxConnections(to.memoryGb);
+    const pct = (m.dbConnections / limit) * 100;
+    if (pct > SHRINK_DB_CONN_PERCENT) {
+      return `Соединений ${Math.round(m.dbConnections)} из ${limit} на меньшем размере (${Math.round(pct)} %, нужно не больше ${SHRINK_DB_CONN_PERCENT} %).`;
+    }
+    return null;
+  }
+  if (m.redisMemoryPercent == null) {
+    return 'Занятость памяти Redis неизвестна: уменьшать вслепую нельзя.';
+  }
+  const after = (m.redisMemoryPercent * from.memoryGb) / to.memoryGb;
+  if (after > SHRINK_REDIS_MEM_PERCENT) {
+    return `На меньшем размере память Redis была бы занята на ${Math.round(after)} % (нужно не больше ${SHRINK_REDIS_MEM_PERCENT} %).`;
+  }
+  return null;
+}
+
 /** PostgreSQL on RDS: LEAST(memory / 9531392 bytes, 5000) connections. */
 export function dbMaxConnections(memoryGb: number): number {
   return Math.min(Math.floor((memoryGb * 1024 ** 3) / 9_531_392), 5000);

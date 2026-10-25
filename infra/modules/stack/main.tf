@@ -1115,6 +1115,12 @@ locals {
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
     OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
     OPS_REDIS_GROUP     = "${local.name}-redis"
+    # Batch D (2026-10-24): the admin «Масштаб» page says whether the size
+    # changes by itself (the Lambda's own on / dry-run / off switch is in SSM).
+    OPS_DB_AUTOSCALE    = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE = var.redis_autoscale_enabled && var.redis_replicas > 0 ? "on" : "off"
+    OPS_POOLER_MIN      = tostring(var.pgbouncer_min_tasks)
+    OPS_POOLER_MAX      = tostring(var.pgbouncer_max_tasks)
     OPS_BUDGET_NAME     = "${local.name}-monthly"
     OPS_AWS_ACCOUNT_ID  = data.aws_caller_identity.current.account_id
     AWS_REGION          = data.aws_region.current.name

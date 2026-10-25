@@ -8,6 +8,8 @@ import {
   manualCeiling,
   nextGuardActive,
   nextTier,
+  prevTier,
+  shrinkBlocker,
   pressures,
   projectMonth,
   REDIS_TIERS,
@@ -161,5 +163,40 @@ describe('pressures', () => {
       }),
     ).toEqual([]);
     expect(pressures({})).toEqual([]);
+  });
+});
+
+describe('prevTier / shrinkBlocker', () => {
+  const [micro, small] = DB_TIERS;
+  const idle = { dbCpuPercent: 5, dbConnections: 10, redisMemoryPercent: 10 };
+
+  it('finds the next smaller tier, none below the smallest', () => {
+    expect(prevTier(DB_TIERS, 'db.t4g.medium')?.name).toBe('db.t4g.small');
+    expect(prevTier(DB_TIERS, 'db.t4g.micro')).toBeNull();
+    expect(prevTier(DB_TIERS, 'db.unknown')).toBeNull();
+  });
+
+  it('allows shrinking an idle database', () => {
+    expect(shrinkBlocker('db', small, micro, idle)).toBeNull();
+  });
+
+  it('blocks on CPU, on connections of the smaller size, and on no data', () => {
+    expect(
+      shrinkBlocker('db', small, micro, { ...idle, dbCpuPercent: 45 }),
+    ).toContain('Процессор');
+    expect(
+      shrinkBlocker('db', small, micro, { ...idle, dbConnections: 90 }),
+    ).toContain('Соединений');
+    expect(
+      shrinkBlocker('db', small, micro, { ...idle, dbCpuPercent: null }),
+    ).toContain('неизвестна');
+  });
+
+  it('Redis: scales the used memory to the smaller node', () => {
+    const [r0, r1] = REDIS_TIERS;
+    expect(shrinkBlocker('redis', r1, r0, idle)).toBeNull();
+    expect(
+      shrinkBlocker('redis', r1, r0, { ...idle, redisMemoryPercent: 30 }),
+    ).toContain('Redis');
   });
 });
