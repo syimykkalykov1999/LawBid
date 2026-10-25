@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import {
   CaseJournalService,
   type ChainVerification,
@@ -35,6 +36,15 @@ export class JournalIntegrityService {
   }
 
   async run(now: Date = new Date()): Promise<IntegrityRunResult> {
+    // Shard-ready step 8: one pass per database (one database: once).
+    const parts = await forEachDatabase(this.prisma, () => this.runHere(now));
+    return {
+      checked: parts.reduce((n, p) => n + p.checked, 0),
+      broken: parts.flatMap((p) => p.broken),
+    };
+  }
+
+  private async runHere(now: Date): Promise<IntegrityRunResult> {
     const since = new Date(now.getTime() - 24 * 3600 * 1000);
     const changed = await this.prisma.caseJournal.findMany({
       where: { created_at: { gte: since } },

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { shardContext } from '../../sharding/shard-context';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 
 /** Owner 2026-10-18: what happened to a post, for its counters and the
@@ -47,10 +48,12 @@ export class PostEventsService {
     } else {
       // One writer per viewer + post + kind at a time (a double tap or two
       // devices must not both pass the "none in 24 h" check).
-      inserted = await this.prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(
+      // The viewer's own shard is not the post's: run in the author's.
+      inserted = await shardContext.runForUser(authorId, () =>
+        this.prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(
           hashtextextended(${`${postId}:${viewerId}:${kind}`}, 0))`;
-        return tx.$executeRaw`
+          return tx.$executeRaw`
           INSERT INTO post_view_events (post_id, viewer_id, kind, shard_id)
           SELECT ${postId}::UUID, ${viewerId}::UUID, ${kind},
                  COALESCE((SELECT shard_id FROM posts WHERE id = ${postId}::UUID), 0)
@@ -60,7 +63,8 @@ export class PostEventsService {
               AND kind = ${kind}
               AND created_at > now() - make_interval(hours => ${POST_EVENT_DEDUPE_HOURS}::INT)
           )`;
-      });
+        }),
+      );
     }
     if (inserted > 0 && kind === 'view') {
       await this.counters.bump('post', postId, 'view_count', 1);

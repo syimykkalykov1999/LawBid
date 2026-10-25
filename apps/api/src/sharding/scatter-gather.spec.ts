@@ -42,6 +42,7 @@ describe('scatter-gather merge (shard-ready step 8)', () => {
 
   it('refuses what it cannot merge exactly', () => {
     expect(canScatter('groupBy', {})).toBe(false);
+    expect(canScatter('groupBy', { by: ['a'], _avg: { n: true } })).toBe(false);
     expect(canScatter('findMany', { cursor: { id: 'x' } })).toBe(false);
     expect(canScatter('findMany', { distinct: ['a'] })).toBe(false);
     expect(
@@ -58,5 +59,51 @@ describe('scatter-gather merge (shard-ready step 8)', () => {
       }),
     ).toBe(true);
     expect(canScatter('count', { where: {} })).toBe(true);
+  });
+
+  it('aggregate: sums counts and sums, min/max of partials; avg is not scattered', () => {
+    const args = {
+      _count: true,
+      _sum: { n: true },
+      _min: { n: true },
+      _max: { n: true },
+    };
+    expect(canScatter('aggregate', args)).toBe(true);
+    expect(canScatter('aggregate', { _avg: { n: true } })).toBe(false);
+    expect(canScatter('aggregate', { take: 3, _count: true })).toBe(false);
+    expect(
+      mergeScatter('aggregate', args, [
+        { _count: 2, _sum: { n: 5 }, _min: { n: 2 }, _max: { n: 3 } },
+        { _count: 3, _sum: { n: null }, _min: { n: 1 }, _max: { n: 9 } },
+      ]),
+    ).toEqual({ _count: 5, _sum: { n: 5 }, _min: { n: 1 }, _max: { n: 9 } });
+  });
+
+  it('groupBy: merges equal keys, re-sorts by aggregate and re-applies take; having is not scattered', () => {
+    const args = {
+      by: ['t'],
+      _count: { _all: true },
+      orderBy: { _count: { _all: 'desc' } },
+      take: 2,
+    };
+    expect(canScatter('groupBy', args)).toBe(true);
+    expect(canScatter('groupBy', { ...args, having: {} })).toBe(false);
+    expect(perDatabaseArgs('groupBy', args)).toEqual({
+      by: ['t'],
+      _count: { _all: true },
+      orderBy: { _count: { _all: 'desc' } },
+    });
+    const a = [
+      { t: 'x', _count: { _all: 1 } },
+      { t: 'y', _count: { _all: 2 } },
+    ];
+    const b = [
+      { t: 'x', _count: { _all: 4 } },
+      { t: 'z', _count: { _all: 3 } },
+    ];
+    expect(mergeScatter('groupBy', args, [a, b])).toEqual([
+      { t: 'x', _count: { _all: 5 } },
+      { t: 'z', _count: { _all: 3 } },
+    ]);
   });
 });

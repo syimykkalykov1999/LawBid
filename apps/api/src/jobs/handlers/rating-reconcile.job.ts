@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { RATING_AVG_SQL } from '../../modules/reviews/review-rating';
 
 export const RATING_RECONCILE_BATCH = 1000;
@@ -43,8 +45,11 @@ export class RatingReconcileJob {
     let scanned = 0;
     let fixed = 0;
 
+    const split = readsAreSplit(this.prisma);
     for (;;) {
-      const [row] = await this.prisma.$queryRaw<BatchRow[]>(Prisma.sql`
+      const [row] = split
+        ? await this.splitBatch(cursor, batchSize)
+        : await this.prisma.$queryRaw<BatchRow[]>(Prisma.sql`
         WITH batch AS (
           SELECT user_id, rating_avg, rating_count
           FROM attorney_profiles
@@ -90,5 +95,64 @@ export class RatingReconcileJob {
       this.logger.info({ scanned, fixed }, 'attorney ratings consistent');
     }
     return { scanned, fixed };
+  }
+
+  /**
+   * The same batch when reviews and attorney_profiles live on different
+   * databases (shard-ready step 8): the batch of profiles is read on the
+   * global side, the rating sums and counts per attorney are taken on every
+   * database, and the rows that differ are rewritten on the global side with
+   * the same SQL rounding (avg over ints = sum / count, exactly).
+   */
+  private async splitBatch(
+    cursor: string,
+    batchSize: number,
+  ): Promise<BatchRow[]> {
+    const global = this.prisma.global();
+    const batch = await global.$queryRaw<
+      { user_id: string; rating_avg: Prisma.Decimal; rating_count: number }[]
+    >`SELECT user_id::TEXT AS user_id, rating_avg, rating_count
+      FROM attorney_profiles
+      WHERE user_id > ${cursor}::UUID
+      ORDER BY user_id
+      LIMIT ${batchSize}`;
+    if (batch.length === 0) return [{ last_id: null, scanned: 0n, fixed: 0n }];
+    const ids = batch.map((b) => b.user_id);
+    const parts = await forEachDatabase(
+      this.prisma,
+      () =>
+        this.prisma.$queryRaw<
+          { attorney_id: string; sum: bigint | number; cnt: bigint | number }[]
+        >`SELECT attorney_id::TEXT AS attorney_id, sum(rating) AS sum,
+               count(id) AS cnt
+        FROM reviews
+        WHERE attorney_id = ANY(${ids}::UUID[]) AND status = 'published'
+        GROUP BY attorney_id`,
+    );
+    const sums = new Map<string, { sum: number; cnt: number }>();
+    for (const r of parts.flat()) {
+      const cur = sums.get(r.attorney_id) ?? { sum: 0, cnt: 0 };
+      cur.sum += Number(r.sum);
+      cur.cnt += Number(r.cnt);
+      sums.set(r.attorney_id, cur);
+    }
+    const sumList = ids.map((id) => sums.get(id)?.sum ?? 0);
+    const cntList = ids.map((id) => sums.get(id)?.cnt ?? 0);
+    const fixed = await global.$executeRaw`
+      UPDATE attorney_profiles AS ap
+      SET rating_avg = COALESCE(round(t.s::DECIMAL / NULLIF(t.c, 0), 2), 0),
+          rating_count = t.c, updated_at = now()
+      FROM unnest(${ids}::UUID[], ${sumList}::INT8[], ${cntList}::INT8[])
+        AS t(id, s, c)
+      WHERE ap.user_id = t.id
+        AND (ap.rating_avg <> COALESCE(round(t.s::DECIMAL / NULLIF(t.c, 0), 2), 0)
+             OR ap.rating_count <> t.c)`;
+    return [
+      {
+        last_id: ids[ids.length - 1],
+        scanned: BigInt(ids.length),
+        fixed: BigInt(fixed),
+      },
+    ];
   }
 }

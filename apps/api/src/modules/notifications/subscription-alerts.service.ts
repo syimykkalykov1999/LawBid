@@ -6,6 +6,7 @@ import {
   URGENT_LEVELS,
 } from '../cases/domain/case-urgency';
 import { PrismaService } from '../../prisma/prisma.service';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { NotificationsService } from './notifications.service';
 
 /** One post or case alerts at most this many people (a later stage can
@@ -36,7 +37,9 @@ export class SubscriptionAlertsService {
     postId: string,
     brief = false,
   ): Promise<number> {
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const rows = readsAreSplit(this.prisma)
+      ? await this.followersSplit(authorId)
+      : await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT f.follower_id::TEXT AS id
       FROM follows f
       JOIN notification_settings s
@@ -85,7 +88,9 @@ export class SubscriptionAlertsService {
       await loadUrgencyThresholds(this.settings),
     );
     const urgent = level !== null && URGENT_LEVELS.includes(level);
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const rows = readsAreSplit(this.prisma)
+      ? await this.attorneysSplit(caseId, urgent)
+      : await this.prisma.$queryRaw<{ id: string }[]>`
       WITH c AS (
         SELECT c.id, c.client_id, c.practice_area_id, pa.parent_id, pa.code
         FROM cases c
@@ -140,6 +145,151 @@ export class SubscriptionAlertsService {
       });
     }
     return rows.length;
+  }
+
+  /**
+   * followersOfPost() for several databases (shard-ready step 8): the
+   * follows (user family, scattered), the people's status (global), their
+   * "following" push setting (user family) and blocks either way, in four
+   * reads instead of one statement that joins all of them.
+   */
+  private async followersSplit(authorId: string): Promise<{ id: string }[]> {
+    const follows = await this.prisma.follow.findMany({
+      where: { followee_id: authorId },
+      select: { follower_id: true },
+    });
+    const ids = follows.map((f) => f.follower_id);
+    if (ids.length === 0) return [];
+    const [settings, users, blocks] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: {
+          user_id: { in: ids },
+          category: 'following',
+          push_enabled: true,
+        },
+        select: { user_id: true },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: ids }, status: 'active', deleted_at: null },
+        select: { id: true },
+      }),
+      this.prisma.userBlock.findMany({
+        where: {
+          OR: [
+            { blocker_id: { in: ids }, blocked_id: authorId },
+            { blocker_id: authorId, blocked_id: { in: ids } },
+          ],
+        },
+        select: { blocker_id: true, blocked_id: true },
+      }),
+    ]);
+    const pushOn = new Set(settings.map((x) => x.user_id));
+    const active = new Set(users.map((x) => x.id));
+    const blocked = new Set(
+      blocks.map((b) =>
+        b.blocker_id === authorId ? b.blocked_id : b.blocker_id,
+      ),
+    );
+    return ids
+      .filter((id) => pushOn.has(id) && active.has(id) && !blocked.has(id))
+      .slice(0, ALERT_FANOUT_MAX)
+      .map((id) => ({ id }));
+  }
+
+  /** attorneysForCase() for several databases: the case (with states and
+   * extra topics) from its shard, then attorneys from the global family. */
+  private async attorneysSplit(
+    caseId: string,
+    urgent: boolean,
+  ): Promise<{ id: string }[]> {
+    const c = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: {
+        client_id: true,
+        practice_area_id: true,
+        states: { select: { state_code: true } },
+        extra_practices: { select: { practice_area_id: true } },
+      },
+    });
+    if (!c) return [];
+    const pa = await this.prisma.practiceArea.findUnique({
+      where: { id: c.practice_area_id },
+      select: { parent_id: true, code: true },
+    });
+    const matching = new Set<string>([
+      c.practice_area_id,
+      ...(pa?.parent_id ? [pa.parent_id] : []),
+      ...c.extra_practices.map((x) => x.practice_area_id),
+    ]);
+    if (pa?.code === 'general_practice.not_sure_or_other') {
+      const general = await this.prisma.practiceArea.findFirst({
+        where: { code: 'general_practice.general_practice' },
+        select: { id: true },
+      });
+      if (general) matching.add(general.id);
+    }
+    const areas = [...matching];
+    const states = c.states.map((x) => x.state_code);
+    if (states.length === 0) return [];
+    const profiles = await this.prisma.attorneyProfile.findMany({
+      where: {
+        verification_status: 'verified',
+        ...(urgent ? {} : { new_case_alerts_urgent_only: false }),
+        OR: [
+          {
+            new_case_alerts_custom: false,
+            practice_areas: { some: { practice_area_id: { in: areas } } },
+          },
+          {
+            new_case_alerts_custom: true,
+            new_case_alert_practices: {
+              some: { practice_area_id: { in: areas } },
+            },
+          },
+        ],
+        licenses: {
+          some: { license_status: 'verified', state_code: { in: states } },
+        },
+      },
+      select: { user_id: true },
+      take: ALERT_FANOUT_MAX * 4,
+    });
+    const ids = profiles.map((p) => p.user_id);
+    if (ids.length === 0) return [];
+    const [settings, users, blocks] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: {
+          user_id: { in: ids },
+          category: 'new_cases',
+          push_enabled: true,
+        },
+        select: { user_id: true },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: ids }, status: 'active', deleted_at: null },
+        select: { id: true },
+      }),
+      this.prisma.userBlock.findMany({
+        where: {
+          OR: [
+            { blocker_id: { in: ids }, blocked_id: c.client_id },
+            { blocker_id: c.client_id, blocked_id: { in: ids } },
+          ],
+        },
+        select: { blocker_id: true, blocked_id: true },
+      }),
+    ]);
+    const pushOn = new Set(settings.map((x) => x.user_id));
+    const active = new Set(users.map((x) => x.id));
+    const blocked = new Set(
+      blocks.map((b) =>
+        b.blocker_id === c.client_id ? b.blocked_id : b.blocker_id,
+      ),
+    );
+    return ids
+      .filter((id) => pushOn.has(id) && active.has(id) && !blocked.has(id))
+      .slice(0, ALERT_FANOUT_MAX)
+      .map((id) => ({ id }));
   }
 
   /** Runs [job] after the response without failing the request. */

@@ -13,6 +13,8 @@ import { AccountAnonymizationService } from '../src/modules/privacy/account-anon
 import { DataExportService } from '../src/modules/privacy/data-export.service';
 import { ExportsCleanupService } from '../src/modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../src/modules/privacy/journal-integrity.service';
+import { rowsOnAnyDb } from './support/rows-on-any-db';
+import { shardContext } from '../src/sharding/shard-context';
 import { JournalRetentionService } from '../src/modules/privacy/journal-retention.service';
 import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
@@ -142,14 +144,16 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
     await prisma.caseState.create({
       data: { case_id: c.id, state_code: 'NJ', is_primary: true },
     });
-    await prisma.$transaction((tx) =>
-      journal.append(tx, {
-        caseId: c.id,
-        clientId,
-        actor: { userId: clientId, role: 'client' },
-        event: 'created',
-        payload: {},
-      }),
+    await shardContext.runForCase(c.id, () =>
+      prisma.$transaction((tx) =>
+        journal.append(tx, {
+          caseId: c.id,
+          clientId,
+          actor: { userId: clientId, role: 'client' },
+          event: 'created',
+          payload: {},
+        }),
+      ),
     );
     return c.id;
   }
@@ -303,8 +307,12 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
           SELECT deleted_at FROM files WHERE id = ${f.id}::UUID`;
         expect(row.deleted_at).not.toBeNull();
       }
-      const [p] = await prisma.$queryRaw<{ status: string }[]>`
-        SELECT status::TEXT AS status FROM posts WHERE id = ${post.id}::UUID`;
+      const [p] = await rowsOnAnyDb(
+        prisma,
+        () =>
+          prisma.$queryRaw<{ status: string }[]>`
+        SELECT status::TEXT AS status FROM posts WHERE id = ${post.id}::UUID`,
+      );
       expect(p.status).toBe('removed');
       const m = await prisma.message.findUniqueOrThrow({
         where: { id: message.id },
@@ -585,9 +593,13 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
       const client = await user('client');
       const oldCase = await kase(client.id);
       const liveCase = await kase(client.id);
-      await prisma.$executeRaw`
+      await shardContext.runForCase(
+        oldCase,
+        () =>
+          prisma.$executeRaw`
         UPDATE case_journal SET retain_until = now() - INTERVAL '1 day'
-        WHERE case_id = ${oldCase}::UUID`;
+        WHERE case_id = ${oldCase}::UUID`,
+      );
       const before = await prisma.caseJournal.count({
         where: { case_id: liveCase },
       });
@@ -605,21 +617,27 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
     it('the daily chain check finds a tampered row', async () => {
       const client = await user('client');
       const caseId = await kase(client.id);
-      await prisma.$transaction((tx) =>
-        journal.append(tx, {
-          caseId,
-          clientId: client.id,
-          actor: { userId: client.id, role: 'client' },
-          event: 'updated',
-          payload: { title: 'v2' },
-        }),
+      await shardContext.runForCase(caseId, () =>
+        prisma.$transaction((tx) =>
+          journal.append(tx, {
+            caseId,
+            clientId: client.id,
+            actor: { userId: client.id, role: 'client' },
+            event: 'updated',
+            payload: { title: 'v2' },
+          }),
+        ),
       );
       const clean = await app.get(JournalIntegrityService).run();
       expect(clean.broken.find((b) => b.caseId === caseId)).toBeUndefined();
 
-      await prisma.$executeRaw`
+      await shardContext.runForCase(
+        caseId,
+        () =>
+          prisma.$executeRaw`
         UPDATE case_journal SET payload = '{"title":"forged"}'::JSONB
-        WHERE case_id = ${caseId}::UUID AND event_type = 'updated'`;
+        WHERE case_id = ${caseId}::UUID AND event_type = 'updated'`,
+      );
       const result = await app.get(JournalIntegrityService).run();
       const hit = result.broken.find((b) => b.caseId === caseId);
       expect(hit?.brokenAt?.reason).toBe('hash_mismatch');

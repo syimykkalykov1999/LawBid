@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
 
 /** Rows per DELETE: small transactions, no long locks. */
 const BATCH = 5000;
@@ -102,13 +103,15 @@ export class DataRetentionService implements OnModuleDestroy {
           : 0,
       postViews:
         viewsDays > 0
-          ? await this.batched(
-              (limit) => this.prisma.$executeRaw`
+          ? await this.onEveryDatabase(() =>
+              this.batched(
+                (limit) => this.prisma.$executeRaw`
                 DELETE FROM post_views
                 WHERE ctid IN (
                   SELECT ctid FROM post_views
                   WHERE created_at < ${before(viewsDays)}
                   ORDER BY created_at LIMIT ${limit})`,
+              ),
             )
           : 0,
       appEvents:
@@ -121,13 +124,15 @@ export class DataRetentionService implements OnModuleDestroy {
           : 0,
       postViewEvents:
         viewEventsDays > 0
-          ? await this.batched(
-              (limit) => this.prisma.$executeRaw`
+          ? await this.onEveryDatabase(() =>
+              this.batched(
+                (limit) => this.prisma.$executeRaw`
                 DELETE FROM post_view_events
                 WHERE ctid IN (
                   SELECT ctid FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
                   LIMIT ${limit})`,
+              ),
             )
           : 0,
       userActivityDays:
@@ -164,6 +169,12 @@ export class DataRetentionService implements OnModuleDestroy {
       );
     }
     return total;
+  }
+
+  /** Shard-ready step 8: a sweep of a sharded table runs on every database. */
+  private async onEveryDatabase(sweep: () => Promise<number>): Promise<number> {
+    const parts = await forEachDatabase(this.prisma, sweep);
+    return parts.reduce((n, d) => n + d, 0);
   }
 
   private async batched(

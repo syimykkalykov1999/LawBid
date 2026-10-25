@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { shardContext } from '../../sharding/shard-context';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -86,7 +87,20 @@ export class AdminContentBulkService {
     return result;
   }
 
-  private async one(
+  /** Each item runs in its own shard (its id carries it). */
+  private one(
+    admin: AdminActor,
+    action: BulkContentAction,
+    type: BulkContentType,
+    id: string,
+    reason: string,
+  ): Promise<void> {
+    return shardContext.runForCase(id, () =>
+      this.oneInShard(admin, action, type, id, reason),
+    );
+  }
+
+  private async oneInShard(
     admin: AdminActor,
     action: BulkContentAction,
     type: BulkContentType,

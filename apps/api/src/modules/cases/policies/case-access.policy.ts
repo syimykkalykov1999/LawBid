@@ -300,6 +300,9 @@ export class CaseAccessPolicy {
   ): Promise<Set<string>> {
     const hidePaused = opts.hidePaused ?? false;
     if (caseIds.length === 0) return new Set();
+    if (readsAreSplit(this.prisma)) {
+      return this.visibleCaseIdsSplit(attorneyId, caseIds, db, hidePaused);
+    }
     const a = attorneyId;
     const rows = await db.$queryRaw<{ id: string }[]>`
       SELECT c.id::TEXT AS id
@@ -322,6 +325,59 @@ export class CaseAccessPolicy {
                             AND l.license_status = 'verified'))
         )`;
     return new Set(rows.map((r) => r.id));
+  }
+
+  /** visibleCaseIds() without a statement that joins the case family with
+   * the global one: the cases (with their states), the attorney's bids and
+   * conversations on them, then the attorney's profile and licences. */
+  private async visibleCaseIdsSplit(
+    a: string,
+    caseIds: string[],
+    db: Db,
+    hidePaused: boolean,
+  ): Promise<Set<string>> {
+    const [cases, bids, convs, verified, licences] = await Promise.all([
+      db.case.findMany({
+        where: { id: { in: caseIds }, deleted_at: null },
+        select: {
+          id: true,
+          status: true,
+          paused_at: true,
+          states: { select: { state_code: true } },
+        },
+      }),
+      this.prisma.bid.findMany({
+        where: { attorney_id: a, case_id: { in: caseIds } },
+        select: { case_id: true },
+      }),
+      this.prisma.conversation.findMany({
+        where: { attorney_id: a, case_id: { in: caseIds } },
+        select: { case_id: true },
+      }),
+      this.prisma.attorneyProfile.findFirst({
+        where: { user_id: a, verification_status: 'verified' },
+        select: { user_id: true },
+      }),
+      this.prisma.attorneyLicense.findMany({
+        where: { attorney_id: a, license_status: 'verified' },
+        select: { state_code: true },
+      }),
+    ]);
+    const mine = new Set<string>([
+      ...bids.map((b) => b.case_id),
+      ...convs.flatMap((v) => (v.case_id ? [v.case_id] : [])),
+    ]);
+    const licensed = new Set(licences.map((l) => l.state_code));
+    const out = new Set<string>();
+    for (const c of cases) {
+      const prospect =
+        c.status === 'open' &&
+        (!hidePaused || c.paused_at === null) &&
+        verified !== null &&
+        c.states.some((s) => licensed.has(s.state_code));
+      if (mine.has(c.id) || prospect) out.add(c.id);
+    }
+    return out;
   }
 
   /** decide() or CASE_NOT_FOUND (404). */

@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { shardContext } from '../../sharding/shard-context';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -87,8 +88,11 @@ export class AdminCaseManagementController {
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminCasesBulkDto,
   ): Promise<AdminBulkResultDto> {
+    // Each case runs in its own shard (its id carries it).
     return eachId(dto.ids, (id) =>
-      this.cases.act(admin, id, dto.action, dto.reason),
+      shardContext.runForCase(id, () =>
+        this.cases.act(admin, id, dto.action, dto.reason),
+      ),
     );
   }
 
