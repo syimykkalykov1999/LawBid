@@ -17,7 +17,8 @@ provider "aws" {
 }
 
 provider "aws" {
-  alias = "replica"
+  alias  = "replica"
+  region = var.replica_region
   default_tags {
     tags = { Project = "lawbid", Env = "prod", ManagedBy = "terraform" }
   }
