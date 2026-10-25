@@ -7405,3 +7405,34 @@ model SearchIndexState {
 
   @@map("search_index_state")
 }
+
+/// Online DDL: prisma/concurrent/*.sql files already applied by
+/// prisma/run-concurrent.mjs (index builds outside the migration transaction).
+model ConcurrentMigration {
+  name       String   @id
+  checksum   String
+  applied_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("concurrent_migrations")
+}
+
+/// Online DDL: state of a named batched backfill (src/common/backfill).
+/// status: running | paused | aborted | done | failed (CHECK in the migration).
+model BackfillRun {
+  name             String    @id
+  status           String    @default("running")
+  table_name       String
+  cursor           String?
+  processed        BigInt    @default(0)
+  total_estimate   BigInt?
+  batch_size       Int
+  max_rows_per_sec Int
+  pause_reason     String?
+  last_error       String?
+  started_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @default(now()) @db.Timestamptz
+  heartbeat_at     DateTime  @default(now()) @db.Timestamptz
+  finished_at      DateTime? @db.Timestamptz
+
+  @@map("backfill_runs")
+}

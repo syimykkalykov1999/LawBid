@@ -34,7 +34,26 @@ export const OPS_KEYS = {
   pressureFlag: 'ops:pressure:',
   /** JSON MessageReencryptState (jobs/handlers/message-reencrypt.job.ts). */
   messageReencrypt: 'ops:message-reencrypt',
+  /** JSON BloatSnapshot: the nightly table / index bloat measurement. */
+  dbBloat: 'ops:db-bloat',
 } as const;
+
+/** Result of the nightly bloat job (jobs/handlers/db-bloat.job.ts). */
+export interface BloatSnapshot {
+  at: string;
+  /** pgstattuple = measured wasted space; stats = dead rows only. */
+  source: 'pgstattuple' | 'stats';
+  warnPercent: number;
+  tables: {
+    table: string;
+    sizeBytes: number;
+    bloatPercent: number;
+    worstIndex?: string;
+    worstIndexBloatPercent?: number;
+  }[];
+  /** Big tables above the warn line: the light turns yellow. */
+  over: string[];
+}
 
 /** An automatic pause lasts this long; the guard renews it while the
  * database stays slow, so it lifts itself once things calm down. */

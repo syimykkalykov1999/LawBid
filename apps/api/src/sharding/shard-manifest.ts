@@ -333,6 +333,9 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Search-ready: the engine outbox and its reindex checkpoints.
   'SearchOutbox',
   'SearchIndexState',
+  // Online DDL: applied index files and batched-backfill state (per database).
+  'ConcurrentMigration',
+  'BackfillRun',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);

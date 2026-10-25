@@ -15,7 +15,13 @@ if [ -n "$TAG" ]; then
   node -e '
     const fs = require("fs");
     const td = JSON.parse(fs.readFileSync("migrate-td.json", "utf8"));
-    for (const c of td.containerDefinitions) c.image = process.argv[1];
+    for (const c of td.containerDefinitions) {
+      c.image = process.argv[1];
+      // Online DDL (docs/architecture/ONLINE_DDL.md): after the transactional
+      // migrations, run prisma/concurrent/*.sql (CREATE INDEX CONCURRENTLY).
+      // Set here so it does not wait for a Terraform apply.
+      c.command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs"];
+    }
     for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
     fs.writeFileSync("migrate-td.new.json", JSON.stringify(td));
   ' "${REGISTRY}/lawbid-api:${TAG}"

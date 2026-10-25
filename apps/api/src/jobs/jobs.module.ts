@@ -50,6 +50,7 @@ import { NotificationsRetentionJob } from './handlers/notifications-retention.jo
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { DbBloatJob } from './handlers/db-bloat.job';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
 import { SearchIndexerService } from '../modules/search/search-indexer.service';
@@ -161,6 +162,8 @@ export class JobsModule {
         AdminSummariesJob,
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
+        // Owner 2026-10-25: `db.bloat-check`.
+        DbBloatJob,
         SearchIndexerService,
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,

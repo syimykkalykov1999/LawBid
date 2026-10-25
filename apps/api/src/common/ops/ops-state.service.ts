@@ -9,6 +9,7 @@ import {
   OPS_KEYS,
   parseJson,
   type BackupSnapshot,
+  type BloatSnapshot,
   type CapacityReading,
   type CeilingSnapshot,
   type CostSnapshot,
@@ -184,6 +185,15 @@ export class OpsStateService implements OnModuleDestroy {
 
   async setCeiling(c: CeilingSnapshot): Promise<void> {
     await this.redis.set(OPS_KEYS.ceiling, JSON.stringify(c));
+  }
+
+  async bloat(): Promise<BloatSnapshot | null> {
+    return parseJson<BloatSnapshot>(await this.redis.get(OPS_KEYS.dbBloat));
+  }
+
+  /** Kept 3 days: one missed night still shows the last reading. */
+  async setBloat(b: BloatSnapshot): Promise<void> {
+    await this.redis.set(OPS_KEYS.dbBloat, JSON.stringify(b), 'EX', 3 * 86400);
   }
 
   async capacity(): Promise<CapacityReading | null> {

@@ -150,6 +150,8 @@ export const CRON_JOBS = {
   adminSummaries: 'admin.summaries',
   // Shard-ready step 7: the cross-family outbox relay.
   outboxSweep: 'outbox.sweep',
+  /** Owner 2026-10-25 (online DDL): nightly table / index bloat of the hot tables. */
+  dbBloat: 'db.bloat-check',
 } as const;
 
 export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
@@ -248,6 +250,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: applies cross-family events a request could not (retries
   // with backoff, dead letter); a no-op while there is one database.
   { name: CRON_JOBS.outboxSweep, pattern: '* * * * *' },
+  // Nightly 03:35 UTC (quiet hours): pgstattuple on the hot tables.
+  { name: CRON_JOBS.dbBloat, pattern: '35 3 * * *' },
 ];
 
 export const DISPOSABLE_DOMAINS_FETCHER = Symbol('DISPOSABLE_DOMAINS_FETCHER');

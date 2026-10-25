@@ -34,6 +34,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { DbBloatJob } from './handlers/db-bloat.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
@@ -146,6 +147,8 @@ export class CronProcessor {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Owner 2026-10-25: `db.bloat-check`.
+    @Optional() private readonly dbBloat?: DbBloatJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -234,6 +237,8 @@ export class CronProcessor {
         return this.promotions.expire();
       case CRON_JOBS.starsSweep:
         return this.stars.sweepPending();
+      case CRON_JOBS.dbBloat:
+        return this.dbBloat?.run() ?? null;
       case CRON_JOBS.legalQaSweep:
         return this.legalQaSweep?.run() ?? null;
       case CRON_JOBS.contactsJoined:

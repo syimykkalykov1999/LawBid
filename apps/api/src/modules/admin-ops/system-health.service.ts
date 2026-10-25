@@ -229,9 +229,25 @@ export class SystemHealthService implements OnModuleDestroy {
     const started = Date.now();
     await withTimeout(this.prisma.$queryRaw`SELECT 1`);
     const latencyMs = Date.now() - started;
+    // Owner 2026-10-25: the nightly bloat job. Wasted space over the line on
+    // a big hot table = yellow (the runbook pg-repack.md says what to do);
+    // the reading is optional, never turns the light red.
+    let bloat: Awaited<ReturnType<OpsStateService['bloat']>> = null;
+    try {
+      bloat = await this.state.bloat();
+    } catch {
+      bloat = null;
+    }
+    const bloatOver = bloat?.over ?? [];
     return {
-      status: latencyMs > slowMs ? 'yellow' : 'green',
-      detail: { latencyMs, slowMs },
+      status: latencyMs > slowMs || bloatOver.length > 0 ? 'yellow' : 'green',
+      detail: {
+        latencyMs,
+        slowMs,
+        ...(bloat
+          ? { bloatOver, bloatCheckedAt: bloat.at, bloatSource: bloat.source }
+          : {}),
+      },
     };
   }
 

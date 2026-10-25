@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
+import { BackfillsCard } from '@/components/backfills-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -512,6 +513,7 @@ export default function ScalePage() {
               </Button>
             </Card>
           </div>
+          <BackfillsCard />
           <p className="mb-6 text-xs text-muted">
             Общее состояние:{' '}
             <Badge tone={LIGHT_TONE[h.overall]} dot>
