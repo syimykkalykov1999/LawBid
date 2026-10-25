@@ -335,3 +335,12 @@ OpenSearchProvider:  движок → кандидаты (id)  ──►  Postgr
    `engineMs` в строках `search.shadow`.
 4. `search.engine = engine`, повторить; проверить выключением движка, что
    поиск продолжает отвечать (фолбэк).
+
+## Several physical databases (shard split)
+
+`search_outbox` rows are written by triggers on the sharded tables, on the
+database that holds the row. The indexer therefore drains and prunes the
+outbox of EVERY physical database (`forEachDatabase`), and the reindex walk
+and the document loader ask every database (one global keyset by id, so the
+checkpoint in `search_index_state` stays a plain id on the primary). With one
+database nothing changes.

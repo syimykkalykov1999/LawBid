@@ -2,6 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { EngineError, OpenSearchClient } from './engine/opensearch.client';
 import { SearchDocsLoader } from './engine/search-docs.loader';
 import { SearchReindexService } from './search-reindex.service';
@@ -85,7 +86,28 @@ export class SearchIndexerService {
 
   // --- outbox ---------------------------------------------------------------
 
+  /**
+   * The outbox rows are written by triggers on sharded tables, on the
+   * physical database that holds the row, so every database is drained in
+   * its own context (one database: one plain pass, as before).
+   */
   async drain(limit = 500): Promise<{ done: number; failed: number }> {
+    let extraMemo: ReturnType<SearchReindexService['extraIndexes']> | undefined;
+    const extraOnce = () =>
+      (extraMemo ??= this.reindexer?.extraIndexes() ?? Promise.resolve({}));
+    const parts = await forEachDatabase(this.prisma, () =>
+      this.drainHere(limit, extraOnce),
+    );
+    return parts.reduce(
+      (a, p) => ({ done: a.done + p.done, failed: a.failed + p.failed }),
+      { done: 0, failed: 0 },
+    );
+  }
+
+  private async drainHere(
+    limit: number,
+    extraOnce: () => ReturnType<SearchReindexService['extraIndexes']>,
+  ): Promise<{ done: number; failed: number }> {
     const claimed = await this.prisma.$queryRaw<Claimed[]>`
       WITH due AS (
         SELECT id FROM search_outbox
@@ -112,7 +134,7 @@ export class SearchIndexerService {
 
     // Dual-write targets of a running reindex (new generation being built /
     // old one kept warm); deletes always go to EVERY generation (GDPR).
-    const extra = (await this.reindexer?.extraIndexes()) ?? {};
+    const extra = (await extraOnce()) ?? {};
     for (const [entity, rows] of byEntity) {
       const ids = [...rows.keys()];
       try {
@@ -166,6 +188,13 @@ export class SearchIndexerService {
 
   /** Engine off: nothing may pile up. Parked events are also aged out. */
   async prune(engineOn: boolean): Promise<number> {
+    const parts = await forEachDatabase(this.prisma, () =>
+      this.pruneHere(engineOn),
+    );
+    return parts.reduce((a, n) => a + n, 0);
+  }
+
+  private async pruneHere(engineOn: boolean): Promise<number> {
     if (!engineOn) {
       return Number(await this.prisma.$executeRaw`DELETE FROM search_outbox`);
     }
