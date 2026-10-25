@@ -831,10 +831,11 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose:
       'Все загруженные файлы. Фото копируются в другой регион на случай аварии.',
     kind: 'aws',
-    control: fixed(
-      'Копия документов в другом регионе — часть защиты от аварии региона. Копия публичных фото появится вместе с переключателем replicate_media (PR #357): тогда строка станет Выкл/Вкл.',
-    ),
-    states: ['on'],
+    control: tf(['replicate_media'], {
+      on: 'replicate_media = true',
+      off: 'replicate_media = false  # не копировать новые фото в другой регион',
+    }),
+    states: ['off', 'on'],
     defaultState: 'on',
     ceiling: null,
     price: price(
@@ -845,7 +846,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(2), k100: R(40), m1: R(400) },
     needed: 'yes',
     neededNote:
-      'Нужны. Копия фото растёт ровно вместе с оригиналом, поэтому отдельная тревога на размер копии не нужна: следите за тревогой роста хранилища.',
+      'Нужны. Копия фото (replicate_media, по умолчанию Вкл) растёт ровно вместе с оригиналом, поэтому отдельная тревога на размер копии не нужна: следите за тревогой роста хранилища.',
     alarm:
       'тревога роста хранилища за сутки (storage-growth); копия растёт один к одному с оригиналом (V12)',
     ceService: 'Amazon Simple Storage Service',
@@ -1384,6 +1385,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     awsTypes: ['aws_flow_log'],
   },
   {
+    id: 'aws.waf_extra_rules',
+    name: 'Дополнительные правила WAF (по устройству, подбор входа)',
+    purpose:
+      'Правила по заголовку устройства и по частоте попыток входа. Сначала только считают, потом блокируют.',
+    kind: 'aws',
+    control: tf(
+      ['waf_device_header', 'waf_auth_rules_enabled', 'waf_auth_rate_action'],
+      {
+        off: 'waf_device_header = ""\nwaf_auth_rules_enabled = false',
+        on: 'waf_device_header = "x-device-id"\nwaf_auth_rules_enabled = true\nwaf_auth_rate_action = "count"',
+      },
+    ),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'mixed',
+      '$1 за правило в месяц + $0,60 за миллион проверенных запросов',
+      U.waf,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(2, 5),
+    needed: 'later',
+    neededNote:
+      'Когда начнутся подборы кодов и накрутка. Сначала режим count: правила только считают.',
+    alarm: 'тревога WAF (waf-alb-requests)',
+    ceService: 'AWS WAF',
+    note: 'V2',
+  },
+  {
     id: 'aws.waf_bot_control',
     name: 'Фильтр ботов WAF Bot Control',
     purpose:
@@ -1406,25 +1437,33 @@ export const COST_REGISTRY: readonly CostEntry[] = [
   },
   {
     id: 'aws.ha_extras',
-    name: 'Запас на отказ зоны (второй NAT, двери во вторую зону, по 2 копии серверов)',
+    name: 'Запас на отказ зоны (второй NAT, двери во вторую зону, 2 копии API, копии базы в другом регионе)',
     purpose: 'Сайт переживает падение целой зоны AWS.',
     kind: 'aws',
-    control: tf(['nat_per_az', 'interface_endpoint_azs', 'min_tasks'], {
-      off: 'nat_per_az = false\nmin_tasks = 1',
-      on: 'nat_per_az = true\nmin_tasks = 2',
-    }),
+    control: tf(
+      [
+        'nat_per_az',
+        'interface_endpoint_azs',
+        'api_min_tasks',
+        'rds_cross_region_backups',
+      ],
+      {
+        off: 'nat_per_az = false\napi_min_tasks = 1\nrds_cross_region_backups = false',
+        on: 'nat_per_az = true\napi_min_tasks = 2\nrds_cross_region_backups = true',
+      },
+    ),
     states: ['off', 'on'],
     defaultState: 'off',
     ceiling: null,
     price: price(
       'fixed',
-      'Второй NAT ≈ $33, вторая зона для дверей ≈ $29, по второй копии API (≈ $18) и воркера (≈ $28)',
+      'Второй NAT ≈ $33, вторая зона для дверей ≈ $29, вторая копия API ≈ $18, копии базы в другом регионе ≈ $2',
       U.vpc,
     ),
     usd: { launch: R(0), k100: R(0), m1: R(0) },
-    ifOnUsd: R(108),
+    ifOnUsd: R(82),
     needed: 'later',
-    neededNote: 'Когда простой дороже $108 в месяц.',
+    neededNote: 'Когда простой дороже $82 в месяц.',
     alarm: null,
   },
   {

@@ -76089,7 +76089,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76629,7 +76632,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           }
@@ -76740,7 +76746,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76859,7 +76868,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76986,7 +76998,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -77108,7 +77123,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -114050,7 +114068,10 @@
           "third_party_services",
           "partner_terms",
           "dmca_policy",
-          "accessibility"
+          "accessibility",
+          "community_guidelines",
+          "advertising_disclosure",
+          "sms_terms"
         ]
       },
       "BootstrapLegalDocumentDto": {
@@ -129872,7 +129893,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -153497,6 +153521,41 @@
             "type": "string",
             "maxLength": 6000,
             "description": "Plain text (no markdown), numbered rules."
+          },
+          "attorneyAdvertisingLabel": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Label next to attorney-created content (profile, post, bid, answer)."
+          },
+          "priorResultsDisclaimer": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Prior-results disclaimer."
+          },
+          "badgeExplainer": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "What the attorney badges mean (a registry check, not a recommendation)."
+          },
+          "bestAnswerNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Q&A note: the asker chooses the best answer."
+          },
+          "translationNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Note on machine translation."
+          },
+          "reviewReplyWarning": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "Warning for an attorney replying publicly to a review."
+          },
+          "sponsoredLabel": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Label on paid placements."
           }
         },
         "required": [
@@ -153864,12 +153923,111 @@
           },
           "ru": {
             "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "es": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "fr": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "de": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "it": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pt": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "nl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "uk": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
           }
         },
         "required": [
           "en",
           "ru"
         ]
+      },
+      "LegalTextsNeedReviewDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "boolean"
+          },
+          "ru": {
+            "type": "boolean"
+          },
+          "es": {
+            "type": "boolean"
+          },
+          "fr": {
+            "type": "boolean"
+          },
+          "de": {
+            "type": "boolean"
+          },
+          "it": {
+            "type": "boolean"
+          },
+          "pt": {
+            "type": "boolean"
+          },
+          "nl": {
+            "type": "boolean"
+          },
+          "pl": {
+            "type": "boolean"
+          },
+          "uk": {
+            "type": "boolean"
+          }
+        }
       },
       "LegalSettingsDto": {
         "type": "object",
@@ -153888,6 +154046,14 @@
           },
           "texts": {
             "$ref": "#/components/schemas/LegalTextsByLangDto"
+          },
+          "textsNeedReview": {
+            "description": "Which languages are marked \"needs review\" (machine translations by default).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsNeedReviewDto"
+              }
+            ]
           }
         },
         "required": [
@@ -154751,7 +154917,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -154830,7 +154999,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -155020,7 +155192,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {
@@ -155082,7 +155257,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -155266,7 +155444,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {

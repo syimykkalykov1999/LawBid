@@ -62,11 +62,29 @@ nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
 interface_endpoints    = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]
 interface_endpoint_azs = 1
 
+# --- Multi-AZ egress + api redundancy (audit S4-2 / S4-11, 2026-10-25) -----
+# Accepted risk today (docs/runbooks/nat-endpoints.md): one NAT, all interface
+# endpoints and a single api task. Lose that AZ and new tasks cannot reach
+# Stripe/FCM/SES, pull images or read secrets. When DAU justifies about
+# +$33 (NAT) + +$29 (endpoints) + about $18 (second api task) per month,
+# make this ONE tfvars change and apply (about 10 minutes, no downtime):
+#   nat_per_az             = true
+#   interface_endpoint_azs = 2
+#   api_min_tasks          = 2   # worker may stay at min_tasks = 1
+
 # --- backups and the database (owner 2026-10-22, docs/runbooks/backups.md)
 # The prod RDS was created outside Terraform; name it here so AWS Backup
 # copies it daily to us-west-2 and `terraform plan` warns when Multi-AZ /
-# retention are off. Terraform never modifies it.
+# retention are off. By default Terraform never modifies it.
 existing_database_identifier = "lawbid-prod-postgres"
+# S4-3: adopt it into Terraform (import block in imports.tf) so the daily drift
+# check sees Multi-AZ / retention / deletion-protection changes. First apply
+# only imports; review `plan` first (docs/runbooks/infra-hardening.md).
+# adopt_existing_database = true
+# After the Sunday Multi-AZ switch in the console also set:
+# database_multi_az = true
+# S4-6: RDS cross-Region automated backups (PITR in us-west-2, RPO minutes):
+# rds_cross_region_backups = true
 backup_enabled               = true
 backup_retention_days        = 35
 # backup_copy_account_id     = "123456789012" # optional separate backup account (vault created there first)
@@ -137,4 +155,4 @@ web_create_certificate = true
 # anomaly_existing_monitor_arn = "arn:aws:ce::047754151252:anomalymonitor/22314789-2e8e-43a5-8360-f93611944718"
 # anomaly_extra_emails         = ["REPLACE@gmail.com"]
 # redis_memory_alarm_percent   = 70   # default
-# nat_traffic_alarm_gb_per_day = 100  # default; 0 = off
+# nat_traffic_alarm_gb_per_day = 20  # default; 0 = off
