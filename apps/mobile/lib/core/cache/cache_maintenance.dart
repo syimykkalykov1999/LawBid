@@ -129,6 +129,9 @@ class CacheMaintenance {
   /// Applies the limits and «Хранить медиа» (run once a day and when the
   /// settings change): oldest media out past the byte limit or the age.
   Future<void> enforce() async {
+    // One pass at a time (start, daily timer and the write burst may meet).
+    if (_enforcing) return;
+    _enforcing = true;
     final l = _limits();
     try {
       await _images.trimTo(l.limitBytes(CacheStore.images));
@@ -143,6 +146,10 @@ class CacheMaintenance {
       await _db.trimFileViews(l.limitBytes(CacheStore.other) ~/ 5);
     } on Object catch (e) {
       debugPrint('cache enforce: $e');
+    } finally {
+      _enforcing = false;
     }
   }
+
+  bool _enforcing = false;
 }
