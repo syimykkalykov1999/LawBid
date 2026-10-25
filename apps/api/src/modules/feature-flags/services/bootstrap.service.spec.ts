@@ -199,3 +199,36 @@ describe('BootstrapService.build', () => {
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });
   });
 });
+
+describe('BootstrapService.turnstileSiteKey', () => {
+  function make(mode: string, siteKey?: string) {
+    return new BootstrapService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        get: jest
+          .fn()
+          .mockResolvedValue(siteKey ? { fields: { siteKey } } : null),
+      } as never,
+      undefined,
+      { string: jest.fn().mockResolvedValue(mode) } as never,
+    );
+  }
+
+  it('publishes the public site key in monitor and enforce', async () => {
+    expect(await make('monitor', '0x4AAA').turnstileSiteKey()).toEqual({
+      'turnstile.site_key': '0x4AAA',
+    });
+    expect(await make('enforce', '0x4AAA').turnstileSiteKey()).toEqual({
+      'turnstile.site_key': '0x4AAA',
+    });
+  });
+
+  it('publishes nothing when off, unknown, or no key is saved', async () => {
+    expect(await make('off', '0x4AAA').turnstileSiteKey()).toEqual({});
+    expect(await make('bogus', '0x4AAA').turnstileSiteKey()).toEqual({});
+    expect(await make('enforce').turnstileSiteKey()).toEqual({});
+  });
+});

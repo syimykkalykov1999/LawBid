@@ -270,6 +270,8 @@ export const GROUPS: readonly SectionGroup[] = [
     icon: 'sliders-horizontal',
     items: [
       { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
+      // Batch D (2026-10-24): every part that grows by itself, its ceiling and buttons, and the open alarms.
+      { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
       { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
       // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', hint: 'что включать, когда людей становится больше: по шагам' },

@@ -33,7 +33,9 @@ import {
   manualCeiling,
   nextGuardActive,
   nextTier,
+  prevTier,
   pressures,
+  shrinkBlocker,
   projectMonth,
   REDIS_TIERS,
   allowedSpendUsd,
@@ -546,6 +548,47 @@ export class EconomyService {
       text,
     );
     return res;
+  }
+
+  /** Admin button (batch D): database or Redis one tier down. Refused
+   * (with the reason) unless the load is low enough to be safe; the
+   * caller checks step-up. */
+  async decrease(
+    target: CapacityTarget,
+    now: Date = new Date(),
+  ): Promise<
+    | { ok: true; from: string; to: string }
+    | { ok: false; reason: 'no_smaller' | 'busy'; text: string }
+  > {
+    const tiers = target === 'db' ? DB_TIERS : REDIS_TIERS;
+    const from =
+      target === 'db'
+        ? await this.capacity.dbClass()
+        : await this.capacity.redisClass();
+    const fromTier = tiers.find((t) => t.name === from);
+    const toTier = prevTier(tiers, from);
+    if (!fromTier || !toTier) {
+      return {
+        ok: false,
+        reason: 'no_smaller',
+        text: 'Меньшего размера нет (или текущий неизвестен).',
+      };
+    }
+    const m = await this.capacity.metrics(now);
+    const blocker = shrinkBlocker(target, fromTier, toTier, m);
+    if (blocker) return { ok: false, reason: 'busy', text: blocker };
+    const res = await this.capacity.decrease(target);
+    if (!res) {
+      return { ok: false, reason: 'no_smaller', text: 'Меньшего размера нет.' };
+    }
+    const what = target === 'db' ? 'База данных' : 'Redis';
+    const text = `${what}: ${res.from} → ${res.to} (по кнопке «Уменьшить» в админке; короткое переключение).`;
+    await this.event('scaled_down', text, now);
+    this.logger.warn(
+      { alert: 'capacity_scaled_down', target, from: res.from, to: res.to },
+      text,
+    );
+    return { ok: true, ...res };
   }
 
   // --- admin card ---------------------------------------------------------

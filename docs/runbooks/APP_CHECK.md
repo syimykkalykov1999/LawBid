@@ -173,3 +173,7 @@ Web в dev: тот же флаг включает `WebDebugProvider` (токен
 `PROVIDER_BUDGET_EXCEEDED`), сброс пароля и e-mail работают. В Twilio
 Console дополнительно поставьте Messaging Geo Permissions только на
 нужные страны (без кода).
+
+## Website Turnstile widget (batch D, 2026-10-24)
+
+The Flutter web build asks Cloudflare Turnstile for a token (invisible, `interaction-only`: the box shows only if a person must click) before `/auth/otp/request`, `/auth/password/reset/request`, `/auth/social`, `/auth/phone/status` and sends it as `X-Turnstile-Token`. The public site key comes in `GET /config/bootstrap` -> `app_config["turnstile.site_key"]`, published only while `security.turnstile.mode` is `monitor` or `enforce` and a site key is saved (Интеграции -> Cloudflare Turnstile). With the mode `off` or no key the page loads nothing from Cloudflare. Phones never run this code (conditional import). The web CSP (infra/modules/web) allows `https://challenges.cloudflare.com` for scripts and frames: **apply the web module (terraform) before switching the mode on**, else the browser blocks the widget.

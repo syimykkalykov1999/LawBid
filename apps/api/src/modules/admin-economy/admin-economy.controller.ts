@@ -134,4 +134,45 @@ export class AdminEconomyController {
     });
     return this.economy.report();
   }
+
+  @Post('decrease')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Database or Redis one tier down, only when the load is low (needs step-up)',
+  })
+  @ApiEnvelopeResponse(EconomyReportDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 409: [E.FEATURE_DISABLED] })
+  async decreaseCapacity(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: IncreaseCapacityDto,
+  ): Promise<EconomyReportDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    if (!this.capacity.available) {
+      throw new HttpException(
+        {
+          code: E.FEATURE_DISABLED,
+          message: 'This button works only on AWS (production / staging).',
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+    const res = await this.economy.decrease(dto.target);
+    if (!res.ok) {
+      throw new HttpException(
+        { code: E.FEATURE_DISABLED, message: res.text },
+        HttpStatus.CONFLICT,
+      );
+    }
+    await this.audit.record({
+      adminId: admin.id,
+      action: 'economy.decrease',
+      targetType: 'system',
+      targetId: null,
+      before: { target: dto.target, tier: res.from },
+      after: { target: dto.target, tier: res.to },
+      ip: admin.ip,
+    });
+    return this.economy.report();
+  }
 }
