@@ -41,6 +41,8 @@ class PublicAttorneyProfileDto {
     required this.consultationEnabled,
     required this.isBlocked,
     required this.hasBlockedMe,
+    this.sponsored,
+    this.advertisingDisclaimer,
   });
 
   factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
@@ -70,6 +72,12 @@ class PublicAttorneyProfileDto {
 
   /// Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы).
   final bool advertisingLabel;
+
+  /// Owner 2026-10-28: true when this attorney holds paid priority in search (plan «higher in search»). Show the word "Sponsored" next to the result.
+  final bool? sponsored;
+
+  /// Owner 2026-10-28: the results disclaimer to show under the bio — the attorney is licensed in a state that requires it and the bio quotes results or testimonials.
+  final String? advertisingDisclaimer;
 
   /// Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares.
   final String publicUrl;
