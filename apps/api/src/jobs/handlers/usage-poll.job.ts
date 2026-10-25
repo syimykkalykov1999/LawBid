@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -11,6 +11,7 @@ import {
   type FetchFn,
   type UsageLevel,
 } from '../../common/ops/usage/usage-clients';
+import { SpendService } from '../../common/ops/spend/spend.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 
@@ -55,6 +56,9 @@ export class UsagePollJob {
     private readonly config: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    // Owner 2026-10-24 («Расходы»): the same daily poll also stores the
+    // money snapshot (AWS only if its last read is older than 6 h).
+    @Optional() private readonly spend?: SpendService,
   ) {
     this.logger.setContext(UsagePollJob.name);
   }
@@ -66,6 +70,7 @@ export class UsagePollJob {
     await this.redis
       .set(USAGE_SNAPSHOT_KEY, JSON.stringify(snap), 'EX', SNAPSHOT_TTL_SEC)
       .catch(() => undefined);
+    await this.spend?.refresh(now, fetchFn).catch(() => undefined);
     return snap;
   }
 
