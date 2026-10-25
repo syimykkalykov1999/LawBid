@@ -12,6 +12,7 @@ import type {
   PayrollPayout,
 } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -93,6 +94,8 @@ export class AdminPayrollService {
     private readonly stripe: PayrollStripeService,
     private readonly accruals: PayrollAccrualsService,
     @Optional() private readonly partnersBridge?: PayrollPartnersBridge,
+    // Day-one foundations: the double-entry money ledger (same transaction).
+    @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
 
   async employees(includeInactive = false): Promise<PayrollEmployeeDto[]> {
@@ -443,8 +446,9 @@ export class AdminPayrollService {
   ): Promise<string[]> {
     const failed: string[] = [];
     for (const r of rows) {
+      let transferId: string;
       try {
-        const transferId = await this.stripe.transfer({
+        transferId = await this.stripe.transfer({
           accountId: r.employee.stripe_account_id!,
           amountCents: r.net,
           currency: r.employee.currency,
@@ -455,10 +459,6 @@ export class AdminPayrollService {
             gross_cents: String(r.gross),
             fee_cents: String(r.fee),
           },
-        });
-        await this.prisma.payrollPayout.update({
-          where: { id: r.id },
-          data: { status: 'paid', transfer_id: transferId },
         });
       } catch (e) {
         failed.push(r.employee.id);
@@ -483,6 +483,33 @@ export class AdminPayrollService {
             failure,
           });
         }
+        continue;
+      }
+      // The money has left. The row and its ledger entry commit together;
+      // if the ledger write itself fails the payout is still marked paid
+      // (never "failed" after a successful transfer) and the nightly
+      // coverage / Stripe comparison flags the missing entry.
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          await tx.payrollPayout.update({
+            where: { id: r.id },
+            data: { status: 'paid', transfer_id: transferId },
+          });
+          await this.ledger?.expensePaid(tx, {
+            sourceType: 'payroll_payout',
+            sourceId: r.id,
+            expense: 'expense_payroll',
+            cents: r.net,
+            currency: r.employee.currency,
+            stripeRef: transferId,
+            description: 'Payroll transfer',
+          });
+        });
+      } catch {
+        await this.prisma.payrollPayout.update({
+          where: { id: r.id },
+          data: { status: 'paid', transfer_id: transferId },
+        });
       }
     }
     return failed;

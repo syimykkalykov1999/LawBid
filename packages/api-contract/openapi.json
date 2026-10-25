@@ -13758,6 +13758,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -13812,7 +13822,7 @@
             }
           },
           "409": {
-            "description": "Conflict: BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_MAX_ROUNDS_REACHED, BID_COUNTER_NOT_ALLOWED, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_MAX_ROUNDS_REACHED, BID_COUNTER_NOT_ALLOWED, STALE_VERSION, IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -23239,6 +23249,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -23303,7 +23323,7 @@
             }
           },
           "409": {
-            "description": "Conflict: TASK_CLOSED, FILES_COUNT_LIMIT",
+            "description": "Conflict: TASK_CLOSED, FILES_COUNT_LIMIT, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -23454,6 +23474,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -23499,6 +23529,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -28150,7 +28190,18 @@
       },
       "patch": {
         "operationId": "updateMyAttorneyProfile",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -28213,7 +28264,7 @@
             }
           },
           "409": {
-            "description": "Conflict: USERNAME_TAKEN, USERNAME_CHANGE_TOO_SOON",
+            "description": "Conflict: USERNAME_TAKEN, USERNAME_CHANGE_TOO_SOON, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -28903,7 +28954,18 @@
       },
       "patch": {
         "operationId": "updateMyClientProfile",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -28947,6 +29009,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -31897,6 +31969,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -31961,7 +32043,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -32214,6 +32296,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -32278,7 +32370,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -32340,6 +32432,16 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
             }
           }
         ],
@@ -32405,7 +32507,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -55273,6 +55375,83 @@
         ]
       }
     },
+    "/admin/treasury/ledger": {
+      "get": {
+        "operationId": "getLedger",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Money ledger: balance of every account and the last nightly reconciliation (read-only)",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
     "/admin/treasury/settings": {
       "put": {
         "operationId": "updateTreasurySettings",
@@ -75707,7 +75886,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76247,7 +76429,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           }
@@ -76358,7 +76543,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76477,7 +76665,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76604,7 +76795,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76726,7 +76920,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -113362,6 +113559,7 @@
           "AUTH_SOCIAL_PROVIDER_UNAVAILABLE",
           "AUTH_PROVIDER_DISABLED",
           "AUTH_INVALID_CREDENTIALS",
+          "AUTH_PASSWORD_COMPROMISED",
           "ACCOUNT_EXISTS_USE_OTHER_METHOD",
           "IDENTIFIER_ALREADY_LINKED",
           "CONTACT_DOMAIN_BLOCKED",
@@ -113577,7 +113775,8 @@
           "FORWARD_NOT_ALLOWED",
           "CONTENT_PROTECTED",
           "UNSUPPORTED_IN_TARGET",
-          "SYNC_TOO_OLD"
+          "SYNC_TOO_OLD",
+          "STALE_VERSION"
         ]
       },
       "ErrorBodyDto": {
@@ -113666,7 +113865,10 @@
           "third_party_services",
           "partner_terms",
           "dmca_policy",
-          "accessibility"
+          "accessibility",
+          "community_guidelines",
+          "advertising_disclosure",
+          "sms_terms"
         ]
       },
       "BootstrapLegalDocumentDto": {
@@ -120118,6 +120320,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -120169,6 +120375,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -125483,6 +125690,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "kind": {
             "allOf": [
               {
@@ -125652,6 +125863,7 @@
         },
         "required": [
           "id",
+          "version",
           "kind",
           "title",
           "files",
@@ -128234,6 +128446,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "username": {
             "type": "string"
           },
@@ -128322,6 +128538,7 @@
         },
         "required": [
           "id",
+          "version",
           "username",
           "firstName",
           "lastName",
@@ -128996,6 +129213,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "username": {
             "type": "string",
             "description": "OQ-026: the client @username."
@@ -129038,6 +129259,7 @@
         },
         "required": [
           "id",
+          "version",
           "username",
           "usernameNextChangeAt",
           "firstName",
@@ -129468,7 +129690,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -130898,6 +131123,10 @@
           "bidsCount": {
             "type": "integer"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -130970,6 +131199,7 @@
           "status",
           "viewCount",
           "bidsCount",
+          "version",
           "createdAt",
           "lastActivityAt",
           "stillNeededPending",
@@ -132191,6 +132421,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -132231,6 +132465,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -133695,6 +133930,10 @@
           "bidsCount": {
             "type": "integer"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -133788,6 +134027,7 @@
           "status",
           "viewCount",
           "bidsCount",
+          "version",
           "createdAt",
           "lastActivityAt",
           "stillNeededPending",
@@ -133911,6 +134151,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -133967,6 +134211,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -143304,6 +143549,144 @@
           "data"
         ]
       },
+      "LedgerBalanceDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "stripe_platform_balance"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "liability",
+              "revenue",
+              "expense",
+              "external"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "example": "usd"
+          },
+          "ownerKey": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "users"
+            ]
+          },
+          "debitCents": {
+            "type": "integer"
+          },
+          "creditCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "currency",
+          "ownerKey",
+          "debitCents",
+          "creditCents"
+        ]
+      },
+      "LedgerReconcileDto": {
+        "type": "object",
+        "properties": {
+          "ranAt": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "unbalancedEntries": {
+            "type": "integer"
+          },
+          "missingPayments": {
+            "type": "integer"
+          },
+          "missingCasePayments": {
+            "type": "integer"
+          },
+          "caseRefundDriftCents": {
+            "type": "integer"
+          },
+          "stripeStatus": {
+            "type": "string",
+            "enum": [
+              "skipped",
+              "compared"
+            ]
+          },
+          "stripeDeltaCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ranAt",
+          "ok",
+          "entries",
+          "unbalancedEntries",
+          "missingPayments",
+          "missingCasePayments",
+          "caseRefundDriftCents",
+          "stripeStatus",
+          "stripeDeltaCents",
+          "problems"
+        ]
+      },
+      "LedgerOverviewDto": {
+        "type": "object",
+        "properties": {
+          "balances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerBalanceDto"
+            }
+          },
+          "last": {
+            "nullable": true,
+            "description": "The last nightly reconciliation, null before the first run.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LedgerReconcileDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "balances",
+          "last"
+        ]
+      },
+      "LedgerOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LedgerOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "UpdateTreasurySettingsDto": {
         "type": "object",
         "properties": {
@@ -152526,6 +152909,41 @@
             "type": "string",
             "maxLength": 6000,
             "description": "Plain text (no markdown), numbered rules."
+          },
+          "attorneyAdvertisingLabel": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Label next to attorney-created content (profile, post, bid, answer)."
+          },
+          "priorResultsDisclaimer": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Prior-results disclaimer."
+          },
+          "badgeExplainer": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "What the attorney badges mean (a registry check, not a recommendation)."
+          },
+          "bestAnswerNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Q&A note: the asker chooses the best answer."
+          },
+          "translationNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Note on machine translation."
+          },
+          "reviewReplyWarning": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "Warning for an attorney replying publicly to a review."
+          },
+          "sponsoredLabel": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Label on paid placements."
           }
         },
         "required": [
@@ -152893,12 +153311,111 @@
           },
           "ru": {
             "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "es": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "fr": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "de": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "it": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pt": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "nl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "uk": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
           }
         },
         "required": [
           "en",
           "ru"
         ]
+      },
+      "LegalTextsNeedReviewDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "boolean"
+          },
+          "ru": {
+            "type": "boolean"
+          },
+          "es": {
+            "type": "boolean"
+          },
+          "fr": {
+            "type": "boolean"
+          },
+          "de": {
+            "type": "boolean"
+          },
+          "it": {
+            "type": "boolean"
+          },
+          "pt": {
+            "type": "boolean"
+          },
+          "nl": {
+            "type": "boolean"
+          },
+          "pl": {
+            "type": "boolean"
+          },
+          "uk": {
+            "type": "boolean"
+          }
+        }
       },
       "LegalSettingsDto": {
         "type": "object",
@@ -152917,6 +153434,14 @@
           },
           "texts": {
             "$ref": "#/components/schemas/LegalTextsByLangDto"
+          },
+          "textsNeedReview": {
+            "description": "Which languages are marked \"needs review\" (machine translations by default).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsNeedReviewDto"
+              }
+            ]
           }
         },
         "required": [
@@ -153780,7 +154305,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -153859,7 +154387,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -154049,7 +154580,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {
@@ -154111,7 +154645,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -154295,7 +154832,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {

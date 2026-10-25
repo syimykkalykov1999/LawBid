@@ -15,6 +15,7 @@ part 'own_attorney_profile_dto.g.dart';
 class OwnAttorneyProfileDto {
   const OwnAttorneyProfileDto({
     required this.id,
+    required this.version,
     required this.username,
     required this.firstName,
     required this.lastName,
@@ -39,6 +40,9 @@ class OwnAttorneyProfileDto {
       _$OwnAttorneyProfileDtoFromJson(json);
 
   final String id;
+
+  /// Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION).
+  final int version;
   final String username;
   final String? firstName;
   final String? lastName;

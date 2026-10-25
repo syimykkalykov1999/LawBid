@@ -49,9 +49,18 @@ variable "anomaly_existing_monitor_arn" {
   default     = ""
   description = "ARN of the account's existing service-level anomaly monitor (AWS creates `Default-Services-Monitor`: aws ce get-anomaly-monitors). Used when create_anomaly_monitor is false."
 }
+variable "anomaly_sns_topic_arn" {
+  type        = string
+  default     = ""
+  description = "SNS topic (the alerts topic) that also gets each cost anomaly at once (IMMEDIATE subscription, free). Its policy and key must allow costalerts.amazonaws.com (modules/monitoring, modules/kms). Empty = e-mail only."
+}
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+locals {
+  anomaly_monitor_arn = var.create_anomaly_monitor ? one(aws_ce_anomaly_monitor.services[*].arn) : var.anomaly_existing_monitor_arn
 }
 
 resource "aws_budgets_budget" "monthly" {
@@ -143,6 +152,30 @@ resource "aws_ce_anomaly_subscription" "extra" {
       type    = "EMAIL"
       address = subscriber.value
     }
+  }
+
+  threshold_expression {
+    dimension {
+      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
+      match_options = ["GREATER_THAN_OR_EQUAL"]
+      values        = [tostring(var.anomaly_threshold_usd)]
+    }
+  }
+  tags = var.tags
+}
+
+# Cost Anomaly Detection -> SNS. AWS allows the SNS subscriber only with the
+# IMMEDIATE frequency (one message per anomaly), so this is a separate
+# subscription from the daily e-mail digest above.
+resource "aws_ce_anomaly_subscription" "sns" {
+  count            = var.anomaly_sns_topic_arn != "" && (var.create_anomaly_monitor || var.anomaly_existing_monitor_arn != "") ? 1 : 0
+  name             = "${var.name}-cost-anomalies-sns"
+  frequency        = "IMMEDIATE"
+  monitor_arn_list = [local.anomaly_monitor_arn]
+
+  subscriber {
+    type    = "SNS"
+    address = var.anomaly_sns_topic_arn
   }
 
   threshold_expression {

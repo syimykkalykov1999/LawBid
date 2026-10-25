@@ -48,6 +48,8 @@ export enum ErrorCode {
   AUTH_PROVIDER_DISABLED = 'AUTH_PROVIDER_DISABLED',
   // Owner 2026-10-13: wrong phone / e-mail or password (one generic answer).
   AUTH_INVALID_CREDENTIALS = 'AUTH_INVALID_CREDENTIALS',
+  // Owner 2026-10-25: a new password found in a breach / the common list.
+  AUTH_PASSWORD_COMPROMISED = 'AUTH_PASSWORD_COMPROMISED',
   ACCOUNT_EXISTS_USE_OTHER_METHOD = 'ACCOUNT_EXISTS_USE_OTHER_METHOD',
   IDENTIFIER_ALREADY_LINKED = 'IDENTIFIER_ALREADY_LINKED',
   CONTACT_DOMAIN_BLOCKED = 'CONTACT_DOMAIN_BLOCKED',
@@ -549,4 +551,9 @@ export enum ErrorCode {
   // Owner 2026-10-25 (experiments). 409: the action does not fit the
   // experiment's state (start a running one, ramp up a stopped one ...).
   EXPERIMENT_STATE_INVALID = 'EXPERIMENT_STATE_INVALID',
+
+  // Day-one foundations (2026-10-24). 409: the client sent `If-Match: <version>`
+  // and the row was saved by someone else since; reload and retry. details:
+  // { currentVersion }.
+  STALE_VERSION = 'STALE_VERSION',
 }

@@ -339,6 +339,11 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Search-ready: the engine outbox and its reindex checkpoints.
   'SearchOutbox',
   'SearchIndexState',
+  // Day-one foundations: the double-entry money ledger (global: platform
+  // accounts and cross-party entries; docs/architecture/MONEY_LEDGER.md).
+  'LedgerAccount',
+  'LedgerEntry',
+  'LedgerLine',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);
