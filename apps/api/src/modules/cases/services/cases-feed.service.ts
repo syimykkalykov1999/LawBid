@@ -6,6 +6,8 @@ import {
 } from '../domain/case-urgency';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { Prisma, type Case, type PracticeArea } from '@prisma/client';
 import {
   decodeCursor,
@@ -105,6 +107,8 @@ export class CasesFeedService {
     @Optional() private readonly recommendations?: RecommendationsService,
     // Owner 2026-10-18 (OQ-054): the activity line on the card.
     @Optional() private readonly clientActivity?: ClientActivityService,
+    // S3-5: private details are stored sealed (only their length is shown).
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -565,7 +569,14 @@ export class CasesFeedService {
           imagesCount: files.get(c.id)?.images ?? 0,
           documentsCount: files.get(c.id)?.documents ?? 0,
           descriptionLength: c.description.length,
-          privateDetailsLength: c.private_details?.length ?? 0,
+          privateDetailsLength: !c.private_details
+            ? 0
+            : (
+                this.cipher?.openField(
+                  c.private_details,
+                  privateDetailsAad(c.id),
+                ) ?? c.private_details
+              ).length,
         },
       });
     }

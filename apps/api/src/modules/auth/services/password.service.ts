@@ -5,9 +5,13 @@ import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
-const SCRYPT_N = 16384;
-const SCRYPT_R = 8;
-const SCRYPT_P = 1;
+// Security pass 2026-10-25 (S3-6): OWASP Password Storage cheat sheet —
+// scrypt with N=2^16, r=8, p=2 (64 MiB, about 100-200 ms on one vCPU).
+// Older hashes (N=2^14, p=1) still verify and are rewritten on the next
+// successful sign-in (`needsRehash`).
+export const SCRYPT_N = 65536;
+export const SCRYPT_R = 8;
+export const SCRYPT_P = 2;
 const KEY_LENGTH = 64;
 const FORMAT = 'scrypt';
 
@@ -47,6 +51,15 @@ export class PasswordService {
       password.length >= PASSWORD_MIN_LENGTH &&
       password.length <= PASSWORD_MAX_LENGTH
     );
+  }
+
+  /** True when [stored] was made with weaker parameters than today's. */
+  needsRehash(stored: string | null): boolean {
+    if (!stored) return false;
+    const parts = stored.split('$');
+    if (parts.length !== 6 || parts[0] !== FORMAT) return false;
+    const [n, r, p] = [Number(parts[1]), Number(parts[2]), Number(parts[3])];
+    return n < SCRYPT_N || r < SCRYPT_R || p < SCRYPT_P;
   }
 
   async hash(password: string): Promise<string> {
