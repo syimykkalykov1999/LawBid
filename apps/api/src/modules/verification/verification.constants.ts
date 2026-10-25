@@ -106,6 +106,7 @@ export const AUDIT_ACTION = {
   recheck: 'verification.license_recheck',
   registryCheck: 'verification.registry_check',
   registryFlagClear: 'verification.registry_flag_clear',
+  licenseExpiry: 'verification.license_expiry_set',
   suspend: 'verification.suspend',
   restore: 'verification.restore',
 } as const;

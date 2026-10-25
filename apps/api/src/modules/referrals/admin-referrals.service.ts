@@ -88,6 +88,7 @@ export class AdminReferralsService {
     dto: ReferralSettingsDto,
   ): Promise<ReferralSettingsView> {
     // Owner 2026-10-05: `amount` carries fractional days («0.5 дня»).
+    const current = await this.referrals.settings();
     const next: ReferralProgramSettings = {
       enabled: dto.enabled,
       attorneyReferrerReward: rewardFromInput(dto.attorneyReferrerReward),
@@ -96,6 +97,8 @@ export class AdminReferralsService {
       clientRefereeReward: rewardFromInput(dto.clientRefereeReward),
       applyWindowDays: dto.applyWindowDays,
       maxInvitesPerReferrer: dto.maxInvitesPerReferrer,
+      qualifyWindowDays: dto.qualifyWindowDays ?? current.qualifyWindowDays,
+      clientQualifyOn: dto.clientQualifyOn ?? current.clientQualifyOn,
       texts: { en: { ...dto.texts.en }, ru: { ...dto.texts.ru } },
     };
     const checks: [keyof ReferralProgramSettings, string | null][] = [

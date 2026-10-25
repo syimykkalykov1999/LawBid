@@ -314,6 +314,7 @@ erDiagram
     String bar_number
     enum_LicenseStatus license_status
     DateTime expires_at "nullable"
+    String expires_source "nullable"
     DateTime verified_at "nullable"
     String verified_by FK "nullable"
     Json auto_check_result "nullable"

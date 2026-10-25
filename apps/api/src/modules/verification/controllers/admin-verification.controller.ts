@@ -35,6 +35,7 @@ import {
   RegistryCheckDto,
   RegistryFlagItemDto,
   RejectRequestDto,
+  SetLicenseExpiryDto,
   AdminLicenseDto,
   RequestInfoDto,
   SuspendAttorneyDto,
@@ -199,6 +200,22 @@ export class AdminVerificationController {
     @Param() params: AdminLicenseIdParamDto,
   ): Promise<LicenseRecheckDto> {
     return this.admin.recheck(admin, params.licenseId);
+  }
+
+  @Post('licenses/:licenseId/expiry')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Set or clear a license's expiry date (owner 2026-10-24; source = admin)",
+  })
+  @ApiEnvelopeResponse(AdminLicenseDto)
+  @ApiErrors({ ...REVIEW_ERRORS, 409: [E.VERIFICATION_INVALID_STATUS] })
+  setLicenseExpiry(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: AdminLicenseIdParamDto,
+    @Body() dto: SetLicenseExpiryDto,
+  ): Promise<AdminLicenseDto> {
+    return this.admin.setLicenseExpiry(admin, params.licenseId, dto.expiresAt);
   }
 
   @Get('registry-flags')

@@ -4,7 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_license_dto_expires_source.dart';
 import 'admin_license_dto_registry_flag.dart';
+import 'admin_license_dto_renewal_state.dart';
 import 'license_status.dart';
 
 part 'admin_license_dto.g.dart';
@@ -18,6 +20,9 @@ class AdminLicenseDto {
     required this.barNumber,
     required this.status,
     required this.expiresAt,
+    required this.expiresSource,
+    required this.renewalState,
+    required this.graceEndsAt,
     required this.autoCheckResult,
     required this.lookupUrl,
     required this.rejectionCode,
@@ -37,6 +42,15 @@ class AdminLicenseDto {
   final String barNumber;
   final LicenseStatus status;
   final DateTime? expiresAt;
+
+  /// Owner 2026-10-24: who set expiresAt.
+  final AdminLicenseDtoExpiresSource? expiresSource;
+
+  /// Owner 2026-10-24: renewal_due = the date passed, grace period running (badge hidden, «требует продления»); null = no date or not a verified license.
+  final AdminLicenseDtoRenewalState? renewalState;
+
+  /// Last day of the grace period (expiresAt + grace days).
+  final DateTime? graceEndsAt;
 
   /// Latest automatic bar lookup (§2.4), null if none ran.
   final dynamic autoCheckResult;

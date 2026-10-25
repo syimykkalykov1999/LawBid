@@ -1608,6 +1608,10 @@ model AttorneyLicense {
   bar_number          String
   license_status      LicenseStatus   @default(pending)
   expires_at          DateTime?       @db.Date
+  /// Owner 2026-10-24: who set expires_at: 'registry' (the state registry,
+  /// e.g. NY next_registration), 'attorney' or 'admin'. A registry date
+  /// replaces an attorney date, never an admin one.
+  expires_source      String?         @db.VarChar(16)
   verified_at         DateTime?       @db.Timestamptz
   verified_by         String?         @db.Uuid
   verifier            User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)
