@@ -1,7 +1,7 @@
 'use client';
 
 import { Bell } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { useEffect, useState } from 'react';
 
 function clock(): [string, string] {
@@ -34,7 +34,7 @@ export function PushPreview({ title, body }: { title: string; body: string }) {
         </div>
         <AnimatePresence mode="wait" initial={false}>
           {empty ? (
-            <motion.div
+            <m.div
               key="empty"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -42,9 +42,9 @@ export function PushPreview({ title, body }: { title: string; body: string }) {
               className="rounded-2xl border border-dashed border-line-strong px-4 py-6 text-center text-xs text-faint"
             >
               Начните писать — пуш появится здесь
-            </motion.div>
+            </m.div>
           ) : (
-            <motion.div
+            <m.div
               key="push"
               initial={{ opacity: 0, y: -12, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -66,7 +66,7 @@ export function PushPreview({ title, body }: { title: string; body: string }) {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
         <div className="mx-auto mt-10 h-1 w-28 rounded-full bg-ink/40" />

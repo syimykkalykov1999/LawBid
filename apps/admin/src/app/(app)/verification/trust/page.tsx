@@ -8,7 +8,6 @@ import { Suspense, useState } from 'react';
 import { Kpi, KpiSkeletons } from '@/components/billing/kpi';
 import { AttorneysList } from '@/components/trust/attorneys-list';
 import { BarLookups, BlockedChip } from '@/components/trust/bar-lookups';
-import { BlockedBarNumbers } from '@/components/trust/blocked-bar-numbers';
 import { BulkBar, PageSelectBox, RowSelectBox, useSelection } from '@/components/bulk/bulk-controls';
 import { ClientFraud } from '@/components/fraud/client-fraud';
 import { useConfirm } from '@/components/legacy/confirm';
@@ -46,6 +45,10 @@ import {
   type QueueReason,
 } from '@/lib/trust-labels';
 import { cn, formatDateTime, formatDuration } from '@/lib/utils';
+import dynamic from 'next/dynamic';
+
+// S18-8: loaded only when its tab is opened.
+const BlockedBarNumbers = dynamic(() => import('@/components/trust/blocked-bar-numbers').then((m) => m.BlockedBarNumbers));
 
 type Settings = components['schemas']['TrustSettingsDto'];
 type QueueItem = components['schemas']['TrustQueueItemDto'];

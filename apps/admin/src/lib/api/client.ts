@@ -1,6 +1,7 @@
 'use client';
 
 import createClient, { type Middleware } from 'openapi-fetch';
+import { isBackgroundNow } from '../activity';
 import { countryTab } from '../country-tab';
 import type { paths } from './schema';
 
@@ -53,6 +54,9 @@ async function reroute(
   const headers = new Headers(request.headers);
   const country = countryTab();
   if (country) headers.set('x-admin-country', country);
+  // S18-1: reads made while nobody touches the screen must not keep the
+  // 30-minute idle session alive.
+  if (request.method === 'GET' && isBackgroundNow()) headers.set('x-background', '1');
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
   const body = hasBody ? await request.text() : undefined;
   const out = new Request(url, {
@@ -106,7 +110,7 @@ async function stepUpAndRetry(request: Request, response: Response): Promise<Res
   );
 }
 
-const toProxy: Middleware = {
+export const toProxy: Middleware = {
   // `/admin/x` → `/api/proxy/x`
   onRequest: ({ request }) =>
     reroute(request, (p) => p.replace(/^\/admin\//, '/api/proxy/')),

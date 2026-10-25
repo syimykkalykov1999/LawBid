@@ -18,6 +18,7 @@ import {
   LIGHT_TONE,
   RUNBOOK_BASE,
   componentTitle,
+  healthPollMs,
   incidentSpan,
   word,
   type SystemHealth,
@@ -37,7 +38,9 @@ export default function SystemHealthPage() {
   const health = useQuery({
     queryKey: ['system-health'],
     queryFn: async () => (await api.GET('/admin/system-health')).data!.data,
-    refetchInterval: livePoll(),
+    // S18-9: every minute while green; every 15 s while something is
+    // yellow or red, so an outage is not a minute late.
+    refetchInterval: livePoll((d) => healthPollMs((d as SystemHealth | undefined)?.overall)),
   });
   const set = (h: SystemHealth) => qc.setQueryData(['system-health'], h);
 

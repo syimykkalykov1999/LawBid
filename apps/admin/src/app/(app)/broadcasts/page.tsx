@@ -2,7 +2,7 @@
 
 import { BellRinging, Megaphone, PaperPlaneTilt, UsersThree } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { useState } from 'react';
 import { PushPreview } from '@/components/email/push-preview';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
@@ -96,7 +96,7 @@ export default function BroadcastsPage() {
       />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
+        <m.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
           <Card className="p-5 sm:p-6">
             <div className="mb-5 flex items-center gap-3">
               <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-2 text-faint">
@@ -158,9 +158,9 @@ export default function BroadcastsPage() {
               </div>
             </div>
           </Card>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           className="lg:sticky lg:top-4"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -170,7 +170,7 @@ export default function BroadcastsPage() {
             <BellRinging size={14} weight="light" /> Так увидят на телефоне
           </div>
           <PushPreview title={title} body={body} />
-        </motion.div>
+        </m.div>
       </div>
 
       <SectionTitle>История</SectionTitle>

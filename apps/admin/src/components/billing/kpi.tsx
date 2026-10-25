@@ -1,7 +1,7 @@
 'use client';
 
 import type { Icon } from '@phosphor-icons/react';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import { AnimatedNumber } from '@/components/ui/animated-number';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
@@ -29,7 +29,7 @@ export function Kpi({
   format?: (n: number) => string;
 }) {
   return (
-    <motion.div {...fadeUp(i)}>
+    <m.div {...fadeUp(i)}>
       <Card spotlight className="h-full overflow-hidden p-5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[13px] text-muted">{title}</span>
@@ -47,7 +47,7 @@ export function Kpi({
         </div>
         {hint ? <div className="mt-1 text-xs text-faint">{hint}</div> : null}
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
 

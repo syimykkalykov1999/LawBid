@@ -118,7 +118,7 @@ describe('polling policy', () => {
     });
   }
 
-  it('every refetchInterval in the panel is at least a minute and backs off on 429', () => {
+  it('every refetchInterval in the panel goes through livePoll (a minute, backs off on 429, stops when idle)', () => {
     const root = join(__dirname, '..');
     const bad = files(root).flatMap((f) =>
       readFileSync(f, 'utf8')

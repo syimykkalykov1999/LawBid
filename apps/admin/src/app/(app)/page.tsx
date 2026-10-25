@@ -5,7 +5,7 @@ import {
   UserPlus, Users, UsersThree, Wallet, type Icon,
 } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { AnimatedNumber } from '@/components/ui/animated-number';
@@ -212,7 +212,7 @@ function Kpi({
   format?: (n: number) => string;
 }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
@@ -235,7 +235,7 @@ function Kpi({
         </div>
         {hint ? <div className="mt-1 text-xs text-faint">{hint}</div> : null}
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
 

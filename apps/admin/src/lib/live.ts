@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
+import { idleMs, IDLE_STOP_MS } from '@/lib/activity';
 import { api, ApiError } from '@/lib/api/client';
 
 /**
@@ -28,11 +29,16 @@ export const UNFOCUSED_MS = 120_000;
 
 /** A refetchInterval that slows down after a 429 and when the window has
  * no focus. */
-export function livePoll(ms: number = LIVE_MS) {
-  return <Q extends { state: { error: unknown } }>(query: Q): number => {
-    if (isRateLimited(query.state.error)) return Math.max(ms, RATE_LIMITED_BACKOFF_MS);
-    if (typeof document !== 'undefined' && !document.hasFocus()) return Math.max(ms, UNFOCUSED_MS);
-    return ms;
+export function livePoll(ms: number | ((data: unknown) => number) = LIVE_MS) {
+  return <Q extends { state: { error: unknown; data?: unknown } }>(query: Q): number | false => {
+    // S18-1: nobody has touched the screen for 15 minutes — stop polling so
+    // the session can run into its idle timeout (any input restarts it).
+    if (typeof window !== 'undefined' && idleMs() > IDLE_STOP_MS) return false;
+    // S18-9: a board may poll faster while its data says something is wrong.
+    const base = typeof ms === 'function' ? ms(query.state.data) : ms;
+    if (isRateLimited(query.state.error)) return Math.max(base, RATE_LIMITED_BACKOFF_MS);
+    if (typeof document !== 'undefined' && !document.hasFocus()) return Math.max(base, UNFOCUSED_MS);
+    return base;
   };
 }
 

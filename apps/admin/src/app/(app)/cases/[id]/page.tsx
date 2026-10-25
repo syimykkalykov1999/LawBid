@@ -2,7 +2,7 @@
 
 import { Archive, ArrowCounterClockwise, ArrowLeft, EyeSlash, Flag, LockSimple, RocketLaunch, Scales, WarningCircle } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { m } from 'motion/react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { DossierChecklist } from '@/components/cases/dossier';
@@ -168,7 +168,7 @@ export default function CaseDetailPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <motion.div {...fadeUp(0)} className="lg:col-span-2">
+        <m.div {...fadeUp(0)} className="lg:col-span-2">
           <Card className="h-full">
             <CardHeader>
               <CardTitle>Описание</CardTitle>
@@ -178,8 +178,8 @@ export default function CaseDetailPage() {
               <DossierChecklist c={c} />
             </CardContent>
           </Card>
-        </motion.div>
-        <motion.div {...fadeUp(1)}>
+        </m.div>
+        <m.div {...fadeUp(1)}>
           <Card className="h-full">
             <CardHeader>
               <CardTitle>Кратко</CardTitle>
@@ -236,7 +236,7 @@ export default function CaseDetailPage() {
               ) : null}
             </CardContent>
           </Card>
-        </motion.div>
+        </m.div>
       </div>
 
       <h2 className="mt-9 mb-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Ставки</h2>
@@ -246,7 +246,7 @@ export default function CaseDetailPage() {
       <Invites c={c} canOpenUsers={canOpenUsers} />
 
       <h2 className="mt-9 mb-3.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Журнал кейса</h2>
-      <motion.div {...fadeUp(2)}>
+      <m.div {...fadeUp(2)}>
         <Card>
           <CardContent className="pt-5">
             {c.journal.length === 0 ? (
@@ -274,7 +274,7 @@ export default function CaseDetailPage() {
             )}
           </CardContent>
         </Card>
-      </motion.div>
+      </m.div>
     </>
   );
 }

@@ -356,3 +356,10 @@ export const LIGHT_LABEL: Record<Light, string> = {
 };
 
 export const RUNBOOK_BASE = 'https://github.com/syimykkalykov1999/LawBid/blob/main/docs/runbooks/';
+
+/** S18-9: how often the board refreshes — fast while something is not green. */
+export const HEALTH_POLL_GREEN_MS = 60_000;
+export const HEALTH_POLL_ALERT_MS = 15_000;
+export function healthPollMs(overall: SystemHealth['overall'] | undefined): number {
+  return overall === 'yellow' || overall === 'red' ? HEALTH_POLL_ALERT_MS : HEALTH_POLL_GREEN_MS;
+}

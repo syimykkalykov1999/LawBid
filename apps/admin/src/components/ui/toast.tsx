@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckCircle, Info, WarningCircle, X } from '@phosphor-icons/react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, m } from 'motion/react';
 import { createContext, useCallback, useContext, useState } from 'react';
 import { ApiError, errorText } from '@/lib/api/client';
 
@@ -34,7 +34,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           {items.map((t) => {
             const Icon = t.kind === 'success' ? CheckCircle : t.kind === 'error' ? WarningCircle : Info;
             return (
-              <motion.div
+              <m.div
                 key={t.id}
                 layout
                 initial={{ opacity: 0, y: 16, scale: 0.96 }}
@@ -57,7 +57,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 >
                   <X size={14} />
                 </button>
-              </motion.div>
+              </m.div>
             );
           })}
         </AnimatePresence>
