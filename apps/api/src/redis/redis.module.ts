@@ -1,7 +1,7 @@
 import { Global, Inject, Module, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
-import { createRedisClient } from './redis-connection';
+import { closeSharedProducers, createRedisClient } from './redis-connection';
 import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from './redis.constants';
 import { failSoftRedis } from './fail-soft-redis';
 
@@ -22,6 +22,10 @@ const cacheOwn = new Set<Redis>();
           maxRetriesPerRequest: 3,
           commandTimeout:
             config.get<number>('REDIS_COMMAND_TIMEOUT_MS') ?? 2000,
+          // Same-tick commands share one round trip (REDIS_AUTOPIPELINE,
+          // default on; verify in the load test, turn off to roll back).
+          enableAutoPipelining:
+            config.get<boolean>('REDIS_AUTOPIPELINE') ?? true,
         });
       },
     },
@@ -72,6 +76,7 @@ export class RedisModule implements OnApplicationShutdown {
       }
     }
     cacheOwn.clear();
+    await closeSharedProducers();
     if (typeof this.redis.quit !== 'function') return;
     try {
       await this.redis.quit();
