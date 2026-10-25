@@ -394,6 +394,11 @@ resource "aws_cloudfront_distribution" "media" {
   comment         = "${var.name} media"
   price_class     = "PriceClass_100"
   is_ipv6_enabled = true
+  # Caching round 2 (S2-9): HTTP/3 (QUIC) on top of HTTP/2 — faster first
+  # byte on bad mobile networks, no extra cost. The price class stays
+  # PriceClass_100 (no Asia / Middle East edges): switching to
+  # PriceClass_200 is a one-word change once real user geography is known.
+  http_version = "http2and3"
   # Security research #5 (2026-10-22), A3: a per-IP rate limit on the media
   # CDN (hotlinking / download loops cost egress).
   web_acl_id = var.media_web_acl_arn == "" ? null : var.media_web_acl_arn
@@ -520,9 +525,9 @@ resource "aws_cloudfront_origin_access_control" "documents" {
 resource "aws_cloudfront_cache_policy" "documents" {
   count       = local.documents_cdn
   name        = "${var.name}-documents-signed"
-  comment     = "Immutable private media: cache a day, key on the response-* params"
-  default_ttl = 86400
-  max_ttl     = 86400
+  comment     = "Private media: edge copy at most an hour (a deleted file must not outlive it), key on the response-* params"
+  default_ttl = 3600
+  max_ttl     = 3600
   min_ttl     = 0
   parameters_in_cache_key_and_forwarded_to_origin {
     enable_accept_encoding_brotli = true
@@ -560,6 +565,7 @@ resource "aws_cloudfront_distribution" "documents" {
   comment         = "${var.name} private media (signed URLs)"
   price_class     = "PriceClass_100"
   is_ipv6_enabled = true
+  http_version    = "http2and3"
   web_acl_id      = var.media_web_acl_arn == "" ? null : var.media_web_acl_arn
 
   origin {
@@ -628,5 +634,9 @@ output "documents_bucket_arn" { value = aws_s3_bucket.documents.arn }
 output "media_bucket" { value = aws_s3_bucket.media.bucket }
 output "media_bucket_arn" { value = aws_s3_bucket.media.arn }
 output "media_cdn_domain" { value = aws_cloudfront_distribution.media.domain_name }
+output "media_cdn_distribution_id" { value = aws_cloudfront_distribution.media.id }
+output "media_cdn_distribution_arn" { value = aws_cloudfront_distribution.media.arn }
+output "documents_cdn_distribution_id" { value = one(aws_cloudfront_distribution.documents[*].id) }
+output "documents_cdn_distribution_arn" { value = one(aws_cloudfront_distribution.documents[*].arn) }
 output "documents_cdn_domain" { value = one(aws_cloudfront_distribution.documents[*].domain_name) }
 output "documents_cdn_key_pair_id" { value = one(aws_cloudfront_public_key.documents[*].id) }

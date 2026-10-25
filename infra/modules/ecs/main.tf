@@ -201,6 +201,20 @@ variable "tags" {
   default = {}
 }
 
+# Caching round 2 (S2-1): the CloudFront distributions whose edge copies the
+# API removes when a public photo / private file is deleted for good.
+variable "cloudfront_invalidation_enabled" {
+  type        = bool
+  default     = false
+  description = "Grant the task role cloudfront:CreateInvalidation on cloudfront_invalidation_arns."
+}
+
+variable "cloudfront_invalidation_arns" {
+  type        = list(string)
+  default     = []
+  description = "ARNs of the CloudFront distributions the task role may invalidate."
+}
+
 data "aws_region" "current" {}
 
 resource "aws_ecs_cluster" "this" {
@@ -295,6 +309,24 @@ resource "aws_iam_role" "task" {
   name               = "${var.name}-ecs-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
   tags               = var.tags
+}
+
+# CreateInvalidation on the media / private-media distributions only (the
+# `cdn.invalidate` cron job; paths are batched, see
+# apps/api/src/modules/files/storage/cdn-invalidation.ts).
+data "aws_iam_policy_document" "task_cloudfront_invalidate" {
+  count = var.cloudfront_invalidation_enabled ? 1 : 0
+  statement {
+    actions   = ["cloudfront:CreateInvalidation"]
+    resources = var.cloudfront_invalidation_arns
+  }
+}
+
+resource "aws_iam_role_policy" "task_cloudfront_invalidate" {
+  count  = var.cloudfront_invalidation_enabled ? 1 : 0
+  name   = "cloudfront-invalidate"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_cloudfront_invalidate[0].json
 }
 
 # Admin and migrate tasks carry no application permissions (security
