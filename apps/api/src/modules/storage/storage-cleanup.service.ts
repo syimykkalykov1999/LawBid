@@ -6,6 +6,8 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { withJobLock } from '../../jobs/handlers/job-lock';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { CLEANUP_EXEMPT_PURPOSES } from '../files/files.policy';
 import {
@@ -225,6 +227,7 @@ export class StorageCleanupService {
    * and documents count as unused). Never the exempt purposes.
    */
   private async unused(where: Prisma.Sql, postCutoff: Date): Promise<string[]> {
+    if (readsAreSplit(this.prisma)) return this.unusedSplit(where, postCutoff);
     const exempt = [...CLEANUP_EXEMPT_PURPOSES];
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT f.id::TEXT AS id
@@ -268,16 +271,106 @@ export class StorageCleanupService {
     return rows.map((r) => r.id);
   }
 
+  /**
+   * unused() for several databases (shard-ready step 8). `files` and the
+   * tables of the global family that point at it are checked in one
+   * statement on the primary database, page by page; the candidates of a page
+   * are then checked against the case / content / user families on each
+   * database (one UNION of the same references). Pages continue until BATCH
+   * unused files are found or the candidates run out (bounded).
+   */
+  private async unusedSplit(
+    where: Prisma.Sql,
+    postCutoff: Date,
+  ): Promise<string[]> {
+    const exempt = [...CLEANUP_EXEMPT_PURPOSES];
+    const found: string[] = [];
+    let after: { at: Date; id: string } | null = null;
+    for (let page = 0; page < 40 && found.length < BATCH; page += 1) {
+      const paging: Prisma.Sql = after
+        ? Prisma.sql`AND (f.created_at, f.id) > (${after.at}, ${after.id}::UUID)`
+        : Prisma.empty;
+      const cands = await this.prisma.global().$queryRaw<
+        { id: string; created_at: Date }[]
+      >`
+        SELECT f.id::TEXT AS id, f.created_at
+        FROM files f
+        WHERE ${where} ${paging}
+          AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
+          AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM support_message_files smf WHERE smf.file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM gifts g WHERE g.file_id = f.id)
+          AND NOT EXISTS (
+            SELECT 1 FROM client_verifications cv
+            WHERE cv.document_file_ids @> jsonb_build_array(f.id::TEXT))
+        ORDER BY f.created_at, f.id
+        LIMIT ${BATCH}`;
+      if (cands.length === 0) break;
+      const ids = cands.map((c) => c.id);
+      const used = new Set<string>();
+      const perDb = await forEachDatabase(
+        this.prisma,
+        () =>
+          this.prisma.$queryRaw<{ id: string }[]>`
+          SELECT pm.file_id::TEXT AS id FROM post_media pm
+            JOIN posts p ON p.id = pm.post_id
+            WHERE pm.file_id = ANY(${ids}::UUID[])
+              AND (p.deleted_at IS NULL OR p.deleted_at >= ${postCutoff})
+          UNION SELECT pa.file_id::TEXT FROM post_attachments pa
+            JOIN posts p ON p.id = pa.post_id
+            WHERE pa.file_id = ANY(${ids}::UUID[])
+              AND (p.deleted_at IS NULL OR p.deleted_at >= ${postCutoff})
+          UNION SELECT file_id::TEXT FROM case_photos
+            WHERE file_id = ANY(${ids}::UUID[])
+          UNION SELECT receipt_file_id::TEXT FROM case_expenses
+            WHERE receipt_file_id = ANY(${ids}::UUID[])
+          UNION SELECT file_id::TEXT FROM messages
+            WHERE file_id = ANY(${ids}::UUID[])
+          UNION SELECT avatar_file_id::TEXT FROM chat_groups
+            WHERE avatar_file_id = ANY(${ids}::UUID[])
+          UNION SELECT file_id::TEXT FROM chat_group_messages
+            WHERE file_id = ANY(${ids}::UUID[])
+          UNION SELECT file_id::TEXT FROM stories
+            WHERE file_id = ANY(${ids}::UUID[]) AND deleted_at IS NULL
+          UNION SELECT avatar_file_id::TEXT FROM channels
+            WHERE avatar_file_id = ANY(${ids}::UUID[])
+          UNION SELECT x::TEXT FROM channel_posts cp, unnest(cp.media_file_ids) x
+            WHERE cp.deleted_at IS NULL AND x = ANY(${ids}::UUID[])
+          UNION SELECT x::TEXT FROM attorney_tasks t, unnest(t.file_ids) x
+            WHERE x = ANY(${ids}::UUID[])
+          UNION SELECT x::TEXT FROM reviews r, unnest(r.photo_ids) x
+            WHERE x = ANY(${ids}::UUID[])
+          UNION SELECT x::TEXT FROM client_reviews cr, unnest(cr.photo_ids) x
+            WHERE x = ANY(${ids}::UUID[])`,
+      );
+      for (const r of perDb.flat()) used.add(r.id);
+      for (const id of ids) {
+        if (!used.has(id) && found.length < BATCH) found.push(id);
+      }
+      const last = cands[cands.length - 1];
+      after = { at: last.created_at, id: last.id };
+      if (cands.length < BATCH) break;
+    }
+    return found;
+  }
+
   /** Among [ids], the files a (deleted) post still lists. */
   private async onPosts(ids: string[]): Promise<string[]> {
     if (ids.length === 0) return [];
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+    const parts = await forEachDatabase(
+      this.prisma,
+      () => this.prisma.$queryRaw<{ id: string }[]>`
       SELECT file_id::TEXT AS id FROM post_media
       WHERE file_id = ANY(${ids}::UUID[])
       UNION
       SELECT file_id::TEXT AS id FROM post_attachments
-      WHERE file_id = ANY(${ids}::UUID[])`;
-    return rows.map((r) => r.id);
+      WHERE file_id = ANY(${ids}::UUID[])`,
+    );
+    return parts.flat().map((r) => r.id);
   }
 
   private async setAside(

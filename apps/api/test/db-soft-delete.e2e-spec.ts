@@ -92,7 +92,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
       },
     });
     const mkCase = (deleted: boolean) =>
-      raw.case.create({
+      prisma.case.create({
         data: {
           client_id: liveUser.id,
           title: `case-${tag}`,
@@ -106,7 +106,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     liveCase = await mkCase(false);
     deadCase = await mkCase(true);
     const mkPost = (deleted: boolean) =>
-      raw.post.create({
+      prisma.post.create({
         data: {
           author_id: liveUser.id,
           body: `post-${tag}`,
@@ -115,7 +115,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
       });
     livePost = await mkPost(false);
     deadPost = await mkPost(true);
-    await raw.comment.createMany({
+    await prisma.comment.createMany({
       data: [
         { post_id: livePost.id, author_id: liveUser.id, body: 'live' },
         {
@@ -267,9 +267,11 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     });
 
     it('rows are never physically deleted by the filter, and writes still reach them', async () => {
-      expect(await raw.case.count({ where: { client_id: liveUser.id } })).toBe(
-        2,
-      );
+      expect(
+        await prisma.case.count({
+          where: withDeleted({ client_id: liveUser.id }),
+        }),
+      ).toBe(2);
       // A restore is a plain update — writes are not filtered.
       await prisma.file.update({
         where: { id: deadFile.id },
