@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ck, pipeline } from '../../redis/redis-cluster-safe';
 
 /** How long a missed event can still be fetched (owner 2026-10-23). */
 export const EVENT_LOG_WINDOW_MS = 5 * 60_000;
@@ -14,13 +15,13 @@ export const EVENT_LOG_MAX_BYTES = 8 * 1024;
  * logged (huge audiences refetch on reconnect). */
 export const EVENT_LOG_MAX_FANOUT = 1000;
 
-const SEQ_KEY = 'rt:seq';
+const SEQ_KEY = ck('rtseq', 'rt:seq');
 /** S1-2: the log's epoch canary — the cursor just below the first event
  * written since the log last started from empty. No TTL. If Redis loses
  * its data (failover to a stale replica, restart) the key is gone or
  * newer, so a client whose cursor predates it learns the gap is unknown
  * (`complete: false`) instead of "nothing missed". */
-const EPOCH_KEY = 'rt:epoch';
+const EPOCH_KEY = ck('rtseq', 'rt:epoch');
 const logKey = (userId: string) => `rt:log:${userId}`;
 
 /**
@@ -42,19 +43,17 @@ return nxt
 `;
 
 /**
- * S1-5: one round trip for the whole audience (a 1000-member group used to
- * send 4000 commands): every key gets the event, the entries older than
- * the window and beyond the newest [max] are trimmed, the key's TTL moves.
- * KEYS = one log per person; ARGV = seq, member, window floor, max, ttl.
+ * S1-5: one command per person instead of four (a 1000-member group sent
+ * 4000 commands): the event is added, entries older than the window and
+ * beyond the newest [max] are trimmed, the key's TTL moves. One key per
+ * script (cluster-safe). ARGV = seq, member, window floor, max, ttl.
  */
 const APPEND_LUA = `
-for i = 1, #KEYS do
-  redis.call('ZADD', KEYS[i], ARGV[1], ARGV[2])
-  redis.call('ZREMRANGEBYSCORE', KEYS[i], '-inf', '(' .. ARGV[3])
-  redis.call('ZREMRANGEBYRANK', KEYS[i], 0, -(tonumber(ARGV[4]) + 1))
-  redis.call('EXPIRE', KEYS[i], ARGV[5])
-end
-return #KEYS
+redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[3])
+redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -(tonumber(ARGV[4]) + 1))
+redis.call('EXPIRE', KEYS[1], ARGV[5])
+return 1
 `;
 
 export interface LoggedEvent {
@@ -137,18 +136,20 @@ export class RealtimeEventLog {
     }
     const floor = windowStartSeq(Date.now());
     const ttlSec = Math.ceil(EVENT_LOG_WINDOW_MS / 1000) + 30;
-    const keys = [...new Set(userIds)].map(logKey);
-    if (keys.length === 0) return;
-    await this.redis.eval(
-      APPEND_LUA,
-      keys.length,
-      ...keys,
-      seq,
-      member,
-      floor,
-      EVENT_LOG_MAX,
-      ttlSec,
-    );
+    const pipe = pipeline(this.redis);
+    for (const id of new Set(userIds)) {
+      pipe.eval(
+        APPEND_LUA,
+        1,
+        logKey(id),
+        seq,
+        member,
+        floor,
+        EVENT_LOG_MAX,
+        ttlSec,
+      );
+    }
+    await pipe.exec();
   }
 
   /** Everything logged for [userIds] after [since], oldest first. */
@@ -159,7 +160,7 @@ export class RealtimeEventLog {
   ): Promise<MissedEvents> {
     const ids = [...new Set(userIds)];
     const floor = windowStartSeq(now);
-    const pipe = this.redis.pipeline();
+    const pipe = pipeline(this.redis);
     for (const id of ids) {
       pipe.zrangebyscore(logKey(id), `(${since}`, '+inf');
       pipe.zrangebyscore(

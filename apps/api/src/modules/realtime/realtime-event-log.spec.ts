@@ -47,6 +47,21 @@ function fakeRedis(clock: () => number) {
       return 1;
     },
     expire: () => 1,
+    // the per-person append script (S1-5): [script, 1, key, seq, member, floor, max, ttl]
+    eval: (
+      _script: string,
+      _n: number,
+      key: string,
+      seq: number,
+      member: string,
+      floor: number,
+      max: number,
+    ) => {
+      ops.zadd(key, seq, member);
+      ops.zremrangebyscore(key, '-inf', `(${floor}`);
+      ops.zremrangebyrank(key, 0, -(max + 1));
+      return 1;
+    },
     zcard: (k: string) => z(k).length,
     zrangebyscore: (
       k: string,
@@ -67,23 +82,7 @@ function fakeRedis(clock: () => number) {
     },
   };
   const redis = {
-    eval: jest.fn(async (script: string, n: number, ...rest: unknown[]) => {
-      if (script.includes("'ZADD'")) {
-        // the batch append: [keys..., seq, member, floor, max, ttl]
-        const keys = rest.slice(0, n) as string[];
-        const [seq, member, floor, max] = rest.slice(n) as [
-          number,
-          string,
-          number,
-          number,
-        ];
-        for (const k of keys) {
-          ops.zadd(k, seq, member);
-          ops.zremrangebyscore(k, '-inf', `(${floor}`);
-          ops.zremrangebyrank(k, 0, -(max + 1));
-        }
-        return keys.length;
-      }
+    eval: jest.fn(async () => {
       const now = clock() * 1000;
       last = last >= now ? last + 1 : now;
       epoch ??= String(now - 1);

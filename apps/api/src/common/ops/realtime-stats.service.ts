@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { pipeline } from '../../redis/redis-cluster-safe';
 
 const FLUSH_MS = 10_000;
 const KEY_PREFIX = 'ops:ws:';
@@ -81,7 +82,7 @@ export class RealtimeStatsService
     const batch = this.pending;
     this.pending = new Map();
     try {
-      const pipe = this.redis.pipeline();
+      const pipe = pipeline(this.redis);
       for (const [minute, fields] of batch) {
         const key = KEY_PREFIX + minute;
         for (const [f, n] of fields) pipe.hincrby(key, f, n);
@@ -102,7 +103,7 @@ export class RealtimeStatsService
   async window(windowMin: number, now = Date.now()): Promise<RealtimeWindow> {
     await this.flush();
     const current = Math.floor(now / 60_000);
-    const pipe = this.redis.pipeline();
+    const pipe = pipeline(this.redis);
     for (let i = 0; i < windowMin; i++) {
       pipe.hgetall(KEY_PREFIX + (current - i));
     }

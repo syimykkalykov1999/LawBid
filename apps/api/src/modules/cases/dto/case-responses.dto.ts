@@ -151,6 +151,10 @@ export class CaseDto {
   @ApiProperty({ type: 'integer' })
   bidsCount!: number;
 
+  /** Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION). */
+  @ApiProperty({ type: 'integer' })
+  version!: number;
+
   @ApiProperty()
   createdAt!: string;
 

@@ -35,6 +35,7 @@ import {
   buildContactOtpEmail,
   buildLoginOtpEmail,
 } from '../notifications/email-templates';
+import { ck } from '../../../redis/redis-cluster-safe';
 
 const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 
@@ -415,17 +416,17 @@ export class OtpService {
   }
 
   private codeKey(idHash: string): string {
-    return `otp:code:${idHash}`;
+    return ck(idHash, `otp:code:${idHash}`);
   }
   private attemptsKey(idHash: string): string {
-    return `otp:att:${idHash}`;
+    return ck(idHash, `otp:att:${idHash}`);
   }
   private strikesKey(idHash: string): string {
-    return `otp:strikes:${idHash}`;
+    return ck(idHash, `otp:strikes:${idHash}`);
   }
 
   private lockKey(idHash: string): string {
-    return `otp:lock:${idHash}`;
+    return ck(idHash, `otp:lock:${idHash}`);
   }
   /** The raw link token never becomes a Redis key (same reason as
    * identifiers): only its HMAC does. */

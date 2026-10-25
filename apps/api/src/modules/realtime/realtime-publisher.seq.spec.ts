@@ -19,22 +19,22 @@ describe('RealtimePublisher.toUsers with the event log', () => {
     for (const m of ['zadd', 'zremrangebyscore', 'zremrangebyrank', 'expire']) {
       pipe[m] = jest.fn(() => pipe);
     }
-    pipe.exec = jest.fn(async () => []);
+    // S1-5: one script command per member in the log pipeline
+    pipe.eval = jest.fn(() => {
+      appended.push(1);
+      return pipe;
+    });
+    pipe.exec = jest.fn(async () => {
+      calls.push('log');
+      return [];
+    });
     let seq = 1_000;
     return {
       calls,
       appended,
       pipe,
       status: 'ready',
-      // the seq script, or the batch append (S1-5: one script for everyone)
-      eval: jest.fn(async (script: string, n: number) => {
-        if (script.includes("'ZADD'")) {
-          calls.push('log');
-          appended.push(n);
-          return n;
-        }
-        return ++seq;
-      }),
+      eval: jest.fn(async () => ++seq),
       pipeline: () => pipe,
       spublish: jest.fn(async () => {
         calls.push('publish');
@@ -56,8 +56,8 @@ describe('RealtimePublisher.toUsers with the event log', () => {
     pub.toUsers(['a', 'b'], 'message:new', { id: 'm1' });
     await flush();
     expect(r.spublish).toHaveBeenCalledTimes(1);
-    // one script call for both members
-    expect(r.appended).toEqual([2]);
+    // one script command per member
+    expect(r.appended).toEqual([1, 1]);
     // Log first, publish second.
     expect(r.calls).toEqual(['log', 'publish']);
     expect(packetOf(sent(r)[0][1])).toEqual([

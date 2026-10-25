@@ -37,9 +37,10 @@ import {
 } from './feed-mixer';
 import type { FeedProvider } from './feed.provider';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
+import { ck } from '../../redis/redis-cluster-safe';
 
-export const RECO_CURRENT_KEY = 'feed:reco:current';
-export const recoKey = (version: string) => `feed:reco:${version}`;
+export const recoCurrentKey = () => ck('reco', 'feed:reco:current');
+export const recoKey = (version: string) => ck('reco', `feed:reco:${version}`);
 const seenKey = (uid: string) => `feed:seen:${uid}`;
 const firstPageKey = (uid: string, limit: number, mode: FeedContentMode) =>
   `feed:first:${uid}:${limit}:${mode}`;
@@ -517,7 +518,7 @@ export class FeedService implements FeedProvider {
     next: (used: number) => number;
     version: string | null;
   }> {
-    const current = await this.redis.get(RECO_CURRENT_KEY);
+    const current = await this.redis.get(recoCurrentKey());
     let version = pinned;
     if (!version || !(await this.redis.exists(recoKey(version)))) {
       version = current;

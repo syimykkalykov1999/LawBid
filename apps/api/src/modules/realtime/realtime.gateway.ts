@@ -16,6 +16,7 @@ import {
 import { createAdapter, createShardedAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { socketClientIp } from './socket-ip';
 import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -75,6 +76,7 @@ interface SignalCall {
 const SIGNAL_MAX_BYTES = 64 * 1024;
 /** Sockets of one person per API instance (setting `realtime.max_sockets_per_user`). */
 const DEFAULT_MAX_SOCKETS_PER_USER = 10;
+const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 120;
 /** How often a live socket refreshes its presence (and an assistant's
  * socket re-checks its duties). Owner 2026-10-22 (server load audit,
  * finding 5): no longer the session blacklist — a revoked session's
@@ -363,6 +365,10 @@ export class RealtimeGateway
     while (set.size > max) {
       const oldest = set.values().next().value as Socket;
       set.delete(oldest);
+      this.logger.info(
+        { metric: 'ws_user_cap_evicted', max },
+        'ws per-user cap: closing oldest',
+      );
       oldest.emit('auth:error', { code: 'TOO_MANY_CONNECTIONS' });
       oldest.disconnect(true);
     }
@@ -446,6 +452,35 @@ export class RealtimeGateway
     );
   }
 
+  /** Owner 2026-10-25: new connections per minute from one address
+   * (`realtime.max_connects_per_ip_per_minute`, 0 = off). Fails open: a
+   * Redis or settings hiccup never blocks a connection. Metric line:
+   * `ws_ip_limited`. */
+  private async overIpConnectLimit(socket: Socket): Promise<boolean> {
+    try {
+      let max = DEFAULT_CONNECTS_PER_IP_PER_MINUTE;
+      const v = await this.settings?.number(
+        'realtime.max_connects_per_ip_per_minute',
+      );
+      if (v !== undefined && Number.isFinite(v) && v >= 0) max = Math.round(v);
+      if (max === 0) return false;
+      const ip = socketClientIp(
+        socket.handshake.headers,
+        socket.handshake.address,
+        Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
+      );
+      if (!ip) return false;
+      const key = `ws:connect:${ip}`;
+      const n = await this.redis.incr(key);
+      if (n === 1) await this.redis.expire(key, 60);
+      if (n <= max) return false;
+      this.logger.warn({ metric: 'ws_ip_limited', ip }, 'ws connect limit');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async handleConnection(socket: Socket): Promise<void> {
     // Owner 2026-10-23: a draining instance takes no new sockets — the
     // client waits the given time and lands on a healthy instance.
@@ -454,6 +489,10 @@ export class RealtimeGateway
       socket.disconnect(true);
       return;
     }
+    // Runs alongside the token check below (not before it): a socket is
+    // usable the moment it connects, so a serial extra round trip here would
+    // widen the window where a first packet arrives before `socket.data`.
+    const ipLimited = this.overIpConnectLimit(socket);
     const auth = socket.handshake.auth as { token?: unknown } | undefined;
     const header = socket.handshake.headers.authorization;
     const token =
@@ -463,6 +502,13 @@ export class RealtimeGateway
           ? header.slice(7)
           : undefined;
     const claims = token ? await this.verify(token) : null;
+    // Never awaited: the limit check adds no latency to the handshake; an
+    // over-limit socket is closed as soon as the answer arrives.
+    void ipLimited.then((limited) => {
+      if (!limited) return;
+      socket.emit('auth:error', { code: 'RATE_LIMITED' });
+      socket.disconnect(true);
+    });
     if (!token || !claims) {
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
       socket.disconnect(true);
