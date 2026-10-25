@@ -183,7 +183,7 @@ export default function PrivateContentPage() {
               </tr>
             </thead>
             <tbody>
-              {messages.items.length === 0 ? <TableEmpty cols={4} text="Сообщений нет" /> : null}
+              {messages.items.length === 0 ? <TableEmpty colSpan={4}>Сообщений нет</TableEmpty> : null}
               {messages.items.map((m) => (
                 <tr key={m.id}>
                   <Td>{formatDateTime(m.createdAt)}</Td>
@@ -218,7 +218,7 @@ export default function PrivateContentPage() {
               </tr>
             </thead>
             <tbody>
-              {calls.items.length === 0 ? <TableEmpty cols={5} text="Звонков нет" /> : null}
+              {calls.items.length === 0 ? <TableEmpty colSpan={5}>Звонков нет</TableEmpty> : null}
               {calls.items.map((c) => (
                 <tr key={c.id}>
                   <Td>{formatDateTime(c.createdAt)}</Td>
@@ -255,7 +255,7 @@ export default function PrivateContentPage() {
               </tr>
             </thead>
             <tbody>
-              {files.items.length === 0 ? <TableEmpty cols={4} text="Файлов нет" /> : null}
+              {files.items.length === 0 ? <TableEmpty colSpan={4}>Файлов нет</TableEmpty> : null}
               {files.items.map((f) => (
                 <tr key={f.fileId}>
                   <Td>{f.description ?? f.fileId}</Td>
@@ -294,7 +294,7 @@ export default function PrivateContentPage() {
                 </tr>
               </thead>
               <tbody>
-                {report.data.rows.length === 0 ? <TableEmpty cols={4} text="Никто не читал приватное" /> : null}
+                {report.data.rows.length === 0 ? <TableEmpty colSpan={4}>Никто не читал приватное</TableEmpty> : null}
                 {report.data.rows.map((r) => (
                   <tr key={`${r.adminId}|${r.kind}|${r.reasonCode}`}>
                     <Td>{r.adminEmail ?? r.adminId}</Td>

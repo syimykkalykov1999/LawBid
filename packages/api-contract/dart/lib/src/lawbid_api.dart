@@ -49,6 +49,7 @@ import 'clients/admin_contact_issues_client.dart';
 import 'clients/admin_case_disputes_client.dart';
 import 'clients/presence_client.dart';
 import 'clients/admin_content_client.dart';
+import 'clients/admin_private_content_client.dart';
 import 'clients/admin_media_client.dart';
 import 'clients/admin_search_client.dart';
 import 'clients/search_client.dart';
@@ -186,6 +187,7 @@ class LawbidApi {
   AdminCaseDisputesClient? _adminCaseDisputes;
   PresenceClient? _presence;
   AdminContentClient? _adminContent;
+  AdminPrivateContentClient? _adminPrivateContent;
   AdminMediaClient? _adminMedia;
   AdminSearchClient? _adminSearch;
   SearchClient? _search;
@@ -389,6 +391,9 @@ class LawbidApi {
 
   AdminContentClient get adminContent =>
       _adminContent ??= AdminContentClient(_dio, baseUrl: _baseUrl);
+
+  AdminPrivateContentClient get adminPrivateContent => _adminPrivateContent ??=
+      AdminPrivateContentClient(_dio, baseUrl: _baseUrl);
 
   AdminMediaClient get adminMedia =>
       _adminMedia ??= AdminMediaClient(_dio, baseUrl: _baseUrl);

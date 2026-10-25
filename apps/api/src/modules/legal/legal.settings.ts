@@ -1,5 +1,14 @@
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { Prisma } from '@prisma/client';
+import {
+  LEGAL_LANGS,
+  MACHINE_LANGS,
+  NEW_TEXT_LIMITS,
+  NEW_TEXTS,
+  OLD_TEXTS_MACHINE,
+  type LegalLang,
+  type NewLegalTexts,
+} from './legal.texts.defaults';
 
 /**
  * Owner 2026-10-05 (legal): one app_config row (`legal.settings`, JSON)
@@ -11,10 +20,13 @@ import type { Prisma } from '@prisma/client';
  */
 export const LEGAL_SETTINGS_KEY = 'legal.settings';
 
-export const LEGAL_LANGS = ['en', 'ru'] as const;
-export type LegalLang = (typeof LEGAL_LANGS)[number];
+// Owner 2026-10-25 (legal texts): ten legal languages, like the legal
+// documents. The languages and the new short strings live in
+// legal.texts.defaults.ts.
+export { LEGAL_LANGS, MACHINE_LANGS } from './legal.texts.defaults';
+export type { LegalLang } from './legal.texts.defaults';
 
-export interface LegalTexts {
+export interface LegalTexts extends NewLegalTexts {
   /** Shown under the case description field. */
   caseCreate: string;
   /** Shown for trust level 0 before accepting a bid and in the bid screen. */
@@ -38,6 +50,7 @@ export const LEGAL_TEXT_LIMITS: Record<keyof LegalTexts, number> = {
   partnerDisclosure: 600,
   partnerTerms: 6000,
   privilegedContentPolicy: 4000,
+  ...NEW_TEXT_LIMITS,
 };
 
 export interface DmcaAgent {
@@ -61,6 +74,9 @@ export interface LegalSettings {
    * (repeat-infringer policy, §512(i)); 0 = never automatically. */
   dmcaStrikesToSuspend: number;
   texts: LegalTextsByLang;
+  /** Per language: the text is a machine translation (or not yet read by a
+   * person) and is marked "needs review" in the admin. Informational. */
+  textsNeedReview: Record<LegalLang, boolean>;
 }
 
 export const DMCA_AGENT_LIMITS = {
@@ -125,7 +141,7 @@ const PRIVILEGED_POLICY_RU = [
   'LawBid не юридическая фирма. Адвокаты сами отвечают за свои обязанности по конфиденциальности.',
 ].join('\n\n');
 
-export const DEFAULT_LEGAL_TEXTS: LegalTextsByLang = {
+const EN_TEXTS = {
   en: {
     caseCreate:
       'LawBid is not a law firm and does not give legal advice. Attorneys who respond are independent. Do not post anything that must stay confidential: share details in the chat with the attorney you choose.',
@@ -152,11 +168,41 @@ export const DEFAULT_LEGAL_TEXTS: LegalTextsByLang = {
   },
 };
 
+const withNew = (
+  base: Omit<LegalTexts, keyof NewLegalTexts>,
+  lang: LegalLang,
+): LegalTexts => ({ ...base, ...NEW_TEXTS[lang] });
+
+export const DEFAULT_LEGAL_TEXTS: LegalTextsByLang = (() => {
+  const out = {} as LegalTextsByLang;
+  out.en = withNew(EN_TEXTS.en, 'en');
+  out.ru = withNew(EN_TEXTS.ru, 'ru');
+  for (const lang of MACHINE_LANGS) {
+    if (lang === 'en' || lang === 'ru') continue;
+    // The long partner rules stay in English until the owner translates them.
+    out[lang] = withNew(
+      {
+        ...OLD_TEXTS_MACHINE[lang],
+        partnerTerms: PARTNER_TERMS_EN,
+        privilegedContentPolicy: PRIVILEGED_POLICY_EN,
+      },
+      lang,
+    );
+  }
+  return out;
+})();
+
+/** Machine-translated languages need review until the owner clears them. */
+export const DEFAULT_TEXTS_NEED_REVIEW = Object.fromEntries(
+  LEGAL_LANGS.map((l) => [l, MACHINE_LANGS.includes(l)]),
+) as Record<LegalLang, boolean>;
+
 export const DEFAULT_LEGAL_SETTINGS: LegalSettings = {
   dmcaAgent: { name: '', email: '', address: '' },
   incidentContact: { email: '', phone: '' },
   dmcaStrikesToSuspend: 3,
   texts: DEFAULT_LEGAL_TEXTS,
+  textsNeedReview: DEFAULT_TEXTS_NEED_REVIEW,
 };
 
 const obj = (v: unknown): Record<string, unknown> =>
@@ -191,7 +237,24 @@ export function parseLegalTexts(raw: unknown): LegalTextsByLang {
       partnerDisclosure: pick('partnerDisclosure'),
       partnerTerms: pick('partnerTerms'),
       privilegedContentPolicy: pick('privilegedContentPolicy'),
+      attorneyAdvertisingLabel: pick('attorneyAdvertisingLabel'),
+      priorResultsDisclaimer: pick('priorResultsDisclaimer'),
+      badgeExplainer: pick('badgeExplainer'),
+      bestAnswerNote: pick('bestAnswerNote'),
+      translationNote: pick('translationNote'),
+      reviewReplyWarning: pick('reviewReplyWarning'),
+      sponsoredLabel: pick('sponsoredLabel'),
     };
+  }
+  return out;
+}
+
+export function parseTextsNeedReview(raw: unknown): Record<LegalLang, boolean> {
+  const src = obj(raw);
+  const out = {} as Record<LegalLang, boolean>;
+  for (const lang of LEGAL_LANGS) {
+    const v = src[lang];
+    out[lang] = typeof v === 'boolean' ? v : DEFAULT_TEXTS_NEED_REVIEW[lang];
   }
   return out;
 }
@@ -229,12 +292,17 @@ export function parseLegalSettings(raw: unknown): LegalSettings {
       int(r.dmcaStrikesToSuspend, 0, MAX_DMCA_STRIKES) ??
       d.dmcaStrikesToSuspend,
     texts: parseLegalTexts(r.texts),
+    textsNeedReview: parseTextsNeedReview(r.textsNeedReview),
   };
 }
 
-/** The user's UI language → the texts language ('ru' → ru, else en). */
+/** The user's UI language → the texts language (by base language, pt-BR →
+ * pt); a language without legal texts gets English. */
 export function legalLangOf(uiLanguage: string | null | undefined): LegalLang {
-  return uiLanguage === 'ru' ? 'ru' : 'en';
+  const base = (uiLanguage ?? '').split(/[-_]/)[0].toLowerCase();
+  return (LEGAL_LANGS as readonly string[]).includes(base)
+    ? (base as LegalLang)
+    : 'en';
 }
 
 /**

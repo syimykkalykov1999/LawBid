@@ -56,6 +56,8 @@ enum ErrorCode {
   authProviderDisabled('AUTH_PROVIDER_DISABLED'),
   @JsonValue('AUTH_INVALID_CREDENTIALS')
   authInvalidCredentials('AUTH_INVALID_CREDENTIALS'),
+  @JsonValue('AUTH_PASSWORD_COMPROMISED')
+  authPasswordCompromised('AUTH_PASSWORD_COMPROMISED'),
   @JsonValue('ACCOUNT_EXISTS_USE_OTHER_METHOD')
   accountExistsUseOtherMethod('ACCOUNT_EXISTS_USE_OTHER_METHOD'),
   @JsonValue('IDENTIFIER_ALREADY_LINKED')
@@ -354,6 +356,12 @@ enum ErrorCode {
   integrationConflict('INTEGRATION_CONFLICT'),
   @JsonValue('ADMIN_STEP_UP_REQUIRED')
   adminStepUpRequired('ADMIN_STEP_UP_REQUIRED'),
+  @JsonValue('ADMIN_IP_NOT_ALLOWED')
+  adminIpNotAllowed('ADMIN_IP_NOT_ALLOWED'),
+  @JsonValue('REASON_CODE_REQUIRED')
+  reasonCodeRequired('REASON_CODE_REQUIRED'),
+  @JsonValue('AUDIT_UNAVAILABLE')
+  auditUnavailable('AUDIT_UNAVAILABLE'),
   @JsonValue('VIDEO_UNAVAILABLE')
   videoUnavailable('VIDEO_UNAVAILABLE'),
   @JsonValue('VIDEO_TOO_LONG')

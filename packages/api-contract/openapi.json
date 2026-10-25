@@ -6054,6 +6054,182 @@
         ]
       }
     },
+    "/admin/audit-log/access-report": {
+      "get": {
+        "operationId": "accessReport",
+        "parameters": [
+          {
+            "name": "month",
+            "required": false,
+            "in": "query",
+            "description": "UTC month, YYYY-MM. Default: last month.",
+            "schema": {
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-09",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Owner 2026-10-28: who read private content in a month, how often and why",
+        "tags": [
+          "admin-audit-log"
+        ]
+      }
+    },
+    "/admin/audit-log/verify-chain": {
+      "get": {
+        "operationId": "verifyChain",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainCheckEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Owner 2026-10-28: re-check the audit log hash chain (each row stores the hash of the previous one)",
+        "tags": [
+          "admin-audit-log"
+        ]
+      }
+    },
     "/admin/admins/templates": {
       "get": {
         "operationId": "listTemplates",
@@ -15196,6 +15372,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Why the data is being viewed (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -15210,7 +15395,7 @@
             }
           },
           "400": {
-            "description": "Bad request: VALIDATION_ERROR",
+            "description": "Bad request: VALIDATION_ERROR\n\nBad request: JUSTIFICATION_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -15426,6 +15611,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Why the data is being viewed (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -15440,7 +15634,7 @@
             }
           },
           "400": {
-            "description": "Bad request: VALIDATION_ERROR",
+            "description": "Bad request: VALIDATION_ERROR\n\nBad request: JUSTIFICATION_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -15707,6 +15901,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Why the data is being viewed (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -15721,7 +15924,7 @@
             }
           },
           "400": {
-            "description": "Bad request: VALIDATION_ERROR",
+            "description": "Bad request: VALIDATION_ERROR\n\nBad request: JUSTIFICATION_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -40231,6 +40434,711 @@
         "summary": "CSV export (up to 50 000 rows). Every export is audited; `users` (phones, emails) needs X-Justification.",
         "tags": [
           "admin-content"
+        ]
+      }
+    },
+    "/admin/private-content/conversations/{id}/messages": {
+      "get": {
+        "operationId": "listPrivateMessages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
+            "name": "X-Reason-Code",
+            "in": "header",
+            "description": "One of: report_review, imminent_harm, legal_process, tech_fix_consent.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Free-text reason (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateMessagesPageEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED\n\nBad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: AUDIT_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Messages of one conversation WITHOUT their text (audited, reason code + text)",
+        "tags": [
+          "admin-private-content"
+        ]
+      }
+    },
+    "/admin/private-content/messages/{id}/reveal": {
+      "post": {
+        "operationId": "revealPrivateMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reason-Code",
+            "in": "header",
+            "description": "One of: report_review, imminent_harm, legal_process, tech_fix_consent.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Free-text reason (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevealedMessageEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED\n\nBad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: AUDIT_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Reveal ONE message text: reason code + text + a fresh authenticator code",
+        "tags": [
+          "admin-private-content"
+        ]
+      }
+    },
+    "/admin/private-content/conversations/{id}/calls": {
+      "get": {
+        "operationId": "listPrivateCalls",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reason-Code",
+            "in": "header",
+            "description": "One of: report_review, imminent_harm, legal_process, tech_fix_consent.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Free-text reason (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateCallsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED\n\nBad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: AUDIT_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Call metadata of one conversation (audited)",
+        "tags": [
+          "admin-private-content"
+        ]
+      }
+    },
+    "/admin/private-content/cases/{id}/files": {
+      "get": {
+        "operationId": "listPrivateCaseFiles",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reason-Code",
+            "in": "header",
+            "description": "One of: report_review, imminent_harm, legal_process, tech_fix_consent.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Free-text reason (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateCaseFilesEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED\n\nBad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: AUDIT_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Files of one case, metadata only (audited)",
+        "tags": [
+          "admin-private-content"
+        ]
+      }
+    },
+    "/admin/private-content/cases/{id}/files/{fileId}/url": {
+      "post": {
+        "operationId": "privateCaseFileUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Reason-Code",
+            "in": "header",
+            "description": "One of: report_review, imminent_harm, legal_process, tech_fix_consent.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Justification",
+            "in": "header",
+            "description": "Free-text reason (10–500 characters).",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateFileUrlEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED\n\nBad request: JUSTIFICATION_REQUIRED, REASON_CODE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: AUDIT_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Short-lived link to one case file: reason code + text + a fresh authenticator code",
+        "tags": [
+          "admin-private-content"
         ]
       }
     },
@@ -75886,7 +76794,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76426,7 +77337,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           }
@@ -76537,7 +77451,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76656,7 +77573,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76783,7 +77703,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -76905,7 +77828,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -113541,6 +114467,7 @@
           "AUTH_SOCIAL_PROVIDER_UNAVAILABLE",
           "AUTH_PROVIDER_DISABLED",
           "AUTH_INVALID_CREDENTIALS",
+          "AUTH_PASSWORD_COMPROMISED",
           "ACCOUNT_EXISTS_USE_OTHER_METHOD",
           "IDENTIFIER_ALREADY_LINKED",
           "CONTACT_DOMAIN_BLOCKED",
@@ -113689,6 +114616,9 @@
           "INTEGRATIONS_NOT_CONFIGURED",
           "INTEGRATION_CONFLICT",
           "ADMIN_STEP_UP_REQUIRED",
+          "ADMIN_IP_NOT_ALLOWED",
+          "REASON_CODE_REQUIRED",
+          "AUDIT_UNAVAILABLE",
           "VIDEO_UNAVAILABLE",
           "VIDEO_TOO_LONG",
           "VIDEO_NOT_READY",
@@ -113846,7 +114776,10 @@
           "third_party_services",
           "partner_terms",
           "dmca_policy",
-          "accessibility"
+          "accessibility",
+          "community_guidelines",
+          "advertising_disclosure",
+          "sms_terms"
         ]
       },
       "BootstrapLegalDocumentDto": {
@@ -116287,6 +117220,11 @@
             "type": "string",
             "nullable": true
           },
+          "reasonCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Coded reason of a private-content read."
+          },
           "before": {
             "type": "object",
             "nullable": true
@@ -116312,6 +117250,7 @@
           "targetType",
           "targetId",
           "justification",
+          "reasonCode",
           "before",
           "after",
           "ip",
@@ -116326,6 +117265,123 @@
             "items": {
               "$ref": "#/components/schemas/AuditLogEntryDto"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AccessReportRowDto": {
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "adminEmail": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "description": "chat_messages, message_body, call_metadata, case_files, private_document"
+          },
+          "reasonCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "count": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "adminId",
+          "adminEmail",
+          "kind",
+          "reasonCode",
+          "count"
+        ]
+      },
+      "AccessReportDto": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "type": "number"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessReportRowDto"
+            }
+          }
+        },
+        "required": [
+          "month",
+          "from",
+          "to",
+          "total",
+          "rows"
+        ]
+      },
+      "AccessReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccessReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ChainCheckDto": {
+        "type": "object",
+        "properties": {
+          "checked": {
+            "type": "number"
+          },
+          "brokenAtSeq": {
+            "type": "number",
+            "nullable": true
+          },
+          "headHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "headSeq": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "checked",
+          "brokenAtSeq",
+          "headHash",
+          "headSeq"
+        ]
+      },
+      "ChainCheckEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChainCheckDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -129668,7 +130724,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -135358,6 +136417,324 @@
           "case_payments",
           "posts",
           "teams"
+        ]
+      },
+      "PrivateMessageItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "senderId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "durationMs": {
+            "type": "number",
+            "nullable": true
+          },
+          "bodyHidden": {
+            "type": "boolean",
+            "description": "Always true: the text is hidden until revealed."
+          }
+        },
+        "required": [
+          "id",
+          "senderId",
+          "type",
+          "createdAt",
+          "deleted",
+          "fileName",
+          "durationMs",
+          "bodyHidden"
+        ]
+      },
+      "PrivateMessagesPageDto": {
+        "type": "object",
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrivateMessageItemDto"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "conversationId",
+          "attorneyId",
+          "clientId",
+          "items",
+          "nextCursor"
+        ]
+      },
+      "PrivateMessagesPageEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PrivateMessagesPageDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "RevealedMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "senderId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "body": {
+            "type": "string",
+            "description": "The original text as sent."
+          }
+        },
+        "required": [
+          "id",
+          "conversationId",
+          "senderId",
+          "createdAt",
+          "body"
+        ]
+      },
+      "RevealedMessageEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RevealedMessageDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PrivateCallItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "callerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "calleeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "video": {
+            "type": "boolean"
+          },
+          "isGroup": {
+            "type": "boolean"
+          },
+          "answeredAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "durationSec": {
+            "type": "number",
+            "nullable": true
+          },
+          "endReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "callerId",
+          "calleeId",
+          "status",
+          "video",
+          "isGroup",
+          "answeredAt",
+          "endedAt",
+          "durationSec",
+          "endReason",
+          "createdAt"
+        ]
+      },
+      "PrivateCallsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrivateCallItemDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PrivateCallsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PrivateCallsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PrivateCaseFileDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "fileId",
+          "mime",
+          "sizeBytes",
+          "description",
+          "createdAt"
+        ]
+      },
+      "PrivateCaseFilesDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrivateCaseFileDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PrivateCaseFilesEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PrivateCaseFilesDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PrivateFileUrlDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ]
+      },
+      "PrivateFileUrlEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PrivateFileUrlDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "AdminVideoRowDto": {
@@ -152884,6 +154261,46 @@
             "type": "string",
             "maxLength": 6000,
             "description": "Plain text (no markdown), numbered rules."
+          },
+          "attorneyAdvertisingLabel": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Label next to attorney-created content (profile, post, bid, answer)."
+          },
+          "priorResultsDisclaimer": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Prior-results disclaimer."
+          },
+          "badgeExplainer": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "What the attorney badges mean (a registry check, not a recommendation)."
+          },
+          "bestAnswerNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Q&A note: the asker chooses the best answer."
+          },
+          "translationNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Note on machine translation."
+          },
+          "reviewReplyWarning": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "Warning for an attorney replying publicly to a review."
+          },
+          "sponsoredLabel": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Label on paid placements."
+          },
+          "privilegedContentPolicy": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "Privileged-content policy page: who may read private chats and files, when, and what is recorded."
           }
         },
         "required": [
@@ -152891,7 +154308,8 @@
           "attorneyUnverified",
           "supportNote",
           "partnerDisclosure",
-          "partnerTerms"
+          "partnerTerms",
+          "privilegedContentPolicy"
         ]
       },
       "LegalPublicDto": {
@@ -153251,12 +154669,111 @@
           },
           "ru": {
             "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "es": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "fr": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "de": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "it": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pt": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "nl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "uk": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
           }
         },
         "required": [
           "en",
           "ru"
         ]
+      },
+      "LegalTextsNeedReviewDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "boolean"
+          },
+          "ru": {
+            "type": "boolean"
+          },
+          "es": {
+            "type": "boolean"
+          },
+          "fr": {
+            "type": "boolean"
+          },
+          "de": {
+            "type": "boolean"
+          },
+          "it": {
+            "type": "boolean"
+          },
+          "pt": {
+            "type": "boolean"
+          },
+          "nl": {
+            "type": "boolean"
+          },
+          "pl": {
+            "type": "boolean"
+          },
+          "uk": {
+            "type": "boolean"
+          }
+        }
       },
       "LegalSettingsDto": {
         "type": "object",
@@ -153275,6 +154792,14 @@
           },
           "texts": {
             "$ref": "#/components/schemas/LegalTextsByLangDto"
+          },
+          "textsNeedReview": {
+            "description": "Which languages are marked \"needs review\" (machine translations by default).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsNeedReviewDto"
+              }
+            ]
           }
         },
         "required": [
@@ -154138,7 +155663,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -154217,7 +155745,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -154407,7 +155938,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {
@@ -154469,7 +156003,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -154653,7 +156190,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {

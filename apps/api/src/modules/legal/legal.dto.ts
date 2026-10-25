@@ -86,6 +86,78 @@ export class LegalTextsDto {
   @MaxLength(LEGAL_TEXT_LIMITS.partnerTerms)
   partnerTerms!: string;
 
+  @ApiPropertyOptional({
+    maxLength: LEGAL_TEXT_LIMITS.attorneyAdvertisingLabel,
+    description:
+      'Label next to attorney-created content (profile, post, bid, answer).',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.attorneyAdvertisingLabel)
+  attorneyAdvertisingLabel?: string;
+
+  @ApiPropertyOptional({
+    maxLength: LEGAL_TEXT_LIMITS.priorResultsDisclaimer,
+    description: 'Prior-results disclaimer.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.priorResultsDisclaimer)
+  priorResultsDisclaimer?: string;
+
+  @ApiPropertyOptional({
+    maxLength: LEGAL_TEXT_LIMITS.badgeExplainer,
+    description:
+      'What the attorney badges mean (a registry check, not a recommendation).',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.badgeExplainer)
+  badgeExplainer?: string;
+
+  @ApiPropertyOptional({
+    maxLength: LEGAL_TEXT_LIMITS.bestAnswerNote,
+    description: 'Q&A note: the asker chooses the best answer.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.bestAnswerNote)
+  bestAnswerNote?: string;
+
+  @ApiPropertyOptional({
+    maxLength: LEGAL_TEXT_LIMITS.translationNote,
+    description: 'Note on machine translation.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.translationNote)
+  translationNote?: string;
+
+  @ApiPropertyOptional({
+    maxLength: LEGAL_TEXT_LIMITS.reviewReplyWarning,
+    description: 'Warning for an attorney replying publicly to a review.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.reviewReplyWarning)
+  reviewReplyWarning?: string;
+
+  @ApiPropertyOptional({
+    maxLength: LEGAL_TEXT_LIMITS.sponsoredLabel,
+    description: 'Label on paid placements.',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(LEGAL_TEXT_LIMITS.sponsoredLabel)
+  sponsoredLabel?: string;
+
   @ApiProperty({
     maxLength: LEGAL_TEXT_LIMITS.privilegedContentPolicy,
     description:
@@ -107,6 +179,122 @@ export class LegalTextsByLangDto {
   @ValidateNested()
   @Type(() => LegalTextsDto)
   ru!: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  es?: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  fr?: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  de?: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  it?: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  pt?: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  nl?: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  pl?: LegalTextsDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsDto,
+    description: 'Machine translation unless the owner edited it.',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsDto)
+  uk?: LegalTextsDto;
+}
+
+/** Per language: the text still needs a person's review. */
+export class LegalTextsNeedReviewDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  en?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  ru?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  es?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  fr?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  de?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  it?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  pt?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  nl?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  pl?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  uk?: boolean;
 }
 
 export class DmcaAgentDto {
@@ -174,6 +362,16 @@ export class LegalSettingsDto {
   @ValidateNested()
   @Type(() => LegalTextsByLangDto)
   texts!: LegalTextsByLangDto;
+
+  @ApiPropertyOptional({
+    type: LegalTextsNeedReviewDto,
+    description:
+      'Which languages are marked "needs review" (machine translations by default).',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LegalTextsNeedReviewDto)
+  textsNeedReview?: LegalTextsNeedReviewDto;
 }
 
 /** GET /legal/settings — what the app shows, in the user's language. */

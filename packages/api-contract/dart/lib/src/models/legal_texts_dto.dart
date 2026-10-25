@@ -14,6 +14,14 @@ class LegalTextsDto {
     required this.supportNote,
     required this.partnerDisclosure,
     required this.partnerTerms,
+    required this.privilegedContentPolicy,
+    this.attorneyAdvertisingLabel,
+    this.priorResultsDisclaimer,
+    this.badgeExplainer,
+    this.bestAnswerNote,
+    this.translationNote,
+    this.reviewReplyWarning,
+    this.sponsoredLabel,
   });
 
   factory LegalTextsDto.fromJson(Map<String, Object?> json) =>
@@ -26,6 +34,30 @@ class LegalTextsDto {
 
   /// Plain text (no markdown), numbered rules.
   final String partnerTerms;
+
+  /// Label next to attorney-created content (profile, post, bid, answer).
+  final String? attorneyAdvertisingLabel;
+
+  /// Prior-results disclaimer.
+  final String? priorResultsDisclaimer;
+
+  /// What the attorney badges mean (a registry check, not a recommendation).
+  final String? badgeExplainer;
+
+  /// Q&A note: the asker chooses the best answer.
+  final String? bestAnswerNote;
+
+  /// Note on machine translation.
+  final String? translationNote;
+
+  /// Warning for an attorney replying publicly to a review.
+  final String? reviewReplyWarning;
+
+  /// Label on paid placements.
+  final String? sponsoredLabel;
+
+  /// Privileged-content policy page: who may read private chats and files, when, and what is recorded.
+  final String privilegedContentPolicy;
 
   Map<String, Object?> toJson() => _$LegalTextsDtoToJson(this);
 }
