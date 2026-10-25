@@ -44,7 +44,29 @@ export type OtpChannel = 'phone' | 'email';
  * contact" OTP for the same phone/email requested concurrently. */
 // OQ-048: 'assistant' — the code a joining assistant gets from the attorney.
 // Owner 2026-10-13: 'reset' — the code of a forgotten-password reset.
-export type OtpPurpose = 'login' | 'contact' | 'admin' | 'assistant' | 'reset';
+// 2026-10-25 (S14-12): 'reauth' (step-up, bound to the caller's session) and
+// 'link' (adding a sign-in method) have their own hash key and lock, so a
+// code asked for one flow can neither be spent by another nor burn another
+// flow's attempts.
+export type OtpPurpose =
+  'login' | 'contact' | 'admin' | 'assistant' | 'reset' | 'reauth' | 'link';
+
+/** Extra scoping of one code (S14-8 / S14-12). */
+export interface OtpScope {
+  /** Folded into the code and its keys: a reauth code only verifies for the
+   * session (`sid`) it was asked from. */
+  bind?: string;
+  /** Who is guessing (the caller's IP): wrong-code attempts and the lock
+   * ladder count per (identifier + source), so a stranger's wrong tries
+   * from elsewhere cannot lock the owner out. */
+  source?: string;
+}
+
+/** Wrong guesses at one identifier from ALL sources in 24 h; past it every
+ * wrong guess burns the outstanding code (the code is locked, the sign-in
+ * method is not): an attacker rotating IPs gets one guess per code. */
+export const OTP_GLOBAL_FAILURE_CAP = 20;
+export const OTP_GLOBAL_FAILURE_WINDOW_SECONDS = 24 * 3600;
 
 export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 
@@ -52,9 +74,13 @@ export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 // for the race this avoids (a naive get-then-check-then-incr has a TOCTOU
 // window where concurrent requests can both pass with 4 prior attempts).
 // KEYS: 1=code hash key, 2=attempts key, 3=lock key, 4=strikes key (how
-//       many times this identifier was locked — the ladder step)
+//       many times this identifier+source was locked — the ladder step),
+//       5=wrong guesses at this identifier from any source (24 h)
 // ARGV: 1=candidateHash, 2=maxAttempts, 3=strikes memory seconds,
-//       4..n=lock seconds per step (the last one repeats)
+//       4=global failure cap, 5=global window seconds,
+//       6=1 keeps the code when a lock trips (address-scoped locks: a
+//       stranger's guesses must not burn the owner's code),
+//       7..n=lock seconds per step (the last one repeats)
 const VERIFY_LUA = `
 if redis.call('EXISTS', KEYS[3]) == 1 then
   return {'locked', redis.call('TTL', KEYS[3])}
@@ -69,8 +95,12 @@ end
 -- guessing the 6-digit code itself, which the attempt counter below
 -- already bounds at 5 tries.
 if stored == ARGV[1] then
-  redis.call('DEL', KEYS[1], KEYS[2], KEYS[4])
+  redis.call('DEL', KEYS[1], KEYS[2], KEYS[4], KEYS[5])
   return {'ok', 0}
+end
+local global = redis.call('INCR', KEYS[5])
+if global == 1 then
+  redis.call('EXPIRE', KEYS[5], tonumber(ARGV[5]))
 end
 local attempts = redis.call('INCR', KEYS[2])
 if attempts == 1 then
@@ -79,12 +109,22 @@ end
 if attempts >= tonumber(ARGV[2]) then
   local strikes = redis.call('INCR', KEYS[4])
   redis.call('EXPIRE', KEYS[4], tonumber(ARGV[3]))
-  local step = 3 + strikes
+  local step = 6 + strikes
   if step > #ARGV then step = #ARGV end
   local lock = tonumber(ARGV[step])
   redis.call('SET', KEYS[3], '1', 'EX', lock)
-  redis.call('DEL', KEYS[1], KEYS[2])
+  if ARGV[6] == '1' then
+    redis.call('DEL', KEYS[2])
+  else
+    redis.call('DEL', KEYS[1], KEYS[2])
+  end
   return {'locked', lock}
+end
+if global >= tonumber(ARGV[4]) then
+  -- A guessing storm from many sources: burn the code (a new one has to be
+  -- asked for, which is rate limited) but never lock the account's sign-in.
+  redis.call('DEL', KEYS[1])
+  return {'invalid', 0}
 end
 return {'invalid', tonumber(ARGV[2]) - attempts}
 `;
@@ -150,6 +190,7 @@ export class OtpService {
     identifier: string,
     purpose: OtpPurpose,
     linkChallenge?: string,
+    scope: OtpScope = {},
   ): Promise<void> {
     // Cost protection (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
     // destination allow-list first (free, per-request), then the global
@@ -165,6 +206,8 @@ export class OtpService {
       if (
         purpose !== 'login' &&
         purpose !== 'reset' &&
+        purpose !== 'reauth' &&
+        purpose !== 'link' &&
         (await this.ops?.isEconomyLimited())
       ) {
         throw new HttpException(
@@ -196,8 +239,13 @@ export class OtpService {
     }
 
     const code = this.devFixedCode ? '000000' : this.generateCode();
-    const codeHash = this.hashCode(channel, identifier, code);
-    const idHash = this.hashIdentifier(purpose, channel, identifier);
+    const codeHash = this.hashCode(channel, identifier, code, scope.bind);
+    const idHash = this.hashIdentifier(
+      purpose,
+      channel,
+      identifier,
+      scope.bind,
+    );
 
     await this.redis.set(
       this.codeKey(idHash),
@@ -221,7 +269,7 @@ export class OtpService {
           ? await this.issueLinkToken(idHash, email, linkChallenge)
           : undefined;
       await this.emailProvider.sendEmail(
-        purpose === 'login'
+        purpose === 'login' || purpose === 'reauth' || purpose === 'link'
           ? buildLoginOtpEmail({
               email,
               code,
@@ -241,20 +289,33 @@ export class OtpService {
     identifier: string,
     code: string,
     purpose: OtpPurpose,
+    scope: OtpScope = {},
   ): Promise<OtpVerifyResult> {
-    const candidateHash = this.hashCode(channel, identifier, code);
-    const idHash = this.hashIdentifier(purpose, channel, identifier);
+    const candidateHash = this.hashCode(channel, identifier, code, scope.bind);
+    const idHash = this.hashIdentifier(
+      purpose,
+      channel,
+      identifier,
+      scope.bind,
+    );
+    // S14-8: attempts, lock and ladder are per (identifier + source); the
+    // code itself and the 24 h global failure count are per identifier.
+    const sourceTag = scope.source ? this.sourceTag(scope.source) : '';
 
     const result = (await this.redis.eval(
       VERIFY_LUA,
-      4,
+      5,
       this.codeKey(idHash),
-      this.attemptsKey(idHash),
-      this.lockKey(idHash),
-      this.strikesKey(idHash),
+      this.attemptsKey(idHash, sourceTag),
+      this.lockKey(idHash, sourceTag),
+      this.strikesKey(idHash, sourceTag),
+      this.globalFailKey(idHash),
       candidateHash,
       this.maxAttempts,
       OTP_LOCKOUT_MEMORY_SECONDS,
+      OTP_GLOBAL_FAILURE_CAP,
+      OTP_GLOBAL_FAILURE_WINDOW_SECONDS,
+      sourceTag ? '1' : '0',
       ...OTP_LOCKOUT_SCHEDULE_SECONDS,
     )) as [OtpVerifyResult, number];
 
@@ -388,9 +449,12 @@ export class OtpService {
     channel: OtpChannel,
     identifier: string,
     code: string,
+    bind?: string,
   ): string {
     return createHmac('sha256', this.codeSecret)
-      .update(`${channel}:${this.normalize(channel, identifier)}:${code}`)
+      .update(
+        `${channel}:${this.normalize(channel, identifier)}:${bind ? `${bind}:` : ''}${code}`,
+      )
       .digest('hex');
   }
 
@@ -402,11 +466,22 @@ export class OtpService {
     purpose: OtpPurpose,
     channel: OtpChannel,
     identifier: string,
+    bind?: string,
   ): string {
     return createHmac('sha256', this.keyPepper)
-      .update(`${purpose}:${channel}:${this.normalize(channel, identifier)}`)
+      .update(
+        `${purpose}:${channel}:${this.normalize(channel, identifier)}${bind ? `:${bind}` : ''}`,
+      )
       .digest('hex')
       .slice(0, 32);
+  }
+
+  /** The guesser's address as a short hash (never a raw IP in a key). */
+  private sourceTag(source: string): string {
+    return createHmac('sha256', this.keyPepper)
+      .update(`src:${source}`)
+      .digest('hex')
+      .slice(0, 12);
   }
 
   private normalize(channel: OtpChannel, identifier: string): string {
@@ -418,15 +493,21 @@ export class OtpService {
   private codeKey(idHash: string): string {
     return ck(idHash, `otp:code:${idHash}`);
   }
-  private attemptsKey(idHash: string): string {
-    return ck(idHash, `otp:att:${idHash}`);
+  private attemptsKey(idHash: string, sourceTag = ''): string {
+    return ck(idHash, `otp:att:${idHash}${sourceTag ? `:${sourceTag}` : ''}`);
   }
-  private strikesKey(idHash: string): string {
-    return ck(idHash, `otp:strikes:${idHash}`);
+  private strikesKey(idHash: string, sourceTag = ''): string {
+    return ck(
+      idHash,
+      `otp:strikes:${idHash}${sourceTag ? `:${sourceTag}` : ''}`,
+    );
   }
 
-  private lockKey(idHash: string): string {
-    return ck(idHash, `otp:lock:${idHash}`);
+  private lockKey(idHash: string, sourceTag = ''): string {
+    return ck(idHash, `otp:lock:${idHash}${sourceTag ? `:${sourceTag}` : ''}`);
+  }
+  private globalFailKey(idHash: string): string {
+    return ck(idHash, `otp:gfail:${idHash}`);
   }
   /** The raw link token never becomes a Redis key (same reason as
    * identifiers): only its HMAC does. */

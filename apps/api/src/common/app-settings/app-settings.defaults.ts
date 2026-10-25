@@ -685,6 +685,35 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * (iOS / Android) never uses it: it relies on App Check above. The secret
    * key is set in Интеграции → Cloudflare Turnstile. docs/runbooks/APP_CHECK.md */
   'security.turnstile.mode': 'off',
+  /** 2026-10-25 (S14-7): with `security.app_check.mode = enforce`, the three
+   * costly anonymous routes (sign-in code to a phone, password-reset code,
+   * "is this number registered") also CONSUME the App Check token, so one
+   * captured token cannot be replayed (Firebase replay protection; one more
+   * round trip to Google per request). Off by default: it only works once
+   * the app sends a limited-use token on those routes; before that, a
+   * second request with the same cached token would be refused. */
+  'security.app_check.replay_protection': false,
+  /** 2026-10-25 (S14-13): after this many wrong passwords / codes for one
+   * account in 15 minutes (or 5 times as many from one address) the next
+   * attempt must carry a valid App Check / Turnstile token. 0 = never (the
+   * default): turn it on once the app and the website send the token on
+   * sign-in. */
+  'security.auth_challenge_after_failures': 0,
+  /** 2026-10-25 (S14-12): on = a re-authentication / "add a sign-in method"
+   * code that was asked the old way (no purpose) is still accepted. Switch
+   * off once every app build asks with its purpose, so a code is only good
+   * for the flow it was asked for. */
+  'security.otp_legacy_purpose_fallback': true,
+  /** 2026-10-25 (S14-6): a NEW account cannot be opened with an e-mail from
+   * the disposable-domain list (admin → blocked e-mail domains). Existing
+   * accounts keep signing in. */
+  'security.signup_block_disposable_email': true,
+  /** 2026-10-25 (S14-4): tell the owner when a session is used from a
+   * country it was not used from before (push + e-mail, the same alert as a
+   * new device). Needs the country header from CloudFront / the load
+   * balancer; without it nothing fires. Costs an e-mail + a push per alert
+   * (cost gate): OFF by default, at most one alert per account per 24 h. */
+  'security.new_country_alert_enabled': false,
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every

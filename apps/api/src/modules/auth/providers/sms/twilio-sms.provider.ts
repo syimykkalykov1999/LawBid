@@ -54,6 +54,8 @@ export class TwilioSmsProvider implements SmsProvider {
     creds: TwilioCredentials,
     private readonly logger: PinoLogger,
     private readonly androidAppHash?: string,
+    // S14-11: the domain of the origin-bound code line (see otpSmsText).
+    private readonly originDomain?: string,
   ) {
     this.client = Twilio(creds.accountSid, creds.authToken, {
       timeout: SEND_TIMEOUT_MS + 2_000,
@@ -78,7 +80,11 @@ export class TwilioSmsProvider implements SmsProvider {
               this.client.messages.create({
                 to: toE164,
                 ...this.sender,
-                body: otpSmsText(code, this.androidAppHash || undefined),
+                body: otpSmsText(
+                  code,
+                  this.androidAppHash || undefined,
+                  this.originDomain,
+                ),
               }),
             ),
           {
@@ -111,6 +117,24 @@ export class DynamicSmsProvider implements SmsProvider {
     private readonly mock: SmsProvider,
   ) {
     this.logger.setContext(DynamicSmsProvider.name);
+  }
+
+  /** S14-11: the website's domain (the passkey RP ID, else the host of the
+   * app link base) for the origin-bound line; none for localhost. */
+  private originDomain(): string | undefined {
+    const explicit = this.config.get<string>('WEBAUTHN_RP_ID');
+    let host = explicit?.trim().toLowerCase();
+    if (!host) {
+      const base = this.config.get<string>('APP_LINK_BASE_URL');
+      try {
+        host = base ? new URL(base).hostname.toLowerCase() : undefined;
+      } catch {
+        host = undefined;
+      }
+    }
+    return host && host !== 'localhost' && /^[a-z0-9.-]+$/.test(host)
+      ? host
+      : undefined;
   }
 
   async send(toE164: string, code: string): Promise<void> {
@@ -147,6 +171,7 @@ export class DynamicSmsProvider implements SmsProvider {
           },
           this.logger,
           f.androidAppHash ?? this.config.get<string>('SMS_ANDROID_APP_HASH'),
+          this.originDomain(),
         ),
       };
     }

@@ -67,6 +67,12 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
       .post('/api/v1/auth/otp/request')
       .set('X-Device-Id', randomUUID())
       .send({ channel: 'phone', identifier });
+  /** The dev code '000000' signs in only when a code was really sent. */
+  const verifies = (identifier: string) =>
+    api()
+      .post('/api/v1/auth/otp/verify')
+      .set('X-Device-Id', randomUUID())
+      .send({ channel: 'phone', identifier, code: '000000' });
   const code = (res: request.Response) =>
     (
       res.body as {
@@ -99,7 +105,8 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     await setting('sms.registration_per_number_per_day', 3);
   });
 
-  it('a registered number gets no code: «use your password»', async () => {
+  it('S14-1: a registered number gets the SAME answer as a new one and no code; only phone/status says «use your password»', async () => {
+    await setting('sms.resend_cooldown_seconds', 60);
     const phone = fresh();
     const user = await prisma.user.create({
       data: { role: 'client', phone_e164: phone, status: 'active' },
@@ -108,15 +115,38 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
       data: { user_id: user.id, provider: 'phone', provider_uid: phone },
     });
     const res = await otp(phone);
-    expect(res.status).toBe(409);
-    expect(code(res)?.code).toBe('AUTH_PHONE_REGISTERED');
-    expect(code(res)?.details?.hasPassword).toBe(false);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ sent: true });
+    // Nothing was sent: not even the dev code verifies.
+    const verify = await api()
+      .post('/api/v1/auth/otp/verify')
+      .set('X-Device-Id', randomUUID())
+      .send({ channel: 'phone', identifier: phone, code: '000000' });
+    expect(verify.status).toBe(401);
+    expect(code(verify)?.code).toBe('AUTH_OTP_EXPIRED');
+    // The cooldown applies to a registered number like to a new one, so not
+    // even the 429 pattern tells them apart.
+    const again = await otp(phone);
+    expect(again.status).toBe(429);
+    expect(code(again)?.code).toBe('RATE_LIMITED');
+    // The app learns it from phone/status (a number WITH a password only).
+    const status = () =>
+      api()
+        .post('/api/v1/auth/phone/status')
+        .set('X-Device-Id', randomUUID())
+        .send({ identifier: phone });
+    expect((await status()).body.data).toEqual({
+      registered: false,
+      hasPassword: false,
+    });
     await prisma.user.update({
       where: { id: user.id },
       data: { password_hash: 'x'.repeat(20) },
     });
-    const withPassword = await otp(phone);
-    expect(code(withPassword)?.details?.hasPassword).toBe(true);
+    expect((await status()).body.data).toEqual({
+      registered: true,
+      hasPassword: true,
+    });
   });
 
   it('password reset: at most the hourly cap, and the daily one', async () => {
@@ -150,9 +180,11 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     await prisma.userIdentifier.create({
       data: { user_id: user.id, provider: 'phone', provider_uid: phone },
     });
-    expect((await otp(phone)).status).toBe(409);
+    expect((await otp(phone)).status).toBe(200);
+    expect((await verifies(phone)).status).toBe(401); // nothing was sent
     await setting('sms.login_code_enabled', true);
     expect((await otp(phone)).status).toBe(200);
+    expect((await verifies(phone)).status).toBe(201); // the old code is back
     await setting('sms.login_code_enabled', false);
   });
 
@@ -171,9 +203,13 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
       verified: false,
       subscriptionStatus: 'none',
     })}`;
+    // S14-1: a stranger gets the same 200 but no code...
+    const stranger = await otp(phone);
+    expect(stranger.status).toBe(200);
+    expect((await verifies(phone)).status).toBe(401);
+    // ...the signed-in owner gets a real one.
     const mine = await otp(phone).set('Authorization', bearer);
     expect(mine.status).toBe(200);
-    const stranger = await otp(phone);
-    expect(stranger.status).toBe(409);
+    expect((await verifies(phone)).status).toBe(201);
   });
 });

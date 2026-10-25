@@ -154,6 +154,17 @@ export const envSchema = z
       .int()
       .nonnegative()
       .default(10),
+    // 2026-10-25 (S14-1 / S14-2): first guess, in ms, of how long a real SMS
+    // send takes. A sign-in code asked for a registered number and a reset
+    // asked for an unknown one wait this long (then, once real sends were
+    // timed, their running average) so a stopwatch cannot tell them from a
+    // real send. 0 = no wait (tests).
+    AUTH_UNIFORM_MIN_DELAY_MS: z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(5000)
+      .default(350),
 
     // --- Stage 1.4: OTP ---
     OTP_CODE_SECRET: z.string().min(32),
