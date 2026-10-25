@@ -13,7 +13,8 @@ function run(sql) {
   mkdirSync(join(dir, '20260101000000_base'));
   mkdirSync(join(dir, '20270101000000_sample'));
   writeFileSync(join(dir, '20270101000000_sample', 'migration.sql'), sql);
-  return spawnSync('node', [script, dir, '20260101000000_base'], { encoding: 'utf8' });
+  // 4th argument: no sample is judged by Squawk here (that lint has its own checks).
+  return spawnSync('node', [script, dir, '20260101000000_base', '99999999999999'], { encoding: 'utf8' });
 }
 
 const bad = {
