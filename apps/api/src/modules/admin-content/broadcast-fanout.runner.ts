@@ -13,6 +13,7 @@ import {
   broadcastAudienceWhere,
   type BroadcastAudience,
 } from './broadcast-audience';
+import { bullOptions } from '../../redis/redis-connection';
 
 export const BROADCAST_QUEUE = 'admin-broadcast';
 export const BROADCAST_OPTIONS = Symbol('BROADCAST_OPTIONS');
@@ -79,12 +80,15 @@ export class BroadcastFanoutRunner
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
-    this.queue = new Queue(BROADCAST_QUEUE, { connection: { url } });
+    this.queue = new Queue(BROADCAST_QUEUE, bullOptions(BROADCAST_QUEUE, url));
     if (!this.workerEnabled) return;
     this.worker = new Worker<BroadcastJob>(
       BROADCAST_QUEUE,
       (job: Job<BroadcastJob>) => this.process(job.data),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 1 },
+      {
+        ...bullOptions(BROADCAST_QUEUE, url, { worker: true }),
+        concurrency: 1,
+      },
     );
     this.worker.on('failed', (job, error) => {
       this.logger.error(

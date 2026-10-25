@@ -5,6 +5,7 @@ import { AppSettingsService } from '../app-settings/app-settings.service';
 import { ErrorCode } from '../errors/error-code.enum';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { COST_ALERT_RATIO } from './cost-guard.constants';
+import { existsSafe } from '../../redis/redis-cluster-safe';
 
 /** Digits of the number (country code included) that make a "prefix". */
 export const SMS_PREFIX_DIGITS = 6;
@@ -87,8 +88,9 @@ export class SmsAbuseGuardService {
     ].filter((r) => r.max > 0 && r.id.length > 0);
     if (rules.length === 0) return 'ok';
 
-    const blocked = await this.redis.exists(
-      ...rules.map((r) => `sms:blk:${r.kind}:${r.id}`),
+    const blocked = await existsSafe(
+      this.redis,
+      rules.map((r) => `sms:blk:${r.kind}:${r.id}`),
     );
     if (blocked > 0) return 'blocked';
 

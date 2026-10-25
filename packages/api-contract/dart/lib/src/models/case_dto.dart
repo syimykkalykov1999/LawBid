@@ -17,7 +17,7 @@ part 'case_dto.g.dart';
 @JsonSerializable()
 class CaseDto {
   const CaseDto({
-    required this.lastActivityAt,
+    required this.status,
     required this.title,
     required this.description,
     required this.privateDetails,
@@ -28,16 +28,17 @@ class CaseDto {
     required this.budgetMode,
     required this.id,
     required this.stillNeededPending,
-    required this.canMakeNotUrgent,
     required this.createdAt,
+    required this.canMakeNotUrgent,
+    required this.version,
     required this.bidsCount,
     required this.viewCount,
-    required this.status,
-    this.budgetPercentBps,
+    required this.lastActivityAt,
+    this.deadlineKind,
     this.deadlineAt,
     this.urgencyLevel,
     this.urgency,
-    this.coverKey,
+    this.budgetPercentBps,
     this.archivesAt,
     this.archivedAt,
     this.clientCompletedAt,
@@ -50,7 +51,7 @@ class CaseDto {
     this.budgetCents,
     this.city,
     this.hidesAt,
-    this.deadlineKind,
+    this.coverKey,
   });
 
   factory CaseDto.fromJson(Map<String, Object?> json) =>
@@ -94,6 +95,9 @@ class CaseDto {
   final CaseStatus status;
   final int viewCount;
   final int bidsCount;
+
+  /// Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION).
+  final int version;
   final String createdAt;
   final String lastActivityAt;
   final String? archivedAt;

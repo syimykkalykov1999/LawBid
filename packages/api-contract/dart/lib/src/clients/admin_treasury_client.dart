@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/create_treasury_expense_dto.dart';
+import '../models/ledger_overview_envelope.dart';
 import '../models/treasury_overview_envelope.dart';
 import '../models/treasury_run_result_envelope.dart';
 import '../models/update_treasury_expense_dto.dart';
@@ -21,6 +22,12 @@ abstract class AdminTreasuryClient {
   /// Stripe balance, reserve, next split, expenses, payouts
   @GET('/admin/treasury')
   Future<TreasuryOverviewEnvelope> getTreasury({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Money ledger: balance of every account and the last nightly reconciliation (read-only)
+  @GET('/admin/treasury/ledger')
+  Future<LedgerOverviewEnvelope> getLedger({
     @Extras() Map<String, dynamic>? extras,
   });
 

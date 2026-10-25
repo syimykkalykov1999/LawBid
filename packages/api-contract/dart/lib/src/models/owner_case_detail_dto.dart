@@ -29,27 +29,28 @@ class OwnerCaseDetailDto {
     required this.states,
     required this.budgetMode,
     required this.id,
-    required this.photos,
+    required this.status,
     required this.lastActivityAt,
     required this.canMakeNotUrgent,
     required this.createdAt,
+    required this.version,
     required this.bidsCount,
     required this.stillNeededPending,
-    required this.status,
+    required this.photos,
     this.deadlineKind,
     this.deadlineAt,
     this.urgencyLevel,
     this.urgency,
     this.budgetPercentBps,
     this.archivedAt,
-    this.clientCompletedAt,
     this.budgetCents,
+    this.attorneyConfirmedAt,
     this.autoCloseAt,
     this.closedAt,
     this.deletedAt,
     this.stalePromptSentAt,
     this.pausedAt,
-    this.attorneyConfirmedAt,
+    this.clientCompletedAt,
     this.city,
     this.hidesAt,
     this.archivesAt,
@@ -99,6 +100,9 @@ class OwnerCaseDetailDto {
   final CaseStatus status;
   final int viewCount;
   final int bidsCount;
+
+  /// Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION).
+  final int version;
   final String createdAt;
   final String lastActivityAt;
   final String? archivedAt;

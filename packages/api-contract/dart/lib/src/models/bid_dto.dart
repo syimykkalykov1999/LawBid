@@ -27,6 +27,7 @@ class BidDto {
     required this.startDate,
     required this.estimatedDurationDays,
     required this.roundCount,
+    required this.version,
     required this.turn,
     required this.decidedAt,
     required this.outsidePractice,
@@ -53,6 +54,9 @@ class BidDto {
   final DateTime? startDate;
   final int? estimatedDurationDays;
   final int roundCount;
+
+  /// Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION).
+  final int version;
   final PartyRole turn;
   final DateTime? decidedAt;
 

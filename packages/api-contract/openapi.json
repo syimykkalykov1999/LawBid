@@ -13758,6 +13758,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -13812,7 +13822,7 @@
             }
           },
           "409": {
-            "description": "Conflict: BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_MAX_ROUNDS_REACHED, BID_COUNTER_NOT_ALLOWED, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_MAX_ROUNDS_REACHED, BID_COUNTER_NOT_ALLOWED, STALE_VERSION, IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -23239,6 +23249,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -23303,7 +23323,7 @@
             }
           },
           "409": {
-            "description": "Conflict: TASK_CLOSED, FILES_COUNT_LIMIT",
+            "description": "Conflict: TASK_CLOSED, FILES_COUNT_LIMIT, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -23454,6 +23474,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -23499,6 +23529,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -28150,7 +28190,18 @@
       },
       "patch": {
         "operationId": "updateMyAttorneyProfile",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -28213,7 +28264,7 @@
             }
           },
           "409": {
-            "description": "Conflict: USERNAME_TAKEN, USERNAME_CHANGE_TOO_SOON",
+            "description": "Conflict: USERNAME_TAKEN, USERNAME_CHANGE_TOO_SOON, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -28903,7 +28954,18 @@
       },
       "patch": {
         "operationId": "updateMyClientProfile",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -28947,6 +29009,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -31897,6 +31969,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -31961,7 +32043,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -32214,6 +32296,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -32278,7 +32370,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -32340,6 +32432,16 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
             }
           }
         ],
@@ -32405,7 +32507,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -55268,6 +55370,83 @@
           }
         ],
         "summary": "Stripe balance, reserve, next split, expenses, payouts",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
+    "/admin/treasury/ledger": {
+      "get": {
+        "operationId": "getLedger",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Money ledger: balance of every account and the last nightly reconciliation (read-only)",
         "tags": [
           "admin-treasury"
         ]
@@ -114358,7 +114537,8 @@
           "FORWARD_NOT_ALLOWED",
           "CONTENT_PROTECTED",
           "UNSUPPORTED_IN_TARGET",
-          "SYNC_TOO_OLD"
+          "SYNC_TOO_OLD",
+          "STALE_VERSION"
         ]
       },
       "ErrorBodyDto": {
@@ -120899,6 +121079,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -120950,6 +121134,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -126264,6 +126449,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "kind": {
             "allOf": [
               {
@@ -126433,6 +126622,7 @@
         },
         "required": [
           "id",
+          "version",
           "kind",
           "title",
           "files",
@@ -129015,6 +129205,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "username": {
             "type": "string"
           },
@@ -129103,6 +129297,7 @@
         },
         "required": [
           "id",
+          "version",
           "username",
           "firstName",
           "lastName",
@@ -129777,6 +129972,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "username": {
             "type": "string",
             "description": "OQ-026: the client @username."
@@ -129819,6 +130018,7 @@
         },
         "required": [
           "id",
+          "version",
           "username",
           "usernameNextChangeAt",
           "firstName",
@@ -131679,6 +131879,10 @@
           "bidsCount": {
             "type": "integer"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -131751,6 +131955,7 @@
           "status",
           "viewCount",
           "bidsCount",
+          "version",
           "createdAt",
           "lastActivityAt",
           "stillNeededPending",
@@ -132972,6 +133177,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -133012,6 +133221,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -134476,6 +134686,10 @@
           "bidsCount": {
             "type": "integer"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -134569,6 +134783,7 @@
           "status",
           "viewCount",
           "bidsCount",
+          "version",
           "createdAt",
           "lastActivityAt",
           "stillNeededPending",
@@ -134692,6 +134907,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -134748,6 +134967,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -144076,6 +144296,144 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/TreasuryOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "LedgerBalanceDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "stripe_platform_balance"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "liability",
+              "revenue",
+              "expense",
+              "external"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "example": "usd"
+          },
+          "ownerKey": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "users"
+            ]
+          },
+          "debitCents": {
+            "type": "integer"
+          },
+          "creditCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "currency",
+          "ownerKey",
+          "debitCents",
+          "creditCents"
+        ]
+      },
+      "LedgerReconcileDto": {
+        "type": "object",
+        "properties": {
+          "ranAt": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "unbalancedEntries": {
+            "type": "integer"
+          },
+          "missingPayments": {
+            "type": "integer"
+          },
+          "missingCasePayments": {
+            "type": "integer"
+          },
+          "caseRefundDriftCents": {
+            "type": "integer"
+          },
+          "stripeStatus": {
+            "type": "string",
+            "enum": [
+              "skipped",
+              "compared"
+            ]
+          },
+          "stripeDeltaCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ranAt",
+          "ok",
+          "entries",
+          "unbalancedEntries",
+          "missingPayments",
+          "missingCasePayments",
+          "caseRefundDriftCents",
+          "stripeStatus",
+          "stripeDeltaCents",
+          "problems"
+        ]
+      },
+      "LedgerOverviewDto": {
+        "type": "object",
+        "properties": {
+          "balances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerBalanceDto"
+            }
+          },
+          "last": {
+            "nullable": true,
+            "description": "The last nightly reconciliation, null before the first run.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LedgerReconcileDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "balances",
+          "last"
+        ]
+      },
+      "LedgerOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LedgerOverviewDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
