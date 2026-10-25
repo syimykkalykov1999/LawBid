@@ -18,6 +18,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -125,6 +126,8 @@ export class StarsService {
     private readonly provider?: PaymentProvider,
     // Owner 2026-10-22: our own card page in place of Stripe's.
     @Optional() private readonly payLink?: PayLinkService,
+    // Day-one foundations: the double-entry money ledger (same transaction).
+    @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
 
   // ── switch, packs, settings ───────────────────────────────────────────
@@ -619,6 +622,7 @@ export class StarsService {
           paid_at: now,
         },
       });
+      await this.ledger?.paymentReceived(tx, payment, 'stars_outstanding');
       await tx.starPurchase.update({
         where: { id },
         data: {

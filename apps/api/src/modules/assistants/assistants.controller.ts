@@ -18,6 +18,10 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AssistantSelf,
@@ -321,35 +325,43 @@ export class AssistantsController {
   }
 
   @Patch('tasks/:id/status')
+  @ApiIfMatchVersion()
   @ApiOperation({
     summary: 'Take / done / not done (+ note, + new time) / cancel',
   })
   @ApiEnvelopeResponse(TaskDto)
-  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.STALE_VERSION],
+  })
   setTaskStatus(
     @CurrentUser() user: RequestUser,
     @Param() p: AssistantIdParamDto,
     @Body() dto: UpdateTaskStatusDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<TaskDto> {
-    return this.tasks.setStatus(user, p.id, dto);
+    return this.tasks.setStatus(user, p.id, dto, expectedVersion);
   }
 
   // Owner 2026-10-01: a planner card stays editable and deletable.
   @Patch('tasks/:id')
+  @ApiIfMatchVersion()
   @ApiOperation({ summary: 'Edit a task' })
   @ApiEnvelopeResponse(TaskDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     403: [E.ASSISTANT_NOT_ALLOWED],
     404: [E.NOT_FOUND],
-    409: [E.TASK_CLOSED, E.FILES_COUNT_LIMIT],
+    409: [E.TASK_CLOSED, E.FILES_COUNT_LIMIT, E.STALE_VERSION],
   })
   updateTask(
     @CurrentUser() user: RequestUser,
     @Param() p: AssistantIdParamDto,
     @Body() dto: UpdateTaskDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<TaskDto> {
-    return this.tasks.update(user, p.id, dto);
+    return this.tasks.update(user, p.id, dto, expectedVersion);
   }
 
   @Delete('tasks/:id')

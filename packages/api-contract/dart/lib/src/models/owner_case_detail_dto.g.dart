@@ -24,15 +24,16 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       budgetMode: BudgetMode.fromJson(json['budgetMode'] as String),
       id: json['id'] as String,
-      photos: (json['photos'] as List<dynamic>)
-          .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
-          .toList(),
+      status: CaseStatus.fromJson(json['status'] as String),
       lastActivityAt: json['lastActivityAt'] as String,
       canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
       createdAt: json['createdAt'] as String,
+      version: (json['version'] as num).toInt(),
       bidsCount: (json['bidsCount'] as num).toInt(),
       stillNeededPending: json['stillNeededPending'] as bool,
-      status: CaseStatus.fromJson(json['status'] as String),
+      photos: (json['photos'] as List<dynamic>)
+          .map((e) => CasePhotoDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       deadlineKind: json['deadlineKind'] == null
           ? null
           : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
@@ -47,14 +48,14 @@ OwnerCaseDetailDto _$OwnerCaseDetailDtoFromJson(Map<String, dynamic> json) =>
           : CaseUrgency.fromJson(json['urgency'] as String),
       budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
       archivedAt: json['archivedAt'] as String?,
-      clientCompletedAt: json['clientCompletedAt'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      attorneyConfirmedAt: json['attorneyConfirmedAt'] as String?,
       autoCloseAt: json['autoCloseAt'] as String?,
       closedAt: json['closedAt'] as String?,
       deletedAt: json['deletedAt'] as String?,
       stalePromptSentAt: json['stalePromptSentAt'] as String?,
       pausedAt: json['pausedAt'] as String?,
-      attorneyConfirmedAt: json['attorneyConfirmedAt'] as String?,
+      clientCompletedAt: json['clientCompletedAt'] as String?,
       city: json['city'] as String?,
       hidesAt: json['hidesAt'] as String?,
       archivesAt: json['archivesAt'] as String?,
@@ -91,6 +92,7 @@ Map<String, dynamic> _$OwnerCaseDetailDtoToJson(OwnerCaseDetailDto instance) =>
       'status': instance.status.toJson(),
       'viewCount': instance.viewCount,
       'bidsCount': instance.bidsCount,
+      'version': instance.version,
       'createdAt': instance.createdAt,
       'lastActivityAt': instance.lastActivityAt,
       'archivedAt': ?instance.archivedAt,

@@ -24,6 +24,7 @@ import {
   type PrivacyModuleOptions,
 } from './privacy.constants';
 import type { DataExportJobDto } from './privacy.dto';
+import { bullOptions } from '../../redis/redis-connection';
 
 /** `{export}` hash tag: cluster-safe if more keys of this family appear. */
 const progressKey = (id: string) => `{export}:progress:${id}`;
@@ -68,7 +69,10 @@ export class DataExportRunner
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
-    this.queue = new Queue(DATA_EXPORT_QUEUE, { connection: { url } });
+    this.queue = new Queue(
+      DATA_EXPORT_QUEUE,
+      bullOptions(DATA_EXPORT_QUEUE, url),
+    );
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       DATA_EXPORT_QUEUE,
@@ -76,7 +80,10 @@ export class DataExportRunner
         this.exports.process(job.data.exportId, {
           onProgress: (p) => void this.saveProgress(job.data.exportId, p),
         }),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 2 },
+      {
+        ...bullOptions(DATA_EXPORT_QUEUE, url, { worker: true }),
+        concurrency: 2,
+      },
     );
     this.worker.on('failed', (job: Job<ExportJobData> | undefined, error) => {
       if (!job) return;

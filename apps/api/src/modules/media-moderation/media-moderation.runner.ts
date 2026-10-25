@@ -14,6 +14,7 @@ import {
 } from './media-moderation.constants';
 import type { MediaCheckJobData } from './media-moderation.queue';
 import { MediaModerationService } from './media-moderation.service';
+import { bullOptions } from '../../redis/redis-connection';
 
 /** Owner 2026-10-22: the consumer of the `media-moderation` queue (the
  * worker process; the API too while JOBS_ENABLED, like the other queues).
@@ -48,7 +49,10 @@ export class MediaModerationRunner
     this.worker = new Worker<MediaCheckJobData>(
       MEDIA_MODERATION_QUEUE,
       (job: Job<MediaCheckJobData>) => this.handle(job.data),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 4 },
+      {
+        ...bullOptions(MEDIA_MODERATION_QUEUE, url, { worker: true }),
+        concurrency: 4,
+      },
     );
     this.worker.on('failed', (job, error) => {
       this.logger.error(

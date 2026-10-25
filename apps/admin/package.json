@@ -9,6 +9,8 @@
     "start": "next start -p 3001",
     "generate": "openapi-typescript ../../packages/api-contract/openapi.json -o src/lib/api/schema.d.ts",
     "typecheck": "npm run generate && tsc --noEmit",
+    "generate:fast": "bash ../../scripts/dev/skip-if-unchanged.sh admin-openapi-types packages/api-contract/openapi.json -- apps/admin/src/lib/api/schema.d.ts -- npm run generate --workspace apps/admin",
+    "typecheck:fast": "npm run generate:fast && tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run"
   },

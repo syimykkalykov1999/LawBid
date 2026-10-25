@@ -296,6 +296,9 @@ function ItemCard({
             Отметить, что сделал
           </Button>
         ) : null}
+        <Link href={`/guides?step=${item.id}`} className="text-sm text-gold-600 underline-offset-2 hover:underline">
+          Инструкция
+        </Link>
         {item.runbook ? <code className="text-xs text-faint">{item.runbook}</code> : null}
       </div>
     </Card>

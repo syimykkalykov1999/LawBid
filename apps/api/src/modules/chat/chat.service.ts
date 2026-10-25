@@ -642,6 +642,7 @@ export class ChatService {
     dto: SendMessageDto,
   ): Promise<MessageDto> {
     if (!dto.forwardFromId) return this.sendContent(user, id, dto);
+    await this.limits.consume('forward', user.sub);
     // A retry of a forward must not copy the file twice.
     const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
     if (existing) {

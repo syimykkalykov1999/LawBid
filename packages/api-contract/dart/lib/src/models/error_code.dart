@@ -56,6 +56,8 @@ enum ErrorCode {
   authProviderDisabled('AUTH_PROVIDER_DISABLED'),
   @JsonValue('AUTH_INVALID_CREDENTIALS')
   authInvalidCredentials('AUTH_INVALID_CREDENTIALS'),
+  @JsonValue('AUTH_PASSWORD_COMPROMISED')
+  authPasswordCompromised('AUTH_PASSWORD_COMPROMISED'),
   @JsonValue('ACCOUNT_EXISTS_USE_OTHER_METHOD')
   accountExistsUseOtherMethod('ACCOUNT_EXISTS_USE_OTHER_METHOD'),
   @JsonValue('IDENTIFIER_ALREADY_LINKED')
@@ -490,6 +492,8 @@ enum ErrorCode {
   unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
   @JsonValue('SYNC_TOO_OLD')
   syncTooOld('SYNC_TOO_OLD'),
+  @JsonValue('STALE_VERSION')
+  staleVersion('STALE_VERSION'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
