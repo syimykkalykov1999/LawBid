@@ -47,11 +47,14 @@ abstract class BidsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Counter-offer, whichever party's turn it is (max 5 rounds)
+  /// Counter-offer, whichever party's turn it is (max 5 rounds).
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @POST('/bids/{id}/counter')
   Future<BidEnvelope> counter({
     @Path('id') required String id,
     @Body() required CounterOfferDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 

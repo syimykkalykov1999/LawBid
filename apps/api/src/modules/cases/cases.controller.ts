@@ -26,6 +26,10 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
@@ -106,23 +110,26 @@ export class CasesController {
   }
 
   @Patch('cases/:id')
+  @ApiIfMatchVersion()
   @ApiOperation({ summary: 'Edit an open case (client, docs/04 §3.5)' })
   @ApiEnvelopeResponse(CaseDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.CASE_CONTAINS_CONTACT_INFO],
     403: [E.FORBIDDEN],
     404: [E.CASE_NOT_FOUND],
-    409: [E.CASE_INVALID_STATE],
+    409: [E.CASE_INVALID_STATE, E.STALE_VERSION],
   })
   updateCase(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
     @Body() dto: UpdateCaseDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<CaseDto> {
-    return this.cases.update(user, params.id, dto);
+    return this.cases.update(user, params.id, dto, expectedVersion);
   }
 
   @Patch('cases/:id/private-details')
+  @ApiIfMatchVersion()
   @ApiOperation({
     summary:
       'Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)',
@@ -132,17 +139,24 @@ export class CasesController {
     400: [E.VALIDATION_ERROR],
     403: [E.FORBIDDEN],
     404: [E.CASE_NOT_FOUND],
-    409: [E.CASE_INVALID_STATE],
+    409: [E.CASE_INVALID_STATE, E.STALE_VERSION],
   })
   updateCasePrivateDetails(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
     @Body() dto: UpdatePrivateDetailsDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<CaseDto> {
-    return this.cases.updatePrivateDetails(user, params.id, dto);
+    return this.cases.updatePrivateDetails(
+      user,
+      params.id,
+      dto,
+      expectedVersion,
+    );
   }
 
   @Patch('cases/:id/urgency')
+  @ApiIfMatchVersion()
   @ApiOperation({
     summary:
       'Change how urgent a case is or its date — the client (open or hired) or the hired attorney; the other side is told (owner 2026-10-05)',
@@ -152,14 +166,15 @@ export class CasesController {
     400: [E.VALIDATION_ERROR],
     403: [E.FORBIDDEN],
     404: [E.CASE_NOT_FOUND],
-    409: [E.CASE_INVALID_STATE],
+    409: [E.CASE_INVALID_STATE, E.STALE_VERSION],
   })
   updateCaseUrgency(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
     @Body() dto: UpdateCaseUrgencyDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<CaseDto> {
-    return this.cases.updateUrgency(user, params.id, dto);
+    return this.cases.updateUrgency(user, params.id, dto, expectedVersion);
   }
 
   @Post('cases/:id/close')

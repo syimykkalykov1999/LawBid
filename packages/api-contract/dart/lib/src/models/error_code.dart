@@ -490,6 +490,8 @@ enum ErrorCode {
   unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
   @JsonValue('SYNC_TOO_OLD')
   syncTooOld('SYNC_TOO_OLD'),
+  @JsonValue('STALE_VERSION')
+  staleVersion('STALE_VERSION'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
