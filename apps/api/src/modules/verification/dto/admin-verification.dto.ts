@@ -18,6 +18,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -78,6 +79,14 @@ export class AdminLicenseIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   licenseId!: string;
+}
+
+/** Owner 2026-10-24: an admin sets or clears a license's expiry date. */
+export class SetLicenseExpiryDto {
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  @ValidateIf((_, v) => v !== null)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'expiresAt must be YYYY-MM-DD' })
+  expiresAt!: string | null;
 }
 
 export class AdminAttorneyIdParamDto {
@@ -263,6 +272,31 @@ export class AdminLicenseDto {
 
   @ApiProperty({ type: String, format: 'date', nullable: true })
   expiresAt!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['registry', 'attorney', 'admin'],
+    description: 'Owner 2026-10-24: who set expiresAt.',
+  })
+  expiresSource!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['ok', 'expiring', 'renewal_due', 'expired'],
+    description:
+      'Owner 2026-10-24: renewal_due = the date passed, grace period running (badge hidden, «требует продления»); null = no date or not a verified license.',
+  })
+  renewalState!: 'ok' | 'expiring' | 'renewal_due' | 'expired' | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description: 'Last day of the grace period (expiresAt + grace days).',
+  })
+  graceEndsAt!: string | null;
 
   @ApiProperty({
     type: 'object',

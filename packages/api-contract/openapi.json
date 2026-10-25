@@ -11360,6 +11360,133 @@
         ]
       }
     },
+    "/admin/verification/licenses/{licenseId}/expiry": {
+      "post": {
+        "operationId": "setLicenseExpiry",
+        "parameters": [
+          {
+            "name": "licenseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLicenseExpiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLicenseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set or clear a license's expiry date (owner 2026-10-24; source = admin)",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
     "/admin/verification/registry-flags": {
       "get": {
         "operationId": "listRegistryFlags",
@@ -116509,6 +116636,33 @@
             "nullable": true,
             "format": "date"
           },
+          "expiresSource": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "registry",
+              "attorney",
+              "admin"
+            ],
+            "description": "Owner 2026-10-24: who set expiresAt."
+          },
+          "renewalState": {
+            "nullable": true,
+            "enum": [
+              "ok",
+              "expiring",
+              "renewal_due",
+              "expired"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-24: renewal_due = the date passed, grace period running (badge hidden, «требует продления»); null = no date or not a verified license."
+          },
+          "graceEndsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "description": "Last day of the grace period (expiresAt + grace days)."
+          },
           "autoCheckResult": {
             "type": "object",
             "additionalProperties": true,
@@ -116563,6 +116717,9 @@
           "barNumber",
           "status",
           "expiresAt",
+          "expiresSource",
+          "renewalState",
+          "graceEndsAt",
           "autoCheckResult",
           "lookupUrl",
           "rejectionCode",
@@ -117031,6 +117188,34 @@
           "data"
         ]
       },
+      "SetLicenseExpiryDto": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expiresAt"
+        ]
+      },
+      "AdminLicenseEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "RegistryFlagItemDto": {
         "type": "object",
         "properties": {
@@ -117099,20 +117284,6 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/RegistryCheckDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminLicenseEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminLicenseDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -148772,6 +148943,22 @@
             "maximum": 100000,
             "default": 0,
             "description": "Most people one user can invite; 0 = no limit."
+          },
+          "qualifyWindowDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650,
+            "default": 90,
+            "description": "Owner 2026-10-24: days after entering the code in which the invitee must qualify; later the referral is rejected. 0 = no limit."
+          },
+          "clientQualifyOn": {
+            "enum": [
+              "case_published",
+              "case_completed"
+            ],
+            "type": "string",
+            "default": "case_completed",
+            "description": "Owner 2026-10-24: what qualifies an invited client (the reward is issued after it)."
           },
           "texts": {
             "$ref": "#/components/schemas/ReferralTextsByLangDto"

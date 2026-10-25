@@ -18,7 +18,12 @@ export const FILE_03_SETTINGS = {
    * format is never shown to anyone (owner 2026-10-18). */
   'verification.bar_formats': '',
   'verification.signed_url_ttl_sec': 300,
-  'verification.license_expiry_notify_days': [30, 7],
+  /** Owner 2026-10-24: reminders 60 / 30 / 7 days before a license expires. */
+  'verification.license_expiry_notify_days': [60, 30, 7],
+  /** Owner 2026-10-24: days after expires_at the license stays usable (cases
+   * in its state, bidding) while the badge is hidden and the admin sees
+   * «требует продления»; then it becomes `expired`. 0 = expire at once. */
+  'verification.license_expiry_grace_days': 14,
   'profile.username_change_cooldown_days': 30,
   // §9 names the key ("список") without contents: a starter list of names
   // that would impersonate the platform or collide with app routes.

@@ -365,9 +365,76 @@ describe('qualification and rewards', () => {
     referee_id: 'cli',
     status: 'pending',
     referee_role: 'client',
+    created_at: new Date(),
     referrer_reward: { type: 'balance_cents', value: 10_000 },
     referee_reward: { type: 'promotion_days', value: 1 },
   };
+
+  it('owner 2026-10-24: a client qualifies on the first COMPLETED case, not a published one', async () => {
+    const s = setup();
+    s.prisma.referral.findUnique.mockResolvedValue(pending);
+    await s.service.onQualifyingEvent('cli', 'case_published');
+    expect(s.prisma.referral.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('owner 2026-10-24: with clientQualifyOn = case_published the published case qualifies', async () => {
+    const s = setup();
+    s.prisma.appConfig.findUnique.mockResolvedValue({
+      key: 'referrals.program',
+      value: {
+        ...DEFAULT_REFERRAL_SETTINGS,
+        enabled: true,
+        clientQualifyOn: 'case_published',
+      },
+    });
+    s.prisma.referral.findUnique.mockResolvedValue(pending);
+    s.prisma.referral.updateMany.mockResolvedValue({ count: 0 });
+    await s.service.onQualifyingEvent('cli', 'case_published');
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'qualified' }),
+      }),
+    );
+  });
+
+  it('owner 2026-10-24: after the end date (qualifyWindowDays) the referral is rejected, no reward', async () => {
+    const s = setup();
+    s.prisma.referral.findUnique.mockResolvedValue({
+      ...pending,
+      created_at: new Date(Date.now() - 91 * DAY),
+    });
+    s.prisma.referral.updateMany.mockResolvedValue({ count: 1 });
+    await s.service.onQualifyingEvent('cli', 'case_completed');
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledTimes(1);
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'r1', status: 'pending' },
+      data: { status: 'rejected', rejected_reason: 'qualify_window_expired' },
+    });
+    expect(s.provider.creditCustomerBalance).not.toHaveBeenCalled();
+  });
+
+  it('owner 2026-10-24: qualifyWindowDays = 0 means no end date', async () => {
+    const s = setup();
+    s.prisma.appConfig.findUnique.mockResolvedValue({
+      key: 'referrals.program',
+      value: {
+        ...DEFAULT_REFERRAL_SETTINGS,
+        enabled: true,
+        qualifyWindowDays: 0,
+      },
+    });
+    s.prisma.referral.findUnique.mockResolvedValue({
+      ...pending,
+      created_at: new Date(Date.now() - 900 * DAY),
+    });
+    s.prisma.referral.updateMany.mockResolvedValue({ count: 0 });
+    await s.service.onQualifyingEvent('cli', 'case_completed');
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'qualified' }),
+      }),
+    );
+  });
 
   it('qualifies once and credits the referrer through the provider', async () => {
     const s = setup();
@@ -382,7 +449,7 @@ describe('qualification and rewards', () => {
       ({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ ...pending, ...data }),
     );
-    await s.service.onQualifyingEvent('cli', 'case_published');
+    await s.service.onQualifyingEvent('cli', 'case_completed');
     expect(s.provider.creditCustomerBalance).toHaveBeenCalledWith(
       'cus_1',
       10_000,
@@ -399,7 +466,7 @@ describe('qualification and rewards', () => {
     const s = setup();
     s.prisma.referral.findUnique.mockResolvedValue(pending);
     s.prisma.referral.updateMany.mockResolvedValue({ count: 0 });
-    await s.service.onQualifyingEvent('cli', 'case_published');
+    await s.service.onQualifyingEvent('cli', 'case_completed');
     expect(s.provider.creditCustomerBalance).not.toHaveBeenCalled();
     expect(s.prisma.referral.update).not.toHaveBeenCalled();
   });
@@ -435,7 +502,7 @@ describe('qualification and rewards', () => {
     const s = setup();
     s.prisma.referral.findUnique.mockRejectedValue(new Error('db down'));
     await expect(
-      s.service.onQualifyingEvent('cli', 'case_published'),
+      s.service.onQualifyingEvent('cli', 'case_completed'),
     ).resolves.toBeUndefined();
   });
 

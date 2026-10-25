@@ -273,6 +273,7 @@ const verificationNotificationKinds = {
   'restored',
   'license_expiring',
   'license_expired',
+  'license_renewal_due',
   'profile_unverified',
 };
 
@@ -327,6 +328,7 @@ String notificationText(Translator t, AppNotification n) {
         'message': str('message') ?? '',
         'state': str('stateCode') ?? '',
         'date': str('expiresAt') ?? '',
+        'days': str('graceDays') ?? '',
       });
     }
     if (kind is String && isTrustNotificationKind(kind)) {

@@ -328,6 +328,7 @@ export class VerificationChecksService {
         },
       },
     });
+    await this.fillRegistryExpiry(license.id, outcome);
     if (requestId) {
       // verification_provider has no bar-database values; the adapter
       // name is kept in details.lookupProvider.
@@ -342,6 +343,39 @@ export class VerificationChecksService {
       });
     }
     return outcome;
+  }
+
+  /**
+   * Owner 2026-10-24: a registry that publishes the next registration /
+   * renewal date (NY `next_registration`) fills `expires_at` itself
+   * (source 'registry'). It replaces an attorney's date but never an
+   * admin's, and only on a license still pending or verified. The badge
+   * is recomputed because the date may have moved in either direction.
+   */
+  private async fillRegistryExpiry(
+    licenseId: string,
+    outcome: CheckOutcome,
+  ): Promise<void> {
+    const iso = outcome.details.registryExpiresAt;
+    if (outcome.result !== 'pass' || typeof iso !== 'string') return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+    const { count } = await this.prisma.attorneyLicense.updateMany({
+      where: {
+        id: licenseId,
+        license_status: { in: ['pending', 'verified'] },
+        OR: [{ expires_source: null }, { expires_source: { not: 'admin' } }],
+      },
+      data: {
+        expires_at: new Date(`${iso}T00:00:00Z`),
+        expires_source: 'registry',
+      },
+    });
+    if (count === 0) return;
+    const row = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+      select: { attorney_id: true },
+    });
+    if (row) await this.trust.recompute(row.attorney_id);
   }
 
   private async record(
