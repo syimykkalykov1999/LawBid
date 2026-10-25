@@ -11,6 +11,7 @@ AdminApprovalsCountDto _$AdminApprovalsCountDtoFromJson(
 ) => AdminApprovalsCountDto(
   pending: (json['pending'] as num).toInt(),
   limitCents: (json['limitCents'] as num).toInt(),
+  dualControl: json['dualControl'] as bool,
 );
 
 Map<String, dynamic> _$AdminApprovalsCountDtoToJson(
@@ -18,4 +19,5 @@ Map<String, dynamic> _$AdminApprovalsCountDtoToJson(
 ) => <String, dynamic>{
   'pending': instance.pending,
   'limitCents': instance.limitCents,
+  'dualControl': instance.dualControl,
 };

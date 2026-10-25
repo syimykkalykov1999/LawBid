@@ -130,7 +130,12 @@ function build() {
           ),
     ),
   };
-  const settings = { number: jest.fn().mockResolvedValue(LIMIT) };
+  // admin.dual_control is on here: this file tests the maker-checker flow;
+  // the «off» default has its own describe at the bottom.
+  const settings = {
+    number: jest.fn().mockResolvedValue(LIMIT),
+    boolean: jest.fn().mockResolvedValue(true),
+  };
   const svc = new AdminApprovalsService(
     prisma as never,
     audit as never,
@@ -357,5 +362,41 @@ describe('maker-checker: the second admin', () => {
     expect(mine).toMatchObject({ mine: true, canDecide: false });
     const [theirs] = await svc.list(checker);
     expect(theirs).toMatchObject({ mine: false, canDecide: true });
+  });
+});
+
+describe('admin.dual_control off (the owner works alone)', () => {
+  it('runs everything at once: nothing stored, one audit row, even at and above the limit', async () => {
+    const { svc, rows, actions, settings } = build();
+    settings.boolean.mockResolvedValue(false);
+    await expect(svc.gate(maker, refund(LIMIT * 10))).resolves.toBeUndefined();
+    await expect(
+      svc.gate(maker, {
+        kind: 'aws_budget_limit',
+        payload: { name: 'b', limitUsd: 100 },
+        amountCents: 0,
+        always: true,
+        summary: 'budget',
+      }),
+    ).resolves.toBeUndefined();
+    expect(rows).toHaveLength(0);
+    expect(actions()).toEqual([
+      'admin.approval_skipped',
+      'admin.approval_skipped',
+    ]);
+  });
+
+  it('with the rule on, an «always» kind waits even for $0', async () => {
+    const { svc, rows } = build();
+    await expect(
+      svc.gate(maker, {
+        kind: 'aws_budget_delete',
+        payload: { name: 'old' },
+        amountCents: 0,
+        always: true,
+        summary: 'delete',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(rows).toHaveLength(1);
   });
 });

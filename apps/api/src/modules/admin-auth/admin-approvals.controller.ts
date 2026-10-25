@@ -67,6 +67,7 @@ export class AdminApprovalsController {
     return {
       pending: await this.approvals.pendingCount(admin),
       limitCents: await this.approvals.limitCents(),
+      dualControl: await this.approvals.dualControl(),
     };
   }
 

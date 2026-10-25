@@ -12,12 +12,14 @@ import { CasePaymentsService } from './case-payments.service';
 /** The payments service alone — imported by billing (Connect webhooks),
  * the jobs module (`case-payments.expire`) and the HTTP module below.
  * Uses the global PAYMENT_PROVIDER when present. */
+import { LedgerModule } from '../ledger/ledger.public';
 @Module({
   imports: [
     FeatureFlagsModule,
     FilesModule,
     NotificationsModule,
     ChatSystemModule,
+    LedgerModule,
   ],
   providers: [CasePaymentsService],
   exports: [CasePaymentsService],

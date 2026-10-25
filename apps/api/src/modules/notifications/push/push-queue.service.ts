@@ -16,6 +16,7 @@ import {
   type PushJobData,
 } from './push.constants';
 import { demoContext } from '../../../common/demo/demo-context';
+import { bullOptions } from '../../../redis/redis-connection';
 
 /** Chat messages are committed before they're queued: no delay. */
 const MESSAGE_JOB_OPTS = { ...PUSH_JOB_OPTS, delay: 0 } as const;
@@ -40,7 +41,7 @@ export class PushQueueService
 
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
-    if (url) this.queue = new Queue(PUSH_QUEUE, { connection: { url } });
+    if (url) this.queue = new Queue(PUSH_QUEUE, bullOptions(PUSH_QUEUE, url));
   }
 
   /** A stored notification. [seq] > 1 = an aggregated repeat: realtime

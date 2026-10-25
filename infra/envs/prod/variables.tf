@@ -475,6 +475,16 @@ variable "ecs_readonly_root_filesystem" {
   type    = bool
   default = true
 }
+variable "deploy_alarm_rollback" {
+  type        = bool
+  default     = true
+  description = "Rolling deploy + CloudWatch alarm rollback (docs/runbooks/DEPLOY_SAFETY.md). false = circuit breaker only."
+}
+variable "deploy_rollback_on_slo" {
+  type        = bool
+  default     = false
+  description = "Also roll the api back on the FAST-burn SLO composites. Off by default (third-party dependent)."
+}
 variable "dmarc_policy" {
   type    = string
   default = "quarantine"
@@ -553,4 +563,34 @@ variable "db_replica_toggle" {
   type        = bool
   default     = false
   description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (two admins + 2FA). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
+}
+# AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md)
+variable "config_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Config recorder + 11 managed rules. ~$1-4/month. One recorder per account and region: turn on in ONE env if prod and staging share an account."
+}
+variable "config_retention_days" {
+  type    = number
+  default = 400
+}
+variable "break_glass_enabled" {
+  type        = bool
+  default     = false
+  description = "Emergency administrator role (MFA, named principals, pages on use). Free."
+}
+variable "break_glass_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "Named IAM users/roles that may assume the break-glass role."
+}
+variable "cloudtrail_athena_enabled" {
+  type        = bool
+  default     = true
+  description = "Athena + saved CloudTrail queries. ~$0 idle."
+}
+variable "anomaly_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Cost Anomaly findings also to the alerts topic (free)."
 }

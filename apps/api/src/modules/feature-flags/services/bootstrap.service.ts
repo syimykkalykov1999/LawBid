@@ -32,6 +32,7 @@ import {
   zoneAllowed,
   zoneFlag,
 } from '../../translation/translation-zones';
+import { mgetSafe } from '../../../redis/redis-cluster-safe';
 
 /** `GET /config/bootstrap`'s response shape (docs/01_FOUNDATION_AUTH.md
  * §15, "Этап 1.8": "эндпоинт GET /config/bootstrap (флаги, min-версия,
@@ -402,7 +403,8 @@ export class BootstrapService {
     if (langs.length === 0) return result;
 
     const live = await this.safeRedis(() =>
-      this.redis.mget(
+      mgetSafe(
+        this.redis,
         langs.map((l) => `${I18N_BUNDLE_VERSION_KEY_PREFIX}${l}`),
       ),
     );

@@ -14,6 +14,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { bullOptions } from '../../redis/redis-connection';
 
 export const CHANNEL_FANOUT_QUEUE = 'channel-fanout';
 export const CHANNEL_FANOUT_OPTIONS = Symbol('CHANNEL_FANOUT_OPTIONS');
@@ -88,14 +89,20 @@ export class ChannelFanoutRunner
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
-    this.queue = new Queue(CHANNEL_FANOUT_QUEUE, { connection: { url } });
+    this.queue = new Queue(
+      CHANNEL_FANOUT_QUEUE,
+      bullOptions(CHANNEL_FANOUT_QUEUE, url),
+    );
     if (!this.workerEnabled) return;
     // Batches of different posts (and of one post) are independent: the
     // bell list sorts by time, pushes carry their own post.
     this.worker = new Worker<ChannelFanoutJob>(
       CHANNEL_FANOUT_QUEUE,
       (job: Job<ChannelFanoutJob>) => this.process(job.data),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 4 },
+      {
+        ...bullOptions(CHANNEL_FANOUT_QUEUE, url, { worker: true }),
+        concurrency: 4,
+      },
     );
     this.worker.on('failed', (job, error) => {
       this.logger.error(

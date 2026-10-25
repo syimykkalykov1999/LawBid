@@ -13,6 +13,7 @@ import { FILES_QUEUE } from '../../modules/files/jobs/file-scan.runner';
 import { PUSH_QUEUE } from '../../modules/notifications/push/push.constants';
 import { DATA_EXPORT_QUEUE } from '../../modules/privacy/privacy.constants';
 import { CRON_QUEUE } from '../jobs.constants';
+import { bullOptions } from '../../redis/redis-connection';
 
 /** Every BullMQ queue of the system (docs/06 §6.3 list + the later ones). */
 export const OBSERVED_QUEUES: readonly string[] = [
@@ -68,7 +69,7 @@ export class OpsMetricsJob implements OnModuleDestroy {
     if (!this.queues) {
       const url = this.config.getOrThrow<string>('REDIS_URL');
       this.queues = OBSERVED_QUEUES.map(
-        (name) => new Queue(name, { connection: { url } }),
+        (name) => new Queue(name, bullOptions(name, url)),
       );
     }
     return this.queues;

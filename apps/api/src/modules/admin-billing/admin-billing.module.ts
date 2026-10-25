@@ -28,8 +28,14 @@ import { SubscriptionAdminService } from './subscription-admin.service';
  * payments + refunds, billing overview) and the app's promo check.
  * PAYMENT_PROVIDER comes from the global BillingModule.
  */
+import { LedgerModule } from '../ledger/ledger.public';
 @Module({
-  imports: [AdminAccessModule, NotificationsModule, SubscriptionsModule],
+  imports: [
+    AdminAccessModule,
+    NotificationsModule,
+    SubscriptionsModule,
+    LedgerModule,
+  ],
   controllers: [
     AdminBillingController,
     BillingPromoController,
