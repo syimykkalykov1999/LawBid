@@ -2,7 +2,7 @@
 //   k6 run -e PROFILE=smoke -e API_URL=... -e WS_URL=... loadtest/k6/main.js
 // Normally started by scripts/run-generator.sh (guard + results folder).
 import { assertSafeTarget, PROFILE, SHARD, SHARDS } from './lib/env.js';
-import { P, LIMITS, AVG_REQS_PER_ITER, httpScenario, realtimeScenarios, callScenario } from './lib/profiles.js';
+import { P, LIMITS, AVG_REQS_PER_ITER, httpScenario, realtimeScenarios, callScenario, gateThresholds } from './lib/profiles.js';
 import { runOne, avgReqs } from './lib/mix.js';
 import { counts } from './lib/data.js';
 import { holdSocket, stormSocket, callFlow } from './lib/realtime.js';
@@ -57,12 +57,9 @@ export const options = {
     {},
     abortThresholds(),
     perEndpoint(),
-    scenarios.http
-      ? { 'http_req_duration{kind:api}': [`p(95)<${LIMITS.abort_p95_ms}`], 'http_req_duration{kind:cdn}': ['p(95)<500'], 'http_req_failed{kind:cdn}': ['rate<0.01'], dropped_iterations: ['count<100000'] }
-      : {},
-    scenarios.sockets || scenarios.storm ? { ws_connected: ['rate>0.95'], ws_connect_ms: ['p(95)<3000'], room_join_ok: ['rate>0.98'] } : {},
-    scenarios.sockets ? { chat_delivered: ['rate>0.98'], chat_delivery_ms: ['p(95)<2000'] } : {},
-    scenarios.calls ? { call_flow_ok: ['rate>0.95'] } : {},
+    scenarios.http ? { 'http_req_duration{kind:api}': [`p(95)<${LIMITS.abort_p95_ms}`], dropped_iterations: ['count<100000'] } : {},
+    // budgets per scenario (profiles.json "gates"): p95 and error rate, shown by scripts/report.mjs
+    gateThresholds(Object.keys(scenarios)),
   ),
 };
 

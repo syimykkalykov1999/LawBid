@@ -344,7 +344,7 @@ resource "aws_ecs_service" "this" {
     rollback = true
   }
   lifecycle { ignore_changes = [desired_count] }
-  tags = var.tags
+  tags = merge(var.tags, { Component = "pgbouncer" })
 }
 
 # --- autoscaling on CPU (the single PgBouncer thread is the first limit) ---------
