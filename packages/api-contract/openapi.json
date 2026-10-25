@@ -11360,6 +11360,133 @@
         ]
       }
     },
+    "/admin/verification/licenses/{licenseId}/expiry": {
+      "post": {
+        "operationId": "setLicenseExpiry",
+        "parameters": [
+          {
+            "name": "licenseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLicenseExpiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLicenseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set or clear a license's expiry date (owner 2026-10-24; source = admin)",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
     "/admin/verification/registry-flags": {
       "get": {
         "operationId": "listRegistryFlags",
@@ -12407,7 +12534,7 @@
             }
           },
           "429": {
-            "description": "Too many requests: RATE_LIMITED",
+            "description": "Too many requests: RATE_LIMITED, DAILY_UPLOAD_LIMIT_EXCEEDED",
             "content": {
               "application/json": {
                 "schema": {
@@ -67944,6 +68071,178 @@
         ]
       }
     },
+    "/admin/system-health/scale": {
+      "get": {
+        "operationId": "getScaleExtras",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleExtrasEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Scale page extras: autoscale switches, pooler, search engine",
+        "tags": [
+          "admin-ops"
+        ]
+      },
+      "post": {
+        "operationId": "setOpsScale",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScaleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Cap autoscaling at the minimum / back to normal (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/restart-worker": {
       "post": {
         "operationId": "restartOpsWorker",
@@ -68190,103 +68489,6 @@
           }
         ],
         "summary": "Pause / resume heavy background jobs",
-        "tags": [
-          "admin-ops"
-        ]
-      }
-    },
-    "/admin/system-health/scale": {
-      "post": {
-        "operationId": "setOpsScale",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScaleDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SystemHealthEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: FEATURE_DISABLED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Cap autoscaling at the minimum / back to normal (needs step-up)",
         "tags": [
           "admin-ops"
         ]
@@ -68635,6 +68837,103 @@
           }
         ],
         "summary": "Database or Redis one tier up (needs step-up)",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
+    "/admin/economy/decrease": {
+      "post": {
+        "operationId": "decreaseCapacity",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncreaseCapacityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Database or Redis one tier down, only when the load is low (needs step-up)",
         "tags": [
           "admin-economy"
         ]
@@ -112364,6 +112663,7 @@
           "PASSKEY_NOT_FOUND",
           "PASSKEY_LIMIT",
           "DEVICE_ATTESTATION_REQUIRED",
+          "TURNSTILE_FAILED",
           "ACCOUNT_SUSPENDED",
           "ACCOUNT_DELETED",
           "CLIENT_CONTACTS_INCOMPLETE",
@@ -112412,6 +112712,7 @@
           "FILE_STORAGE_UNAVAILABLE",
           "STORAGE_QUOTA_EXCEEDED",
           "CHAT_STORAGE_FULL",
+          "DAILY_UPLOAD_LIMIT_EXCEEDED",
           "VERIFICATION_ALREADY_PENDING",
           "VERIFICATION_SUBMISSION_LIMIT",
           "VERIFICATION_INVALID_STATUS",
@@ -117026,6 +117327,33 @@
             "nullable": true,
             "format": "date"
           },
+          "expiresSource": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "registry",
+              "attorney",
+              "admin"
+            ],
+            "description": "Owner 2026-10-24: who set expiresAt."
+          },
+          "renewalState": {
+            "nullable": true,
+            "enum": [
+              "ok",
+              "expiring",
+              "renewal_due",
+              "expired"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-24: renewal_due = the date passed, grace period running (badge hidden, «требует продления»); null = no date or not a verified license."
+          },
+          "graceEndsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "description": "Last day of the grace period (expiresAt + grace days)."
+          },
           "autoCheckResult": {
             "type": "object",
             "additionalProperties": true,
@@ -117080,6 +117408,9 @@
           "barNumber",
           "status",
           "expiresAt",
+          "expiresSource",
+          "renewalState",
+          "graceEndsAt",
           "autoCheckResult",
           "lookupUrl",
           "rejectionCode",
@@ -117548,6 +117879,34 @@
           "data"
         ]
       },
+      "SetLicenseExpiryDto": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expiresAt"
+        ]
+      },
+      "AdminLicenseEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "RegistryFlagItemDto": {
         "type": "object",
         "properties": {
@@ -117616,20 +117975,6 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/RegistryCheckDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminLicenseEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminLicenseDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -141250,6 +141595,10 @@
             "type": "number",
             "description": "MB of files per chat; 0 = no cap."
           },
+          "dailyUploadMbPerUser": {
+            "type": "number",
+            "description": "MB one person may upload per UTC day; 0 = no cap."
+          },
           "autoRetention": {
             "type": "boolean",
             "description": "Old technical logs are removed nightly."
@@ -141280,6 +141629,7 @@
           "imageFormat",
           "userQuotaMb",
           "chatQuotaMb",
+          "dailyUploadMbPerUser",
           "autoRetention",
           "retentionAuthEventsDays",
           "retentionAssistantActivityDays",
@@ -141451,6 +141801,11 @@
             "maximum": 1048576
           },
           "chatQuotaMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1048576
+          },
+          "dailyUploadMbPerUser": {
             "type": "number",
             "minimum": 0,
             "maximum": 1048576
@@ -148017,7 +148372,10 @@
               "cloudflare_sfu",
               "r2",
               "http",
-              "realtime"
+              "realtime",
+              "breakers",
+              "cloudflare_usage",
+              "bunny_usage"
             ]
           },
           "status": {
@@ -148229,6 +148587,66 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/SystemHealthDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ScaleExtrasDto": {
+        "type": "object",
+        "properties": {
+          "dbAutoscale": {
+            "enum": [
+              "on",
+              "off",
+              "unknown"
+            ],
+            "type": "string",
+            "description": "Does the database change size by itself (Terraform switch)."
+          },
+          "redisAutoscale": {
+            "enum": [
+              "on",
+              "off",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "poolerEnabled": {
+            "type": "boolean",
+            "description": "Our own PgBouncer sits in front of the database."
+          },
+          "poolerMinTasks": {
+            "type": "number",
+            "nullable": true
+          },
+          "poolerMaxTasks": {
+            "type": "number",
+            "nullable": true
+          },
+          "searchEngine": {
+            "type": "string",
+            "description": "The `search.engine` setting (postgres until another is set)."
+          }
+        },
+        "required": [
+          "dbAutoscale",
+          "redisAutoscale",
+          "poolerEnabled",
+          "poolerMinTasks",
+          "poolerMaxTasks",
+          "searchEngine"
+        ]
+      },
+      "ScaleExtrasEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ScaleExtrasDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -148551,7 +148969,8 @@
               "db_cpu",
               "db_connections",
               "redis_memory",
-              "scaled_up"
+              "scaled_up",
+              "scaled_down"
             ]
           },
           "text": {
@@ -149279,6 +149698,22 @@
             "maximum": 100000,
             "default": 0,
             "description": "Most people one user can invite; 0 = no limit."
+          },
+          "qualifyWindowDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650,
+            "default": 90,
+            "description": "Owner 2026-10-24: days after entering the code in which the invitee must qualify; later the referral is rejected. 0 = no limit."
+          },
+          "clientQualifyOn": {
+            "enum": [
+              "case_published",
+              "case_completed"
+            ],
+            "type": "string",
+            "default": "case_completed",
+            "description": "Owner 2026-10-24: what qualifies an invited client (the reward is issued after it)."
           },
           "texts": {
             "$ref": "#/components/schemas/ReferralTextsByLangDto"

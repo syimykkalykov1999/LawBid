@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { RateLimitService } from '../auth/auth.public';
 import { LinkPreviewDto } from './link-preview.dto';
 import { parsePreview } from './og-parser';
@@ -37,7 +37,7 @@ export class LinkPreviewService {
   private readonly inflight = new Map<string, Promise<LinkPreviewDto>>();
 
   constructor(
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     private readonly limiter: RateLimitService,
     private readonly settings: AppSettingsService,
     private readonly config: ConfigService,

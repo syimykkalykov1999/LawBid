@@ -21,6 +21,7 @@ import {
   videoCallAvailability,
 } from '../../calls/video-call-provider';
 import { SecretsService } from '../../../common/secrets/secrets.service';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   UPLOAD_LIMITS_KEY,
   sanitizeUploadLimits,
@@ -148,7 +149,24 @@ export class BootstrapService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** 2026-10-24 (batch D, item 4): the website asks Cloudflare Turnstile
+   * for a token before sign-up / code requests. The site key is public by
+   * design; it is published only while `security.turnstile.mode` is not
+   * `off` and a key is saved, so with the switch off the page does
+   * nothing at all. */
+  async turnstileSiteKey(): Promise<Record<string, string>> {
+    try {
+      const mode = await this.settings?.string('security.turnstile.mode');
+      if (mode !== 'monitor' && mode !== 'enforce') return {};
+      const key = (await this.secrets?.get('turnstile'))?.fields?.siteKey;
+      return key ? { 'turnstile.site_key': key } : {};
+    } catch {
+      return {};
+    }
+  }
 
   /** Owner 2026-10-01: reels stay hidden from everyone until the owner
    * both turns `video_posts` on AND saves every Bunny key in Admin →
@@ -257,6 +275,7 @@ export class BootstrapService {
         // upload limits (always present, inside the safe ceilings).
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
         ...(await this.sentryDsns()),
+        ...(await this.turnstileSiteKey()),
       },
       client: { timings: clientTimingsFrom(appConfig) },
       languages: content.languages,

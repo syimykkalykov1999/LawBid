@@ -113,6 +113,13 @@ variable "db_autoscale_enabled" {
   default = false
 }
 
+# Redis autoscale (docs/architecture/REDIS_AUTOSCALE.md) is OFF for load tests, same reason and same
+# bootstrap permissions as db_autoscale_enabled.
+variable "redis_autoscale_enabled" {
+  type    = bool
+  default = false
+}
+
 # --- size (profiles/*.tfvars) --------------------------------------------------------
 variable "database_instance_class" {
   type    = string
@@ -162,6 +169,11 @@ variable "livekit_enabled" {
   type    = bool
   default = false
 }
+# Growth switches of the stack under test (same object as prod, all off by
+# default). To load-test the search engine: -var 'growth={opensearch_enabled=true}'
+# (or a line in a profile), apply, then in the loadtest admin set
+# search.engine = shadow, later engine (docs/architecture/SEARCH_READY.md §9).
+# The loadtest stack is a separate stack, so it gets its own domain.
 variable "growth" {
   type    = any
   default = {}

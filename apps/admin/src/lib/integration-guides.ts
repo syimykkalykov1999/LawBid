@@ -95,6 +95,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Видео и рилсы начинают загружаться сразу после «Включить», без обновления приложения.',
     ],
     fields: {
+      accountApiKey: { how: 'Bunny → Account → API Key (ключ аккаунта, не библиотеки). Только для учёта трафика и места, необязательно.' },
       libraryId: { how: 'Stream → библиотека → вкладка API → «Video Library ID». Только цифры.', example: '768949' },
       cdnHostname: {
         how: 'Там же «CDN Hostname». Можно вставить и с https:// — лишнее уберётся само.',
@@ -233,6 +234,8 @@ export const GUIDES: Record<string, ProviderGuide> = {
     links: [{ label: 'Cloudflare Realtime TURN', url: 'https://developers.cloudflare.com/realtime/turn/' }],
     enable: ['Заполните ID ключа и API-токен → «Сохранить» → «Проверить» → «Включить».'],
     fields: {
+      accountId: { how: 'Cloudflare → правый верхний угол «Account ID» (32 символа). Нужен только для учёта трафика звонков.', example: '0123456789abcdef0123456789abcdef' },
+      analyticsToken: { how: 'My Profile → API Tokens → Create Token → право «Account Analytics: Read». Только для учёта трафика, необязательно.' },
       keyId: { how: 'Realtime → TURN Server → ваш ключ → Key ID.' },
       apiToken: { how: 'Токен, который Cloudflare показал при создании ключа (один раз).' },
     },
@@ -258,6 +261,26 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  turnstile: {
+    steps: [
+      'Cloudflare → Turnstile → Add widget. Имя: lawbid-web. Домены: lawbid.dev, www.lawbid.dev. Тип: Managed.',
+      'Cloudflare покажет Site key (публичный) и Secret key — скопируйте оба.',
+      'Вставьте их в поля ниже, домены — через запятую → «Сохранить» (код 2FA) → «Проверить».',
+      'Режим включается отдельно: Админка → Настройки → security.turnstile.mode = monitor (только запись в журнал), через неделю — enforce (блокировать ботов).',
+      'Работает только на веб-версии. Телефоны защищает App Check. Цена: бесплатно.',
+    ],
+    links: [{ label: 'Cloudflare Turnstile', url: 'https://developers.cloudflare.com/turnstile/' }],
+    enable: [
+      'Заполните ключи → «Сохранить» → «Проверить» → «Включить».',
+      'Сама карточка ничего не блокирует: режим — в Настройках, security.turnstile.mode.',
+    ],
+    fields: {
+      secretKey: { how: 'Turnstile → ваш виджет → Settings → Secret key.' },
+      siteKey: { how: 'Turnstile → ваш виджет → Site key (публичный, попадает в веб-приложение).' },
+      hostnames: { how: 'Домены сайта через запятую. Пусто — принимать любой домен.', example: 'lawbid.dev,www.lawbid.dev' },
+    },
+  },
+
   livekit: {
     steps: [
       'Поднимите LiveKit: свой сервер (бесплатно, open-source, livekit.io/self-hosting) или аккаунт LiveKit Cloud (cloud.livekit.io) — платный, включайте, когда появится выручка.',
@@ -280,6 +303,26 @@ export const GUIDES: Record<string, ProviderGuide> = {
       url: { how: 'LIVEKIT_URL: адрес сервера, начинается с wss://.', example: 'wss://lawbid-abc123.livekit.cloud' },
       apiKey: { how: 'LIVEKIT_API_KEY: LiveKit Cloud → Settings → Keys → API Key.', example: 'APIxxxxxxxx' },
       apiSecret: { how: 'LIVEKIT_API_SECRET: там же, Secret (показывается один раз).', example: 'длинная строка' },
+    },
+  },
+
+  opensearch: {
+    steps: [
+      'Это отдельный поисковый движок. Сейчас поиск работает на Postgres и этого не нужно: включайте, когда Postgres станет узким местом (медленный поиск при большом числе пользователей).',
+      'Создание: в Terraform (infra/envs/prod/terraform.tfvars) в блоке growth поставьте opensearch_enabled = true и примените. AWS создаст движок сам; адрес появится в выводе growth_opensearch_endpoint (начинается с https://vpc-…).',
+      'Вставьте адрес в поле ниже и нажмите «Сохранить» (потребуется код 2FA), затем «Проверить». Имя и пароль нужны только если вы включили закрытый доступ по паролю; по умолчанию доступ только изнутри нашей сети и поля пустые.',
+      'Включение шагами: 1) Настройки → search.engine = shadow. Система сама заполнит движок данными (несколько минут) и будет сравнивать ответы, показывая людям результат Postgres. 2) Через пару дней без расхождений в логах поставьте search.engine = engine. 3) Если что-то не так — верните postgres, это мгновенно и ничего не теряет.',
+    ],
+    links: [{ label: 'Amazon OpenSearch Service', url: 'https://aws.amazon.com/opensearch-service/' }],
+    enable: [
+      'Заполните адрес → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Сам ключ поиск не переключает: Админка → Настройки → search.engine = shadow, потом engine. Пока адреса нет, система не даст выбрать shadow или engine.',
+    ],
+    fields: {
+      url: { how: 'OPENSEARCH_URL: адрес движка из growth_opensearch_endpoint, с https://.', example: 'https://vpc-lawbid-search-abc123.us-east-1.es.amazonaws.com' },
+      username: { how: 'OPENSEARCH_USERNAME: только если у движка включён вход по паролю. Иначе оставьте пустым.' },
+      password: { how: 'OPENSEARCH_PASSWORD: пароль к имени выше. Иначе оставьте пустым.' },
+      prefix: { how: 'Приставка имён индексов. Оставьте lawbid; для нагрузочной среды — lawbid-loadtest, чтобы среды не смешивались.', example: 'lawbid' },
     },
   },
 

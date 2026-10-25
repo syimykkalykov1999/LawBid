@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../../redis/redis.constants';
 import { I18nLanguagesService } from './i18n-languages.service';
 
 /** Safety-net TTL on the Redis-cached bundle version. Import apply
@@ -25,7 +25,7 @@ export class I18nBundleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly languages: I18nLanguagesService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
   ) {}
 
   /** Validates the language (throws I18N_LANGUAGE_NOT_FOUND — same as

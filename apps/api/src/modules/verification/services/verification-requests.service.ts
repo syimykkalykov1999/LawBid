@@ -402,6 +402,7 @@ export class VerificationRequestsService {
             data: {
               license_status: 'pending',
               expires_at: expiresAt,
+              expires_source: expiresAt ? 'attorney' : null,
               rejection_code: null,
               rejection_note: null,
               auto_check_result: Prisma.DbNull,
@@ -418,6 +419,7 @@ export class VerificationRequestsService {
               state_code: dto.stateCode,
               bar_number: dto.barNumber,
               expires_at: expiresAt,
+              expires_source: expiresAt ? 'attorney' : null,
               ...(unusual && {
                 registry_flag: FORMAT_UNUSUAL_FLAG,
                 registry_flagged_at: new Date(),

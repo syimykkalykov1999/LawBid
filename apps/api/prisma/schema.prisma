@@ -1674,6 +1674,10 @@ model AttorneyLicense {
   bar_number          String
   license_status      LicenseStatus   @default(pending)
   expires_at          DateTime?       @db.Date
+  /// Owner 2026-10-24: who set expires_at: 'registry' (the state registry,
+  /// e.g. NY next_registration), 'attorney' or 'admin'. A registry date
+  /// replaces an attorney date, never an admin one.
+  expires_source      String?         @db.VarChar(16)
   verified_at         DateTime?       @db.Timestamptz
   verified_by         String?         @db.Uuid
   verifier            User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)
@@ -7441,4 +7445,31 @@ model SystemIncident {
 
   @@index([opened_at(sort: Desc)])
   @@map("system_incidents")
+}
+
+// Search-ready (owner 2026-10-24, docs/architecture/SEARCH_READY.md): the
+// transactional outbox the search-engine indexer drains. Rows are written by
+// database triggers (migration 20261024160000_search_outbox) only while
+// `search.engine` is not postgres. The partial index search_outbox_due_idx
+// is raw SQL.
+model SearchOutbox {
+  id              BigInt    @id @default(autoincrement())
+  entity          String
+  entity_id       String    @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  attempts        Int       @default(0)
+  next_attempt_at DateTime  @default(now()) @db.Timestamptz
+  last_error      String?
+  failed_at       DateTime? @db.Timestamptz
+
+  @@map("search_outbox")
+}
+
+/// Reindex checkpoints and the mapping version the engine was filled with.
+model SearchIndexState {
+  key        String   @id
+  value      Json
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("search_index_state")
 }

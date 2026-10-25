@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { AnonymousCache } from '../../common/cache/http-cache';
 import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -65,6 +66,7 @@ export class SearchController {
   // script pulling the catalog.
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @OptionalAuth()
+  @AnonymousCache(30)
   @Get('search/attorneys')
   @ApiOperation({ summary: 'Attorneys / people (docs/05 §7.3)' })
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
@@ -80,6 +82,7 @@ export class SearchController {
   }
 
   @OptionalAuth()
+  @AnonymousCache(30)
   @Get('search/suggest')
   @ApiOperation({ summary: 'Type-ahead: topics, handles, practices by prefix' })
   @ApiEnvelopeResponse(SuggestionDto, { isArray: true })
@@ -92,6 +95,7 @@ export class SearchController {
   }
 
   @OptionalAuth()
+  @AnonymousCache(60)
   @Get('search/practices')
   @ApiOperation({
     summary: 'Practices whose name in any language starts with the query',

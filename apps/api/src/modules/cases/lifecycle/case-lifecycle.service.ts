@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { Case, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -17,6 +18,7 @@ import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { BidStateMachine } from '../../bids/domain/bid-state-machine';
 import { CaseJournalService } from '../../journal/case-journal.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { ReferralsService } from '../../referrals/referrals.service';
 import { ReviewsService } from '../../reviews/reviews.service';
 import {
   CaseStateMachine,
@@ -85,6 +87,8 @@ export class CaseLifecycleService {
     private readonly reviews: ReviewsService,
     private readonly audit: AuditLogService,
     private readonly chat: ChatSystemMessages,
+    // Owner 2026-10-24: a completed case qualifies an invited client.
+    @Optional() private readonly referrals?: ReferralsService,
   ) {}
 
   /** Which side marked "Выполнено" first (the case is pending_completion):
@@ -181,7 +185,14 @@ export class CaseLifecycleService {
       });
     });
     this.chat.publish(chat);
+    await this.onCompleted(after.client_id);
     return after;
+  }
+
+  /** Owner 2026-10-24: a completed case qualifies an invited client for the
+   * referral reward (idempotent; the referral service never throws). */
+  private async onCompleted(clientId: string): Promise<void> {
+    await this.referrals?.onQualifyingEvent(clientId, 'case_completed');
   }
 
   /** POST /cases/:id/dispute — the side that did not mark first disputes
@@ -343,6 +354,7 @@ export class CaseLifecycleService {
       return after;
     });
     this.chat.publish(chat);
+    if (decision === 'closed') await this.onCompleted(resolved.client_id);
     return resolved;
   }
 
@@ -565,8 +577,10 @@ export class CaseLifecycleService {
    * not answer): closed, event auto_closed. */
   async autoClose(caseId: string, now: Date): Promise<boolean> {
     const chat: ChatChange[] = [];
+    let closedFor: string | null = null;
     const done = await withTxRetry(this.prisma, async (tx) => {
       chat.length = 0;
+      closedFor = null;
       const row = await this.lockCase(tx, caseId);
       if (
         !row ||
@@ -577,6 +591,7 @@ export class CaseLifecycleService {
         return false;
       }
       const { clientId, attorneyId } = await this.parties(tx, caseId);
+      closedFor = clientId;
       await this.closeInTx(tx, {
         caseId,
         clientId,
@@ -590,6 +605,7 @@ export class CaseLifecycleService {
       return true;
     });
     this.chat.publish(chat);
+    if (done && closedFor) await this.onCompleted(closedFor);
     return done;
   }
 

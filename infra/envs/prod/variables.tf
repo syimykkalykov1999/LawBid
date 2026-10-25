@@ -320,6 +320,35 @@ variable "db_autoscale_tuning" {
   default     = {}
   description = "Optional numbers, e.g. { up_cpu_pct = 75 } (infra/modules/db-autoscale/lambda/decision.py Config)."
 }
+# --- Redis autoscale (owner 2026-10-24, docs/architecture/REDIS_AUTOSCALE.md) ----
+variable "redis_autoscale_enabled" {
+  type        = bool
+  default     = true
+  description = "Redis grows one node type under load and shrinks one after 3 quiet days, by itself. Needs redis_replicas >= 1 and automatic failover. Off switch without terraform: docs/runbooks/redis-autoscale.md. After it has moved Redis, set redis_node_type to the current type before changing redis_replicas."
+}
+variable "redis_autoscale_min_class" {
+  type    = string
+  default = "cache.t4g.micro"
+}
+variable "redis_autoscale_max_class" {
+  type        = string
+  default     = "cache.r7g.large"
+  description = "Ceiling for the bill: ≈ $320/month with one replica. Above it the owner gets an e-mail."
+}
+variable "redis_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run (e-mails what it would do, changes nothing) | off. Later changes are made in SSM, not here."
+  validation {
+    condition     = contains(["on", "dry-run", "off"], var.redis_autoscale_mode)
+    error_message = "redis_autoscale_mode: on, dry-run or off."
+  }
+}
+variable "redis_autoscale_tuning" {
+  type        = map(number)
+  default     = {}
+  description = "Optional numbers, e.g. { up_cpu_pct = 75 } (infra/modules/redis-autoscale/lambda/decision.py Config)."
+}
 variable "backup_enabled" {
   type    = bool
   default = true

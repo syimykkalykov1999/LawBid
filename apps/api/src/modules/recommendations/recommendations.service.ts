@@ -5,7 +5,7 @@ import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import {
   type CaseCandidate,
   type CaseViewer,
@@ -137,7 +137,7 @@ const toPerson = (r: PersonRow): PersonCandidate => ({
 export class RecommendationsService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     @Optional() private readonly settings?: AppSettingsService,
   ) {}
 

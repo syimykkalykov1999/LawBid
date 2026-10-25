@@ -255,6 +255,46 @@ export function word(item: HealthItem): Worded {
             : 'Растёт доля ошибок или ответы замедлились. Посмотрите «Здоровье» базы и очередей выше; если всё зелёное — напишите Claude «API красный».',
         runbook: 'api-5xx.md',
       };
+    case 'breakers': {
+      const open = Array.isArray(d.open) ? (d.open as string[]) : [];
+      return {
+        title: 'Внешние сервисы (защитные предохранители)',
+        line: open.length
+          ? `Сейчас на паузе из-за сбоев: ${open.join(', ')}. Через минуту система попробует снова.`
+          : 'Почта, платежи, SMS, пуши и видео отвечают, пауз нет.',
+        todo: open.length
+          ? 'Обычно проходит само. Если держится дольше 10 минут — проверьте статус этого сервиса.'
+          : undefined,
+      };
+    }
+    case 'cloudflare_usage':
+      return {
+        title: 'Звонки: трафик Cloudflare за месяц',
+        line:
+          s === 'grey'
+            ? 'Не подключено: добавьте ID аккаунта и токен «Account Analytics: Read» в Ключи и сервисы → cloudflare_turn.'
+            : d.error
+              ? `Не удалось узнать трафик: ${String(d.error)}.`
+              : `${n(d.egressGb) ?? 0} ГБ из бесплатных 1000 (тревога с ${n(d.warnGb) ?? 0} ГБ; считается только TURN).`,
+        todo:
+          s === 'red' || s === 'yellow'
+            ? 'Бесплатный объём близок к концу, дальше 0,05 $ за ГБ. Если растёт быстро — напишите Claude «трафик звонков».'
+            : undefined,
+      };
+    case 'bunny_usage':
+      return {
+        title: 'Видео: трафик и хранилище Bunny',
+        line:
+          s === 'grey'
+            ? 'Не подключено: добавьте API-ключ аккаунта Bunny в Ключи и сервисы → bunny_stream.'
+            : d.error
+              ? `Не удалось узнать расход: ${String(d.error)}.`
+              : `Трафик за месяц ${n(d.bandwidthGb) ?? 0} ГБ, хранилище ${n(d.storageGb) ?? 0} ГБ.`,
+        todo:
+          s === 'red' || s === 'yellow'
+            ? 'Расход видео вырос. Пороги меняются в Настройки → usage.bunny_*; лимит загрузок на человека — rate_limit.video_upload_per_day.'
+            : undefined,
+      };
     case 'realtime':
       return {
         title: 'Живое соединение (сокеты)',

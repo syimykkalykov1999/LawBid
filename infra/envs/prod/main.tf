@@ -121,6 +121,11 @@ module "stack" {
   db_autoscale_max_class       = var.db_autoscale_max_class
   db_autoscale_mode            = var.db_autoscale_mode
   db_autoscale_tuning          = var.db_autoscale_tuning
+  redis_autoscale_enabled      = var.redis_autoscale_enabled
+  redis_autoscale_min_class    = var.redis_autoscale_min_class
+  redis_autoscale_max_class    = var.redis_autoscale_max_class
+  redis_autoscale_mode         = var.redis_autoscale_mode
+  redis_autoscale_tuning       = var.redis_autoscale_tuning
   existing_database_identifier = var.existing_database_identifier
   backup_enabled               = var.backup_enabled
   backup_retention_days        = var.backup_retention_days

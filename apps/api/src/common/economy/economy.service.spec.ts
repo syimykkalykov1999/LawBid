@@ -139,6 +139,12 @@ function setup(o: Opts = {}) {
       from: 'db.t4g.medium',
       to: 'db.t4g.large',
     })),
+    decrease: jest.fn(async () => ({
+      from: 'db.t4g.medium',
+      to: 'db.t4g.small',
+    })),
+    dbClass: jest.fn(async () => 'db.t4g.medium'),
+    redisClass: jest.fn(async () => 'cache.t4g.small'),
   };
 
   const autoscale = {
@@ -434,5 +440,45 @@ describe('EconomyService.increase', () => {
     const r = await t.svc.increase('db', NOW);
     expect(r).toEqual({ from: 'db.t4g.medium', to: 'db.t4g.large' });
     expect(t.events[0].kind).toBe('scaled_up');
+  });
+});
+
+describe('EconomyService.decrease', () => {
+  it('moves one tier down when the load is low and records an event', async () => {
+    const t = setup({
+      capacityMetrics: { dbCpuPercent: 10, dbConnections: 20 },
+    });
+    const r = await t.svc.decrease('db', NOW);
+    expect(r).toEqual({
+      ok: true,
+      from: 'db.t4g.medium',
+      to: 'db.t4g.small',
+    });
+    expect(t.events[0].kind).toBe('scaled_down');
+  });
+
+  it('refuses while the database is busy, and never touches AWS', async () => {
+    const t = setup({
+      capacityMetrics: { dbCpuPercent: 55, dbConnections: 20 },
+    });
+    const r = await t.svc.decrease('db', NOW);
+    expect(r).toMatchObject({ ok: false, reason: 'busy' });
+    expect(t.events).toHaveLength(0);
+  });
+
+  it('refuses blind when the load is unknown', async () => {
+    const t = setup({ capacityMetrics: {} });
+    expect(await t.svc.decrease('db', NOW)).toMatchObject({
+      ok: false,
+      reason: 'busy',
+    });
+  });
+
+  it('refuses Redis when the memory would not fit the smaller node', async () => {
+    const t = setup({ capacityMetrics: { redisMemoryPercent: 60 } });
+    expect(await t.svc.decrease('redis', NOW)).toMatchObject({
+      ok: false,
+      reason: 'busy',
+    });
   });
 });

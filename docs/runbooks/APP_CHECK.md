@@ -119,3 +119,61 @@ Web в dev: тот же флаг включает `WebDebugProvider` (токен
    уже на месте для prod).
 3. Сервер оставить в `monitor`, через неделю смотреть журнал (выше) и
    переключать на `enforce`.
+
+## График перехода на enforce (решение 2026-10-24)
+
+Мобильное приложение защищает только App Check; Turnstile для него не
+используется (у Cloudflare нет нативного SDK для iOS/Android, WebView
+ненадёжен). Сейчас `security.app_check.mode` = `monitor` и остаётся им до
+выполнения всех условий:
+
+1. Подписанные сборки с заголовком `X-Firebase-AppCheck` вышли в сторы
+   (iOS App Attest, Android Play Integrity). Квота Play Integrity
+   Standard по умолчанию 10 000 запросов в сутки, поднимается по заявке
+   после публикации в Google Play (Firebase docs, 2026).
+2. Неделя наблюдения (запрос выше): доля `missing` около нуля, `invalid`
+   нет.
+3. Тогда `enforce`. Код по e-mail остаётся бесплатным (`freeWhen`), SMS
+   идёт только из приложения. Откат — `monitor`, без релиза.
+
+До этого дня SMS защищают: правило WAF `otp-rate-per-ip`, лимиты на номер
+и на сутки, скорость по префиксу номера и суточный потолок SMS на
+регистрацию (см. ниже).
+
+## Cloudflare Turnstile на сайте (2026-10-24)
+
+Только web (Flutter web). Включение:
+
+1. Cloudflare → Turnstile → создать виджет, домены сайта.
+2. Админка → Интеграции → «Cloudflare Turnstile»: секретный ключ,
+   ключ сайта, домены (кнопка «Проверить» отправляет пробный запрос в
+   `siteverify`).
+3. Сайт шлёт токен виджета в заголовке `X-Turnstile-Token` на те же
+   маршруты, что и App Check (код по SMS/e-mail, сброс пароля, соцвход,
+   `phone/status`).
+4. `security.turnstile.mode`: `off` (по умолчанию) → `monitor`
+   (проверяет и пишет `metric = "turnstile"`, не блокирует) → `enforce`
+   (неверный токен: 403 `TURNSTILE_FAILED`; верный пропускает без App
+   Check). Откат — `off`, без релиза.
+
+Если Cloudflare не ответил за 5 секунд или ключ не принят, сайт не
+блокируется (в лог пишется error). Токен живёт 5 минут и принимается
+один раз; максимум 2048 символов (Cloudflare, 2026-10-22).
+
+## SMS: скорость по префиксу и суточный потолок (2026-10-24)
+
+Настройки в Система → Настройки: `sms.prefix_velocity_max` (8 кодов за
+окно на один префикс из первых 6 цифр номера), `sms.country_velocity_max`
+(100 на страну), `sms.prefix_velocity_window_minutes` (10),
+`sms.prefix_block_minutes` (60), `sms.signup_daily_cap` (300 в сутки UTC на
+регистрацию). Сработавший префикс блокируется, SMS не уходит, человек
+видит обычный ответ «код отправлен», в логе `alert = cost_budget`,
+`stage = sms_prefix_velocity` (существующий аварийный сигнал). Потолок на
+регистрацию закрывает регистрацию по SMS до 00:00 UTC (503
+`PROVIDER_BUDGET_EXCEEDED`), сброс пароля и e-mail работают. В Twilio
+Console дополнительно поставьте Messaging Geo Permissions только на
+нужные страны (без кода).
+
+## Website Turnstile widget (batch D, 2026-10-24)
+
+The Flutter web build asks Cloudflare Turnstile for a token (invisible, `interaction-only`: the box shows only if a person must click) before `/auth/otp/request`, `/auth/password/reset/request`, `/auth/social`, `/auth/phone/status` and sends it as `X-Turnstile-Token`. The public site key comes in `GET /config/bootstrap` -> `app_config["turnstile.site_key"]`, published only while `security.turnstile.mode` is `monitor` or `enforce` and a site key is saved (Интеграции -> Cloudflare Turnstile). With the mode `off` or no key the page loads nothing from Cloudflare. Phones never run this code (conditional import). The web CSP (infra/modules/web) allows `https://challenges.cloudflare.com` for scripts and frames: **apply the web module (terraform) before switching the mode on**, else the browser blocks the widget.

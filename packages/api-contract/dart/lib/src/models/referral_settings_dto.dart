@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'referral_reward_dto.dart';
+import 'referral_settings_dto_client_qualify_on.dart';
 import 'referral_texts_by_lang_dto.dart';
 
 part 'referral_settings_dto.g.dart';
@@ -20,6 +21,8 @@ class ReferralSettingsDto {
     required this.texts,
     this.applyWindowDays = 14,
     this.maxInvitesPerReferrer = 0,
+    this.qualifyWindowDays = 90,
+    this.clientQualifyOn = ReferralSettingsDtoClientQualifyOn.caseCompleted,
   });
 
   factory ReferralSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -42,6 +45,12 @@ class ReferralSettingsDto {
 
   /// Most people one user can invite; 0 = no limit.
   final int maxInvitesPerReferrer;
+
+  /// Owner 2026-10-24: days after entering the code in which the invitee must qualify; later the referral is rejected. 0 = no limit.
+  final int qualifyWindowDays;
+
+  /// Owner 2026-10-24: what qualifies an invited client (the reward is issued after it).
+  final ReferralSettingsDtoClientQualifyOn clientQualifyOn;
   final ReferralTextsByLangDto texts;
 
   Map<String, Object?> toJson() => _$ReferralSettingsDtoToJson(this);

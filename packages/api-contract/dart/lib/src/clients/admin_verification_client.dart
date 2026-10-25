@@ -19,6 +19,7 @@ import '../models/registry_test_result_envelope.dart';
 import '../models/reject_request_dto.dart';
 import '../models/request_info_dto.dart';
 import '../models/save_state_registry_dto.dart';
+import '../models/set_license_expiry_dto.dart';
 import '../models/state_registries_overview_envelope.dart';
 import '../models/state_registry_envelope.dart';
 import '../models/status3.dart';
@@ -107,6 +108,14 @@ abstract class AdminVerificationClient {
   @POST('/admin/verification/licenses/{licenseId}/recheck')
   Future<LicenseRecheckEnvelope> recheckLicense({
     @Path('licenseId') required String licenseId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set or clear a license's expiry date (owner 2026-10-24; source = admin)
+  @POST('/admin/verification/licenses/{licenseId}/expiry')
+  Future<AdminLicenseEnvelope> setLicenseExpiry({
+    @Path('licenseId') required String licenseId,
+    @Body() required SetLicenseExpiryDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

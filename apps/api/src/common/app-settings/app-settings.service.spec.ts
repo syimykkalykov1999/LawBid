@@ -30,7 +30,7 @@ describe('AppSettingsService (docs/03 §9)', () => {
     expect(await s.number('verification.max_submissions_30d')).toBe(5);
     expect(
       await s.numberList('verification.license_expiry_notify_days'),
-    ).toEqual([30, 7]);
+    ).toEqual([60, 30, 7]);
     expect(await s.stringList('profile.reserved_usernames')).toContain('admin');
   });
 
@@ -53,7 +53,8 @@ describe('AppSettingsService (docs/03 §9)', () => {
     expect(FILE_03_SETTINGS).toMatchObject({
       'verification.max_submissions_30d': 5,
       'verification.signed_url_ttl_sec': 300,
-      'verification.license_expiry_notify_days': [30, 7],
+      'verification.license_expiry_notify_days': [60, 30, 7],
+      'verification.license_expiry_grace_days': 14,
       'profile.username_change_cooldown_days': 30,
       'review.edit_window_days': 14,
       'review.reminder_after_days': 7,
