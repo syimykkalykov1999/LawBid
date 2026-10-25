@@ -56,4 +56,55 @@ platform :android do
       skip_upload_screenshots: true,
     )
   end
+
+  # Owner 2026-10-25: staged rollout on Google Play (docs/runbooks/mobile-staged-rollout.md).
+  # step: start    - promote the build of the Internal track to Production at `percent`
+  #       increase - raise the running rollout of `version_code` to `percent`
+  #       halt     - stop the running rollout of `version_code` (installed copies stay)
+  #       resume   - continue a halted rollout at `percent`
+  # percent is 1, 10, 50 or 100 (100 completes the release). dry_run=true asks
+  # Google to validate the change without publishing it (validate_only).
+  desc "Staged rollout on Google Play. Options: step, percent, version_code, dry_run. Needs PLAY_JSON_KEY_FILE."
+  lane :rollout do |options|
+    step = (options[:step] || "").to_s
+    UI.user_error!("step must be start, increase, halt or resume") unless %w[start increase halt resume].include?(step)
+    percent = (options[:percent] || "").to_s
+    unless step == "halt"
+      UI.user_error!("percent must be 1, 10, 50 or 100") unless %w[1 10 50 100].include?(percent)
+    end
+    version_code = options[:version_code].to_s
+    UI.user_error!("version_code is required for #{step}") if step != "start" && version_code.empty?
+    fraction = (percent.to_f / 100).to_s
+    dry = options[:dry_run].to_s == "true"
+    common = {
+      package_name: CredentialsManager::AppfileConfig.try_fetch_value(:package_name),
+      validate_only: dry,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+    }
+    case step
+    when "start"
+      upload_to_play_store(common.merge(
+        track: "internal", track_promote_to: "production",
+        rollout: fraction,
+        release_status: percent == "100" ? "completed" : "inProgress",
+        track_promote_release_status: percent == "100" ? "completed" : "inProgress",
+        version_code: version_code.empty? ? nil : version_code.to_i,
+      ).compact)
+    when "increase", "resume"
+      upload_to_play_store(common.merge(
+        track: "production", rollout: fraction,
+        release_status: percent == "100" ? "completed" : "inProgress",
+        version_code: version_code.to_i,
+      ))
+    when "halt"
+      upload_to_play_store(common.merge(
+        track: "production", release_status: "halted", version_code: version_code.to_i,
+      ))
+    end
+  end
 end

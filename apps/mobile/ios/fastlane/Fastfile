@@ -75,4 +75,39 @@ platform :ios do
       force: true,
     )
   end
+
+  # Owner 2026-10-25: App Store phased release (docs/runbooks/mobile-staged-rollout.md).
+  # Submits a build already in App Store Connect (TestFlight) for review with
+  # phased release ON: Apple raises the share of auto-updating users over 7 days
+  # (1, 2, 5, 10, 20, 50, 100 %) and releases it automatically once approved.
+  # Pausing / resuming / releasing to everyone is done in App Store Connect
+  # (fastlane has no action for it): see the runbook. dry_run=true only checks
+  # the credentials and the build, nothing is submitted.
+  desc "Submit a TestFlight build for review with phased release. Options: build_number, dry_run. Needs the ASC_* key."
+  lane :release_phased do |options|
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("ASC_KEY_ID"),
+      issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+      key_content: ENV.fetch("ASC_KEY_CONTENT"),
+      is_key_content_base64: true,
+    )
+    build_number = options[:build_number].to_s
+    UI.user_error!("build_number is required (the number shown in TestFlight)") if build_number.empty?
+    if options[:dry_run].to_s == "true"
+      UI.success("dry run: would submit build #{build_number} with phased release")
+      next
+    end
+    deliver(
+      api_key: api_key,
+      build_number: build_number,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      submit_for_review: true,
+      automatic_release: true,
+      phased_release: true,
+      force: true,
+      submission_information: { add_id_info_uses_idfa: false },
+    )
+  end
 end

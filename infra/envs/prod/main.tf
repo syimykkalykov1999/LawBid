@@ -45,6 +45,10 @@ module "stack" {
   web_certificate_arn             = var.web_certificate_arn
   web_create_certificate          = var.web_create_certificate
   web_extra_hosts                 = var.web_extra_hosts
+  status_page_enabled             = var.status_page_enabled
+  status_host                     = var.status_host
+  status_certificate_arn          = var.status_certificate_arn
+  status_create_certificate       = var.status_create_certificate
   hosted_zone_id                  = var.hosted_zone_id
   dmarc_rua                       = var.dmarc_rua
   ses_from_address                = var.ses_from_address
