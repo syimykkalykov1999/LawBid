@@ -940,6 +940,7 @@ export class ReviewsService {
         message: 'Edit or delete your own review instead.',
       });
     }
+    await this.moderation?.assertCanReport(user.sub);
     const report = await withTxRetry(this.prisma, async (tx) => {
       const open = await tx.report.findFirst({
         where: {

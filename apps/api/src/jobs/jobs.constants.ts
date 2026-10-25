@@ -43,6 +43,8 @@ export const CRON_JOBS = {
   searchTagTopics: 'search.tag-topics',
   /** Owner 2026-10-24: search-engine outbox → engine (off = prune only). */
   searchIndex: 'search.index',
+  /** Owner 2026-10-27: appeals of automatic moderation past the SLA. */
+  moderationAppealSla: 'moderation.appeal-sla',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -189,6 +191,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.searchLearn, pattern: '30 3 * * *' },
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
+  { name: CRON_JOBS.moderationAppealSla, pattern: '25 * * * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },

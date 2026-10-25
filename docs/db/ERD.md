@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-244 tables.
+248 tables.
 
 ```mermaid
 erDiagram
@@ -1110,6 +1110,8 @@ erDiagram
     enum_ReportStatus status
     String handled_by FK "nullable"
     DateTime handled_at "nullable"
+    Boolean priority_review
+    String target_author_id "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -1168,6 +1170,72 @@ erDiagram
     String decided_by "nullable"
     DateTime decided_at "nullable"
     String decision_note "nullable"
+    DateTime created_at
+  }
+  reporter_standings {
+    String user_id PK,FK
+    Int warnings
+    DateTime warned_at "nullable"
+    DateTime suspended_until "nullable"
+    Int suspensions
+    String last_reason "nullable"
+    Json history
+    String appeal_message "nullable"
+    enum_ModerationAppealStatus appeal_status "nullable"
+    DateTime appeal_at "nullable"
+    String appeal_decided_by "nullable"
+    DateTime appeal_decided_at "nullable"
+    String appeal_note "nullable"
+    DateTime updated_at
+  }
+  user_strikes {
+    String id PK
+    String user_id FK
+    String action_id UK "nullable"
+    enum_ReportTargetType target_type "nullable"
+    String target_id "nullable"
+    Int points
+    String reason "nullable"
+    String restriction "nullable"
+    DateTime restriction_until "nullable"
+    DateTime expires_at
+    DateTime revoked_at "nullable"
+    String revoked_by "nullable"
+    String revoked_note "nullable"
+    DateTime created_at
+  }
+  moderation_auto_actions {
+    String id PK
+    String kind
+    String user_id FK
+    enum_ReportTargetType target_type "nullable"
+    String target_id "nullable"
+    Float score
+    Float threshold
+    Boolean borderline
+    Boolean enforced
+    String reason "nullable"
+    DateTime expires_at "nullable"
+    DateTime reversed_at "nullable"
+    String appeal_message "nullable"
+    enum_ModerationAppealStatus appeal_status "nullable"
+    DateTime appeal_at "nullable"
+    String appeal_decided_by "nullable"
+    DateTime appeal_decided_at "nullable"
+    String appeal_note "nullable"
+    Boolean appeal_auto_approved
+    DateTime created_at
+  }
+  moderation_detections {
+    String id PK
+    String user_id
+    String content_kind
+    String provider
+    String mode
+    String category
+    Float score
+    String decision
+    Boolean acted
     DateTime created_at
   }
   admin_profiles {
@@ -3226,6 +3294,9 @@ erDiagram
   user_privacy_settings |o--|| users : "user_id"
   moderation_appeals }o--|| users : "appellant_id"
   moderation_appeals |o--|| moderation_actions : "action_id"
+  reporter_standings |o--|| users : "user_id"
+  user_strikes }o--|| users : "user_id"
+  moderation_auto_actions }o--|| users : "user_id"
   admin_profiles |o--|| users : "user_id"
   audit_log }o--|| users : "admin_id"
   data_access_requests }o--|| users : "handled_by"

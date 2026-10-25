@@ -945,6 +945,9 @@ model User {
   client_review_appeals       ClientReviewAppeal[]           @relation("ClientReviewAppellant")
   privacy_settings            UserPrivacySettings?
   moderation_appeals          ModerationAppeal[]             @relation("ModerationAppellant")
+  reporter_standing           ReporterStanding?
+  user_strikes                UserStrike[]
+  auto_actions                ModerationAutoAction[]
   review_helpful_votes        ReviewHelpfulVote[]            @relation("ReviewHelpfulVoter")
   client_review_helpful_votes ClientReviewHelpfulVote[]      @relation("ClientReviewHelpfulVoter")
   /// Owner 2026-10-05: the country the person works in (from the phone
@@ -3438,6 +3441,12 @@ model Report {
   handled_by  String?          @db.Uuid
   handler     User?            @relation("ReportHandler", fields: [handled_by], references: [id], onDelete: Restrict)
   handled_at  DateTime?        @db.Timestamptz
+  /// Owner 2026-10-27: set when enough weighted reports hit a verified
+  /// attorney's content: it is not hidden, a human looks at it first.
+  priority_review Boolean      @default(false)
+  /// Owner 2026-10-27: the owner of the reported object (filled when the
+  /// report is weighed), for account-level scoring.
+  target_author_id String?     @db.Uuid
   created_at  DateTime         @default(now()) @db.Timestamptz
   updated_at  DateTime         @updatedAt @db.Timestamptz
 
@@ -3449,6 +3458,7 @@ model Report {
   // migration, file-03 DB review).
   @@index([target_type, target_id, status])
   @@index([reporter_id])
+  @@index([target_author_id, created_at])
   @@map("reports")
 }
 
@@ -3568,6 +3578,115 @@ enum ModerationAppealStatus {
   rejected
 
   @@map("moderation_appeal_status")
+}
+
+/// Owner 2026-10-27 (DSA Art. 23 style): a person whose reports keep being
+/// dismissed gets a warning, then report processing from them is paused
+/// for a while. One row per reporter; `history` keeps the last entries.
+model ReporterStanding {
+  user_id           String                  @id @db.Uuid
+  user              User                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "reporter_standings_user_fkey")
+  warnings          Int                     @default(0)
+  warned_at         DateTime?               @db.Timestamptz
+  suspended_until   DateTime?               @db.Timestamptz
+  suspensions       Int                     @default(0)
+  last_reason       String?
+  history           Json                    @default("[]")
+  /// One appeal at a time (1-1000 chars, CHECK in the migration).
+  appeal_message    String?
+  appeal_status     ModerationAppealStatus?
+  appeal_at         DateTime?               @db.Timestamptz
+  appeal_decided_by String?                 @db.Uuid
+  appeal_decided_at DateTime?               @db.Timestamptz
+  appeal_note       String?
+  updated_at        DateTime                @updatedAt @db.Timestamptz
+
+  @@index([suspended_until])
+  @@index([appeal_status, appeal_at])
+  @@map("reporter_standings")
+}
+
+/// Owner 2026-10-27: a strike on a content owner (a moderator removed or
+/// hid their content). Strikes expire; the sum of points of the live ones
+/// picks the limit (cooldown / limited / suspended), which each strike
+/// that reaches a threshold carries with its own end date. An accepted
+/// appeal of `action_id` revokes the strike.
+model UserStrike {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String            @db.Uuid
+  user              User              @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "user_strikes_user_fkey")
+  action_id         String?           @unique @db.Uuid
+  target_type       ReportTargetType?
+  target_id         String?           @db.Uuid
+  points            Int               @default(1)
+  reason            String?
+  restriction       String?           @db.VarChar(16)
+  restriction_until DateTime?         @db.Timestamptz
+  expires_at        DateTime          @db.Timestamptz
+  revoked_at        DateTime?         @db.Timestamptz
+  revoked_by        String?           @db.Uuid
+  revoked_note      String?
+  created_at        DateTime          @default(now()) @db.Timestamptz
+
+  @@index([user_id, expires_at])
+  @@map("user_strikes")
+}
+
+/// Owner 2026-10-27: moderation without a human at scale. Every automatic
+/// decision (content hidden by weighted reports, an account limited or
+/// suspended by its score) is one row: the score and threshold at the time,
+/// whether it was borderline, whether it was enforced or only logged
+/// (shadow), and the owner's appeal. Only an appeal brings a human in.
+/// kind: content_hide | account_limit | account_suspend_temp |
+/// account_suspend | review_needed.
+model ModerationAutoAction {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind                String                  @db.VarChar(24)
+  user_id             String                  @db.Uuid
+  user                User                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "moderation_auto_actions_user_fkey")
+  target_type         ReportTargetType?
+  target_id           String?                 @db.Uuid
+  score               Float
+  threshold           Float
+  borderline          Boolean                 @default(false)
+  /// false = shadow mode: logged, nothing was done.
+  enforced            Boolean                 @default(true)
+  reason              String?
+  expires_at          DateTime?               @db.Timestamptz
+  reversed_at         DateTime?               @db.Timestamptz
+  appeal_message      String?
+  appeal_status       ModerationAppealStatus?
+  appeal_at           DateTime?               @db.Timestamptz
+  appeal_decided_by   String?                 @db.Uuid
+  appeal_decided_at   DateTime?               @db.Timestamptz
+  appeal_note         String?
+  appeal_auto_approved Boolean                @default(false)
+  created_at          DateTime                @default(now()) @db.Timestamptz
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([appeal_status, appeal_at])
+  @@index([created_at])
+  @@map("moderation_auto_actions")
+}
+
+/// Owner 2026-10-27: what the text classifier saw (shadow and enforce
+/// modes), for tuning and the daily cost cap. Scores below the logging
+/// level are not stored.
+model ModerationDetection {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  content_kind String   @db.VarChar(24)
+  provider     String   @db.VarChar(24)
+  mode         String   @db.VarChar(8)
+  category     String   @db.VarChar(48)
+  score        Float
+  decision     String   @db.VarChar(8)
+  acted        Boolean  @default(false)
+  created_at   DateTime @default(now()) @db.Timestamptz
+
+  @@index([created_at])
+  @@index([user_id, created_at(sort: Desc)])
+  @@map("moderation_detections")
 }
 
 model AdminProfile {

@@ -69,6 +69,7 @@ import { StorageStatsService } from '../modules/storage/storage-stats.service';
 import { EconomyService } from '../common/economy/economy.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
+import { AutoAppealsService } from '../modules/moderation/auto-appeals.service';
 
 /** Routes a `cron` queue job to its handler by job name. The return value
  * becomes the BullMQ job's `returnvalue` (visible in queue dashboards). */
@@ -146,6 +147,8 @@ export class CronProcessor {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Owner 2026-10-27: `moderation.appeal-sla`.
+    @Optional() private readonly autoAppeals?: AutoAppealsService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -216,6 +219,8 @@ export class CronProcessor {
         return this.opsMetrics.queueDepths();
       case CRON_JOBS.searchIndex:
         return this.searchIndex?.run() ?? null;
+      case CRON_JOBS.moderationAppealSla:
+        return this.autoAppeals?.sweepOverdue() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:

@@ -25,7 +25,7 @@ describe('menu sections with tabs', () => {
     const mod = { role: 'moderator' as const, permissions: { moderation: 'manage' as const, content: 'view' as const } };
     expect(groupsFor(mod).map((g) => g.key)).toEqual(['home', 'moderation', 'system']);
     expect(tabsFor(mod, '/moderation').map((t) => t.href)).toEqual([
-      '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-journal', '/legal-qa', '/group-chats', '/content', '/document-templates', '/form-templates', '/search',
+      '/moderation', '/media-moderation', '/review-appeals', '/moderation-appeals', '/moderation-auto', '/moderation-journal', '/legal-qa', '/group-chats', '/content', '/document-templates', '/form-templates', '/search',
     ]);
     // Document forms follow the API: super admin and moderators only.
     expect(canOpen(mod, '/form-templates')).toBe(true);
