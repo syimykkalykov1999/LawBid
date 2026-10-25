@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -14,6 +15,7 @@ import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
+import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type {
   AdminChannelDto,
@@ -50,6 +52,8 @@ export class AdminChannelsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditLogService,
+    // Owner 2026-10-25 (DB audit finding 8): post_count of a hot channel.
+    @Optional() private readonly counters?: CounterAggregator,
   ) {}
 
   async list(q: AdminChannelsQueryDto): Promise<Page<AdminChannelRowDto>> {
@@ -201,10 +205,12 @@ export class AdminChannelsService {
           ? { status: 'active', deleted_at: null }
           : { status: 'removed' },
       });
-      await tx.channel.update({
-        where: { id: channelId },
-        data: { post_count: { increment: nextLive ? 1 : -1 } },
-      });
+      if (!this.counters) {
+        await tx.channel.update({
+          where: { id: channelId },
+          data: { post_count: { increment: nextLive ? 1 : -1 } },
+        });
+      }
       await this.audit.record(
         {
           adminId: admin.id,
@@ -218,6 +224,15 @@ export class AdminChannelsService {
         tx,
       );
     });
+    // After the commit: the number is applied by the counter flusher.
+    if (this.counters) {
+      await this.counters.bump(
+        'channel',
+        channelId,
+        'post_count',
+        nextLive ? 1 : -1,
+      );
+    }
     if (!nextLive) {
       await this.notifications.emit({
         type: 'moderation_notice',
