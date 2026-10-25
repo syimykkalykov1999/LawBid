@@ -111,6 +111,14 @@ resource "aws_sns_topic_policy" "alerts" {
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
         }
       },
+      {
+        # Cost Anomaly Detection (modules/budget, IMMEDIATE subscription).
+        Sid       = "CostAnomalyPublisher"
+        Effect    = "Allow"
+        Principal = { Service = "costalerts.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alerts.arn
+      },
     ]
   })
 }
