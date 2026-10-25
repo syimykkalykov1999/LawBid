@@ -1268,6 +1268,22 @@ model AppConfig {
   @@map("app_config")
 }
 
+// Shard-ready step 3 (docs/architecture/SHARDING_READY.md §5): which
+// physical database holds each of the 256 logical shards. Global family
+// (lives on the primary DB). `physical_db` is a key of DATABASE_URL (the
+// key `primary`) or of the DATABASE_URL_SHARDS JSON; every shard maps to
+// `primary` until a second database exists. `version` bumps on every
+// change so caches can fence stale maps.
+model ShardMap {
+  logical_shard Int      @id @db.SmallInt
+  physical_db   String   @default("primary")
+  state         String   @default("active")
+  version       Int      @default(1)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("shard_map")
+}
+
 model I18nLanguage {
   code        String  @id
   name_native String

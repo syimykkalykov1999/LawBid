@@ -192,9 +192,10 @@ resource "aws_cloudwatch_composite_alarm" "slo" {
   alarm_name        = "${var.name}-slo-${each.key}"
   alarm_description = local.slos[each.value.slo].text
   alarm_rule        = "ALARM(\"${aws_cloudwatch_metric_alarm.slo_burn["${each.value.slo}-${each.value.pair}_long"].alarm_name}\") AND ALARM(\"${aws_cloudwatch_metric_alarm.slo_burn["${each.value.slo}-${each.value.pair}_short"].alarm_name}\")"
-  alarm_actions     = local.ops
-  ok_actions        = local.ops
-  tags              = var.tags
+  # Batch A item 1: the only alarms that also publish to the critical topic (phone).
+  alarm_actions = local.page
+  ok_actions    = local.page
+  tags          = var.tags
 }
 
 # Cloudflare TURN refused to hand out logins (after a retry) several times in

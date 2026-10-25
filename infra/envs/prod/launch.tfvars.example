@@ -106,3 +106,33 @@ web_create_certificate = true
 # lines out and the API keeps presigned S3 links.
 # documents_cdn_public_key_pem = file("cloudfront-signing.pub.pem")
 # extra_secrets                = ["CLOUDFRONT_PRIVATE_KEY_PEM"]
+
+# --- database autoscale (owner 2026-10-24, docs/runbooks/db-autoscale.md) ------
+# On by default for the database named in existing_database_identifier. Idle
+# until Multi-AZ is on (a pending modification pauses it). Optional:
+# db_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
+# db_autoscale_min_class = "db.t4g.micro"
+# db_autoscale_enabled   = false              # switch the whole thing off
+
+# --- Redis autoscale (owner 2026-10-24, docs/runbooks/redis-autoscale.md) ------
+# On by default for lawbid-prod-redis. Idle until the replica has automatic
+# failover on (a pending modification pauses it). Optional:
+# redis_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# redis_autoscale_max_class = "cache.r7g.large"  # ceiling, about $320/month with one replica
+# redis_autoscale_min_class = "cache.t4g.micro"
+# redis_autoscale_enabled   = false              # switch the whole thing off
+
+# --- Batch A (2026-10-24, docs/runbooks/batch-a-owner.md): all additive, none applied yet ---
+# pagerduty_https_endpoint = "https://events.pagerduty.com/integration/REPLACE/enqueue" # secret: only in the Secrets Manager tfvars
+# backup_age_missing_data  = "notBreaching" # until the first backup job is COMPLETED, then "breaching"
+# backup_vault_lock_mode   = "governance"   # "compliance" only after a passing restore drill
+# audit_logs_enabled       = true           # keep audit_logs_object_lock = false (S3 server access logs cannot go to an Object Lock bucket)
+# documents_data_events    = true
+# waf_bot_control_enabled  = true           # count mode; waf_bot_control_block stays false for 1-2 weeks
+# budget_forecast_thresholds   = [80, 100]
+# create_anomaly_monitor       = false
+# anomaly_existing_monitor_arn = "arn:aws:ce::047754151252:anomalymonitor/22314789-2e8e-43a5-8360-f93611944718"
+# anomaly_extra_emails         = ["REPLACE@gmail.com"]
+# redis_memory_alarm_percent   = 70   # default
+# nat_traffic_alarm_gb_per_day = 100  # default; 0 = off

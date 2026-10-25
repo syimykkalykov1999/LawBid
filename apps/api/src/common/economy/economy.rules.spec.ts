@@ -121,9 +121,17 @@ describe('fargateTaskMonthUsd', () => {
 describe('tiers', () => {
   it('finds the next bigger database tier', () => {
     expect(nextTier(DB_TIERS, 'db.t4g.medium')?.name).toBe('db.t4g.large');
+    expect(nextTier(DB_TIERS, 'db.t4g.large')?.name).toBe('db.r7g.large');
+  });
+  it('steps the Redis ladder the same way as the autoscaler', () => {
+    expect(nextTier(REDIS_TIERS, 'cache.t4g.medium')?.name).toBe(
+      'cache.r7g.large',
+    );
+    expect(nextTier(REDIS_TIERS, 'cache.r7g.2xlarge')).toBeNull();
+    expect(nextTier(REDIS_TIERS, 'cache.m7g.large')).toBeNull();
   });
   it('has no next tier after the largest or for an unknown class', () => {
-    expect(nextTier(DB_TIERS, 'db.t4g.2xlarge')).toBeNull();
+    expect(nextTier(DB_TIERS, 'db.r7g.2xlarge')).toBeNull();
     expect(nextTier(DB_TIERS, 'db.r6g.large')).toBeNull();
     expect(nextTier(REDIS_TIERS, null)).toBeNull();
   });

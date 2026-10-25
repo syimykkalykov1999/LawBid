@@ -151,6 +151,7 @@ resource "aws_vpc_endpoint" "interface" {
   tags                = merge(var.tags, { Name = "${var.name}-${each.key}" })
 }
 
+output "nat_gateway_ids" { value = aws_nat_gateway.this[*].id }
 output "vpc_id" { value = aws_vpc.this.id }
 output "vpc_cidr" { value = aws_vpc.this.cidr_block }
 output "public_subnet_ids" { value = aws_subnet.public[*].id }

@@ -657,6 +657,82 @@ export const PROVIDERS: ProviderDefinition[] = [
       }),
   },
   {
+    // 2026-10-24 (abuse batch B, item 4): bot check of the WEB page on
+    // sign-up and code requests. The app (iOS / Android) uses App Check.
+    id: 'turnstile',
+    label: 'Cloudflare Turnstile (защита сайта от ботов)',
+    description:
+      'Проверка «не бот» на сайте при регистрации и запросе кода. В приложении не используется (там App Check). Включается в Система → Настройки: security.turnstile.mode (off / monitor / enforce).',
+    fields: [
+      {
+        name: 'secretKey',
+        label: 'Секретный ключ (Secret key)',
+        secret: true,
+        required: true,
+        pattern: /^[0-9A-Za-z_-]{20,80}$/,
+        patternHint: '0x4AAAAAAA…',
+        env: 'TURNSTILE_SECRET_KEY',
+      },
+      {
+        name: 'siteKey',
+        label: 'Ключ сайта (Site key, публичный)',
+        secret: false,
+        required: false,
+        pattern: /^[0-9A-Za-z_-]{10,80}$/,
+        patternHint: '0x4AAAAAAA…',
+        env: 'TURNSTILE_SITE_KEY',
+      },
+      {
+        name: 'hostnames',
+        label: 'Разрешённые домены сайта (через запятую, пусто = любые)',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9.-]+(,[a-z0-9.-]+)*$/,
+        patternHint: 'lawbid.dev,www.lawbid.dev',
+        env: 'TURNSTILE_HOSTNAMES',
+        normalize: (v) => commaList(v).toLowerCase(),
+      },
+    ],
+    // siteverify answers invalid-input-response for a good secret and
+    // invalid-input-secret for a bad one (developers.cloudflare.com/
+    // turnstile/get-started/server-side-validation, 2026-10-22).
+    test: async (f) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(
+          'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              secret: f.secretKey,
+              response: 'lawbid-key-check',
+            }),
+            signal: ctrl.signal,
+          },
+        );
+        const body = (await res.json()) as { 'error-codes'?: string[] };
+        const codes = body['error-codes'] ?? [];
+        if (
+          codes.includes('invalid-input-secret') ||
+          codes.includes('missing-input-secret')
+        ) {
+          throw new Error(
+            'Секретный ключ не принят Cloudflare: неверный ключ?',
+          );
+        }
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw new Error('Cloudflare не ответил за 8 с');
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  },
+  {
     id: 'google_signin',
     label: 'Google sign-in',
     description: 'OAuth client IDs of the iOS / Android / web apps.',

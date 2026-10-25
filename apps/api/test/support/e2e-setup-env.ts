@@ -6,6 +6,10 @@ if (process.env.E2E_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.E2E_DATABASE_URL;
 }
 process.env.REDIS_URL = e2eRedisUrl();
+// Shard-ready step 5: the second database of the two-DB mode (E2E_TWO_DB=1).
+if (process.env.E2E_DATABASE_URL_SHARDS) {
+  process.env.DATABASE_URL_SHARDS = process.env.E2E_DATABASE_URL_SHARDS;
+}
 
 // A shared CI runner can stall the event loop for seconds while an
 // AppModule boots; with the production 2 s command timeout the timer then

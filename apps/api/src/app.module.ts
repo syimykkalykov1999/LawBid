@@ -10,6 +10,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { startTime, type Options as PinoHttpOptions } from 'pino-http';
 import { ViewerContextInterceptor } from './common/viewer/viewer-context';
+import { ShardContextInterceptor } from './sharding/shard-context.interceptor';
 import { ConfigModule } from './config/config.module';
 import { AdminCacheHeadersMiddleware } from './common/middleware/admin-cache-headers.middleware';
 import { PrismaModule } from './prisma/prisma.module';
@@ -406,6 +407,9 @@ const isDev =
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },
+    // Shard-ready step 4: the shard context of the request (route ids, else
+    // the signed-in user). No effect while all shards share one database.
+    { provide: APP_INTERCEPTOR, useClass: ShardContextInterceptor },
     // OQ-048: per signed-in user (assistants share an office IP).
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],

@@ -51,8 +51,9 @@ export class PostEventsService {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(
           hashtextextended(${`${postId}:${viewerId}:${kind}`}, 0))`;
         return tx.$executeRaw`
-          INSERT INTO post_view_events (post_id, viewer_id, kind)
-          SELECT ${postId}::UUID, ${viewerId}::UUID, ${kind}
+          INSERT INTO post_view_events (post_id, viewer_id, kind, shard_id)
+          SELECT ${postId}::UUID, ${viewerId}::UUID, ${kind},
+                 COALESCE((SELECT shard_id FROM posts WHERE id = ${postId}::UUID), 0)
           WHERE NOT EXISTS (
             SELECT 1 FROM post_view_events
             WHERE post_id = ${postId}::UUID AND viewer_id = ${viewerId}::UUID

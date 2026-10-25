@@ -22,6 +22,8 @@ export const KEEP_TABLES: Readonly<Record<string, string>> = {
   search_synonym_terms: 'its words and phrases',
   _prisma_migrations: 'migration history',
   app_config: 'settings and cost caps (seed + admin)',
+  shard_map:
+    'which physical database holds each logical shard (routing config)',
   feature_flags: 'feature switches (seed + admin)',
   legal_documents: 'terms / privacy texts (seed + admin)',
   blocked_email_domains: 'disposable e-mail domains (seed)',

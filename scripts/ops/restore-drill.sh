@@ -5,6 +5,10 @@
 #
 #   scripts/ops/restore-drill.sh                     # prod defaults
 #   DB_ID=lawbid-prod-postgres CLUSTER=lawbid-prod MODE=pitr scripts/ops/restore-drill.sh
+#   MODE=backup-vault scripts/ops/restore-drill.sh   # AWS Backup recovery point (what we claim to have)
+#   MODE=backup-vault DR=1 DR_SUBNET_GROUP=… scripts/ops/restore-drill.sh   # the copy in us-west-2
+#   FAILOVER=1 HEALTH_URL=https://… scripts/ops/restore-drill.sh   # RDS Multi-AZ reboot with failover
+#   DB_ID=lawbid-staging-postgres CLUSTER=lawbid-staging …   # same, in staging / loadtest
 #
 # What it does, from the owner's Mac with the AWS CLI logged in:
 #   1. finds the newest automated snapshot of $DB_ID (MODE=snapshot, default)
@@ -23,6 +27,24 @@
 # Cost: one db.t4g.micro for ~30–60 minutes ≈ $0.05 plus a few cents of
 # Fargate. KEEP=1 leaves the copy running (delete it by hand afterwards).
 #
+# MODE=backup-vault (Batch A item 2): the restore comes from the newest
+# COMPLETED recovery point of the AWS Backup vault `${CLUSTER}-db`
+# (`aws backup start-restore-job`), not from an RDS automated snapshot. With
+# DR=1 it comes from the copy in the second region (vault `${CLUSTER}-db-dr`,
+# DR_REGION, default us-west-2): that region has no VPC of ours, so give
+# DR_SUBNET_GROUP (and DR_SG_IDS); there is no ECS to run the smoke query
+# there, so the drill proves "the copy restores to an available instance"
+# and stops (RTO to `available`).
+#
+# FAILOVER=1 (separate test, touches the LIVE instance of $DB_ID): needs
+# Multi-AZ, HEALTH_URL (an HTTP URL that reads the database, e.g.
+# https://api.lawbid.dev/health/ready) and CONFIRM_OUTAGE=yes. Runs
+# `aws rds reboot-db-instance --force-failover`, polls HEALTH_URL every
+# second and prints the outage seconds + the failed requests. AWS: a reboot
+# with failover simulates a failure, DNS flips, connections must reconnect,
+# an outage still happens. Run it OFF-PEAK, in staging / loadtest first.
+# Prod additionally needs ALLOW_PROD=1.
+#
 # Optional deep check: RESTORED_URL + PROD_URL (both reachable from here)
 # compare migrations and row counts copy vs production (old manual mode).
 set -euo pipefail
@@ -31,6 +53,10 @@ REGION="${AWS_REGION:-us-east-1}"
 DB_ID="${DB_ID:-lawbid-prod-postgres}"
 CLUSTER="${CLUSTER:-lawbid-prod}"
 MODE="${MODE:-snapshot}"
+DR="${DR:-0}"
+DR_REGION="${DR_REGION:-us-west-2}"
+VAULT="${VAULT:-${CLUSTER}-db}"
+BACKUP_ROLE="${BACKUP_ROLE:-${CLUSTER}-backup}"
 CLASS="${DRILL_CLASS:-db.t4g.micro}"
 DRILL_ID="${DRILL_ID:-lawbid-drill-$(date -u +%Y%m%d-%H%M)}"
 AWS=(aws --region "$REGION")
@@ -54,6 +80,49 @@ if [ -n "${RESTORED_URL:-}" ] && [ -n "${PROD_URL:-}" ]; then
   exit 0
 fi
 
+# ------------------------------------------------------------ failover test
+if [ "${FAILOVER:-0}" = "1" ]; then
+  command -v aws >/dev/null && command -v curl >/dev/null || { echo "aws and curl are required"; exit 1; }
+  [ -n "${HEALTH_URL:-}" ] || { echo "set HEALTH_URL (an endpoint that reads the database)"; exit 1; }
+  [ "${CONFIRM_OUTAGE:-}" = "yes" ] || { echo "this causes a real outage of about a minute: re-run with CONFIRM_OUTAGE=yes (off-peak)"; exit 1; }
+  case "$DB_ID" in *prod*) [ "${ALLOW_PROD:-0}" = "1" ] || { echo "$DB_ID looks like production: run in staging / loadtest first, or ALLOW_PROD=1"; exit 1; } ;; esac
+  read -r MAZ AZ_BEFORE < <("${AWS[@]}" rds describe-db-instances --db-instance-identifier "$DB_ID" \
+    --query 'DBInstances[0].[MultiAZ, AvailabilityZone]' --output text)
+  [ "$MAZ" = "True" ] || { echo "$DB_ID is not Multi-AZ: a failover test makes no sense (docs/runbooks/backups.md)"; exit 1; }
+  PROBE=$(mktemp)
+  ( while :; do
+      code=$(curl -s -o /dev/null -m 3 -w '%{http_code}' "$HEALTH_URL" || true)
+      printf '%s %s\n' "$(date +%s)" "${code:-000}" >> "$PROBE"
+      sleep 1
+    done ) &
+  PROBE_PID=$!
+  trap 'kill $PROBE_PID 2>/dev/null || true; rm -f "$PROBE"' EXIT
+  sleep 10
+  log "failover: $DB_ID is in $AZ_BEFORE; rebooting with failover…"
+  T0=$(date +%s)
+  "${AWS[@]}" rds reboot-db-instance --db-instance-identifier "$DB_ID" --force-failover >/dev/null
+  # Wait for the AZ to change and the instance to be available again.
+  while :; do
+    read -r ST AZ_NOW < <("${AWS[@]}" rds describe-db-instances --db-instance-identifier "$DB_ID" \
+      --query 'DBInstances[0].[DBInstanceStatus, AvailabilityZone]' --output text)
+    [ "$ST" = "available" ] && [ "$AZ_NOW" != "$AZ_BEFORE" ] && break
+    [ $(( $(date +%s) - T0 )) -lt 900 ] || { echo "no failover finished in 15 min: check RDS events"; exit 1; }
+    sleep 5
+  done
+  T_DB=$(date +%s)
+  sleep 30   # let the app reconnect; the probe keeps counting
+  kill $PROBE_PID 2>/dev/null || true
+  FAILED=$(awk -v t0="$T0" '$1>=t0 && $2!~/^2/ {n++} END{print n+0}' "$PROBE")
+  FIRST=$(awk -v t0="$T0" '$1>=t0 && $2!~/^2/ {print $1; exit}' "$PROBE")
+  LAST=$(awk -v t0="$T0" '$1>=t0 && $2!~/^2/ {l=$1} END{print l}' "$PROBE")
+  OUT=0; [ -n "$FIRST" ] && OUT=$(( LAST - FIRST + 1 ))
+  log "failover OK: $AZ_BEFORE → $AZ_NOW, RDS available after $(( T_DB - T0 )) s; $FAILED failed probes, user-visible outage ≈ ${OUT} s."
+  echo "Add to docs/runbooks/restore-drill.md (failover table):"
+  echo "| $(date -u +%Y-%m-%d) | $DB_ID | $AZ_BEFORE → $AZ_NOW | $(( T_DB - T0 )) s | ${OUT} s | $FAILED | — | $(whoami) |"
+  [ "$OUT" -le "${MAX_OUTAGE_SEC:-180}" ] || { echo "outage longer than ${MAX_OUTAGE_SEC:-180} s: check the pool / retry settings (docs/runbooks/DB_POOLER.md)"; exit 1; }
+  exit 0
+fi
+
 # ------------------------------------------------------------ automated drill
 command -v aws >/dev/null || { echo "aws CLI is required"; exit 1; }
 command -v openssl >/dev/null || { echo "openssl is required"; exit 1; }
@@ -73,15 +142,54 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [ "$MODE" = "backup-vault" ] && [ "$DR" = "1" ]; then
+  [ -n "${DR_SUBNET_GROUP:-}" ] || { echo "DR=1 needs DR_SUBNET_GROUP (a DB subnet group in $DR_REGION)"; exit 1; }
+  VAULT="${VAULT_DR:-${CLUSTER}-db-dr}"
+  AWS=(aws --region "$DR_REGION")
+fi
+
 log "1/6 source $DB_ID…"
-read -r SUBNET_GROUP PARAM_GROUP SG_IDS < <("${AWS[@]}" rds describe-db-instances --db-instance-identifier "$DB_ID" \
+read -r SUBNET_GROUP PARAM_GROUP SG_IDS < <(aws --region "$REGION" rds describe-db-instances --db-instance-identifier "$DB_ID" \
   --query 'DBInstances[0].[DBSubnetGroup.DBSubnetGroupName, DBParameterGroups[0].DBParameterGroupName, join(`,`, VpcSecurityGroups[].VpcSecurityGroupId)]' \
   --output text)
 COMMON=(--db-instance-identifier "$DRILL_ID" --db-instance-class "$CLASS" --db-subnet-group-name "$SUBNET_GROUP"
   --db-parameter-group-name "$PARAM_GROUP" --vpc-security-group-ids ${SG_IDS//,/ }
   --no-multi-az --no-publicly-accessible --no-deletion-protection --tags Key=Purpose,Value=restore-drill)
 
-if [ "$MODE" = "pitr" ]; then
+if [ "$MODE" = "backup-vault" ]; then
+  read -r RP BACKUP_TIME < <("${AWS[@]}" backup list-recovery-points-by-backup-vault --backup-vault-name "$VAULT" \
+    --query 'reverse(sort_by(RecoveryPoints[?Status==`COMPLETED`], &CreationDate))[0].[RecoveryPointArn, CreationDate]' --output text)
+  [ -n "$RP" ] && [ "$RP" != "None" ] || { echo "vault $VAULT has no COMPLETED recovery point yet (first run 06:00 UTC, or start one: docs/runbooks/restore-drill.md)"; exit 1; }
+  ROLE_ARN=$(aws --region "$REGION" iam get-role --role-name "$BACKUP_ROLE" --query Role.Arn --output text)
+  log "2/6 restore recovery point $RP ($BACKUP_TIME) from vault $VAULT → $DRILL_ID…"
+  META=$(mktemp)
+  "${AWS[@]}" backup get-recovery-point-restore-metadata --backup-vault-name "$VAULT" --recovery-point-arn "$RP" \
+    --query RestoreMetadata --output json > "$META"
+  # Start from what AWS Backup suggests, then force the drill settings.
+  # Security groups are set after the restore (modify-db-instance below):
+  # the list format of that key in the restore metadata is not documented.
+  python3 - "$META" "$DRILL_ID" "$CLASS" "$([ "$DR" = "1" ] && echo "$DR_SUBNET_GROUP" || echo "$SUBNET_GROUP")" "-" "$([ "$DR" = "1" ] && echo "" || echo "$PARAM_GROUP")" <<'PY'
+import json, sys
+path, ident, cls, subnet, sgs, pg = sys.argv[1:7]
+m = json.load(open(path))
+m.update({"DBInstanceIdentifier": ident, "DBInstanceClass": cls, "DBSubnetGroupName": subnet,
+          "MultiAZ": "false", "PubliclyAccessible": "false", "DeletionProtection": "false"})
+if pg:
+    m["DBParameterGroupName"] = pg
+json.dump({k: str(v) for k, v in m.items()}, open(path, "w"))
+PY
+  RJOB=$("${AWS[@]}" backup start-restore-job --recovery-point-arn "$RP" --iam-role-arn "$ROLE_ARN" \
+    --resource-type RDS --metadata "file://$META" --query RestoreJobId --output text)
+  rm -f "$META"
+  while :; do
+    RST=$("${AWS[@]}" backup describe-restore-job --restore-job-id "$RJOB" --query Status --output text)
+    case "$RST" in
+      COMPLETED) break ;;
+      ABORTED|FAILED) echo "restore job $RJOB ended $RST: $("${AWS[@]}" backup describe-restore-job --restore-job-id "$RJOB" --query StatusMessage --output text)"; exit 1 ;;
+    esac
+    sleep 30
+  done
+elif [ "$MODE" = "pitr" ]; then
   BACKUP_TIME=$("${AWS[@]}" rds describe-db-instances --db-instance-identifier "$DB_ID" --query 'DBInstances[0].LatestRestorableTime' --output text)
   log "2/6 point-in-time restore to the latest restorable time ($BACKUP_TIME) → $DRILL_ID…"
   "${AWS[@]}" rds restore-db-instance-to-point-in-time --source-db-instance-identifier "$DB_ID" \
@@ -96,8 +204,25 @@ else
   "${AWS[@]}" rds restore-db-instance-from-db-snapshot --db-snapshot-identifier "$SNAP" "${COMMON[@]}" >/dev/null
 fi
 "${AWS[@]}" rds wait db-instance-available --db-instance-identifier "$DRILL_ID"
+if [ "$MODE" = "backup-vault" ]; then
+  SGS_FIX="${DR_SG_IDS:-}"; [ "$DR" = "1" ] || SGS_FIX="${SG_IDS//,/ }"
+  if [ -n "$SGS_FIX" ]; then
+    "${AWS[@]}" rds modify-db-instance --db-instance-identifier "$DRILL_ID" --vpc-security-group-ids ${SGS_FIX//,/ } --apply-immediately >/dev/null
+    sleep 30
+    "${AWS[@]}" rds wait db-instance-available --db-instance-identifier "$DRILL_ID"
+  fi
+fi
 RESTORED_AT=$(date +%s)
 log "   available after $(( (RESTORED_AT - START) / 60 )) min."
+
+if [ "$MODE" = "backup-vault" ] && [ "$DR" = "1" ]; then
+  # No VPC / ECS of ours in the DR region: available = the copy restores.
+  RTO_MIN=$(( ($(date +%s) - START) / 60 ))
+  log "DR copy restored and available in $DR_REGION after ${RTO_MIN} min (no smoke query there). Deleting…"
+  cleanup; trap - EXIT
+  echo "| $(date -u +%Y-%m-%d) | backup-vault DR ($DR_REGION): $BACKUP_TIME | $DRILL_ID ($CLASS) | ${RTO_MIN} min | - | instance available | — | $(whoami) |"
+  exit 0
+fi
 
 log "3/6 fresh master password on the copy…"
 PASS=$(openssl rand -hex 24)

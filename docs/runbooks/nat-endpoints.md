@@ -1,0 +1,62 @@
+# NAT: трафик и когда выгодны VPC-эндпоинты
+
+> **Для владельца:** весь выход серверов в интернет идёт через один NAT
+> (`nat_per_az = false`). NAT берёт **$0,045 за каждый ГБ** (+ $0,045 в час,
+> ≈ $33/мес). Тревога `lawbid-prod-nat-bytes-0` пишет письмом, если за сутки
+> через NAT прошло больше `nat_traffic_alarm_gb_per_day` ГБ (по умолчанию
+> 100 ГБ ≈ $4,5 в сутки). Это не авария: приложение работает. Что делать:
+> открыть этот файл и проверить, что именно качает сервер.
+
+## Цены (us-east-1, на 2026-10-24)
+
+- NAT Gateway: $0,045/час и $0,045/ГБ ([AWS VPC pricing](https://aws.amazon.com/vpc/pricing/);
+  в примере страницы указан регион Ohio, у N. Virginia та же цена).
+- Interface-эндпоинт: $0,01/час за каждую зону (AZ) и $0,01/ГБ
+  ([AWS PrivateLink pricing](https://aws.amazon.com/privatelink/pricing/)).
+- Gateway-эндпоинт (S3, DynamoDB): бесплатно. S3 у нас уже включён.
+
+## Точка безубыточности
+
+Эндпоинт на одну зону: $0,01 × 730 ч ≈ **$7,3/мес**. Каждый ГБ через
+эндпоинт вместо NAT экономит $0,045 − $0,01 = **$0,035**.
+
+| Эндпоинт в | Фиксированная цена | Выгоден, если через него идёт больше |
+|---|---|---|
+| 1 зоне (как у нас) | ≈ $7,3/мес | **≈ 210 ГБ/мес** |
+| 2 зонах | ≈ $14,6/мес | **≈ 420 ГБ/мес** |
+
+Сейчас стоят 4 эндпоинта в одной зоне (`ecr.api, ecr.dkr, logs,
+secretsmanager`) ≈ $29/мес. Они окупаются, только если суммарно экономят
+больше $29: то есть через них идёт больше ≈ 840 ГБ/мес (≈ 210 ГБ на
+каждый). Для ECR (`ecr.dkr` + S3) это образы: 0,5 ГБ × число запусков
+задач. Если трафик мал, лишний эндпоинт можно убрать из
+`interface_endpoints` (но проверить по цифрам ниже, не наугад).
+
+Большая часть исходящего трафика (Twilio, Stripe, Cloudflare, Bunny, Firebase)
+уходит в интернет и **через эндпоинт идти не может** — NAT тут нужен всегда.
+
+## Как измерить (прежде чем менять)
+
+1. Метрики NAT: CloudWatch → `AWS/NATGateway`, `BytesOutToDestination` +
+   `BytesInFromDestination` (сумма = то, за что платим), по `NatGatewayId`.
+
+   ```sh
+   aws cloudwatch get-metric-statistics --namespace AWS/NATGateway --metric-name BytesOutToDestination \
+     --dimensions Name=NatGatewayId,Value=<nat-id> --start-time $(date -u -v-7d +%FT%TZ) --end-time $(date -u +%FT%TZ) \
+     --period 86400 --statistics Sum --output table
+   ```
+
+2. Кто именно качает: Cost Explorer → фильтр Usage type `NatGateway-Bytes`,
+   либо VPC Flow Logs (включаются `audit_logs_enabled = true`, лежат в
+   журнальном бакете), либо Logs Insights по логам потоков.
+3. Решение: если один AWS-сервис (ECR, CloudWatch Logs, Secrets Manager,
+   SQS и т. п.) даёт > 210 ГБ/мес — добавить для него interface-эндпоинт в
+   `interface_endpoints`. Если трафик к Twilio/Stripe/Cloudflare/Bunny —
+   эндпоинт не поможет; тогда смотреть, нет ли лишних скачиваний (фото,
+   видео, обновления), и писать Claude «NAT много трафика».
+
+## Что даёт код
+
+- Тревога `lawbid-prod-nat-bytes-<n>` (`infra/modules/monitoring`, сумма
+  in + out за 24 часа, письмо). Выключить: `nat_traffic_alarm_gb_per_day = 0`.
+- Откат: удалить строку из tfvars (вернётся 100) или поставить 0.

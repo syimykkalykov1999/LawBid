@@ -192,6 +192,7 @@ export const GLOBAL_MODELS: readonly string[] = [
   'BlockedEmailDomain',
   'FeatureFlag',
   'AppConfig',
+  'ShardMap',
   'I18nLanguage',
   'I18nKey',
   'I18nTranslation',
