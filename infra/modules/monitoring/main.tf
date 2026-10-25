@@ -803,6 +803,9 @@ resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
     economy_guard_on  = "EconomyGuardOn"
     economy_guard_off = "EconomyGuardOff"
     capacity_pressure = "CapacityPressure"
+
+    # Day-one foundations: the nightly money-ledger check (ledger.reconcile).
+    ledger_mismatch = "LedgerMismatch"
   }
   name           = "${var.name}-ops-${replace(each.key, "_", "-")}"
   log_group_name = var.worker_log_group
@@ -1042,6 +1045,10 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
     economy_guard_off = {
       metric = "EconomyGuardOff"
       text   = "Ограничения экономики сняты: расходы снова в норме или автоматика выключена. Что делать: ничего. (EN: economy guard switched off.)"
+    }
+    ledger_mismatch = {
+      metric = "LedgerMismatch"
+      text   = "Ночная сверка денег нашла расхождение: книга учёта денег не сходится с платежами или со Stripe. Что делать: деньги пользователей не затронуты, но откройте логи воркера (поиск alert ledger_mismatch) и пришлите их Claude «ledger mismatch». Инструкция: docs/architecture/MONEY_LEDGER.md. (EN: nightly ledger reconciliation found a mismatch.)"
     }
     capacity_pressure = {
       metric = "CapacityPressure"

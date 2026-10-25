@@ -3426,6 +3426,86 @@ model Payment {
   @@map("payments")
 }
 
+// Day-one foundations (2026-10-24): the double-entry money ledger (design:
+// docs/architecture/MONEY_LEDGER.md). Append-only: UPDATE / DELETE are blocked
+// by triggers, and every entry balances (debits = credits, >= 2 lines) at
+// commit. Amounts are integer cents of ONE currency per entry. Global family
+// (platform accounts and cross-party entries cannot live in one user shard);
+// `party_shard` records the shard of the main user party for later splits,
+// exports and per-shard reports.
+enum LedgerAccountType {
+  asset
+  liability
+  revenue
+  expense
+  external
+}
+
+enum LedgerDirection {
+  debit
+  credit
+}
+
+model LedgerAccount {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Chart code, e.g. stripe_platform_balance, revenue_subscriptions, connect_attorney.
+  code        String            @db.VarChar(64)
+  /// 'platform' or the owning user's id (text), so (code, owner, currency) is unique.
+  owner_key   String            @default("platform") @db.VarChar(40)
+  /// No FK on purpose: the ledger outlives account anonymisation.
+  owner_id    String?           @db.Uuid
+  currency    String            @db.VarChar(3)
+  type        LedgerAccountType
+  party_shard Int               @default(0) @db.SmallInt
+  created_at  DateTime          @default(now()) @db.Timestamptz
+
+  lines LedgerLine[]
+
+  @@unique([code, owner_key, currency])
+  @@index([owner_id])
+  @@map("ledger_accounts")
+}
+
+model LedgerEntry {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// What happened: case_payment, payment, refund, stripe_balance_txn ...
+  source_type String   @db.VarChar(40)
+  /// Id of the source row or the Stripe event / balance transaction.
+  source_id   String   @db.VarChar(80)
+  /// paid, refunded, ... With source_type + source_id this is the idempotency key.
+  event       String   @db.VarChar(40)
+  currency    String   @db.VarChar(3)
+  description String   @db.VarChar(200)
+  /// Stripe object (charge / balance transaction / transfer) for reconciliation.
+  stripe_ref  String?  @db.VarChar(80)
+  party_shard Int      @default(0) @db.SmallInt
+  occurred_at DateTime @db.Timestamptz
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  lines LedgerLine[]
+
+  @@unique([source_type, source_id, event])
+  @@index([occurred_at])
+  @@index([stripe_ref])
+  @@map("ledger_entries")
+}
+
+model LedgerLine {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entry_id     String          @db.Uuid
+  entry        LedgerEntry     @relation(fields: [entry_id], references: [id], onDelete: Restrict)
+  account_id   String          @db.Uuid
+  account      LedgerAccount   @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  direction    LedgerDirection
+  /// Integer cents, > 0 (CHECK in the migration).
+  amount_cents Int
+  created_at   DateTime        @default(now()) @db.Timestamptz
+
+  @@index([entry_id])
+  @@index([account_id, created_at(sort: Desc)])
+  @@map("ledger_lines")
+}
+
 // Existence of the row = event already handled (webhook idempotency).
 model StripeWebhookEvent {
   stripe_event_id String    @id
