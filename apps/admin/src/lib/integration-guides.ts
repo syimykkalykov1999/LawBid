@@ -95,6 +95,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Видео и рилсы начинают загружаться сразу после «Включить», без обновления приложения.',
     ],
     fields: {
+      accountApiKey: { how: 'Bunny → Account → API Key (ключ аккаунта, не библиотеки). Только для учёта трафика и места, необязательно.' },
       libraryId: { how: 'Stream → библиотека → вкладка API → «Video Library ID». Только цифры.', example: '768949' },
       cdnHostname: {
         how: 'Там же «CDN Hostname». Можно вставить и с https:// — лишнее уберётся само.',
@@ -233,6 +234,8 @@ export const GUIDES: Record<string, ProviderGuide> = {
     links: [{ label: 'Cloudflare Realtime TURN', url: 'https://developers.cloudflare.com/realtime/turn/' }],
     enable: ['Заполните ID ключа и API-токен → «Сохранить» → «Проверить» → «Включить».'],
     fields: {
+      accountId: { how: 'Cloudflare → правый верхний угол «Account ID» (32 символа). Нужен только для учёта трафика звонков.', example: '0123456789abcdef0123456789abcdef' },
+      analyticsToken: { how: 'My Profile → API Tokens → Create Token → право «Account Analytics: Read». Только для учёта трафика, необязательно.' },
       keyId: { how: 'Realtime → TURN Server → ваш ключ → Key ID.' },
       apiToken: { how: 'Токен, который Cloudflare показал при создании ключа (один раз).' },
     },
