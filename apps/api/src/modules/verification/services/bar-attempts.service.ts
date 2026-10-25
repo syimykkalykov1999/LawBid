@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { delSafe } from '../../../redis/redis-cluster-safe';
 
 const DAY = 86_400;
 
@@ -67,6 +68,9 @@ export class BarAttemptsService {
   /** A correct number: start over. */
   async reset(userId: string, ip?: string): Promise<void> {
     const ks = this.keys(userId, ip);
-    await this.redis.del(...ks, ...ks.map((k) => k.replace('fails', 'cool')));
+    await delSafe(this.redis, [
+      ...ks,
+      ...ks.map((k) => k.replace('fails', 'cool')),
+    ]);
   }
 }

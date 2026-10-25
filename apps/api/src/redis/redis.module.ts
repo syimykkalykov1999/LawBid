@@ -1,6 +1,7 @@
 import { Global, Inject, Module, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+import { createRedisClient } from './redis-connection';
 import { REDIS_CLIENT } from './redis.constants';
 
 @Global()
@@ -13,7 +14,7 @@ import { REDIS_CLIENT } from './redis.constants';
         const url = config.get<string>('REDIS_URL');
         // commandTimeout: a hung Redis fails a command in 2 s instead of
         // stalling requests (throttler fails open, cost guard fails closed).
-        return new Redis(url as string, {
+        return createRedisClient(url as string, {
           maxRetriesPerRequest: 3,
           commandTimeout:
             config.get<number>('REDIS_COMMAND_TIMEOUT_MS') ?? 2000,

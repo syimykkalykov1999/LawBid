@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { FileScanProcessor } from './file-scan.processor';
+import { bullOptions } from '../../../redis/redis-connection';
 
 /** BullMQ queue of the upload pipeline (docs/06 §6 `worker` service). */
 export const FILES_QUEUE = 'files';
@@ -53,7 +54,7 @@ export class FileScanRunner
 
   onApplicationBootstrap(): void {
     const url = this.config.getOrThrow<string>('REDIS_URL');
-    this.queue = new Queue(FILES_QUEUE, { connection: { url } });
+    this.queue = new Queue(FILES_QUEUE, bullOptions(FILES_QUEUE, url));
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       FILES_QUEUE,
@@ -63,7 +64,7 @@ export class FileScanRunner
           job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
         ),
       {
-        connection: { url, maxRetriesPerRequest: null },
+        ...bullOptions(FILES_QUEUE, url, { worker: true }),
         // Scans + sharp are CPU/memory heavy (10 MB files).
         concurrency: 2,
       },

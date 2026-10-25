@@ -13,6 +13,8 @@ import { OpsStateService } from '../ops-state.service';
 import { HttpStatsService } from '../http-stats.service';
 import { RealtimeStatsService } from '../realtime-stats.service';
 import { SLO_REDIS_PREFIX } from '../slo-metrics.service';
+import { bullOptions } from '../../../redis/redis-connection';
+import { pipeline } from '../../../redis/redis-cluster-safe';
 
 export type ProbeStatus = 'green' | 'yellow' | 'red' | 'grey';
 
@@ -132,9 +134,10 @@ export class StatusProbesService implements OnModuleDestroy {
   private queue(name: string): Queue {
     let q = this.queues.get(name);
     if (!q) {
-      q = new Queue(name, {
-        connection: { url: this.config.getOrThrow<string>('REDIS_URL') },
-      });
+      q = new Queue(
+        name,
+        bullOptions(name, this.config.getOrThrow<string>('REDIS_URL')),
+      );
       this.queues.set(name, q);
     }
     return q;
@@ -266,7 +269,7 @@ export class StatusProbesService implements OnModuleDestroy {
     const now = new Date();
     const queue = await this.queueStats(PUSH_QUEUE_NAME, now);
     const current = Math.floor(now.getTime() / 60_000);
-    const pipe = this.redis.pipeline();
+    const pipe = pipeline(this.redis);
     for (let i = 0; i < 15; i++) pipe.hgetall(SLO_REDIS_PREFIX + (current - i));
     const rows = (await pipe.exec()) ?? [];
     let ok = 0;

@@ -3,7 +3,8 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { RECO_CURRENT_KEY, recoKey } from './feed.service';
+import { recoCurrentKey, recoKey } from './feed.service';
+import {} from '../../redis/redis-cluster-safe';
 
 /** §2.2.2: top-N recommendations, recomputed every 10 minutes. */
 export const RECO_TOP_N = 1000;
@@ -48,7 +49,7 @@ export class FeedRecoJob {
       const tx = this.redis.multi();
       tx.zadd(recoKey(version), ...rows.flatMap((r) => [r.score, r.id]));
       tx.expire(recoKey(version), SNAPSHOT_TTL_SEC);
-      tx.set(RECO_CURRENT_KEY, version);
+      tx.set(recoCurrentKey(), version);
       await tx.exec();
     }
     this.logger.info(

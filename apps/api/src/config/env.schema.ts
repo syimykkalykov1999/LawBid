@@ -108,6 +108,13 @@ export const envSchema = z
     // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
     // instances holding its room); `classic` = the old pub/sub, a rollback
     // switch. Set the same value on the API and the worker.
+    // Redis Cluster switch (docs/architecture/REDIS_CLUSTER_READY.md): true =
+    // REDIS_URL is the configuration endpoint of an ElastiCache "cluster mode
+    // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
+    // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
+    REDIS_CLUSTER: envBoolean(false),
+    // Local docker cluster only: JSON natMap for announced addresses.
+    REDIS_CLUSTER_NAT_MAP: z.string().optional(),
     SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()

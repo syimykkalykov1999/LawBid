@@ -187,10 +187,11 @@ split across shards (cluster mode enabled, several node groups), which also
 raises the throughput of writes.
 
 Why it is an admin decision, like database sharding, and not a Lambda:
-- the application is not ready: Lua scripts touch keys of several hash slots
-  (`CROSSSLOT` in cluster mode) and BullMQ needs hash-tagged queue names
-  (`infra/modules/stack/growth.tf`, `redis_cluster_mode`, step 100M of
-  `docs/perf/GROWTH_LADDER_2026-10-23.md`);
+- the application is cluster-ready since 2026-10-24 behind a switch
+  (`redis_cluster_mode`, [REDIS_CLUSTER_READY.md](REDIS_CLUSTER_READY.md),
+  runbook [redis-cluster.md](../runbooks/redis-cluster.md)); the Lambda skips a
+  cluster-mode group (`cluster_mode`) and the stack removes it when the switch
+  is `on`;
 - converting a non-cluster group to cluster mode is a migration (new group or
   a configuration change with a compatibility mode first), not a resize;
 - shard count changes move data (online resharding) and cost money in steps of

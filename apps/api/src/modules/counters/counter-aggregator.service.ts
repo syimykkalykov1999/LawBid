@@ -10,6 +10,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { withJobLock } from '../../jobs/handlers/job-lock';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ck } from '../../redis/redis-cluster-safe';
 
 /**
  * docs/02 §1.5 / docs/05 §4–§6 (stage 5.1): hot counters are not updated
@@ -70,8 +71,8 @@ export function profileEntity(
 export type CounterField<E extends CounterEntity> =
   (typeof COUNTERS)[E]['fields'][number];
 
-const pendingKey = (e: string, f: string) => `cnt:${e}:${f}`;
-const touchedKey = (e: string) => `cnt:touched:${e}`;
+const pendingKey = (e: string, f: string) => ck(e, `cnt:${e}:${f}`);
+const touchedKey = (e: string) => ck(e, `cnt:touched:${e}`);
 const TOUCHED_TTL_SEC = 2 * 24 * 3600;
 export const COUNTER_FLUSH_MS = 10_000;
 const BATCH = 500;
