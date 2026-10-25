@@ -26,6 +26,13 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
     const raw: Record<string, PrismaClient> = {};
     let service: ShardMoveService;
     let pool: MoveDbPool;
+    // shard_map as the suite found it: the moves below flip shards, and the
+    // later suites of the same run (shard-triggers) expect the original map.
+    let mapBefore: Array<{
+      logical_shard: number;
+      physical_db: string;
+      state: string;
+    }> = [];
     const log = jest
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -67,6 +74,9 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
               )[k];
         raw[k] = new PrismaClient({ datasourceUrl: url });
       }
+      mapBefore = await raw.primary.shardMap.findMany({
+        select: { logical_shard: true, physical_db: true, state: true },
+      });
       service = new ShardMoveService(
         prisma,
         new ShardMapSync(prisma),
@@ -81,6 +91,18 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
     });
 
     afterAll(async () => {
+      for (const m of mapBefore) {
+        await raw.primary.shardMap.updateMany({
+          where: {
+            logical_shard: m.logical_shard,
+            OR: [
+              { physical_db: { not: m.physical_db } },
+              { state: { not: m.state } },
+            ],
+          },
+          data: { physical_db: m.physical_db, state: m.state },
+        });
+      }
       await service.close();
       await Promise.all(Object.values(raw).map((c) => c.$disconnect()));
       await prisma.onModuleDestroy();
