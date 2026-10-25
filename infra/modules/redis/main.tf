@@ -124,7 +124,7 @@ resource "aws_elasticache_replication_group" "this" {
   # node_type here is only the first size. Before changing `replicas` later,
   # set node_type to the current type (new replicas are created from it).
   lifecycle {
-    ignore_changes = [node_type]
+    ignore_changes = [node_type, auth_token]
     # Failover needs a second Availability Zone to fail over into.
     precondition {
       condition     = var.replicas == 0 || length(var.subnet_ids) >= 2
@@ -143,6 +143,11 @@ resource "aws_secretsmanager_secret" "redis_url" {
 resource "aws_secretsmanager_secret_version" "redis_url" {
   secret_id     = aws_secretsmanager_secret.redis_url.id
   secret_string = "rediss://:${random_password.auth.result}@${aws_elasticache_replication_group.this.primary_endpoint_address}:6379"
+
+  # Automatic rotation (modules/secret-rotation) writes newer versions of this
+  # secret; terraform must neither undo them nor fight over the version stage.
+  # The value above is only the FIRST token.
+  lifecycle { ignore_changes = [secret_string, version_stages] }
 }
 
 output "security_group_id" { value = aws_security_group.redis.id }

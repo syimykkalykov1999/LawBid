@@ -16,6 +16,7 @@ export class HealthItemDto {
       'backup',
       'cost',
       'message_keys',
+      'secret_rotation',
       'stripe_webhooks',
       'push',
       'turn',
