@@ -17,6 +17,12 @@ export const LEGAL_DOC_TYPE_LIST = [
   'dmca_policy',
   // Owner 2026-10-22 (systems checklist §26): accessibility statement.
   'accessibility',
+  // Owner 2026-10-25 (legal texts): community rules, advertising /
+  // ranking disclosure, SMS program terms. Informational: not accepted
+  // one by one (the Terms point to them).
+  'community_guidelines',
+  'advertising_disclosure',
+  'sms_terms',
 ] as const satisfies readonly LegalDocType[];
 
 /** Owner 2026-10-22 (audit #4 §4): the ten most used app languages (the
@@ -80,6 +86,15 @@ export const LEGAL_DOC_TITLES: Record<
     en: 'Accessibility Statement',
     ru: 'Заявление о доступности',
   },
+  community_guidelines: {
+    en: 'Community Guidelines',
+    ru: 'Правила сообщества',
+  },
+  advertising_disclosure: {
+    en: 'Advertising and Ranking Disclosure',
+    ru: 'Раскрытие рекламы и ранжирования',
+  },
+  sms_terms: { en: 'SMS Terms', ru: 'Условия SMS' },
 };
 
 /** Types a signed-in user can accept (they have a matching consent_type). */
