@@ -74,6 +74,7 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
+import { HeavyHittersService } from '../../common/heavy-hitters/heavy-hitters.service';
 import {
   type ForwardContent,
   forwardName,
@@ -173,6 +174,8 @@ export class ChatService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     // Owner 2026-10-21 (Instagram «Поделиться»): posts sent as cards.
     @Optional() private readonly postCards?: SharedPostCardsService,
+    // WP-G: who sends the most messages (admin «Масштаб»).
+    @Optional() private readonly heavy?: HeavyHittersService,
   ) {}
 
   /**
@@ -1253,6 +1256,7 @@ export class ChatService {
     if (conv.case_id && user.sub === conv.client_id) {
       await touchClientActive(this.prisma, conv.case_id, user.sub);
     }
+    this.heavy?.message(user.sub, conv.case_id);
     const other =
       user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
     const urls = await this.mediaLinks([message]);

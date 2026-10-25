@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-application-auto-scaling": "^3.1146.0",
+    "@aws-sdk/client-backup": "^3.1152.0",
     "@aws-sdk/client-budgets": "^3.1146.0",
     "@aws-sdk/client-cloudwatch": "^3.1152.0",
     "@aws-sdk/client-ecs": "^3.1146.0",
@@ -42,6 +43,7 @@
     "@aws-sdk/client-s3": "^3.1141.0",
     "@aws-sdk/client-ses": "^3.1137.0",
     "@aws-sdk/cloudfront-signer": "^3.1149.0",
+    "@aws-sdk/lib-storage": "^3.1152.0",
     "@aws-sdk/s3-presigned-post": "^3.1141.0",
     "@aws-sdk/s3-request-presigner": "^3.1141.0",
     "@nestjs/common": "^11.0.1",

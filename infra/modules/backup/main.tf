@@ -90,6 +90,49 @@ variable "backup_age_missing_data" {
     error_message = "backup_age_missing_data must be breaching, notBreaching, ignore or missing."
   }
 }
+variable "critical_topic_arn" {
+  type        = string
+  default     = ""
+  description = "SNS topic that rings a phone. A failed restore test goes here; empty = the alerts topic."
+}
+
+# --- monthly restore test (WP-G 2026-10-25) --------------------------------
+# AWS Backup's managed "restore testing": once a month it restores the newest
+# recovery point of the vault into a temporary database, records status and
+# duration (the RTO), and deletes the copy when the validation window ends.
+# Nothing of ours runs, nothing to maintain. Cost: a restore-test fee plus a
+# db.t4g.micro for about an hour, cents per month.
+# https://docs.aws.amazon.com/aws-backup/latest/devguide/restore-testing.html
+variable "restore_test_enabled" {
+  type        = bool
+  default     = true
+  description = "Monthly automatic restore test of the newest backup (AWS Backup restore testing)."
+}
+variable "restore_test_schedule" {
+  type        = string
+  default     = "cron(0 14 1 * ? *)"
+  description = "UTC. The 1st of the month at 14:00: eight hours after the nightly backup (06:00), outside the Sunday maintenance window."
+}
+variable "restore_test_db_subnet_group" {
+  type        = string
+  default     = ""
+  description = "DB subnet group for the temporary database (the production one). Empty = AWS picks the default VPC, which does not exist here and would fail."
+}
+variable "restore_test_security_group_ids" {
+  type        = list(string)
+  default     = []
+  description = "VPC security groups of the temporary database (the production database's)."
+}
+variable "restore_test_db_class" {
+  type    = string
+  default = "db.t4g.micro"
+}
+variable "restore_test_validation_hours" {
+  type        = number
+  default     = 1
+  description = "Hours the restored copy lives before AWS Backup deletes it (1-168). No custom validation runs; completion and time are the proof."
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
@@ -234,6 +277,72 @@ resource "aws_cloudwatch_metric_alarm" "backup_age" {
   alarm_actions       = [var.alerts_topic_arn]
   ok_actions          = [var.alerts_topic_arn]
   tags                = var.tags
+}
+
+resource "aws_backup_restore_testing_plan" "db" {
+  count                        = var.restore_test_enabled ? 1 : 0
+  name                         = "${replace(var.name, "-", "_")}_db_monthly"
+  schedule_expression          = var.restore_test_schedule
+  schedule_expression_timezone = "UTC"
+  start_window_hours           = 4
+
+  recovery_point_selection {
+    algorithm             = "LATEST_WITHIN_WINDOW"
+    include_vaults        = [aws_backup_vault.main.arn]
+    recovery_point_types  = ["SNAPSHOT"]
+    selection_window_days = 7
+  }
+  tags = var.tags
+}
+
+resource "aws_backup_restore_testing_selection" "db" {
+  count                     = var.restore_test_enabled ? 1 : 0
+  name                      = "${replace(var.name, "-", "_")}_db"
+  restore_testing_plan_name = aws_backup_restore_testing_plan.db[0].name
+  protected_resource_type   = "RDS"
+  protected_resource_arns   = var.resource_arns
+  iam_role_arn              = aws_iam_role.backup.arn
+  validation_window_hours   = var.restore_test_validation_hours
+
+  # Same network as production (private, no public address), smallest
+  # class, single AZ. List values are JSON-array strings (AWS docs).
+  restore_metadata_overrides = merge(
+    {
+      dbInstanceClass    = var.restore_test_db_class
+      multiAz            = "false"
+      publiclyAccessible = "false"
+    },
+    var.restore_test_db_subnet_group == "" ? {} : { dbSubnetGroupName = var.restore_test_db_subnet_group },
+    length(var.restore_test_security_group_ids) == 0 ? {} : { vpcSecurityGroupIds = jsonencode(var.restore_test_security_group_ids) },
+  )
+}
+
+# A restore test that did not complete rings the phone: a backup nobody can
+# restore is not a backup (Well-Architected REL09-BP04).
+resource "aws_cloudwatch_event_rule" "restore_test_failed" {
+  count       = var.restore_test_enabled ? 1 : 0
+  name        = "${var.name}-restore-test-failed"
+  description = "AWS Backup restore test did not complete"
+  event_pattern = jsonencode({
+    source        = ["aws.backup"]
+    "detail-type" = ["Restore Job State Change"]
+    detail = {
+      status                = ["FAILED", "ABORTED", "EXPIRED"]
+      restoreTestingPlanArn = [{ exists = true }]
+    }
+  })
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_event_target" "restore_test_failed" {
+  count     = var.restore_test_enabled ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.restore_test_failed[0].name
+  target_id = "critical"
+  arn       = var.critical_topic_arn == "" ? var.alerts_topic_arn : var.critical_topic_arn
+  input_transformer {
+    input_paths    = { status = "$.detail.status", job = "$.detail.restoreJobId" }
+    input_template = "\"LawBid: ежемесячная проверка восстановления базы НЕ прошла (<status>, задача <job>). Копия может не подняться. Что делать: AWS Backup → Jobs → Restore jobs → причина; затем docs/runbooks/restore-drill.md и сообщите Claude «учебное восстановление упало».\""
+  }
 }
 
 output "vault_name" { value = aws_backup_vault.main.name }

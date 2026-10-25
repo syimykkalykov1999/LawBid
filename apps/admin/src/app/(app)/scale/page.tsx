@@ -29,6 +29,7 @@ import {
   type ScaleExtras,
 } from '@/lib/scale';
 import { usd } from '@/lib/economy';
+import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
 
 type Target = 'db' | 'redis';
@@ -369,6 +370,8 @@ export default function ScalePage() {
               note="появится после шагов 9-10"
             />
           </div>
+
+          <HeavyUsersCard />
 
           <SectionTitle>Кнопки на крайний случай</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-3">

@@ -271,3 +271,35 @@ export function buildAlarms(h: Health, e: Economy | undefined, now = Date.now())
   const rank = { danger: 0, warning: 1, neutral: 2, success: 3 } as const;
   return alarms.sort((a, b) => rank[a.tone] - rank[b.tone]);
 }
+
+// --- heavy users (WP-G) ---------------------------------------------------
+
+export type HeavyHitters = components['schemas']['HeavyHittersDto'];
+export type HeavyMetric = HeavyHitters['metrics'][number]['metric'];
+
+export const HEAVY_METRIC_TITLES: Record<HeavyMetric, string> = {
+  requests: 'Запросы',
+  db_ms: 'Время базы',
+  upload_bytes: 'Загрузки',
+  messages: 'Сообщения',
+};
+
+/** A score in the unit of its metric: «1 200 запр.», «3,4 мин», «12 МБ». */
+export function heavyScore(metric: HeavyMetric, score: number): string {
+  const num = (v: number, digits = 0) => v.toLocaleString('ru-RU', { maximumFractionDigits: digits });
+  switch (metric) {
+    case 'requests':
+      return `${num(score)} запр.`;
+    case 'db_ms':
+      return score >= 60_000 ? `${num(score / 60_000, 1)} мин` : `${num(score / 1000, 1)} с`;
+    case 'upload_bytes':
+      return score >= 1_073_741_824 ? `${num(score / 1_073_741_824, 1)} ГБ` : `${num(score / 1_048_576, 1)} МБ`;
+    case 'messages':
+      return `${num(score)} сообщ.`;
+  }
+}
+
+/** Share of the list's leader, for the bar behind a row (0-100). */
+export function heavyShare(score: number, top: number): number {
+  return top > 0 ? Math.max(2, Math.min(100, Math.round((score / top) * 100))) : 0;
+}

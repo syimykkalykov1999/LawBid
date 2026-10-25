@@ -16,6 +16,7 @@ export class HealthItemDto {
       'backup',
       'cost',
       'message_keys',
+      'restore_drill',
       'stripe_webhooks',
       'push',
       'turn',
@@ -176,4 +177,55 @@ export class ScaleExtrasDto {
     description: 'The `search.engine` setting (postgres until another is set).',
   })
   searchEngine!: string;
+}
+
+/** WP-G: one heavy user or case in the «Тяжёлые пользователи» card. */
+export class HeavyEntryDto {
+  @ApiProperty({ description: 'User id or case id.' })
+  id!: string;
+
+  @ApiProperty({
+    description:
+      'Score over the window: requests, DB milliseconds, upload bytes or messages (sampled metrics are scaled back up).',
+  })
+  score!: number;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'User name (user rows) or case title (case rows).',
+  })
+  label!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'User role (user rows only).',
+  })
+  role!: string | null;
+}
+
+export class HeavyMetricDto {
+  @ApiProperty({ enum: ['requests', 'db_ms', 'upload_bytes', 'messages'] })
+  metric!: 'requests' | 'db_ms' | 'upload_bytes' | 'messages';
+
+  @ApiProperty({ type: [HeavyEntryDto] })
+  users!: HeavyEntryDto[];
+
+  @ApiProperty({ type: [HeavyEntryDto] })
+  cases!: HeavyEntryDto[];
+}
+
+export class HeavyHittersDto {
+  @ApiProperty({ description: 'False when HEAVY_HITTERS_SAMPLE=0.' })
+  enabled!: boolean;
+
+  @ApiProperty({ description: 'How far back the lists look, in minutes.' })
+  windowMinutes!: number;
+
+  @ApiProperty({ description: 'One request in N is counted (1 = all).' })
+  sampleEvery!: number;
+
+  @ApiProperty({ type: [HeavyMetricDto] })
+  metrics!: HeavyMetricDto[];
 }

@@ -1,3 +1,4 @@
+import { pipeline } from 'node:stream/promises';
 import {
   Body,
   Controller,
@@ -398,20 +399,24 @@ export class AdminContentController {
       p.entity === 'users' && admin.adminRole !== 'super_admin'
         ? readJustification(justificationHeader)
         : decodeJustification(justificationHeader) || null;
-    const csv = await this.content.exportCsv(p.entity);
-    await this.extras.recordExport(
-      admin,
-      p.entity,
-      justification,
-      Buffer.byteLength(csv),
-    );
+    // WP-G 2026-10-25: streamed 1000 rows at a time; the audit row is
+    // written when the response ends (bytes = what was actually sent).
+    const stream = this.content.exportCsvStream(p.entity);
     const day = new Date().toISOString().slice(0, 10);
     res
       .type('text/csv; charset=utf-8')
       .setHeader(
         'Content-Disposition',
         `attachment; filename="lawbid-${p.entity}-${day}.csv"`,
-      )
-      .send(csv);
+      );
+    let bytes = 0;
+    stream.on('data', (c: Buffer | string) => {
+      bytes += Buffer.byteLength(c);
+    });
+    try {
+      await pipeline(stream, res);
+    } finally {
+      await this.extras.recordExport(admin, p.entity, justification, bytes);
+    }
   }
 }
