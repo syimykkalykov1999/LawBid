@@ -15,6 +15,12 @@ export const EVENT_LOG_MAX_BYTES = 8 * 1024;
 export const EVENT_LOG_MAX_FANOUT = 1000;
 
 const SEQ_KEY = 'rt:seq';
+/** S1-2: the log's epoch canary — the cursor just below the first event
+ * written since the log last started from empty. No TTL. If Redis loses
+ * its data (failover to a stale replica, restart) the key is gone or
+ * newer, so a client whose cursor predates it learns the gap is unknown
+ * (`complete: false`) instead of "nothing missed". */
+const EPOCH_KEY = 'rt:epoch';
 const logKey = (userId: string) => `rt:log:${userId}`;
 
 /**
@@ -31,6 +37,7 @@ local last = tonumber(redis.call('GET', KEYS[1]) or '0')
 local nxt = now
 if last >= now then nxt = last + 1 end
 redis.call('SET', KEYS[1], nxt, 'PX', 600000)
+redis.call('SET', KEYS[2], now - 1, 'NX')
 return nxt
 `;
 
@@ -76,7 +83,7 @@ export class RealtimeEventLog {
   }
 
   async nextSeq(): Promise<number> {
-    return Number(await this.redis.eval(NEXT_SEQ_LUA, 1, SEQ_KEY));
+    return Number(await this.redis.eval(NEXT_SEQ_LUA, 2, SEQ_KEY, EPOCH_KEY));
   }
 
   /** Newest cursor handed out; with none live, just below the next one
@@ -86,6 +93,19 @@ export class RealtimeEventLog {
     if (Number.isFinite(n) && n > 0) return n;
     const [sec, micro] = await this.redis.time();
     return (Number(sec) * 1000 + Math.floor(Number(micro) / 1000)) * 1000 - 1;
+  }
+
+  /** The epoch cursor; creates it (from Redis' clock) when missing, which
+   * itself means the log started empty just now. */
+  async epochSeq(): Promise<number> {
+    const have = Number(await this.redis.get(EPOCH_KEY));
+    if (Number.isFinite(have) && have > 0) return have;
+    const [sec, micro] = await this.redis.time();
+    const fresh =
+      (Number(sec) * 1000 + Math.floor(Number(micro) / 1000)) * 1000 - 1;
+    await this.redis.set(EPOCH_KEY, fresh, 'NX');
+    const now = Number(await this.redis.get(EPOCH_KEY));
+    return Number.isFinite(now) && now > 0 ? now : fresh;
   }
 
   /** Keeps [event] for each of [userIds] under cursor [seq]. */
@@ -138,6 +158,9 @@ export class RealtimeEventLog {
     const events: LoggedEvent[] = [];
     // Older than the window: nothing can be promised.
     let complete = since >= floor;
+    // S1-2: the cursor predates the log's current life (Redis was lost).
+    const epoch = await this.epochSeq();
+    if (since < epoch) complete = false;
     ids.forEach((_, i) => {
       const members = (rows[i * 3]?.[1] ?? []) as string[];
       const oldest = (rows[i * 3 + 1]?.[1] ?? []) as string[];
@@ -158,6 +181,12 @@ export class RealtimeEventLog {
     const unique = events.filter(
       (e, i) => i === 0 || e.seq !== events[i - 1].seq,
     );
-    return { seq: await this.currentSeq(), events: unique, complete };
+    // Never hand out a cursor below the epoch: the client would be told
+    // "incomplete" again on its next reconnect.
+    return {
+      seq: Math.max(await this.currentSeq(), epoch),
+      events: unique,
+      complete,
+    };
   }
 }

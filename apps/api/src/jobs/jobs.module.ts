@@ -64,6 +64,7 @@ import {
 } from './handlers/tasks-planner.jobs';
 import { S3StorageService } from '../modules/files/storage/s3-storage.service';
 import { CallsModule } from '../modules/calls/calls.module';
+import { ChatModule } from '../modules/chat/chat.module';
 import { ClientReviewsCoreModule } from '../modules/client-reviews/client-reviews.module';
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
@@ -91,6 +92,8 @@ export class JobsModule {
         // Security research #5 (A7): ContactsPepper for the contacts jobs.
         ContactsSyncModule,
         CallsModule,
+        // S1-3: `chat.redeliver`.
+        ChatModule,
         ClientReviewsCoreModule,
         SubscriptionsModule,
         BidsModule,
