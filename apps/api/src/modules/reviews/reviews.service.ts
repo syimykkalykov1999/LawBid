@@ -43,6 +43,11 @@ import type {
 import { reviewerDisplayName } from './review-display';
 import { displayRating, recalcAttorneyRating } from './review-rating';
 import { assertNoBlock } from '../blocks/block-guard';
+import { randomUUID } from 'node:crypto';
+import {
+  CrossFamilyOutbox,
+  type OutboxTicket,
+} from '../../sharding/outbox/cross-family-outbox';
 import { attachUsers, userDirectory } from '../../sharding/user-directory';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -85,7 +90,44 @@ export class ReviewsService {
     // without the global ModerationModule and never reports reviews.
     @Optional() private readonly moderation?: ModerationService,
     @Optional() private readonly files?: FilesService,
+    // Shard-ready step 7: the attorney's rating average is a global-family
+    // row derived from sharded reviews, so it is an outbox event.
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
   ) {}
+
+  /**
+   * withTxRetry plus `recalc(attorneyId)`: the rating recalculation of
+   * docs/03 §7.5. On the primary database it is the same statement in the
+   * same transaction as before; on another database it is an outbox event
+   * applied right after the commit (see CrossFamilyOutbox).
+   */
+  private async ratingTx<T>(
+    fn: (
+      tx: Prisma.TransactionClient,
+      recalc: (attorneyId: string) => Promise<void>,
+    ) => Promise<T>,
+  ): Promise<T> {
+    const tickets: Array<OutboxTicket | null> = [];
+    const result = await withTxRetry(this.prisma, (tx) => {
+      tickets.length = 0;
+      return fn(tx, async (attorneyId) => {
+        if (!this.outbox) {
+          await recalcAttorneyRating(tx, attorneyId);
+          return;
+        }
+        tickets.push(
+          await this.outbox.emit(
+            tx,
+            'attorney.rating.recalc',
+            { attorneyId },
+            `rating:${attorneyId}:${randomUUID()}`,
+          ),
+        );
+      });
+    });
+    await this.outbox?.flush(tickets);
+    return result;
+  }
 
   /** Shard-ready step 6: the reviewer's name card comes from the user
    * directory (users are a global family), not from a join. */
@@ -122,7 +164,7 @@ export class ReviewsService {
     const windowDays = await this.settings.number('review.edit_window_days');
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     try {
-      const review = await withTxRetry(this.prisma, async (tx) => {
+      const review = await this.ratingTx(async (tx, recalc) => {
         const kase = await tx.case.findUnique({
           where: { id: caseId },
           select: {
@@ -192,7 +234,7 @@ export class ReviewsService {
                 },
               }),
         );
-        await recalcAttorneyRating(tx, bid.attorney_id);
+        await recalc(bid.attorney_id);
         await this.notifications.emit(
           {
             type: 'review_received',
@@ -268,7 +310,7 @@ export class ReviewsService {
       dto.photoIds === undefined
         ? undefined
         : await this.checkPhotos(user.sub, dto.photoIds);
-    const review = await withTxRetry(this.prisma, async (tx) => {
+    const review = await this.ratingTx(async (tx, recalc) => {
       const current = await tx.review.findUnique({ where: { id: reviewId } });
       if (!current || current.client_id !== user.sub) {
         throw notFound('Review');
@@ -292,7 +334,7 @@ export class ReviewsService {
           },
         }),
       );
-      await recalcAttorneyRating(tx, current.attorney_id);
+      await recalc(current.attorney_id);
       return updated;
     });
     return this.own(review, windowDays);
@@ -657,7 +699,7 @@ export class ReviewsService {
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const windowDays = await this.settings.number('review.edit_window_days');
     try {
-      const review = await withTxRetry(this.prisma, async (tx) => {
+      const review = await this.ratingTx(async (tx, recalc) => {
         // One counted review per client and attorney: edit it in place.
         const mine = await tx.review.findFirst({
           where: {
@@ -680,7 +722,7 @@ export class ReviewsService {
               },
             }),
           );
-          await recalcAttorneyRating(tx, attorneyId);
+          await recalc(attorneyId);
           return edited;
         }
         // A case whose review its author deleted is reused (UQ
@@ -735,7 +777,7 @@ export class ReviewsService {
                 },
               }),
         );
-        await recalcAttorneyRating(tx, attorneyId);
+        await recalc(attorneyId);
         await this.notifications.emit(
           {
             type: 'review_received',
@@ -817,12 +859,12 @@ export class ReviewsService {
       select: { attorney_id: true },
     });
     if (!r) throw notFound('Review');
-    await withTxRetry(this.prisma, async (tx) => {
+    await this.ratingTx(async (tx, recalc) => {
       await tx.review.update({
         where: { id: reviewId },
         data: { status: 'removed' },
       });
-      await recalcAttorneyRating(tx, r.attorney_id);
+      await recalc(r.attorney_id);
     });
   }
 

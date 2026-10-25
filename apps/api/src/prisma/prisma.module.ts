@@ -6,6 +6,7 @@ import {
   userCardCacheTtlSeconds,
   userDirectory,
 } from '../sharding/user-directory';
+import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { ShardMapSync } from '../sharding/shard-map-sync';
 import { ShardStatsService } from '../sharding/shard-stats';
 import { PrismaReadService } from './prisma-read.service';
@@ -20,6 +21,8 @@ import { PrismaService, routingOf } from './prisma.service';
     // the "sharded query without shard context" log counter.
     ShardMapSync,
     ShardStatsService,
+    // Shard-ready step 7: transactional outbox for cross-family writes.
+    CrossFamilyOutbox,
     // Shard-ready step 6: batched user loader (+ short Redis cache of the
     // public card when several physical databases exist).
     {
@@ -33,6 +36,6 @@ import { PrismaService, routingOf } from './prisma.service';
       },
     },
   ],
-  exports: [PrismaService, PrismaReadService, UserDirectory],
+  exports: [PrismaService, PrismaReadService, UserDirectory, CrossFamilyOutbox],
 })
 export class PrismaModule {}

@@ -1,4 +1,5 @@
 import { delegateInfo } from './shard-delegates';
+import { PER_DATABASE_MODELS } from './shard-manifest';
 
 /**
  * Shard-ready step 7 (docs/architecture/SHARDING_READY.md §6 "Transactions"):
@@ -49,7 +50,11 @@ export function withGlobalFacade<T extends object>(
   return new Proxy(tx, {
     get(target, prop, receiver) {
       const info = typeof prop === 'string' ? delegateInfo(prop) : undefined;
-      if (!info || info.family !== 'global') {
+      if (
+        !info ||
+        info.family !== 'global' ||
+        PER_DATABASE_MODELS.has(info.model)
+      ) {
         return Reflect.get(target, prop, receiver);
       }
       const delegate = (primary as Record<string, unknown>)[

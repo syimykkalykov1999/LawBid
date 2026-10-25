@@ -179,6 +179,16 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
  * Global (never sharded) models. Money, auth, admin, moderation, config,
  * reference data, search and analytics: one ledger / one lookup, see plan §3.
  */
+/**
+ * Global-family models whose table exists on EVERY physical database and is
+ * always used through the client of the transaction's own database (the
+ * outbox rides in the same transaction as the sharded write). The tx facade
+ * leaves them alone.
+ */
+export const PER_DATABASE_MODELS: ReadonlySet<string> = new Set([
+  'CrossFamilyOutbox',
+]);
+
 export const GLOBAL_MODELS: readonly string[] = [
   'User',
   'File',
@@ -193,6 +203,10 @@ export const GLOBAL_MODELS: readonly string[] = [
   'FeatureFlag',
   'AppConfig',
   'ShardMap',
+  // Step 7: per-physical-database outbox (see PER_DATABASE_MODELS) and the
+  // primary-only inbox.
+  'CrossFamilyOutbox',
+  'CrossFamilyInbox',
   'I18nLanguage',
   'I18nKey',
   'I18nTranslation',
