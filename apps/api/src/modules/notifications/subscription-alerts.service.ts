@@ -67,11 +67,11 @@ export class SubscriptionAlertsService {
    * in this request" — CaseFanoutService scores the audience (CaseAudience
    * Service: the qualifications chosen for alerts, verified licence states,
    * "New cases" push on, blocks) and sends it in waves through the
-   * `case-fanout` queue. Returns 0: the count is a metric of the waves.
+   * `case-fanout` queue. Returns the alerts sent in this call (all of them while the waves
+   * switch is off; 0 when queued: the count is a metric of the waves).
    */
   async attorneysForCase(caseId: string): Promise<number> {
-    await this.fanout?.start(caseId);
-    return 0;
+    return (await this.fanout?.start(caseId)) ?? 0;
   }
 
   /**

@@ -132,7 +132,10 @@ function world(
     number: async (k: keyof typeof APP_SETTINGS) =>
       (overrides[k] as number | undefined) ?? (APP_SETTINGS[k] as number),
     boolean: async (k: keyof typeof APP_SETTINGS) =>
-      (overrides[k] as boolean | undefined) ?? (APP_SETTINGS[k] as boolean),
+      // the waves switch is OFF by default in production; these specs test
+      // the waves, so they turn it on unless a test says otherwise.
+      (overrides[k] as boolean | undefined) ??
+      (k === 'case_fanout.enabled' ? true : (APP_SETTINGS[k] as boolean)),
     string: async (k: keyof typeof APP_SETTINGS) =>
       (overrides[k] as string | undefined) ?? String(APP_SETTINGS[k]),
   } as unknown as AppSettingsService;
@@ -381,8 +384,9 @@ describe('case fan-out waves', () => {
     });
     w.state.fraud = 'restricted';
     w.state.alerts24h['a001'] = 9;
-    await w.svc.start(CASE);
-    await drain(w, w.jobs.shift()!.job);
+    // switch off: sent right in this call, nothing queued
+    expect(await w.svc.start(CASE)).toBe(12);
     expect(w.sent.size).toBe(12);
+    expect(w.jobs).toHaveLength(0);
   });
 });

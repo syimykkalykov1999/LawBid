@@ -131,22 +131,25 @@ export class CaseFanoutService
     return `casefanout-${caseId}-w${wave}`;
   }
 
-  /** Queues wave 1 (delayed for a suspicious client). */
-  async start(caseId: string): Promise<void> {
+  /** Queues wave 1 (delayed for a suspicious client). Returns the number
+   * of alerts sent right here (switch off / no Redis), 0 when queued. */
+  async start(caseId: string): Promise<number> {
     const s = await loadFanoutSettings(this.settings);
     let delayMs = 0;
     if (s.enabled) {
       const g = await this.gate(caseId, s);
-      if (g === 'none') return;
+      if (g === 'none') return 0;
       if (g === 'small') delayMs = s.fraudDelayMinutes * 60_000;
     }
     const job: CaseFanoutJob = { caseId, wave: 1 };
-    if (!this.queue) {
-      // No Redis: run the first wave right here.
-      await this.runWave(job);
-      return;
+    if (!this.queue || !s.enabled) {
+      // Switch off (default) = today's behaviour: everybody right here,
+      // in this call. No Redis: the same, there is no queue for waves.
+      const out = await this.runWave(job);
+      return 'sent' in out ? out.sent : 0;
     }
     await this.enqueue(job, delayMs);
+    return 0;
   }
 
   private async enqueue(job: CaseFanoutJob, delayMs: number): Promise<void> {

@@ -925,7 +925,7 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
  *   restricted (docs/CLIENT_FRAUD.md);
  * - 0 means "off" for `stop_at_bids`, `daily_cap`, `new_quota_percent`. */
 export const OWNER_CASE_FANOUT_SETTINGS = {
-  'case_fanout.enabled': true,
+  'case_fanout.enabled': false,
   'case_fanout.first_wave_size': 5000,
   'case_fanout.wave_size': 5000,
   'case_fanout.wave_interval_minutes': 10,
