@@ -20,11 +20,6 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.2.10"
   },
-  "lint-staged": {
-    "apps/api/**/*.ts": [
-      "npm run lint --workspace apps/api -- --no-warn-ignored"
-    ]
-  },
   "overrides": {
     "body-parser": "^2.4.0",
     "multer": "2.5.0"
