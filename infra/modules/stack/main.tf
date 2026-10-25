@@ -1339,6 +1339,7 @@ module "budget" {
   anomaly_threshold_usd        = var.anomaly_threshold_usd
   anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
   anomaly_extra_emails         = var.anomaly_extra_emails
+  anomaly_sns_topic_arn        = var.anomaly_to_alerts_topic ? module.monitoring.alerts_topic_arn : ""
 }
 
 module "monitoring" {
@@ -1449,6 +1450,69 @@ module "security_baseline" {
 
   guardduty_ebs_malware        = var.guardduty_ebs_malware
   guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
+}
+
+# AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md).
+# AWS Config: recorder + 11 AWS-managed rules. ~$1-4/month, default off.
+module "aws_config" {
+  count            = var.ephemeral ? 0 : 1 # account singleton, like CloudTrail
+  source           = "../aws-config"
+  name             = local.name
+  enabled          = var.config_enabled
+  alerts_topic_arn = module.monitoring.alerts_topic_arn
+  retention_days   = var.config_retention_days
+  tags             = local.tags
+}
+
+# Emergency administrator role (MFA, named principals, pages on use). Free.
+module "break_glass" {
+  count                  = var.ephemeral ? 0 : 1
+  source                 = "../break-glass"
+  name                   = local.name
+  enabled                = var.break_glass_enabled
+  trusted_principal_arns = var.break_glass_principal_arns
+  critical_topic_arn     = module.monitoring.critical_topic_arn
+  tags                   = local.tags
+}
+
+# Athena over the CloudTrail bucket with saved investigation queries. ~$0 idle.
+module "cloudtrail_athena" {
+  count        = var.ephemeral || !var.cloudtrail_athena_enabled ? 0 : 1
+  source       = "../cloudtrail-athena"
+  name         = local.name
+  trail_bucket = module.security_baseline[0].cloudtrail_bucket
+  regions      = distinct([data.aws_region.current.name, "us-east-1"])
+  tags         = local.tags
+}
+
+variable "config_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Config recorder (6 resource types, daily) + 11 AWS-managed rules + alert on NON_COMPLIANT. About $1-4/month (approximate; $0.012 per daily item, $0.001 per rule evaluation)."
+}
+variable "config_retention_days" {
+  type    = number
+  default = 400
+}
+variable "break_glass_enabled" {
+  type        = bool
+  default     = false
+  description = "Emergency administrator role (MFA, named principals, pages the critical topic). Free. Needs break_glass_principal_arns."
+}
+variable "break_glass_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "Named IAM users/roles that may assume the break-glass role (with MFA)."
+}
+variable "cloudtrail_athena_enabled" {
+  type        = bool
+  default     = true
+  description = "Athena workgroup, Glue table (partition projection) and saved queries over the CloudTrail bucket. ~$0 idle; $5 per TB scanned."
+}
+variable "anomaly_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Also send each Cost Anomaly Detection finding to the alerts topic at once (free)."
 }
 
 resource "aws_route53_record" "hosts" {
