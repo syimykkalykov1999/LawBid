@@ -1,9 +1,17 @@
-import { createHash } from 'node:crypto';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ConfigService } from '@nestjs/config';
-import archiver from 'archiver';
 import { PinoLogger } from 'nestjs-pino';
+import {
+  createZipExport,
+  jsonArrayStream,
+  jsonObjectStream,
+  jsonValueStream,
+  pagedBySkip,
+  pagedById,
+  EXPORT_MAX_MS_DEFAULT,
+  type ExportProgress,
+} from '../../common/streaming/export-stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildDataExportEmail } from '../auth/notifications/email-templates';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
@@ -15,14 +23,12 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../feature-flags/email-flows';
 
-/** JSON with BigInt/Date friendly to `JSON.stringify`. */
-function toJson(value: unknown): string {
-  return JSON.stringify(
-    value,
-    (_k, v: unknown) => (typeof v === 'bigint' ? v.toString() : v),
-    2,
-  );
-}
+/** Largest personal-data ZIP we build (the user is told to contact support). */
+export const DATA_EXPORT_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+/** A `processing` row older than this is a dead worker; a retry may reclaim it. */
+const STALE_PROCESSING_MS = EXPORT_MAX_MS_DEFAULT + 5 * 60 * 1000;
+
+type Lazy = () => AsyncIterable<unknown>;
 
 /**
  * docs/06 §5.2: collects the user's own data (profile, cases, bids, posts,
@@ -30,6 +36,13 @@ function toJson(value: unknown): string {
  * one ZIP, stores it in the private documents bucket, records the `files`
  * row and the `data_export_jobs` result, then notifies (push row + email
  * with a 24-hour link).
+ *
+ * WP-G 2026-10-25: STREAMED. The long lists (messages, posts, ...) are read
+ * from the database 1000 rows at a time, written into the ZIP as they come
+ * and uploaded to S3 as a multipart upload, so memory stays flat for any
+ * account size. Limits: 2 GiB / 20 minutes per export. Restartable: a
+ * failed attempt aborts the upload, puts the row back to `queued` and the
+ * BullMQ retry builds the same key from scratch (idempotent).
  */
 @Injectable()
 export class DataExportService {
@@ -47,7 +60,8 @@ export class DataExportService {
     this.logger.setContext(DataExportService.name);
   }
 
-  async collect(userId: string): Promise<Record<string, unknown>> {
+  /** The short sections: a handful of rows each. */
+  private async small(userId: string): Promise<Record<string, unknown>> {
     const p = this.prisma;
     const [
       user,
@@ -56,15 +70,6 @@ export class DataExportService {
       consents,
       privacySettings,
       sessions,
-      cases,
-      bids,
-      posts,
-      comments,
-      postLikes,
-      commentLikes,
-      messages,
-      caseComments,
-      caseCommentLikes,
     ] = await Promise.all([
       p.user.findUnique({
         where: { id: userId },
@@ -88,7 +93,7 @@ export class DataExportService {
         where: { user_id: userId },
         include: { licenses: true, practice_areas: true },
       }),
-      p.userConsent.findMany({ where: { user_id: userId } }),
+      p.userConsent.findMany({ where: { user_id: userId }, take: 5000 }),
       p.userPrivacySettings.findUnique({ where: { user_id: userId } }),
       p.session.findMany({
         where: { user_id: userId },
@@ -104,30 +109,8 @@ export class DataExportService {
           revoked_at: true,
         },
         orderBy: { created_at: 'desc' },
+        take: 5000,
       }),
-      p.case.findMany({ where: { client_id: userId } }),
-      p.bid.findMany({ where: { attorney_id: userId } }),
-      p.post.findMany({ where: { author_id: userId } }),
-      p.comment.findMany({ where: { author_id: userId } }),
-      p.postLike.findMany({ where: { user_id: userId } }),
-      p.commentLike.findMany({ where: { user_id: userId } }),
-      p.message.findMany({
-        where: { sender_id: userId },
-        select: {
-          id: true,
-          conversation_id: true,
-          type: true,
-          body_original: true,
-          // OQ-040: voice notes (the file id; audio stays in storage).
-          file_id: true,
-          duration_ms: true,
-          created_at: true,
-        },
-        orderBy: { created_at: 'asc' },
-      }),
-      // OQ-034: comments under cases.
-      p.caseComment.findMany({ where: { author_id: userId } }),
-      p.caseCommentLike.findMany({ where: { user_id: userId } }),
     ]);
     return {
       'profile.json': { user, clientProfile, attorneyProfile },
@@ -143,52 +126,136 @@ export class DataExportService {
             ?.granted ?? false,
       },
       'devices.json': sessions,
-      'cases.json': cases,
-      'bids.json': bids,
-      'posts.json': posts,
-      'comments.json': { posts: comments, cases: caseComments },
-      'likes.json': {
-        posts: postLikes,
-        comments: commentLikes,
-        caseComments: caseCommentLikes,
-      },
-      'messages.json': messages.map((m) => ({
-        ...m,
-        body_original:
-          this.cipher?.open(m.body_original, m.id) ?? m.body_original,
-      })),
     };
   }
 
-  async zip(
-    files: Record<string, unknown>,
-    generatedAt: Date,
-  ): Promise<Buffer> {
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    const chunks: Buffer[] = [];
-    const finished = new Promise<void>((resolve, reject) => {
-      archive.on('end', resolve);
-      archive.on('error', reject);
+  /**
+   * The long sections, as lazy keyset-paged generators (nothing is read
+   * until the ZIP reaches that entry). Order: oldest first.
+   */
+  private big(userId: string): Record<string, Lazy | Record<string, Lazy>> {
+    const p = this.prisma;
+    const order = [{ created_at: 'asc' as const }, { id: 'asc' as const }];
+    const page = (after: string | undefined) => ({
+      orderBy: order,
+      ...(after ? { cursor: { id: after }, skip: 1 } : {}),
     });
-    archive.on('data', (chunk: Buffer) => chunks.push(chunk));
-    archive.append(
-      toJson({
-        generatedAt: generatedAt.toISOString(),
-        files: Object.keys(files),
-        note: 'LawBid data export (docs/06 §5.2).',
+    const keyset =
+      <T extends { id: string }>(
+        f: (after: string | undefined, take: number) => Promise<T[]>,
+      ): Lazy =>
+      () =>
+        pagedById(f);
+    const likes =
+      <T>(f: (skip: number, take: number) => Promise<T[]>): Lazy =>
+      () =>
+        pagedBySkip(f);
+    const likeOrder = [{ created_at: 'asc' as const }];
+    return {
+      'cases.json': keyset((a, take) =>
+        p.case.findMany({ where: { client_id: userId }, take, ...page(a) }),
+      ),
+      'bids.json': keyset((a, take) =>
+        p.bid.findMany({ where: { attorney_id: userId }, take, ...page(a) }),
+      ),
+      'posts.json': keyset((a, take) =>
+        p.post.findMany({ where: { author_id: userId }, take, ...page(a) }),
+      ),
+      'comments.json': {
+        posts: keyset((a, take) =>
+          p.comment.findMany({
+            where: { author_id: userId },
+            take,
+            ...page(a),
+          }),
+        ),
+        // OQ-034: comments under cases.
+        cases: keyset((a, take) =>
+          p.caseComment.findMany({
+            where: { author_id: userId },
+            take,
+            ...page(a),
+          }),
+        ),
+      },
+      'likes.json': {
+        posts: likes((skip, take) =>
+          p.postLike.findMany({
+            where: { user_id: userId },
+            orderBy: [...likeOrder, { post_id: 'asc' }],
+            skip,
+            take,
+          }),
+        ),
+        comments: likes((skip, take) =>
+          p.commentLike.findMany({
+            where: { user_id: userId },
+            orderBy: [...likeOrder, { comment_id: 'asc' }],
+            skip,
+            take,
+          }),
+        ),
+        caseComments: likes((skip, take) =>
+          p.caseCommentLike.findMany({
+            where: { user_id: userId },
+            orderBy: [...likeOrder, { comment_id: 'asc' }],
+            skip,
+            take,
+          }),
+        ),
+      },
+      'messages.json': keyset(async (a, take) => {
+        const rows = await p.message.findMany({
+          where: { sender_id: userId },
+          select: {
+            id: true,
+            conversation_id: true,
+            type: true,
+            body_original: true,
+            // OQ-040: voice notes (the file id; audio stays in storage).
+            file_id: true,
+            duration_ms: true,
+            created_at: true,
+          },
+          take,
+          ...page(a),
+        });
+        return rows.map((m) => ({
+          ...m,
+          body_original:
+            this.cipher?.open(m.body_original, m.id) ?? m.body_original,
+        }));
       }),
-      { name: 'README.json' },
-    );
-    for (const [name, value] of Object.entries(files)) {
-      archive.append(toJson(value), { name });
+    };
+  }
+
+  /**
+   * Everything as plain objects (small tests / tools only: it holds the
+   * whole export in memory, the worker never calls it).
+   */
+  async collect(userId: string): Promise<Record<string, unknown>> {
+    const out = await this.small(userId);
+    const drain = async (it: AsyncIterable<unknown>) => {
+      const rows: unknown[] = [];
+      for await (const r of it) rows.push(r);
+      return rows;
+    };
+    for (const [name, v] of Object.entries(this.big(userId))) {
+      if (typeof v === 'function') out[name] = await drain(v());
+      else {
+        const o: Record<string, unknown> = {};
+        for (const [k, f] of Object.entries(v)) o[k] = await drain(f());
+        out[name] = o;
+      }
     }
-    await archive.finalize();
-    await finished;
-    return Buffer.concat(chunks);
+    return out;
   }
 
   /** The worker body: builds, stores, records and notifies. */
-  async process(exportId: string): Promise<{ bytes: number }> {
+  async process(
+    exportId: string,
+    hooks: { onProgress?: (p: ExportProgress) => void } = {},
+  ): Promise<{ bytes: number }> {
     const job = await this.prisma.dataExportJob.findUnique({
       where: { id: exportId },
       include: {
@@ -204,17 +271,92 @@ export class DataExportService {
     });
     if (!job || job.type !== 'user_data') return { bytes: 0 };
     // Atomic claim: the BullMQ worker and a manual/retry call never build
-    // the same export twice (unique s3_key).
+    // the same export twice (unique s3_key). A `processing` row left by a
+    // dead worker (older than the time limit) can be taken over.
     const { count } = await this.prisma.dataExportJob.updateMany({
-      where: { id: exportId, status: 'queued' },
+      where: {
+        id: exportId,
+        OR: [
+          { status: 'queued' },
+          {
+            status: 'processing',
+            updated_at: { lt: new Date(Date.now() - STALE_PROCESSING_MS) },
+          },
+        ],
+      },
       data: { status: 'processing' },
     });
     if (count === 0) return { bytes: 0 };
     const now = new Date();
-    const zip = await this.zip(await this.collect(job.user_id), now);
     const bucket = this.storage.bucket('documents');
     const key = `exports/user-data/${job.user_id}/${exportId}.zip`;
-    await this.storage.put(bucket, key, zip, 'application/zip');
+    let bytes = 0;
+    let sha256 = '';
+    try {
+      const progress: ExportProgress = { rows: 0, bytes: 0 };
+      let lastTick = 0;
+      const tick = () => {
+        const t = Date.now();
+        if (t - lastTick < 2000) return;
+        lastTick = t;
+        hooks.onProgress?.({ ...progress });
+      };
+      const small = await this.small(job.user_id);
+      const big = this.big(job.user_id);
+      const names = [...Object.keys(small), ...Object.keys(big)];
+      const zip = createZipExport(
+        (archive) => {
+          archive.append(
+            jsonValueStream({
+              generatedAt: now.toISOString(),
+              files: names,
+              note: 'LawBid data export (docs/06 §5.2).',
+            }),
+            { name: 'README.json' },
+          );
+          for (const [name, value] of Object.entries(small)) {
+            archive.append(jsonValueStream(value), { name });
+          }
+          const onRow = () => {
+            progress.rows += 1;
+            tick();
+          };
+          for (const [name, v] of Object.entries(big)) {
+            archive.append(
+              typeof v === 'function'
+                ? jsonArrayStream(v(), onRow)
+                : jsonObjectStream(
+                    Object.fromEntries(
+                      Object.entries(v).map(([k, f]) => [k, f()]),
+                    ),
+                    onRow,
+                  ),
+              { name },
+            );
+          }
+        },
+        {
+          maxBytes: DATA_EXPORT_MAX_BYTES,
+          onBytes: (b) => {
+            progress.bytes = b;
+            tick();
+          },
+        },
+      );
+      await this.storage.putStream(bucket, key, zip.body, 'application/zip');
+      bytes = zip.body.bytes;
+      sha256 = zip.body.digest();
+      hooks.onProgress?.({ rows: progress.rows, bytes });
+    } catch (error) {
+      // Restartable: the multipart upload was aborted by putStream; the
+      // row goes back to `queued` so the BullMQ retry (same key, same
+      // id) can claim it. After the last attempt the runner marks it failed.
+      await this.prisma.dataExportJob.updateMany({
+        where: { id: exportId, status: 'processing' },
+        data: { status: 'queued' },
+      });
+      throw error;
+    }
     const expiresAt = new Date(now.getTime() + DATA_EXPORT_LINK_TTL_SEC * 1000);
     const file = await this.prisma.file.create({
       data: {
@@ -223,8 +365,8 @@ export class DataExportService {
         s3_bucket: bucket,
         s3_key: key,
         mime: 'application/zip',
-        size_bytes: BigInt(zip.length),
-        sha256: createHash('sha256').update(zip).digest('hex'),
+        size_bytes: BigInt(bytes),
+        sha256,
         scan_status: 'clean',
       },
     });
@@ -270,6 +412,6 @@ export class DataExportService {
         );
       }
     }
-    return { bytes: zip.length };
+    return { bytes };
   }
 }

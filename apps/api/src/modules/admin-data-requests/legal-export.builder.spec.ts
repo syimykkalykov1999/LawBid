@@ -79,6 +79,14 @@ function build(selection: object) {
   const storage = {
     bucket: jest.fn().mockReturnValue('docs'),
     put,
+    // WP-G: the archive is streamed; the double drains it into one Buffer.
+    putStream: jest.fn(
+      async (b: string, k: string, body: AsyncIterable<Buffer>, t: string) => {
+        const chunks: Buffer[] = [];
+        for await (const c of body) chunks.push(c);
+        put(b, k, Buffer.concat(chunks), t);
+      },
+    ),
     remove: jest.fn(),
   } as unknown as S3StorageService;
   const numbers: Record<string, number> = {

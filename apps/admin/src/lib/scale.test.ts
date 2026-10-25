@@ -200,3 +200,17 @@ describe('buildAlarms', () => {
     expect(a.auto.join(' ')).toContain('удержан на минимуме');
   });
 });
+
+describe('heavy users (WP-G)', () => {
+  it('words a score in the unit of its metric', async () => {
+    const { heavyScore, heavyShare } = await import('./scale');
+    expect(heavyScore('messages', 1200)).toContain('сообщ.');
+    expect(heavyScore('db_ms', 90_000)).toContain('мин');
+    expect(heavyScore('db_ms', 4_500)).toContain('с');
+    expect(heavyScore('upload_bytes', 5 * 1_048_576)).toContain('МБ');
+    expect(heavyScore('upload_bytes', 3 * 1_073_741_824)).toContain('ГБ');
+    expect(heavyShare(50, 100)).toBe(50);
+    expect(heavyShare(0, 0)).toBe(0);
+    expect(heavyShare(1, 1000)).toBe(2);
+  });
+});

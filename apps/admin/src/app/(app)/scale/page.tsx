@@ -30,6 +30,7 @@ import {
 } from '@/lib/scale';
 import { usd } from '@/lib/economy';
 import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets } from '@/lib/launch';
+import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
 
 type Target = 'db' | 'redis';
@@ -467,6 +468,7 @@ export default function ScalePage() {
               );
             })}
           </div>
+          <HeavyUsersCard />
 
           <SectionTitle>Кнопки на крайний случай</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-3">

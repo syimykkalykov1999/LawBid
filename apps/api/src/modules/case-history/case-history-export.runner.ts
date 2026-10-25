@@ -31,6 +31,13 @@ export const HISTORY_LINK_TTL_SEC = 10 * 60;
 const STATE_TTL_SEC = 24 * 60 * 60;
 /** Upper bound of cases per PDF (memory/time of one worker job). */
 export const HISTORY_EXPORT_MAX_CASES = 1000;
+/**
+ * WP-G 2026-10-25: pdfkit lays a document out synchronously, so the PDF
+ * cannot be streamed while it is drawn; its size is bounded instead by the
+ * case cap above and this byte ceiling (a 1000-case PDF is a few MB). Over
+ * the ceiling the job fails with a clear error instead of exhausting memory.
+ */
+export const HISTORY_EXPORT_MAX_BYTES = 64 * 1024 * 1024;
 
 export interface HistoryExportOptions {
   mode: 'api' | 'worker';
@@ -220,6 +227,9 @@ export class CaseHistoryExportRunner
       cases,
       truncated,
     });
+    if (pdf.length > HISTORY_EXPORT_MAX_BYTES) {
+      throw new Error('Case history PDF is larger than the export limit.');
+    }
     // One object per user, overwritten by each export: nothing piles up
     // in the bucket (security review, file 04).
     const key = `exports/case-history/${data.userId}/latest.pdf`;

@@ -2,15 +2,18 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   OnApplicationBootstrap,
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { DataExportJob } from '@prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
+import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { DataExportService } from './data-export.service';
@@ -21,6 +24,9 @@ import {
   type PrivacyModuleOptions,
 } from './privacy.constants';
 import type { DataExportJobDto } from './privacy.dto';
+
+/** `{export}` hash tag: cluster-safe if more keys of this family appear. */
+const progressKey = (id: string) => `{export}:progress:${id}`;
 
 interface ExportJobData {
   exportId: string;
@@ -47,6 +53,7 @@ export class DataExportRunner
     private readonly exports: DataExportService,
     private readonly storage: S3StorageService,
     private readonly logger: PinoLogger,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.logger.setContext(DataExportRunner.name);
   }
@@ -65,7 +72,10 @@ export class DataExportRunner
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       DATA_EXPORT_QUEUE,
-      (job: Job<ExportJobData>) => this.exports.process(job.data.exportId),
+      (job: Job<ExportJobData>) =>
+        this.exports.process(job.data.exportId, {
+          onProgress: (p) => void this.saveProgress(job.data.exportId, p),
+        }),
       { connection: { url, maxRetriesPerRequest: null }, concurrency: 2 },
     );
     this.worker.on('failed', (job: Job<ExportJobData> | undefined, error) => {
@@ -145,11 +155,46 @@ export class DataExportRunner
         Math.floor((row.expires_at.getTime() - now) / 1000),
       );
     }
-    return this.present(row, url);
+    const progress =
+      row.status === 'processing' ? await this.readProgress(row.id) : null;
+    return this.present(row, url, progress);
   }
 
-  private present(row: DataExportJob, url: string | null): DataExportJobDto {
+  /** Progress of a running export: rows / bytes so far (1 hour in Redis). */
+  private async saveProgress(
+    exportId: string,
+    p: { rows: number; bytes: number },
+  ): Promise<void> {
+    try {
+      await this.redis?.set(
+        progressKey(exportId),
+        JSON.stringify(p),
+        'EX',
+        3600,
+      );
+    } catch {
+      // Progress is a nicety; never fail an export for it.
+    }
+  }
+
+  private async readProgress(
+    exportId: string,
+  ): Promise<{ rows: number; bytes: number } | null> {
+    try {
+      const raw = await this.redis?.get(progressKey(exportId));
+      return raw ? (JSON.parse(raw) as { rows: number; bytes: number }) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private present(
+    row: DataExportJob,
+    url: string | null,
+    progress: { rows: number; bytes: number } | null = null,
+  ): DataExportJobDto {
     return {
+      progress,
       exportId: row.id,
       status: row.status,
       url,

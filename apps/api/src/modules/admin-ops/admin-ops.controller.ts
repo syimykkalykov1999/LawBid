@@ -27,12 +27,14 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
+  HeavyHittersDto,
   HeavyJobsDto,
   ScaleDto,
   ScaleExtrasDto,
   SystemHealthDto,
   UpdateOpsSettingsDto,
 } from './admin-ops.dto';
+import { HeavyHittersReportService } from './heavy-hitters-report.service';
 import { ScaleService } from './scale.service';
 import { SystemHealthService } from './system-health.service';
 
@@ -58,6 +60,7 @@ export class AdminOpsController {
     private readonly auth: AdminAuthService,
     private readonly reencrypt: MessageReencryptJob,
     private readonly scale: ScaleService,
+    private readonly heavyHitters: HeavyHittersReportService,
   ) {}
 
   @Get()
@@ -74,6 +77,16 @@ export class AdminOpsController {
   @ApiEnvelopeResponse(ScaleExtrasDto)
   getScaleExtras(): Promise<ScaleExtrasDto> {
     return this.scale.report();
+  }
+
+  @Get('heavy-hitters')
+  @ApiOperation({
+    summary:
+      'Top 20 heaviest users and cases (requests, DB time, uploads, messages) over the last hour',
+  })
+  @ApiEnvelopeResponse(HeavyHittersDto)
+  getHeavyHitters(): Promise<HeavyHittersDto> {
+    return this.heavyHitters.report();
   }
 
   @Post('restart-worker')

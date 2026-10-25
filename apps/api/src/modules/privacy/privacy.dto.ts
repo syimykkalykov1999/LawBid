@@ -31,6 +31,16 @@ export class DataExportJobDto {
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
+
+  @ApiProperty({
+    type: 'object',
+    nullable: true,
+    required: false,
+    description:
+      'While the export is being built: rows written and bytes so far.',
+    properties: { rows: { type: 'integer' }, bytes: { type: 'integer' } },
+  })
+  progress?: { rows: number; bytes: number } | null;
 }
 
 export class DataExportIdParamDto {

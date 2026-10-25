@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -5,6 +6,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { pagedById } from '../../common/streaming/export-stream';
 import { PrismaService } from '../../prisma/prisma.service';
 import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
@@ -90,6 +92,9 @@ function page<T extends { id: string; created_at: Date }, R>(
         : null,
   };
 }
+
+/** Rows in one admin CSV (owner 2026-09-30: up to 50 000). */
+const CSV_MAX_ROWS = 50_000;
 
 const csvCell = (v: unknown): string => {
   let s = '';
@@ -575,206 +580,256 @@ export class AdminContentService {
 
   // --- CSV ---------------------------------------------------------------------
 
+  /**
+   * WP-G 2026-10-25: the CSV is STREAMED, 1000 rows per database round trip
+   * (keyset on id), one line at a time into the HTTP response, up to
+   * CSV_MAX_ROWS rows (50 000) — never the whole file in memory. Newest
+   * first, like before.
+   */
+  exportCsvStream(entity: string): Readable {
+    const { header, rows } = this.csvSource(entity);
+    async function* lines(): AsyncGenerator<string> {
+      yield header.map(csvCell).join(',') + '\n';
+      for await (const r of rows) yield r.map(csvCell).join(',') + '\n';
+    }
+    return Readable.from(lines(), { objectMode: false });
+  }
+
+  /** The whole CSV as a string (tests / small tools; the API streams). */
   async exportCsv(entity: string): Promise<string> {
-    const LIMIT = 50_000;
-    let header: string[] = [];
-    let rows: unknown[][] = [];
+    let out = '';
+    for await (const chunk of this.exportCsvStream(entity)) {
+      out += String(chunk);
+    }
+    return out;
+  }
+
+  private csvSource(entity: string): {
+    header: string[];
+    rows: AsyncGenerator<unknown[]>;
+  } {
+    const p = this.prisma;
+    const order = [{ created_at: 'desc' as const }, { id: 'desc' as const }];
+    type Page = { take: number; cursor?: { id: string }; skip?: number };
+    const page = (after: string | undefined, take: number): Page => ({
+      take,
+      ...(after ? { cursor: { id: after }, skip: 1 } : {}),
+    });
+    const source = <T extends { id: string }>(
+      header: string[],
+      fetch: (a: Page) => Promise<T[]>,
+      map: (t: T) => unknown[],
+    ) => ({
+      header,
+      rows: (async function* () {
+        for await (const r of pagedById(
+          (after, take) => fetch(page(after, take)),
+          { maxRows: CSV_MAX_ROWS },
+        )) {
+          yield map(r);
+        }
+      })(),
+    });
     if (entity === 'users') {
-      const us = await this.prisma.user.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-        select: {
-          id: true,
-          role: true,
-          status: true,
-          first_name: true,
-          last_name: true,
-          phone_e164: true,
-          email: true,
-          created_at: true,
-        },
-      });
-      header = [
-        'id',
-        'role',
-        'status',
-        'first_name',
-        'last_name',
-        'phone',
-        'email',
-        'created_at',
-      ];
-      rows = us.map((u) => [
-        u.id,
-        u.role,
-        u.status,
-        u.first_name,
-        u.last_name,
-        u.phone_e164,
-        u.email,
-        u.created_at.toISOString(),
-      ]);
-    } else if (entity === 'cases') {
-      const cs = await this.prisma.case.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-        include: { practice_area: { select: { code: true } } },
-      });
-      header = [
-        'id',
-        'title',
-        'status',
-        'practice',
-        'state',
-        'budget_cents',
-        'bids',
-        'views',
-        'created_at',
-      ];
-      rows = cs.map((c) => [
-        c.id,
-        c.title,
-        c.status,
-        c.practice_area.code,
-        c.primary_state_code,
-        c.budget_cents,
-        c.bids_count,
-        c.view_count,
-        c.created_at.toISOString(),
-      ]);
-    } else if (entity === 'bids') {
-      const bs = await this.prisma.bid.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'case_id',
-        'attorney_id',
-        'status',
-        'fee_type',
-        'amount_cents',
-        'rounds',
-        'outside_practice',
-        'created_at',
-      ];
-      rows = bs.map((b) => [
-        b.id,
-        b.case_id,
-        b.attorney_id,
-        b.status,
-        b.fee_type,
-        b.amount_cents,
-        b.round_count,
-        b.outside_practice,
-        b.created_at.toISOString(),
-      ]);
-    } else if (entity === 'payments') {
-      const ps = await this.prisma.payment.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'user_id',
-        'amount_cents',
-        'currency',
-        'status',
-        'paid_at',
-        'failure_code',
-        'created_at',
-      ];
-      rows = ps.map((p) => [
-        p.id,
-        p.user_id,
-        p.amount_cents,
-        p.currency,
-        p.status,
-        p.paid_at?.toISOString(),
-        p.failure_code,
-        p.created_at.toISOString(),
-      ]);
-    } else if (entity === 'case_payments') {
+      return source(
+        [
+          'id',
+          'role',
+          'status',
+          'first_name',
+          'last_name',
+          'phone',
+          'email',
+          'created_at',
+        ],
+        (a) =>
+          p.user.findMany({
+            ...a,
+            orderBy: order,
+            select: {
+              id: true,
+              role: true,
+              status: true,
+              first_name: true,
+              last_name: true,
+              phone_e164: true,
+              email: true,
+              created_at: true,
+            },
+          }),
+        (u) => [
+          u.id,
+          u.role,
+          u.status,
+          u.first_name,
+          u.last_name,
+          u.phone_e164,
+          u.email,
+          u.created_at.toISOString(),
+        ],
+      );
+    }
+    if (entity === 'cases') {
+      return source(
+        [
+          'id',
+          'title',
+          'status',
+          'practice',
+          'state',
+          'budget_cents',
+          'bids',
+          'views',
+          'created_at',
+        ],
+        (a) =>
+          p.case.findMany({
+            ...a,
+            orderBy: order,
+            include: { practice_area: { select: { code: true } } },
+          }),
+        (c) => [
+          c.id,
+          c.title,
+          c.status,
+          c.practice_area.code,
+          c.primary_state_code,
+          c.budget_cents,
+          c.bids_count,
+          c.view_count,
+          c.created_at.toISOString(),
+        ],
+      );
+    }
+    if (entity === 'bids') {
+      return source(
+        [
+          'id',
+          'case_id',
+          'attorney_id',
+          'status',
+          'fee_type',
+          'amount_cents',
+          'rounds',
+          'outside_practice',
+          'created_at',
+        ],
+        (a) => p.bid.findMany({ ...a, orderBy: order }),
+        (b) => [
+          b.id,
+          b.case_id,
+          b.attorney_id,
+          b.status,
+          b.fee_type,
+          b.amount_cents,
+          b.round_count,
+          b.outside_practice,
+          b.created_at.toISOString(),
+        ],
+      );
+    }
+    if (entity === 'payments') {
+      return source(
+        [
+          'id',
+          'user_id',
+          'amount_cents',
+          'currency',
+          'status',
+          'paid_at',
+          'failure_code',
+          'created_at',
+        ],
+        (a) => p.payment.findMany({ ...a, orderBy: order }),
+        (x) => [
+          x.id,
+          x.user_id,
+          x.amount_cents,
+          x.currency,
+          x.status,
+          x.paid_at?.toISOString(),
+          x.failure_code,
+          x.created_at.toISOString(),
+        ],
+      );
+    }
+    if (entity === 'case_payments') {
       // Owner 2026-10-05: client → attorney payments (Stripe Connect).
-      const ps = await this.prisma.casePayment.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'case_id',
-        'client_id',
-        'attorney_id',
-        'kind',
-        'status',
-        'amount_cents',
-        'platform_fee_cents',
-        'processing_fee_cents',
-        'client_total_cents',
-        'attorney_net_cents',
-        'refunded_cents',
-        'fee_type',
-        'fee_payer',
-        'currency',
-        'dispute_status',
-        'stripe_payment_intent_id',
-        'paid_at',
-        'created_at',
-      ];
-      rows = ps.map((p) => [
-        p.id,
-        p.case_id,
-        p.client_id,
-        p.attorney_id,
-        p.kind,
-        p.status,
-        p.amount_cents,
-        p.platform_fee_cents,
-        p.processing_fee_cents,
-        p.client_total_cents,
-        p.attorney_net_cents,
-        p.refunded_cents,
-        p.fee_type,
-        p.fee_payer,
-        p.currency,
-        p.dispute_status,
-        p.stripe_payment_intent_id,
-        p.paid_at?.toISOString(),
-        p.created_at.toISOString(),
-      ]);
-    } else if (entity === 'posts') {
-      const ps = await this.prisma.post.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
-        'id',
-        'author_id',
-        'kind',
-        'title',
-        'status',
-        'likes',
-        'comments',
-        'deleted',
-        'created_at',
-      ];
-      rows = ps.map((p) => [
-        p.id,
-        p.author_id,
-        p.kind,
-        p.title,
-        p.status,
-        p.like_count,
-        p.comment_count,
-        p.deleted_at !== null,
-        p.created_at.toISOString(),
-      ]);
-    } else {
-      const ms = await this.prisma.assistantMembership.findMany({
-        take: LIMIT,
-        orderBy: { created_at: 'desc' },
-      });
-      header = [
+      return source(
+        [
+          'id',
+          'case_id',
+          'client_id',
+          'attorney_id',
+          'kind',
+          'status',
+          'amount_cents',
+          'platform_fee_cents',
+          'processing_fee_cents',
+          'client_total_cents',
+          'attorney_net_cents',
+          'refunded_cents',
+          'fee_type',
+          'fee_payer',
+          'currency',
+          'dispute_status',
+          'stripe_payment_intent_id',
+          'paid_at',
+          'created_at',
+        ],
+        (a) => p.casePayment.findMany({ ...a, orderBy: order }),
+        (x) => [
+          x.id,
+          x.case_id,
+          x.client_id,
+          x.attorney_id,
+          x.kind,
+          x.status,
+          x.amount_cents,
+          x.platform_fee_cents,
+          x.processing_fee_cents,
+          x.client_total_cents,
+          x.attorney_net_cents,
+          x.refunded_cents,
+          x.fee_type,
+          x.fee_payer,
+          x.currency,
+          x.dispute_status,
+          x.stripe_payment_intent_id,
+          x.paid_at?.toISOString(),
+          x.created_at.toISOString(),
+        ],
+      );
+    }
+    if (entity === 'posts') {
+      return source(
+        [
+          'id',
+          'author_id',
+          'kind',
+          'title',
+          'status',
+          'likes',
+          'comments',
+          'deleted',
+          'created_at',
+        ],
+        (a) => p.post.findMany({ ...a, orderBy: order }),
+        (x) => [
+          x.id,
+          x.author_id,
+          x.kind,
+          x.title,
+          x.status,
+          x.like_count,
+          x.comment_count,
+          x.deleted_at !== null,
+          x.created_at.toISOString(),
+        ],
+      );
+    }
+    return source(
+      [
         'membership_id',
         'attorney_id',
         'assistant_user_id',
@@ -784,8 +839,9 @@ export class AdminContentService {
         'duties',
         'joined_at',
         'created_at',
-      ];
-      rows = ms.map((m) => [
+      ],
+      (a) => p.assistantMembership.findMany({ ...a, orderBy: order }),
+      (m) => [
         m.id,
         m.attorney_id,
         m.assistant_user_id,
@@ -795,10 +851,7 @@ export class AdminContentService {
         m.duties.join('|'),
         m.joined_at?.toISOString(),
         m.created_at.toISOString(),
-      ]);
-    }
-    return (
-      [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n') + '\n'
+      ],
     );
   }
 
