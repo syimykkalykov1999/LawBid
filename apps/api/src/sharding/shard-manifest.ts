@@ -316,6 +316,9 @@ export const GLOBAL_MODELS: readonly string[] = [
   'MediaModerationCheck',
   'CsamReport',
   'SystemIncident',
+  // Search-ready: the engine outbox and its reindex checkpoints.
+  'SearchOutbox',
+  'SearchIndexState',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);
