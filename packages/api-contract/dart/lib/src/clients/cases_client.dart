@@ -108,11 +108,14 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Edit an open case (client, docs/04 §3.5)
+  /// Edit an open case (client, docs/04 §3.5).
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/cases/{id}')
   Future<CaseEnvelope> updateCase({
     @Path('id') required String id,
     @Body() required UpdateCaseDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -130,19 +133,25 @@ abstract class CasesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)
+  /// Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19).
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/cases/{id}/private-details')
   Future<CaseEnvelope> updateCasePrivateDetails({
     @Path('id') required String id,
     @Body() required UpdatePrivateDetailsDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Change how urgent a case is or its date — the client (open or hired) or the hired attorney; the other side is told (owner 2026-10-05)
+  /// Change how urgent a case is or its date — the client (open or hired) or the hired attorney; the other side is told (owner 2026-10-05).
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/cases/{id}/urgency')
   Future<CaseEnvelope> updateCaseUrgency({
     @Path('id') required String id,
     @Body() required UpdateCaseUrgencyDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -22,6 +22,10 @@ import { weakEtag } from '../../../common/sync/cheap-etag';
 export const PUBLIC_PROFILE_ETAG_BUCKET_MS = 600_000;
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { startNameRecheckIfVerified } from '../../users/services/attorney-name-recheck';
 import { isValidUsername } from '../../users/services/username.util';
@@ -148,6 +152,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       Math.max(0, base + (m.get(userId) ?? 0));
     return {
       id: row.user_id,
+      version: row.version,
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
@@ -199,6 +204,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     userId: string,
     dto: UpdateAttorneyProfileDto,
     now = new Date(),
+    expectedVersion?: number,
   ): Promise<OwnAttorneyProfileDto> {
     await requireOwnAttorney(this.prisma, userId);
     const cooldownDays = await this.settings.number(
@@ -212,6 +218,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           include: { user: { select: { first_name: true, last_name: true } } },
         });
         if (!current) throw notFound();
+        assertExpectedVersion(current.version, expectedVersion);
 
         const data: Prisma.AttorneyProfileUpdateInput = {
           ...(dto.bio !== undefined && { bio: dto.bio || null }),
@@ -279,10 +286,12 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           await startNameRecheckIfVerified(tx, userId, current.user, after);
         }
 
-        if (Object.keys(data).length > 0) {
+        const nameChanged =
+          dto.firstName !== undefined || dto.lastName !== undefined;
+        if (Object.keys(data).length > 0 || nameChanged) {
           await tx.attorneyProfile.update({
             where: { user_id: userId },
-            data,
+            data: { ...data, ...BUMP_VERSION },
           });
         }
       });

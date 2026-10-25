@@ -64,6 +64,7 @@ import {
   PUSH_TEXT_KEYS,
   type PushTextName,
 } from './chat-push';
+import { bullOptions } from '../../../redis/redis-connection';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -175,7 +176,7 @@ export class PushDispatcher
     this.worker = new Worker<PushJobData>(
       PUSH_QUEUE,
       (job: Job<PushJobData>) => this.dispatch(job.data, job.id ?? ''),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 20 },
+      { ...bullOptions(PUSH_QUEUE, url, { worker: true }), concurrency: 20 },
     );
     this.worker.on('error', (error) => {
       this.logger.error({ err: error.message }, 'push worker error');

@@ -179,7 +179,9 @@ jobs:
 
       - name: Migrations are expand/contract only (rolling deploy + rollback safe)
         working-directory: apps/api
-        run: node scripts/check-migrations.mjs
+        run: |
+          node --test scripts/check-migrations.test.mjs
+          node scripts/check-migrations.mjs
 
       - name: Translations are complete in every language
         run: node scripts/i18n-audit.mjs --ci

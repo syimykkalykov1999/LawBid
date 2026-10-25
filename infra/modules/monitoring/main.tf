@@ -68,6 +68,11 @@ variable "p95_target_ms" {
   type    = number
   default = 600
 }
+variable "search_p95_alarm_ms" {
+  type        = number
+  default     = 300
+  description = "p95 of the Postgres search (log metric search_latency) above this for 15 minutes = «пора включить отдельный поиск». 0 = no alarm."
+}
 variable "kms_key_arn" { type = string }
 variable "tags" {
   type    = map(string)
@@ -316,6 +321,39 @@ resource "aws_cloudwatch_log_metric_filter" "sms_sent" {
 }
 
 # --- alarms (docs/06 §8 list) ----------------------------------------------
+# --- «пора вынести поиск» (docs/architecture/SEARCH_READY.md) ---------------
+# One log line per search answered by Postgres: {metric: "search_latency",
+# engine: "postgres", ms}. p95 over 15 minutes above the threshold means the
+# built-in search is slowing the database down: turn the separate search on.
+resource "aws_cloudwatch_log_metric_filter" "search_latency" {
+  name           = "${var.name}-search-pg-latency"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"search_latency\" && $.engine = \"postgres\" }"
+  metric_transformation {
+    name      = "SearchPgLatencyMs"
+    namespace = local.ns
+    value     = "$.ms"
+    unit      = "Milliseconds"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "search_slow" {
+  count               = var.search_p95_alarm_ms > 0 ? 1 : 0
+  alarm_name          = "${var.name}-search-slow"
+  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 300
+  threshold           = var.search_p95_alarm_ms
+  extended_statistic  = "p95"
+  metric_name         = aws_cloudwatch_log_metric_filter.search_latency.metric_transformation[0].name
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 resource "aws_cloudwatch_metric_alarm" "alb_5xx_ratio" {
   alarm_name          = "${var.name}-api-5xx-ratio"
   alarm_description   = "LawBid: Приложение выдаёт ошибки (больше 1 % запросов). Что делать: Обычно это неудачное обновление — оно откатывается само. Не прошло за 15 минут: GitHub → Actions → «Rollback production». Инструкция: ${var.runbook_base_url}/api-5xx.md (EN: 5xx > 1% for 5 minutes.)"
@@ -817,6 +855,9 @@ resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
     economy_guard_on  = "EconomyGuardOn"
     economy_guard_off = "EconomyGuardOff"
     capacity_pressure = "CapacityPressure"
+
+    # Day-one foundations: the nightly money-ledger check (ledger.reconcile).
+    ledger_mismatch = "LedgerMismatch"
   }
   name           = "${var.name}-ops-${replace(each.key, "_", "-")}"
   log_group_name = var.worker_log_group
@@ -1056,6 +1097,10 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
     economy_guard_off = {
       metric = "EconomyGuardOff"
       text   = "Ограничения экономики сняты: расходы снова в норме или автоматика выключена. Что делать: ничего. (EN: economy guard switched off.)"
+    }
+    ledger_mismatch = {
+      metric = "LedgerMismatch"
+      text   = "Ночная сверка денег нашла расхождение: книга учёта денег не сходится с платежами или со Stripe. Что делать: деньги пользователей не затронуты, но откройте логи воркера (поиск alert ledger_mismatch) и пришлите их Claude «ledger mismatch». Инструкция: docs/architecture/MONEY_LEDGER.md. (EN: nightly ledger reconciliation found a mismatch.)"
     }
     capacity_pressure = {
       metric = "CapacityPressure"

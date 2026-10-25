@@ -244,7 +244,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     function fakeTx(status: CaseStatus | null, count = 1) {
       const tx = {
         case: {
-          findUnique: jest.fn().mockResolvedValue(status ? { status } : null),
+          findUnique: jest
+            .fn()
+            .mockResolvedValue(status ? { status, version: 2 } : null),
           updateMany: jest.fn().mockResolvedValue({ count }),
           findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'c1', status }),
         },
@@ -265,8 +267,51 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
         where: { id: 'c1', status: 'in_progress', deleted_at: null },
         data: expect.objectContaining({
           status: 'pending_completion',
+          version: { increment: 1 },
         }) as unknown,
       });
+    });
+
+    it('with If-Match: compare-and-sets on the version too', async () => {
+      const { tx, client } = fakeTx('open');
+      await machine.apply(client, {
+        caseId: 'c1',
+        action: 'client_edit',
+        now,
+        expectedVersion: 2,
+      });
+      expect(tx.case.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'c1', status: 'open', deleted_at: null, version: 2 },
+        }),
+      );
+    });
+
+    it('stale If-Match → 409 STALE_VERSION with the current version, nothing written', async () => {
+      const { tx, client } = fakeTx('open');
+      await expect(
+        machine.apply(client, {
+          caseId: 'c1',
+          action: 'client_edit',
+          expectedVersion: 1,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: ErrorCode.STALE_VERSION,
+          details: { currentVersion: 2 },
+        },
+      });
+      expect(tx.case.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("no If-Match keeps today's behaviour (no version in the where)", async () => {
+      const { tx, client } = fakeTx('open');
+      await machine.apply(client, { caseId: 'c1', action: 'client_edit', now });
+      expect(tx.case.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'c1', status: 'open', deleted_at: null },
+        }),
+      );
     });
 
     it('merges extra columns but never lets them override the transition', async () => {
@@ -283,6 +328,7 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
             title: 'New title',
             last_activity_at: now,
             client_active_at: now,
+            version: { increment: 1 },
           },
         }),
       );

@@ -8,6 +8,7 @@ import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
 import { shardCarry } from '../../sharding/shard-context';
+import { bullOptions } from '../../redis/redis-connection';
 
 /**
  * Owner 2026-10-22 (server load audit, finding 7): a group message used to
@@ -92,9 +93,10 @@ export class GroupFanoutQueue
     this.queues = Array.from(
       { length: GROUP_FANOUT_PARTITIONS },
       (_, i) =>
-        new Queue<GroupFanoutJob>(fanoutQueueName(i), {
-          connection: { url },
-        }),
+        new Queue<GroupFanoutJob>(
+          fanoutQueueName(i),
+          bullOptions(fanoutQueueName(i), url),
+        ),
     );
     // One job at a time per partition, whichever process runs it.
     await Promise.all(

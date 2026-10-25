@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { notAvailable } from '../countries/countries.service';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { CasePhotosService } from './services/case-photos.service';
 import {
   BadRequestException,
@@ -264,6 +265,7 @@ function toCaseDto(
     status: kase.status,
     viewCount: kase.view_count,
     bidsCount: kase.bids_count,
+    version: kase.version,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
     archivedAt: kase.archived_at?.toISOString() ?? null,
@@ -381,6 +383,8 @@ export class CasesService {
     @Optional() private readonly fraud?: ClientFraudService,
     // Shard-ready step 7: cross-family writes ride the outbox.
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Owner 2026-10-25: cases per day against scripts.
+    @Optional() private readonly limits?: UsageLimitsService,
     // S3-5: «Личные данные» are stored sealed.
     @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
@@ -417,6 +421,7 @@ export class CasesService {
   ): Promise<CaseDto> {
     await this.assertClientReady(user.sub);
     await this.fraud?.assertNotRestricted(user.sub);
+    await this.limits?.consume('case_create', user.sub);
     await this.assertUnderCaseLimit(user.sub);
 
     assertNoContactInfo({
@@ -589,6 +594,7 @@ export class CasesService {
     user: RequestUser,
     caseId: string,
     dto: UpdateCaseDto,
+    expectedVersion?: number,
   ): Promise<CaseDto> {
     this.assertClientRole(user);
     if (Object.keys(dto).length === 0) {
@@ -795,6 +801,7 @@ export class CasesService {
         caseId,
         action: 'client_edit',
         extra,
+        expectedVersion,
       });
 
       if (extraAreas) {
@@ -893,6 +900,7 @@ export class CasesService {
     user: RequestUser,
     caseId: string,
     dto: UrgencyInput,
+    expectedVersion?: number,
   ): Promise<CaseDto> {
     if (!hasUrgencyInput(dto)) {
       throw validationError('Send urgency, deadlineAt or deadlineKind.');
@@ -919,6 +927,7 @@ export class CasesService {
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: 'set_urgency',
+        expectedVersion,
         // OQ-054: only the client's own change counts as their activity.
         extra: isClient ? { ...extra, client_active_at: new Date() } : extra,
       });
@@ -975,6 +984,7 @@ export class CasesService {
     user: RequestUser,
     caseId: string,
     dto: UpdatePrivateDetailsDto,
+    expectedVersion?: number,
   ): Promise<CaseDto> {
     this.assertClientRole(user);
     const updated = await withTxRetry(this.prisma, async (tx) => {
@@ -997,6 +1007,7 @@ export class CasesService {
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: 'client_set_private_details',
+        expectedVersion,
         extra: changed
           ? { private_details: await this.sealDetails(next, caseId) }
           : {},
