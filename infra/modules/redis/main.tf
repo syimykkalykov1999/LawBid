@@ -119,7 +119,10 @@ resource "aws_elasticache_replication_group" "this" {
   tags                       = var.tags
 
   # Owner 2026-10-16: the admin («Экономика» → «Увеличить») may move Redis
-  # one tier up at run time; terraform apply must not undo it.
+  # one tier up at run time; terraform apply must not undo it. Owner
+  # 2026-10-24: modules/redis-autoscale moves it up AND down by itself, so
+  # node_type here is only the first size. Before changing `replicas` later,
+  # set node_type to the current type (new replicas are created from it).
   lifecycle {
     ignore_changes = [node_type]
     # Failover needs a second Availability Zone to fail over into.
