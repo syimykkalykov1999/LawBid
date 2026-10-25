@@ -168,6 +168,34 @@ variable "readonly_root_filesystem" {
   type    = bool
   default = true
 }
+variable "deployment_alarm_rollback" {
+  type        = bool
+  default     = true
+  description = <<-EOT
+    P1 deploy safety (2026-10-24): ECS rolling deployment + CloudWatch alarm
+    rollback. While a release rolls out (and during the bake time ECS derives
+    from the alarms' periods) ECS watches the alarms below; the first one that
+    goes OK -> ALARM fails the deployment and rolls back to the last
+    completed one. Works together with the deployment circuit breaker (either
+    one can fail the rollout). false = circuit breaker only (the old
+    behaviour). Changing it is an in-place UpdateService (no replacement).
+  EOT
+}
+variable "api_deployment_alarm_names" {
+  type        = list(string)
+  default     = []
+  description = "Alarms watched while the api rolls out (ALB 5xx ratio, p95, unhealthy hosts, optionally SLO composites). Empty = no alarm rollback for the api."
+}
+variable "worker_deployment_alarm_names" {
+  type        = list(string)
+  default     = []
+  description = "Alarms watched while the worker rolls out. Empty = circuit breaker only."
+}
+variable "admin_deployment_alarm_names" {
+  type        = list(string)
+  default     = []
+  description = "Alarms watched while the admin rolls out. Empty = circuit breaker only."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -534,6 +562,15 @@ resource "aws_ecs_service" "api" {
     enable   = true
     rollback = true
   }
+  # P1 deploy safety: roll back on alarms too (see var.deployment_alarm_rollback).
+  dynamic "alarms" {
+    for_each = var.deployment_alarm_rollback && length(var.api_deployment_alarm_names) > 0 ? [1] : []
+    content {
+      alarm_names = var.api_deployment_alarm_names
+      enable      = true
+      rollback    = true
+    }
+  }
   lifecycle { ignore_changes = [desired_count] }
   tags = var.tags
 }
@@ -571,6 +608,15 @@ resource "aws_ecs_service" "worker" {
     enable   = true
     rollback = true
   }
+  # P1 deploy safety: roll back on alarms too (see var.deployment_alarm_rollback).
+  dynamic "alarms" {
+    for_each = var.deployment_alarm_rollback && length(var.worker_deployment_alarm_names) > 0 ? [1] : []
+    content {
+      alarm_names = var.worker_deployment_alarm_names
+      enable      = true
+      rollback    = true
+    }
+  }
   lifecycle { ignore_changes = [desired_count] }
   tags = var.tags
 }
@@ -599,6 +645,15 @@ resource "aws_ecs_service" "admin" {
   deployment_circuit_breaker {
     enable   = true
     rollback = true
+  }
+  # P1 deploy safety: roll back on alarms too (see var.deployment_alarm_rollback).
+  dynamic "alarms" {
+    for_each = var.deployment_alarm_rollback && length(var.admin_deployment_alarm_names) > 0 ? [1] : []
+    content {
+      alarm_names = var.admin_deployment_alarm_names
+      enable      = true
+      rollback    = true
+    }
   }
   tags = var.tags
 }
