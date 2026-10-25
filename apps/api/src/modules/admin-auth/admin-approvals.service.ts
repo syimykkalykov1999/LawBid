@@ -44,7 +44,9 @@ export type ApprovalKind =
   // payout marked paid, from the same limit.
   | 'payroll_bonus'
   | 'partner_payout'
-  | 'partner_commission_paid';
+  | 'partner_commission_paid'
+  // Shard-ready step 10: the «Разделить базу» button.
+  | 'shard_split';
 
 export interface ApprovalKindSpec {
   kind: ApprovalKind;

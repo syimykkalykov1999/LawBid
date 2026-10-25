@@ -12,6 +12,9 @@ const ALLOWED = new Set([
   'common/secrets/secrets.service.ts',
   'modules/demo/demo-database.service.ts',
   'prisma/prisma.service.ts',
+  // Shard-ready step 10: the move tool; SQL text is built from the model
+  // manifest (checked identifiers), every value is a bound parameter.
+  'sharding/move/move-db.ts',
 ]);
 const SRC = resolve(__dirname, '..');
 
