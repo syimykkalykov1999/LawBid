@@ -69,10 +69,23 @@ describe('Key sets + payroll (e2e)', () => {
 
   afterAll(async () => {
     await prisma.appConfig.deleteMany({
-      where: { key: 'billing.dual_approval_min_cents' },
+      where: {
+        key: { in: ['billing.dual_approval_min_cents', 'admin.dual_control'] },
+      },
     });
     await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
   });
+
+  // admin.dual_control is off by default (owner 2026-10-25); this file's
+  // maker-checker test turns the second-admin rule on for its own run.
+  async function setDualControl(on: boolean): Promise<void> {
+    await prisma.appConfig.upsert({
+      where: { key: 'admin.dual_control' },
+      create: { key: 'admin.dual_control', value: on },
+      update: { value: on },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+  }
 
   async function setDualLimit(cents: number): Promise<void> {
     await prisma.appConfig.upsert({
@@ -734,6 +747,7 @@ describe('Key sets + payroll (e2e)', () => {
       ).body as { data: { id: string } }
     ).data.id;
     await setDualLimit(60_000);
+    await setDualControl(true);
     try {
       const asked = await api()
         .post('/api/v1/admin/payroll/payouts/bulk')
@@ -785,6 +799,7 @@ describe('Key sets + payroll (e2e)', () => {
         'admin.approval_executed',
       ]);
     } finally {
+      await setDualControl(false);
       await setDualLimit(1_000_000_000);
     }
   });

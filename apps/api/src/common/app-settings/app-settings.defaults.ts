@@ -549,6 +549,9 @@ export const OWNER_REASON_SETTINGS = {
 // before it runs. Default $500. 0 = every one needs it.
 export const OWNER_DUAL_APPROVAL_SETTINGS = {
   'billing.dual_approval_min_cents': 50_000,
+  // Owner 2026-10-24: one owner, no second admin. false = every action
+  // runs at once after the 2FA code; true = the rule above is enforced.
+  'admin.dual_control': false,
 } as const;
 
 /** Every typed app_config tunable with its spec default. */
