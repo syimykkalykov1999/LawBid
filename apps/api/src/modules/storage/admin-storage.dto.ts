@@ -25,6 +25,10 @@ export class StorageSettingsDto {
   userQuotaMb!: number;
   @ApiProperty({ description: 'MB of files per chat; 0 = no cap.' })
   chatQuotaMb!: number;
+  @ApiProperty({
+    description: 'MB one person may upload per UTC day; 0 = no cap.',
+  })
+  dailyUploadMbPerUser!: number;
   @ApiProperty({ description: 'Old technical logs are removed nightly.' })
   autoRetention!: boolean;
   @ApiProperty({ description: 'Days; 0 = keep forever.' })
@@ -77,6 +81,12 @@ export class UpdateStorageSettingsDto {
   @Min(0)
   @Max(1_048_576)
   chatQuotaMb?: number;
+  @ApiPropertyOptional({ minimum: 0, maximum: 1_048_576 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_048_576)
+  dailyUploadMbPerUser?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() autoRetention?: boolean;
   @ApiPropertyOptional({ minimum: 0, maximum: 3650 })
   @IsOptional()

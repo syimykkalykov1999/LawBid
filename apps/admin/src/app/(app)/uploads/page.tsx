@@ -305,11 +305,16 @@ function TotalsCard({
 }) {
   const [user, setUser] = useState(String(settings.userQuotaMb));
   const [chat, setChat] = useState(String(settings.chatQuotaMb));
+  const [daily, setDaily] = useState(String(settings.dailyUploadMbPerUser));
   useEffect(() => {
     setUser(String(settings.userQuotaMb));
     setChat(String(settings.chatQuotaMb));
-  }, [settings.userQuotaMb, settings.chatQuotaMb]);
-  const changed = user !== String(settings.userQuotaMb) || chat !== String(settings.chatQuotaMb);
+    setDaily(String(settings.dailyUploadMbPerUser));
+  }, [settings.userQuotaMb, settings.chatQuotaMb, settings.dailyUploadMbPerUser]);
+  const changed =
+    user !== String(settings.userQuotaMb) ||
+    chat !== String(settings.chatQuotaMb) ||
+    daily !== String(settings.dailyUploadMbPerUser);
   const gb = (mb: string) => (Number(mb) > 0 ? `≈ ${Math.round((Number(mb) / 1024) * 10) / 10} ГБ` : 'без лимита');
   return (
     <Card>
@@ -317,13 +322,13 @@ function TotalsCard({
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-ink">Всего</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Сколько места у одного человека и у одного чата. 0 — без лимита. Свой лимит отдельному человеку — в
+            Сколько места у одного человека и у одного чата, и сколько МБ человек может загрузить за сутки (защита от цикла «загрузил — удалил»). 0 — без лимита. Свой лимит отдельному человеку — в
             «Хранилище».
           </p>
         </div>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <Field label="На одного человека, МБ" hint={gb(user)} htmlFor="totals-user">
             <Input
               id="totals-user"
@@ -348,11 +353,27 @@ function TotalsCard({
               onChange={(e) => setChat(e.target.value)}
             />
           </Field>
+          <Field label="Загрузок в сутки на человека, МБ" hint={gb(daily)} htmlFor="totals-daily">
+            <Input
+              id="totals-daily"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={1048576}
+              disabled={disabled}
+              value={daily}
+              onChange={(e) => setDaily(e.target.value)}
+            />
+          </Field>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
             disabled={disabled || !changed}
-            onClick={() => onSave({ userQuotaMb: Number(user) || 0, chatQuotaMb: Number(chat) || 0 })}
+            onClick={() => onSave({
+                userQuotaMb: Number(user) || 0,
+                chatQuotaMb: Number(chat) || 0,
+                dailyUploadMbPerUser: Number(daily) || 0,
+              })}
           >
             Сохранить
           </Button>

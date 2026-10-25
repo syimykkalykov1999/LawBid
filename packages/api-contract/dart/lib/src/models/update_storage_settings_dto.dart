@@ -19,6 +19,7 @@ class UpdateStorageSettingsDto {
     this.imageFormat,
     this.userQuotaMb,
     this.chatQuotaMb,
+    this.dailyUploadMbPerUser,
     this.autoRetention,
     this.retentionAuthEventsDays,
     this.retentionAssistantActivityDays,
@@ -37,6 +38,7 @@ class UpdateStorageSettingsDto {
   final StorageImageFormat? imageFormat;
   final num? userQuotaMb;
   final num? chatQuotaMb;
+  final num? dailyUploadMbPerUser;
   final bool? autoRetention;
   final num? retentionAuthEventsDays;
   final num? retentionAssistantActivityDays;

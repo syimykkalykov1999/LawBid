@@ -200,6 +200,9 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
+      await this.reserveDailyUpload(userId, dto.sizeBytes);
+    }
     await this.costGuard.consume('storage', 1, { userId });
     // Owner 2026-10-05 (demo mode): a demo account may upload a little
     // (settings demo.program.uploadQuotaMb) under its own key prefix, so
@@ -974,6 +977,9 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
+      await this.reserveDailyUpload(userId, Number(src.size_bytes));
+    }
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);
     const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
@@ -1186,6 +1192,72 @@ export class FilesService {
         details: { quotaBytes, usedBytes },
       });
     }
+  }
+
+  /**
+   * 2026-10-24 (abuse batch B, item 5): bytes one person may upload per UTC
+   * day (`storage.daily_upload_mb_per_user`, 0 = off). The stored-bytes
+   * quota cannot see an upload-delete-upload loop, which still costs S3
+   * PUTs, a virus scan and image moderation. Counted when the upload is
+   * issued (presign), so abandoned uploads count too; the Redis counter
+   * `upload:bytes:{user}:{utc day}` lives 26 h. A refused request gives
+   * its bytes back. Redis down: the upload goes on (the stored quota and
+   * CostGuard still apply) and the failure is logged.
+   */
+  private async reserveDailyUpload(
+    userId: string,
+    bytes: number,
+  ): Promise<void> {
+    const limitMb = await this.settings.number(
+      'storage.daily_upload_mb_per_user',
+    );
+    if (limitMb <= 0 || bytes <= 0) return;
+    const limitBytes = limitMb * MB;
+    const now = new Date();
+    const day = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const key = `upload:bytes:${userId}:${day}`;
+    let total: number;
+    try {
+      total = await this.redis.incrby(key, bytes);
+      if (total === bytes) await this.redis.expire(key, 26 * 3600);
+    } catch (err) {
+      this.logger.error(
+        { err, userId, alert: 'daily_upload_cap_unavailable' },
+        'Daily upload counter unreachable: cap skipped',
+      );
+      return;
+    }
+    if (total <= limitBytes) return;
+    await this.redis.decrby(key, bytes).catch(() => undefined);
+    const midnight = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1,
+    );
+    this.logger.warn(
+      {
+        userId,
+        limitBytes,
+        usedBytes: total - bytes,
+        alert: 'daily_upload_cap',
+      },
+      'Daily upload cap reached',
+    );
+    throw new HttpException(
+      {
+        code: ErrorCode.DAILY_UPLOAD_LIMIT_EXCEEDED,
+        message: 'You reached today’s upload limit. Try again tomorrow.',
+        details: {
+          limitBytes,
+          usedBytes: Math.max(0, total - bytes),
+          retryAfterSeconds: Math.max(
+            1,
+            Math.ceil((midnight - now.getTime()) / 1000),
+          ),
+        },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   private async assertQuota(userId: string, addBytes: number): Promise<void> {

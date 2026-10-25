@@ -251,6 +251,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Firebase App Check on sign-in codes, password reset, social sign-in and the phone-status check: off | monitor (log only, default) | enforce (a request without a valid token from the app gets 403; a code by e-mail still works).',
     pattern: /^(off|monitor|enforce)$/,
   };
+  out['security.turnstile.mode'] = {
+    ...out['security.turnstile.mode'],
+    description:
+      'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
+    pattern: /^(off|monitor|enforce)$/,
+  };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
     ...out['security.attorney_strong_auth'],
@@ -330,6 +336,47 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description: 'Password-reset codes one number may request in 24 hours.',
     min: 1,
     max: 50,
+  };
+  // 2026-10-24 (abuse batch B, item 10): SMS pumping.
+  out['sms.prefix_velocity_max'] = {
+    ...out['sms.prefix_velocity_max'],
+    description:
+      'Most SMS codes in the window to numbers with the same first 6 digits; above it the prefix is blocked for «sms.prefix_block_minutes», nothing is sent and an alert is logged (SMS-pumping brake). 0 = off.',
+    min: 0,
+    max: 1000,
+  };
+  out['sms.country_velocity_max'] = {
+    ...out['sms.country_velocity_max'],
+    description:
+      'Most SMS codes in the window to one country (dial code); above it the country is blocked for «sms.prefix_block_minutes». 0 = off.',
+    min: 0,
+    max: 100_000,
+  };
+  out['sms.prefix_velocity_window_minutes'] = {
+    ...out['sms.prefix_velocity_window_minutes'],
+    description: 'Window of the two SMS velocity rules, minutes.',
+    min: 1,
+    max: 1440,
+  };
+  out['sms.prefix_block_minutes'] = {
+    ...out['sms.prefix_block_minutes'],
+    description: 'How long a tripped prefix / country stays blocked, minutes.',
+    min: 1,
+    max: 10_080,
+  };
+  out['sms.signup_daily_cap'] = {
+    ...out['sms.signup_daily_cap'],
+    description:
+      'Hard cap of SMS sign-up codes (to new numbers) per UTC day. When reached, SMS sign-up is closed until 00:00 UTC and an alert is logged; password reset and e-mail codes keep working. Not touched by the auto spend limits. 0 = off.',
+    min: 0,
+    max: 1_000_000,
+  };
+  out['storage.daily_upload_mb_per_user'] = {
+    ...out['storage.daily_upload_mb_per_user'],
+    description:
+      'Most MB one person may upload per UTC day (avatars, documents and exports do not count). Stops an upload-and-delete loop. 0 = no cap.',
+    min: 0,
+    max: 1_000_000,
   };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
   out['ops.db_slow_ms'] = {

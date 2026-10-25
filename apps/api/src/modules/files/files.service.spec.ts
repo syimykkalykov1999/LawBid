@@ -37,6 +37,7 @@ function make(
           deleted_at: null,
           ...overrides.file,
         } as File);
+  const counters = new Map<string, number>();
   const deps = {
     prisma: {
       file: {
@@ -56,6 +57,16 @@ function make(
     redis: {
       set: jest.fn().mockResolvedValue('OK'),
       zadd: jest.fn().mockResolvedValue(1),
+      // 2026-10-24: the per-day upload counter (one tiny in-memory Redis).
+      incrby: jest.fn((k: string, n: number) => {
+        counters.set(k, (counters.get(k) ?? 0) + n);
+        return Promise.resolve(counters.get(k)!);
+      }),
+      decrby: jest.fn((k: string, n: number) => {
+        counters.set(k, (counters.get(k) ?? 0) - n);
+        return Promise.resolve(counters.get(k)!);
+      }),
+      expire: jest.fn().mockResolvedValue(1),
     },
     storage: {
       bucket: jest.fn((k: string) => `lawbid-${k}`),
@@ -82,7 +93,7 @@ function make(
       configured: true,
     },
     settings: {
-      number: jest.fn(() => Promise.resolve(10)),
+      number: jest.fn<Promise<number>, [string]>(() => Promise.resolve(10)),
       // Owner 2026-10-07 (bug 17): «Загрузки и файлы» (unset = defaults).
       raw: jest.fn().mockResolvedValue(undefined),
     },
@@ -100,7 +111,7 @@ function make(
       get: jest.fn().mockReturnValue(undefined),
     },
     scans: { enqueueScan: jest.fn() },
-    logger: { setContext: jest.fn(), error: jest.fn() },
+    logger: { setContext: jest.fn(), error: jest.fn(), warn: jest.fn() },
     flags: { isEnabled: jest.fn().mockResolvedValue(false) },
   };
   const service = new FilesService(
@@ -125,6 +136,106 @@ const code = (p: Promise<unknown>) =>
   );
 
 describe('FilesService', () => {
+  describe('daily upload cap (2026-10-24, storage.daily_upload_mb_per_user)', () => {
+    const MBYTES = 1024 * 1024;
+    const png = (sizeBytes: number) => ({
+      purpose: 'post_image' as const,
+      mime: 'image/png' as const,
+      sizeBytes,
+      sha256: SHA,
+    });
+    const withCap = (capMb: number) => {
+      const m = make();
+      m.deps.settings.number.mockImplementation((key: string) =>
+        Promise.resolve(
+          key === 'storage.daily_upload_mb_per_user' ? capMb : 10_000,
+        ),
+      );
+      return m;
+    };
+
+    it('lets uploads through until the day total passes the cap, then 429', async () => {
+      const { service } = withCap(3);
+      expect(await code(service.presign('u1', png(2 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(await code(service.presign('u1', png(1 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(await code(service.presign('u1', png(1)))).toBe(
+        'DAILY_UPLOAD_LIMIT_EXCEEDED',
+      );
+    });
+
+    it('a refused request gives its bytes back and keeps the budget', async () => {
+      const { service, deps } = withCap(3);
+      await service.presign('u1', png(2 * MBYTES));
+      expect(await code(service.presign('u1', png(2 * MBYTES)))).toBe(
+        'DAILY_UPLOAD_LIMIT_EXCEEDED',
+      );
+      expect(deps.redis.decrby).toHaveBeenCalledTimes(1);
+      expect(await code(service.presign('u1', png(1 * MBYTES)))).toBe(
+        'resolved',
+      );
+    });
+
+    it('is per person', async () => {
+      const { service } = withCap(1);
+      await service.presign('u1', png(1 * MBYTES));
+      expect(await code(service.presign('u2', png(1 * MBYTES)))).toBe(
+        'resolved',
+      );
+    });
+
+    it('0 switches it off', async () => {
+      const { service, deps } = withCap(0);
+      expect(await code(service.presign('u1', png(5 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(deps.redis.incrby).not.toHaveBeenCalled();
+    });
+
+    it('does not count an avatar (quota-free purpose)', async () => {
+      const { service, deps } = withCap(1);
+      await service.presign('u1', {
+        purpose: 'avatar',
+        mime: 'image/png',
+        sizeBytes: 1000,
+        sha256: SHA,
+      });
+      expect(deps.redis.incrby).not.toHaveBeenCalled();
+    });
+
+    it('answers 429 with the limit, usage and seconds to midnight UTC', async () => {
+      const { service } = withCap(1);
+      await service.presign('u1', png(1 * MBYTES));
+      const err = (await service
+        .presign('u1', png(10))
+        .catch((e: unknown) => e)) as HttpException;
+      expect(err.getStatus()).toBe(429);
+      const body = err.getResponse() as {
+        details: {
+          limitBytes: number;
+          usedBytes: number;
+          retryAfterSeconds: number;
+        };
+      };
+      expect(body.details.limitBytes).toBe(MBYTES);
+      expect(body.details.usedBytes).toBe(MBYTES);
+      expect(body.details.retryAfterSeconds).toBeGreaterThan(0);
+      expect(body.details.retryAfterSeconds).toBeLessThanOrEqual(86_400);
+    });
+
+    it('Redis down: the upload goes on and the failure is logged', async () => {
+      const { service, deps } = withCap(1);
+      deps.redis.incrby.mockRejectedValueOnce(new Error('down'));
+      expect(await code(service.presign('u1', png(5 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(deps.logger.error).toHaveBeenCalled();
+    });
+  });
+
   describe('presign with Cloudflare R2 (owner 2026-10-24)', () => {
     const photo = {
       purpose: 'post_image' as const,
