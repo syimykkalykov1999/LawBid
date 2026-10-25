@@ -1535,6 +1535,9 @@ model ClientProfile {
   rating_count             Int            @default(0)
   created_at               DateTime       @default(now()) @db.Timestamptz
   updated_at               DateTime       @updatedAt @db.Timestamptz
+  /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
+  /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
+  version Int @default(0)
 
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
@@ -1569,6 +1572,9 @@ model AttorneyProfile {
   following_count     Int                @default(0)
   created_at          DateTime           @default(now()) @db.Timestamptz
   updated_at          DateTime           @updatedAt @db.Timestamptz
+  /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
+  /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
+  version Int @default(0)
 
   licenses                    AttorneyLicense[]
   practice_areas              AttorneyPracticeArea[]
@@ -1807,6 +1813,9 @@ model Case {
   search_tsv_simple     Unsupported("tsvector")? @default(dbgenerated("(setweight(to_tsvector('simple'::regconfig, f_unaccent(title)), 'A'::\"char\") || setweight(to_tsvector('simple'::regconfig, f_unaccent(description)), 'C'::\"char\"))"))
   created_at            DateTime                 @default(now()) @db.Timestamptz
   updated_at            DateTime                 @updatedAt @db.Timestamptz
+  /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
+  /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
+  version Int @default(0)
 
   states              CaseState[]
   // Owner 2026-10-15: topics 2..N of a case (the first is `practice_area_id`).
@@ -1895,6 +1904,9 @@ model Bid {
   decided_at              DateTime?         @db.Timestamptz
   created_at              DateTime          @default(now()) @db.Timestamptz
   updated_at              DateTime          @updatedAt @db.Timestamptz
+  /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
+  /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
+  version Int @default(0)
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
@@ -4244,6 +4256,9 @@ model AttorneyTask {
   purge_notice_days        Int?
   created_at               DateTime             @default(now()) @db.Timestamptz
   updated_at               DateTime             @default(now()) @updatedAt @db.Timestamptz
+  /// Optimistic concurrency: +1 on every user edit; a client that sends the version it read
+  /// (If-Match) gets 409 STALE_VERSION when someone else saved first. 0 = never edited.
+  version Int @default(0)
   steps                    AttorneyTaskStep[]
   places                   AttorneyTaskPlace[]
   people                   AttorneyTaskPerson[]
