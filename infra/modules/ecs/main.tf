@@ -574,7 +574,7 @@ resource "aws_ecs_service" "api" {
     }
   }
   lifecycle { ignore_changes = [desired_count] }
-  tags = var.tags
+  tags = merge(var.tags, { Component = "api" })
 }
 
 resource "aws_ecs_service" "worker" {
@@ -620,7 +620,7 @@ resource "aws_ecs_service" "worker" {
     }
   }
   lifecycle { ignore_changes = [desired_count] }
-  tags = var.tags
+  tags = merge(var.tags, { Component = "worker" })
 }
 
 resource "aws_ecs_service" "admin" {
@@ -657,7 +657,7 @@ resource "aws_ecs_service" "admin" {
       rollback    = true
     }
   }
-  tags = var.tags
+  tags = merge(var.tags, { Component = "admin" })
 }
 
 # --- autoscaling (§6.3: CPU 60 %, min var.min_tasks, max per env) --------------------

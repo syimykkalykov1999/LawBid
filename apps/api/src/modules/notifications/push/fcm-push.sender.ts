@@ -11,6 +11,7 @@ import {
   type PushMessage,
   type PushSender,
 } from './push.constants';
+import { apnsCollapseId } from './chat-push';
 import { PushTokensService } from './push-tokens.service';
 
 const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -221,9 +222,8 @@ export class FcmPushSender implements PushSender {
                       // one of the same task or message (a repeat, a retry).
                       ...(message.collapseKey
                         ? {
-                            'apns-collapse-id': message.collapseKey.slice(
-                              0,
-                              64,
+                            'apns-collapse-id': apnsCollapseId(
+                              message.collapseKey,
                             ),
                           }
                         : message.reminder && message.data?.taskId

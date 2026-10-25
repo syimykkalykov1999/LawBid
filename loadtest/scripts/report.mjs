@@ -8,7 +8,8 @@
 //   <dir>/cost.json         estimate (estimate-cost.mjs --json)
 //   node report.mjs --profile P --dir D [--note "text"]
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const arg = (k, d) => { const i = process.argv.indexOf(`--${k}`); return i > 0 ? process.argv[i + 1] : d; };
 const dir = arg('dir');
@@ -31,6 +32,7 @@ const results = byName('result.json').map((x) => x.j);
 const aborts = byName('abort.json').map((x) => x.j);
 const turns = byName('turn.json').map((x) => x.j);
 const lks = byName('livekit.json').map((x) => x.j);
+const gameday = byName('gameday.json').map((x) => x.j);
 const cw = existsSync(join(dir, 'cw.json')) ? read(join(dir, 'cw.json')) : null;
 const cost = existsSync(join(dir, 'cost.json')) ? read(join(dir, 'cost.json')) : null;
 
@@ -104,6 +106,35 @@ if (sums.length) {
   P(`| Calls answered "busy" (normal collisions) | ${num(sum('call_busy', 'count'))} |`);
   P();
 
+  // budget gates (loadtest/profiles.json "gates"): the same numbers k6 enforces as thresholds
+  {
+    const all = read(join(dirname(fileURLToPath(import.meta.url)), '..', 'profiles.json'));
+    const prof = all?.profiles?.[profile] || {};
+    const budgetOf = (k) => (prof.budgets && prof.budgets[k] !== undefined ? prof.budgets[k] : all?.limits?.budgets?.[k]);
+    const rows2 = [];
+    for (const g of all?.gates || []) {
+      const vals = sums.map((m) => (g.agg === 'rate' ? v(m[g.metric], 'value') : v(m[g.metric], g.agg))).filter((x) => x !== undefined);
+      if (!vals.length) continue; // gate did not apply to this run (scenario or CDN not part of the profile)
+      const budget = budgetOf(g.budget);
+      const worst = g.op === '<' ? Math.max(...vals) : Math.min(...vals);
+      const ok = g.op === '<' ? worst < budget : worst > budget;
+      const fmt = (x) => (g.agg === 'rate' ? pct(x) : `${num(x)}`);
+      rows2.push({ g, budget, worst, ok, fmt });
+    }
+    P('## Budget gates (p95 and error rate per scenario)');
+    P();
+    if (!rows2.length) P('No gate data.');
+    else {
+      P('| Gate | Budget | Measured (worst generator) | Result |');
+      P('|---|---:|---:|:---:|');
+      for (const r of rows2) P(`| ${r.g.label} | ${r.g.op} ${r.fmt(r.budget)} | ${r.fmt(r.worst)} | ${r.ok ? 'PASS' : 'FAIL'} |`);
+      const failed = rows2.filter((r) => !r.ok);
+      P();
+      P(failed.length ? `**GATES FAILED: ${failed.length} of ${rows2.length}** (${failed.map((r) => r.g.id).join(', ')})` : `**ALL GATES PASSED: ${rows2.length} of ${rows2.length}**`);
+    }
+    P();
+  }
+
   // thresholds
   const th = [];
   for (const [i, m] of sums.entries()) for (const [k, x] of Object.entries(m)) for (const [rule, failed] of Object.entries(x.thresholds || {})) {
@@ -138,6 +169,19 @@ if (turns.length || lks.length) {
     P('```');
     P();
   }
+}
+
+if (gameday.length) {
+  P('## GameDay (AWS FIS: faults injected during the load)');
+  P();
+  P('| Experiment | FIS status | Started (UTC) | Ended (UTC) | Longest time the API was unreachable | Back to normal | Note |');
+  P('|---|---|---|---|---:|:---:|---|');
+  for (const e of gameday.flatMap((x) => x.experiments || [])) {
+    P(`| ${e.name} | ${e.status} | ${String(e.started || '').slice(11, 19)} | ${String(e.ended || '').slice(11, 19)} | ${e.longest_unreachable_s ?? '-'} s | ${e.recovered === undefined ? '-' : e.recovered ? 'yes' : 'NO'} | ${String(e.reason || '').replace(/\|/g, '/').slice(0, 120)} |`);
+  }
+  P();
+  P('Unreachable = `/health/live` through the load balancer did not answer 200 (probe every 2 s, so the number is rounded to 2 s). Compare the times with the CloudWatch table below and the k6 error rate: errors inside these windows are the cost of the failure. A status other than `completed` (`stopped`) means a stop-condition alarm fired.');
+  P();
 }
 
 if (cw) {
