@@ -12,9 +12,11 @@ import type { AppCheckResult } from './app-check.service';
 /** Security research #5 (2026-10-22), A4. */
 describe('AppCheckGuard', () => {
   let mode: string;
+  let tsMode: string;
   let result: AppCheckResult;
   let options: AppCheckOptions | undefined;
   const verify = jest.fn<Promise<AppCheckResult>, [string | undefined]>();
+  const tsVerify = jest.fn();
   const verifyAccessToken = jest.fn();
   const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
 
@@ -24,10 +26,14 @@ describe('AppCheckGuard', () => {
     } as unknown as Reflector;
     return new AppCheckGuard(
       reflector,
-      { string: () => Promise.resolve(mode) } as never,
+      {
+        string: (key: string) =>
+          Promise.resolve(key === 'security.turnstile.mode' ? tsMode : mode),
+      } as never,
       { verify } as never,
       { verifyAccessToken } as never,
       logger as never,
+      { verify: tsVerify } as never,
     );
   }
 
@@ -51,6 +57,8 @@ describe('AppCheckGuard', () => {
 
   beforeEach(() => {
     mode = 'monitor';
+    tsMode = 'off';
+    tsVerify.mockReset();
     result = { verdict: 'missing' };
     options = {};
     verify.mockReset().mockImplementation(() => Promise.resolve(result));
@@ -184,5 +192,99 @@ describe('AppCheckGuard', () => {
 
   it('exports the metadata key the decorator writes', () => {
     expect(APP_CHECK_KEY).toBe('app-check:required');
+  });
+
+  // 2026-10-24 (abuse batch B, item 4): Cloudflare Turnstile, web only.
+  describe('Turnstile (security.turnstile.mode)', () => {
+    it('off (default): the token is never checked', async () => {
+      await guard().canActivate(ctx({ 'x-turnstile-token': 't' }));
+      expect(tsVerify).not.toHaveBeenCalled();
+    });
+
+    it('with both switches off nothing at all is checked', async () => {
+      mode = 'off';
+      await expect(
+        guard().canActivate(ctx({ 'x-turnstile-token': 't' })),
+      ).resolves.toBe(true);
+      expect(tsVerify).not.toHaveBeenCalled();
+      expect(verify).not.toHaveBeenCalled();
+    });
+
+    it('an unknown mode value counts as off', async () => {
+      tsMode = 'ENFORCE';
+      await guard().canActivate(ctx({ 'x-turnstile-token': 't' }));
+      expect(tsVerify).not.toHaveBeenCalled();
+    });
+
+    it('enforce + valid token: passes even when App Check would refuse', async () => {
+      mode = 'enforce';
+      tsMode = 'enforce';
+      tsVerify.mockResolvedValue({ verdict: 'valid', hostname: 'lawbid.dev' });
+      await expect(
+        guard().canActivate(ctx({ 'x-turnstile-token': 'good' })),
+      ).resolves.toBe(true);
+      expect(tsVerify).toHaveBeenCalledWith('good', { ip: undefined });
+      expect(verify).not.toHaveBeenCalled();
+    });
+
+    it('enforce + invalid token: 403 TURNSTILE_FAILED', async () => {
+      tsMode = 'enforce';
+      tsVerify.mockResolvedValue({
+        verdict: 'invalid',
+        reason: 'timeout-or-duplicate',
+      });
+      await expect(
+        guard().canActivate(ctx({ 'x-turnstile-token': 'bad' })),
+      ).rejects.toMatchObject({
+        response: { code: ErrorCode.TURNSTILE_FAILED },
+      });
+    });
+
+    it('monitor + invalid token: logged, not blocked, App Check rules go on', async () => {
+      tsMode = 'monitor';
+      tsVerify.mockResolvedValue({ verdict: 'invalid', reason: 'x' });
+      await expect(
+        guard().canActivate(ctx({ 'x-turnstile-token': 'bad' })),
+      ).resolves.toBe(true);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({ metric: 'turnstile', verdict: 'invalid' }),
+        'turnstile',
+      );
+      expect(verify).toHaveBeenCalled();
+    });
+
+    it('no token (the app): untouched, App Check decides', async () => {
+      tsMode = 'enforce';
+      mode = 'enforce';
+      result = { verdict: 'valid' };
+      await expect(guard().canActivate(ctx())).resolves.toBe(true);
+      expect(tsVerify).not.toHaveBeenCalled();
+      result = { verdict: 'missing' };
+      await expect(guard().canActivate(ctx())).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('Cloudflare down or no key saved: never locks the site out', async () => {
+      tsMode = 'enforce';
+      for (const verdict of ['unavailable', 'unconfigured']) {
+        tsVerify.mockResolvedValue({ verdict });
+        await expect(
+          guard().canActivate(ctx({ 'x-turnstile-token': 't' })),
+        ).resolves.toBe(true);
+      }
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('a signed-in caller is exempt', async () => {
+      tsMode = 'enforce';
+      verifyAccessToken.mockReturnValue({ sub: 'u1' });
+      await expect(
+        guard().canActivate(
+          ctx({ authorization: 'Bearer abc', 'x-turnstile-token': 'bad' }),
+        ),
+      ).resolves.toBe(true);
+      expect(tsVerify).not.toHaveBeenCalled();
+    });
   });
 });

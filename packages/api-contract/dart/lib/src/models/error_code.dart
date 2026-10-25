@@ -76,6 +76,8 @@ enum ErrorCode {
   passkeyLimit('PASSKEY_LIMIT'),
   @JsonValue('DEVICE_ATTESTATION_REQUIRED')
   deviceAttestationRequired('DEVICE_ATTESTATION_REQUIRED'),
+  @JsonValue('TURNSTILE_FAILED')
+  turnstileFailed('TURNSTILE_FAILED'),
   @JsonValue('ACCOUNT_SUSPENDED')
   accountSuspended('ACCOUNT_SUSPENDED'),
   @JsonValue('ACCOUNT_DELETED')
@@ -172,6 +174,8 @@ enum ErrorCode {
   storageQuotaExceeded('STORAGE_QUOTA_EXCEEDED'),
   @JsonValue('CHAT_STORAGE_FULL')
   chatStorageFull('CHAT_STORAGE_FULL'),
+  @JsonValue('DAILY_UPLOAD_LIMIT_EXCEEDED')
+  dailyUploadLimitExceeded('DAILY_UPLOAD_LIMIT_EXCEEDED'),
   @JsonValue('VERIFICATION_ALREADY_PENDING')
   verificationAlreadyPending('VERIFICATION_ALREADY_PENDING'),
   @JsonValue('VERIFICATION_SUBMISSION_LIMIT')

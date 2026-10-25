@@ -33,6 +33,7 @@ import { NotificationsRetentionJob } from './handlers/notifications-retention.jo
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
+import { SearchIndexJob } from './handlers/search-index.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
@@ -141,6 +142,8 @@ export class CronProcessor {
     @Optional() private readonly adminSummaries?: AdminSummariesJob,
     // Shard-ready step 7: `outbox.sweep`.
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Owner 2026-10-24: `search.index`.
+    @Optional() private readonly searchIndex?: SearchIndexJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -209,6 +212,8 @@ export class CronProcessor {
         return this.exportsCleanup.run();
       case CRON_JOBS.opsQueueMetrics:
         return this.opsMetrics.queueDepths();
+      case CRON_JOBS.searchIndex:
+        return this.searchIndex?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:

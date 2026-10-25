@@ -588,6 +588,56 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'opensearch',
+    label: 'Search engine (OpenSearch)',
+    description:
+      'A dedicated search engine for people, cases, posts and questions. Used only when «search.engine» is set to shadow or engine in Settings; searches fall back to Postgres if the engine fails or is slow. Off by default.',
+    fields: [
+      {
+        name: 'url',
+        label: 'Address (OPENSEARCH_URL)',
+        secret: false,
+        required: true,
+        pattern: /^https?:\/\/[^\s]+$/,
+        patternHint:
+          'https://vpc-lawbid-search-xxxx.us-east-1.es.amazonaws.com',
+        env: 'OPENSEARCH_URL',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'username',
+        label: 'User name (OPENSEARCH_USERNAME), if the engine asks for one',
+        secret: false,
+        required: false,
+        env: 'OPENSEARCH_USERNAME',
+      },
+      {
+        name: 'password',
+        label: 'Password (OPENSEARCH_PASSWORD), if the engine asks for one',
+        secret: true,
+        required: false,
+        env: 'OPENSEARCH_PASSWORD',
+      },
+      {
+        name: 'prefix',
+        label: 'Index name prefix (OPENSEARCH_PREFIX), default lawbid',
+        secret: false,
+        required: false,
+        pattern: /^[a-z][a-z0-9_-]{1,30}$/,
+        patternHint: 'lawbid or lawbid-loadtest',
+        env: 'OPENSEARCH_PREFIX',
+      },
+    ],
+    // Cluster answers its root page (read-only).
+    test: async (f) => {
+      const headers: Record<string, string> = {};
+      if (f.username && f.password) {
+        headers.authorization = `Basic ${Buffer.from(`${f.username}:${f.password}`).toString('base64')}`;
+      }
+      await probe(`${f.url.replace(/\/+$/, '')}/`, { headers });
+    },
+  },
+  {
     id: 'persona',
     label: 'Persona (ID checks)',
     description: 'Identity verification of attorneys.',
@@ -605,6 +655,82 @@ export const PROVIDERS: ProviderDefinition[] = [
       probe('https://withpersona.com/api/v1/accounts?page%5Bsize%5D=1', {
         headers: { authorization: `Bearer ${f.apiKey}` },
       }),
+  },
+  {
+    // 2026-10-24 (abuse batch B, item 4): bot check of the WEB page on
+    // sign-up and code requests. The app (iOS / Android) uses App Check.
+    id: 'turnstile',
+    label: 'Cloudflare Turnstile (защита сайта от ботов)',
+    description:
+      'Проверка «не бот» на сайте при регистрации и запросе кода. В приложении не используется (там App Check). Включается в Система → Настройки: security.turnstile.mode (off / monitor / enforce).',
+    fields: [
+      {
+        name: 'secretKey',
+        label: 'Секретный ключ (Secret key)',
+        secret: true,
+        required: true,
+        pattern: /^[0-9A-Za-z_-]{20,80}$/,
+        patternHint: '0x4AAAAAAA…',
+        env: 'TURNSTILE_SECRET_KEY',
+      },
+      {
+        name: 'siteKey',
+        label: 'Ключ сайта (Site key, публичный)',
+        secret: false,
+        required: false,
+        pattern: /^[0-9A-Za-z_-]{10,80}$/,
+        patternHint: '0x4AAAAAAA…',
+        env: 'TURNSTILE_SITE_KEY',
+      },
+      {
+        name: 'hostnames',
+        label: 'Разрешённые домены сайта (через запятую, пусто = любые)',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9.-]+(,[a-z0-9.-]+)*$/,
+        patternHint: 'lawbid.dev,www.lawbid.dev',
+        env: 'TURNSTILE_HOSTNAMES',
+        normalize: (v) => commaList(v).toLowerCase(),
+      },
+    ],
+    // siteverify answers invalid-input-response for a good secret and
+    // invalid-input-secret for a bad one (developers.cloudflare.com/
+    // turnstile/get-started/server-side-validation, 2026-10-22).
+    test: async (f) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(
+          'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              secret: f.secretKey,
+              response: 'lawbid-key-check',
+            }),
+            signal: ctrl.signal,
+          },
+        );
+        const body = (await res.json()) as { 'error-codes'?: string[] };
+        const codes = body['error-codes'] ?? [];
+        if (
+          codes.includes('invalid-input-secret') ||
+          codes.includes('missing-input-secret')
+        ) {
+          throw new Error(
+            'Секретный ключ не принят Cloudflare: неверный ключ?',
+          );
+        }
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw new Error('Cloudflare не ответил за 8 с');
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
   },
   {
     id: 'google_signin',

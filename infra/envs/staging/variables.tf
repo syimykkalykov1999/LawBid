@@ -104,6 +104,11 @@ variable "db_autoscale_enabled" {
   default     = false
   description = "Database autoscale (docs/architecture/DB_AUTOSCALE.md). Off in staging: single-AZ, a resize would be minutes of downtime."
 }
+variable "redis_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "Redis autoscale (docs/architecture/REDIS_AUTOSCALE.md). Off in staging."
+}
 variable "backup_enabled" {
   type    = bool
   default = false

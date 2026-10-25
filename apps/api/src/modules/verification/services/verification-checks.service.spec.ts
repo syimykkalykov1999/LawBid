@@ -24,6 +24,7 @@ function setup(opts: {
   verify?: () => Promise<unknown>;
   docs?: string[];
   lookupResult?: 'pass' | 'fail' | 'manual_review';
+  consume?: () => Promise<void>;
 }) {
   const checkCreate = jest.fn().mockResolvedValue({});
   const licenseUpdate = jest.fn().mockResolvedValue({});
@@ -92,6 +93,8 @@ function setup(opts: {
       { emit } as unknown as NotificationsService,
       { recompute: jest.fn() } as unknown as AttorneyTrustService,
       logger,
+      undefined,
+      { consume: opts.consume ?? (() => Promise.resolve()) } as never,
     ),
     checkCreate,
     licenseUpdateMany,
@@ -165,6 +168,48 @@ describe('VerificationChecksService (docs/03 §2.4)', () => {
       }),
     ]);
     expect(s.matchFace).not.toHaveBeenCalled();
+  });
+
+  // 2026-10-24 (abuse batch B, item 13): the call site enforces the daily
+  // id_check cap before the paid provider is touched.
+  it('the daily id_check cap refuses before the provider is called', async () => {
+    const verify = jest.fn().mockResolvedValue({ result: 'pass', details: {} });
+    const consume = jest
+      .fn()
+      .mockRejectedValue(
+        new HttpException(
+          { code: ErrorCode.PROVIDER_BUDGET_EXCEEDED },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        ),
+      );
+    const s = setup({
+      barName: 'manual',
+      idProvider: 'stripe_identity',
+      verify,
+      consume,
+    });
+    await s.service.runOnSubmit('r1');
+    expect(consume).toHaveBeenCalledWith('id_check');
+    expect(verify).not.toHaveBeenCalled();
+    expect(s.matchFace).not.toHaveBeenCalled();
+    expect(s.checkCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        check_type: 'id_check',
+        result: 'manual_review',
+      }) as unknown,
+    });
+  });
+
+  it('a manual ID check never touches the paid budget', async () => {
+    const consume = jest.fn();
+    const s = setup({
+      barName: 'auto',
+      idProvider: 'manual',
+      docs: ['passport', 'selfie'],
+      consume,
+    });
+    await s.service.runOnSubmit('r1');
+    expect(consume).not.toHaveBeenCalled();
   });
 
   it('no identity document (verified attorney adding a state) → no ID check', async () => {

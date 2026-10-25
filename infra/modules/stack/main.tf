@@ -921,6 +921,31 @@ variable "db_autoscale_tuning" {
   default = {}
 }
 
+# --- Redis autoscale (owner 2026-10-24, docs/architecture/REDIS_AUTOSCALE.md) --
+variable "redis_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "Redis grows one node type under load and shrinks one after 3 quiet days, by itself (modules/redis-autoscale). Needs redis_replicas >= 1 (online resize through failover); idle until automatic failover is on."
+}
+variable "redis_autoscale_min_class" {
+  type    = string
+  default = "cache.t4g.micro"
+}
+variable "redis_autoscale_max_class" {
+  type        = string
+  default     = "cache.r7g.large"
+  description = "Ceiling for the bill: ≈ $320/month with one replica. Above it the owner gets an e-mail."
+}
+variable "redis_autoscale_mode" {
+  type        = string
+  default     = "on"
+  description = "Start value of the switch: on | dry-run | off. Later changes are made in SSM (docs/runbooks/redis-autoscale.md)."
+}
+variable "redis_autoscale_tuning" {
+  type    = map(number)
+  default = {}
+}
+
 locals {
   db_identifier = var.create_database ? "${local.name}-postgres" : var.existing_database_identifier
 }
@@ -1093,6 +1118,11 @@ locals {
     OPS_BUDGET_NAME     = "${local.name}-monthly"
     OPS_AWS_ACCOUNT_ID  = data.aws_caller_identity.current.account_id
     AWS_REGION          = data.aws_region.current.name
+    # Search engine (growth.opensearch_enabled, modules/stack/growth.tf):
+    # empty while off. The app uses it only when the admin sets
+    # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
+    OPENSEARCH_URL      = var.growth.opensearch_enabled ? "https://${module.growth.opensearch_endpoint}" : ""
+    OPENSEARCH_REPLICAS = tostring(module.growth.opensearch_replicas)
   }
   arm_factor      = var.cpu_architecture == "ARM64" ? 0.8 : 1
   api_task_usd    = floor(730 * (var.api_cpu / 1024 * 0.04048 + var.api_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
@@ -1338,6 +1368,33 @@ module "db_autoscale" {
   tags             = local.tags
 }
 
+# Owner 2026-10-24: Redis size follows the load too (modules/redis ignores
+# node_type changes, so terraform apply never undoes it).
+module "redis_autoscale" {
+  count                = var.redis_autoscale_enabled && var.redis_replicas > 0 ? 1 : 0
+  source               = "../redis-autoscale"
+  name                 = local.name
+  replication_group_id = "${local.name}-redis"
+  replicas             = var.redis_replicas
+  cluster_name         = module.ecs.cluster_name
+  service_names        = [module.ecs.api_service_name, module.ecs.worker_service_name]
+  alerts_topic_arn     = module.monitoring.alerts_topic_arn
+  kms_key_arn          = module.kms.key_arn
+  min_node_type        = var.redis_autoscale_min_class
+  max_node_type        = var.redis_autoscale_max_class
+  mode                 = var.redis_autoscale_mode
+  tuning               = var.redis_autoscale_tuning
+  tags                 = local.tags
+  depends_on           = [module.redis]
+}
+
+check "redis_autoscale_needs_replica" {
+  assert {
+    condition     = !var.redis_autoscale_enabled || var.redis_replicas > 0
+    error_message = "redis_autoscale_enabled needs redis_replicas >= 1: a single Redis node is replaced with minutes of downtime on every resize, so the autoscaler is not created."
+  }
+}
+
 # A read replica must keep max_connections >= its primary's, so the primary
 # cannot grow alone; the autoscaler pauses (and e-mails) while replicas exist.
 check "db_autoscale_vs_replicas" {
@@ -1415,6 +1472,7 @@ output "backup_dr_vault_arn" { value = one(module.backup[*].dr_vault_arn) }
 output "alerts_topic_arn" { value = module.monitoring.alerts_topic_arn }
 output "critical_topic_arn" { value = module.monitoring.critical_topic_arn }
 output "db_autoscale_function" { value = one(module.db_autoscale[*].function_name) }
+output "redis_autoscale_function" { value = one(module.redis_autoscale[*].function_name) }
 output "budget_name" { value = one(module.budget[*].budget_name) }
 output "rds_endpoint_secret_arn" { value = one(module.postgres[*].master_secret_arn) }
 output "secret_arns" { value = local.app_secret_arns }

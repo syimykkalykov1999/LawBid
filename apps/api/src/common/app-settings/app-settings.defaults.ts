@@ -183,6 +183,13 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-15: how many different people must open the same topic
   // after a query before the search learns "query → topic" (nightly).
   'search.learn_min_users': 3,
+  // Owner 2026-10-24 (search-ready): which engine answers searches.
+  // postgres = today (default); shadow = ask both, show Postgres, log the
+  // differences; engine = the search engine, Postgres on error / timeout.
+  // See docs/architecture/SEARCH_READY.md.
+  'search.engine': 'postgres',
+  // Engine answers slower than this fall back to Postgres, ms.
+  'search.engine_timeout_ms': 800,
   // Owner 2026-10-15: the recommendation weights of Search (cases for
   // attorneys, people and «you may know», posts and reels) — editable in
   // the admin panel; the sum need not be 1.
@@ -322,6 +329,24 @@ export const OWNER_SMS_SETTINGS = {
   /** Password-reset codes to one number per hour / per 24 hours. */
   'sms.reset_per_number_per_hour': 3,
   'sms.reset_per_number_per_day': 5,
+  /** 2026-10-24 (abuse batch B, item 10): SMS-pumping brake. More than this
+   * many codes in the window to numbers with the same first 6 digits
+   * (country code + area + the start of the line) trips the prefix: it is
+   * blocked for `sms.prefix_block_minutes`, nothing is sent, the caller
+   * still sees the normal «code sent» answer, and an alert is logged. 0 = off. */
+  'sms.prefix_velocity_max': 8,
+  /** Same, for the whole country (dial code). 0 = off. */
+  'sms.country_velocity_max': 100,
+  /** Window of both velocity rules, minutes. */
+  'sms.prefix_velocity_window_minutes': 10,
+  /** How long a tripped prefix / country stays blocked, minutes. */
+  'sms.prefix_block_minutes': 60,
+  /** Hard daily cap (UTC day) of SMS codes to NEW numbers (sign-up). When
+   * reached, sign-up by SMS is closed until 00:00 UTC (503
+   * PROVIDER_BUDGET_EXCEEDED) and an alert is logged; password-reset codes
+   * and e-mail codes keep working. Unlike «Лимиты расходов» it is never
+   * changed by the auto mode. 0 = off. */
+  'sms.signup_daily_cap': 300,
 } as const;
 
 // Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
@@ -629,6 +654,15 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * enforce only after the app sends the header (B1) and a week of
    * monitor shows almost no `missing` verdicts. docs/runbooks/APP_CHECK.md */
   'security.app_check.mode': 'monitor',
+  /** 2026-10-24 (abuse batch B, item 4): Cloudflare Turnstile on the WEB
+   * page's costly anonymous routes (the same ones App Check covers). `off`
+   * (default) — never looked at; `monitor` — a token the page sent is
+   * verified and the verdict logged (`metric: turnstile`), nothing is
+   * blocked; `enforce` — a token that fails verification gets 403
+   * TURNSTILE_FAILED, a valid one passes even without App Check. The app
+   * (iOS / Android) never uses it: it relies on App Check above. The secret
+   * key is set in Интеграции → Cloudflare Turnstile. docs/runbooks/APP_CHECK.md */
+  'security.turnstile.mode': 'off',
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
@@ -694,6 +728,11 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.image_format': 'webp',
   'storage.user_quota_mb': 10240,
   'storage.chat_quota_mb': 5120,
+  /** 2026-10-24 (abuse batch B, item 5): most MB one person may upload in
+   * a UTC day (counted at presign; avatars, documents and exports are not
+   * counted). Stops an upload-and-delete loop that the stored-bytes quota
+   * above cannot see. 429 DAILY_UPLOAD_LIMIT_EXCEEDED. 0 = no cap. */
+  'storage.daily_upload_mb_per_user': 2048,
   'storage.auto_retention': true,
   'storage.retention_auth_events_days': 730,
   'storage.retention_assistant_activity_days': 365,

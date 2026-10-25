@@ -539,7 +539,7 @@ export class EconomyService {
     const res = await this.capacity.increase(target);
     if (!res) return null;
     const what = target === 'db' ? 'База данных' : 'Redis';
-    const text = `${what}: ${res.from} → ${res.to} (по кнопке в админке; перезапуск на пару минут).`;
+    const text = `${what}: ${res.from} → ${res.to} (по кнопке в админке; короткое переключение, секунды-минута).`;
     await this.event('scaled_up', text, now);
     this.logger.warn(
       { alert: 'capacity_scaled_up', target, from: res.from, to: res.to },

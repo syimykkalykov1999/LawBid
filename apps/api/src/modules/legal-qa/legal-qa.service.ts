@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -23,7 +24,10 @@ import { BlocksService } from '../blocks/blocks.service';
 import { maskContactInfo } from '../cases/cases.public';
 import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
 import { FilesService } from '../files/files.service';
-import { SearchSynonymsService } from '../search/search-synonyms.service';
+import {
+  SEARCH_PROVIDER,
+  type SearchProvider,
+} from '../search/search.provider';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   type AnswerDto,
@@ -78,41 +82,16 @@ export class LegalQaService {
     private readonly settings: AppSettingsService,
     private readonly blocks: BlocksService,
     private readonly files: FilesService,
-    private readonly synonyms: SearchSynonymsService,
+    @Inject(SEARCH_PROVIDER) private readonly search: SearchProvider,
   ) {}
 
   // --- questions ------------------------------------------------------------
 
-  /**
-   * Owner 2026-10-20: the same kinds of match as the main search — whole
-   * words (full text, accents ignored), typos (trigram word similarity on
-   * the title), plain substrings, and the topic the query's synonyms point
-   * at — over the title, the text and every published answer.
-   */
-  private async searchIds(text: string): Promise<string[]> {
-    const topics = (await this.synonyms.resolve(text)).practiceIds;
-    const like = `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT q.id::TEXT AS id
-      FROM legal_questions q
-      WHERE q.status = 'published' AND q.deleted_at IS NULL
-        AND (
-          to_tsvector('simple', f_unaccent(q.title || ' ' || q.body))
-            @@ websearch_to_tsquery('simple', f_unaccent(${text}))
-          OR word_similarity(f_unaccent(lower(${text})), f_unaccent(lower(q.title))) > 0.45
-          OR q.title ILIKE ${like} OR q.body ILIKE ${like}
-          OR (${topics.length > 0} AND q.practice_area_id = ANY(${topics}::UUID[]))
-          OR EXISTS (
-            SELECT 1 FROM legal_answers a
-            WHERE a.question_id = q.id AND a.status = 'published'
-              AND a.deleted_at IS NULL
-              AND (to_tsvector('simple', f_unaccent(a.body))
-                     @@ websearch_to_tsquery('simple', f_unaccent(${text}))
-                   OR a.body ILIKE ${like}))
-        )
-      ORDER BY q.created_at DESC
-      LIMIT 500`;
-    return rows.map((r) => r.id);
+  /** Owner 2026-10-20: the same kinds of match as the main search; the
+   * query itself lives in the search provider (Postgres today, an engine
+   * behind the `search.engine` switch later). */
+  private searchIds(text: string): Promise<string[]> {
+    return this.search.searchQuestions(text);
   }
 
   async list(user: RequestUser, q: QuestionsQueryDto): Promise<QuestionPage> {
