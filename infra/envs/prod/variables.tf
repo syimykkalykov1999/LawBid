@@ -562,8 +562,9 @@ variable "backup_vault_lock_cooling_off_days" {
 variable "db_replica_toggle" {
   type        = bool
   default     = false
-  description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (two admins + 2FA). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
+  description = "Owner 2026-10-24: true = the admin «Масштаб» page can create / delete ONE read replica of the database (one 2FA step-up). Adds IAM for exactly that instance name and one small monitoring role; creates no database. docs/runbooks/db-replica.md."
 }
+
 # AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md)
 variable "config_enabled" {
   type        = bool

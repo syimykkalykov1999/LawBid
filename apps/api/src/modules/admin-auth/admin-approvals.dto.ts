@@ -42,10 +42,6 @@ export class AdminApprovalDto {
       'payroll_bonus',
       'partner_payout',
       'partner_commission_paid',
-      'ops_db_replica',
-      'ops_partition_start',
-      'ops_partition_undo',
-      'ops_partition_finalize',
     ],
   })
   kind!: string;

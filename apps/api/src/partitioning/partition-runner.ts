@@ -30,8 +30,8 @@ export interface PartitionSpec {
 /**
  * Tables the online runner may convert later (whitelist: no free SQL names).
  * audit_log, auth_events are ALREADY partitioned by month (migration
- * 20261025130000); messages, chat_group_messages and notifications by HASH
- * (migration 20261026200000, see HASH_PARTITIONED).
+ * 20261026095000); messages, chat_group_messages and notifications by HASH
+ * (migration 20261029300000, see HASH_PARTITIONED).
  */
 export const PARTITION_TABLES: readonly PartitionSpec[] = [
   {
@@ -42,7 +42,7 @@ export const PARTITION_TABLES: readonly PartitionSpec[] = [
 ];
 
 /**
- * Partitioned by the migration 20261026200000 with native HASH partitioning
+ * Partitioned by the migration 20261029300000 with native HASH partitioning
  * (16 partitions): no monthly job, nothing to keep up. The label says the key
  * (the admin card reads "хеш" and shows «по хешу» instead of «по месяцам»).
  * `key` is the hash column.

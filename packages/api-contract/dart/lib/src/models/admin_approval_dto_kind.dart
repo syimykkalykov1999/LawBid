@@ -16,14 +16,6 @@ enum AdminApprovalDtoKind {
   partnerPayout('partner_payout'),
   @JsonValue('partner_commission_paid')
   partnerCommissionPaid('partner_commission_paid'),
-  @JsonValue('ops_db_replica')
-  opsDbReplica('ops_db_replica'),
-  @JsonValue('ops_partition_start')
-  opsPartitionStart('ops_partition_start'),
-  @JsonValue('ops_partition_undo')
-  opsPartitionUndo('ops_partition_undo'),
-  @JsonValue('ops_partition_finalize')
-  opsPartitionFinalize('ops_partition_finalize'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

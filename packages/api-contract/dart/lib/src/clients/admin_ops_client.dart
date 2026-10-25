@@ -27,7 +27,7 @@ abstract class AdminOpsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Create / delete the read copy (step-up, then a second admin approves)
+  /// Create / delete the read copy (step-up)
   @POST('/admin/system-health/db-replica')
   Future<ReplicaStatusEnvelope> setReplica({
     @Body() required ReplicaToggleDto body,
@@ -40,21 +40,21 @@ abstract class AdminOpsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Start the online conversion of a table to monthly partitions (step-up + second admin)
+  /// Start the online conversion of a table to monthly partitions (step-up)
   @POST('/admin/system-health/partitions/{table}/start')
   Future<PartitionCardListEnvelope> startPartition({
     @Path('table') required String table,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Swap the old table back (step-up + second admin)
+  /// Swap the old table back (step-up)
   @POST('/admin/system-health/partitions/{table}/undo')
   Future<PartitionCardListEnvelope> undoPartition({
     @Path('table') required String table,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Delete the old copy for good (step-up + second admin)
+  /// Delete the old copy for good (step-up)
   @POST('/admin/system-health/partitions/{table}/finalize')
   Future<PartitionCardListEnvelope> finalizePartition({
     @Path('table') required String table,

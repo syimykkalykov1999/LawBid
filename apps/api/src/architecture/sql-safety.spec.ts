@@ -11,6 +11,9 @@ import { join, relative, resolve, sep } from 'node:path';
 const ALLOWED = new Set([
   'common/secrets/secrets.service.ts',
   'modules/demo/demo-database.service.ts',
+  // Table names come from the fixed PARTITION_TABLES whitelist, never from input.
+  'partitioning/partition.service.ts',
+  'partitioning/sql.ts',
   'prisma/prisma.service.ts',
 ]);
 const SRC = resolve(__dirname, '..');

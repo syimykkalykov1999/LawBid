@@ -68294,7 +68294,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING, FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -68339,7 +68339,7 @@
             "admin": []
           }
         ],
-        "summary": "Create / delete the read copy (step-up, then a second admin approves)",
+        "summary": "Create / delete the read copy (step-up)",
         "tags": [
           "admin-ops"
         ]
@@ -68467,16 +68467,6 @@
               }
             }
           },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -68513,7 +68503,7 @@
             "admin": []
           }
         ],
-        "summary": "Start the online conversion of a table to monthly partitions (step-up + second admin)",
+        "summary": "Start the online conversion of a table to monthly partitions (step-up)",
         "tags": [
           "admin-ops"
         ]
@@ -68564,16 +68554,6 @@
               }
             }
           },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -68610,7 +68590,7 @@
             "admin": []
           }
         ],
-        "summary": "Swap the old table back (step-up + second admin)",
+        "summary": "Swap the old table back (step-up)",
         "tags": [
           "admin-ops"
         ]
@@ -68661,16 +68641,6 @@
               }
             }
           },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -68707,7 +68677,7 @@
             "admin": []
           }
         ],
-        "summary": "Delete the old copy for good (step-up + second admin)",
+        "summary": "Delete the old copy for good (step-up)",
         "tags": [
           "admin-ops"
         ]
@@ -116683,11 +116653,7 @@
               "billing_refund",
               "payroll_bonus",
               "partner_payout",
-              "partner_commission_paid",
-              "ops_db_replica",
-              "ops_partition_start",
-              "ops_partition_undo",
-              "ops_partition_finalize"
+              "partner_commission_paid"
             ]
           },
           "label": {

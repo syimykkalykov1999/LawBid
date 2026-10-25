@@ -1,5 +1,5 @@
 #!/bin/sh
-# Hot-query benchmark for migration 20261026200000 (hash partitioning of
+# Hot-query benchmark for migration 20261029300000 (hash partitioning of
 # messages / chat_group_messages / notifications).
 #   sh scripts/perf/hash-partition-bench.sh            # whole run (needs docker)
 # Starts its own throw-away PostgreSQL 16, applies every migration BEFORE the
@@ -13,7 +13,7 @@ NAME=${BENCH_CONTAINER:-lawbid-hashbench}
 PORT=${BENCH_PORT:-55444}
 OUT=${OUT:-/tmp/hash-bench}
 SECS=${BENCH_SECONDS:-10}
-PARTMIG=20261026200000_partition_messages_notifications
+PARTMIG=20261029300000_partition_messages_notifications
 mkdir -p "$OUT"
 docker rm -f "$NAME" >/dev/null 2>&1 || true
 [ -n "${BENCH_SEED_ONLY:-}" ] || trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT

@@ -4,7 +4,7 @@ import { prismaSql, type SqlDb } from './sql';
 
 /**
  * End to end on a real PostgreSQL (see scripts/ops/partition-selftest.sh):
- * the HASH conversion of migration 20261026200000 on a small copy of the
+ * the HASH conversion of migration 20261029300000 on a small copy of the
  * messages / notifications shape. Skipped without PARTITION_TEST_URL.
  */
 const URL = process.env.PARTITION_TEST_URL;
@@ -13,7 +13,7 @@ const d = URL ? describe : describe.skip;
 const MIGRATION = readFileSync(
   join(
     __dirname,
-    '../../prisma/migrations/20261026200000_partition_messages_notifications/migration.sql',
+    '../../prisma/migrations/20261029300000_partition_messages_notifications/migration.sql',
   ),
   'utf8',
 );

@@ -1479,7 +1479,7 @@ data "aws_iam_policy_document" "task" {
 variable "db_replica_toggle" {
   type        = bool
   default     = false
-  description = "Owner 2026-10-24: lets the API task create and delete ONE read replica of the database from the admin «Масштаб» page (two admins + 2FA). false (default): no IAM, no env, the button says it is unavailable. The replica is created by the API, not by Terraform, so apply never touches it. docs/runbooks/db-replica.md."
+  description = "Owner 2026-10-24: lets the API task create and delete ONE read replica of the database from the admin «Масштаб» page (one 2FA step-up). false (default): no IAM, no env, the button says it is unavailable. The replica is created by the API, not by Terraform, so apply never touches it. docs/runbooks/db-replica.md."
 }
 variable "db_replica_monitoring" {
   type        = bool

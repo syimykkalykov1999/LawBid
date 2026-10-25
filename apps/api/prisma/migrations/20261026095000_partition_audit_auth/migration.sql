@@ -1,3 +1,4 @@
+-- migration-safety: contract audit_log/auth_events are swapped for partitioned twins inside one transaction; the table names and columns stay the same, only the key gains created_at, so old and new code both work and nothing reads these rows by id alone
 -- Owner 2026-10-24: partition the append-heavy tables by month NOW, while they
 -- are tiny (docs/architecture/TABLE_PARTITIONING_READY.md). Native declarative
 -- RANGE partitioning on the created_at column; the partition key joins the

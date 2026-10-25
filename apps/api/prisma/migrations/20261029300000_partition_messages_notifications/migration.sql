@@ -1,3 +1,4 @@
+-- migration-safety: contract messages, chat_group_messages and notifications are swapped for hash-partitioned twins in one transaction (same names and columns, the key gains the partition column); reads by id keep working, but old code inserting message_reactions / message_edits / message_hidden / saved_chat_messages rows without conversation_id fails for the seconds between this migration and the new release, so deploy the release right after
 -- Owner 2026-10-26: partition the three biggest-growing tables NOW, while they
 -- are tiny (docs/architecture/TABLE_PARTITIONING_READY.md). #334 left them
 -- flat because a MONTHLY range key (created_at) cannot live in their unique
@@ -21,7 +22,7 @@
 -- point at chat_group_messages(group_id, id). A reply link can only point into
 -- the same chat (it always did in the code).
 --
--- Same safety as 20261025130000_partition_audit_auth: a table above 2 million
+-- Same safety as 20261026095000_partition_audit_auth: a table above 2 million
 -- rows RAISES before any change (use the online runner then); lock_timeout 5 s;
 -- one transaction, a failure rolls everything back; idempotent.
 
