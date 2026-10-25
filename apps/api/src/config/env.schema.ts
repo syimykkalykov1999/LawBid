@@ -815,6 +815,14 @@ export const envSchema = z
     LIVEKIT_URL: z.preprocess(blankToUndefined, z.string().optional()),
     LIVEKIT_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
     LIVEKIT_API_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-24 (search-ready): the search engine behind the
+    // `search.engine` switch (admin → Settings); also settable in admin →
+    // Integrations → Search engine. Unused while the switch is `postgres`.
+    OPENSEARCH_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_USERNAME: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_REPLICAS: z.preprocess(blankToUndefined, z.string().optional()),
     // docs/06 §2.1 (stage 6.2): encrypts admin TOTP secrets at rest
     // (admin_credentials.totp_secret_enc). Admin sign-in is 503 until set.
     ADMIN_TOTP_ENC_KEY: z.preprocess(

@@ -54,6 +54,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Where new PUBLIC media (avatars, post and review photos, stickers) is stored: aws or r2 (Cloudflare R2; needs Integrations → Cloudflare R2). Private files (chats, cases, documents, verification) always stay on AWS.',
     pattern: /^(aws|r2)$/,
   };
+  // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
+  out['search.engine'] = {
+    type: 'string',
+    defaultValue: 'postgres',
+    description:
+      'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
+    pattern: /^(postgres|shadow|engine)$/,
+  };
+  out['search.engine_timeout_ms'] = {
+    type: 'integer',
+    defaultValue: 800,
+    description:
+      'The search engine answers slower than this, milliseconds: the search falls back to Postgres for that request.',
+    min: 100,
+    max: 5000,
+  };
   out['calls.video_provider'] = {
     type: 'string',
     defaultValue: 'p2p',
