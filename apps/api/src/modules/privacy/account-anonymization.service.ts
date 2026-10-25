@@ -27,6 +27,7 @@ import {
   DELETED_MESSAGE_BODY,
   DELETION_GRACE_DAYS,
 } from './privacy.constants';
+import { userDirectory } from '../../sharding/user-directory';
 
 export interface AnonymizationResult {
   anonymized: string[];
@@ -324,12 +325,7 @@ export class AccountAnonymizationService {
     }
 
     // 4. One transaction over the user's entities.
-    let follows: {
-      follower_id: string;
-      followee_id: string;
-      follower: { role: string | null };
-      followee: { role: string | null };
-    }[] = [];
+    let follows: { follower_id: string; followee_id: string }[] = [];
     let postsRemoved = 0;
     const chains = await withTxRetry(this.prisma, async (tx) => {
       follows = [];
@@ -495,12 +491,7 @@ export class AccountAnonymizationService {
       };
       follows = await tx.follow.findMany({
         where: between,
-        select: {
-          follower_id: true,
-          followee_id: true,
-          follower: { select: { role: true } },
-          followee: { select: { role: true } },
-        },
+        select: { follower_id: true, followee_id: true },
       });
       await tx.follow.deleteMany({ where: between });
       // Comments keep their rows: the author renders as "Deleted User"
@@ -515,17 +506,22 @@ export class AccountAnonymizationService {
       return active.map((s) => s.session_chain_id);
     });
 
+    // Shard-ready step 6: the other side's role from the user directory.
+    const followRoles = await userDirectory(this.prisma).select(
+      follows.flatMap((f) => [f.follower_id, f.followee_id]),
+      { role: true },
+    );
     for (const f of follows) {
       if (f.follower_id === userId) {
         await this.counters?.bump(
-          profileEntity(f.followee.role),
+          profileEntity(followRoles.get(f.followee_id)?.role ?? null),
           f.followee_id,
           'followers_count',
           -1,
         );
       } else {
         await this.counters?.bump(
-          profileEntity(f.follower.role),
+          profileEntity(followRoles.get(f.follower_id)?.role ?? null),
           f.follower_id,
           'following_count',
           -1,

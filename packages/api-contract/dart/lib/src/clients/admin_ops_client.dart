@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/heavy_jobs_dto.dart';
 import '../models/scale_dto.dart';
+import '../models/scale_extras_envelope.dart';
 import '../models/system_health_envelope.dart';
 import '../models/update_ops_settings_dto.dart';
 
@@ -19,6 +20,19 @@ abstract class AdminOpsClient {
   /// Traffic lights of every part of the system
   @GET('/admin/system-health')
   Future<SystemHealthEnvelope> getSystemHealth({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Scale page extras: autoscale switches, pooler, search engine
+  @GET('/admin/system-health/scale')
+  Future<ScaleExtrasEnvelope> getScaleExtras({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Cap autoscaling at the minimum / back to normal (needs step-up)
+  @POST('/admin/system-health/scale')
+  Future<SystemHealthEnvelope> setOpsScale({
+    @Body() required ScaleDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -38,13 +52,6 @@ abstract class AdminOpsClient {
   @POST('/admin/system-health/heavy-jobs')
   Future<SystemHealthEnvelope> setHeavyJobsPaused({
     @Body() required HeavyJobsDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Cap autoscaling at the minimum / back to normal (needs step-up)
-  @POST('/admin/system-health/scale')
-  Future<SystemHealthEnvelope> setOpsScale({
-    @Body() required ScaleDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

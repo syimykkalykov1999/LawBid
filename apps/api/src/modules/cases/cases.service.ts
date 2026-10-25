@@ -71,6 +71,10 @@ import type {
   CasePage,
   CaseSummaryDto,
 } from './dto/case-responses.dto';
+import {
+  CrossFamilyOutbox,
+  type OutboxTicket,
+} from '../../sharding/outbox/cross-family-outbox';
 
 /** docs/04 §11.1 tab filters -> case_status values. */
 const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
@@ -372,6 +376,8 @@ export class CasesService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
     // publish; the case text is a repeat-account signal.
     @Optional() private readonly fraud?: ClientFraudService,
+    // Shard-ready step 7: cross-family writes ride the outbox.
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
   ) {}
 
   /** POST /cases (§3.1–§3.4). */
@@ -429,7 +435,9 @@ export class CasesService {
       });
     }
 
+    const tickets: Array<OutboxTicket | null> = [];
     const created = await withTxRetry(this.prisma, async (tx) => {
+      tickets.length = 0;
       const now = new Date();
       const kase = await tx.case.create({
         data: {
@@ -482,18 +490,39 @@ export class CasesService {
         },
       });
       if (!consentGranted) {
-        await tx.userConsent.create({
-          data: {
-            user_id: user.sub,
-            consent_type: 'client_contact_sharing',
-            granted: true,
-            ip: meta.ip ?? null,
-            device_id: meta.deviceId ?? null,
-          },
-        });
+        // Shard-ready step 7: the consent is a global-family row written
+        // next to a sharded one. On the primary database the outbox runs it
+        // right here in this transaction (as before); on another database it
+        // is an event applied on the primary one right after the commit.
+        if (this.outbox) {
+          tickets.push(
+            await this.outbox.emit(
+              tx,
+              'user.consent.record',
+              {
+                userId: user.sub,
+                consentType: 'client_contact_sharing',
+                ip: meta.ip ?? null,
+                deviceId: meta.deviceId ?? null,
+              },
+              `consent:client_contact_sharing:${user.sub}:${kase.id}`,
+            ),
+          );
+        } else {
+          await tx.userConsent.create({
+            data: {
+              user_id: user.sub,
+              consent_type: 'client_contact_sharing',
+              granted: true,
+              ip: meta.ip ?? null,
+              device_id: meta.deviceId ?? null,
+            },
+          });
+        }
       }
       return kase;
     });
+    await this.outbox?.flush(tickets);
     // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
     const alerts = this.alerts;
     alerts?.later(() => alerts.attorneysForCase(created.id));

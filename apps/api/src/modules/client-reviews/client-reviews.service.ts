@@ -34,6 +34,7 @@ import type {
 } from './client-reviews.dto';
 import { assertNoBlock } from '../blocks/block-guard';
 import { removedByModeration } from '../reviews/reviews.service';
+import { userDirectory } from '../../sharding/user-directory';
 
 const PAGE = 20;
 
@@ -448,18 +449,21 @@ export class ClientReviewsService {
       },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       take: PAGE + 1,
-      include: {
-        review: {
-          include: {
-            attorney: {
-              select: { first_name: true, last_name: true, role: true },
-            },
-            client: { select: { first_name: true, last_name: true } },
-          },
-        },
-      },
+      include: { review: true },
     });
     const page = rows.slice(0, PAGE);
+    // Shard-ready step 6: the two names come from the user directory.
+    const people = userDirectory(this.prisma);
+    const [attorneys, clients] = await Promise.all([
+      people.select(
+        page.map((a) => a.review.attorney_id),
+        { first_name: true, last_name: true, role: true },
+      ),
+      people.select(
+        page.map((a) => a.review.client_id),
+        { first_name: true, last_name: true },
+      ),
+    ]);
     const last = page[page.length - 1];
     const name = (u: { first_name: string | null; last_name: string | null }) =>
       [u.first_name, u.last_name].filter(Boolean).join(' ') || '—';
@@ -473,15 +477,15 @@ export class ClientReviewsService {
         reviewId: a.review_id,
         rating: a.review.rating,
         body: a.review.body,
-        authorName: name(a.review.attorney),
+        authorName: name(attorneys.get(a.review.attorney_id)!),
         authorRole:
-          a.review.attorney.role === 'client'
+          attorneys.get(a.review.attorney_id)!.role === 'client'
             ? 'client'
-            : a.review.attorney.role === 'assistant'
+            : attorneys.get(a.review.attorney_id)!.role === 'assistant'
               ? 'assistant'
               : 'attorney',
         clientId: a.review.client_id,
-        clientName: name(a.review.client),
+        clientName: name(clients.get(a.review.client_id)!),
       })),
       nextCursor:
         rows.length > PAGE && last
@@ -799,20 +803,21 @@ export class ClientReviewsService {
       include: {
         case: { select: { title: true } },
         appeal: { select: { status: true } },
-        attorney: {
-          select: {
-            role: true,
-            first_name: true,
-            last_name: true,
-            avatar_file_id: true,
-            phone_verified_at: true,
-            attorney_profile: { select: { username: true } },
-          },
-        },
       },
     });
+    const authorsById = await userDirectory(this.prisma).select(
+      rows.map((r) => r.attorney_id),
+      {
+        role: true,
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        phone_verified_at: true,
+        attorney_profile: { select: { username: true } },
+      },
+    );
     const avatars = await this.files.avatarUrlsMany(
-      rows.map((r) => r.attorney.avatar_file_id),
+      rows.map((r) => authorsById.get(r.attorney_id)!.avatar_file_id),
     );
     const photos = await this.files.postImageUrls(
       rows.flatMap((r) => r.photo_ids),
@@ -850,7 +855,7 @@ export class ClientReviewsService {
     return ids.flatMap((id) => {
       const r = byId.get(id);
       if (!r) return [];
-      const a = r.attorney;
+      const a = authorsById.get(r.attorney_id)!;
       const username = a.attorney_profile?.username ?? '';
       return [
         {

@@ -24,6 +24,10 @@ export interface ShardStatsSnapshot {
    * user, a guess for anything but that user's own data). */
   weakTotal: number;
   weakByModel: Record<string, number>;
+  /** `Model.op` -> global writes made inside a non-primary transaction. */
+  globalWrites: Record<string, number>;
+  /** Model -> unkeyed queries answered by scatter-gather. */
+  scatters: Record<string, number>;
 }
 
 class ShardStats {
@@ -42,6 +46,21 @@ class ShardStats {
     this.weakByModel.set(model, (this.weakByModel.get(model) ?? 0) + 1);
   }
 
+  private globalWrites = new Map<string, number>();
+  private scatters = new Map<string, number>();
+
+  /** A query that named no shard ran on every database and was merged. */
+  scatter(model: string): void {
+    this.scatters.set(model, (this.scatters.get(model) ?? 0) + 1);
+  }
+
+  /** A global-family write made inside a transaction that runs on a
+   * non-primary database (tx-global-facade.ts): applied "global first". */
+  globalWriteInShardTx(model: string, op: string): void {
+    const k = `${model}.${op}`;
+    this.globalWrites.set(k, (this.globalWrites.get(k) ?? 0) + 1);
+  }
+
   /** Counts since the last `drain()`, without resetting them. */
   peek(): ShardStatsSnapshot {
     return {
@@ -49,13 +68,24 @@ class ShardStats {
       byModel: Object.fromEntries(this.byModel),
       weakTotal: this.weakTotal,
       weakByModel: Object.fromEntries(this.weakByModel),
+      globalWrites: Object.fromEntries(this.globalWrites),
+      scatters: Object.fromEntries(this.scatters),
     };
   }
 
   /** Returns the counts and starts over; null when nothing was counted. */
   drain(): ShardStatsSnapshot | null {
-    if (this.total === 0 && this.weakTotal === 0) return null;
+    if (
+      this.total === 0 &&
+      this.weakTotal === 0 &&
+      this.globalWrites.size === 0 &&
+      this.scatters.size === 0
+    ) {
+      return null;
+    }
     const out = this.peek();
+    this.globalWrites = new Map();
+    this.scatters = new Map();
     this.byModel = new Map();
     this.weakByModel = new Map();
     this.total = 0;
@@ -89,6 +119,21 @@ export class ShardStatsService implements OnModuleInit, OnApplicationShutdown {
           .sort((a, b) => b[1] - a[1])
           .slice(0, TOP_MODELS),
       );
+    if (Object.keys(s.globalWrites).length > 0) {
+      this.logger.log({
+        metric: 'shard_tx_global_write',
+        byModelOp: top(s.globalWrites),
+        msg: 'global-family writes inside a transaction on a non-primary database (global first, not atomic)',
+      });
+    }
+    if (Object.keys(s.scatters).length > 0) {
+      this.logger.log({
+        metric: 'shard_scatter',
+        byModel: top(s.scatters),
+        msg: 'queries that named no shard and ran on every database',
+      });
+    }
+    if (s.total === 0 && s.weakTotal === 0) return;
     this.logger.log({
       metric: 'shard_no_context',
       total: s.total,

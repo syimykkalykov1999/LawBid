@@ -243,8 +243,9 @@ describe('JobsRunner', () => {
     // + ops.status-watchdog (every minute).
     // Owner 2026-10-23: + admin.summaries (every 2 minutes).
     // Batch C: + ops.usage-poll (daily).
+    // Shard-ready step 7: + outbox.sweep (every minute).
     // Owner 2026-10-24: + search.index (every minute).
-    expect(upserts).toHaveLength(65);
+    expect(upserts).toHaveLength(66);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

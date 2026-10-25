@@ -34,6 +34,7 @@ import type {
   PeoplePage,
   PersonItemDto,
 } from './follows.dto';
+import { userDirectory } from '../../sharding/user-directory';
 
 const PAGE = 20;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
@@ -251,13 +252,15 @@ export class FollowsService {
         follower_id: true,
         followee_id: true,
         created_at: true,
-        follower: { select: { role: true } },
-        followee: { select: { role: true } },
       },
     });
+    const roles = await userDirectory(this.prisma).select(
+      rows.map((r) => (followers ? r.follower_id : r.followee_id)),
+      { role: true },
+    );
     const all = rows.map((r) => ({
       id: followers ? r.follower_id : r.followee_id,
-      role: (followers ? r.follower : r.followee).role,
+      role: roles.get(followers ? r.follower_id : r.followee_id)!.role,
       created_at: r.created_at,
     }));
     const page = all.slice(0, PAGE);

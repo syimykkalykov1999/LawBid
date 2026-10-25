@@ -55,19 +55,10 @@
     "Case.practice_area",
     "CaseExtraPractice.practice_area"
   ],
-  "modules/bids/conflict/conflict-check.service.ts": [
-    "Case.client"
-  ],
-  "modules/blocks/blocks.service.ts": [
-    "Follow.followee",
-    "Follow.follower",
-    "UserBlock.blocked"
-  ],
   "modules/case-payments/case-payments.service.ts": [
     "User.quiet_hours"
   ],
   "modules/cases/mine/mine.service.ts": [
-    "Case.client",
     "Case.practice_area"
   ],
   "modules/cases/services/case-photos.service.ts": [
@@ -75,14 +66,6 @@
   ],
   "modules/cases/workspace/case-workspace.service.ts": [
     "Case.practice_area"
-  ],
-  "modules/client-reviews/client-reviews.service.ts": [
-    "ClientReview.attorney",
-    "ClientReview.client"
-  ],
-  "modules/follows/follows.service.ts": [
-    "Follow.followee",
-    "Follow.follower"
   ],
   "modules/media-moderation/media-moderation.service.ts": [
     "VideoAsset.post"
@@ -100,26 +83,12 @@
   "modules/posts/post-presenter.service.ts": [
     "PostTag.tag"
   ],
-  "modules/posts/posts.service.ts": [
-    "Post.author"
-  ],
-  "modules/posts/shared-post-cards.service.ts": [
-    "Post.author"
-  ],
-  "modules/privacy/account-anonymization.service.ts": [
-    "Follow.followee",
-    "Follow.follower"
-  ],
   "modules/promotions/promotion-delivery.service.ts": [
     "Case.practice_area"
   ],
   "modules/recommendations/recommendations.service.ts": [
     "Case.practice_area",
     "Post.practice_area"
-  ],
-  "modules/reviews/reviews.service.ts": [
-    "Review.attorney",
-    "Review.client"
   ],
   "modules/stickers/stickers.service.ts": [
     "UserRecentSticker.sticker",
