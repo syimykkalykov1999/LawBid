@@ -130,6 +130,11 @@ enum LegalDocType {
   dmca_policy
   // Owner 2026-10-22 (systems checklist §26): accessibility statement.
   accessibility
+  // Owner 2026-10-25 (legal texts): community rules, advertising /
+  // ranking disclosure and the SMS program terms.
+  community_guidelines
+  advertising_disclosure
+  sms_terms
 
   @@map("legal_doc_type")
 }

@@ -1,47 +1,27 @@
-# Copyright (DMCA) Policy
+# DMCA and Copyright Policy
 
-*Draft prepared for review by a licensed US attorney; not legal advice.*
+*DRAFT for review by a licensed attorney. Not legal advice. Version: draft-2026-10-25.*
 
-SiMA LLC (doing business as LawBid) respects the intellectual property of others and expects users to do the same. We respond to notices of claimed copyright infringement that comply with the Digital Millennium Copyright Act (DMCA), 17 U.S.C. §512.
+LawBid respects copyright and responds to notices under the Digital Millennium Copyright Act, 17 U.S.C. section 512.
 
 ## Designated agent
+Send notices and counter-notices to our designated agent registered with the US Copyright Office:
 
-Send notices and counter-notices to our designated agent: - [DMCA agent — to be registered with the US Copyright Office]
-- SiMA LLC, [postal address]
-- Email: support@lawbid.dev (subject “DMCA notice”)
+[Name], [Company], [Postal address], [Email], [Phone]
 
-## How to send a takedown notice
+(Replace with the registered agent after registration at https://dmca.copyright.gov. The registration must be renewed every 3 years.)
 
-If you believe content on LawBid infringes your copyright, send a written notice that includes all of the elements required by 17 U.S.C. §512(c)(3):
+## Notice of infringement
+Include: (1) your physical or electronic signature; (2) identification of the copyrighted work; (3) identification of the material you say infringes and where it is (a link); (4) your address, phone and email; (5) a statement that you have a good-faith belief the use is not authorized by the owner, its agent or the law; (6) a statement, under penalty of perjury, that the notice is accurate and that you are the owner or authorized to act for the owner. Knowingly sending a false notice can make you liable for damages (17 U.S.C. 512(f)).
 
-- Your physical or electronic signature, or that of a person authorized to act for the copyright owner.
-- Identification of the copyrighted work you claim has been infringed (or a representative list if several).
-- Identification of the material you claim is infringing and enough information for us to find it, such as the link to the post, profile or case and the user name.
-- Your name, postal address, telephone number and email address.
-- A statement that you have a good-faith belief that the use is not authorized by the copyright owner, its agent or the law.
-- A statement, made under penalty of perjury, that the information in the notice is accurate and that you are the copyright owner or authorized to act on the owner's behalf.
-
-When we receive a complete notice we remove or disable access to the material, tell the user who posted it and give them a copy of the notice (including your contact details).
+## What we do
+We remove or disable access to the material promptly, notify the user who posted it, and give them a copy of the notice.
 
 ## Counter-notice
-
-If your content was removed and you believe the removal was a mistake or a misidentification, you can send a counter-notice to the designated agent that includes:
-
-- Your physical or electronic signature.
-- Identification of the material that was removed and where it appeared before removal.
-- A statement, under penalty of perjury, that you have a good-faith belief the material was removed as a result of mistake or misidentification.
-- Your name, address and telephone number, and a statement that you consent to the jurisdiction of the federal district court for the district where your address is located (or, if you live outside the United States, the Northern District of Illinois), and that you will accept service of process from the person who sent the original notice or their agent.
-
-We forward the counter-notice to the person who sent the original notice. Unless they tell us within 10 business days that they have filed a court action to restrain the user, we may restore the material within 10 to 14 business days after we receive the counter-notice.
+If you think material was removed by mistake, send a counter-notice with: your signature; identification of the material and where it was before removal; a statement under penalty of perjury that you have a good-faith belief it was removed by mistake or misidentification; your name, address and phone; and consent to the jurisdiction of the federal district court for your address (or Northern District of Illinois if outside the US) and to accept service from the person who sent the notice. If the complainant does not tell us within 10 to 14 business days that it filed a court action, we may restore the material.
 
 ## Repeat infringers
+We close the accounts of users who are repeat infringers. An account is suspended after [3] valid notices that result in removals, and may be closed sooner for serious cases. Counter-noticed items that are restored do not count.
 
-We terminate, in appropriate circumstances, the accounts of users who are repeat infringers. As a rule, an account that receives three valid takedown notices that are not answered by a successful counter-notice within 12 months is closed. We may also close an account sooner for clear or serious infringement.
-
-## Misrepresentation
-
-Under 17 U.S.C. §512(f), anyone who knowingly and materially misrepresents that material is infringing, or that it was removed by mistake, can be liable for damages, including costs and attorney fees, incurred by the user, the copyright owner or LawBid. Consider whether a use is fair use or otherwise authorized before you send a notice. If you are unsure, consult an attorney.
-
-## Other complaints
-
-This policy covers copyright only. For trademark, defamation, privacy or other complaints about content, use the report button in the app or write to support@lawbid.dev. See also our [Terms of Service](https://lawbid.dev/terms).
+## Other claims
+Trademark, defamation, privacy and non-consensual intimate image reports follow the Community Guidelines (intimate images: removal within 48 hours).
