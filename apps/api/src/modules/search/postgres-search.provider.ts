@@ -9,10 +9,6 @@ import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { readsAreSplit } from '../../sharding/split-reads';
-import {
-  resolveFeedGlobals,
-  scatterFeed,
-} from '../cases/queries/cases-feed.split';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ftsMatch,
@@ -28,6 +24,8 @@ import { urgencyFilterSql } from '../cases/domain/case-urgency';
 import { budgetFilterSql } from '../cases/cases.public';
 import {
   buildPracticeCasesSql,
+  resolveFeedGlobals,
+  scatterFeed,
   buildVisibleCasesSql,
 } from '../cases/queries/cases-visible.sql';
 import type {
@@ -360,7 +358,7 @@ export class PostgresSearchProvider implements SearchProvider {
           ${urgencyFilterSql(p.minUrgency, p.hasDeadline, p.urgencyThresholds)}
           ${p.extraSql ?? Prisma.empty}`;
     // Shard-ready step 8: several databases -> global parts resolved first,
-    // the case-only statement runs on each database (see cases-feed.split.ts).
+    // the case-only statement runs on each database (see cases-visible.sql.ts).
     if (readsAreSplit(this.db)) {
       return this.searchCasesSplit(q, p, extra, textPractices, this.budgetNow);
     }

@@ -31,12 +31,10 @@ import {
 } from '../policies/case-access.policy';
 import { readsAreSplit } from '../../../sharding/split-reads';
 import {
+  buildPracticeCasesSql,
   blockedPeople,
   resolveFeedGlobals,
   scatterFeed,
-} from '../queries/cases-feed.split';
-import {
-  buildPracticeCasesSql,
   buildVisibleCasesSql,
 } from '../queries/cases-visible.sql';
 import { budgetFilterSql } from '../queries/budget-filter.sql';
@@ -145,7 +143,7 @@ export class CasesFeedService {
     const thresholds = await loadUrgencyThresholds(this.settings);
     // Shard-ready step 8: with several databases the global parts of the
     // rule (licences, topics, blocks) are resolved first and the statement
-    // touches the case family only (cases-feed.split.ts).
+    // touches the case family only (cases-visible.sql.ts).
     const split = readsAreSplit(this.prisma);
     const globals = split
       ? await resolveFeedGlobals(this.prisma, viewer.userId, {
