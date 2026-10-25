@@ -20,6 +20,7 @@ import type {
   HealthStatus,
   SystemHealthDto,
 } from './admin-ops.dto';
+import { bullOptions } from '../../redis/redis-connection';
 
 const PROBE_TIMEOUT_MS = 3_000;
 const DLQ = 'stripe-webhooks-dlq';
@@ -310,7 +311,7 @@ export class SystemHealthService implements OnModuleDestroy {
     if (!this.queues) {
       const url = this.config.getOrThrow<string>('REDIS_URL');
       this.queues = OBSERVED_QUEUES.map(
-        (name) => new Queue(name, { connection: { url } }),
+        (name) => new Queue(name, bullOptions(name, url)),
       );
     }
     return this.queues;

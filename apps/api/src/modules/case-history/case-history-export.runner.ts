@@ -22,6 +22,7 @@ import type {
   CaseHistoryExportDto,
   HistoryExportStatus,
 } from './dto/case-history.dto';
+import { bullOptions } from '../../redis/redis-connection';
 
 export const HISTORY_EXPORT_QUEUE = 'case-history-export';
 export const HISTORY_EXPORT_OPTIONS = Symbol('HISTORY_EXPORT_OPTIONS');
@@ -89,12 +90,18 @@ export class CaseHistoryExportRunner
 
   onApplicationBootstrap(): void {
     const url = this.config.getOrThrow<string>('REDIS_URL');
-    this.queue = new Queue(HISTORY_EXPORT_QUEUE, { connection: { url } });
+    this.queue = new Queue(
+      HISTORY_EXPORT_QUEUE,
+      bullOptions(HISTORY_EXPORT_QUEUE, url),
+    );
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       HISTORY_EXPORT_QUEUE,
       (job: Job<ExportJob>) => this.process(job.data),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 2 },
+      {
+        ...bullOptions(HISTORY_EXPORT_QUEUE, url, { worker: true }),
+        concurrency: 2,
+      },
     );
     this.worker.on('failed', (job: Job<ExportJob> | undefined, error) => {
       if (!job) return;
