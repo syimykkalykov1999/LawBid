@@ -24,6 +24,8 @@ import {
   CHECK_TYPE,
   DOC_TYPE,
   label,
+  LICENSE_EXPIRY_SOURCE,
+  LICENSE_RENEWAL,
   LICENSE_STATUS,
   REJECTION_CODE,
   REQUEST_STATUS,
@@ -160,6 +162,42 @@ export default function VerificationCardPage() {
     mutationFn: (licenseId: string) =>
       api.POST('/admin/verification/licenses/{licenseId}/recheck', { params: { path: { licenseId } } }),
     onSuccess: () => done('Перепроверка запущена'),
+    onError,
+  });
+  /** Owner 2026-10-24: the admin enters or clears the expiry date by hand. */
+  const setExpiry = useMutation({
+    mutationFn: async (l: { id: string; expiresAt: string | null }) => {
+      const a = await ask({
+        title: 'Срок действия лицензии',
+        description:
+          'Дата окончания (ГГГГ-ММ-ДД). Пусто нельзя — чтобы убрать дату, нажмите «Убрать срок».',
+        label: 'Дата ГГГГ-ММ-ДД',
+        required: true,
+        min: 10,
+        max: 10,
+        confirm: 'Сохранить',
+      });
+      if (!a) return null;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(a.text.trim())) {
+        throw new Error('Дата должна быть в виде ГГГГ-ММ-ДД');
+      }
+      return api.POST('/admin/verification/licenses/{licenseId}/expiry', {
+        params: { path: { licenseId: l.id } },
+        body: { expiresAt: a.text.trim() },
+      });
+    },
+    onSuccess: (res) => {
+      if (res) done('Срок сохранён');
+    },
+    onError,
+  });
+  const clearExpiry = useMutation({
+    mutationFn: (licenseId: string) =>
+      api.POST('/admin/verification/licenses/{licenseId}/expiry', {
+        params: { path: { licenseId } },
+        body: { expiresAt: null },
+      }),
+    onSuccess: () => done('Срок убран'),
     onError,
   });
   const openDocument = useMutation({
@@ -397,7 +435,35 @@ export default function VerificationCardPage() {
                     </>
                   ) : '—'}
                 </Td>
-                <Td className="whitespace-nowrap">{l.expiresAt ? formatDateTime(l.expiresAt) : '—'}</Td>
+                <Td className="whitespace-nowrap">
+                  {l.expiresAt ? formatDateTime(l.expiresAt) : '—'}
+                  {l.expiresSource ? (
+                    <div className="text-xs text-muted">{label(LICENSE_EXPIRY_SOURCE, l.expiresSource)}</div>
+                  ) : null}
+                  {/* Owner 2026-10-24: the date passed — badge hidden, the account works. */}
+                  {l.renewalState && l.renewalState !== 'ok' ? (
+                    <div className="mt-1">
+                      <Badge tone={l.renewalState === 'expiring' ? 'info' : 'warning'} dot>
+                        {label(LICENSE_RENEWAL, l.renewalState)}
+                      </Badge>
+                      {l.renewalState === 'renewal_due' && l.graceEndsAt ? (
+                        <div className="mt-1 text-xs text-muted">льготный срок до {formatDateTime(l.graceEndsAt)}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {l.status !== 'expired' ? (
+                    <div className="mt-1 flex gap-2">
+                      <Button size="sm" variant="ghost" disabled={setExpiry.isPending} onClick={() => setExpiry.mutate({ id: l.id, expiresAt: l.expiresAt })}>
+                        Изменить срок
+                      </Button>
+                      {l.expiresAt ? (
+                        <Button size="sm" variant="ghost" disabled={clearExpiry.isPending} onClick={() => clearExpiry.mutate(l.id)}>
+                          Убрать срок
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </Td>
                 <Td>
                   <div className="flex justify-end gap-2">
                     <Button size="sm" variant="ghost" disabled={registryCheck.isPending} onClick={() => registryCheck.mutate(l.id)}>

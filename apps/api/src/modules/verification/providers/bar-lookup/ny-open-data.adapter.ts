@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SecretsService } from '../../../../common/secrets/secrets.service';
 import type { BarLookupInput, CheckOutcome } from '../verification-providers';
+import { registryMonthEnd } from '../../license-renewal';
 import { fetchJson, outcomeFor } from './registry-http';
 import type { ResolvedRegistry, StateBarAdapter } from './state-bar-adapter';
 
@@ -18,6 +19,8 @@ interface NyRegistrationRow {
   year_admitted?: string;
   status?: string;
   company_name?: string;
+  /** "Mar 2028": the month the next biennial registration is due. */
+  next_registration?: string;
 }
 
 /** Status of an attorney in good standing in the dataset. */
@@ -63,6 +66,7 @@ export class NyOpenDataAdapter implements StateBarAdapter {
           .join(' '),
         admitted: row.year_admitted,
         firm: row.company_name,
+        expiresAt: registryMonthEnd(row.next_registration),
         raw: row,
       },
       ACTIVE_STATUSES,

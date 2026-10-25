@@ -36,6 +36,7 @@ import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
+import { UsagePollJob } from './handlers/usage-poll.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
@@ -118,6 +119,7 @@ export class CronProcessor {
     @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly statusWatchdog?: StatusWatchdogJob,
+    @Optional() private readonly usagePoll?: UsagePollJob,
     @Optional() private readonly opsState?: OpsStateService,
     @Optional() private readonly costAutoscale?: CostAutoscaleService,
     @Optional() private readonly treasury?: TreasuryService,
@@ -278,6 +280,8 @@ export class CronProcessor {
         return this.opsGuard?.guard();
       case CRON_JOBS.statusWatchdog:
         return this.statusWatchdog?.run();
+      case CRON_JOBS.usagePoll:
+        return this.usagePoll?.run();
       case CRON_JOBS.opsCostCheck:
         return this.opsGuard?.costCheck();
       case CRON_JOBS.opsBackupCheck:

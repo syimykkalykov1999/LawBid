@@ -27,6 +27,7 @@ import {
   DELETED_MESSAGE_BODY,
   DELETION_GRACE_DAYS,
 } from './privacy.constants';
+import { shardContext } from '../../sharding/shard-context';
 import { userDirectory } from '../../sharding/user-directory';
 
 export interface AnonymizationResult {
@@ -236,8 +237,16 @@ export class AccountAnonymizationService {
     });
   }
 
-  /** Anonymizes one user (idempotent: a second run is a no-op). */
-  async anonymize(userId: string, now: Date = new Date()): Promise<boolean> {
+  /** Anonymizes one user (idempotent: a second run is a no-op). Runs in the
+   * user's shard: their cases, posts, follows and tokens live there, and the
+   * global rows it touches are written through the tx facade (primary first). */
+  anonymize(userId: string, now: Date = new Date()): Promise<boolean> {
+    return shardContext.runForUser(userId, () =>
+      this.anonymizeInShard(userId, now),
+    );
+  }
+
+  private async anonymizeInShard(userId: string, now: Date): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {

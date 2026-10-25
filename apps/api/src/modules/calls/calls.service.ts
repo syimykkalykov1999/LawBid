@@ -1,4 +1,5 @@
 import { SloMetricsService } from '../../common/ops/slo-metrics.service';
+import { shardContext } from '../../sharding/shard-context';
 import { viewerContext } from '../../common/viewer/viewer-context';
 import { createHmac } from 'node:crypto';
 import {
@@ -2415,32 +2416,35 @@ export class CallsService {
     // A call from a group chat has no one-to-one chat to log into.
     const conversationId = call.conversation_id;
     if (!conversationId) return;
-    const m = await this.prisma.$transaction(async (tx) => {
-      const msg = await tx.message.create({
-        data: {
-          conversation_id: conversationId,
-          sender_id: call.caller_id,
-          type: 'call',
-          body_original: outcome,
-          body_display: outcome,
-          client_message_id: `call:${call.id}`,
-          duration_ms: (call.duration_sec ?? 0) * 1000,
-        },
-      });
-      await tx.conversation.update({
-        where: { id: conversationId },
-        data: { last_message_at: msg.created_at, last_message_id: msg.id },
-      });
-      // The caller has "read" their own call entry.
-      await tx.conversationParticipant.updateMany({
-        where: {
-          conversation_id: conversationId,
-          user_id: call.caller_id,
-        },
-        data: { last_read_message_id: msg.id },
-      });
-      return msg;
-    });
+    // The chat lives on its case's shard (the id carries it).
+    const m = await shardContext.runForCase(conversationId, () =>
+      this.prisma.$transaction(async (tx) => {
+        const msg = await tx.message.create({
+          data: {
+            conversation_id: conversationId,
+            sender_id: call.caller_id,
+            type: 'call',
+            body_original: outcome,
+            body_display: outcome,
+            client_message_id: `call:${call.id}`,
+            duration_ms: (call.duration_sec ?? 0) * 1000,
+          },
+        });
+        await tx.conversation.update({
+          where: { id: conversationId },
+          data: { last_message_at: msg.created_at, last_message_id: msg.id },
+        });
+        // The caller has "read" their own call entry.
+        await tx.conversationParticipant.updateMany({
+          where: {
+            conversation_id: conversationId,
+            user_id: call.caller_id,
+          },
+          data: { last_read_message_id: msg.id },
+        });
+        return msg;
+      }),
+    );
     const unanswered =
       outcome === 'missed' || outcome === 'canceled' || outcome === 'busy';
     await this.chat.announce(m, unanswered ? call.callee_id : undefined);

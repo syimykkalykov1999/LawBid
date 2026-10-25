@@ -1,5 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { AwsCapacityService } from './aws-capacity.service';
+import {
+  AwsBudgetsAdminService,
+  AwsCostService,
+  PagerDutySnsService,
+} from './launch/aws-launch.service';
+import { LaunchChecksService } from './launch/launch-checks.service';
+import { SpendService } from './spend/spend.service';
 import { AwsOpsService } from './aws-ops.service';
 import { HttpStatsService } from './http-stats.service';
 import { RealtimeStatsService } from './realtime-stats.service';
@@ -19,6 +26,11 @@ import { StatusProbesService } from './status/status-probes.service';
     RealtimeStatsService,
     StatusProbesService,
     IncidentsService,
+    AwsBudgetsAdminService,
+    AwsCostService,
+    PagerDutySnsService,
+    LaunchChecksService,
+    SpendService,
   ],
   exports: [
     AwsOpsService,
@@ -28,6 +40,11 @@ import { StatusProbesService } from './status/status-probes.service';
     RealtimeStatsService,
     StatusProbesService,
     IncidentsService,
+    AwsBudgetsAdminService,
+    AwsCostService,
+    PagerDutySnsService,
+    LaunchChecksService,
+    SpendService,
   ],
 })
 export class OpsModule {}

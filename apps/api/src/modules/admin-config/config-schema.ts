@@ -409,6 +409,54 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 24 * 14,
   };
+  out['search.ranked_cache_ttl_sec'] = {
+    ...out['search.ranked_cache_ttl_sec'],
+    description:
+      'Seconds a search result list is shared by everyone asking the same query (30-60 is right).',
+    min: 10,
+    max: 900,
+  };
+  out['usage.cloudflare_egress_warn_gb'] = {
+    ...out['usage.cloudflare_egress_warn_gb'],
+    description:
+      'Warn when Cloudflare calls traffic this month (GB) reaches this; 0 = off. Free until 1000.',
+    min: 0,
+    max: 10000,
+  };
+  out['usage.cloudflare_egress_crit_gb'] = {
+    ...out['usage.cloudflare_egress_crit_gb'],
+    description:
+      'Urgent alert when Cloudflare calls traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 10000,
+  };
+  out['usage.bunny_bandwidth_warn_gb'] = {
+    ...out['usage.bunny_bandwidth_warn_gb'],
+    description:
+      'Warn when Bunny video traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_bandwidth_crit_gb'] = {
+    ...out['usage.bunny_bandwidth_crit_gb'],
+    description:
+      'Urgent alert when Bunny video traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_storage_warn_gb'] = {
+    ...out['usage.bunny_storage_warn_gb'],
+    description: 'Warn when Bunny stored video (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_storage_crit_gb'] = {
+    ...out['usage.bunny_storage_crit_gb'],
+    description:
+      'Urgent alert when Bunny stored video (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
   out['economy.max_spend_percent'] = {
     ...out['economy.max_spend_percent'],
     description:
@@ -455,6 +503,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Bulk payouts and refunds of this many cents or more wait for a second admin to approve them (0 = all of them). Changing it needs a fresh 2FA code.',
     min: 0,
     max: 100_000_000,
+  };
+  out['admin.dual_control'] = {
+    ...out['admin.dual_control'],
+    description:
+      'Second-admin approval for payouts, refunds, bonuses and the ops buttons. Off (default): the admin who asks runs the action at once after a fresh 2FA code. On: amounts from billing.dual_approval_min_cents wait for another admin.',
   };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],

@@ -110,7 +110,20 @@ function shardFrom(meta: Meta, obj: Obj, withId: boolean): number | undefined {
   for (const key of meta.keys) {
     const value = find(obj, key.field, meta.relationOf.get(key.field));
     if (!value) continue;
-    return key.owner ? hashShard(value) : shardOf(value);
+    const shardOfValue = (v: string): number =>
+      key.owner ? hashShard(v) : shardOf(v);
+    // `in: [a, b ...]` pins a shard only when every element agrees.
+    const direct = obj[key.field];
+    if (isObj(direct) && Array.isArray(direct.in)) {
+      const shards = new Set(
+        direct.in.map((x) => {
+          const id = pinned(x);
+          return id ? shardOfValue(id) : -1;
+        }),
+      );
+      if (shards.size !== 1 || shards.has(-1)) return undefined;
+    }
+    return shardOfValue(value);
   }
   if (withId) {
     const id = pinned(obj.id);

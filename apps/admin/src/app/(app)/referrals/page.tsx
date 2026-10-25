@@ -639,6 +639,10 @@ function SettingsForm({
   const [maxInvites, setMaxInvites] = useState(
     String(initial.maxInvitesPerReferrer),
   );
+  const [qualifyDays, setQualifyDays] = useState(String(initial.qualifyWindowDays));
+  const [clientOn, setClientOn] = useState<"case_published" | "case_completed">(
+    initial.clientQualifyOn,
+  );
   const [lang, setLang] = useState<"ru" | "en">("ru");
   const [texts, setTexts] = useState(initial.texts);
   const [slots, setSlots] = useState<Record<string, SlotState>>(() =>
@@ -657,6 +661,7 @@ function SettingsForm({
   }));
   const wd = Number(windowDays);
   const mi = Number(maxInvites);
+  const qd = Number(qualifyDays);
   const textsOk = (["ru", "en"] as const).every((l) =>
     Object.values(texts[l]).every((v) => v.trim() !== ""),
   );
@@ -668,6 +673,9 @@ function SettingsForm({
     Number.isInteger(mi) &&
     mi >= 0 &&
     mi <= 100000 &&
+    Number.isInteger(qd) &&
+    qd >= 0 &&
+    qd <= 3650 &&
     textsOk;
 
   const save = useMutation({
@@ -676,6 +684,8 @@ function SettingsForm({
         enabled,
         applyWindowDays: wd,
         maxInvitesPerReferrer: mi,
+        qualifyWindowDays: qd,
+        clientQualifyOn: clientOn,
         texts,
         attorneyReferrerReward: { type: "balance_cents", value: 0 },
         attorneyRefereeReward: { type: "percent_first_invoice", value: 0 },
@@ -754,6 +764,38 @@ function SettingsForm({
                 onChange={(e) => setMaxInvites(e.target.value)}
                 className="w-32"
               />
+            </Field>
+            {/* Owner 2026-10-24: the end date of one invitation and what qualifies a client. */}
+            <Field
+              label="За сколько дней приглашённый должен выполнить условие"
+              htmlFor="rf-qualify"
+              hint="После этого срока награда не выдаётся. 0 — без срока."
+            >
+              <Input
+                id="rf-qualify"
+                type="number"
+                min={0}
+                max={3650}
+                value={qualifyDays}
+                disabled={!canEdit}
+                onChange={(e) => setQualifyDays(e.target.value)}
+                className="w-32"
+              />
+            </Field>
+            <Field
+              label="Когда награда за приглашённого клиента"
+              htmlFor="rf-client-on"
+              hint="Адвокат — после первой оплаты подписки."
+            >
+              <Select
+                id="rf-client-on"
+                value={clientOn}
+                disabled={!canEdit}
+                onChange={(e) => setClientOn(e.target.value as "case_published" | "case_completed")}
+              >
+                <option value="case_completed">после первого завершённого кейса</option>
+                <option value="case_published">после первого опубликованного кейса</option>
+              </Select>
             </Field>
           </div>
           <div className="mt-5 grid gap-4 md:grid-cols-2">

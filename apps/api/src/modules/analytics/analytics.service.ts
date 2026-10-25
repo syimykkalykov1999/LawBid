@@ -1,8 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { demoContext } from '../../common/demo/demo-context';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import type { AnalyticsDto } from './analytics.dto';
 import { AppEventsService } from './app-events.service';
 
@@ -26,6 +26,11 @@ export class AnalyticsService {
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly appEvents: AppEventsService,
+    // Batch C item 9: the admin overview cache → cache Redis; the daily
+    // activity dedupe key (`act:`) stays on the main one.
+    @Optional()
+    @Inject(REDIS_CACHE_CLIENT)
+    private readonly cacheRedis?: Redis,
   ) {}
 
   /** The person opened the app today: one write a day, not one per call. */
@@ -46,10 +51,11 @@ export class AnalyticsService {
 
   async overview(days: number): Promise<AnalyticsDto> {
     const key = `adm:analytics:${days}`;
-    const cached = await this.redis.get(key);
+    const cache = this.cacheRedis ?? this.redis;
+    const cached = await cache.get(key);
     if (cached) return JSON.parse(cached) as AnalyticsDto;
     const fresh = await this.compute(days);
-    await this.redis.set(key, JSON.stringify(fresh), 'EX', CACHE_TTL_SEC);
+    await cache.set(key, JSON.stringify(fresh), 'EX', CACHE_TTL_SEC);
     return fresh;
   }
 

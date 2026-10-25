@@ -437,6 +437,30 @@ export class ReferralSettingsDto {
   @Max(100000)
   maxInvitesPerReferrer!: number;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3650,
+    default: 90,
+    description:
+      'Owner 2026-10-24: days after entering the code in which the invitee must qualify; later the referral is rejected. 0 = no limit.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(3650)
+  qualifyWindowDays?: number;
+
+  @ApiPropertyOptional({
+    enum: ['case_published', 'case_completed'],
+    default: 'case_completed',
+    description:
+      'Owner 2026-10-24: what qualifies an invited client (the reward is issued after it).',
+  })
+  @IsOptional()
+  @IsIn(['case_published', 'case_completed'])
+  clientQualifyOn?: 'case_published' | 'case_completed';
+
   @ApiProperty({ type: ReferralTextsByLangDto })
   @ValidateNested()
   @Type(() => ReferralTextsByLangDto)

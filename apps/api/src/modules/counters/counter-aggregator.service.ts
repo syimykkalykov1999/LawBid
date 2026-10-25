@@ -9,6 +9,8 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { withJobLock } from '../../jobs/handlers/job-lock';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 
 /**
@@ -58,6 +60,11 @@ export const COUNTERS = {
     fields: ['posts_count', 'followers_count', 'following_count'],
   },
 } as const;
+
+const GLOBAL_COUNTER_TABLES: ReadonlySet<string> = new Set([
+  'attorney_profiles',
+  'client_profiles',
+]);
 
 export type CounterEntity = keyof typeof COUNTERS;
 
@@ -202,13 +209,22 @@ export class CounterAggregator
       if (keep.length === 0) continue;
       try {
         // Identifiers come from the COUNTERS constant, never from input.
-        await this.prisma.$executeRaw(Prisma.sql`
+        const update = () =>
+          this.prisma.$executeRaw(Prisma.sql`
           UPDATE ${Prisma.raw(`"${table}"`)} AS t
           SET ${Prisma.raw(`"${field}"`)} = GREATEST(t.${Prisma.raw(`"${field}"`)} + v.delta, 0)
           FROM (
             SELECT unnest(${keep}::UUID[]) AS id, unnest(${deltas}::INT[]) AS delta
           ) AS v
           WHERE t.${Prisma.raw(`"${key}"`)} = v.id`);
+        // Shard-ready step 8: posts / comments / cases live on the shard
+        // databases and the id could be on any of them; the other databases
+        // simply match no row. The profile tables are global.
+        if (GLOBAL_COUNTER_TABLES.has(table) || !readsAreSplit(this.prisma)) {
+          await update();
+        } else {
+          await forEachDatabase(this.prisma, update);
+        }
         applied += keep.length;
       } catch (error) {
         // Put the deltas back; the next flush retries them.
@@ -250,7 +266,105 @@ export class CounterAggregator
     return { rows: result ?? 0 };
   }
 
+  /** Sum over every database of `rows`, keyed by the first column. */
+  private async sumAcross(
+    run: () => Promise<{ id: string; n: bigint | number }[]>,
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    for (const part of await forEachDatabase(this.prisma, run)) {
+      for (const r of part) out.set(r.id, (out.get(r.id) ?? 0) + Number(r.n));
+    }
+    return out;
+  }
+
+  /**
+   * recount() for several databases (shard-ready step 8). Counts that sit
+   * on one family and one shard keep their statement on every database;
+   * counts spread over shards (saves of a post, followers of a person, a
+   * person's posts) are summed over all databases first and written with
+   * the row.
+   */
+  private async recountSplit(
+    entity: CounterEntity,
+    ids: string[],
+  ): Promise<void> {
+    const arr = (m: Map<string, number>) => ids.map((id) => m.get(id) ?? 0);
+    if (entity === 'post') {
+      const saves = arr(
+        await this.sumAcross(
+          () =>
+            this.prisma.$queryRaw`SELECT item_id::TEXT AS id, count(*) AS n
+              FROM saved_items WHERE item_type = 'post'
+                AND item_id = ANY(${ids}::UUID[]) GROUP BY item_id`,
+        ),
+      );
+      await forEachDatabase(
+        this.prisma,
+        () => this.prisma.$executeRaw`
+        UPDATE posts AS p SET
+          like_count = (SELECT count(*) FROM post_likes l WHERE l.post_id = p.id),
+          comment_count = (SELECT count(*) FROM comments c
+                           WHERE c.post_id = p.id AND c.deleted_at IS NULL
+                             AND c.status = 'published'),
+          save_count = COALESCE((SELECT s.n FROM unnest(${ids}::UUID[], ${saves}::INT[])
+                                 AS s(id, n) WHERE s.id = p.id), 0),
+          share_count = (SELECT count(*) FROM post_shares x WHERE x.post_id = p.id),
+          view_count = (SELECT count(*) FROM post_view_events v
+                        WHERE v.post_id = p.id AND v.kind = 'view')
+        WHERE p.id = ANY(${ids}::UUID[])`,
+      );
+      return;
+    }
+    if (entity === 'client' || entity === 'attorney') {
+      const posts = arr(
+        await this.sumAcross(
+          () =>
+            this.prisma.$queryRaw`SELECT author_id::TEXT AS id, count(*) AS n
+              FROM posts WHERE author_id = ANY(${ids}::UUID[])
+                AND deleted_at IS NULL AND archived_at IS NULL
+                AND status = 'published' GROUP BY author_id`,
+        ),
+      );
+      const followers = arr(
+        await this.sumAcross(
+          () =>
+            this.prisma.$queryRaw`SELECT followee_id::TEXT AS id, count(*) AS n
+              FROM follows WHERE followee_id = ANY(${ids}::UUID[])
+              GROUP BY followee_id`,
+        ),
+      );
+      const following = arr(
+        await this.sumAcross(
+          () =>
+            this.prisma.$queryRaw`SELECT follower_id::TEXT AS id, count(*) AS n
+              FROM follows WHERE follower_id = ANY(${ids}::UUID[])
+              GROUP BY follower_id`,
+        ),
+      );
+      const table = Prisma.raw(
+        entity === 'client' ? 'client_profiles' : 'attorney_profiles',
+      );
+      await this.prisma.global().$executeRaw(Prisma.sql`
+        UPDATE ${table} AS a SET posts_count = v.p, followers_count = v.f,
+                                 following_count = v.g
+        FROM unnest(${ids}::UUID[], ${posts}::INT[], ${followers}::INT[],
+                    ${following}::INT[]) AS v(id, p, f, g)
+        WHERE a.user_id = v.id`);
+      return;
+    }
+    // comment / case / case_comment: every source table sits with the row.
+    await forEachDatabase(this.prisma, () => this.recountLocal(entity, ids));
+  }
+
   private async recount(entity: CounterEntity, ids: string[]): Promise<void> {
+    if (readsAreSplit(this.prisma)) return this.recountSplit(entity, ids);
+    return this.recountLocal(entity, ids);
+  }
+
+  private async recountLocal(
+    entity: CounterEntity,
+    ids: string[],
+  ): Promise<void> {
     if (entity === 'post') {
       await this.prisma.$executeRaw`
         UPDATE posts AS p SET

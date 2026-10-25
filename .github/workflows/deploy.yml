@@ -1,7 +1,14 @@
 # docs/06 §7.3 — main → images → staging → smoke → manual approval →
 # migrations (one-off ECS task, lawbid_migrator) → prod rolling deploy →
-# smoke. Rollback of a bad rollout is automatic (ECS deployment circuit
-# breaker, infra/modules/ecs); this workflow also fails fast on smoke.
+# smoke. Rollback of a bad rollout is automatic: the ECS deployment circuit
+# breaker AND the CloudWatch alarms (ALB 5xx / p95 / unhealthy hosts) that ECS
+# watches during the rollout (infra/modules/ecs, docs/runbooks/DEPLOY_SAFETY.md).
+# scripts/deploy/roll-services.sh fails this job when ECS rolled the release
+# back (rolloutState FAILED) or when it did not finish in ROLL_TIMEOUT_SECONDS.
+# P1 supply chain: images are signed with cosign (keyless, GitHub OIDC) and get
+# an SPDX SBOM attestation; the prod job verifies the signature before it
+# touches anything. Repository variable SIGN_REQUIRED=true makes signing and
+# verification hard failures (default: warning only until proven on ECR).
 #
 # Required repository/environment secrets (never in the repo):
 #   AWS_DEPLOY_ROLE_STAGING / AWS_DEPLOY_ROLE_PROD  — OIDC role ARNs
@@ -47,6 +54,7 @@ jobs:
   build:
     name: Build & push images
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -80,6 +88,7 @@ jobs:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
         if: steps.have.outputs.exists != 'true'
       - name: Build & push api
+        id: build_api
         if: steps.have.outputs.exists != 'true'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
@@ -93,6 +102,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Build & push admin
+        id: build_admin
         if: steps.have.outputs.exists != 'true'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
@@ -105,11 +115,58 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # --- P1 supply chain (2026-10-24): sign + SBOM, by digest ----------------
+      # Keyless: the signature is bound to this workflow's GitHub OIDC identity
+      # (Sigstore Fulcio certificate + Rekor log), no key to store or rotate.
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        if: steps.have.outputs.exists != 'true'
+      - name: Sign images (cosign keyless)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        env:
+          API_DIGEST: ${{ steps.build_api.outputs.digest }}
+          ADMIN_DIGEST: ${{ steps.build_admin.outputs.digest }}
+        run: |
+          set -eu
+          cosign sign --yes "$ECR_REGISTRY/lawbid-api@$API_DIGEST"
+          cosign sign --yes "$ECR_REGISTRY/lawbid-admin@$ADMIN_DIGEST"
+      - name: SBOM api (syft, SPDX)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        uses: anchore/sbom-action@fffec3d851af758d56fee099cf3fbf8aa8779843 # v0.24.3
+        with:
+          image: ${{ env.ECR_REGISTRY }}/lawbid-api@${{ steps.build_api.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-api.spdx.json
+          artifact-name: sbom-api.spdx.json
+          upload-release-assets: false
+      - name: SBOM admin (syft, SPDX)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        uses: anchore/sbom-action@fffec3d851af758d56fee099cf3fbf8aa8779843 # v0.24.3
+        with:
+          image: ${{ env.ECR_REGISTRY }}/lawbid-admin@${{ steps.build_admin.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-admin.spdx.json
+          artifact-name: sbom-admin.spdx.json
+          upload-release-assets: false
+      - name: Attach the SBOMs to the images (cosign attest)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        env:
+          API_DIGEST: ${{ steps.build_api.outputs.digest }}
+          ADMIN_DIGEST: ${{ steps.build_admin.outputs.digest }}
+        run: |
+          set -eu
+          cosign attest --yes --type spdxjson --predicate sbom-api.spdx.json "$ECR_REGISTRY/lawbid-api@$API_DIGEST"
+          cosign attest --yes --type spdxjson --predicate sbom-admin.spdx.json "$ECR_REGISTRY/lawbid-admin@$ADMIN_DIGEST"
+
   deploy-staging:
     name: Deploy staging
     needs: [build]
     if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.STAGING_ENABLED == 'true' && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment:
       name: staging
     steps:
@@ -128,7 +185,9 @@ jobs:
           CLUSTER: lawbid-staging
           SECRET_PREFIX: lawbid-staging
         run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" i18n
-      - name: Roll api / worker / admin
+      - name: Roll api / worker / admin (fails if ECS rolled the release back)
+        env:
+          ROLL_TIMEOUT_SECONDS: "1800"
         run: scripts/deploy/roll-services.sh lawbid-staging "$IMAGE_TAG"
       - name: Smoke
         run: scripts/deploy/smoke.sh "${{ secrets.STAGING_API_URL }}" "${{ secrets.STAGING_ADMIN_URL }}"
@@ -140,6 +199,8 @@ jobs:
     runs-on: ubuntu-latest
     # The GitHub environment `production` carries the required reviewers:
     # docs/06 §7.3 "ручное подтверждение".
+    # Rollout + alarm bake time (ROLL_TIMEOUT_SECONDS) + migrations + smoke.
+    timeout-minutes: 90
     environment:
       name: production
     steps:
@@ -151,6 +212,18 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Verify the image signatures (cosign, identity = this workflow on main)
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        run: |
+          set -eu
+          for repo in lawbid-api lawbid-admin; do
+            DIGEST=$(aws ecr describe-images --repository-name "$repo" --image-ids imageTag="$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text)
+            cosign verify "$ECR_REGISTRY/$repo@$DIGEST" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              --certificate-identity-regexp "(?i)^https://github\.com/${{ github.repository }}/\.github/workflows/deploy\.yml@refs/heads/main$" >/dev/null
+            echo "signature OK: $repo@$DIGEST"
+          done
       - name: Fresh backup exists (docs/06 §6.4 "перед каждой продовой миграцией")
         run: scripts/deploy/check-backup.sh
       - name: Migrations (expand/contract only, docs/02 §7.1)
@@ -160,7 +233,12 @@ jobs:
           CLUSTER: lawbid-prod
           SECRET_PREFIX: lawbid-prod
         run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" i18n
+      # ECS rolls back on the circuit breaker or on the 5xx / p95 / unhealthy
+      # alarms. The script waits for rolloutState COMPLETED of OUR revision
+      # (not just "stable") and goes red on FAILED.
       - name: Rolling deploy api / worker / admin
+        env:
+          ROLL_TIMEOUT_SECONDS: "2400"
         run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG"
       - name: Smoke
         run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}"

@@ -16,7 +16,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
   CounterAggregator,
@@ -68,7 +68,7 @@ export class FollowsService {
     private readonly files: FilesService,
     private readonly clients: ClientProfilesService,
     private readonly blocks: BlocksService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     // Owner 2026-10-13: personal ranking of the suggestions.
     @Optional() private readonly recommendations?: RecommendationsService,
   ) {}

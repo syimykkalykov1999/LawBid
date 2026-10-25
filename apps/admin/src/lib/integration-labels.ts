@@ -12,6 +12,15 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     label: 'Google Translate (перевод в чате)',
     description: 'Кнопка «Перевести» под сообщениями в чате. Включите также флаг «Перевод в чате».',
   },
+  pagerduty: {
+    label: 'PagerDuty (звонок на телефон при аварии)',
+    description:
+      'Ссылка интеграции PagerDuty. После «Включить» сервер сам подписывает её на критический топик тревог AWS; подписка и тестовая тревога — на странице «Запуск».',
+  },
+  github: {
+    label: 'GitHub (только чтение, для страницы «Запуск»)',
+    description: 'Чтобы страница «Запуск» сама видела, что запущена последняя версия main. Токен нужен только на чтение.',
+  },
   stripe: { label: 'Stripe (платежи)', description: 'Подписки, оплата, личный кабинет клиента.' },
   twilio: { label: 'Twilio (SMS-коды)', description: 'Коды для входа и подтверждения по SMS.' },
   ses: {
@@ -101,6 +110,8 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
 };
 
 const FIELD_BY_NAME: Record<string, string> = {
+  integrationUrl: 'Ссылка интеграции (Integration URL)',
+  repo: 'Репозиторий (владелец/имя)',
   libraryId: 'ID видеобиблиотеки',
   cdnHostname: 'Адрес CDN',
   apiKey: 'API-ключ',
@@ -158,6 +169,8 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'cloudflare_r2.purgeToken': 'API-токен только на сброс кэша (необязательно)',
   'cloudflare_turn.keyId': 'ID ключа TURN (Key ID)',
   'cloudflare_turn.apiToken': 'API-токен ключа TURN',
+  'cloudflare_turn.accountId': 'ID аккаунта Cloudflare (для тревог по трафику, необязательно)',
+  'cloudflare_turn.analyticsToken': 'API-токен «Account Analytics: Read» (для тревог по трафику, необязательно)',
   'cloudflare_sfu.appId': 'ID приложения Realtime SFU (App ID)',
   'cloudflare_sfu.appToken': 'Секрет приложения (App Secret)',
   'turnstile.secretKey': 'Секретный ключ (Secret key)',
@@ -178,6 +191,7 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
   'bunny_stream.apiKey': 'API-ключ библиотеки',
+  'bunny_stream.accountApiKey': 'API-ключ аккаунта Bunny (для тревог по трафику, необязательно)',
   'google_translate.apiKey': 'API-ключ',
   'ses.accessKeyId': 'ID ключа доступа AWS (только без роли сервера)',
   'cockroach_cloud.apiKey': 'API-ключ (сервисный аккаунт, только чтение)',
@@ -214,6 +228,8 @@ const FIELD_EN: Record<string, string> = {
   'cloudflare_r2.purgeToken': 'API token (Cache Purge)',
   'cloudflare_turn.keyId': 'TURN Key ID',
   'cloudflare_turn.apiToken': 'API Token',
+  'cloudflare_turn.accountId': 'Account ID',
+  'cloudflare_turn.analyticsToken': 'Analytics API Token',
   'cloudflare_sfu.appId': 'App ID',
   'cloudflare_sfu.appToken': 'App Secret',
   'turnstile.secretKey': 'Secret key',
@@ -222,6 +238,7 @@ const FIELD_EN: Record<string, string> = {
   'bunny_stream.libraryId': 'Video Library ID',
   'bunny_stream.cdnHostname': 'CDN Hostname',
   'bunny_stream.apiKey': 'API Key',
+  'bunny_stream.accountApiKey': 'Account API Key',
   'bunny_stream.tokenAuthKey': 'Token Authentication Key',
   'google_translate.apiKey': 'API key',
   'stripe.secretKey': 'Secret key / Restricted key',
@@ -306,6 +323,7 @@ export const FIELD_ENV: Record<string, string> = {
   'bunny_stream.tokenAuthKey': 'BUNNY_TOKEN_AUTH_KEY',
   'bunny_stream.webhookToken': 'BUNNY_WEBHOOK_TOKEN',
   'bunny_stream.readOnlyApiKey': 'BUNNY_READ_ONLY_API_KEY',
+  'bunny_stream.accountApiKey': 'BUNNY_ACCOUNT_API_KEY',
   'google_translate.apiKey': 'GOOGLE_TRANSLATE_API_KEY',
   'stripe.secretKey': 'STRIPE_SECRET_KEY',
   'stripe.publishableKey': 'STRIPE_PUBLISHABLE_KEY',
@@ -333,6 +351,8 @@ export const FIELD_ENV: Record<string, string> = {
   'turn.secret': 'TURN_SECRET',
   'cloudflare_turn.keyId': 'CLOUDFLARE_TURN_KEY_ID',
   'cloudflare_turn.apiToken': 'CLOUDFLARE_TURN_API_TOKEN',
+  'cloudflare_turn.accountId': 'CLOUDFLARE_ANALYTICS_ACCOUNT_ID',
+  'cloudflare_turn.analyticsToken': 'CLOUDFLARE_ANALYTICS_API_TOKEN',
   'cloudflare_sfu.appId': 'CLOUDFLARE_SFU_APP_ID',
   'cloudflare_sfu.appToken': 'CLOUDFLARE_SFU_APP_TOKEN',
   'turnstile.secretKey': 'TURNSTILE_SECRET_KEY',

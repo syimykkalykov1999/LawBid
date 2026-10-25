@@ -7,6 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { acceptInvites } from './support/group-invites';
+import { rowsOnAnyDb } from './support/rows-on-any-db';
 import { DisappearingSweepService } from '../src/modules/chat/disappearing-sweep.service';
 
 /**
@@ -227,10 +228,14 @@ describe('Disappearing messages (e2e, owner 2026-10-21)', () => {
 
     const res = await sweep.run();
     expect(res.messages).toBeGreaterThanOrEqual(1);
-    const [row] = await prisma.$queryRaw<
-      { deleted_at: Date | null; body_original: string }[]
-    >`SELECT deleted_at, body_original FROM messages
-        WHERE id = ${gone.body.data.id}::UUID`;
+    const [row] = await rowsOnAnyDb(
+      prisma,
+      () =>
+        prisma.$queryRaw<
+          { deleted_at: Date | null; body_original: string }[]
+        >`SELECT deleted_at, body_original FROM messages
+        WHERE id = ${gone.body.data.id}::UUID`,
+    );
     expect(row.deleted_at).not.toBeNull();
     // The text stays for the legal retention window (90 days).
     expect(row.body_original).toBe('goes now');
@@ -305,10 +310,14 @@ describe('Disappearing messages (e2e, owner 2026-10-21)', () => {
     ).not.toContain(sent.body.data.id);
 
     await sweep.run();
-    const [row] = await prisma.$queryRaw<
-      { deleted_at: Date | null; body: string }[]
-    >`SELECT deleted_at, body FROM chat_group_messages
-        WHERE id = ${sent.body.data.id}::UUID`;
+    const [row] = await rowsOnAnyDb(
+      prisma,
+      () =>
+        prisma.$queryRaw<
+          { deleted_at: Date | null; body: string }[]
+        >`SELECT deleted_at, body FROM chat_group_messages
+        WHERE id = ${sent.body.data.id}::UUID`,
+    );
     expect(row.deleted_at).not.toBeNull();
     expect(row.body).toBe('vanishing hello');
     const g = await prisma.chatGroup.findUniqueOrThrow({ where: { id: gid } });

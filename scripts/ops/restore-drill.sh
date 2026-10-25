@@ -172,6 +172,16 @@ if [ "$MODE" = "backup-vault" ]; then
 import json, sys
 path, ident, cls, subnet, sgs, pg = sys.argv[1:7]
 m = json.load(open(path))
+# AWS Backup takes the snapshot from the recovery point ARN and rejects it
+# as metadata ("Expecting it as serviceBackupArn").
+m.pop("DBSnapshotIdentifier", None)
+# Informational keys, the request id, and IOPS (fixed by gp3 under 400 GB)
+# are not restore inputs; the suggested Port comes back as 0.
+KEEP = {"Engine", "LicenseModel", "StorageType", "OptionGroupName", "Port",
+        "CopyTagsToSnapshot", "AutoMinorVersionUpgrade", "DBParameterGroupName"}
+m = {k: v for k, v in m.items() if k in KEEP}
+if str(m.get("Port", "0")) == "0":
+    m["Port"] = "5432"
 m.update({"DBInstanceIdentifier": ident, "DBInstanceClass": cls, "DBSubnetGroupName": subnet,
           "MultiAZ": "false", "PubliclyAccessible": "false", "DeletionProtection": "false"})
 if pg:

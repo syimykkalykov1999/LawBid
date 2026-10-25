@@ -78,7 +78,13 @@ describe('shard routing (real PostgreSQL)', () => {
 
   it('without a context a query that names nothing and cannot be merged uses the primary database (and is counted)', async () => {
     shardStats.drain();
-    await prisma.notification.groupBy({ by: ['type'], _count: true });
+    // A HAVING on a partial aggregate is not exact, so it is never scattered
+    // (plain groupBy / aggregate are merged since step 8).
+    await prisma.notification.groupBy({
+      by: ['type'],
+      _count: { _all: true },
+      having: { type: { _count: { gte: 0 } } },
+    });
     expect(shardStats.drain()?.byModel.Notification).toBe(1);
   });
 

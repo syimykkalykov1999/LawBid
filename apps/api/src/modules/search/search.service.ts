@@ -18,7 +18,7 @@ import { UsageLimitsService } from '../../common/usage-limits/usage-limits.servi
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { loadUrgencyThresholds } from '../cases/domain/case-urgency';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import { jitterTtl, singleFlight } from '../../common/cache/single-flight';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import type { CaseFeedPage } from '../cases/dto/cases-feed.dto';
@@ -63,8 +63,11 @@ import { tagCategories } from './tag-category';
 const PAGE = 20;
 /** Ranked results kept per query: 10 pages. */
 const RANKED_MAX = 200;
-/** Ranked id lists are shared by everyone asking the same thing. */
-const RANKED_TTL_SEC = 5 * 60;
+/** Ranked id lists are shared by everyone asking the same thing. Batch C
+ * item 14: the default is one minute (setting `search.ranked_cache_ttl_sec`):
+ * a hot query is computed once a minute per key (single-flight), a new post
+ * shows within a minute. */
+const RANKED_TTL_SEC = 60;
 const TAG_TOP_MAX = 500;
 // Owner 2026-10-15: a new post shows in "Top" within a minute ("New" is live).
 const TAG_TOP_TTL_SEC = 45;
@@ -152,7 +155,16 @@ export class SearchService {
     @Optional() private readonly recommendations?: RecommendationsService,
     // Owner 2026-10-15: what people search for (admin's "no results").
     @Optional() private readonly queryLog?: SearchLogService,
+    // Batch C item 9: result lists are pure caches → the cache Redis
+    // (allkeys-lru); the synonym version number stays on the main one.
+    @Optional()
+    @Inject(REDIS_CACHE_CLIENT)
+    private readonly cacheRedis?: Redis,
   ) {}
+
+  private get cache(): Redis {
+    return this.cacheRedis ?? this.redis;
+  }
 
   /** Owner 2026-10-05: a "Legal only" viewer never sees general posts. */
   private async viewerOnly(
@@ -373,7 +385,7 @@ export class SearchService {
     const q = normalizeQuery(rawQ);
     if (q.length < 1) return [];
     const hash = createHash('sha256').update(q).digest('base64url');
-    const hit = await this.redis.get(`search:suggest:${hash}`);
+    const hit = await this.cache.get(`search:suggest:${hash}`);
     if (hit)
       return JSON.parse(hit) as {
         kind: 'tag' | 'person' | 'practice';
@@ -381,7 +393,7 @@ export class SearchService {
       }[];
     return singleFlight(`search:suggest:${hash}`, async () => {
       const items = await this.provider.suggest(q, 4);
-      await this.redis.set(
+      await this.cache.set(
         `search:suggest:${hash}`,
         JSON.stringify(items),
         'EX',
@@ -732,7 +744,12 @@ export class SearchService {
     const hash = createHash('sha256')
       .update(JSON.stringify({ ...params, syn }))
       .digest('base64url');
-    return this.cached(`search:${kind}:${hash}`, RANKED_TTL_SEC, load);
+    const ttl = this.settings
+      ? await this.settings
+          .number('search.ranked_cache_ttl_sec')
+          .catch(() => RANKED_TTL_SEC)
+      : RANKED_TTL_SEC;
+    return this.cached(`search:${kind}:${hash}`, ttl, load);
   }
 
   private async cached(
@@ -740,12 +757,12 @@ export class SearchService {
     ttlSec: number,
     load: () => Promise<string[]>,
   ): Promise<string[]> {
-    const hit = await this.redis.get(key);
+    const hit = await this.cache.get(key);
     if (hit) return JSON.parse(hit) as string[];
     // Load audit 6: one refill per pod, expiry spread (cache stampede).
     return singleFlight(key, async () => {
       const ids = await load();
-      await this.redis.set(key, JSON.stringify(ids), 'EX', jitterTtl(ttlSec));
+      await this.cache.set(key, JSON.stringify(ids), 'EX', jitterTtl(ttlSec));
       return ids;
     });
   }

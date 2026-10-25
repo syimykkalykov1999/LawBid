@@ -5,6 +5,8 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { emitOnce } from './reminder-claim';
 
@@ -68,13 +70,22 @@ export class ReviewReminderJob {
     const floor = new Date(
       cutoff.getTime() - REVIEW_REMINDER_GRACE_DAYS * DAY_MS,
     );
-    let cursor = ZERO_UUID;
     let sent = 0;
     // A case stays due for at most the grace window; keep the claim longer.
     const claimTtl = (REVIEW_REMINDER_GRACE_DAYS + 1) * DAY_SEC;
 
-    for (;;) {
-      const due = await this.prisma.$queryRaw<DueRow[]>(Prisma.sql`
+    const split = readsAreSplit(this.prisma);
+    // Shard-ready step 8: cases, bids and reviews sit on the shard
+    // databases, so each one is walked in turn (one database: once).
+    await forEachDatabase(this.prisma, async () => {
+      let cursor = ZERO_UUID;
+      for (;;) {
+        const page = split
+          ? await this.dueSplit(cutoff, floor, cursor, batchSize)
+          : null;
+        const due = page
+          ? page.due
+          : await this.prisma.$queryRaw<DueRow[]>(Prisma.sql`
         SELECT c.id::TEXT AS case_id,
                c.client_id::TEXT AS client_id,
                b.attorney_id::TEXT AS attorney_id
@@ -97,30 +108,100 @@ export class ReviewReminderJob {
         ORDER BY c.id
         LIMIT ${batchSize}`);
 
-      for (const row of due) {
-        const emitted = await emitOnce(
-          this.redis,
-          `reminder:review:${row.case_id}`,
-          claimTtl,
-          () =>
-            this.notifications.emit({
-              type: 'review_requested',
-              recipientId: row.client_id,
-              payload: {
-                caseId: row.case_id,
-                attorneyId: row.attorney_id,
-                reminder: true,
-              },
-            }),
-        );
-        if (emitted) sent += 1;
+        for (const row of due) {
+          const emitted = await emitOnce(
+            this.redis,
+            `reminder:review:${row.case_id}`,
+            claimTtl,
+            () =>
+              this.notifications.emit({
+                type: 'review_requested',
+                recipientId: row.client_id,
+                payload: {
+                  caseId: row.case_id,
+                  attorneyId: row.attorney_id,
+                  reminder: true,
+                },
+              }),
+          );
+          if (emitted) sent += 1;
+        }
+        if (page) {
+          if (!page.full || !page.lastId) break;
+          cursor = page.lastId;
+          continue;
+        }
+        const last = due[due.length - 1];
+        if (due.length < batchSize || !last) break;
+        cursor = last.case_id;
       }
-      const last = due[due.length - 1];
-      if (due.length < batchSize || !last) break;
-      cursor = last.case_id;
-    }
+    });
 
     this.logger.info({ sent }, 'review reminders sent');
     return { sent };
+  }
+
+  /**
+   * The due list when the case family and the global one are on different
+   * databases: the case-family part (closed case, accepted bid, no review)
+   * on this database, then the client's status (global) and the earlier
+   * reminder (notifications: the client's shard) in two more reads. The
+   * cursor still walks the candidates, so a filtered row cannot loop.
+   */
+  private async dueSplit(
+    cutoff: Date,
+    floor: Date,
+    cursor: string,
+    batchSize: number,
+  ): Promise<{ due: DueRow[]; lastId: string | null; full: boolean }> {
+    const cand = await this.prisma.$queryRaw<DueRow[]>(Prisma.sql`
+      SELECT c.id::TEXT AS case_id,
+             c.client_id::TEXT AS client_id,
+             b.attorney_id::TEXT AS attorney_id
+      FROM cases AS c
+      JOIN bids AS b ON b.id = c.accepted_bid_id AND b.status = 'accepted'
+      WHERE c.status = 'closed'
+        AND c.deleted_at IS NULL
+        AND c.closed_at <= ${cutoff}
+        AND c.closed_at > ${floor}
+        AND c.id > ${cursor}::UUID
+        AND NOT EXISTS (SELECT 1 FROM reviews AS r WHERE r.case_id = c.id)
+      ORDER BY c.id
+      LIMIT ${batchSize}`);
+    if (cand.length === 0) return { due: [], lastId: null, full: false };
+    const clientIds = [...new Set(cand.map((r) => r.client_id))];
+    const active = new Set(
+      (
+        await this.prisma.user.findMany({
+          where: { id: { in: clientIds }, deleted_at: null, status: 'active' },
+          select: { id: true },
+        })
+      ).map((u) => u.id),
+    );
+    const caseIds = cand.map((r) => r.case_id);
+    const reminded = new Set(
+      (
+        await forEachDatabase(
+          this.prisma,
+          () =>
+            this.prisma.$queryRaw<{ case_id: string }[]>`
+            SELECT n.payload->>'caseId' AS case_id FROM notifications AS n
+            WHERE n.user_id = ANY(${clientIds}::UUID[])
+              AND n.type = 'review_requested'
+              AND n.payload->>'caseId' = ANY(${caseIds}::TEXT[])
+              AND n.payload->>'reminder' = 'true'`,
+        )
+      )
+        .flat()
+        .map((r) => r.case_id),
+    );
+    const due = cand.filter(
+      (r) => active.has(r.client_id) && !reminded.has(r.case_id),
+    );
+    return {
+      due,
+      lastId: cand[cand.length - 1].case_id,
+      full: cand.length >= batchSize,
+    };
   }
 }
