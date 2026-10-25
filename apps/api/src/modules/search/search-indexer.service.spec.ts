@@ -25,7 +25,7 @@ function make(opts: { mode?: string; configured?: boolean } = {}) {
   };
   const client = {
     isConfigured: jest.fn().mockResolvedValue(opts.configured ?? true),
-    ensureIndex: jest.fn().mockResolvedValue(true),
+    bootstrap: jest.fn().mockResolvedValue(true),
     bulk: jest.fn().mockResolvedValue({ failed: [] }),
   };
   const data: Record<string, string[]> = {
@@ -77,7 +77,7 @@ describe('SearchIndexerService.tick', () => {
   it('engine on but no address: does nothing (the events wait)', async () => {
     const { svc, client } = make({ configured: false });
     expect(await svc.tick()).toEqual({ on: true });
-    expect(client.ensureIndex).not.toHaveBeenCalled();
+    expect(client.bootstrap).not.toHaveBeenCalled();
   });
 
   it('engine on: fills the index once, then only drains', async () => {
@@ -124,7 +124,7 @@ describe('SearchIndexerService.reindex', () => {
     expect(st.done).toBe(true);
     expect(st.indexed).toBe(4); // 2 before + c3 + p1
     expect(loader.idsAfter).toHaveBeenCalledWith('case', 'c2', 2);
-    expect(client.ensureIndex).not.toHaveBeenCalled(); // not a fresh start
+    expect(client.bootstrap).not.toHaveBeenCalled(); // not a fresh start
   });
 
   it('a finished reindex of this mapping version does nothing; a new version starts over', async () => {

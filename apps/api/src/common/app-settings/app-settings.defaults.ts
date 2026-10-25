@@ -195,6 +195,11 @@ export const OWNER_MEDIA_SETTINGS = {
   'search.engine': 'postgres',
   // Engine answers slower than this fall back to Postgres, ms.
   'search.engine_timeout_ms': 800,
+  // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
+  // the old index generation is kept this many days for a rollback, and the
+  // backfill pauses this long between batches so it never hogs the database.
+  'search.reindex_keep_days': 7,
+  'search.reindex_throttle_ms': 200,
   // Owner 2026-10-15: the recommendation weights of Search (cases for
   // attorneys, people and «you may know», posts and reels) — editable in
   // the admin panel; the sum need not be 1.

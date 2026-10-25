@@ -53,6 +53,7 @@ import { SearchIndexJob } from './handlers/search-index.job';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
 import { SearchIndexerService } from '../modules/search/search-indexer.service';
+import { SearchReindexService } from '../modules/search/search-reindex.service';
 import { DashboardService } from '../modules/admin/dashboard.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -162,6 +163,7 @@ export class JobsModule {
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
         SearchIndexerService,
+        SearchReindexService,
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,
         DashboardService,
