@@ -8,6 +8,11 @@ import {
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
+import { readsAreSplit } from '../../sharding/split-reads';
+import {
+  resolveFeedGlobals,
+  scatterFeed,
+} from '../cases/queries/cases-feed.split';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ftsMatch,
@@ -354,6 +359,11 @@ export class PostgresSearchProvider implements SearchProvider {
           ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
           ${urgencyFilterSql(p.minUrgency, p.hasDeadline, p.urgencyThresholds)}
           ${p.extraSql ?? Prisma.empty}`;
+    // Shard-ready step 8: several databases -> global parts resolved first,
+    // the case-only statement runs on each database (see cases-feed.split.ts).
+    if (readsAreSplit(this.db)) {
+      return this.searchCasesSplit(q, p, extra, textPractices, this.budgetNow);
+    }
     // Audit 2026-10-01: a qualification in search works like the feed's
     // topic — any qualification (category → its subcategories) in the
     // attorney's licensed states, not only their own practices.
@@ -387,6 +397,51 @@ export class PostgresSearchProvider implements SearchProvider {
         extra,
       }),
     );
+  }
+
+  /** The time budget of the call in progress (set by [budget], read on
+   * entry of [searchCases]; both run in the same synchronous step). */
+  private budgetNow: { ms: number; trigram: string } | null = null;
+
+  private async searchCasesSplit(
+    q: string,
+    p: CaseSearchParams,
+    extra: Prisma.Sql,
+    textPractices: string[],
+    budget: { ms: number; trigram: string } | null,
+  ): Promise<{ id: string; created_at: Date }[]> {
+    const globals = await resolveFeedGlobals(this.db, p.attorneyId, {
+      practiceCategory: p.practiceCategory,
+      practice: p.practiceCategory,
+    });
+    const sql = p.practiceCategory
+      ? buildPracticeCasesSql({
+          globals,
+          attorneyId: p.attorneyId,
+          practice: p.practiceCategory,
+          state: p.state,
+          cursor: p.cursor,
+          limit: p.limit + 1,
+          text: q,
+          textPrefix: !p.textExact,
+          textPractices,
+          since: p.since,
+          extra,
+        })
+      : buildVisibleCasesSql({
+          globals,
+          attorneyId: p.attorneyId,
+          practiceAreaId: p.practiceAreaId,
+          state: p.state,
+          cursor: p.cursor,
+          limit: p.limit + 1,
+          text: q,
+          textPrefix: !p.textExact,
+          textPractices,
+          since: p.since,
+          extra,
+        });
+    return scatterFeed(this.db, sql, p.limit + 1, budget ?? undefined);
   }
 
   async searchPosts(
@@ -557,6 +612,19 @@ export class PostgresSearchProvider implements SearchProvider {
     query: () => Promise<T[]>,
     loose = false,
   ): Promise<T[]> {
+    if (readsAreSplit(this.db)) {
+      // The timeouts are applied per database inside searchCasesSplit.
+      this.budgetNow = { ms, trigram: loose ? TYPO_THRESHOLD : '0.6' };
+      try {
+        return await query();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '';
+        if (/statement timeout|57014/.test(msg)) return [];
+        throw e;
+      } finally {
+        this.budgetNow = null;
+      }
+    }
     try {
       const [, , result] = await this.db.$transaction([
         this.db

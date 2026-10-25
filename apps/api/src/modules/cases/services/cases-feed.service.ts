@@ -29,6 +29,12 @@ import {
   CaseAccessPolicy,
   type CaseViewer,
 } from '../policies/case-access.policy';
+import { readsAreSplit } from '../../../sharding/split-reads';
+import {
+  blockedPeople,
+  resolveFeedGlobals,
+  scatterFeed,
+} from '../queries/cases-feed.split';
 import {
   buildPracticeCasesSql,
   buildVisibleCasesSql,
@@ -137,6 +143,24 @@ export class CasesFeedService {
     const since = spanMs ? new Date(Date.now() - spanMs) : undefined;
     // Owner 2026-10-05: "urgent and above" / "with a date" filters.
     const thresholds = await loadUrgencyThresholds(this.settings);
+    // Shard-ready step 8: with several databases the global parts of the
+    // rule (licences, topics, blocks) are resolved first and the statement
+    // touches the case family only (cases-feed.split.ts).
+    const split = readsAreSplit(this.prisma);
+    const globals = split
+      ? await resolveFeedGlobals(this.prisma, viewer.userId, {
+          practiceCategory: query.practiceCategory,
+          practice: query.practice,
+        })
+      : undefined;
+    const blockedIds = split
+      ? await blockedPeople(this.prisma, viewer.userId)
+      : [];
+    const blocksFilter = split
+      ? Prisma.sql`AND c.client_id <> ALL(${blockedIds}::UUID[])`
+      : Prisma.sql`AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+        WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
+           OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
     const extra = Prisma.sql`
       ${urgencyFilterSql(query.minUrgency, query.hasDeadline, thresholds)}
       ${budgetFilterSql({
@@ -149,40 +173,42 @@ export class CasesFeedService {
         percentMax: query.percentMax,
       })}
       ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
-      AND NOT EXISTS (SELECT 1 FROM user_blocks ub
-        WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
-           OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
+      ${blocksFilter}`;
     const run = (
       filter: Prisma.Sql,
       pageCursor: typeof cursor,
       take: number,
-    ): Promise<{ id: string; created_at: Date }[]> =>
-      this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(
-        query.practice
-          ? buildPracticeCasesSql({
-              attorneyId: viewer.userId,
-              practice: query.practice,
-              browseAll: query.scope === 'all',
-              state: query.state,
-              states: query.states?.split(','),
-              cursor: pageCursor,
-              limit: take,
-              since,
-              extra: filter,
-            })
-          : buildVisibleCasesSql({
-              attorneyId: viewer.userId,
-              practiceAreaId: query.practiceAreaId,
-              practiceCategory: query.practiceCategory,
-              browseAll: query.scope === 'all',
-              state: query.state,
-              states: query.states?.split(','),
-              cursor: pageCursor,
-              limit: take,
-              since,
-              extra: filter,
-            }),
-      );
+    ): Promise<{ id: string; created_at: Date }[]> => {
+      const sql = query.practice
+        ? buildPracticeCasesSql({
+            globals,
+            attorneyId: viewer.userId,
+            practice: query.practice,
+            browseAll: query.scope === 'all',
+            state: query.state,
+            states: query.states?.split(','),
+            cursor: pageCursor,
+            limit: take,
+            since,
+            extra: filter,
+          })
+        : buildVisibleCasesSql({
+            globals,
+            attorneyId: viewer.userId,
+            practiceAreaId: query.practiceAreaId,
+            practiceCategory: query.practiceCategory,
+            browseAll: query.scope === 'all',
+            state: query.state,
+            states: query.states?.split(','),
+            cursor: pageCursor,
+            limit: take,
+            since,
+            extra: filter,
+          });
+      return split
+        ? scatterFeed(this.prisma, sql, take)
+        : this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(sql);
+    };
     // Owner 2026-10-02 (paid case promotion): up to PROMOTED_FEED_SLOTS
     // active promoted cases this attorney may see (same filters) go on top
     // of the first page and are left out of the keyset pages, so cursor
