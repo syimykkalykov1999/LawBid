@@ -6,6 +6,8 @@ import 'package:lawbid/features/chat/application/chat_counts_refresh.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show currentUserIdProvider;
 
 /// Delta audit P1: the folder badges are not re-read on every message.
 RealtimeEvent _msg(String chat, String sender, [String id = 'm']) =>

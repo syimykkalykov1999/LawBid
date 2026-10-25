@@ -13,7 +13,6 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
-import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
