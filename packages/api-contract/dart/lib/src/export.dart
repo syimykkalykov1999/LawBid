@@ -1440,6 +1440,7 @@ export 'models/dmca_counter_notice_dto.dart';
 export 'models/dmca_notice_brief_envelope.dart';
 export 'models/incident_contact_dto.dart';
 export 'models/legal_texts_by_lang_dto.dart';
+export 'models/legal_texts_need_review_dto.dart';
 export 'models/legal_settings_dto.dart';
 export 'models/legal_settings_envelope.dart';
 export 'models/admin_dmca_counter_dto.dart';
