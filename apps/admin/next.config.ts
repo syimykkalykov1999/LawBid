@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // «План роста» reads apps/admin/content/*.md at run time; make sure the
   // standalone bundle carries the folder.
-  outputFileTracingIncludes: { '/growth-plan': ['./content/**/*'] },
+  outputFileTracingIncludes: { '/growth-plan': ['./content/**/*'], '/guides': ['./content/**/*'], '/guides/[id]': ['./content/**/*'] },
   async headers() {
     return [
       { source: '/(.*)', headers: securityHeaders },

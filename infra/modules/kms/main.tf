@@ -80,6 +80,14 @@ resource "aws_kms_key" "this" {
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
         }
       },
+      {
+        # Cost Anomaly Detection publishes to the encrypted alerts topic.
+        Sid       = "CostAnomalyPublisher"
+        Effect    = "Allow"
+        Principal = { Service = "costalerts.amazonaws.com" }
+        Action    = ["kms:Decrypt", "kms:GenerateDataKey*"]
+        Resource  = "*"
+      },
       ], var.allow_macie ? [{
         Sid       = "MacieRead"
         Effect    = "Allow"
