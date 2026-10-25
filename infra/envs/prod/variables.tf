@@ -517,6 +517,11 @@ variable "critical_api_alerts_enabled" {
   default     = true
   description = "Alerts on key deletion, CloudTrail off, backup vault/lock deletion, root use. Free."
 }
+variable "signing_guard_enabled" {
+  type        = bool
+  default     = false
+  description = "S11-10: alert when an ECS task starts from an image without a cosign signature (modules/signing-guard). Enable after the first signed release."
+}
 variable "documents_data_events" {
   type        = bool
   default     = false
