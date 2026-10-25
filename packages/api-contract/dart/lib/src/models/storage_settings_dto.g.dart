@@ -16,6 +16,7 @@ StorageSettingsDto _$StorageSettingsDtoFromJson(Map<String, dynamic> json) =>
       imageFormat: StorageImageFormat.fromJson(json['imageFormat'] as String),
       userQuotaMb: json['userQuotaMb'] as num,
       chatQuotaMb: json['chatQuotaMb'] as num,
+      dailyUploadMbPerUser: json['dailyUploadMbPerUser'] as num,
       autoRetention: json['autoRetention'] as bool,
       retentionAuthEventsDays: json['retentionAuthEventsDays'] as num,
       retentionAssistantActivityDays:
@@ -34,6 +35,7 @@ Map<String, dynamic> _$StorageSettingsDtoToJson(StorageSettingsDto instance) =>
       'imageFormat': instance.imageFormat.toJson(),
       'userQuotaMb': instance.userQuotaMb,
       'chatQuotaMb': instance.chatQuotaMb,
+      'dailyUploadMbPerUser': instance.dailyUploadMbPerUser,
       'autoRetention': instance.autoRetention,
       'retentionAuthEventsDays': instance.retentionAuthEventsDays,
       'retentionAssistantActivityDays': instance.retentionAssistantActivityDays,

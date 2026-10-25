@@ -258,6 +258,26 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  turnstile: {
+    steps: [
+      'Cloudflare → Turnstile → Add widget. Имя: lawbid-web. Домены: lawbid.dev, www.lawbid.dev. Тип: Managed.',
+      'Cloudflare покажет Site key (публичный) и Secret key — скопируйте оба.',
+      'Вставьте их в поля ниже, домены — через запятую → «Сохранить» (код 2FA) → «Проверить».',
+      'Режим включается отдельно: Админка → Настройки → security.turnstile.mode = monitor (только запись в журнал), через неделю — enforce (блокировать ботов).',
+      'Работает только на веб-версии. Телефоны защищает App Check. Цена: бесплатно.',
+    ],
+    links: [{ label: 'Cloudflare Turnstile', url: 'https://developers.cloudflare.com/turnstile/' }],
+    enable: [
+      'Заполните ключи → «Сохранить» → «Проверить» → «Включить».',
+      'Сама карточка ничего не блокирует: режим — в Настройках, security.turnstile.mode.',
+    ],
+    fields: {
+      secretKey: { how: 'Turnstile → ваш виджет → Settings → Secret key.' },
+      siteKey: { how: 'Turnstile → ваш виджет → Site key (публичный, попадает в веб-приложение).' },
+      hostnames: { how: 'Домены сайта через запятую. Пусто — принимать любой домен.', example: 'lawbid.dev,www.lawbid.dev' },
+    },
+  },
+
   livekit: {
     steps: [
       'Поднимите LiveKit: свой сервер (бесплатно, open-source, livekit.io/self-hosting) или аккаунт LiveKit Cloud (cloud.livekit.io) — платный, включайте, когда появится выручка.',

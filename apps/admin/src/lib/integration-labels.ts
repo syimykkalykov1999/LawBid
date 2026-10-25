@@ -29,6 +29,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description:
       'Ретрансляторы Cloudflare для звонков (оплата за трафик, первые 1000 ГБ в месяц бесплатно). Пробуются первыми; наш TURN-сервер остаётся запасным.',
   },
+  turnstile: {
+    label: 'Cloudflare Turnstile (защита сайта от ботов)',
+    description:
+      'Проверка «вы не робот» на веб-версии при регистрации и входе по коду. Режим включается в Настройках: security.turnstile.mode (off / monitor / enforce). Телефоны защищает App Check.',
+  },
   cloudflare_sfu: {
     label: 'Cloudflare SFU (групповые видеозвонки)',
     description:
@@ -150,6 +155,9 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'cloudflare_turn.apiToken': 'API-токен ключа TURN',
   'cloudflare_sfu.appId': 'ID приложения Realtime SFU (App ID)',
   'cloudflare_sfu.appToken': 'Секрет приложения (App Secret)',
+  'turnstile.secretKey': 'Секретный ключ (Secret key)',
+  'turnstile.siteKey': 'Ключ сайта (Site key, публичный)',
+  'turnstile.hostnames': 'Разрешённые домены сайта (через запятую)',
   'livekit.url': 'Адрес сервера',
   'livekit.apiKey': 'Ключ API',
   'livekit.apiSecret': 'Секрет API',
@@ -199,6 +207,9 @@ const FIELD_EN: Record<string, string> = {
   'cloudflare_turn.apiToken': 'API Token',
   'cloudflare_sfu.appId': 'App ID',
   'cloudflare_sfu.appToken': 'App Secret',
+  'turnstile.secretKey': 'Secret key',
+  'turnstile.siteKey': 'Site key',
+  'turnstile.hostnames': 'Allowed hostnames',
   'bunny_stream.libraryId': 'Video Library ID',
   'bunny_stream.cdnHostname': 'CDN Hostname',
   'bunny_stream.apiKey': 'API Key',
@@ -311,6 +322,9 @@ export const FIELD_ENV: Record<string, string> = {
   'cloudflare_turn.apiToken': 'CLOUDFLARE_TURN_API_TOKEN',
   'cloudflare_sfu.appId': 'CLOUDFLARE_SFU_APP_ID',
   'cloudflare_sfu.appToken': 'CLOUDFLARE_SFU_APP_TOKEN',
+  'turnstile.secretKey': 'TURNSTILE_SECRET_KEY',
+  'turnstile.siteKey': 'TURNSTILE_SITE_KEY',
+  'turnstile.hostnames': 'TURNSTILE_HOSTNAMES',
   'turn.stunUrls': 'STUN_URLS',
   'livekit.url': 'LIVEKIT_URL',
   'livekit.apiKey': 'LIVEKIT_API_KEY',

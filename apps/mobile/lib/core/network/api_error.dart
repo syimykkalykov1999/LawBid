@@ -63,6 +63,8 @@ abstract final class ApiErrorCodes {
   static const passkeyLimit = 'PASSKEY_LIMIT';
   static const reauthInvalid = 'REAUTH_INVALID';
   static const deviceAttestationRequired = 'DEVICE_ATTESTATION_REQUIRED';
+  // 2026-10-24: web-only bot check; the app never sends it.
+  static const turnstileFailed = 'TURNSTILE_FAILED';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   // Owner 2026-10-05 (client fraud): limited while staff check the account.
   static const accountRestricted = 'ACCOUNT_RESTRICTED';
@@ -133,6 +135,8 @@ abstract final class ApiErrorCodes {
   // Owner 2026-10-05 (storage like Telegram): per-user and per-chat caps.
   static const storageQuotaExceeded = 'STORAGE_QUOTA_EXCEEDED';
   static const chatStorageFull = 'CHAT_STORAGE_FULL';
+  // 2026-10-24: daily upload-bytes cap per person.
+  static const dailyUploadLimitExceeded = 'DAILY_UPLOAD_LIMIT_EXCEEDED';
   static const fileNotAttachable = 'FILE_NOT_ATTACHABLE';
   static const fileStorageUnavailable = 'FILE_STORAGE_UNAVAILABLE';
   // Verification (docs/03 §2, stages 3.3–3.4)
@@ -356,6 +360,7 @@ abstract final class ApiErrorCodes {
     passkeyNotFound,
     passkeyLimit,
     deviceAttestationRequired,
+    turnstileFailed,
     accountSuspended,
     accountRestricted,
     accountDeleted,
@@ -408,6 +413,7 @@ abstract final class ApiErrorCodes {
     fileNotUploaded,
     storageQuotaExceeded,
     chatStorageFull,
+    dailyUploadLimitExceeded,
     fileNotAttachable,
     fileStorageUnavailable,
     verificationAlreadyPending,
