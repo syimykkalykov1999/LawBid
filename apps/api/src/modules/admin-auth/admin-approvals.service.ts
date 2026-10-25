@@ -45,11 +45,6 @@ export type ApprovalKind =
   | 'payroll_bonus'
   | 'partner_payout'
   | 'partner_commission_paid'
-  // Owner 2026-10-24: scale buttons that change the database layout / bill.
-  | 'ops_db_replica'
-  | 'ops_partition_start'
-  | 'ops_partition_undo'
-  | 'ops_partition_finalize'
   // Owner 2026-10-24: AWS Budgets from the admin («Масштаб»). Always
   // needs a second admin, whatever the amount.
   | 'aws_budget_limit'
