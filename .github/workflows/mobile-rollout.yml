@@ -1,0 +1,92 @@
+# Owner 2026-10-25: staged mobile rollout (runbook: docs/runbooks/mobile-staged-rollout.md).
+# Nothing here runs by itself: the owner starts it by hand. Builds and uploads
+# stay in mobile-release.yml (Play Internal / TestFlight); this workflow only
+# moves an already uploaded build to users in steps.
+#   Android: Play staged rollout 1 -> 10 -> 50 -> 100 %, or halt.
+#   iOS:     submit for review with phased release (Apple: 7 days, automatic);
+#            pause / resume / release-to-all are buttons in App Store Connect.
+# dry_run defaults to true: Google validates the change without publishing it.
+name: Mobile rollout
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Store"
+        type: choice
+        options: [android, ios]
+        default: android
+      step:
+        description: "Android: start / increase / halt / resume. iOS: always submit (phased)."
+        type: choice
+        options: [start, increase, halt, resume, submit]
+        default: start
+      percent:
+        description: "Android: share of users (ignored by halt and iOS)"
+        type: choice
+        options: ["1", "10", "50", "100"]
+        default: "1"
+      build:
+        description: "Android: versionCode (needed for increase / halt / resume). iOS: build number from TestFlight."
+        type: string
+        default: ""
+      dry_run:
+        description: "Only check, change nothing in the store"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-rollout
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Play rollout ${{ inputs.step }} ${{ inputs.percent }}%
+    if: ${{ inputs.platform == 'android' }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ruby/setup-ruby@e1bd6146574da5e0795075b5319b300edb30c5b0 # v1.333.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - name: fastlane rollout
+        working-directory: apps/mobile/android
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          STEP: ${{ inputs.step }}
+          PERCENT: ${{ inputs.percent }}
+          BUILD: ${{ inputs.build }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          case "$STEP" in start|increase|halt|resume) ;; *) echo "::error::step '$STEP' is not for Android"; exit 1;; esac
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/play.json"
+          PLAY_JSON_KEY_FILE="$RUNNER_TEMP/play.json" bundle exec fastlane android rollout \
+            step:"$STEP" percent:"$PERCENT" version_code:"$BUILD" dry_run:"$DRY_RUN"
+      - name: Summary
+        run: |
+          echo "Play rollout: ${{ inputs.step }} ${{ inputs.percent }}% build=${{ inputs.build }} dry_run=${{ inputs.dry_run }}" >> "$GITHUB_STEP_SUMMARY"
+
+  ios:
+    name: App Store phased release
+    if: ${{ inputs.platform == 'ios' }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: ruby/setup-ruby@e1bd6146574da5e0795075b5319b300edb30c5b0 # v1.333.0
+        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+      - name: fastlane release_phased
+        working-directory: apps/mobile/ios
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          BUILD: ${{ inputs.build }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          STEP: ${{ inputs.step }}
+        run: |
+          [ "$STEP" = "submit" ] || { echo "::error::iOS has only 'submit'; pause/resume are buttons in App Store Connect"; exit 1; }
+          bundle exec fastlane ios release_phased build_number:"$BUILD" dry_run:"$DRY_RUN"
