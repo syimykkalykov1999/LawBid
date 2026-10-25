@@ -215,9 +215,13 @@ export class CallsService {
   /** `calls.video_provider`: p2p (default) or livekit — livekit only while
    * its keys exist, so a removed key can never leave calls without media. */
   private async activeVideoProvider(): Promise<VideoCallProvider> {
-    const choice = this.settings
+    const rawChoice = this.settings
       ? await this.settings.string('calls.video_provider')
       : 'p2p';
+    // Cost registry V7: Cloudflare hard stop turns `cloudflare` into `p2p`.
+    const choice = this.sfu
+      ? await this.sfu.effectiveChoice(rawChoice)
+      : rawChoice;
     if (choice === 'livekit' && (await this.livekit.isConfigured())) {
       return this.livekit;
     }

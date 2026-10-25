@@ -108,6 +108,10 @@ module "stack" {
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_threshold_usd        = var.anomaly_threshold_usd
   backup_age_missing_data      = var.backup_age_missing_data
+  service_budgets              = var.service_budgets
+  guardduty_enabled            = var.guardduty_enabled
+  guardduty_s3_events          = var.guardduty_s3_events
+  guardduty_rds_login          = var.guardduty_rds_login
   guardduty_ebs_malware        = var.guardduty_ebs_malware
   guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
   create_anomaly_monitor       = var.create_anomaly_monitor
@@ -115,35 +119,42 @@ module "stack" {
   # Reliability (owner 2026-10-22): Multi-AZ, AWS Backup copies to the
   # replica region (+ optional backup account), worker scaling on queue
   # depth, cheaper endpoint placement, optional cache-only Redis.
-  database_multi_az            = var.database_multi_az
-  db_autoscale_enabled         = var.db_autoscale_enabled
-  db_autoscale_min_class       = var.db_autoscale_min_class
-  db_autoscale_max_class       = var.db_autoscale_max_class
-  db_autoscale_mode            = var.db_autoscale_mode
-  db_autoscale_tuning          = var.db_autoscale_tuning
-  redis_autoscale_enabled      = var.redis_autoscale_enabled
-  redis_autoscale_min_class    = var.redis_autoscale_min_class
-  redis_autoscale_max_class    = var.redis_autoscale_max_class
-  redis_autoscale_mode         = var.redis_autoscale_mode
-  redis_autoscale_tuning       = var.redis_autoscale_tuning
-  existing_database_identifier = var.existing_database_identifier
-  backup_enabled               = var.backup_enabled
-  backup_retention_days        = var.backup_retention_days
-  backup_copy_account_id       = var.backup_copy_account_id
-  backup_copy_vault_name       = var.backup_copy_vault_name
-  backup_copy_region           = var.backup_copy_region
-  interface_endpoint_azs       = var.interface_endpoint_azs
-  redis_cache_node             = var.redis_cache_node
-  redis_cache_node_type        = var.redis_cache_node_type
-  worker_jobs_per_task         = var.worker_jobs_per_task
+  database_multi_az                     = var.database_multi_az
+  db_autoscale_enabled                  = var.db_autoscale_enabled
+  db_autoscale_min_class                = var.db_autoscale_min_class
+  db_autoscale_max_class                = var.db_autoscale_max_class
+  db_autoscale_mode                     = var.db_autoscale_mode
+  db_autoscale_initial_ceiling_class    = var.db_autoscale_initial_ceiling_class
+  redis_autoscale_initial_ceiling_class = var.redis_autoscale_initial_ceiling_class
+  db_autoscale_tuning                   = var.db_autoscale_tuning
+  redis_autoscale_enabled               = var.redis_autoscale_enabled
+  redis_autoscale_min_class             = var.redis_autoscale_min_class
+  redis_autoscale_max_class             = var.redis_autoscale_max_class
+  redis_autoscale_mode                  = var.redis_autoscale_mode
+  redis_autoscale_tuning                = var.redis_autoscale_tuning
+  existing_database_identifier          = var.existing_database_identifier
+  backup_enabled                        = var.backup_enabled
+  backup_retention_days                 = var.backup_retention_days
+  backup_copy_account_id                = var.backup_copy_account_id
+  backup_copy_vault_name                = var.backup_copy_vault_name
+  backup_copy_region                    = var.backup_copy_region
+  interface_endpoint_azs                = var.interface_endpoint_azs
+  redis_cache_node                      = var.redis_cache_node
+  redis_cache_node_type                 = var.redis_cache_node_type
+  worker_jobs_per_task                  = var.worker_jobs_per_task
 
   # Security research #5 (2026-10-22): WAF, cloud detector, container.
-  waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
-  waf_bot_control_enabled   = var.waf_bot_control_enabled
-  waf_bot_control_block     = var.waf_bot_control_block
-  cdn_waf_rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
-  security_hub_enabled      = var.security_hub_enabled
-  guardduty_alert_severity  = var.guardduty_alert_severity
+  waf_enabled                    = var.waf_enabled
+  cdn_waf_enabled                = var.cdn_waf_enabled
+  waf_requests_alarm_per_day     = var.waf_requests_alarm_per_day
+  cdn_waf_requests_alarm_per_day = var.cdn_waf_requests_alarm_per_day
+  cloudfront_gb_alarm_per_day    = var.cloudfront_gb_alarm_per_day
+  waf_otp_rate_limit_per_5m      = var.waf_otp_rate_limit_per_5m
+  waf_bot_control_enabled        = var.waf_bot_control_enabled
+  waf_bot_control_block          = var.waf_bot_control_block
+  cdn_waf_rate_limit_per_5m      = var.cdn_waf_rate_limit_per_5m
+  security_hub_enabled           = var.security_hub_enabled
+  guardduty_alert_severity       = var.guardduty_alert_severity
 
   # Security & legal pass 2026-10-24.
   securityhub_fsbp_enabled       = var.securityhub_fsbp_enabled

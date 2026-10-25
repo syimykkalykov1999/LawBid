@@ -17,6 +17,11 @@ variable "admin_host" { type = string }
 # thousands of people; 3000 / 5 min (10 per second) cut real users off the
 # moment a city came online. Signed-in users are limited per account by the
 # API itself (100 / min), so this edge rule only has to stop floods.
+variable "waf_enabled" {
+  type        = bool
+  default     = true
+  description = "Web application firewall in front of the load balancer (6 rules: rate limits, bad inputs, IP reputation, body size, admin allow-list). Default ON. Costs about $11/month plus $0.60 per million requests (us-east-1, 2026-10), billed per request, so a flood is billed too (the request-count alarm in modules/monitoring warns). false removes the ACL: the admin IP allow-list (admin_allowed_cidrs) and the OTP rate limit then do NOT apply."
+}
 variable "waf_rate_limit_per_5m" {
   type    = number
   default = 10000
@@ -221,6 +226,7 @@ resource "aws_wafv2_ip_set" "admin" {
 }
 
 resource "aws_wafv2_web_acl" "this" {
+  count = var.waf_enabled ? 1 : 0
   name  = "${var.name}-waf"
   scope = "REGIONAL"
   default_action {
@@ -518,9 +524,23 @@ resource "aws_wafv2_web_acl" "this" {
 }
 
 resource "aws_wafv2_web_acl_association" "this" {
+  count        = var.waf_enabled ? 1 : 0
   resource_arn = aws_lb.this.arn
-  web_acl_arn  = aws_wafv2_web_acl.this.arn
+  web_acl_arn  = aws_wafv2_web_acl.this[0].arn
 }
+
+# The ACL and its association gained `count` (waf_enabled): keep the existing
+# ones, do not recreate them.
+moved {
+  from = aws_wafv2_web_acl.this
+  to   = aws_wafv2_web_acl.this[0]
+}
+moved {
+  from = aws_wafv2_web_acl_association.this
+  to   = aws_wafv2_web_acl_association.this[0]
+}
+
+output "waf_acl_name" { value = var.waf_enabled ? "${var.name}-waf" : "" }
 
 output "security_group_id" { value = aws_security_group.alb.id }
 output "dns_name" { value = aws_lb.this.dns_name }

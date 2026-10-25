@@ -940,6 +940,23 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'files.access_log_enabled': true,
 };
 
+/**
+ * Cost registry (owner 2026-10-25): three-state switches off | on | auto for
+ * the things that bill by use (admin «Расходы»). Default = auto.
+ * - `scale.capacity_ceiling.mode`: auto = the database / Redis autoscalers
+ *   may not grow past what the allowed monthly spend pays for (the economy
+ *   tick writes the ceiling into AWS SSM); off = only the Terraform ceiling.
+ * - `scale.bunny_hardstop.mode` / `scale.cloudflare_hardstop.mode`: auto =
+ *   new video uploads pause (Bunny) / group calls fall back to
+ *   device-to-device (Cloudflare) once the monthly traffic reaches the
+ *   urgent threshold (usage.*_crit_gb); on = stopped now; off = never.
+ */
+export const OWNER_COST_REGISTRY_SETTINGS = {
+  'scale.capacity_ceiling.mode': 'auto',
+  'scale.bunny_hardstop.mode': 'auto',
+  'scale.cloudflare_hardstop.mode': 'auto',
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -983,6 +1000,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_COST_REGISTRY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

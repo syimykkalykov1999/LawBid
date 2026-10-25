@@ -150,3 +150,57 @@ export function newFixedId(existing: readonly { id: string }[]): string {
 export function keepLine(t: SpendReport['total']): string {
   return `Прогноз счетов за месяц ${money(t.forecastUsd)} плюс запас ${t.marginPercent}%: держите на счету около ${money(t.keepOnAccountUsd)}.`;
 }
+
+// --- cost registry (owner 2026-10-25) --------------------------------------
+
+export type CostRegistryReport = components['schemas']['CostRegistryReportDto'];
+export type CostRegistryRow = components['schemas']['CostRegistryRowDto'];
+export type CostState = 'off' | 'on' | 'auto';
+
+export const COST_STATE_WORD: Record<CostState, string> = { off: 'Выкл', on: 'Вкл', auto: 'Авто' };
+
+export const COST_KIND_TITLE: Record<string, string> = {
+  aws: 'AWS (серверы, база, сеть, хранение)',
+  vendor: 'Сторонние сервисы',
+  sdk: 'Приложения, аккаунты и пакеты',
+  ci: 'Сборка и проверки',
+};
+
+export const COST_NEEDED_WORD: Record<string, string> = {
+  yes: 'Нужно сейчас',
+  auto: 'Нужно, растёт само',
+  later: 'Пока не нужно',
+  no: 'Не нужно',
+};
+
+/** «≈ 18», «110–200», «0». */
+export function usdRange(r: number[] | null | undefined): string {
+  if (!r || r.length === 0) return '—';
+  const f = (n: number) => n.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  return r[0] === r[1] ? `$${f(r[0])}` : `$${f(r[0])}–${f(r[1])}`;
+}
+
+/** Day-1 lines: not switched off by default and with a price above zero. */
+export function dayOneRows(rows: CostRegistryRow[]): CostRegistryRow[] {
+  return rows.filter((r) => r.defaultState !== 'off' && (r.usdLaunch[1] ?? 0) > 0);
+}
+
+/** Things the owner may switch on later (off by default, a price when on). */
+export function switchableRows(rows: CostRegistryRow[]): CostRegistryRow[] {
+  return rows.filter((r) => r.defaultState === 'off' && r.ifOnUsd != null);
+}
+
+/** Things that switch themselves on a signal (Авто is a position). */
+export function autoRows(rows: CostRegistryRow[]): CostRegistryRow[] {
+  return rows.filter((r) => r.states.includes('auto') && r.defaultState === 'auto');
+}
+
+export function groupByKind(rows: CostRegistryRow[]): [string, CostRegistryRow[]][] {
+  const out = new Map<string, CostRegistryRow[]>();
+  for (const r of rows) out.set(r.kind, [...(out.get(r.kind) ?? []), r]);
+  return ['aws', 'vendor', 'sdk', 'ci'].filter((k) => out.has(k)).map((k) => [k, out.get(k)!]);
+}
+
+export function usersWord(n: number): string {
+  return n >= 1_000_000 ? `${n / 1_000_000} млн` : n >= 1000 ? `${n / 1000} тыс.` : String(n);
+}

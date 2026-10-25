@@ -449,6 +449,31 @@ variable "waf_bot_control_block" {
   default     = false
   description = "Block the Bot Control verdicts instead of counting them (only with waf_bot_control_enabled)."
 }
+variable "waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The load-balancer web ACL (6 rules). Default ON: it carries the admin IP allow-list and the OTP rate limit. About $11/month + $0.60 per million requests. false = no ACL (docs/runbooks/COST_LADDER.md says what that costs you in safety)."
+}
+variable "cdn_waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The CloudFront web ACL (3 rules: per-IP rate, IP reputation, bad inputs). Default ON. About $8/month + $0.60 per million requests."
+}
+variable "waf_requests_alarm_per_day" {
+  type        = number
+  default     = 3000000
+  description = "E-mail when the ALB web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cdn_waf_requests_alarm_per_day" {
+  type        = number
+  default     = 10000000
+  description = "E-mail when the CloudFront web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cloudfront_gb_alarm_per_day" {
+  type        = number
+  default     = 60
+  description = "E-mail when one CloudFront distribution serves more than this many GB in 24 h (free tier 1 TB/month ≈ 33 GB/day, then ≈ $0.085/GB); 0 = no alarm."
+}
 variable "cdn_waf_rate_limit_per_5m" {
   type        = number
   default     = 2000
@@ -529,6 +554,30 @@ variable "backup_age_missing_data" {
   type        = string
   default     = "breaching"
   description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
+}
+variable "service_budgets" {
+  type = map(number)
+  default = {
+    "Amazon GuardDuty"  = 25
+    "AWS WAF"           = 50
+    "Amazon CloudFront" = 60
+  }
+  description = "Per-service monthly ceilings (an e-mail at 100 % actual and forecast) for the lines that grow with traffic: GuardDuty S3 events, WAF requests, CloudFront bytes. Day-1 cost of each is under $20 (docs/runbooks/COST_LADDER.md). {} = none. AWS gives two budgets free, each further one is about $0.60/month."
+}
+variable "guardduty_enabled" {
+  type        = bool
+  default     = true
+  description = "GuardDuty on/off (security baseline). Default ON (owner security decision); about $4/month on a quiet account (docs/runbooks/COST_LADDER.md)."
+}
+variable "guardduty_s3_events" {
+  type        = bool
+  default     = true
+  description = "GuardDuty S3 data-event feature: the part of GuardDuty whose bill grows with S3 traffic. Turn off first if the GuardDuty line grows (docs/runbooks/COST_LADDER.md)."
+}
+variable "guardduty_rds_login" {
+  type        = bool
+  default     = true
+  description = "GuardDuty RDS login-event feature (anomalous database sign-ins)."
 }
 variable "guardduty_ebs_malware" {
   type        = bool
@@ -744,6 +793,7 @@ module "macie" {
 module "cdn_waf" {
   source            = "../cdn-waf"
   name              = local.name
+  enabled           = var.cdn_waf_enabled
   rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
   tags              = local.tags
 }
@@ -783,6 +833,7 @@ module "alb" {
   certificate_arn       = var.certificate_arn
   api_host              = var.api_host
   admin_host            = var.admin_host
+  waf_enabled           = var.waf_enabled
   waf_rate_limit_per_5m = var.waf_rate_limit_per_5m
   admin_allowed_cidrs   = var.admin_allowed_cidrs
   tags                  = local.tags
@@ -949,6 +1000,11 @@ variable "db_autoscale_max_class" {
   default     = "db.r7g.xlarge"
   description = "Ceiling for the bill. Above it the owner gets an e-mail."
 }
+variable "db_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "db.t4g.medium"
+  description = "Day-1 money ceiling inside db_autoscale_max_class: db.t4g.medium (≈ $94/month Multi-AZ) keeps launch + one DB step under monthly_budget_usd. The app raises or lowers it with the allowed spend (economy tick writes SSM max-class, docs/runbooks/COST_LADDER.md); db_autoscale_max_class stays the absolute cap."
+}
 variable "db_autoscale_mode" {
   type        = string
   default     = "on"
@@ -980,6 +1036,11 @@ variable "redis_autoscale_max_class" {
   type        = string
   default     = "cache.r7g.large"
   description = "Ceiling for the bill: ≈ $320/month with one replica. Above it the owner gets an e-mail."
+}
+variable "redis_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "cache.t4g.small"
+  description = "Day-1 money ceiling inside redis_autoscale_max_class: cache.t4g.small (≈ $47/month with one replica). Raised with the allowed spend like the database one."
 }
 variable "redis_autoscale_mode" {
   type        = string
@@ -1065,6 +1126,11 @@ locals {
   # (db_autoscale_min_class); the check below asks only that the LARGEST size
   # (db_autoscale_max_class) can carry the task ceiling at all.
   db_autoscale_on    = var.db_autoscale_enabled && local.db_identifier != ""
+  redis_autoscale_on = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on
+  autoscale_ssm_params = concat(
+    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class"] : [],
+    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class"] : [],
+  )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
   db_pool_memory_gib = lookup(local.db_memory_gib, local.db_pool_class, 4)
@@ -1162,8 +1228,14 @@ locals {
     OPS_REDIS_GROUP     = local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
     # Batch D (2026-10-24): the admin «Масштаб» page says whether the size
     # changes by itself (the Lambda's own on / dry-run / off switch is in SSM).
-    OPS_DB_AUTOSCALE    = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on ? "on" : "off"
+    # Cost registry: SSM parameter NAMES (built from the stack name, not from
+    # the autoscale modules, which depend on this cluster).
+    OPS_DB_AUTOSCALE_MODE_PARAM        = local.db_autoscale_on ? "/${local.name}/db-autoscale/mode" : ""
+    OPS_DB_AUTOSCALE_MAXCLASS_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/max-class" : ""
+    OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
+    OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
+    OPS_DB_AUTOSCALE                   = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE                = local.redis_autoscale_on ? "on" : "off"
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
     REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
@@ -1390,6 +1462,20 @@ data "aws_iam_policy_document" "task" {
     actions   = ["ce:GetCostAndUsage", "ce:GetCostForecast", "ce:ListCostAllocationTags"]
     resources = ["*"]
   }
+  # Cost registry (owner 2026-10-25): the admin «Расходы» switches the database
+  # / Redis autoscalers Выкл / Вкл / Авто (the `mode` parameter) and the
+  # economy tick writes the money ceiling (`max-class`). Only those four
+  # parameters; the Lambdas' own `state` parameters stay theirs.
+  dynamic "statement" {
+    for_each = length(local.autoscale_ssm_params) > 0 ? [1] : []
+    content {
+      actions = ["ssm:GetParameter", "ssm:PutParameter"]
+      resources = [
+        for p in local.autoscale_ssm_params :
+        "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${p}"
+      ]
+    }
+  }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
   statement {
@@ -1426,19 +1512,29 @@ module "budget" {
   anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_sns_topic_arn        = var.anomaly_to_alerts_topic ? module.monitoring.alerts_topic_arn : ""
+  service_budgets              = var.service_budgets
 }
 
 module "monitoring" {
-  source                        = "../monitoring"
-  name                          = local.name
-  alert_emails                  = var.alert_emails
-  slack_webhook_url             = var.slack_webhook_url
-  pagerduty_https_endpoint      = var.pagerduty_https_endpoint
-  critical_email_too            = var.critical_email_too
-  redis_memory_alarm_percent    = var.redis_memory_alarm_percent
-  nat_gateway_ids               = module.network.nat_gateway_ids
-  nat_traffic_alarm_gb_per_day  = var.nat_traffic_alarm_gb_per_day
-  alb_arn_suffix                = module.alb.arn_suffix
+  source                       = "../monitoring"
+  name                         = local.name
+  alert_emails                 = var.alert_emails
+  slack_webhook_url            = var.slack_webhook_url
+  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
+  critical_email_too           = var.critical_email_too
+  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
+  nat_gateway_ids              = module.network.nat_gateway_ids
+  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
+  alb_arn_suffix               = module.alb.arn_suffix
+  waf_alb_acl_name             = module.alb.waf_acl_name
+  waf_alb_requests_per_day     = var.waf_requests_alarm_per_day
+  waf_cdn_acl_name             = module.cdn_waf.web_acl_name
+  waf_cdn_requests_per_day     = var.cdn_waf_requests_alarm_per_day
+  cloudfront_gb_per_day_alarm  = var.cloudfront_gb_alarm_per_day
+  cloudfront_distribution_ids = merge(
+    { web = module.web.web_distribution_id, media = module.s3.media_distribution_id },
+    var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
+  )
   api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
   admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
   deploy_rollback_on_slo        = var.deploy_rollback_on_slo
@@ -1474,6 +1570,7 @@ module "db_autoscale" {
   ladder           = var.db_autoscale_ladder
   min_class        = var.db_autoscale_min_class
   max_class        = var.db_autoscale_max_class
+  initial_ceiling  = var.db_autoscale_initial_ceiling_class
   mode             = var.db_autoscale_mode
   tuning           = var.db_autoscale_tuning
   tags             = local.tags
@@ -1483,7 +1580,7 @@ module "db_autoscale" {
 # node_type changes, so terraform apply never undoes it).
 module "redis_autoscale" {
   # Not for a cluster-mode group (the Lambda would skip it anyway: cluster_mode).
-  count                = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on ? 1 : 0
+  count                = local.redis_autoscale_on ? 1 : 0
   source               = "../redis-autoscale"
   name                 = local.name
   replication_group_id = "${local.name}-redis"
@@ -1494,6 +1591,7 @@ module "redis_autoscale" {
   kms_key_arn          = module.kms.key_arn
   min_node_type        = var.redis_autoscale_min_class
   max_node_type        = var.redis_autoscale_max_class
+  initial_ceiling      = var.redis_autoscale_initial_ceiling_class
   mode                 = var.redis_autoscale_mode
   tuning               = var.redis_autoscale_tuning
   tags                 = local.tags
@@ -1535,6 +1633,9 @@ module "security_baseline" {
   documents_data_events          = var.documents_data_events
   documents_bucket_arn           = module.s3.documents_bucket_arn
 
+  guardduty_enabled            = var.guardduty_enabled
+  guardduty_s3_events          = var.guardduty_s3_events
+  guardduty_rds_login          = var.guardduty_rds_login
   guardduty_ebs_malware        = var.guardduty_ebs_malware
   guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
 }
