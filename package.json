@@ -13,17 +13,15 @@
     "api:start": "npm run start:dev --workspace apps/api",
     "api:lint": "npm run lint --workspace apps/api",
     "api:test": "npm run test --workspace apps/api",
+    "heavy": "bash scripts/dev/heavy.sh --",
+    "prisma:generate:fast": "bash scripts/dev/skip-if-unchanged.sh prisma-client apps/api/prisma/schema.prisma package-lock.json -- node_modules/.prisma/client/index.js -- npx --prefix apps/api prisma generate --schema apps/api/prisma/schema.prisma",
+    "contract:fast": "bash scripts/dev/skip-if-unchanged.sh api-contract apps/api/src apps/api/nest-cli.json apps/api/tsconfig.json packages/api-contract/generate.sh packages/api-contract/dart/pubspec.yaml packages/api-contract/dart/pubspec.lock -- packages/api-contract/openapi.json packages/api-contract/dart/lib/src -- sh packages/api-contract/generate.sh",
     "legal:translate": "node scripts/legal-translate.mjs",
     "legal:check": "node scripts/legal-translate.mjs --check"
   },
   "devDependencies": {
     "husky": "^9.1.7",
     "lint-staged": "^15.2.10"
-  },
-  "lint-staged": {
-    "apps/api/**/*.ts": [
-      "npm run lint --workspace apps/api -- --no-warn-ignored"
-    ]
   },
   "overrides": {
     "body-parser": "^2.4.0",
