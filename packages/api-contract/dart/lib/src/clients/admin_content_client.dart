@@ -258,7 +258,7 @@ abstract class AdminContentClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// CSV export (up to 50 000 rows). Every export is audited; `users` (phones, emails) needs X-Justification.
+  /// CSV export (streamed, up to 50 000 rows; a last line says when it was cut). Every export is audited; `users` (phones, emails) needs X-Justification.
   ///
   /// [xJustification] - Required for entity=users: why contacts are exported (10–500 chars, encodeURIComponent for non-ASCII).
   @GET('/admin/export/{entity}')

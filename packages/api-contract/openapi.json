@@ -8377,6 +8377,103 @@
         ]
       }
     },
+    "/admin/users/bulk/preview": {
+      "post": {
+        "operationId": "bulkPreview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUsersBulkPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUsersBulkPreviewResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "S18-10: how many users a bulk filter matches (read-only, before the action)",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
     "/admin/users/bulk": {
       "post": {
         "operationId": "bulk",
@@ -40228,7 +40325,7 @@
             "admin": []
           }
         ],
-        "summary": "CSV export (up to 50 000 rows). Every export is audited; `users` (phones, emails) needs X-Justification.",
+        "summary": "CSV export (streamed, up to 50 000 rows; a last line says when it was cut). Every export is audited; `users` (phones, emails) needs X-Justification.",
         "tags": [
           "admin-content"
         ]
@@ -117460,6 +117557,96 @@
           "data"
         ]
       },
+      "AdminUsersBulkPreviewResultDto": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Users matching the filter."
+          },
+          "cap": {
+            "type": "integer",
+            "description": "The most one bulk call touches."
+          }
+        },
+        "required": [
+          "count",
+          "cap"
+        ]
+      },
+      "AdminUsersFilterDto": {
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Name (substring), email, phone (any format), @username or user id. Empty = newest users."
+          },
+          "role": {
+            "enum": [
+              "client",
+              "attorney",
+              "admin"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended",
+              "deletion_pending",
+              "deleted"
+            ],
+            "type": "string"
+          },
+          "stateCode": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{2}$",
+            "description": "Owner 2026-10-04: clients of this state and attorneys licensed in it."
+          },
+          "countryCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "example": "CA",
+            "description": "Owner 2026-10-05: people of this country only."
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Registered at or after (inclusive)."
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Registered before (exclusive)."
+          }
+        }
+      },
+      "AdminUsersBulkPreviewDto": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "$ref": "#/components/schemas/AdminUsersFilterDto"
+          }
+        },
+        "required": [
+          "filter"
+        ]
+      },
+      "AdminUsersBulkPreviewResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminUsersBulkPreviewResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "AdminBulkSkippedDto": {
         "type": "object",
         "properties": {
@@ -117525,11 +117712,20 @@
           "ids": {
             "minItems": 1,
             "maxItems": 500,
+            "description": "Exactly one of `ids` or `filter`.",
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
+          },
+          "filter": {
+            "description": "S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_FILTER_CAP users) and audits the filter.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminUsersFilterDto"
+              }
+            ]
           },
           "reason": {
             "type": "string",
@@ -117538,8 +117734,7 @@
           }
         },
         "required": [
-          "action",
-          "ids"
+          "action"
         ]
       },
       "AdminBulkResultEnvelope": {

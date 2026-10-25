@@ -118,7 +118,13 @@ export class AdminAuthGuard implements CanActivate {
       throw error;
     }
 
-    const sessionUser = await this.sessions.touch(claims.jti);
+    // Owner 2026-10-25 (S18-1): a background poll (`x-background: 1`, GET
+    // only) must not extend the 30-minute idle window, or a forgotten open
+    // tab would keep the session alive until the JWT expires.
+    const sessionUser =
+      req.method === 'GET' && req.header('x-background') === '1'
+        ? await this.sessions.ownerOf(claims.jti)
+        : await this.sessions.touch(claims.jti);
     if (!sessionUser || sessionUser !== claims.sub) {
       throw new UnauthorizedException({
         code: ErrorCode.AUTH_SESSION_REVOKED,

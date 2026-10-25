@@ -14,6 +14,8 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -22,7 +24,7 @@ const trim = ({ value }: { value: unknown }) =>
 export const SANCTION_TEXT_MAX = 500;
 
 /** docs/06 §2.3 item 3: "поиск по имени, email, телефону, @username, id". */
-export class AdminUsersQueryDto {
+export class AdminUsersFilterDto {
   @ApiPropertyOptional({
     description:
       'Name (substring), email, phone (any format), @username or user id. Empty = newest users.',
@@ -82,7 +84,9 @@ export class AdminUsersQueryDto {
   @IsOptional()
   @IsISO8601()
   to?: string;
+}
 
+export class AdminUsersQueryDto extends AdminUsersFilterDto {
   @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
   @IsOptional()
   @IsString()
@@ -140,12 +144,29 @@ export class AdminUsersBulkDto {
   @IsIn(USERS_BULK_ACTIONS)
   action!: (typeof USERS_BULK_ACTIONS)[number];
 
-  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 500 })
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    minItems: 1,
+    maxItems: 500,
+    description: 'Exactly one of `ids` or `filter`.',
+  })
+  @ValidateIf((o: AdminUsersBulkDto) => o.filter === undefined)
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(500)
   @IsUUID('all', { each: true })
-  ids!: string[];
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminUsersFilterDto,
+    description:
+      'S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_FILTER_CAP users) and audits the filter.',
+  })
+  @ValidateIf((o: AdminUsersBulkDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminUsersFilterDto)
+  filter?: AdminUsersFilterDto;
 
   @ApiPropertyOptional({ type: String, maxLength: SANCTION_TEXT_MAX })
   @IsOptional()
@@ -153,6 +174,24 @@ export class AdminUsersBulkDto {
   @IsString()
   @MaxLength(SANCTION_TEXT_MAX)
   reason = '';
+}
+
+/** S18-10: how many users a filter matches, before the action. */
+export class AdminUsersBulkPreviewDto {
+  @ApiProperty({ type: () => AdminUsersFilterDto })
+  @ValidateNested()
+  @Type(() => AdminUsersFilterDto)
+  filter!: AdminUsersFilterDto;
+}
+
+export class AdminUsersBulkPreviewResultDto {
+  @ApiProperty({ type: 'integer', description: 'Users matching the filter.' })
+  count!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'The most one bulk call touches.',
+  })
+  cap!: number;
 }
 
 // ---- responses ----------------------------------------------------------

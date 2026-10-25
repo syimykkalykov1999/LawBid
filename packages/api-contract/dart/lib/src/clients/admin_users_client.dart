@@ -10,6 +10,8 @@ import '../models/admin_user_card_envelope.dart';
 import '../models/admin_user_contacts_envelope.dart';
 import '../models/admin_user_list_item_list_envelope.dart';
 import '../models/admin_users_bulk_dto.dart';
+import '../models/admin_users_bulk_preview_dto.dart';
+import '../models/admin_users_bulk_preview_result_envelope.dart';
 import '../models/change_user_phone_dto.dart';
 import '../models/phone_changed_envelope.dart';
 import '../models/role.dart';
@@ -65,6 +67,13 @@ abstract class AdminUsersClient {
   Future<AdminUserContactsEnvelope> getUserContacts({
     @Path('id') required String id,
     @Header('X-Justification') required String xJustification,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// S18-10: how many users a bulk filter matches (read-only, before the action)
+  @POST('/admin/users/bulk/preview')
+  Future<AdminUsersBulkPreviewResultEnvelope> bulkPreview({
+    @Body() required AdminUsersBulkPreviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_users_bulk_action.dart';
+import 'admin_users_filter_dto.dart';
 
 part 'admin_users_bulk_dto.g.dart';
 
@@ -12,15 +13,21 @@ part 'admin_users_bulk_dto.g.dart';
 class AdminUsersBulkDto {
   const AdminUsersBulkDto({
     required this.action,
-    required this.ids,
     this.reason = '',
+    this.ids,
+    this.filter,
   });
 
   factory AdminUsersBulkDto.fromJson(Map<String, Object?> json) =>
       _$AdminUsersBulkDtoFromJson(json);
 
   final AdminUsersBulkAction action;
-  final List<String> ids;
+
+  /// Exactly one of `ids` or `filter`.
+  final List<String>? ids;
+
+  /// S18-10: «select all matching»: the server resolves the ids with the same filter as the list (at most BULK_FILTER_CAP users) and audits the filter.
+  final AdminUsersFilterDto? filter;
   final String reason;
 
   Map<String, Object?> toJson() => _$AdminUsersBulkDtoToJson(this);
