@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { NotificationCategory, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { hashShard } from '../../sharding/shard-id';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { publishCaseEvent } from './case-events';
@@ -391,12 +392,13 @@ export class NotificationsService {
       // One row per window: later events bump the count, carry the latest
       // actor ("Sarah и ещё 5"), come back unread and move to the top.
       const [row] = await db.$queryRaw<{ id: string; n: number }[]>`
-        INSERT INTO notifications (user_id, type, category, payload, dedupe_key)
+        INSERT INTO notifications (user_id, type, category, payload, dedupe_key, shard_id)
         VALUES (${input.recipientId}::UUID,
                 ${input.type}::notification_type,
                 ${category}::notification_category,
                 ${JSON.stringify(input.payload)}::JSONB,
-                ${dedupe})
+                ${dedupe},
+                ${hashShard(input.recipientId)}::SMALLINT)
         ON CONFLICT (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL
         DO UPDATE SET aggregate_count = notifications.aggregate_count + 1,
                       payload = excluded.payload,

@@ -42,6 +42,7 @@ import {
   viewingKey,
 } from './realtime-publisher.service';
 import { demoContext } from '../../common/demo/demo-context';
+import { shardContext } from '../../sharding/shard-context';
 import { RealtimeEventLog } from './realtime-event-log';
 import {
   newSocketEventBucket,
@@ -425,10 +426,19 @@ export class RealtimeGateway
         socket.disconnect(true);
         return;
       }
-      demoContext.run(demo, () => next());
+      demoContext.run(demo, () =>
+        shardContext.runForUser(claims.sub, () => next(), 'socket'),
+      );
     });
+    // Shard-ready step 4: the socket's shard context is its user's shard
+    // (the same weak default HTTP uses); handlers that touch another
+    // entity set their own with shardContext.runForCase(...).
     return demoContext.run(demo, () =>
-      this.finishConnection(socket, claims, token),
+      shardContext.runForUser(
+        claims.sub,
+        () => this.finishConnection(socket, claims, token),
+        'socket',
+      ),
     );
   }
 
