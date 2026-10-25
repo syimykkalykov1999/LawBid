@@ -315,7 +315,9 @@ describe('FilesService', () => {
       });
       expect(deps.storage.presignPost).toHaveBeenCalledWith({
         bucket: 'lawbid-documents',
-        key: `verification_document/u1/${res.fileId}`,
+        key: expect.stringMatching(
+          new RegExp(`^verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`),
+        ),
         contentType: 'application/pdf',
         size: 1234,
         expiresSec: 300,
@@ -345,7 +347,11 @@ describe('FilesService', () => {
       expect(deps.redis.zadd).toHaveBeenCalledWith(
         'files:pending',
         expect.any(Number),
-        `${res.fileId}|lawbid-documents|verification_document/u1/${res.fileId}`,
+        expect.stringMatching(
+          new RegExp(
+            `^${res.fileId}\\|lawbid-documents\\|verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`,
+          ),
+        ),
       );
     });
 
