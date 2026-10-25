@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { expectedPhysicalDb } from './support/e2e-two-db';
 import { PrismaService, routingOf } from '../src/prisma/prisma.service';
 import { shardContext } from '../src/sharding/shard-context';
-import { newShardedId } from '../src/sharding/shard-id';
+import { hashShard, newShardedId } from '../src/sharding/shard-id';
 import { shardStats } from '../src/sharding/shard-stats';
 
 /**
@@ -69,10 +69,22 @@ describe('shard routing (real PostgreSQL)', () => {
     expect(await where(even.id)).toEqual(onlyIn(expectedPhysicalDb(2)));
   });
 
-  it('without a context the primary database is used (and counted)', async () => {
-    shardStats.drain();
+  it('without a context a create goes to the database of the owner it names', async () => {
     const row = await notify();
-    expect((await where(row.id)).primary).toBe(1);
+    expect(await where(row.id)).toEqual(
+      onlyIn(expectedPhysicalDb(hashShard(userId))),
+    );
+  });
+
+  it('without a context a query that names nothing and cannot be merged uses the primary database (and is counted)', async () => {
+    shardStats.drain();
+    // A HAVING on a partial aggregate is not exact, so it is never scattered
+    // (plain groupBy / aggregate are merged since step 8).
+    await prisma.notification.groupBy({
+      by: ['type'],
+      _count: { _all: true },
+      having: { type: { _count: { gte: 0 } } },
+    });
     expect(shardStats.drain()?.byModel.Notification).toBe(1);
   });
 

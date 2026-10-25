@@ -170,6 +170,18 @@ export const PROVIDERS: ProviderDefinition[] = [
         pattern: /^[\w-]{20,}$/,
         env: 'BUNNY_READ_ONLY_API_KEY',
       },
+      {
+        // Batch C item 16 (2026-10-24): the daily usage poll asks the Core
+        // API (GET api.bunny.net/statistics, /videolibrary/{id}); that API
+        // takes the ACCOUNT API key, not the library key above. Optional:
+        // empty = no usage alerts.
+        name: 'accountApiKey',
+        label: 'Account API key (usage statistics, optional)',
+        secret: true,
+        required: false,
+        pattern: /^[\w-]{20,}$/,
+        env: 'BUNNY_ACCOUNT_API_KEY',
+      },
     ],
     test: (f) =>
       probe(
@@ -501,6 +513,28 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: true,
         pattern: /^\S{16,}$/,
         env: 'CLOUDFLARE_TURN_API_TOKEN',
+      },
+      {
+        // Batch C item 11 (2026-10-24): the daily usage poll reads the
+        // GraphQL Analytics dataset callsTurnUsageAdaptiveGroups. Needs the
+        // account id and a token with «Account Analytics: Read». Optional:
+        // empty = no usage alerts.
+        name: 'accountId',
+        label: 'Cloudflare account ID (usage alerts, optional)',
+        secret: false,
+        required: false,
+        pattern: /^[a-f0-9]{32}$/i,
+        patternHint: '32 hex characters',
+        env: 'CLOUDFLARE_ANALYTICS_ACCOUNT_ID',
+      },
+      {
+        name: 'analyticsToken',
+        label:
+          'API token with Account Analytics: Read (usage alerts, optional)',
+        secret: true,
+        required: false,
+        pattern: /^\S{16,}$/,
+        env: 'CLOUDFLARE_ANALYTICS_API_TOKEN',
       },
     ],
     test: (f) =>

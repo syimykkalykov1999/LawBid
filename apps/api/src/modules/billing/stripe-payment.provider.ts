@@ -27,6 +27,7 @@ import {
   type ProviderTaxLocation,
   WebhookSignatureError,
 } from './payment-provider';
+import { resilientStripeOptions } from '../../common/resilience/stripe-breaker';
 import { demoDenyProxy } from '../../common/demo/demo-guards';
 
 /**
@@ -52,13 +53,10 @@ export class StripePaymentProvider implements PaymentProvider {
   ) {
     // Demo accounts can never reach Stripe (src/common/demo).
     this.stripe = demoDenyProxy(
-      new Stripe(secretKey, {
-        typescript: true,
-        maxNetworkRetries: 2,
-        // A hung Stripe call fails in seconds, not minutes: the admin sees a
-        // clear "check the Stripe key" instead of a timed-out request.
-        timeout: 20_000,
-      }),
+      // A hung Stripe call fails in seconds, not minutes (timeout), and a
+      // Stripe that keeps failing is paused for a minute (circuit breaker):
+      // the admin sees a clear "check the Stripe key" instead of a hang.
+      new Stripe(secretKey, resilientStripeOptions()),
       'Payments',
     );
     this.live = /^(sk|rk)_live_/.test(secretKey);

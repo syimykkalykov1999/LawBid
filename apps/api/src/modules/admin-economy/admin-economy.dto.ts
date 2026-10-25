@@ -133,6 +133,7 @@ export class EconomyEventDto {
       'db_connections',
       'redis_memory',
       'scaled_up',
+      'scaled_down',
     ],
   })
   kind!: string;

@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { shardContext } from '../../sharding/shard-context';
+import {
+  CrossFamilyOutbox,
+  type OutboxTicket,
+} from '../../sharding/outbox/cross-family-outbox';
 import type { ReviewStatus } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -32,52 +38,95 @@ export interface ReviewModerationResult {
  */
 @Injectable()
 export class ReviewModerationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Shard-ready step 7: the rating average is a global-family row.
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
+  ) {}
 
   async setStatus(
     input: ReviewModerationInput,
   ): Promise<ReviewModerationResult> {
-    return withTxRetry(this.prisma, async (tx) => {
-      const review = await tx.review.findUnique({
-        where: { id: input.reviewId },
-        select: { id: true, attorney_id: true, status: true },
-      });
-      if (!review) {
-        throw new NotFoundException({
-          code: ErrorCode.NOT_FOUND,
-          message: 'Review not found.',
+    const tickets: Array<OutboxTicket | null> = [];
+    // A review's id carries its shard (children inherit the case's): pin it,
+    // so the transaction runs on the database that holds the review.
+    const result = await shardContext.runForCase(input.reviewId, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        tickets.length = 0;
+        const review = await tx.review.findUnique({
+          where: { id: input.reviewId },
+          select: { id: true, attorney_id: true, status: true },
         });
-      }
-      if (review.status !== input.status) {
-        await tx.review.update({
-          where: { id: review.id },
-          data: { status: input.status },
-        });
-        await tx.auditLog.create({
-          data: {
-            admin_id: input.adminId,
-            action: `review.${actionName(input.status)}`,
-            target_type: 'review',
-            target_id: review.id,
-            before: { status: review.status },
-            after: {
-              status: input.status,
-              ...(input.reason ? { reason: input.reason } : {}),
+        if (!review) {
+          throw new NotFoundException({
+            code: ErrorCode.NOT_FOUND,
+            message: 'Review not found.',
+          });
+        }
+        if (review.status !== input.status) {
+          await tx.review.update({
+            where: { id: review.id },
+            data: { status: input.status },
+          });
+          await tx.auditLog.create({
+            data: {
+              admin_id: input.adminId,
+              action: `review.${actionName(input.status)}`,
+              target_type: 'review',
+              target_id: review.id,
+              before: { status: review.status },
+              after: {
+                status: input.status,
+                ...(input.reason ? { reason: input.reason } : {}),
+              },
+              ip: input.ip ?? null,
             },
-            ip: input.ip ?? null,
-          },
-        });
-      }
-      const rating = await recalcAttorneyRating(tx, review.attorney_id);
-      return {
-        reviewId: review.id,
-        attorneyId: review.attorney_id,
-        previousStatus: review.status,
-        status: input.status,
-        rating,
-      };
-    });
+          });
+        }
+        let rating: RatingTotals | null = null;
+        if (this.outbox) {
+          const ticket = await this.outbox.emit(
+            tx,
+            'attorney.rating.recalc',
+            { attorneyId: review.attorney_id },
+            `rating:${review.attorney_id}:${randomUUID()}`,
+          );
+          if (ticket) tickets.push(ticket);
+          else rating = await ratingOf(tx, review.attorney_id); // ran inline
+        } else {
+          rating = await recalcAttorneyRating(tx, review.attorney_id);
+        }
+        return {
+          reviewId: review.id,
+          attorneyId: review.attorney_id,
+          previousStatus: review.status,
+          status: input.status,
+          rating,
+        };
+      }),
+    );
+    if (result.rating) return { ...result, rating: result.rating };
+    // The event was stored on the shard's database: apply it now, then read.
+    await this.outbox?.flush(tickets);
+    return {
+      ...result,
+      rating: await ratingOf(this.prisma, result.attorneyId),
+    };
   }
+}
+
+async function ratingOf(
+  db: Pick<PrismaService, 'attorneyProfile'>,
+  attorneyId: string,
+): Promise<RatingTotals> {
+  const p = await db.attorneyProfile.findUnique({
+    where: { user_id: attorneyId },
+    select: { rating_avg: true, rating_count: true },
+  });
+  return {
+    ratingAvg: p ? Number(p.rating_avg.toString()) : 0,
+    ratingCount: p?.rating_count ?? 0,
+  };
 }
 
 function actionName(status: ReviewStatus): 'hide' | 'remove' | 'restore' {

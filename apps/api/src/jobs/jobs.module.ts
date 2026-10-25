@@ -57,6 +57,7 @@ import { DashboardService } from '../modules/admin/dashboard.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
+import { UsagePollJob } from './handlers/usage-poll.job';
 import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
@@ -167,6 +168,7 @@ export class JobsModule {
         BillingOverviewService,
         OpsGuardJob,
         StatusWatchdogJob,
+        UsagePollJob,
         // Owner 2026-10-05: the planner's reminders and archive cleanup.
         TaskRemindersJob,
         TaskArchivePurgeJob,

@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { ftsMatch } from '../../../common/search/fts-sql';
+import type { PrismaService } from '../../../prisma/prisma.service';
+import { forEachDatabase } from '../../../sharding/for-each-database';
 
 /** docs/04 §4.1 exception: not_sure_or_other cases are also shown to
  * attorneys who chose General Practice or Not Sure or Other. Same
@@ -13,7 +15,29 @@ export interface FeedCursor {
   id: string;
 }
 
+/**
+ * Shard-ready step 8 (feed = scatter-read): the parts of the feed rule that
+ * live in the GLOBAL family (the attorney's licences and practices, practice
+ * area codes) resolved first, in application code. With them the statement
+ * touches the case family only and can run on every database; without
+ * them (one database) the original single statement is built, byte for byte.
+ */
+export interface FeedGlobals {
+  /** (state_code, practice_area_id) pairs the attorney may see. */
+  stateTopics: Array<[string, string]>;
+  /** Practice areas the attorney lists (plus «Not sure» for general). */
+  topics: string[];
+  /** The attorney's verified-licence state codes. */
+  licensed: string[];
+  /** Leaf practice areas of `practiceCategory`. */
+  categoryLeaves?: string[];
+  /** Practice areas named by a `practice` code (the area and its children). */
+  practiceIds?: string[];
+}
+
 export interface VisibleCasesQueryInput {
+  /** Pre-resolved global parts (several databases). */
+  globals?: FeedGlobals;
   attorneyId: string;
   /** docs/04 §4.2 filters — narrow further, never widen. */
   practiceAreaId?: string;
@@ -119,6 +143,7 @@ export function buildVisibleCasesSql(
     since,
     extra,
     browseAll,
+    globals,
   } = input;
   const extraFilter = extra ?? Prisma.empty;
   // Narrows (never widens) the per-branch practice match to the leaves of
@@ -126,8 +151,15 @@ export function buildVisibleCasesSql(
   // Owner 2026-10-15: a case may name several topics (the first in
   // cases.practice_area_id, the rest in case_extra_practices); a filter on
   // a topic matches any of them.
-  const categoryFilter = practiceCategory
-    ? Prisma.sql`AND (c.practice_area_id IN (
+  const categoryFilter =
+    practiceCategory && globals
+      ? Prisma.sql`AND (c.practice_area_id = ANY(${globals.categoryLeaves ?? []}::UUID[])
+      OR EXISTS (
+        SELECT 1 FROM case_extra_practices x
+        WHERE x.case_id = c.id
+          AND x.practice_area_id = ANY(${globals.categoryLeaves ?? []}::UUID[])))`
+      : practiceCategory
+        ? Prisma.sql`AND (c.practice_area_id IN (
         SELECT leaf.id FROM practice_areas leaf
         JOIN practice_areas cat ON cat.id = leaf.parent_id
         WHERE cat.code = ${practiceCategory})
@@ -136,7 +168,7 @@ export function buildVisibleCasesSql(
         JOIN practice_areas leaf ON leaf.id = x.practice_area_id
         JOIN practice_areas cat ON cat.id = leaf.parent_id
         WHERE x.case_id = c.id AND cat.code = ${practiceCategory}))`
-    : Prisma.empty;
+        : Prisma.empty;
   const searchFilter = Prisma.sql`${
     text
       ? Prisma.sql`AND ${ftsMatch('c', text, textPrefix ?? true, textPractices)}`
@@ -162,7 +194,11 @@ export function buildVisibleCasesSql(
     : Prisma.empty;
   // (state, topic) pairs and topics this attorney is licensed / listed for
   // (a general-practice attorney also sees «Not sure / Other»).
-  const stateTopics = Prisma.sql`
+  const stateTopics = globals
+    ? Prisma.sql`
+          SELECT t.s, t.p::UUID FROM unnest(${globals.stateTopics.map((x) => x[0])}::TEXT[],
+                                            ${globals.stateTopics.map((x) => x[1])}::TEXT[]) AS t(s, p)`
+    : Prisma.sql`
           SELECT l.state_code, ap.practice_area_id
           FROM attorney_licenses l
           JOIN attorney_practice_areas ap ON ap.attorney_id = l.attorney_id
@@ -175,7 +211,9 @@ export function buildVisibleCasesSql(
           JOIN practice_areas pa2 ON pa2.code = ${NOT_SURE_OR_OTHER_CODE}
           WHERE l.attorney_id = ${attorneyId}::UUID AND l.license_status = 'verified'
             AND pa.code = ${GENERAL_PRACTICE_CODE}`;
-  const attorneyTopics = Prisma.sql`
+  const attorneyTopics = globals
+    ? Prisma.sql`SELECT unnest(${globals.topics}::TEXT[])::UUID`
+    : Prisma.sql`
           SELECT practice_area_id FROM attorney_practice_areas
           WHERE attorney_id = ${attorneyId}::UUID
           UNION
@@ -222,9 +260,12 @@ export function buildVisibleCasesSql(
       SELECT c.id, c.created_at FROM case_states cs
       JOIN cases c ON c.id = cs.case_id
       WHERE NOT cs.is_primary
-        AND cs.state_code IN (
-          SELECT state_code FROM attorney_licenses
-          WHERE attorney_id = ${attorneyId}::UUID AND license_status = 'verified')
+        AND cs.state_code IN (${
+          globals
+            ? Prisma.sql`SELECT unnest(${globals.licensed}::TEXT[])`
+            : Prisma.sql`SELECT state_code FROM attorney_licenses
+          WHERE attorney_id = ${attorneyId}::UUID AND license_status = 'verified'`
+        })
         AND c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
         AND (c.practice_area_id IN (${attorneyTopics})
           OR EXISTS (
@@ -243,6 +284,8 @@ export function buildVisibleCasesSql(
 }
 
 export interface PracticeCasesQueryInput {
+  /** Pre-resolved global parts (several databases). */
+  globals?: FeedGlobals;
   attorneyId: string;
   /** A practice category or subcategory code; a category includes its
    * subcategories. */
@@ -285,6 +328,7 @@ export function buildPracticeCasesSql(
     since,
     extra,
     browseAll,
+    globals,
   } = input;
   const searchFilter = Prisma.sql`${
     text
@@ -301,13 +345,21 @@ export function buildPracticeCasesSql(
   return Prisma.sql`
     SELECT c.id, c.created_at FROM cases c
     WHERE c.status = 'open' AND c.deleted_at IS NULL AND c.paused_at IS NULL
-      AND c.practice_area_id IN (
+      ${
+        globals
+          ? Prisma.sql`AND c.practice_area_id = ANY(${globals.practiceIds ?? []}::UUID[])`
+          : Prisma.sql`AND c.practice_area_id IN (
         SELECT pa.id FROM practice_areas pa
-        WHERE pa.code = ${practice} OR pa.code LIKE ${`${practice}.%`})
+        WHERE pa.code = ${practice} OR pa.code LIKE ${`${practice}.%`})`
+      }
       ${
         browseAll
           ? Prisma.empty
-          : Prisma.sql`AND EXISTS (
+          : globals
+            ? Prisma.sql`AND EXISTS (
+        SELECT 1 FROM case_states cs
+        WHERE cs.case_id = c.id AND cs.state_code = ANY(${globals.licensed}::TEXT[]))`
+            : Prisma.sql`AND EXISTS (
         SELECT 1 FROM case_states cs
         JOIN attorney_licenses l ON l.state_code = cs.state_code
         WHERE cs.case_id = c.id AND l.attorney_id = ${attorneyId}::UUID
@@ -318,4 +370,145 @@ export function buildPracticeCasesSql(
       ${cursorFilter}
     ORDER BY c.created_at DESC, c.id DESC
     LIMIT ${limit}`;
+}
+
+/**
+ * Shard-ready step 8, FEED DECISION (scatter-read, not fan-out-on-write).
+ *
+ * The attorney case feed is "open cases matching my licences and topics,
+ * newest first". Fan-out-on-write (a feed table per attorney, written when a
+ * case is posted) is the answer when each reader follows a few authors and
+ * the posting side is cheap (Instagram, Figma comments); here every case is
+ * visible to every matching attorney (thousands to hundreds of thousands
+ * of readers per case) and a case changes state (paused, closed, bid) often,
+ * so a fan-out would write and then repair a huge number of rows. A scatter
+ * read does `databases x one indexed query` and a k-way merge of the already
+ * sorted pages (Notion and Figma both read across shards for lists and
+ * search and keep write paths single-shard). The two cheap global lookups
+ * (licences, topics) are done first, in application code.
+ *
+ * Revisit fan-out for the CLIENT home feed (many authors, follow graph) when
+ * the post feed needs it; the case feed stays scatter-read.
+ */
+export async function resolveFeedGlobals(
+  prisma: PrismaService,
+  attorneyId: string,
+  opts: { practiceCategory?: string; practice?: string },
+): Promise<FeedGlobals> {
+  const [licences, areas, notSure] = await Promise.all([
+    prisma.attorneyLicense.findMany({
+      where: { attorney_id: attorneyId, license_status: 'verified' },
+      select: { state_code: true },
+    }),
+    prisma.attorneyPracticeArea.findMany({
+      where: { attorney_id: attorneyId },
+      select: {
+        practice_area_id: true,
+        practice_area: { select: { code: true } },
+      },
+    }),
+    prisma.practiceArea.findFirst({
+      where: { code: NOT_SURE_OR_OTHER_CODE },
+      select: { id: true },
+    }),
+  ]);
+  const licensed = [...new Set(licences.map((l) => l.state_code))];
+  const topics = new Set(areas.map((a) => a.practice_area_id));
+  if (
+    notSure &&
+    areas.some((a) => a.practice_area?.code === GENERAL_PRACTICE_CODE)
+  ) {
+    topics.add(notSure.id);
+  }
+  const stateTopics: Array<[string, string]> = [];
+  for (const state of licensed) {
+    for (const topic of topics) stateTopics.push([state, topic]);
+  }
+  const globals: FeedGlobals = {
+    stateTopics,
+    topics: [...topics],
+    licensed,
+  };
+  if (opts.practiceCategory) {
+    const leaves = await prisma.practiceArea.findMany({
+      where: { parent: { code: opts.practiceCategory } },
+      select: { id: true },
+    });
+    globals.categoryLeaves = leaves.map((l) => l.id);
+  }
+  if (opts.practice) {
+    const found = await prisma.practiceArea.findMany({
+      where: {
+        OR: [
+          { code: opts.practice },
+          { code: { startsWith: `${opts.practice}.` } },
+        ],
+      },
+      select: { id: true },
+    });
+    globals.practiceIds = found.map((f) => f.id);
+  }
+  return globals;
+}
+
+/** People the viewer blocked or who blocked the viewer (user family, both
+ * directions; the second direction is spread over the databases). */
+export async function blockedPeople(
+  prisma: PrismaService,
+  userId: string,
+): Promise<string[]> {
+  const [mine, theirs] = await Promise.all([
+    prisma.userBlock.findMany({
+      where: { blocker_id: userId },
+      select: { blocked_id: true },
+    }),
+    prisma.userBlock.findMany({
+      where: { blocked_id: userId },
+      select: { blocker_id: true },
+    }),
+  ]);
+  return [
+    ...new Set([
+      ...mine.map((b) => b.blocked_id),
+      ...theirs.map((b) => b.blocker_id),
+    ]),
+  ];
+}
+
+export interface FeedRow {
+  id: string;
+  created_at: Date;
+}
+
+/**
+ * Runs the case-only feed statement on every database and merges the
+ * (created_at DESC, id DESC) pages: each page is sorted, so the top `limit`
+ * of the union is exactly the top `limit` of the whole.
+ */
+export async function scatterFeed(
+  prisma: PrismaService,
+  sql: Prisma.Sql,
+  limit: number,
+  /** Search: statement timeout / trigram threshold, set per database in the
+   * same transaction as the query (SET LOCAL semantics). */
+  budget?: { ms: number; trigram: string },
+): Promise<FeedRow[]> {
+  const parts = await forEachDatabase(prisma, async () => {
+    if (!budget) return prisma.$queryRaw<FeedRow[]>(sql);
+    const [, , rows] = await prisma.$transaction([
+      prisma.$executeRaw`SELECT set_config('statement_timeout', ${String(Math.floor(budget.ms))}, true)`,
+      prisma.$executeRaw`SELECT set_config('pg_trgm.word_similarity_threshold', ${budget.trigram}, true)`,
+      prisma.$queryRaw<FeedRow[]>(sql),
+    ]);
+    return rows;
+  });
+  if (parts.length === 1) return parts[0];
+  return parts
+    .flat()
+    .sort((a, b) => {
+      const t = b.created_at.getTime() - a.created_at.getTime();
+      if (t !== 0) return t;
+      return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+    })
+    .slice(0, limit);
 }

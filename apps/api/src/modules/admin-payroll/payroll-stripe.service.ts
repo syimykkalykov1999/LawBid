@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import Stripe from 'stripe';
+import { resilientStripeOptions } from '../../common/resilience/stripe-breaker';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -122,10 +123,7 @@ export class PayrollStripeService {
 }
 
 function stripeClient(secretKey: string): ConnectClient {
-  const stripe = new Stripe(secretKey, {
-    typescript: true,
-    maxNetworkRetries: 2,
-  });
+  const stripe = new Stripe(secretKey, resilientStripeOptions());
   return {
     async createAccount({ employeeId, email }) {
       const a = await stripe.accounts.create(
