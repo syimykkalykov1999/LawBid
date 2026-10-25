@@ -279,6 +279,16 @@ variable "ecs_readonly_root_filesystem" {
   type    = bool
   default = true
 }
+variable "deploy_alarm_rollback" {
+  type        = bool
+  default     = true
+  description = "P1 deploy safety: ECS rolling deployment also rolls back when a CloudWatch alarm (ALB 5xx ratio, p95, unhealthy hosts; worker no-tasks; admin 5xx) fires during the rollout. false = circuit breaker only. docs/runbooks/DEPLOY_SAFETY.md."
+}
+variable "deploy_rollback_on_slo" {
+  type        = bool
+  default     = false
+  description = "Also roll the api back on the FAST-burn SLO composites (call / push / otp). Off: they depend on third parties (Twilio, FCM, Cloudflare)."
+}
 variable "ses_from_address" { type = string }
 variable "api_image" { type = string }
 variable "admin_image" { type = string }
@@ -1229,6 +1239,12 @@ module "ecs" {
   night_min_tasks                  = var.night_min_tasks
   tags                             = local.tags
 
+  # P1 deploy safety: rolling + alarm rollback (docs/runbooks/DEPLOY_SAFETY.md).
+  deployment_alarm_rollback     = var.deploy_alarm_rollback
+  api_deployment_alarm_names    = module.monitoring.api_deployment_alarm_names
+  worker_deployment_alarm_names = module.monitoring.worker_deployment_alarm_names
+  admin_deployment_alarm_names  = module.monitoring.admin_deployment_alarm_names
+
   # Same namespace as modules/monitoring (QueueWaitingTotal).
   metrics_namespace    = "LawBid/${local.name}"
   worker_jobs_per_task = var.worker_jobs_per_task
@@ -1326,29 +1342,31 @@ module "budget" {
 }
 
 module "monitoring" {
-  source                       = "../monitoring"
-  name                         = local.name
-  alert_emails                 = var.alert_emails
-  slack_webhook_url            = var.slack_webhook_url
-  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
-  critical_email_too           = var.critical_email_too
-  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
-  nat_gateway_ids              = module.network.nat_gateway_ids
-  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
-  alb_arn_suffix               = module.alb.arn_suffix
-  api_target_group_arn_suffix  = module.alb.api_target_group_arn_suffix
-  cluster_name                 = module.ecs.cluster_name
-  api_service_name             = module.ecs.api_service_name
-  worker_service_name          = module.ecs.worker_service_name
-  redis_replication_group_id   = "${local.name}-redis"
-  redis_replicas               = var.redis_replicas
-  db_instance_id               = var.create_database ? "${local.name}-postgres" : ""
-  db_max_connections           = local.db_max_connections
-  api_log_group                = module.ecs.log_group_names["api"]
-  worker_log_group             = module.ecs.log_group_names["worker"]
-  p95_target_ms                = var.p95_target_ms
-  runbook_base_url             = var.runbook_base_url
-  kms_key_arn                  = module.kms.key_arn
+  source                        = "../monitoring"
+  name                          = local.name
+  alert_emails                  = var.alert_emails
+  slack_webhook_url             = var.slack_webhook_url
+  pagerduty_https_endpoint      = var.pagerduty_https_endpoint
+  critical_email_too            = var.critical_email_too
+  redis_memory_alarm_percent    = var.redis_memory_alarm_percent
+  nat_gateway_ids               = module.network.nat_gateway_ids
+  nat_traffic_alarm_gb_per_day  = var.nat_traffic_alarm_gb_per_day
+  alb_arn_suffix                = module.alb.arn_suffix
+  api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
+  admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
+  deploy_rollback_on_slo        = var.deploy_rollback_on_slo
+  cluster_name                  = module.ecs.cluster_name
+  api_service_name              = module.ecs.api_service_name
+  worker_service_name           = module.ecs.worker_service_name
+  redis_replication_group_id    = "${local.name}-redis"
+  redis_replicas                = var.redis_replicas
+  db_instance_id                = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections            = local.db_max_connections
+  api_log_group                 = module.ecs.log_group_names["api"]
+  worker_log_group              = module.ecs.log_group_names["worker"]
+  p95_target_ms                 = var.p95_target_ms
+  runbook_base_url              = var.runbook_base_url
+  kms_key_arn                   = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check      = var.uptime_check

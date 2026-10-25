@@ -183,6 +183,73 @@ resource "aws_cloudwatch_metric_alarm" "slo_burn" {
   }
 }
 
+# --- P1 deploy safety (2026-10-24): what ECS watches while a release rolls out ---
+# aws_ecs_service `alarms` (rolling deployment + alarm rollback). The names are
+# outputs of the alarm resources, so Terraform creates the alarms before the
+# service starts watching them, and there is no cycle with module.ecs.
+variable "admin_target_group_arn_suffix" {
+  type        = string
+  default     = ""
+  description = "Admin ALB target group arn_suffix; empty = no admin deploy alarm."
+}
+variable "deploy_rollback_on_slo" {
+  type        = bool
+  default     = false
+  description = "Also roll the api back when a FAST-burn SLO composite alarm (call / push / otp) fires during a deploy. Off by default: those SLOs depend on Twilio / FCM / Cloudflare, and an outage there would roll back a healthy release. ECS support for composite alarms in `alarms` is not documented; test on staging first."
+}
+
+# Deploy-only alarm (no notification): more than 10 admin 5xx in 5 minutes.
+resource "aws_cloudwatch_metric_alarm" "admin_5xx_deploy" {
+  count               = var.admin_target_group_arn_suffix == "" ? 0 : 1
+  alarm_name          = "${var.name}-admin-5xx-deploy"
+  alarm_description   = "Used only by the ECS admin deployment rollback (no notification): admin target group 5xx > 10 in 5 minutes."
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 10
+  statistic           = "Sum"
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.admin_target_group_arn_suffix }
+  treat_missing_data  = "notBreaching"
+  tags                = var.tags
+}
+
+output "api_deployment_alarm_names" {
+  value = concat(
+    [
+      aws_cloudwatch_metric_alarm.alb_5xx_ratio.alarm_name,
+      aws_cloudwatch_metric_alarm.api_p95.alarm_name,
+      aws_cloudwatch_metric_alarm.unhealthy_hosts.alarm_name,
+    ],
+    var.deploy_rollback_on_slo ? [for k, a in aws_cloudwatch_composite_alarm.slo : a.alarm_name if endswith(k, "-fast")] : [],
+  )
+}
+# Deploy-only alarm: the worker writes one HeapUsedMb line a minute per running
+# task (see service_running_tasks); no samples for 3 minutes = no worker.
+# Separate from service_running_tasks on purpose: that one depends on the ECS
+# service name, which would make a cycle with the service that watches it.
+resource "aws_cloudwatch_metric_alarm" "worker_down_deploy" {
+  alarm_name          = "${var.name}-worker-down-deploy"
+  alarm_description   = "Used only by the ECS worker deployment rollback (no notification): no worker heartbeat for 3 minutes."
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  period              = 180
+  threshold           = 1
+  statistic           = "SampleCount"
+  metric_name         = "HeapUsedMb"
+  namespace           = "LawBid/Runtime"
+  dimensions          = { Service = "worker" }
+  treat_missing_data  = "breaching"
+  tags                = var.tags
+}
+output "worker_deployment_alarm_names" {
+  value = [aws_cloudwatch_metric_alarm.worker_down_deploy.alarm_name]
+}
+output "admin_deployment_alarm_names" {
+  value = aws_cloudwatch_metric_alarm.admin_5xx_deploy[*].alarm_name
+}
+
 # Page only when the long and the short window agree.
 resource "aws_cloudwatch_composite_alarm" "slo" {
   for_each = {
