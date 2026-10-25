@@ -44,8 +44,8 @@ variable "nat_gateway_ids" {
 }
 variable "nat_traffic_alarm_gb_per_day" {
   type        = number
-  default     = 100
-  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $4.5/day. See docs/runbooks/nat-endpoints.md."
+  default     = 20
+  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $0.9/day (S4-13: was 100 GB = $4.5/day = $135/month before any alarm). See docs/runbooks/nat-endpoints.md."
 }
 variable "alb_arn_suffix" { type = string }
 variable "api_target_group_arn_suffix" { type = string }

@@ -27,8 +27,65 @@ variable "admin_allowed_cidrs" {
 }
 # Security research #5 (2026-10-22), A3.
 variable "waf_otp_rate_limit_per_5m" {
-  type    = number
-  default = 20
+  type        = number
+  default     = 60
+  description = "Code-sending paths, per IP only: the backstop for callers that send no device header. Raised from 20 (S4-8) because one CGNAT address carries many people; the per-(IP + device) rule waf_otp_rate_limit_per_device_per_5m stays tight at 20."
+}
+# S4-8 (audit 2026-10-25). Behind carrier CGNAT thousands of people share one
+# address, so a plain per-IP limit either blocks a city (low) or stops nothing
+# (high). The app sends X-Device-Id on every request; a rule that counts per
+# (IP + device id) separates those people. AWS counts a request in a custom-key
+# rule only when it carries ALL the keys, so a caller that omits the header
+# escapes THAT rule and is caught only by the plain per-IP rules, which are
+# therefore kept as a (higher) backstop. Accepted trade-off, documented in
+# docs/runbooks/infra-hardening.md.
+variable "waf_device_header" {
+  type        = string
+  default     = "x-device-id"
+  description = "Request header that identifies a device. Used as a second rate-limit key next to the IP. Empty = no per-device rules."
+}
+variable "waf_otp_rate_limit_per_device_per_5m" {
+  type        = number
+  default     = 20
+  description = "Code-sending paths: calls per 5 minutes for one (IP + device)."
+}
+variable "waf_auth_rate_limit_per_5m" {
+  type        = number
+  default     = 300
+  description = "Login paths (code check, password login, social, reset confirm): calls per 5 minutes for one IP (CGNAT-safe floor against credential stuffing)."
+}
+variable "waf_auth_refresh_limit_per_device_per_5m" {
+  type        = number
+  default     = 120
+  description = "Token refresh: calls per 5 minutes for one (IP + device)."
+}
+variable "waf_auth_rate_action" {
+  type        = string
+  default     = "count"
+  description = "count (only measured, see the WAF metric) or block, for the login and refresh rules. Switch to block after a week of clean counts."
+  validation {
+    condition     = contains(["count", "block"], var.waf_auth_rate_action)
+    error_message = "waf_auth_rate_action: count or block."
+  }
+}
+variable "deletion_protection" {
+  type        = bool
+  default     = false
+  description = "S4-10: AWS refuses to delete the load balancer (a wrong destroy or rename would remove the front door). Prod: true."
+}
+variable "load_balancing_algorithm" {
+  type        = string
+  default     = "round_robin"
+  description = "S4-7: round_robin | least_outstanding_requests for the API target group. LOR is ignored while stickiness is on for that group."
+  validation {
+    condition     = contains(["round_robin", "least_outstanding_requests"], var.load_balancing_algorithm)
+    error_message = "load_balancing_algorithm: round_robin or least_outstanding_requests."
+  }
+}
+variable "ws_target_group_enabled" {
+  type        = bool
+  default     = false
+  description = "S4-7: a second API target group only for /socket.io/* (sticky, 1 day) while the main API group drops stickiness and uses least_outstanding_requests. Needs the ECS service to register in both groups (replaces the service in the AWS provider: plan it in a quiet window)."
 }
 variable "waf_bot_control_enabled" {
   type    = bool
@@ -46,6 +103,16 @@ locals {
     "/api/v1/auth/password/reset/request",
     "/api/v1/auth/phone/status",
     "/api/v1/auth/identifiers",
+  ]
+}
+# S4-8: the login paths (a guess costs the attacker one request each).
+locals {
+  auth_login_paths = [
+    "/api/v1/auth/otp/verify",
+    "/api/v1/auth/login/continue",
+    "/api/v1/auth/password/login",
+    "/api/v1/auth/password/reset/confirm",
+    "/api/v1/auth/social",
   ]
 }
 variable "access_logs_bucket" {
@@ -90,6 +157,7 @@ resource "aws_lb" "this" {
   security_groups            = [aws_security_group.alb.id]
   subnets                    = var.public_subnet_ids
   drop_invalid_header_fields = true
+  enable_deletion_protection = var.deletion_protection
   # Socket.IO long-polling/WebSocket frames must outlive the default 60 s.
   # PAIRED VALUE: the API's Node keepAliveTimeout (apps/api/src/main.ts,
   # ALB_IDLE_TIMEOUT_S) must stay LONGER than this (currently 310 s vs 300 s),
@@ -129,13 +197,59 @@ resource "aws_lb_target_group" "api" {
     healthy_threshold   = 2
     unhealthy_threshold = 3
   }
-  # Socket.IO: keep a client on the task that opened its session.
+  # S4-7: with the separate websocket group the whole API group balances by
+  # outstanding requests and has no affinity; otherwise (default, unchanged)
+  # Socket.IO keeps a client on the task that opened its session.
+  load_balancing_algorithm_type = var.ws_target_group_enabled ? "least_outstanding_requests" : var.load_balancing_algorithm
+  stickiness {
+    type            = "lb_cookie"
+    cookie_duration = 86400
+    enabled         = !var.ws_target_group_enabled
+  }
+  tags = var.tags
+}
+
+# S4-7: Socket.IO long-polling needs the same task for every request of a
+# session; only these paths get the cookie. Websocket-only transport in the
+# clients would remove even this (a later app change).
+resource "aws_lb_target_group" "api_ws" {
+  count                = var.ws_target_group_enabled ? 1 : 0
+  name                 = "${var.name}-api-ws"
+  port                 = 3000
+  protocol             = "HTTP"
+  target_type          = "ip"
+  vpc_id               = var.vpc_id
+  deregistration_delay = 60
+  health_check {
+    path                = "/health/live"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
   stickiness {
     type            = "lb_cookie"
     cookie_duration = 86400
     enabled         = true
   }
   tags = var.tags
+}
+
+resource "aws_lb_listener_rule" "api_ws" {
+  count        = var.ws_target_group_enabled ? 1 : 0
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 9
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api_ws[0].arn
+  }
+  condition {
+    host_header { values = [var.api_host] }
+  }
+  condition {
+    path_pattern { values = ["/socket.io/*", "/socket.io"] }
+  }
 }
 
 resource "aws_lb_target_group" "admin" {
@@ -327,6 +441,165 @@ resource "aws_wafv2_web_acl" "this" {
       cloudwatch_metrics_enabled = true
       metric_name                = "${var.name}-otp-rate-per-ip"
       sampled_requests_enabled   = true
+    }
+  }
+
+  # S4-8: second key for the code-sending paths. Counts per (IP + device
+  # header); requests without the header are not counted here (see variable).
+  dynamic "rule" {
+    for_each = var.waf_device_header != "" ? [1] : []
+    content {
+      name     = "otp-rate-per-ip-device"
+      priority = 4
+      action {
+        block {}
+      }
+      statement {
+        rate_based_statement {
+          limit              = var.waf_otp_rate_limit_per_device_per_5m
+          aggregate_key_type = "CUSTOM_KEYS"
+          custom_key {
+            ip {}
+          }
+          custom_key {
+            header {
+              name = var.waf_device_header
+              text_transformation {
+                priority = 0
+                type     = "NONE"
+              }
+            }
+          }
+          scope_down_statement {
+            or_statement {
+              dynamic "statement" {
+                for_each = local.otp_paths
+                content {
+                  byte_match_statement {
+                    search_string         = statement.value
+                    positional_constraint = "EXACTLY"
+                    field_to_match {
+                      uri_path {}
+                    }
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.name}-otp-rate-per-ip-device"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  # S4-8: floor under credential stuffing on the login paths (per IP, wide
+  # enough for a CGNAT city), and a per-(IP + device) limit on token refresh.
+  # count first, block when the metric has been quiet for a week.
+  rule {
+    name     = "auth-login-rate-per-ip"
+    priority = 5
+    action {
+      dynamic "count" {
+        for_each = var.waf_auth_rate_action == "count" ? [1] : []
+        content {}
+      }
+      dynamic "block" {
+        for_each = var.waf_auth_rate_action == "block" ? [1] : []
+        content {}
+      }
+    }
+    statement {
+      rate_based_statement {
+        limit              = var.waf_auth_rate_limit_per_5m
+        aggregate_key_type = "IP"
+        scope_down_statement {
+          or_statement {
+            dynamic "statement" {
+              for_each = local.auth_login_paths
+              content {
+                byte_match_statement {
+                  search_string         = statement.value
+                  positional_constraint = "EXACTLY"
+                  field_to_match {
+                    uri_path {}
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name}-auth-login-rate-per-ip"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.waf_device_header != "" ? [1] : []
+    content {
+      name     = "auth-refresh-rate-per-device"
+      priority = 6
+      action {
+        dynamic "count" {
+          for_each = var.waf_auth_rate_action == "count" ? [1] : []
+          content {}
+        }
+        dynamic "block" {
+          for_each = var.waf_auth_rate_action == "block" ? [1] : []
+          content {}
+        }
+      }
+      statement {
+        rate_based_statement {
+          limit              = var.waf_auth_refresh_limit_per_device_per_5m
+          aggregate_key_type = "CUSTOM_KEYS"
+          custom_key {
+            ip {}
+          }
+          custom_key {
+            header {
+              name = var.waf_device_header
+              text_transformation {
+                priority = 0
+                type     = "NONE"
+              }
+            }
+          }
+          scope_down_statement {
+            byte_match_statement {
+              search_string         = "/api/v1/auth/refresh"
+              positional_constraint = "EXACTLY"
+              field_to_match {
+                uri_path {}
+              }
+              text_transformation {
+                priority = 0
+                type     = "NONE"
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.name}-auth-refresh-rate-per-device"
+        sampled_requests_enabled   = true
+      }
     }
   }
 
@@ -527,6 +800,7 @@ output "dns_name" { value = aws_lb.this.dns_name }
 output "zone_id" { value = aws_lb.this.zone_id }
 output "arn_suffix" { value = aws_lb.this.arn_suffix }
 output "api_target_group_arn" { value = aws_lb_target_group.api.arn }
+output "api_ws_target_group_arn" { value = var.ws_target_group_enabled ? aws_lb_target_group.api_ws[0].arn : "" }
 output "api_target_group_arn_suffix" { value = aws_lb_target_group.api.arn_suffix }
 output "admin_target_group_arn" { value = aws_lb_target_group.admin.arn }
 output "admin_target_group_arn_suffix" { value = aws_lb_target_group.admin.arn_suffix }
