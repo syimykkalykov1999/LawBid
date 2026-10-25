@@ -13,8 +13,10 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const BASELINE = '20261014100000_postgres_baseline';
-const dir = join(import.meta.dirname, '..', 'prisma', 'migrations');
+const DEFAULT_BASELINE = '20261014100000_postgres_baseline';
+// Tests point the check at sample folders: `node check-migrations.mjs <dir> [baseline]`.
+const dir = process.argv[2] ?? join(import.meta.dirname, '..', 'prisma', 'migrations');
+const BASELINE = process.argv[3] ?? DEFAULT_BASELINE;
 
 const RULES = [
   [/\bDROP\s+TABLE\b/i, 'drops a table'],

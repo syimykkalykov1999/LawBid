@@ -247,7 +247,8 @@ describe('JobsRunner', () => {
     // Shard-ready steps 9-10: + shard.move-tick (every minute) and
     // shard.orphan-check (nightly).
     // Owner 2026-10-24: + search.index (every minute).
-    expect(upserts).toHaveLength(68);
+    // Day-one foundations: + ledger.reconcile (nightly).
+    expect(upserts).toHaveLength(69);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

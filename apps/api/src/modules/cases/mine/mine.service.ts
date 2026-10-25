@@ -589,6 +589,7 @@ function bidFields(b: Bid) {
     startDate: b.start_date ? b.start_date.toISOString().slice(0, 10) : null,
     estimatedDurationDays: b.estimated_duration_days,
     roundCount: b.round_count,
+    version: b.version,
     turn: b.turn,
     outsidePractice: b.outside_practice,
     outsideLicensedStates: b.outside_licensed_states,

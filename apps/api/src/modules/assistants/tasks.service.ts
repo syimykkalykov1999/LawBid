@@ -7,6 +7,11 @@ import {
 } from '@nestjs/common';
 import type { AttorneyTaskStatus, Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+  staleVersion,
+} from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -667,8 +672,10 @@ export class TasksService {
     user: RequestUser,
     id: string,
     dto: UpdateTaskStatusDto,
+    expectedVersion?: number,
   ): Promise<TaskDto> {
     const t = await this.own(user, id);
+    assertExpectedVersion(t.version, expectedVersion);
     this.assertMayComplete(user, t);
     await this.applyStatus(user, t, dto.status, {
       note: dto.outcomeNote,
@@ -700,6 +707,7 @@ export class TasksService {
     await this.prisma.attorneyTask.update({
       where: { id: t.id },
       data: {
+        ...BUMP_VERSION,
         status: next,
         outcome_note: opts.note ?? t.outcome_note,
         ...(reschedule
@@ -915,9 +923,11 @@ export class TasksService {
     user: RequestUser,
     id: string,
     dto: UpdateTaskDto,
+    expectedVersion?: number,
   ): Promise<TaskDto> {
     this.assertMayPlan(user);
     const t = await this.own(user, id);
+    assertExpectedVersion(t.version, expectedVersion);
     if (t.status === 'cancelled') throw this.closed();
     // Owner 2026-10-20: a booked consultation owns its time and title.
     if (t.consultation_id && (dto.dueAt || dto.clearDueAt || dto.title)) {
@@ -962,65 +972,83 @@ export class TasksService {
     const assignee = dto.clearAssignee
       ? null
       : (dto.assigneeMembershipId ?? t.assignee_membership_id);
-    await this.prisma.$transaction([
-      ...(places
-        ? [
-            this.prisma.attorneyTaskPlace.deleteMany({
-              where: { task_id: id },
-            }),
-            this.prisma.attorneyTaskPlace.createMany({
-              data: this.placesData(places).map((p) => ({
-                ...p,
-                task_id: id,
-              })),
-            }),
-          ]
-        : []),
-      ...(peopleRows
-        ? [
-            this.prisma.attorneyTaskPerson.deleteMany({
-              where: { task_id: id },
-            }),
-            this.prisma.attorneyTaskPerson.createMany({
-              data: peopleRows.map((p) => ({ ...p, task_id: id })),
-            }),
-          ]
-        : []),
-      this.prisma.attorneyTask.update({
-        where: { id },
-        data: {
-          ...(dto.kind ? { kind: dto.kind } : {}),
-          ...(dto.title ? { title: dto.title } : {}),
-          ...(dto.notes !== undefined ? { notes: blank(dto.notes) } : {}),
-          due_at: due,
-          remind_before_min: before,
-          remind_at: remind,
-          ...(remindChanged ? { reminded_at: remindedAtFor(remind) } : {}),
-          ...(dto.priority ? { priority: dto.priority } : {}),
-          ...(dto.repeat ? { repeat: dto.repeat } : {}),
-          ...(dto.clearRepeatUntil
-            ? { repeat_until: null }
-            : dto.repeatUntil
-              ? { repeat_until: new Date(dto.repeatUntil) }
+    try {
+      await this.prisma.$transaction([
+        ...(places
+          ? [
+              this.prisma.attorneyTaskPlace.deleteMany({
+                where: { task_id: id },
+              }),
+              this.prisma.attorneyTaskPlace.createMany({
+                data: this.placesData(places).map((p) => ({
+                  ...p,
+                  task_id: id,
+                })),
+              }),
+            ]
+          : []),
+        ...(peopleRows
+          ? [
+              this.prisma.attorneyTaskPerson.deleteMany({
+                where: { task_id: id },
+              }),
+              this.prisma.attorneyTaskPerson.createMany({
+                data: peopleRows.map((p) => ({ ...p, task_id: id })),
+              }),
+            ]
+          : []),
+        this.prisma.attorneyTask.update({
+          // Compare-and-set: a concurrent save makes this match nothing (P2025),
+          // which rolls the whole batch back.
+          where: {
+            id,
+            ...(expectedVersion !== undefined
+              ? { version: expectedVersion }
               : {}),
-          assignee_membership_id: assignee,
-          ...(dto.clearConversation
-            ? { conversation_id: null }
-            : dto.conversationId
-              ? { conversation_id: dto.conversationId }
+          },
+          data: {
+            ...BUMP_VERSION,
+            ...(dto.kind ? { kind: dto.kind } : {}),
+            ...(dto.title ? { title: dto.title } : {}),
+            ...(dto.notes !== undefined ? { notes: blank(dto.notes) } : {}),
+            due_at: due,
+            remind_before_min: before,
+            remind_at: remind,
+            ...(remindChanged ? { reminded_at: remindedAtFor(remind) } : {}),
+            ...(dto.priority ? { priority: dto.priority } : {}),
+            ...(dto.repeat ? { repeat: dto.repeat } : {}),
+            ...(dto.clearRepeatUntil
+              ? { repeat_until: null }
+              : dto.repeatUntil
+                ? { repeat_until: new Date(dto.repeatUntil) }
+                : {}),
+            assignee_membership_id: assignee,
+            ...(dto.clearConversation
+              ? { conversation_id: null }
+              : dto.conversationId
+                ? { conversation_id: dto.conversationId }
+                : {}),
+            ...(dto.keepForever !== undefined
+              ? { keep_forever: dto.keepForever }
               : {}),
-          ...(dto.keepForever !== undefined
-            ? { keep_forever: dto.keepForever }
-            : {}),
-          ...(dto.fileIds ? { file_ids: [...new Set(dto.fileIds)] } : {}),
-          ...(dto.clearCaseId
-            ? { case_id: null }
-            : dto.caseId
-              ? { case_id: dto.caseId }
-              : {}),
-        },
-      }),
-    ]);
+            ...(dto.fileIds ? { file_ids: [...new Set(dto.fileIds)] } : {}),
+            ...(dto.clearCaseId
+              ? { case_id: null }
+              : dto.caseId
+                ? { case_id: dto.caseId }
+                : {}),
+          },
+        }),
+      ]);
+    } catch (error) {
+      if (
+        expectedVersion !== undefined &&
+        (error as { code?: string }).code === 'P2025'
+      ) {
+        throw staleVersion(expectedVersion + 1);
+      }
+      throw error;
+    }
     if (user.assistant) {
       await this.assistants.log(user, 'task.edit', {
         type: 'task',
@@ -1282,6 +1310,7 @@ export class TasksService {
         title: t.title,
         notes: t.notes,
         consultationId: t.consultation_id,
+        version: t.version,
         dueAt: t.due_at?.toISOString() ?? null,
         // Older apps read one place / one contact: the first ones.
         location: t.places[0]?.address ?? null,

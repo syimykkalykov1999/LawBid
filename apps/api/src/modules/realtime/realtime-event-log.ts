@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { pipeline } from '../../redis/redis-cluster-safe';
 
 /** How long a missed event can still be fetched (owner 2026-10-23). */
 export const EVENT_LOG_WINDOW_MS = 5 * 60_000;
@@ -101,7 +102,7 @@ export class RealtimeEventLog {
     }
     const floor = windowStartSeq(Date.now());
     const ttlSec = Math.ceil(EVENT_LOG_WINDOW_MS / 1000) + 30;
-    const pipe = this.redis.pipeline();
+    const pipe = pipeline(this.redis);
     for (const id of new Set(userIds)) {
       const key = logKey(id);
       pipe.zadd(key, seq, member);
@@ -120,7 +121,7 @@ export class RealtimeEventLog {
   ): Promise<MissedEvents> {
     const ids = [...new Set(userIds)];
     const floor = windowStartSeq(now);
-    const pipe = this.redis.pipeline();
+    const pipe = pipeline(this.redis);
     for (const id of ids) {
       pipe.zrangebyscore(logKey(id), `(${since}`, '+inf');
       pipe.zrangebyscore(

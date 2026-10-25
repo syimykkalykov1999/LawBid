@@ -20,9 +20,11 @@ abstract class ProfilesClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/users/me/profile')
   Future<ClientProfileEnvelope> updateMyClientProfile({
     @Body() required UpdateClientProfileDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 

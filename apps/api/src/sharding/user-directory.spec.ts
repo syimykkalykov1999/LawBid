@@ -82,8 +82,8 @@ describe('UserDirectory (shard-ready step 6)', () => {
     const { dir, findMany } = setup();
     const store = new Map<string, string>();
     const redis = {
-      mget: jest.fn((...keys: string[]) =>
-        Promise.resolve(keys.map((k) => store.get(k) ?? null)),
+      mget: jest.fn((...args: (string | string[])[]) =>
+        Promise.resolve(args.flat().map((k) => store.get(k) ?? null)),
       ),
       set: jest.fn((k: string, v: string) => {
         store.set(k, v);

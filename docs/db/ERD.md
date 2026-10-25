@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-248 tables.
+251 tables.
 
 ```mermaid
 erDiagram
@@ -319,6 +319,7 @@ erDiagram
     Int rating_count
     DateTime created_at
     DateTime updated_at
+    Int version
   }
   attorney_profiles {
     String user_id PK,FK
@@ -339,6 +340,7 @@ erDiagram
     Int following_count
     DateTime created_at
     DateTime updated_at
+    Int version
     Boolean new_case_alerts_custom
     Boolean new_case_alerts_urgent_only
     Int assistant_seat_limit "nullable"
@@ -452,6 +454,7 @@ erDiagram
     tsvector search_tsv_simple "nullable"
     DateTime created_at
     DateTime updated_at
+    Int version
     Int shard_id
   }
   case_states {
@@ -479,6 +482,7 @@ erDiagram
     DateTime decided_at "nullable"
     DateTime created_at
     DateTime updated_at
+    Int version
     Int shard_id
   }
   bid_offers {
@@ -1130,6 +1134,36 @@ erDiagram
     DateTime created_at
     DateTime updated_at
   }
+  ledger_accounts {
+    String id PK
+    String code
+    String owner_key
+    String owner_id "nullable"
+    String currency
+    enum_LedgerAccountType type
+    Int party_shard
+    DateTime created_at
+  }
+  ledger_entries {
+    String id PK
+    String source_type
+    String source_id
+    String event
+    String currency
+    String description
+    String stripe_ref "nullable"
+    Int party_shard
+    DateTime occurred_at
+    DateTime created_at
+  }
+  ledger_lines {
+    String id PK
+    String entry_id FK
+    String account_id FK
+    enum_LedgerDirection direction
+    Int amount_cents
+    DateTime created_at
+  }
   stripe_webhook_events {
     String stripe_event_id PK
     String type
@@ -1484,6 +1518,7 @@ erDiagram
     Int purge_notice_days "nullable"
     DateTime created_at
     DateTime updated_at
+    Int version
     Int shard_id
   }
   attorney_task_places {
@@ -3255,6 +3290,8 @@ erDiagram
   subscriptions |o--|| users : "user_id"
   subscriptions }o--o| plans : "plan_id"
   payments }o--|| users : "user_id"
+  ledger_lines }o--|| ledger_entries : "entry_id"
+  ledger_lines }o--|| ledger_accounts : "account_id"
   reports }o--|| users : "reporter_id"
   reports }o--o| users : "handled_by"
   dmca_notices }o--o| reports : "report_id"

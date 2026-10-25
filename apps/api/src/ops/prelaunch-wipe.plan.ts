@@ -276,6 +276,10 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   case_payments: 'client → attorney payments',
   payment_requests: 'payment requests',
   case_payment_refunds: 'their refunds',
+  // money ledger (test-mode entries; TRUNCATE ignores the append-only row triggers)
+  ledger_lines: 'money ledger lines (test mode)',
+  ledger_entries: 'money ledger entries (test mode)',
+  ledger_accounts: 'money ledger accounts (test mode)',
   referral_codes: 'referral codes',
   referrals: 'referrals',
   partner_commissions: 'commissions earned on test referrals',
