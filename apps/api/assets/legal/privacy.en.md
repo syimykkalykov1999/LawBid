@@ -68,11 +68,16 @@ We keep data while your account is active and delete or anonymize it afterwards,
 - **Chat messages and call metadata:** Per the retention setting of the chat; deleted with the account
 - **Consents and audit records (Terms, SMS, license statements):** 5 years
 - **Notifications:** 180 days
+- **Sign-in and security logs (IP address, device, browser):** 2 years; the IP address and browser of a session are removed after 90 days without use
+- **Admin action log and records of what an official request looked at:** 5 years
+- **IP address and device stored with a contact disclosure:** 2 years (the disclosure record itself is kept as proof)
+- **Messages you delete:** removed from view at once; the text is kept for up to 90 days in case of an official request, then erased (a file you delete for everyone is removed immediately); a message edit history is deleted with the account
+- **Your phone-book upload (one-way hashes):** until you turn sync off or delete your account
 - **Payment metadata:** As long as tax and accounting law requires (typically 7 years)
 - **Anti-fraud hashed identifiers:** 365 days; 3 years for banned accounts
 - **Support messages:** 3 years after the ticket is closed
 
-Backups are overwritten on a rolling schedule within 30 days of deletion. We may keep records longer when a legal claim, an investigation or a legal obligation requires it.
+Backups are overwritten on a rolling schedule: database backups within 35 days and older versions of stored files within 90 days of deletion. If a backup is ever restored, accounts already deleted are deleted again before it is used. We may keep records longer when a legal claim, an investigation or a legal obligation requires it.
 
 ## Your rights
 

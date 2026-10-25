@@ -7,8 +7,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { createHash } from 'node:crypto';
 import {
+  AbortMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
   CreateBucketCommand,
+  CreateMultipartUploadCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
@@ -16,6 +20,7 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
+  UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
@@ -23,6 +28,9 @@ import { getSignedUrl as cloudFrontSignedUrl } from '@aws-sdk/cloudfront-signer'
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
+
+/** S3 multipart parts are 5 MiB at least (except the last). */
+const MULTIPART_PART_BYTES = 8 * 1024 * 1024;
 
 /**
  * Owner 2026-10-22 (client economy plan, package I): every object key is
@@ -467,6 +475,128 @@ export class S3StorageService implements OnModuleDestroy {
         CacheControl: IMMUTABLE_CACHE_CONTROL,
       }),
     );
+  }
+
+  /**
+   * Owner 2026-10-25 (privacy round 13, S13-8): stores a stream without
+   * holding it in memory — a multipart upload in 8 MiB parts (a body under
+   * one part is a single put). Returns the byte count and SHA-256 of what
+   * was stored. A failed upload is aborted so no orphan parts are billed.
+   */
+  async putStream(
+    bucket: string,
+    key: string,
+    body: AsyncIterable<Buffer | Uint8Array | string>,
+    contentType: string,
+  ): Promise<{ bytes: number; sha256: string }> {
+    await this.refresh();
+    const client = this.clientFor(bucket);
+    const hash = createHash('sha256');
+    let bytes = 0;
+    let uploadId: string | undefined;
+    const parts: { ETag: string | undefined; PartNumber: number }[] = [];
+    let pending: Buffer[] = [];
+    let pendingBytes = 0;
+    const flush = async (last: boolean): Promise<void> => {
+      if (pendingBytes === 0 && !(last && parts.length === 0)) return;
+      const chunk = Buffer.concat(pending);
+      pending = [];
+      pendingBytes = 0;
+      if (uploadId === undefined && last) {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: bucket,
+            Key: key,
+            Body: chunk,
+            ContentType: contentType,
+          }),
+        );
+        return;
+      }
+      if (uploadId === undefined) {
+        const started = await client.send(
+          new CreateMultipartUploadCommand({
+            Bucket: bucket,
+            Key: key,
+            ContentType: contentType,
+          }),
+        );
+        uploadId = started.UploadId;
+      }
+      const partNumber = parts.length + 1;
+      const res = await client.send(
+        new UploadPartCommand({
+          Bucket: bucket,
+          Key: key,
+          UploadId: uploadId,
+          PartNumber: partNumber,
+          Body: chunk,
+        }),
+      );
+      parts.push({ ETag: res.ETag, PartNumber: partNumber });
+    };
+    try {
+      for await (const piece of body) {
+        const buf = Buffer.isBuffer(piece) ? piece : Buffer.from(piece);
+        hash.update(buf);
+        bytes += buf.length;
+        pending.push(buf);
+        pendingBytes += buf.length;
+        if (pendingBytes >= MULTIPART_PART_BYTES) await flush(false);
+      }
+      await flush(true);
+      if (uploadId !== undefined) {
+        await client.send(
+          new CompleteMultipartUploadCommand({
+            Bucket: bucket,
+            Key: key,
+            UploadId: uploadId,
+            MultipartUpload: { Parts: parts },
+          }),
+        );
+      }
+    } catch (error) {
+      if (uploadId !== undefined) {
+        await client
+          .send(
+            new AbortMultipartUploadCommand({
+              Bucket: bucket,
+              Key: key,
+              UploadId: uploadId,
+            }),
+          )
+          .catch(() => undefined);
+      }
+      throw error;
+    }
+    return { bytes, sha256: hash.digest('hex') };
+  }
+
+  /** Object keys under [prefix] (up to [maxKeys]); for small, known
+   * prefixes such as the erasure ledger. */
+  async listKeys(
+    bucket: string,
+    prefix: string,
+    maxKeys = 100_000,
+  ): Promise<string[]> {
+    await this.refresh();
+    const client = this.clientFor(bucket);
+    const keys: string[] = [];
+    let token: string | undefined;
+    while (keys.length < maxKeys) {
+      const res = await client.send(
+        new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          ContinuationToken: token,
+          MaxKeys: 1000,
+        }),
+      );
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
+      if (!res.IsTruncated || !res.NextContinuationToken) break;
+      token = res.NextContinuationToken;
+    }
+    return keys;
   }
 
   /** Deletes objects; a missing key is not an error (idempotent). */

@@ -320,7 +320,7 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
       expect(verify.body.error.code).toBe('ACCOUNT_DELETED');
     });
 
-    it('a deletion_pending account is auto-cancelled by a successful login', async () => {
+    it('a successful login does not cancel a pending deletion by default (privacy round 13)', async () => {
       const identifier = '+12025554003';
       await otpLogin(identifier);
       const userId = await findUserIdByPhone(identifier);
@@ -330,7 +330,27 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
       });
 
       const relogin = await otpLogin(identifier);
-      expect(relogin.status).toBe(201); // not rejected — login cancels the pending deletion
+      expect(relogin.status).toBe(201); // not rejected, but the request stays
+
+      const reloaded = await prisma.user.findUnique({ where: { id: userId } });
+      expect(reloaded?.status).toBe('deletion_pending');
+      expect(reloaded?.deletion_requested_at).not.toBeNull();
+    });
+
+    it('POST /users/me/deletion/cancel cancels a pending deletion explicitly', async () => {
+      const identifier = '+12025554004';
+      const login = await otpLogin(identifier);
+      const userId = await findUserIdByPhone(identifier);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { status: 'deletion_pending', deletion_requested_at: new Date() },
+      });
+
+      const res = await api()
+        .post('/api/v1/users/me/deletion/cancel')
+        .set('Authorization', `Bearer ${login.body.data.accessToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.cancelled).toBe(true);
 
       const reloaded = await prisma.user.findUnique({ where: { id: userId } });
       expect(reloaded?.status).toBe('active');

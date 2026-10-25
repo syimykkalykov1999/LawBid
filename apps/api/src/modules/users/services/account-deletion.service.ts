@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  DELETION_NOTICES,
+  type DeletionNotices,
+} from '../../../common/privacy/privacy.ports';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { SessionRevocationService } from '../../auth/services/session-revocation.service';
@@ -30,6 +34,10 @@ export class AccountDeletionService {
     private readonly prisma: PrismaService,
     private readonly revocation: SessionRevocationService,
     private readonly authEvents: AuthEventService,
+    // Privacy round 13 (S13-14): the day-0 push + e-mail with a cancel link.
+    @Optional()
+    @Inject(DELETION_NOTICES)
+    private readonly notices?: DeletionNotices,
   ) {}
 
   async requestDeletion(userId: string, meta: RequestMeta): Promise<void> {
@@ -54,5 +62,29 @@ export class AccountDeletionService {
     // already-short-lived access token valid a little longer, not a
     // half-committed deletion request.
     await this.revocation.revokeAllChainsForUser(userId, 'account_deletion');
+    await this.notices?.onRequested(userId);
+  }
+
+  /**
+   * Privacy round 13 (S13-14): the explicit way back. A sign-in no longer
+   * cancels a deletion request by itself (setting
+   * `privacy.login_cancels_deletion`); this call (or the link in the
+   * deletion e-mails) does. True when a pending request was cancelled.
+   */
+  async cancelDeletion(userId: string, meta: RequestMeta): Promise<boolean> {
+    const { count } = await this.prisma.user.updateMany({
+      where: { id: userId, status: 'deletion_pending', anonymized_at: null },
+      data: { status: 'active', deletion_requested_at: null },
+    });
+    if (count === 0) return false;
+    await this.authEvents.record({
+      userId,
+      eventType: AUTH_EVENT_TYPES.ACCOUNT_DELETION_CANCELLED,
+      success: true,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+      meta: { via: 'app' },
+    });
+    return true;
   }
 }

@@ -28,6 +28,7 @@ on:
       - ".github/workflows/mobile-ci.yml"
       - ".github/pub-audit-allowlist.json"
       - "scripts/ci/pub-*.mjs"
+      - "scripts/ci/check-web-*.sh"
   push:
     branches: [main, master]
     paths:
@@ -37,6 +38,7 @@ on:
       - ".github/workflows/mobile-ci.yml"
       - ".github/pub-audit-allowlist.json"
       - "scripts/ci/pub-*.mjs"
+      - "scripts/ci/check-web-*.sh"
 
 concurrency:
   group: mobile-ci-${{ github.ref }}
@@ -211,6 +213,10 @@ jobs:
           test -s build/web/sqlite3.wasm
           test -s build/web/drift_worker.js
           test -s build/web/main.dart.wasm
+
+      # Privacy round 13 (S13-12): zero third-party analytics / ad tags.
+      - name: The web bundle ships no third-party tags
+        run: bash scripts/ci/check-web-no-third-party-tags.sh
 
   build-ios:
     name: Build check — iOS (debug, unsigned)

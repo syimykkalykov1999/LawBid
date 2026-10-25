@@ -592,6 +592,9 @@ enum NotificationType {
   // Audit 2026-10-19: the other side added something in a case in work
   // (payload.kind: update, task_added, task_done, task_files, details).
   case_workspace_activity
+  // Owner 2026-10-25 (privacy round 13, S13-14): "your account will be
+  // deleted on <date>" at day 0 and day 13 of the grace period.
+  account_deletion_scheduled
 
   @@map("notification_type")
 }
@@ -7499,4 +7502,47 @@ model SearchIndexState {
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("search_index_state")
+}
+
+/// Owner 2026-10-25 (privacy round 13, S13-1): who was erased, kept OUTSIDE
+/// the restorable data too (every row is also written as an object
+/// `erasure-ledger/<user_id>.json` in the private bucket). A database
+/// restore rolls `users.anonymized_at` back; the restore runbook re-runs the
+/// anonymization for every id found here / in the bucket. No FK on purpose:
+/// the row must survive whatever happens to `users`. Holds no personal data
+/// beyond the opaque id and the date.
+model ErasureLedger {
+  user_id       String    @id @db.Uuid
+  anonymized_at DateTime  @db.Timestamptz
+  /// deletion_request | minor_confirmed | restore_reapply
+  reason        String    @default("deletion_request") @db.VarChar(24)
+  /// When the object copy in the private bucket was written; null = the
+  /// nightly privacy.reconcile still has to write it.
+  s3_synced_at  DateTime? @db.Timestamptz
+  created_at    DateTime  @default(now()) @db.Timestamptz
+
+  @@index([s3_synced_at])
+  @@map("erasure_ledger")
+}
+
+/// Owner 2026-10-25 (privacy round 13, S13-10/11/14): one row per account and
+/// step of the deletion, so there is proof per vendor and a visible retry
+/// list. `step` is a vendor (stripe, bunny, twilio, fcm, livekit, sentry,
+/// ses, verification), a notice (notice_day0, notice_day13) or `search` /
+/// `completion`. `status`: ok | failed | retained (the vendor keeps it for
+/// its own fixed period, see detail) | skipped | pending. No FK: it is
+/// evidence and outlives any change of `users`.
+model DeletionStep {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  step       String   @db.VarChar(40)
+  status     String   @db.VarChar(12)
+  detail     String?
+  attempts   Int      @default(1)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([user_id, step])
+  @@index([status, updated_at])
+  @@map("deletion_steps")
 }

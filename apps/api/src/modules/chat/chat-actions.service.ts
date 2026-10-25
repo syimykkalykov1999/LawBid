@@ -2,17 +2,26 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  CDN_INVALIDATOR,
+  type CdnInvalidator,
+} from '../../common/cdn/cdn-invalidator';
+import { isHeld } from '../../common/privacy/legal-hold';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { maskContactInfo } from '../cases/domain/contact-detector';
+import { derivedKeys } from '../files/files.policy';
+import { FileReleaseService } from '../files/files.public';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { StarsService } from '../stars/stars.service';
@@ -45,7 +54,14 @@ export class ChatActionsService {
     private readonly stars: StarsService,
     @Optional() private readonly cipher?: MessageBodyCipher,
     @Optional() private readonly notifications?: NotificationsService,
+    // Privacy round 13 (S13-4): "delete for everyone" releases the file.
+    @Optional() private readonly releases?: FileReleaseService,
+    @Optional()
+    @Inject(CDN_INVALIDATOR)
+    private readonly cdn?: CdnInvalidator,
   ) {}
+
+  private readonly log = new Logger(ChatActionsService.name);
 
   private seal(text: string, messageId: string): string {
     return this.cipher?.seal(text, messageId) ?? text;
@@ -229,12 +245,57 @@ export class ChatActionsService {
           revoked_at: new Date(),
           body_display: this.seal('', m.id),
           contact_masked: false,
+          // Privacy round 13 (S13-4): the document's name goes too.
+          file_name: null,
         },
       }),
       this.prisma.messagePin.deleteMany({ where: { message_id: m.id } }),
       this.prisma.messageReaction.deleteMany({ where: { message_id: m.id } }),
     ]);
+    if (m.file_id) await this.releaseFile(m.file_id, m.id);
     await this.publish(conv, m.id);
+  }
+
+  /**
+   * Privacy round 13 (S13-4): the attachment / voice note of a message
+   * deleted for everyone leaves storage when no other live message points at
+   * it and no legal hold covers it (the shared S3 object itself goes only
+   * when no other file row uses it, FileReleaseService), and its CDN copies
+   * are invalidated. The message itself is already revoked: a failure here
+   * is logged and the hourly storage cleanup collects the file later.
+   */
+  private async releaseFile(fileId: string, messageId: string): Promise<void> {
+    if (!this.releases) return;
+    try {
+      const [others, groupOthers] = await Promise.all([
+        this.prisma.message.count({
+          where: {
+            file_id: fileId,
+            id: { not: messageId },
+            revoked_at: null,
+            deleted_at: null,
+          },
+        }),
+        this.prisma.chatGroupMessage.count({
+          where: { file_id: fileId, deleted_at: null },
+        }),
+      ]);
+      if (others + groupOthers > 0) return;
+      if (await isHeld(this.prisma, 'file', fileId)) return;
+      const file = await this.prisma.file.findUnique({
+        where: { id: fileId },
+        select: { s3_key: true },
+      });
+      await this.releases.release([fileId], 'released');
+      if (file && this.cdn) {
+        await this.cdn.enqueue(
+          [file.s3_key, ...derivedKeys(file.s3_key)],
+          'message_revoked',
+        );
+      }
+    } catch (err) {
+      this.log.warn(`file of a revoked message not released: ${String(err)}`);
+    }
   }
 
   /** PUT …/messages/:messageId/reaction — one emoji each; null clears. */

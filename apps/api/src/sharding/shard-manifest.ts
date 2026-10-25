@@ -327,6 +327,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'UsernameHold',
   'LegalExport',
   'LegalHold',
+  'ErasureLedger',
+  'DeletionStep',
   'MediaModerationCheck',
   'CsamReport',
   'SystemIncident',

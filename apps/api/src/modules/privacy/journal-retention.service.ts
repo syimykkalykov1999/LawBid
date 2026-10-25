@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { heldSql } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
@@ -14,7 +15,8 @@ const MAX_PER_RUN = 2_000_000;
  * `case_journal` rows past `retain_until`, under the `lawbid_retention`
  * role (RETENTION_DATABASE_URL — the app role has no such right on the
  * table). The predicate is the only one this service ever issues: a row
- * that is not yet past `retain_until` cannot be removed through it.
+ * that is not yet past `retain_until` cannot be removed through it, and a
+ * row of a case or a person under a legal hold stays (round 13, S13-6).
  */
 @Injectable()
 export class JournalRetentionService implements OnModuleDestroy {
@@ -65,6 +67,9 @@ export class JournalRetentionService implements OnModuleDestroy {
         WHERE ctid IN (
           SELECT ctid FROM case_journal
           WHERE retain_until < ${now}
+            AND NOT ${heldSql('case', Prisma.sql`case_id`)}
+            AND NOT ${heldSql('user', Prisma.sql`client_id`)}
+            AND (attorney_id IS NULL OR NOT ${heldSql('user', Prisma.sql`attorney_id`)})
           ORDER BY retain_until
           LIMIT ${BATCH})`;
       deleted += n;

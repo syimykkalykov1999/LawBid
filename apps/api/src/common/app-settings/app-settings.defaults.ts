@@ -940,6 +940,37 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'files.access_log_enabled': true,
 };
 
+/**
+ * Owner 2026-10-25 (privacy round 13, S13-5/S13-14): the retention periods
+ * the privacy policy promises, and the deletion-request behaviour. Defaults
+ * equal the numbers in the policy text (apps/api/assets/legal/privacy.*.md);
+ * change a number here AND in the published policy. 0 = keep for ever.
+ * - `privacy.auto_retention`: master switch of the nightly `privacy.retention`.
+ * - `privacy.retention_audit_log_days`: admin action log (5 years).
+ * - `privacy.retention_data_access_log_days`: what an official request
+ *   looked at (5 years); rows of a request under a hold stay.
+ * - `privacy.retention_session_ip_days`: IP address and browser string of
+ *   a session not used for this long are blanked.
+ * - `privacy.retention_contact_disclosure_ip_days`: IP and device of a
+ *   contact disclosure are blanked after this long (the record stays).
+ * - `privacy.login_cancels_deletion`: false = signing in does NOT cancel a
+ *   pending account deletion (cancel = explicit button / e-mail link);
+ *   true = the old behaviour, any sign-in cancels.
+ */
+export const OWNER_PRIVACY_SETTINGS = {
+  'privacy.auto_retention': true,
+  'privacy.retention_audit_log_days': 1825,
+  'privacy.retention_data_access_log_days': 1825,
+  'privacy.retention_session_ip_days': 90,
+  'privacy.retention_contact_disclosure_ip_days': 730,
+  'privacy.login_cancels_deletion': false,
+  // Cost gate: ceilings on what deletion can bill (e-mail / push of the
+  // day-13 notice per run, Twilio delete calls per account).
+  'privacy.deletion_notices_per_day': 2000,
+  'privacy.twilio_purge_enabled': true,
+  'privacy.twilio_purge_max_messages': 200,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -983,6 +1014,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_PRIVACY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

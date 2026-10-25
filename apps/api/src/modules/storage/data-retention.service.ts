@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { heldSql } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -42,6 +43,7 @@ export interface RetentionResult {
  * - user_activity_days (`storage.retention_user_activity_days`, 400): one
  *   row per active person per day (1M daily users = 365M rows a year); the
  *   admin charts read at most the last 60 days.
+ * A person under a legal hold keeps their login history (round 13, S13-6).
  * 0 days = keep forever. Already handled elsewhere: notifications
  * (notifications.retention_days), sessions, OTP, processed Stripe webhooks
  * (30 days), the case journal (5 years), archived tasks. Never touched:
@@ -165,6 +167,7 @@ export class DataRetentionService implements OnModuleDestroy {
           WHERE ctid IN (
             SELECT ctid FROM auth_events
             WHERE created_shard = ${shard} AND created_at < ${before}
+              AND (user_id IS NULL OR NOT ${heldSql('user', Prisma.sql`user_id`)})
             ORDER BY created_at LIMIT ${limit})`,
       );
     }

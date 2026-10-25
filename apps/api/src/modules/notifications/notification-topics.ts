@@ -189,6 +189,7 @@ export const TYPE_TOPIC: Record<NotificationType, string> = {
   partner_commission: 'security',
   verification_update: 'account',
   data_export_ready: 'account',
+  account_deletion_scheduled: 'account',
   case_history_export_ready: 'account',
   assistant_joined: 'account',
   referral_reward: 'partner',

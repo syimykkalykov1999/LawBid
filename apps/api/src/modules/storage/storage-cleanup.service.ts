@@ -1,3 +1,4 @@
+import { heldSql } from '../../common/privacy/legal-hold';
 import { Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
@@ -234,6 +235,7 @@ export class StorageCleanupService {
       FROM files f
       WHERE ${where}
         AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
+        AND NOT ${heldSql('file', Prisma.sql`f.id`)}
         AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)
@@ -297,6 +299,7 @@ export class StorageCleanupService {
         FROM files f
         WHERE ${where} ${paging}
           AND f.purpose::TEXT <> ALL(${exempt}::TEXT[])
+          AND NOT ${heldSql('file', Prisma.sql`f.id`)}
           AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM verification_documents v WHERE v.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)

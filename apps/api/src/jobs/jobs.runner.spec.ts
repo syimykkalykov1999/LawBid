@@ -246,7 +246,9 @@ describe('JobsRunner', () => {
     // Shard-ready step 7: + outbox.sweep (every minute).
     // Owner 2026-10-24: + search.index (every minute).
     // Day-one foundations: + ledger.reconcile (nightly).
-    expect(upserts).toHaveLength(67);
+    // Privacy round 13: + privacy.retention, privacy.reconcile and
+    // privacy.deletion-notices (daily).
+    expect(upserts).toHaveLength(70);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
