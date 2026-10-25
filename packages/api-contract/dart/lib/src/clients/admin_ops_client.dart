@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/backfill_run_list_envelope.dart';
 import '../models/heavy_jobs_dto.dart';
 import '../models/scale_dto.dart';
 import '../models/scale_extras_envelope.dart';
@@ -33,6 +34,20 @@ abstract class AdminOpsClient {
   @POST('/admin/system-health/scale')
   Future<SystemHealthEnvelope> setOpsScale({
     @Body() required ScaleDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Batched data backfills: progress, state, why one is waiting
+  @GET('/admin/system-health/backfills')
+  Future<BackfillRunListEnvelope> listBackfills({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Pause / resume / abort a backfill (needs step-up)
+  @POST('/admin/system-health/backfills/{name}/{action}')
+  Future<BackfillRunListEnvelope> actOnBackfill({
+    @Path('name') required String name,
+    @Path('action') required String action,
     @Extras() Map<String, dynamic>? extras,
   });
 

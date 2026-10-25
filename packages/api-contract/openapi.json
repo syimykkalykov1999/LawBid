@@ -68243,6 +68243,187 @@
         ]
       }
     },
+    "/admin/system-health/backfills": {
+      "get": {
+        "operationId": "listBackfills",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackfillRunListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Batched data backfills: progress, state, why one is waiting",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/backfills/{name}/{action}": {
+      "post": {
+        "operationId": "actOnBackfill",
+        "parameters": [
+          {
+            "name": "name",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackfillRunListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Pause / resume / abort a backfill (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/restart-worker": {
       "post": {
         "operationId": "restartOpsWorker",
@@ -149361,6 +149542,102 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ScaleExtrasDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BackfillRunDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Stable backfill name."
+          },
+          "status": {
+            "enum": [
+              "running",
+              "paused",
+              "aborted",
+              "done",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "tableName": {
+            "type": "string",
+            "description": "Table being walked."
+          },
+          "processed": {
+            "type": "number",
+            "description": "Rows changed so far."
+          },
+          "totalEstimate": {
+            "type": "number",
+            "nullable": true,
+            "description": "Planner estimate of the rows to walk."
+          },
+          "percent": {
+            "type": "number",
+            "nullable": true,
+            "description": "0-100, null when the total is unknown."
+          },
+          "batchSize": {
+            "type": "number"
+          },
+          "maxRowsPerSec": {
+            "type": "number"
+          },
+          "pauseReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Why it waits now: paused by admin, replica lag, CPU …"
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "stalled": {
+            "type": "boolean",
+            "description": "Running but no heartbeat for 2 minutes: the runner process is gone."
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "tableName",
+          "processed",
+          "totalEstimate",
+          "percent",
+          "batchSize",
+          "maxRowsPerSec",
+          "pauseReason",
+          "lastError",
+          "stalled",
+          "startedAt",
+          "updatedAt"
+        ]
+      },
+      "BackfillRunListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackfillRunDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
