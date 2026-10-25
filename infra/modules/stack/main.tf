@@ -9,6 +9,7 @@ terraform {
       configuration_aliases = [aws.replica]
     }
     random = { source = "hashicorp/random", version = "~> 3.6" }
+    tls    = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
 
@@ -1014,6 +1015,17 @@ variable "pgbouncer_query_wait_timeout" {
   type    = number
   default = 30
 }
+# Security pass 2026-10-25 (S3-7). Both default to today's behaviour.
+variable "pgbouncer_db_tls_mode" {
+  type        = string
+  default     = "require"
+  description = "PgBouncer -> database TLS: require (encrypted only) or verify-full (also checks the RDS certificate against the RDS CA bundle baked into the pgbouncer image). Rebuild and deploy the image first, then set verify-full."
+}
+variable "pgbouncer_client_tls_private_ca" {
+  type        = bool
+  default     = false
+  description = "true: the pooler gets a certificate from a private CA made by Terraform and the api / worker verify it. false: encrypted, certificate not checked (as before)."
+}
 
 locals {
   db_memory_gib = {
@@ -1186,6 +1198,8 @@ module "pgbouncer" {
   reserve_pool_size          = local.pgb_reserve
   max_client_conn            = var.db_pooler_max_client_conn
   query_wait_timeout         = var.pgbouncer_query_wait_timeout
+  db_tls_mode                = var.pgbouncer_db_tls_mode
+  client_tls_private_ca      = var.pgbouncer_client_tls_private_ca
   metrics_namespace          = "LawBid/${local.name}/PgBouncer"
   alarm_actions              = [module.monitoring.alerts_topic_arn]
   runbook_url                = "${var.runbook_base_url}/db-pooler.md"
@@ -1198,6 +1212,10 @@ locals {
   db_pooler_env = var.db_pooler_enabled ? {
     DB_POOLER_HOST = module.pgbouncer[0].endpoint
     DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
+  } : {}
+  # The private CA's PUBLIC certificate (src/prisma/pooler-url.ts pins it).
+  db_pooler_ca_env = var.db_pooler_enabled && var.pgbouncer_client_tls_private_ca ? {
+    DB_POOLER_CA_PEM = module.pgbouncer[0].client_ca_pem
   } : {}
 }
 
@@ -1213,7 +1231,7 @@ module "ecs" {
   api_image                = var.api_image
   admin_image              = var.admin_image
   kms_key_arn              = module.kms.key_arn
-  api_env                  = merge(local.api_env, local.db_pooler_env)
+  api_env                  = merge(local.api_env, local.db_pooler_env, local.db_pooler_ca_env)
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
