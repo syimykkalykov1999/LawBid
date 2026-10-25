@@ -475,6 +475,16 @@ variable "ecs_readonly_root_filesystem" {
   type    = bool
   default = true
 }
+variable "deploy_alarm_rollback" {
+  type        = bool
+  default     = true
+  description = "Rolling deploy + CloudWatch alarm rollback (docs/runbooks/DEPLOY_SAFETY.md). false = circuit breaker only."
+}
+variable "deploy_rollback_on_slo" {
+  type        = bool
+  default     = false
+  description = "Also roll the api back on the FAST-burn SLO composites. Off by default (third-party dependent)."
+}
 variable "dmarc_policy" {
   type    = string
   default = "quarantine"

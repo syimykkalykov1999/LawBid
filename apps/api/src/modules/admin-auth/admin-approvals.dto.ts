@@ -96,4 +96,9 @@ export class AdminApprovalsCountDto {
     description: 'billing.dual_approval_min_cents: from this amount on.',
   })
   limitCents!: number;
+  @ApiProperty({
+    description:
+      'admin.dual_control: the second-admin rule is on (default off).',
+  })
+  dualControl!: boolean;
 }

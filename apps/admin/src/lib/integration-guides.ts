@@ -261,6 +261,39 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  pagerduty: {
+    steps: [
+      'PagerDuty → Services → Service Directory → New Service «LawBid prod» (план Free). Интеграция: Amazon CloudWatch.',
+      'Скопируйте Integration URL вида https://events.pagerduty.com/integration/<ключ>/enqueue.',
+      'Вставьте в поле ниже → «Сохранить» (код 2FA) → «Проверить» → «Включить». Сервер сам подпишет ссылку на топик lawbid-prod-critical.',
+      'Проверка и тестовая тревога: страница «Запуск», пункт PagerDuty (кнопка «Отправить тестовую тревогу» позвонит на телефон — это 1 из 100 бесплатных звонков в месяц).',
+    ],
+    links: [{ label: 'PagerDuty', url: 'https://www.pagerduty.com' }],
+    enable: [
+      'Заполните ссылку → «Сохранить» → «Проверить» → «Включить».',
+      'Подписка появляется на странице «Запуск»: Pending, затем Confirmed (PagerDuty подтверждает сам).',
+    ],
+    fields: {
+      integrationUrl: {
+        how: 'PagerDuty → ваш сервис → Integrations → Amazon CloudWatch → Integration URL. Это секрет: не в чат и не в git.',
+        example: 'https://events.pagerduty.com/integration/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/enqueue',
+      },
+    },
+  },
+
+  github: {
+    steps: [
+      'GitHub → Settings → Developer settings → Fine-grained tokens → Generate. Доступ: только репозиторий LawBid, право Contents: Read-only.',
+      'Репозиторий укажите как владелец/имя. Токен нужен только если репозиторий закрытый.',
+    ],
+    links: [{ label: 'Fine-grained tokens', url: 'https://github.com/settings/personal-access-tokens/new' }],
+    enable: ['Заполните → «Сохранить» → «Проверить» → «Включить». Страница «Запуск» начнёт сверять версию с main.'],
+    fields: {
+      repo: { how: 'Адрес репозитория на GitHub без https://github.com/', example: 'syimykkalykov1999/LawBid' },
+      token: { how: 'Fine-grained token с правом только чтения (Contents: Read-only). Пусто — если репозиторий открытый.' },
+    },
+  },
+
   turnstile: {
     steps: [
       'Cloudflare → Turnstile → Add widget. Имя: lawbid-web. Домены: lawbid.dev, www.lawbid.dev. Тип: Managed.',

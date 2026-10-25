@@ -30,7 +30,7 @@ export interface PartitionSpec {
 /**
  * Tables the online runner may convert later (whitelist: no free SQL names).
  * audit_log, auth_events and search_query_log are ALREADY partitioned by the
- * migration 20261025130000; `messages` and `notifications` are listed so the
+ * migration 20261026095000; `messages` and `notifications` are listed so the
  * admin card can say honestly why they cannot be converted yet.
  */
 export const PARTITION_TABLES: readonly PartitionSpec[] = [

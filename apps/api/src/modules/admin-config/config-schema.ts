@@ -504,6 +504,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100_000_000,
   };
+  out['admin.dual_control'] = {
+    ...out['admin.dual_control'],
+    description:
+      'Second-admin approval for payouts, refunds, bonuses and the ops buttons. Off (default): the admin who asks runs the action at once after a fresh 2FA code. On: amounts from billing.dual_approval_min_cents wait for another admin.',
+  };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],
     description:

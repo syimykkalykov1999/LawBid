@@ -8,7 +8,6 @@ import {
   HttpStatus,
   Patch,
   Post,
-  OnModuleInit,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -28,7 +27,6 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
-import { AdminApprovalsService } from '../admin-auth/admin-approvals.service';
 import { PartitionService } from '../../partitioning/partition.service';
 import { ReplicaAdminService } from '../../prisma/replica-admin.service';
 import {
@@ -58,7 +56,7 @@ const E = ErrorCode;
 @AdminEndpoint('super_admin')
 @SkipAutoAudit()
 @Controller('admin/system-health')
-export class AdminOpsController implements OnModuleInit {
+export class AdminOpsController {
   constructor(
     private readonly health: SystemHealthService,
     private readonly state: OpsStateService,
@@ -70,82 +68,7 @@ export class AdminOpsController implements OnModuleInit {
     private readonly scale: ScaleService,
     private readonly partitions: PartitionService,
     private readonly replica: ReplicaAdminService,
-    private readonly approvals: AdminApprovalsService,
   ) {}
-
-  /**
-   * Owner 2026-10-24: four-eyes for the scale buttons that change how the
-   * database is laid out or billed. The request is stored; a second admin
-   * approves it with a fresh 2FA code and it runs then, once.
-   */
-  onModuleInit(): void {
-    const roles = ['super_admin'] as const;
-    const route = (p: string) => ({
-      path: `/api/v1/admin/system-health/${p}`,
-      method: 'POST' as const,
-      roles,
-    });
-    this.approvals.register({
-      kind: 'ops_db_replica',
-      label: 'Масштаб: копия базы для чтения',
-      route: route('db-replica'),
-      execute: async (_who, payload) => {
-        const { enabled } = payload as ReplicaToggleDto;
-        if (enabled) await this.replica.enable();
-        else await this.replica.disable();
-        return { enabled };
-      },
-    });
-    this.approvals.register({
-      kind: 'ops_partition_start',
-      label: 'Масштаб: разделить таблицу по месяцам',
-      route: route('partitions/x/start'),
-      execute: async (who, payload) => {
-        const { table } = payload as PartitionTableParamDto;
-        await this.partitions.start(table, who.id);
-        return { table };
-      },
-    });
-    this.approvals.register({
-      kind: 'ops_partition_undo',
-      label: 'Масштаб: вернуть таблицу как было',
-      route: route('partitions/x/undo'),
-      execute: async (_who, payload) => {
-        const { table } = payload as PartitionTableParamDto;
-        await this.partitions.undo(table);
-        return { table };
-      },
-    });
-    this.approvals.register({
-      kind: 'ops_partition_finalize',
-      label: 'Масштаб: завершить разделение (удалить старую копию)',
-      route: route('partitions/x/finalize'),
-      execute: async (_who, payload) => {
-        const { table } = payload as PartitionTableParamDto;
-        await this.partitions.finalize(table);
-        return { table };
-      },
-    });
-  }
-
-  /** Always sent for approval: the limit is a money limit, these are not money. */
-  private async sendForApproval(
-    admin: AdminActor,
-    kind:
-      | 'ops_db_replica'
-      | 'ops_partition_start'
-      | 'ops_partition_undo'
-      | 'ops_partition_finalize',
-    payload: object,
-    summary: string,
-  ): Promise<void> {
-    await this.approvals.gate(admin, {
-      kind,
-      payload,
-      amountCents: Math.max(1, await this.approvals.limitCents()),
-      summary,
-    });
-  }
 
   @Get('db-replica')
   @ApiOperation({ summary: 'Read copy of the database: state, lag' })
@@ -157,13 +80,12 @@ export class AdminOpsController implements OnModuleInit {
   @Post('db-replica')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      'Create / delete the read copy (step-up, then a second admin approves)',
+    summary: 'Create / delete the read copy (step-up)',
   })
   @ApiEnvelopeResponse(ReplicaStatusDto)
   @ApiErrors({
     403: [E.ADMIN_STEP_UP_REQUIRED],
-    409: [E.ADMIN_APPROVAL_PENDING, E.FEATURE_DISABLED],
+    409: [E.FEATURE_DISABLED],
   })
   async setReplica(
     @CurrentAdmin() admin: AdminActor,
@@ -180,14 +102,9 @@ export class AdminOpsController implements OnModuleInit {
         HttpStatus.CONFLICT,
       );
     }
-    await this.sendForApproval(
-      admin,
-      'ops_db_replica',
-      { enabled: dto.enabled },
-      dto.enabled
-        ? 'Включить копию базы для чтения (создаётся ~15-30 минут, платная)'
-        : 'Выключить и удалить копию базы для чтения',
-    );
+    if (dto.enabled) await this.replica.enable();
+    else await this.replica.disable();
+    await this.log(admin, 'ops.db_replica', { enabled: dto.enabled });
     return this.replica.status();
   }
 
@@ -202,70 +119,55 @@ export class AdminOpsController implements OnModuleInit {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Start the online conversion of a table to monthly partitions (step-up + second admin)',
+      'Start the online conversion of a table to monthly partitions (step-up)',
   })
   @ApiEnvelopeResponse(PartitionCardDto, { isArray: true })
   @ApiErrors({
     403: [E.ADMIN_STEP_UP_REQUIRED],
-    409: [E.ADMIN_APPROVAL_PENDING],
   })
   async startPartition(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: PartitionTableParamDto,
   ): Promise<PartitionCardDto[]> {
     await this.auth.assertStepUp(admin.sessionId);
-    await this.sendForApproval(
-      admin,
-      'ops_partition_start',
-      { table: p.table },
-      `Разделить таблицу ${p.table} по месяцам (работает в фоне, можно поставить на паузу)`,
-    );
+    await this.partitions.start(p.table, admin.id);
+    await this.log(admin, 'ops.partition_start', { table: p.table });
     return this.partitions.report();
   }
 
   @Post('partitions/:table/undo')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Swap the old table back (step-up + second admin)' })
+  @ApiOperation({ summary: 'Swap the old table back (step-up)' })
   @ApiEnvelopeResponse(PartitionCardDto, { isArray: true })
   @ApiErrors({
     403: [E.ADMIN_STEP_UP_REQUIRED],
-    409: [E.ADMIN_APPROVAL_PENDING],
   })
   async undoPartition(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: PartitionTableParamDto,
   ): Promise<PartitionCardDto[]> {
     await this.auth.assertStepUp(admin.sessionId);
-    await this.sendForApproval(
-      admin,
-      'ops_partition_undo',
-      { table: p.table },
-      `Вернуть таблицу ${p.table} как было`,
-    );
+    await this.partitions.undo(p.table);
+    await this.log(admin, 'ops.partition_undo', { table: p.table });
     return this.partitions.report();
   }
 
   @Post('partitions/:table/finalize')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Delete the old copy for good (step-up + second admin)',
+    summary: 'Delete the old copy for good (step-up)',
   })
   @ApiEnvelopeResponse(PartitionCardDto, { isArray: true })
   @ApiErrors({
     403: [E.ADMIN_STEP_UP_REQUIRED],
-    409: [E.ADMIN_APPROVAL_PENDING],
   })
   async finalizePartition(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: PartitionTableParamDto,
   ): Promise<PartitionCardDto[]> {
     await this.auth.assertStepUp(admin.sessionId);
-    await this.sendForApproval(
-      admin,
-      'ops_partition_finalize',
-      { table: p.table },
-      `Завершить разделение ${p.table}: старая копия будет удалена навсегда`,
-    );
+    await this.partitions.finalize(p.table);
+    await this.log(admin, 'ops.partition_finalize', { table: p.table });
     return this.partitions.report();
   }
 

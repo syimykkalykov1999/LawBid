@@ -30,6 +30,7 @@ import {
   type ScaleExtras,
 } from '@/lib/scale';
 import { usd } from '@/lib/economy';
+import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets } from '@/lib/launch';
 import { LIGHT_TONE } from '@/lib/system-health';
 
 type Target = 'db' | 'redis';
@@ -60,9 +61,54 @@ export default function ScalePage() {
     queryFn: async () => (await api.GET('/admin/system-health/scale')).data!.data as ScaleExtras,
     refetchOnWindowFocus: true,
   });
+  const budgets = useQuery({
+    queryKey: ['aws-budgets'],
+    queryFn: async () => (await api.GET('/admin/launch/budgets')).data!.data as AwsBudgets,
+    refetchOnWindowFocus: true,
+  });
   const e = economy.data;
   const h = health.data;
   const x = extras.data;
+
+  // Owner 2026-10-24: the AWS budgets. A change needs the 2FA code (the API
+  // client asks for it); a second admin only if admin.dual_control is on.
+  const [limitFor, setLimitFor] = useState<AwsBudget | null>(null);
+  const [limitText, setLimitText] = useState('');
+  const [deleteFor, setDeleteFor] = useState<AwsBudget | null>(null);
+  const newLimit = parseLimit(limitText);
+  const afterBudgetChange = () => {
+    void qc.invalidateQueries({ queryKey: ['aws-budgets'] });
+    void qc.invalidateQueries({ queryKey: ['launch'] });
+    void qc.invalidateQueries({ queryKey: ['system-health'] });
+  };
+  const changeLimit = useMutation({
+    mutationFn: async (v: { name: string; limitUsd: number }) =>
+      (await api.POST('/admin/launch/budgets/limit', { body: v })).data!.data as AwsBudgets,
+    onSuccess: (r) => {
+      qc.setQueryData(['aws-budgets'], r);
+      setLimitFor(null);
+      toast.success('Месячный потолок расходов изменён');
+      afterBudgetChange();
+    },
+    onError: (err) => {
+      toast.error(err);
+      if (err instanceof ApiError && err.code === 'ADMIN_APPROVAL_PENDING') setLimitFor(null);
+    },
+  });
+  const removeBudget = useMutation({
+    mutationFn: async (name: string) =>
+      (await api.POST('/admin/launch/budgets/delete', { body: { name } })).data!.data as AwsBudgets,
+    onSuccess: (r) => {
+      qc.setQueryData(['aws-budgets'], r);
+      setDeleteFor(null);
+      toast.success('Старый бюджет удалён');
+      afterBudgetChange();
+    },
+    onError: (err) => {
+      toast.error(err);
+      setDeleteFor(null);
+    },
+  });
 
   const setE = (r: Economy) => qc.setQueryData(['economy'], r);
   const setH = (r: Health) => qc.setQueryData(['system-health'], r);
@@ -374,6 +420,58 @@ export default function ScalePage() {
             />
           </div>
 
+          <SectionTitle>Бюджеты AWS (потолок расходов в месяц)</SectionTitle>
+          <div className="mb-6 grid gap-3 md:grid-cols-2" data-testid="aws-budgets">
+            {budgets.data && !budgets.data.available ? (
+              <Card className="p-4 text-sm text-muted md:col-span-2">Бюджеты читаются только на AWS (боевой сервер).</Card>
+            ) : null}
+            {(budgets.data?.items ?? []).map((b) => {
+              const pct = budgetPercent(b);
+              return (
+                <Card key={b.name} className="flex min-w-0 flex-col gap-2 p-4">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1 break-words text-sm font-medium text-heading">{b.name}</div>
+                    <Badge tone={b.obsolete ? 'warning' : budgetTone(pct)} dot className="shrink-0">
+                      {b.obsolete ? 'Старый' : b.prod ? 'Боевой' : 'Другой'}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <div className="text-xs text-muted">Потолок</div>
+                      <div className="text-lg font-semibold text-heading">{b.limitUsd != null ? usd(b.limitUsd) : '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted">Потрачено</div>
+                      <div className="text-lg font-semibold text-heading">{b.actualUsd != null ? usd(b.actualUsd) : '—'}{pct !== null ? ` (${pct}%)` : ''}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted">Прогноз</div>
+                      <div className="text-lg font-semibold text-heading">{b.forecastUsd != null ? usd(b.forecastUsd) : '—'}</div>
+                    </div>
+                  </div>
+                  {b.prod ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-auto self-start"
+                      onClick={() => {
+                        setLimitText(String(b.limitUsd ?? ''));
+                        setLimitFor(b);
+                      }}
+                    >
+                      Изменить потолок
+                    </Button>
+                  ) : null}
+                  {b.obsolete ? (
+                    <Button variant="outline" size="sm" className="mt-auto self-start" onClick={() => setDeleteFor(b)}>
+                      Удалить старый бюджет
+                    </Button>
+                  ) : null}
+                </Card>
+              );
+            })}
+          </div>
+
           <SectionTitle>Кнопки на крайний случай</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-3">
             <Card className="flex flex-col gap-3 p-4">
@@ -451,6 +549,46 @@ export default function ScalePage() {
             }}
           >
             {confirm?.kind === 'decrease' ? 'Уменьшить' : 'Увеличить'}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={limitFor !== null}
+        onClose={() => setLimitFor(null)}
+        title="Изменить месячный потолок расходов"
+        description="Это сумма, при которой AWS пришлёт письма, а сервер сам снизится до минимума. Нужен код из аутентификатора. Terraform этот потолок больше не перезаписывает."
+      >
+        <Field label="Новый потолок, $ в месяц" htmlFor="budget-limit" hint={newLimit === null ? 'Число от 1 до 100000.' : undefined}>
+          <Input id="budget-limit" inputMode="decimal" value={limitText} onChange={(ev) => setLimitText(ev.target.value)} />
+        </Field>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setLimitFor(null)}>
+            Отмена
+          </Button>
+          <Button
+            variant="gold"
+            disabled={newLimit === null}
+            loading={changeLimit.isPending}
+            onClick={() => limitFor && newLimit !== null && changeLimit.mutate({ name: limitFor.name, limitUsd: newLimit })}
+          >
+            Сохранить
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={deleteFor !== null}
+        onClose={() => setDeleteFor(null)}
+        title="Удалить старый бюджет?"
+        description={`«${deleteFor?.name ?? ''}» с потолком ${deleteFor?.limitUsd != null ? usd(deleteFor.limitUsd) : '—'} больше не нужен: рабочий бюджет остаётся. Нужен код из аутентификатора. Отменить нельзя.`}
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDeleteFor(null)}>
+            Отмена
+          </Button>
+          <Button variant="gold" loading={removeBudget.isPending} onClick={() => deleteFor && removeBudget.mutate(deleteFor.name)}>
+            Удалить
           </Button>
         </div>
       </Dialog>
