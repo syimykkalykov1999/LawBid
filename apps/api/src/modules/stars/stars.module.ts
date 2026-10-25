@@ -10,6 +10,7 @@ import { StarterCatalogService } from './starter-catalog.service';
 
 /** The service alone — imported by stickers (paid packs), chat (gifts) and
  * billing (the payment webhook). Uses the global PAYMENT_PROVIDER. */
+import { LedgerModule } from '../ledger/ledger.public';
 @Module({
   imports: [
     BlocksModule,
@@ -18,6 +19,7 @@ import { StarterCatalogService } from './starter-catalog.service';
     PrivacySettingsModule,
     // Owner 2026-10-22: the card page's links.
     PayLinkModule,
+    LedgerModule,
   ],
   providers: [StarsService],
   exports: [StarsService],

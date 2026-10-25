@@ -336,6 +336,11 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Online DDL: applied index files and batched-backfill state (per database).
   'ConcurrentMigration',
   'BackfillRun',
+  // Day-one foundations: the double-entry money ledger (global: platform
+  // accounts and cross-party entries; docs/architecture/MONEY_LEDGER.md).
+  'LedgerAccount',
+  'LedgerEntry',
+  'LedgerLine',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);

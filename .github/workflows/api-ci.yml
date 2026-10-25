@@ -190,7 +190,9 @@ jobs:
 
       - name: Migrations are expand/contract and online-DDL safe (rolling deploy + rollback safe)
         working-directory: apps/api
-        run: node scripts/check-migrations.mjs
+        run: |
+          node --test scripts/check-migrations.test.mjs
+          node scripts/check-migrations.mjs
 
       - name: Concurrent index migrations run on the migrated database
         # prisma/concurrent/*.sql run after `migrate deploy` (outside any

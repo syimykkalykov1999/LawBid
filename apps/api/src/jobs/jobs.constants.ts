@@ -43,6 +43,8 @@ export const CRON_JOBS = {
   searchTagTopics: 'search.tag-topics',
   /** Owner 2026-10-24: search-engine outbox → engine (off = prune only). */
   searchIndex: 'search.index',
+  /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
+  ledgerReconcile: 'ledger.reconcile',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -245,6 +247,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.economyGuard, pattern: '*/5 * * * *' },
   // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
+  // Nightly, after Stripe has settled the previous day (UTC).
+  { name: CRON_JOBS.ledgerReconcile, pattern: '15 5 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
   // Every minute: applies cross-family events a request could not (retries

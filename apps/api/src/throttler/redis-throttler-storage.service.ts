@@ -4,6 +4,7 @@ import type { ThrottlerStorageRecord } from '@nestjs/throttler/dist/throttler-st
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../redis/redis.constants';
+import { ck } from '../redis/redis-cluster-safe';
 
 /**
  * docs/06_PRODUCTION.md §12 (.cursorrules) implies infra-shared state lives
@@ -130,8 +131,10 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
     blockDuration: number,
     throttlerName: string,
   ): Promise<ThrottlerStorageRecord> {
-    const hitsKey = `throttle:${throttlerName}:${key}`;
-    const blockKey = `throttle-block:${throttlerName}:${key}`;
+    // Cluster: both keys share the tag of the throttled subject (Lua, 2 keys).
+    const tag = `thr:${throttlerName}:${key}`.replace(/[{}]/g, '');
+    const hitsKey = ck(tag, `throttle:${throttlerName}:${key}`);
+    const blockKey = ck(tag, `throttle-block:${throttlerName}:${key}`);
 
     const lua = this.luaCommand();
     if (lua) {

@@ -7,35 +7,36 @@ part of 'task_dto.dart';
 // **************************************************************************
 
 TaskDto _$TaskDtoFromJson(Map<String, dynamic> json) => TaskDto(
-  createdAt: json['createdAt'] as String,
+  priority: TaskPriority.fromJson(json['priority'] as String),
+  version: (json['version'] as num).toInt(),
   kind: AttorneyTaskKind.fromJson(json['kind'] as String),
   title: json['title'] as String,
+  canDelete: json['canDelete'] as bool,
+  id: json['id'] as String,
   files: (json['files'] as List<dynamic>)
       .map((e) => TaskFileDto.fromJson(e as Map<String, dynamic>))
       .toList(),
-  id: json['id'] as String,
   status: AttorneyTaskStatus.fromJson(json['status'] as String),
-  canComplete: json['canComplete'] as bool,
+  repeat: TaskRepeat.fromJson(json['repeat'] as String),
   canEdit: json['canEdit'] as bool,
-  priority: TaskPriority.fromJson(json['priority'] as String),
   people: (json['people'] as List<dynamic>)
       .map((e) => TaskPersonDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   places: (json['places'] as List<dynamic>)
       .map((e) => TaskPlaceDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  keepForever: json['keepForever'] as bool,
+  canComplete: json['canComplete'] as bool,
+  assignedToMe: json['assignedToMe'] as bool,
   steps: (json['steps'] as List<dynamic>)
       .map((e) => TaskStepDto.fromJson(e as Map<String, dynamic>))
       .toList(),
-  keepForever: json['keepForever'] as bool,
-  assignedToMe: json['assignedToMe'] as bool,
-  repeat: TaskRepeat.fromJson(json['repeat'] as String),
-  canDelete: json['canDelete'] as bool,
+  createdAt: json['createdAt'] as String,
   createdByName: json['createdByName'] as String?,
-  rescheduledTo: json['rescheduledTo'] as String?,
-  outcomeNote: json['outcomeNote'] as String?,
-  doneAt: json['doneAt'] as String?,
   contactEmail: json['contactEmail'] as String?,
+  rescheduledTo: json['rescheduledTo'] as String?,
+  doneAt: json['doneAt'] as String?,
+  outcomeNote: json['outcomeNote'] as String?,
   contactPhone: json['contactPhone'] as String?,
   contactName: json['contactName'] as String?,
   casePracticeCode: json['casePracticeCode'] as String?,
@@ -44,18 +45,19 @@ TaskDto _$TaskDtoFromJson(Map<String, dynamic> json) => TaskDto(
   remindBeforeMin: json['remindBeforeMin'] as num?,
   assigneeMembershipId: json['assigneeMembershipId'] as String?,
   assigneeName: json['assigneeName'] as String?,
-  location: json['location'] as String?,
+  caseId: json['caseId'] as String?,
   conversationId: json['conversationId'] as String?,
   archivedAt: json['archivedAt'] as String?,
   dueAt: json['dueAt'] as String?,
   purgeAt: json['purgeAt'] as String?,
   consultationId: json['consultationId'] as String?,
   notes: json['notes'] as String?,
-  caseId: json['caseId'] as String?,
+  location: json['location'] as String?,
 );
 
 Map<String, dynamic> _$TaskDtoToJson(TaskDto instance) => <String, dynamic>{
   'id': instance.id,
+  'version': instance.version,
   'kind': instance.kind.toJson(),
   'title': instance.title,
   'notes': ?instance.notes,

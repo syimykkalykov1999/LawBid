@@ -546,4 +546,9 @@ export enum ErrorCode {
   // Owner 2026-10-22 (client economy plan §4). 409: `updatedSince` is
   // older than 7 days — the app reloads the list from page 1.
   SYNC_TOO_OLD = 'SYNC_TOO_OLD',
+
+  // Day-one foundations (2026-10-24). 409: the client sent `If-Match: <version>`
+  // and the row was saved by someone else since; reload and retry. details:
+  // { currentVersion }.
+  STALE_VERSION = 'STALE_VERSION',
 }

@@ -19,6 +19,7 @@ import {
   type HeavyPause,
   type ScaleMode,
 } from './ops.constants';
+import { bullOptions } from '../../redis/redis-connection';
 
 /** Owner 2026-10-05: the shared operations state (see ops.constants). */
 @Injectable()
@@ -83,7 +84,7 @@ export class OpsStateService implements OnModuleDestroy {
     if (!this.queues) {
       const url = this.config.get<string>('REDIS_URL');
       this.queues = url
-        ? HEAVY_QUEUES.map((name) => new Queue(name, { connection: { url } }))
+        ? HEAVY_QUEUES.map((name) => new Queue(name, bullOptions(name, url)))
         : [];
     }
     return this.queues;
