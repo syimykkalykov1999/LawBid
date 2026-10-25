@@ -40,6 +40,21 @@ describe('NotificationTemplateService.renderFor', () => {
     expect(t.body).not.toContain('изменился');
   });
 
+  it('owner 2026-10-24: the grace-period push names the state, date and days', async () => {
+    const t = await service.renderFor(
+      'verification_update',
+      {
+        kind: 'license_renewal_due',
+        stateCode: 'NY',
+        expiresAt: '2026-10-20',
+        graceDays: 14,
+      },
+      'en',
+    );
+    expect(t.body).toContain('NY license expired on 2026-10-20');
+    expect(t.body).toContain('within 14 days');
+  });
+
   it('no kind, or another type: the generic text', async () => {
     const t = await service.renderFor('verification_update', {}, 'en');
     expect(t.body).toBe('Your verification status has changed.');

@@ -2,7 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { subscriptionRowIsActive } from './subscription-rules';
 import {
@@ -31,7 +31,7 @@ const key = (userId: string) => `sub:active:${userId}`;
 export class SubscriptionAccessService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
     // Owner 2026-10-05: the plan's terms are cached per user as well.
     @Optional() private readonly entitlements?: EntitlementsService,
   ) {}

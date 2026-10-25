@@ -12,6 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { AnonymousCache } from '../../common/cache/http-cache';
 import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import {
   ApiBearerAuth,
@@ -260,6 +261,7 @@ export class PostsController {
   }
 
   @OptionalAuth()
+  @AnonymousCache(30)
   @Get('attorneys/:id/posts')
   @ApiOperation({ summary: "An attorney's posts, newest first (docs/05 §15)" })
   @ApiEnvelopeResponse(PostDto, { isArray: true })

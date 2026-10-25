@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-242 tables.
+244 tables.
 
 ```mermaid
 erDiagram
@@ -178,6 +178,23 @@ erDiagram
     Int version
     DateTime updated_at
   }
+  cross_family_outbox {
+    String id PK
+    String event_type
+    String idempotency_key UK
+    Json payload
+    String status
+    Int attempts
+    DateTime next_attempt_at
+    String last_error "nullable"
+    DateTime created_at
+    DateTime processed_at "nullable"
+  }
+  cross_family_inbox {
+    String idempotency_key PK
+    String event_type
+    DateTime applied_at
+  }
   i18n_languages {
     String code PK
     String name_native
@@ -297,6 +314,7 @@ erDiagram
     String bar_number
     enum_LicenseStatus license_status
     DateTime expires_at "nullable"
+    String expires_source "nullable"
     DateTime verified_at "nullable"
     String verified_by FK "nullable"
     Json auto_check_result "nullable"

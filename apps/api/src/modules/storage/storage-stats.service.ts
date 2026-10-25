@@ -142,12 +142,14 @@ export class StorageStatsService {
 
   async usage(): Promise<StorageUsage> {
     const [byPurpose, stored, pending] = await Promise.all([
-      this.prisma.$queryRaw<{ purpose: string; n: bigint; bytes: bigint }[]>`
+      this.prisma.global().$queryRaw<
+        { purpose: string; n: bigint; bytes: bigint }[]
+      >`
         SELECT purpose::TEXT AS purpose, count(*)::INT8 AS n,
                coalesce(sum(size_bytes), 0)::INT8 AS bytes
         FROM files WHERE deleted_at IS NULL
         GROUP BY purpose ORDER BY bytes DESC`,
-      this.prisma.$queryRaw<{ bytes: bigint | null }[]>`
+      this.prisma.global().$queryRaw<{ bytes: bigint | null }[]>`
         SELECT sum(size_bytes)::INT8 AS bytes FROM (
           SELECT DISTINCT ON (s3_bucket, s3_key) size_bytes
           FROM files WHERE deleted_at IS NULL)`,
@@ -179,7 +181,7 @@ export class StorageStatsService {
    */
   async tables(limit = 15): Promise<TableUsage[]> {
     try {
-      const rows = await this.prisma.$queryRaw<
+      const rows = await this.prisma.global().$queryRaw<
         { name: string; bytes: bigint | null; n: bigint | null }[]
       >`
         SELECT c.relname AS name,
@@ -203,7 +205,7 @@ export class StorageStatsService {
 
   /** Who stores the most (live files of every purpose). */
   async topUsers(limit = 20): Promise<UserUsage[]> {
-    const rows = await this.prisma.$queryRaw<
+    const rows = await this.prisma.global().$queryRaw<
       {
         id: string;
         first_name: string | null;

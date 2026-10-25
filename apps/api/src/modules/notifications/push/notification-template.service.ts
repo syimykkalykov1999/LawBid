@@ -92,7 +92,8 @@ export class NotificationTemplateService {
       title: base.title,
       body: body
         .replace(/\{state\}/g, str('stateCode'))
-        .replace(/\{date\}/g, str('expiresAt')),
+        .replace(/\{date\}/g, str('expiresAt'))
+        .replace(/\{days\}/g, str('graceDays')),
     };
   }
 
@@ -286,6 +287,10 @@ const VERIFICATION_KIND_FALLBACK: Record<string, { en: string; ru: string }> = {
   rejected: {
     en: 'Verification request rejected. See the reason on the status screen.',
     ru: 'Заявка на верификацию отклонена. Причину смотрите на экране статуса.',
+  },
+  license_renewal_due: {
+    en: 'Your {state} license expired on {date}. Renew it within {days} days to restore your badge. Your account keeps working.',
+    ru: 'Срок лицензии в штате {state} истёк {date}. Продлите её в течение {days} дней, чтобы вернуть галочку. Аккаунт продолжает работать.',
   },
   in_review: {
     en: 'Your verification request is being reviewed.',

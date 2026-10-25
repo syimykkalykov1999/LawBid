@@ -21,6 +21,7 @@ export interface SessionsCleanupResult {
 }
 
 interface BatchRow {
+  doomed_ids: string[] | null;
   last_id: string | null;
   scanned: bigint;
   deleted: bigint;
@@ -88,10 +89,19 @@ export class SessionsCleanupJob {
           )
           RETURNING id
         )
-        SELECT (SELECT id FROM batch ORDER BY id DESC LIMIT 1)::TEXT AS last_id,
+        SELECT (SELECT array_agg(id::TEXT) FROM doomed) AS doomed_ids,
+               (SELECT id FROM batch ORDER BY id DESC LIMIT 1)::TEXT AS last_id,
                (SELECT count(*) FROM batch) AS scanned,
                (SELECT count(*) FROM doomed) AS deleted`);
 
+      // Shard-ready step 8: push_tokens (user family) went with their session
+      // through a foreign key; between families that key is gone, so they
+      // are removed here (no-op rows with one database: already cascaded).
+      if (row?.doomed_ids?.length) {
+        await this.prisma.pushToken.deleteMany({
+          where: { session_id: { in: row.doomed_ids } },
+        });
+      }
       const batchScanned = Number(row?.scanned ?? 0);
       scanned += batchScanned;
       deleted += Number(row?.deleted ?? 0);

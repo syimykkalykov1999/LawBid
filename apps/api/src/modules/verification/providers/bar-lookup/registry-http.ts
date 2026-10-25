@@ -213,6 +213,9 @@ export interface RegistryRecord {
   admitted: unknown;
   /** Owner 2026-10-05 (trust levels): the firm / employer on record. */
   firm?: unknown;
+  /** Owner 2026-10-24: the date the registration / license falls due
+   * again, as YYYY-MM-DD, when the registry publishes it. */
+  expiresAt?: string | null;
   raw: unknown;
 }
 
@@ -260,6 +263,7 @@ export function outcomeFor(
     ([str(record.first), str(record.last)].filter(Boolean).join(' ') || null);
   details.admittedAt = str(record.admitted);
   details.firm = str(record.firm);
+  if (record.expiresAt) details.registryExpiresAt = record.expiresAt;
   details.raw = rawSnippet(record.raw);
   if (!active) {
     return { result: 'fail', details: { ...details, reason: 'not_active' } };

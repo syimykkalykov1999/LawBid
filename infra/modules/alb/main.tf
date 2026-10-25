@@ -529,3 +529,4 @@ output "arn_suffix" { value = aws_lb.this.arn_suffix }
 output "api_target_group_arn" { value = aws_lb_target_group.api.arn }
 output "api_target_group_arn_suffix" { value = aws_lb_target_group.api.arn_suffix }
 output "admin_target_group_arn" { value = aws_lb_target_group.admin.arn }
+output "admin_target_group_arn_suffix" { value = aws_lb_target_group.admin.arn_suffix }

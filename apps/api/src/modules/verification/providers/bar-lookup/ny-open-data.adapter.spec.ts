@@ -58,6 +58,18 @@ describe('NyOpenDataAdapter (owner 2026-10-04)', () => {
     );
   });
 
+  it('reads next_registration as the registry expiry (last day of the month)', async () => {
+    const { ny } = adapter([{ ...row, next_registration: 'Mar 2028' }]);
+    const out = await ny.lookup(input);
+    expect(out.details.registryExpiresAt).toBe('2028-03-31');
+  });
+
+  it('has no registry expiry when the dataset gives none', async () => {
+    const { ny } = adapter([row]);
+    const out = await ny.lookup(input);
+    expect(out.details).not.toHaveProperty('registryExpiresAt');
+  });
+
   it('keeps a short copy of the registry record', async () => {
     const { ny } = adapter([row]);
     const out = await ny.lookup(input);

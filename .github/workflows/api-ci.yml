@@ -203,6 +203,9 @@ jobs:
 
       - name: Typecheck
         working-directory: apps/api
+        env:
+          # The API grew past the 4 GB default heap (shard-ready steps).
+          NODE_OPTIONS: --max-old-space-size=6144
         run: npx tsc --noEmit
 
       - name: Unit tests (with coverage)

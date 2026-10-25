@@ -9,6 +9,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import { AnonymousCache } from '../../../common/cache/http-cache';
 import { OptionalAuth } from '../../auth/decorators/optional-auth.decorator';
 import type { Request, Response } from 'express';
 import { notModified } from '../../../common/sync/cheap-etag';
@@ -154,6 +155,7 @@ export class AttorneysController {
   }
 
   @OptionalAuth()
+  @AnonymousCache(30)
   @Get(':username')
   @ApiEnvelopeResponse(PublicAttorneyProfileDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })

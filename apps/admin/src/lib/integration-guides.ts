@@ -95,6 +95,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Видео и рилсы начинают загружаться сразу после «Включить», без обновления приложения.',
     ],
     fields: {
+      accountApiKey: { how: 'Bunny → Account → API Key (ключ аккаунта, не библиотеки). Только для учёта трафика и места, необязательно.' },
       libraryId: { how: 'Stream → библиотека → вкладка API → «Video Library ID». Только цифры.', example: '768949' },
       cdnHostname: {
         how: 'Там же «CDN Hostname». Можно вставить и с https:// — лишнее уберётся само.',
@@ -233,6 +234,8 @@ export const GUIDES: Record<string, ProviderGuide> = {
     links: [{ label: 'Cloudflare Realtime TURN', url: 'https://developers.cloudflare.com/realtime/turn/' }],
     enable: ['Заполните ID ключа и API-токен → «Сохранить» → «Проверить» → «Включить».'],
     fields: {
+      accountId: { how: 'Cloudflare → правый верхний угол «Account ID» (32 символа). Нужен только для учёта трафика звонков.', example: '0123456789abcdef0123456789abcdef' },
+      analyticsToken: { how: 'My Profile → API Tokens → Create Token → право «Account Analytics: Read». Только для учёта трафика, необязательно.' },
       keyId: { how: 'Realtime → TURN Server → ваш ключ → Key ID.' },
       apiToken: { how: 'Токен, который Cloudflare показал при создании ключа (один раз).' },
     },
@@ -255,6 +258,39 @@ export const GUIDES: Record<string, ProviderGuide> = {
     fields: {
       appId: { how: 'Realtime → SFU → ваше приложение → App ID (32 символа 0-9 a-f).', example: '0123456789abcdef0123456789abcdef' },
       appToken: { how: 'App Secret, который Cloudflare показал при создании приложения (один раз).' },
+    },
+  },
+
+  pagerduty: {
+    steps: [
+      'PagerDuty → Services → Service Directory → New Service «LawBid prod» (план Free). Интеграция: Amazon CloudWatch.',
+      'Скопируйте Integration URL вида https://events.pagerduty.com/integration/<ключ>/enqueue.',
+      'Вставьте в поле ниже → «Сохранить» (код 2FA) → «Проверить» → «Включить». Сервер сам подпишет ссылку на топик lawbid-prod-critical.',
+      'Проверка и тестовая тревога: страница «Запуск», пункт PagerDuty (кнопка «Отправить тестовую тревогу» позвонит на телефон — это 1 из 100 бесплатных звонков в месяц).',
+    ],
+    links: [{ label: 'PagerDuty', url: 'https://www.pagerduty.com' }],
+    enable: [
+      'Заполните ссылку → «Сохранить» → «Проверить» → «Включить».',
+      'Подписка появляется на странице «Запуск»: Pending, затем Confirmed (PagerDuty подтверждает сам).',
+    ],
+    fields: {
+      integrationUrl: {
+        how: 'PagerDuty → ваш сервис → Integrations → Amazon CloudWatch → Integration URL. Это секрет: не в чат и не в git.',
+        example: 'https://events.pagerduty.com/integration/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/enqueue',
+      },
+    },
+  },
+
+  github: {
+    steps: [
+      'GitHub → Settings → Developer settings → Fine-grained tokens → Generate. Доступ: только репозиторий LawBid, право Contents: Read-only.',
+      'Репозиторий укажите как владелец/имя. Токен нужен только если репозиторий закрытый.',
+    ],
+    links: [{ label: 'Fine-grained tokens', url: 'https://github.com/settings/personal-access-tokens/new' }],
+    enable: ['Заполните → «Сохранить» → «Проверить» → «Включить». Страница «Запуск» начнёт сверять версию с main.'],
+    fields: {
+      repo: { how: 'Адрес репозитория на GitHub без https://github.com/', example: 'syimykkalykov1999/LawBid' },
+      token: { how: 'Fine-grained token с правом только чтения (Contents: Read-only). Пусто — если репозиторий открытый.' },
     },
   },
 

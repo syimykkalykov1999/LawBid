@@ -15,6 +15,11 @@ import { RealtimeStatsService } from '../realtime-stats.service';
 import { SLO_REDIS_PREFIX } from '../slo-metrics.service';
 import { bullOptions } from '../../../redis/redis-connection';
 import { pipeline } from '../../../redis/redis-cluster-safe';
+import { CircuitBreaker } from '../../resilience/resilience';
+import {
+  USAGE_SNAPSHOT_KEY,
+  type UsageSnapshot,
+} from '../../../jobs/handlers/usage-poll.job';
 
 export type ProbeStatus = 'green' | 'yellow' | 'red' | 'grey';
 
@@ -165,7 +170,54 @@ export class StatusProbesService implements OnModuleDestroy {
       this.safe('r2', () => this.r2()),
       this.safe('http', () => this.httpErrors()),
       this.safe('realtime', () => this.realtimeHealth()),
+      this.safe('breakers', () => this.breakers()),
+      this.safe('cloudflare_usage', () => this.usage('cloudflare')),
+      this.safe('bunny_usage', () => this.usage('bunny')),
     ]);
+  }
+
+  /** Batch C item 6: circuit breakers of outside services (SES, Stripe,
+   * Twilio, FCM, Bunny). Yellow while any is open in this process. */
+  private breakers(): Promise<Omit<ProbeResult, 'key'>> {
+    const all = CircuitBreaker.snapshot();
+    const open = all.filter((b) => b.state !== 'closed');
+    return Promise.resolve({
+      status: open.length > 0 ? 'yellow' : 'green',
+      detail: {
+        open: open.map((b) => b.service),
+        tracked: all.map((b) => b.service),
+      },
+    });
+  }
+
+  /** Batch C items 11 and 16: yesterday's usage poll (`ops.usage-poll`). */
+  private async usage(
+    which: 'cloudflare' | 'bunny',
+  ): Promise<Omit<ProbeResult, 'key'>> {
+    const raw = await this.redis.get(USAGE_SNAPSHOT_KEY);
+    const snap = raw ? (JSON.parse(raw) as UsageSnapshot) : null;
+    const part = snap?.[which];
+    if (!snap || !part) {
+      return { status: 'grey', detail: { configured: false } };
+    }
+    if (!part.ok) {
+      return {
+        status: 'yellow',
+        detail: { configured: true, ok: false, error: part.error, at: snap.at },
+      };
+    }
+    const p = part as {
+      level?: string;
+      bandwidthLevel?: string;
+      storageLevel?: string;
+    };
+    const levels = [p.level, p.bandwidthLevel, p.storageLevel];
+    const status = levels.includes('crit')
+      ? 'red'
+      : levels.includes('warn')
+        ? 'yellow'
+        : 'green';
+    return { status, detail: { configured: true, at: snap.at, ...part } };
   }
 
   /** Everything the watchdog watches (see [WATCHED]). */

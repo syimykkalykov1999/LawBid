@@ -1284,6 +1284,41 @@ model ShardMap {
   @@map("shard_map")
 }
 
+// Shard-ready step 7 (docs/architecture/SHARDING_READY.md §6): the
+// transactional outbox for writes that cross families. One table PER PHYSICAL
+// DATABASE (global family only so the manifest has a home for it; the app
+// always reaches it through the client of the transaction's own database,
+// never through the global routing). A sharded write and its event commit in
+// one transaction; the relay (src/sharding/outbox) applies the event on the
+// primary database, once, and marks it done. `idempotency_key` makes a
+// repeated emit a no-op; `status` is pending | done | dead (dead letter).
+model CrossFamilyOutbox {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  event_type      String
+  idempotency_key String    @unique
+  payload         Json
+  status          String    @default("pending")
+  attempts        Int       @default(0)
+  next_attempt_at DateTime  @default(now()) @db.Timestamptz
+  last_error      String?
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  processed_at    DateTime? @db.Timestamptz
+
+  @@index([status, next_attempt_at])
+  @@map("cross_family_outbox")
+}
+
+// The consumer side: a key is inserted here in the SAME transaction as the
+// event's effect on the primary database; a second delivery finds the key
+// and does nothing (exactly-once effect).
+model CrossFamilyInbox {
+  idempotency_key String   @id
+  event_type      String
+  applied_at      DateTime @default(now()) @db.Timestamptz
+
+  @@map("cross_family_inbox")
+}
+
 model I18nLanguage {
   code        String  @id
   name_native String
@@ -1571,6 +1606,10 @@ model AttorneyLicense {
   bar_number          String
   license_status      LicenseStatus   @default(pending)
   expires_at          DateTime?       @db.Date
+  /// Owner 2026-10-24: who set expires_at: 'registry' (the state registry,
+  /// e.g. NY next_registration), 'attorney' or 'admin'. A registry date
+  /// replaces an attorney date, never an admin one.
+  expires_source      String?         @db.VarChar(16)
   verified_at         DateTime?       @db.Timestamptz
   verified_by         String?         @db.Uuid
   verifier            User?           @relation("LicenseVerifier", fields: [verified_by], references: [id], onDelete: Restrict)

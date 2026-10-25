@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import { licenseIsLapsed } from '../verification/license-renewal';
 import { Prisma } from '@prisma/client';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
@@ -198,6 +199,7 @@ const PROFILE_SELECT = {
       state_code: true,
       bar_number: true,
       license_status: true,
+      expires_at: true,
       registry_flag: true,
       auto_check_result: true,
     },
@@ -354,9 +356,21 @@ export class AttorneyTrustService {
       const signals = this.signalsOf({ ...row, trust });
       const level = computeLevel(signals);
       const requirements = await this.requirements();
+      // Owner 2026-10-24: every verified license is past its expiry date
+      // (grace period) -> the badge is hidden until a renewal; the
+      // account itself keeps working.
+      const verifiedNow = row.licenses.filter(
+        (l) => l.license_status === 'verified',
+      );
+      const allLapsed =
+        verifiedNow.length > 0 &&
+        verifiedNow.every((l) =>
+          licenseIsLapsed(l.license_status, l.expires_at, new Date()),
+        );
       const badge =
         row.verification_status === 'verified' &&
         !row.name_mismatch &&
+        !allLapsed &&
         isCleared(signals, requirements, trust.staff_cleared_at !== null);
       const now = new Date();
       if (

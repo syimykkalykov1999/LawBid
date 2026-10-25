@@ -161,6 +161,20 @@ export const LICENSE_STATUS: Record<string, string> = {
   suspended: 'приостановлена',
 };
 
+/** Owner 2026-10-24: where a license is on its renewal calendar. */
+export const LICENSE_RENEWAL: Record<string, string> = {
+  ok: 'действует',
+  expiring: 'скоро истекает',
+  renewal_due: 'требует продления',
+  expired: 'истекла',
+};
+
+export const LICENSE_EXPIRY_SOURCE: Record<string, string> = {
+  registry: 'из реестра',
+  attorney: 'указал адвокат',
+  admin: 'указал админ',
+};
+
 export const VERIFICATION_PROVIDER: Record<string, string> = {
   manual: 'вручную',
   stripe_identity: 'Stripe Identity',
