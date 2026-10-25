@@ -11,6 +11,7 @@ class AdminApprovalsCountDto {
   const AdminApprovalsCountDto({
     required this.pending,
     required this.limitCents,
+    required this.dualControl,
   });
 
   factory AdminApprovalsCountDto.fromJson(Map<String, Object?> json) =>
@@ -21,6 +22,9 @@ class AdminApprovalsCountDto {
 
   /// billing.dual_approval_min_cents: from this amount on.
   final int limitCents;
+
+  /// admin.dual_control: the second-admin rule is on (default off).
+  final bool dualControl;
 
   Map<String, Object?> toJson() => _$AdminApprovalsCountDtoToJson(this);
 }

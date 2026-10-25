@@ -108,6 +108,10 @@ async function probe(url: string, init: RequestInit): Promise<void> {
   }
 }
 
+/** PagerDuty CloudWatch / Events integration link (US or EU service region). */
+export const PAGERDUTY_URL =
+  /^https:\/\/events(\.eu)?\.pagerduty\.com\/integration\/[A-Za-z0-9]{16,64}\/enqueue$/;
+
 export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'bunny_stream',
@@ -765,6 +769,67 @@ export const PROVIDERS: ProviderDefinition[] = [
         clearTimeout(timer);
       }
     },
+  },
+  {
+    // Owner 2026-10-24: the phone-paging link. Saved here, the API itself
+    // subscribes it to the SNS topic lawbid-prod-critical (admin «Запуск»).
+    id: 'pagerduty',
+    label: 'PagerDuty (звонок на телефон при аварии)',
+    description:
+      'Ссылка интеграции PagerDuty. После «Включить» сервер сам подписывает её на критический топик тревог AWS; подписка и тестовая тревога видны на странице «Запуск».',
+    fields: [
+      {
+        name: 'integrationUrl',
+        label: 'Integration URL',
+        secret: true,
+        required: true,
+        pattern: PAGERDUTY_URL,
+        patternHint: 'https://events.pagerduty.com/integration/<ключ>/enqueue',
+        normalize: cleanPasted,
+      },
+    ],
+    // No network call: the link is the secret and the only honest test is
+    // the SNS subscription itself (shown on «Запуск»).
+    test: (f) => {
+      if (!PAGERDUTY_URL.test(f.integrationUrl ?? '')) {
+        return Promise.reject(new Error('Это не ссылка интеграции PagerDuty.'));
+      }
+      return Promise.resolve();
+    },
+  },
+  {
+    // Owner 2026-10-24: «Запуск» compares the running version with the
+    // newest commit of main. Optional: without it that item is a checkbox.
+    id: 'github',
+    label: 'GitHub (только чтение, для страницы «Запуск»)',
+    description:
+      'Чтобы страница «Запуск» сама видела, что запущена последняя версия main. Нужен токен только на чтение.',
+    fields: [
+      {
+        name: 'repo',
+        label: 'Репозиторий (владелец/имя)',
+        secret: false,
+        required: true,
+        pattern: /^[\w.-]+\/[\w.-]+$/,
+        patternHint: 'syimykkalykov1999/LawBid',
+      },
+      {
+        name: 'token',
+        label: 'Токен только на чтение (если репозиторий закрытый)',
+        secret: true,
+        required: false,
+        pattern: /^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/,
+        patternHint: 'github_pat_…',
+      },
+    ],
+    test: (f) =>
+      probe(`https://api.github.com/repos/${f.repo}`, {
+        headers: {
+          accept: 'application/vnd.github+json',
+          'user-agent': 'lawbid-admin',
+          ...(f.token ? { authorization: `Bearer ${f.token}` } : {}),
+        },
+      }),
   },
   {
     id: 'google_signin',
