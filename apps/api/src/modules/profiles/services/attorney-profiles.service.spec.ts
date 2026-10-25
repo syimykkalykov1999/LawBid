@@ -192,8 +192,18 @@ describe('AttorneyProfilesService', () => {
         username: 'Anna.Law',
         username_lower: 'anna.law',
         username_changed_at: now,
+        version: { increment: 1 },
       },
     });
+  });
+
+  it('a stale If-Match is a 409 STALE_VERSION and nothing is written', async () => {
+    const { svc, tx } = setup();
+    // setup()'s profile row has version 0 (or undefined in the stub): 99 never matches.
+    await expect(
+      svc.updateOwn('me', { bio: 'x' }, now, 99),
+    ).rejects.toMatchObject({ response: { code: 'STALE_VERSION' } });
+    expect(tx.attorneyProfile.update).not.toHaveBeenCalled();
   });
 
   it('same username is a no-op, not a change', async () => {

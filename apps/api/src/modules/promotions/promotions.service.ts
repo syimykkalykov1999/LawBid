@@ -19,6 +19,7 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { EntitlementsService } from '../plans/entitlements.service';
+import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
@@ -155,6 +156,8 @@ export class PromotionsService {
     @Optional() private readonly stars?: StarsService,
     // Owner 2026-10-22: our own card page in place of Stripe's.
     @Optional() private readonly payLink?: PayLinkService,
+    // Day-one foundations: the double-entry money ledger (same transaction).
+    @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
 
   /** Owner 2026-10-16: an attorney who is not verified cannot buy Boost
@@ -993,6 +996,7 @@ export class PromotionsService {
           paid_at: now,
         },
       });
+      await this.ledger?.paymentReceived(tx, payment, 'revenue_promotions');
       if (review) {
         const row = await tx.casePromotion.update({
           where: { id: p.id },

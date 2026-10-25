@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { isRedisClusterMode } from '../../redis/redis-connection';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 
 /**
@@ -55,23 +56,40 @@ export class OtpCleanupJob {
   async run(): Promise<OtpCleanupResult> {
     let scanned = 0;
     let deleted = 0;
-    for (const pattern of OTP_KEY_PATTERNS) {
-      let cursor = '0';
-      do {
-        const [next, keys] = await this.redis.scan(
-          cursor,
-          'MATCH',
-          pattern,
-          'COUNT',
-          OTP_SCAN_COUNT,
-        );
-        cursor = next;
-        if (keys.length === 0) continue;
-        scanned += keys.length;
-        deleted += Number(
-          await this.redis.eval(UNLINK_IF_PERSISTENT_LUA, keys.length, ...keys),
-        );
-      } while (cursor !== '0');
+    // Cluster: SCAN sees one node only, so sweep every master; keys carry a
+    // `{hash tag}` prefix there (ck), hence the leading `*`; and a Lua call
+    // may name one slot only, so one key per call.
+    const cluster = isRedisClusterMode();
+    const scanners: Redis[] = cluster
+      ? (this.redis as unknown as { nodes(r: string): Redis[] }).nodes('master')
+      : [this.redis];
+    for (const node of scanners) {
+      for (const base of OTP_KEY_PATTERNS) {
+        const pattern = cluster ? `*${base}` : base;
+        let cursor = '0';
+        do {
+          const [next, keys] = await node.scan(
+            cursor,
+            'MATCH',
+            pattern,
+            'COUNT',
+            OTP_SCAN_COUNT,
+          );
+          cursor = next;
+          if (keys.length === 0) continue;
+          scanned += keys.length;
+          const batches = cluster ? keys.map((k) => [k]) : [keys];
+          for (const batch of batches) {
+            deleted += Number(
+              await this.redis.eval(
+                UNLINK_IF_PERSISTENT_LUA,
+                batch.length,
+                ...batch,
+              ),
+            );
+          }
+        } while (cursor !== '0');
+      }
     }
     this.logger.info({ scanned, deleted }, 'otp cleanup finished');
     return { scanned, deleted };

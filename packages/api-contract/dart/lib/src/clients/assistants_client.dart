@@ -196,11 +196,14 @@ abstract class AssistantsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Edit a task
+  /// Edit a task.
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/tasks/{id}')
   Future<TaskEnvelope> updateTask({
     @Path('id') required String id,
     @Body() required UpdateTaskDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -211,11 +214,14 @@ abstract class AssistantsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Take / done / not done (+ note, + new time) / cancel
+  /// Take / done / not done (+ note, + new time) / cancel.
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/tasks/{id}/status')
   Future<TaskEnvelope> setTaskStatus({
     @Path('id') required String id,
     @Body() required UpdateTaskStatusDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 
