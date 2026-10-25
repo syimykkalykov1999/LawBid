@@ -85,7 +85,7 @@ module "stack" {
   database_instance_class = var.database_instance_class
   db_autoscale_enabled    = var.db_autoscale_enabled
   redis_autoscale_enabled = var.redis_autoscale_enabled
-  database_multi_az       = false # failover is not what this test measures; Multi-AZ doubles the price
+  database_multi_az       = var.gameday_enabled # off: failover is not what a normal run measures and Multi-AZ doubles the DB price; the GameDay run (FIS rds-failover) needs it
   # RDS needs at least 7 days of automated backups to allow point-in-time
   # restore; the instance (and its backups) is deleted at the end.
   database_backup_retention_days = 7
@@ -164,6 +164,21 @@ resource "aws_vpc_security_group_ingress_rule" "livekit_signal" {
   description                  = "load generators (lk load-test)"
 }
 
+# --- GameDay (AWS FIS): only when the workflow input `gameday` is not "none" ----
+module "gameday" {
+  count                       = var.gameday_enabled ? 1 : 0
+  source                      = "../../modules/fis-gameday"
+  name                        = module.stack.name
+  cluster_name                = module.stack.cluster_name
+  api_service_name            = module.stack.api_service_name
+  db_instance_id              = module.stack.database_instance_id
+  redis_replication_group_id  = module.stack.redis_replication_group_id
+  alb_arn_suffix              = module.stack.alb_arn_suffix
+  api_target_group_arn_suffix = module.stack.api_target_group_arn_suffix
+  tags                        = local.tags
+}
+
+output "gameday_templates" { value = one(module.gameday[*].template_ids) }
 output "stack" { value = module.stack }
 output "generator_instance_ids" { value = module.loadgen.instance_ids }
 output "generator_public_ips" { value = module.loadgen.public_ips }
