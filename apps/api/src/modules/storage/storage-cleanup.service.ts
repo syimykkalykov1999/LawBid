@@ -4,6 +4,10 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { withJobLock } from '../../jobs/handlers/job-lock';
+import {
+  activeHeldIds,
+  notInHeld,
+} from '../../common/legal-hold/legal-holds';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { forEachDatabase } from '../../sharding/for-each-database';
@@ -165,10 +169,17 @@ export class StorageCleanupService {
       if (ids.length < BATCH) break;
     }
 
+    // Owner 2026-10-28: files of a person under a legal hold are never
+    // purged from storage.
+    const held = await activeHeldIds(this.prisma, 'user', now);
     const seen = new Set<string>();
     for (let i = 0; i < MAX_BATCHES; i += 1) {
       const due = await this.prisma.file.findMany({
-        where: { deleted_at: { lt: purgeCutoff }, purged_at: null },
+        where: {
+          deleted_at: { lt: purgeCutoff },
+          purged_at: null,
+          owner_user_id: notInHeld(held),
+        },
         select: { id: true, deleted_reason: true },
         orderBy: { deleted_at: 'asc' },
         take: BATCH,

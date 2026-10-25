@@ -41,7 +41,7 @@ type CardTab = 'overview' | 'chats' | 'groups' | 'channels' | 'devices';
 const s = (v: unknown): string => (v == null ? '' : String(v));
 
 /** Runs [fn]; on «needs a fresh 2FA/password» shows the dialog and retries once. */
-function useStepUp() {
+export function useStepUp() {
   const [pending, setPending] = useState<(() => void) | null>(null);
   const run = (fn: () => Promise<unknown>, onError: (e: unknown) => void) => {
     fn().catch((e: unknown) => {
@@ -97,6 +97,9 @@ export function LegalWorkspace({
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [holdDate, setHoldDate] = useState('');
+  const [holdType, setHoldType] = useState<'user' | 'case' | 'conversation' | 'group'>('case');
+  const [holdId, setHoldId] = useState('');
+  const [custodyOf, setCustodyOf] = useState<string | null>(null);
 
   const hits = useQuery({
     queryKey: ['legal-lookup', requestId, searched],
@@ -170,7 +173,7 @@ export function LegalWorkspace({
     onError: (e) => toast.error(e),
   });
   const freeze = useMutation({
-    mutationFn: (t: { targetType: 'user' | 'conversation' | 'group'; targetId: string }) =>
+    mutationFn: (t: { targetType: 'user' | 'case' | 'conversation' | 'group'; targetId: string }) =>
       new Promise<void>((resolve, reject) =>
         stepUp.run(async () => {
           await api.POST('/admin/data-requests/legal/requests/{requestId}/holds', {
@@ -198,6 +201,12 @@ export function LegalWorkspace({
     onError: (e) => toast.error(e),
   });
 
+  const custody = useQuery({
+    queryKey: ['legal-custody', custodyOf],
+    enabled: !!custodyOf,
+    queryFn: async () =>
+      (await api.GET('/admin/data-requests/legal/exports/{exportId}/custody', { params: { path: { exportId: custodyOf! } } })).data!.data,
+  });
   const c = card.data;
   const toggle = <T,>(list: T[], v: T, set: (l: T[]) => void) =>
     set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -442,6 +451,29 @@ export function LegalWorkspace({
                 человек {x.subjectUserId}
                 {x.sha256 ? ` · SHA-256 ${x.sha256}` : ''}
               </div>
+              {x.manifestSha256 ? (
+                <div className="mt-1 break-all font-mono text-[11px] text-muted">
+                  Манифест SHA-256 {x.manifestSha256} · подпись ({x.signatureAlg === 'ed25519' ? 'ed25519, проверяется открытым ключом' : 'HMAC, только для LawBid'})
+                </div>
+              ) : null}
+              <div className="text-xs text-muted">
+                Скачано раз: {x.downloadCount}
+                {x.lastDownloadedAt ? ` · последний ${formatDateTime(x.lastDownloadedAt)}` : ''}
+              </div>
+              <Button className="mt-1" size="sm" variant="ghost" onClick={() => setCustodyOf(custodyOf === x.id ? null : x.id)}>
+                Кто и когда трогал
+              </Button>
+              {custodyOf === x.id ? (
+                <ul className="mt-1 space-y-1 text-xs text-muted">
+                  {custody.data?.map((e, i) => (
+                    <li key={i} className="break-all">
+                      {formatDateTime(e.at)} · {e.action} · админ {e.adminId}
+                      {e.ip ? ` · IP ${e.ip}` : ''}
+                    </li>
+                  ))}
+                  {custody.data?.length === 0 ? <li>Записей нет</li> : null}
+                </ul>
+              ) : null}
               {x.expiresAt && x.status === 'ready' ? <div className="text-xs text-muted">Файл удалится {formatDateTime(x.expiresAt)}</div> : null}
               {x.error ? <div className="text-xs text-danger">{x.error}</div> : null}
               {x.status === 'ready' ? (
@@ -460,6 +492,23 @@ export function LegalWorkspace({
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p className="text-xs text-muted">Удалённое хранится 90 дней и потом очищается. Замороженное не очищается, пока ты не снимешь заморозку.</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <select
+              aria-label="Что заморозить"
+              className="h-10 rounded-[var(--radius-md)] border border-line bg-surface px-2 text-sm"
+              value={holdType}
+              onChange={(e) => setHoldType(e.target.value as typeof holdType)}
+            >
+              <option value="case">кейс</option>
+              <option value="user">человек</option>
+              <option value="conversation">чат</option>
+              <option value="group">группа</option>
+            </select>
+            <Input aria-label="id для заморозки" placeholder="id (uuid)" value={holdId} onChange={(e) => setHoldId(e.target.value)} />
+            <Button size="sm" disabled={closed || holdId.trim().length < 32} loading={freeze.isPending} onClick={() => freeze.mutate({ targetType: holdType, targetId: holdId.trim() })}>
+              Заморозить
+            </Button>
+          </div>
           {holdsQ.data?.length === 0 ? <p className="text-muted">Заморозок нет</p> : null}
           {holdsQ.data?.map((h) => {
             const active = !h.releasedAt && (!h.expiresAt || new Date(h.expiresAt) > new Date());
