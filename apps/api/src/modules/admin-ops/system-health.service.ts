@@ -7,6 +7,7 @@ import { StatusProbesService } from '../../common/ops/status/status-probes.servi
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
+import { SecretRotationService } from '../../common/ops/secret-rotation.service';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
@@ -66,6 +67,8 @@ export class SystemHealthService implements OnModuleDestroy {
     // Owner 2026-10-22: the status board's extra probes and incident list.
     @Optional() private readonly probes?: StatusProbesService,
     @Optional() private readonly incidents?: IncidentsService,
+    // Owner 2026-10-25: last / next rotation per rotated secret.
+    @Optional() private readonly rotation?: SecretRotationService,
   ) {}
 
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
@@ -81,6 +84,9 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('cost', () => this.cost()),
       this.safe('message_keys', () => this.messageKeys()),
     ]);
+    if (this.rotation?.enabled) {
+      items.push(await this.safe('secret_rotation', () => this.secretRotation(now)));
+    }
     const extra = this.probes ? await this.probes.extra() : [];
     items.push(...extra.filter((e) => !items.some((i) => i.key === e.key)));
     const incidents = this.incidents
@@ -192,6 +198,24 @@ export class SystemHealthService implements OnModuleDestroy {
             : [],
       },
     };
+  }
+
+  /**
+   * Owner 2026-10-25 (docs/runbooks/secrets-rotation.md): when each
+   * automatically rotated secret was last rotated and when the next one is
+   * due. Red = a rotation failed, yellow = overdue or the hourly check is
+   * silent. Only present while rotation is switched on.
+   */
+  private async secretRotation(
+    now: Date,
+  ): Promise<Omit<HealthItemDto, 'key'>> {
+    const rows = await this.rotation!.rows(now);
+    const status: HealthStatus = rows.some((r) => r.state === 'failed')
+      ? 'red'
+      : rows.some((r) => r.state === 'overdue' || r.state === 'unknown')
+        ? 'yellow'
+        : 'green';
+    return { status, detail: { secrets: rows } };
   }
 
   private api(): HealthItemDto {
