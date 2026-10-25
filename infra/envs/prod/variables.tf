@@ -448,7 +448,7 @@ variable "cpu_architecture" {
 # Security research #5 (2026-10-22): WAF, cloud detector, container.
 variable "waf_otp_rate_limit_per_5m" {
   type    = number
-  default = 60
+  default = 20 # raise to 60 when the per-device rules are on (waf_device_header)
 }
 variable "waf_bot_control_enabled" {
   type    = bool
@@ -638,7 +638,11 @@ variable "replicate_media" {
 # S4-7 / S4-8 / S4-10 (audit 2026-10-25): load balancer and edge rules.
 variable "waf_device_header" {
   type    = string
-  default = "x-device-id"
+  default = "" # "x-device-id" turns on the per-device rules (+$2/month)
+}
+variable "waf_auth_rules_enabled" {
+  type    = bool
+  default = false
 }
 variable "waf_auth_rate_action" {
   type    = string

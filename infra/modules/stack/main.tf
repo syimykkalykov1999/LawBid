@@ -439,13 +439,18 @@ variable "waf_rate_limit_per_5m" {
 # OTP limits stay; this stops a flood before it reaches the API at all).
 variable "waf_otp_rate_limit_per_5m" {
   type        = number
-  default     = 60
+  default     = 20
   description = "Requests to the OTP / password-reset / phone-status paths from one IP in 5 minutes before the ALB WAF blocks it (backstop for callers without a device header; S4-8: one CGNAT address carries many people)."
 }
 variable "waf_device_header" {
   type        = string
-  default     = "x-device-id"
-  description = "S4-8: second WAF rate-limit key next to the IP (per-device rules). Empty = off."
+  default     = ""
+  description = "S4-8: second WAF rate-limit key next to the IP (per-device rules, 2 WAF rules = +$2/month). Empty = off (default); set x-device-id to turn on."
+}
+variable "waf_auth_rules_enabled" {
+  type        = bool
+  default     = false
+  description = "S4-8: add the login-path rate rule (and the refresh rule when waf_device_header is set); each is a WAF rule at $1/month. Off by default."
 }
 variable "waf_auth_rate_action" {
   type        = string
@@ -827,6 +832,7 @@ module "alb" {
   waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
   waf_device_header         = var.waf_device_header
   waf_auth_rate_action      = var.waf_auth_rate_action
+  waf_auth_rules_enabled    = var.waf_auth_rules_enabled
   deletion_protection       = var.alb_deletion_protection && !var.ephemeral
   load_balancing_algorithm  = var.alb_least_outstanding_requests ? "least_outstanding_requests" : "round_robin"
   ws_target_group_enabled   = var.alb_websocket_target_group

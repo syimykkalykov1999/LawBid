@@ -149,6 +149,7 @@ module "stack" {
   waf_otp_rate_limit_per_5m      = var.waf_otp_rate_limit_per_5m
   waf_device_header              = var.waf_device_header
   waf_auth_rate_action           = var.waf_auth_rate_action
+  waf_auth_rules_enabled         = var.waf_auth_rules_enabled
   alb_deletion_protection        = var.alb_deletion_protection
   alb_least_outstanding_requests = var.alb_least_outstanding_requests
   alb_websocket_target_group     = var.alb_websocket_target_group

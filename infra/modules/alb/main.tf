@@ -28,7 +28,7 @@ variable "admin_allowed_cidrs" {
 # Security research #5 (2026-10-22), A3.
 variable "waf_otp_rate_limit_per_5m" {
   type        = number
-  default     = 60
+  default     = 20
   description = "Code-sending paths, per IP only: the backstop for callers that send no device header. Raised from 20 (S4-8) because one CGNAT address carries many people; the per-(IP + device) rule waf_otp_rate_limit_per_device_per_5m stays tight at 20."
 }
 # S4-8 (audit 2026-10-25). Behind carrier CGNAT thousands of people share one
@@ -41,8 +41,8 @@ variable "waf_otp_rate_limit_per_5m" {
 # docs/runbooks/infra-hardening.md.
 variable "waf_device_header" {
   type        = string
-  default     = "x-device-id"
-  description = "Request header that identifies a device. Used as a second rate-limit key next to the IP. Empty = no per-device rules."
+  default     = ""
+  description = "Request header that identifies a device (x-device-id). Used as a second rate-limit key next to the IP; each per-device rule is a WAF rule at $1/month. Empty = no per-device rules (default)."
 }
 variable "waf_otp_rate_limit_per_device_per_5m" {
   type        = number
@@ -58,6 +58,11 @@ variable "waf_auth_refresh_limit_per_device_per_5m" {
   type        = number
   default     = 120
   description = "Token refresh: calls per 5 minutes for one (IP + device)."
+}
+variable "waf_auth_rules_enabled" {
+  type        = bool
+  default     = false
+  description = "S4-8: add the login-path rate rule (and the refresh rule when waf_device_header is set); each is a WAF rule at $1/month. Off by default."
 }
 variable "waf_auth_rate_action" {
   type        = string
@@ -503,37 +508,40 @@ resource "aws_wafv2_web_acl" "this" {
   # S4-8: floor under credential stuffing on the login paths (per IP, wide
   # enough for a CGNAT city), and a per-(IP + device) limit on token refresh.
   # count first, block when the metric has been quiet for a week.
-  rule {
-    name     = "auth-login-rate-per-ip"
-    priority = 5
-    action {
-      dynamic "count" {
-        for_each = var.waf_auth_rate_action == "count" ? [1] : []
-        content {}
+  dynamic "rule" {
+    for_each = var.waf_auth_rules_enabled ? [1] : []
+    content {
+      name     = "auth-login-rate-per-ip"
+      priority = 5
+      action {
+        dynamic "count" {
+          for_each = var.waf_auth_rate_action == "count" ? [1] : []
+          content {}
+        }
+        dynamic "block" {
+          for_each = var.waf_auth_rate_action == "block" ? [1] : []
+          content {}
+        }
       }
-      dynamic "block" {
-        for_each = var.waf_auth_rate_action == "block" ? [1] : []
-        content {}
-      }
-    }
-    statement {
-      rate_based_statement {
-        limit              = var.waf_auth_rate_limit_per_5m
-        aggregate_key_type = "IP"
-        scope_down_statement {
-          or_statement {
-            dynamic "statement" {
-              for_each = local.auth_login_paths
-              content {
-                byte_match_statement {
-                  search_string         = statement.value
-                  positional_constraint = "EXACTLY"
-                  field_to_match {
-                    uri_path {}
-                  }
-                  text_transformation {
-                    priority = 0
-                    type     = "NONE"
+      statement {
+        rate_based_statement {
+          limit              = var.waf_auth_rate_limit_per_5m
+          aggregate_key_type = "IP"
+          scope_down_statement {
+            or_statement {
+              dynamic "statement" {
+                for_each = local.auth_login_paths
+                content {
+                  byte_match_statement {
+                    search_string         = statement.value
+                    positional_constraint = "EXACTLY"
+                    field_to_match {
+                      uri_path {}
+                    }
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
                   }
                 }
               }
@@ -541,16 +549,16 @@ resource "aws_wafv2_web_acl" "this" {
           }
         }
       }
-    }
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "${var.name}-auth-login-rate-per-ip"
-      sampled_requests_enabled   = true
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.name}-auth-login-rate-per-ip"
+        sampled_requests_enabled   = true
+      }
     }
   }
 
   dynamic "rule" {
-    for_each = var.waf_device_header != "" ? [1] : []
+    for_each = var.waf_device_header != "" && var.waf_auth_rules_enabled ? [1] : []
     content {
       name     = "auth-refresh-rate-per-device"
       priority = 6
