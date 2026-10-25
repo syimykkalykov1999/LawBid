@@ -2466,6 +2466,7 @@ export 'models/fixed_cost_view_dto_period.dart';
 export 'models/fixed_cost_dto_period.dart';
 export 'models/spend_line_dto_key.dart';
 export 'models/spend_line_dto_source.dart';
+export 'models/spend_line_dto_covered_by.dart';
 export 'models/economy_settings_dto_ceiling_mode.dart';
 export 'models/containers_dto_scale_mode.dart';
 export 'models/economy_event_dto_kind.dart';

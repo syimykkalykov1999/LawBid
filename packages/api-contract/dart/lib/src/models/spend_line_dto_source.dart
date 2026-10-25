@@ -4,7 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-/// actual = read from AWS; estimate = units × unit price.
+/// actual = read from the vendor; estimate = calls × price book.
 @JsonEnum()
 enum SpendLineDtoSource {
   @JsonValue('actual')

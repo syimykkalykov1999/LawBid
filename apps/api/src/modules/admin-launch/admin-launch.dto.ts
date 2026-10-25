@@ -124,7 +124,17 @@ export class FreeTierDto {
 }
 
 export class VendorSpendDto {
-  @ApiProperty({ enum: ['aws', 'twilio', 'bunny', 'cloudflare', 'stripe'] })
+  @ApiProperty({
+    enum: [
+      'aws',
+      'twilio',
+      'bunny',
+      'cloudflare',
+      'stripe',
+      'google',
+      'sentry',
+    ],
+  })
   id!: string;
   @ApiProperty() label!: string;
   @ApiProperty({ enum: ['ok', 'stale', 'nodata'] }) status!: string;

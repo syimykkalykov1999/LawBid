@@ -31,6 +31,84 @@ export function allowedSpendUsd(
   return Math.max(byRule, Math.max(thresholdUsd, 0));
 }
 
+/** Stripe card fee (2.9 % + 30 ¢ per payment) — the cut Stripe keeps. */
+export const STRIPE_FEE_PERCENT = 2.9;
+export const STRIPE_FEE_FIXED_CENTS = 30;
+
+export interface RevenueInput {
+  /** Σ price before tax of succeeded payments (cents). */
+  subtotalCents: number;
+  /** Σ amount charged, tax included (cents) — the fee is taken on this. */
+  grossCents: number;
+  /** Σ succeeded refunds of payments still counted above (cents). */
+  refundedCents: number;
+  payments: number;
+}
+
+/** S9-3: the money the company keeps — price before tax, minus refunds,
+ * minus the estimated Stripe fee. Never negative. */
+export function netRevenueUsd(i: RevenueInput): number {
+  const fee =
+    (Math.max(i.grossCents, 0) * STRIPE_FEE_PERCENT) / 100 +
+    Math.max(i.payments, 0) * STRIPE_FEE_FIXED_CENTS;
+  const net = i.subtotalCents - Math.max(i.refundedCents, 0) - fee;
+  return Math.max(net, 0) / 100;
+}
+
+/** S9-4: global daily money brake in cents = allowed spend / 30 × days.
+ * At least 1 ¢ (a cap of 0 would mean «no cap» downstream). */
+export function dailyBrakeCents(allowedUsd: number, days: number): number {
+  const d = Math.max(days, 0.5);
+  return Math.max(1, Math.round((Math.max(allowedUsd, 0) / 30) * d * 100));
+}
+
+/** A vendor reading older than this is not trusted (counters instead). */
+export const VENDOR_MAX_AGE_MS = 3 * 86_400_000;
+
+export interface VendorReading {
+  status: 'ok' | 'stale' | 'nodata';
+  monthToDateUsd: number | null;
+  forecastUsd: number | null;
+  updatedAt: string | null;
+}
+
+/** S9-1: the vendor's own number when its API answered recently, else the
+ * counters × the price book (`counterMtdUsd`). */
+export function pickVendorLine(
+  v: VendorReading | null | undefined,
+  counterMtdUsd: number,
+  now: Date,
+): {
+  monthToDateUsd: number;
+  projectedUsd: number;
+  source: 'actual' | 'estimate';
+} {
+  const fresh =
+    !!v &&
+    v.status !== 'nodata' &&
+    v.monthToDateUsd !== null &&
+    v.updatedAt !== null &&
+    now.getTime() - Date.parse(v.updatedAt) <= VENDOR_MAX_AGE_MS;
+  if (fresh && v) {
+    const mtd = v.monthToDateUsd!;
+    return {
+      monthToDateUsd: mtd,
+      projectedUsd: Math.max(v.forecastUsd ?? projectMonth(mtd, now), mtd),
+      source: 'actual',
+    };
+  }
+  return {
+    monthToDateUsd: counterMtdUsd,
+    projectedUsd: projectMonth(counterMtdUsd, now),
+    source: 'estimate',
+  };
+}
+
+/** S9-14: RDS gp3 storage per month (Multi-AZ doubles it). */
+export function dbStorageMonthUsd(gb: number, multiAz: boolean): number {
+  return Math.round(Math.max(gb, 0) * (multiAz ? 0.23 : 0.115) * 100) / 100;
+}
+
 /** Straight-line month projection (the first days don't extrapolate
  * wildly: at least 3 days count as elapsed — same as cost-autoscale). */
 export function projectMonth(monthToDateUsd: number, now: Date): number {
@@ -119,6 +197,28 @@ export function manualCeiling(n: number, min: number, hardCap: number): number {
 export function fargateTaskMonthUsd(vcpu: number, memoryGb: number): number {
   const hours = 730;
   return Math.round(hours * (vcpu * 0.04048 + memoryGb * 0.004445) * 100) / 100;
+}
+
+/** S9-7: Graviton (ARM64) Fargate is about 20 % cheaper than x86. */
+export const ARM_PRICE_FACTOR = 0.8;
+/** S9-7: Fargate Spot is about 70 % cheaper, but each service keeps one
+ * on-demand task (capacity-provider base 1), so a blended task costs about
+ * 45 % of the on-demand price. Both factors are overridable from env
+ * (OPS_ARM_PRICE_FACTOR / OPS_SPOT_PRICE_FACTOR). */
+export const SPOT_BLENDED_PRICE_FACTOR = 0.45;
+
+/** What share of the x86 on-demand price a task really costs. */
+export function taskPriceFactor(o: {
+  arch?: string | null;
+  spot: boolean;
+  armFactor?: number;
+  spotFactor?: number;
+}): number {
+  const arm = (o.arch ?? '').toUpperCase() === 'ARM64';
+  return (
+    (arm ? (o.armFactor ?? ARM_PRICE_FACTOR) : 1) *
+    (o.spot ? (o.spotFactor ?? SPOT_BLENDED_PRICE_FACTOR) : 1)
+  );
 }
 
 // --- database / Redis tiers ----------------------------------------------

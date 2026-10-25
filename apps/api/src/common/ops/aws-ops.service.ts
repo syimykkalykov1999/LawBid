@@ -11,6 +11,7 @@ import {
   ECSClient,
   UpdateServiceCommand,
 } from '@aws-sdk/client-ecs';
+import { taskPriceFactor } from '../economy/economy.rules';
 import type { CostSnapshot } from './ops.constants';
 import { OpsStateService } from './ops-state.service';
 
@@ -112,12 +113,24 @@ export class AwsOpsService {
       : this.num('OPS_WORKER_MAX_TASKS', 2);
   }
 
-  /** Monthly cost of one running task (Terraform computes it from the
-   * task size; the defaults match the launch sizes). */
+  /** Monthly cost of one running task. Terraform passes the x86 on-demand
+   * price of the task size (the defaults match the launch sizes); the
+   * architecture (ARM64 ≈ ×0.8) and Spot (blended ≈ ×0.45) are applied
+   * here (S9-7), so the ceiling math sees what the bill really holds. */
   taskUsd(kind: TaskKind): number {
-    return kind === 'api'
-      ? this.num('OPS_API_TASK_USD', 18)
-      : this.num('OPS_WORKER_TASK_USD', 28);
+    const base =
+      kind === 'api'
+        ? this.num('OPS_API_TASK_USD', 18)
+        : this.num('OPS_WORKER_TASK_USD', 28);
+    const spot =
+      this.env(kind === 'api' ? 'OPS_API_SPOT' : 'OPS_WORKER_SPOT') === 'on';
+    const factor = taskPriceFactor({
+      arch: this.env('OPS_CPU_ARCH'),
+      spot,
+      armFactor: this.num('OPS_ARM_PRICE_FACTOR', 0.8),
+      spotFactor: this.num('OPS_SPOT_PRICE_FACTOR', 0.45),
+    });
+    return Math.round(base * factor * 100) / 100;
   }
 
   /**

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { FeatureFlagsService } from '../../modules/feature-flags/services/feature-flags.service';
@@ -14,7 +14,13 @@ import {
 import {
   COST_PROVIDERS,
   COST_WINDOWS,
+  ECONOMY_DAILY_BRAKE_KEY,
+  ECONOMY_DAILY_BRAKE_TTL_SEC,
+  type CostProvider,
 } from '../cost-guard/cost-guard.constants';
+import { parsePriceBook, unitUsdPerCall } from '../cost-guard/cost-prices';
+import { S3StorageService } from '../../modules/files/storage/s3-storage.service';
+import { SpendService, type VendorSpend } from '../ops/spend/spend.service';
 import {
   AwsCapacityService,
   type CapacityTarget,
@@ -28,7 +34,11 @@ import type {
 import { OpsStateService } from '../ops/ops-state.service';
 import {
   affordableCeilings,
+  dailyBrakeCents,
+  dbStorageMonthUsd,
   DB_TIERS,
+  netRevenueUsd,
+  pickVendorLine,
   limitStepUp,
   manualCeiling,
   nextGuardActive,
@@ -44,6 +54,7 @@ import {
 } from './economy.rules';
 
 export const ECONOMY_FLAG = 'economy_guard';
+const SCALE_CONTROLS_KEY = 'economy:scale_controls_published';
 
 const DAY_MS = 86_400_000;
 const PRESSURE_ALERT_TTL_SEC = 6 * 3600;
@@ -54,18 +65,29 @@ export interface EconomySettings {
   ceilingMode: 'auto' | 'manual';
   manualApi: number;
   manualWorker: number;
-  smsUnitUsd: number;
-  videoUnitUsd: number;
-  translateUnitUsd: number;
   awsFallbackUsd: number;
+  /** S9-4: the daily money brake = allowed / 30 × this many days. */
+  dailyBrakeDays: number;
 }
 
 export interface SpendLine {
-  key: 'aws' | 'sms' | 'video' | 'translate';
+  key:
+    | 'aws'
+    | 'sms'
+    | 'video'
+    | 'translate'
+    | 'id_check'
+    | 'email'
+    | 'image_moderation'
+    | 'cloudflare';
   monthToDateUsd: number;
   projectedUsd: number;
-  /** actual = read from AWS Budgets; estimate = units × unit price. */
+  /** actual = read from the vendor (AWS Budgets, Twilio, Bunny…);
+   * estimate = calls × the price book. */
   source: 'actual' | 'estimate';
+  /** The AWS bill already contains this line (SES, Rekognition): shown,
+   * but not added to the totals a second time. */
+  coveredBy?: 'aws' | null;
 }
 
 export interface EconomyFigures {
@@ -112,6 +134,9 @@ export interface EconomyReport {
     dbCpuPercent: number | null;
     dbConnections: number | null;
     dbMaxConnections: number | null;
+    /** S9-14: allocated disk, GB, and its monthly price (gp3). */
+    dbStorageGb: number | null;
+    dbStorageUsd: number | null;
     redisClass: string | null;
     redisNext: string | null;
     redisMemoryPercent: number | null;
@@ -152,6 +177,8 @@ export class EconomyService {
     private readonly ops: OpsStateService,
     private readonly autoscale: CostAutoscaleService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly spend?: SpendService,
+    @Optional() private readonly storage?: S3StorageService,
   ) {
     this.logger.setContext(EconomyService.name);
   }
@@ -168,20 +195,16 @@ export class EconomyService {
       mode,
       manualApi,
       manualWorker,
-      smsUnitUsd,
-      videoUnitUsd,
-      translateUnitUsd,
       awsFallbackUsd,
+      dailyBrakeDays,
     ] = await Promise.all([
       s.number('economy.max_spend_percent'),
       s.number('economy.min_threshold_usd'),
       s.string('economy.ceiling_mode'),
       s.number('economy.manual_api_max'),
       s.number('economy.manual_worker_max'),
-      s.number('economy.sms_unit_usd'),
-      s.number('economy.video_unit_usd'),
-      s.number('economy.translate_unit_usd'),
       s.number('economy.aws_fallback_usd'),
+      s.number('economy.daily_brake_days'),
     ]);
     return {
       percent,
@@ -189,19 +212,38 @@ export class EconomyService {
       ceilingMode: mode === 'manual' ? 'manual' : 'auto',
       manualApi,
       manualWorker,
-      smsUnitUsd,
-      videoUnitUsd,
-      translateUnitUsd,
       awsFallbackUsd,
+      dailyBrakeDays,
     };
   }
 
+  /** S9-3: NET revenue since [since] — price before tax of succeeded
+   * payments, minus refunds of those payments, minus the estimated Stripe
+   * fee (the cash the company keeps, not what customers were charged). */
   private async revenueUsd(since: Date): Promise<number> {
-    const res = await this.prisma.payment.aggregate({
-      _sum: { amount_cents: true },
-      where: { status: 'succeeded', paid_at: { gte: since } },
+    const rows = await this.prisma.$queryRaw<
+      {
+        subtotal_cents: bigint | number | null;
+        gross_cents: bigint | number | null;
+        payments: bigint | number | null;
+        refunded_cents: bigint | number | null;
+      }[]
+    >`
+      SELECT
+        COALESCE(SUM(COALESCE(p.subtotal_cents, p.amount_cents - COALESCE(p.tax_cents, 0))), 0) AS subtotal_cents,
+        COALESCE(SUM(p.amount_cents), 0) AS gross_cents,
+        COUNT(*) AS payments,
+        COALESCE(SUM((SELECT COALESCE(SUM(r.amount_cents), 0) FROM refunds r
+                      WHERE r.payment_id = p.id AND r.status = 'succeeded')), 0) AS refunded_cents
+      FROM payments p
+      WHERE p.status = 'succeeded' AND p.paid_at >= ${since}`;
+    const r = rows[0];
+    return netRevenueUsd({
+      subtotalCents: Number(r?.subtotal_cents ?? 0),
+      grossCents: Number(r?.gross_cents ?? 0),
+      payments: Number(r?.payments ?? 0),
+      refundedCents: Number(r?.refunded_cents ?? 0),
     });
-    return (res._sum.amount_cents ?? 0) / 100;
   }
 
   /** Revenue, estimated spend and the rule, as of [now]. */
@@ -258,25 +300,49 @@ export class EconomyService {
         source: 'estimate',
       });
     }
+    const awsActual = lines[0].source === 'actual';
+    const vendors = await this.vendorReadings(now);
+    const { stored } = await this.autoscale.readSettings();
+    const book = parsePriceBook(stored);
+    const counted = async (p: CostProvider): Promise<number> =>
+      (await this.autoscale.usage(p, now)).month * unitUsdPerCall(p, book);
+    // [key, provider, vendor reading, covered by the AWS bill]
     const priced: [
       SpendLine['key'],
-      (typeof COST_PROVIDERS)[number],
-      number,
+      CostProvider,
+      VendorSpend | undefined,
+      boolean,
     ][] = [
-      ['sms', 'sms', c.smsUnitUsd],
-      ['video', 'video', c.videoUnitUsd],
-      ['translate', 'translate', c.translateUnitUsd],
+      ['sms', 'sms', vendors.get('twilio'), false],
+      ['video', 'video', vendors.get('bunny'), false],
+      ['translate', 'translate', vendors.get('google'), false],
+      ['id_check', 'id_check', undefined, false],
+      ['email', 'email', undefined, awsActual],
+      ['image_moderation', 'image_moderation', undefined, awsActual],
     ];
-    for (const [key, provider, unit] of priced) {
-      const { month } = await this.autoscale.usage(provider, now);
-      const mtd = month * unit;
+    for (const [key, provider, vendor, covered] of priced) {
+      const pick = pickVendorLine(vendor, await counted(provider), now);
       lines.push({
         key,
-        monthToDateUsd: usd(mtd),
-        projectedUsd: usd(projectMonth(mtd, now)),
-        source: 'estimate',
+        monthToDateUsd: usd(pick.monthToDateUsd),
+        projectedUsd: usd(pick.projectedUsd),
+        source: pick.source,
+        ...(covered ? { coveredBy: 'aws' as const } : {}),
       });
     }
+    // Cloudflare (calls over the free traffic, R2): only the vendor's
+    // number, there is no counter behind it.
+    const cf = vendors.get('cloudflare');
+    if (cf && cf.status !== 'nodata' && cf.monthToDateUsd !== null) {
+      const pick = pickVendorLine(cf, 0, now);
+      lines.push({
+        key: 'cloudflare',
+        monthToDateUsd: usd(pick.monthToDateUsd),
+        projectedUsd: usd(pick.projectedUsd),
+        source: 'actual',
+      });
+    }
+    const counts = lines.filter((l) => !l.coveredBy);
     return {
       revenue30dUsd: usd(revenue30dUsd),
       revenueMonthUsd: usd(revenueMonthUsd),
@@ -284,9 +350,22 @@ export class EconomyService {
         allowedSpendUsd(revenue30dUsd, c.percent, c.thresholdUsd),
       ),
       lines,
-      monthToDateUsd: usd(lines.reduce((s, l) => s + l.monthToDateUsd, 0)),
-      projectedUsd: usd(lines.reduce((s, l) => s + l.projectedUsd, 0)),
+      monthToDateUsd: usd(counts.reduce((s, l) => s + l.monthToDateUsd, 0)),
+      projectedUsd: usd(counts.reduce((s, l) => s + l.projectedUsd, 0)),
     };
+  }
+
+  /** The vendors' own numbers from the spend snapshot (S9-1); empty when
+   * the snapshot cannot be read (the counters take over). */
+  private async vendorReadings(
+    now: Date,
+  ): Promise<Map<VendorSpend['id'], VendorSpend>> {
+    try {
+      const rep = await this.spend?.report(now);
+      return new Map((rep?.vendors ?? []).map((v) => [v.id, v]));
+    } catch {
+      return new Map();
+    }
   }
 
   // --- the 5-minute job ---------------------------------------------------
@@ -300,6 +379,8 @@ export class EconomyService {
     }
     const cfg = await this.settings();
     const f = await this.figures(now, cfg);
+    await this.writeDailyBrake(f.allowedUsd, cfg.dailyBrakeDays);
+    await this.publishScaleControls();
     const next = nextGuardActive(active, f.projectedUsd, f.allowedUsd);
     if (next && !active) await this.enter(f, now);
     else if (!next && active)
@@ -323,6 +404,52 @@ export class EconomyService {
       this.fail('pressure', e),
     );
     return out;
+  }
+
+  /** S9-4: the global daily money brake follows the allowance (CostGuard
+   * reads this key; no key = the launch floor). */
+  private async writeDailyBrake(allowedUsd: number, days: number) {
+    try {
+      await this.redis.set(
+        ECONOMY_DAILY_BRAKE_KEY,
+        String(dailyBrakeCents(allowedUsd, days)),
+        'EX',
+        ECONOMY_DAILY_BRAKE_TTL_SEC,
+      );
+    } catch (e) {
+      this.fail('daily_brake', e);
+    }
+  }
+
+  /** Owner 2026-10-25: the three-state controls (off / on / auto) and the
+   * ceilings the owner sets in the admin reach the Lambdas through one small
+   * S3 object (they cannot read our database). Written only when changed. */
+  private async publishScaleControls(): Promise<void> {
+    try {
+      const bucket = this.storage?.awsBucket('documents');
+      if (!this.storage || !bucket) return;
+      const [mode, ceiling] = await Promise.all([
+        this.settingsSvc.string('scale.endpoints.mode'),
+        this.settingsSvc.number('scale.endpoints.ceiling'),
+      ]);
+      const body = JSON.stringify({
+        endpoints: {
+          mode: mode === 'on' || mode === 'off' ? mode : 'auto',
+          ceiling: Math.max(0, Math.min(4, Math.floor(ceiling))),
+        },
+      });
+      const last = await this.redis.get(SCALE_CONTROLS_KEY);
+      if (last === body) return;
+      await this.storage.put(
+        bucket,
+        'ops/scale-controls.json',
+        Buffer.from(body),
+        'application/json',
+      );
+      await this.redis.set(SCALE_CONTROLS_KEY, body, 'EX', 7 * 86_400);
+    } catch (e) {
+      this.fail('scale_controls', e);
+    }
   }
 
   private fail(step: string, e: unknown): { error: string } {
@@ -639,6 +766,11 @@ export class EconomyService {
         dbCpuPercent: cap?.dbCpuPercent ?? null,
         dbConnections: cap?.dbConnections ?? null,
         dbMaxConnections: cap?.dbMaxConnections ?? null,
+        dbStorageGb: cap?.dbStorageGb ?? null,
+        dbStorageUsd:
+          cap?.dbStorageGb != null
+            ? dbStorageMonthUsd(cap.dbStorageGb, cap.dbMultiAz ?? true)
+            : null,
         redisClass: cap?.redisClass ?? null,
         redisNext: nextTier(REDIS_TIERS, cap?.redisClass)?.name ?? null,
         redisMemoryPercent: cap?.redisMemoryPercent ?? null,
