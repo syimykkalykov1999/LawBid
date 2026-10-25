@@ -554,6 +554,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description: '«Лучший сотрудник» period: month or week.',
     pattern: /^(month|week)$/,
   };
+  // Owner 2026-10-26: hash partitioning of messages / group messages /
+  // notifications is opt-in (off | on | auto at partition.auto_rows).
+  for (const t of ['messages', 'chat_group_messages', 'notifications']) {
+    out[`partition.${t}_mode`] = {
+      ...out[`partition.${t}_mode`],
+      description: `Hash partitioning of ${t}: off = plain table (default, faster while small), on = the online runner converts now, auto = converts at partition.auto_rows.`,
+      pattern: /^(off|on|auto)$/,
+    };
+  }
+  out['partition.auto_rows'] = {
+    ...out['partition.auto_rows'],
+    description:
+      'Rows at which the «auto» partition mode converts a table (default 50 million).',
+    min: 1_000_000,
+    max: 5_000_000_000,
+  };
   out['sms.allowed_country_codes'] = {
     type: 'string[]',
     defaultValue: ['US'],

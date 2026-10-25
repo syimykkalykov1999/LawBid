@@ -47,12 +47,15 @@ interface PartCard {
   finalizeAfter: string | null;
   overThreshold: boolean;
   runnerConfigured: boolean;
+  mode: 'off' | 'on' | 'auto' | null;
+  autoRows: number;
 }
 
 type Pending =
   | { kind: 'replica'; enabled: boolean }
   | { kind: 'start' | 'undo' | 'finalize' | 'abort' | 'retry'; table: string }
-  | { kind: 'pause'; table: string; paused: boolean };
+  | { kind: 'pause'; table: string; paused: boolean }
+  | { kind: 'mode'; table: string; mode: 'off' | 'on' | 'auto' };
 
 const REPLICA_BADGE: Record<string, [string, Tone]> = {
   unavailable: ['Недоступно', 'neutral'],
@@ -87,6 +90,8 @@ function pendingTitle(p: Pending | null): string {
       return `Завершить разделение ${p.table}?`;
     case 'abort':
       return `Остановить разделение ${p.table}?`;
+    case 'mode':
+      return `Разделение ${p.table}: ${p.mode === 'off' ? 'Выкл' : p.mode === 'on' ? 'Вкл' : 'Авто'}?`;
     default:
       return '';
   }
@@ -97,16 +102,22 @@ function pendingText(p: Pending | null): string {
   switch (p.kind) {
     case 'replica':
       return p.enabled
-        ? 'AWS создаст вторую копию базы (около 15-30 минут, платная, как основная база по размеру). Читать из неё приложение начнёт само, только когда она готова и почти не отстаёт; если она пропадёт или отстанет, чтения сами вернутся в основную базу. Нужно подтверждение второго админа.'
-        : 'Копия будет удалена. Приложение уже читает из основной базы, ничего не ломается. Нужно подтверждение второго админа.';
+        ? 'AWS создаст вторую копию базы (около 15-30 минут, платная, как основная база по размеру). Читать из неё приложение начнёт само, только когда она готова и почти не отстаёт; если она пропадёт или отстанет, чтения сами вернутся в основную базу..'
+        : 'Копия будет удалена. Приложение уже читает из основной базы, ничего не ломается..';
     case 'start':
-      return 'Таблица копируется в новую, разделённую по месяцам, пока приложение работает как обычно. Можно ставить на паузу и продолжать. В конце имена меняются за доли секунды. Нужно подтверждение второго админа.';
+      return 'Таблица копируется в новую, разделённую по месяцам, пока приложение работает как обычно. Можно ставить на паузу и продолжать. В конце имена меняются за доли секунды..';
     case 'undo':
       return 'Имена таблиц меняются обратно за доли секунды. Это безопасно, пока старая копия не удалена: всё, что записано после разделения, в ней тоже есть.';
     case 'finalize':
-      return 'Старая копия таблицы будет удалена НАВСЕГДА. После этого вернуть таблицу как было кнопкой уже нельзя: только отдельной медленной работой (обратное копирование). Нужно подтверждение второго админа.';
+      return 'Старая копия таблицы будет удалена НАВСЕГДА. После этого вернуть таблицу как было кнопкой уже нельзя: только отдельной медленной работой (обратное копирование)..';
     case 'abort':
       return 'Новая разделённая копия будет удалена. Исходная таблица не менялась.';
+    case 'mode':
+      return p.mode === 'off'
+        ? 'Таблица остаётся обычной (так на малых объёмах быстрее). Уже начатое разделение не останавливается.'
+        : p.mode === 'on'
+          ? 'Разделение начнётся в ближайшую минуту, приложение работает как обычно. Можно ставить на паузу, остановить до переключения и вернуть как было после.'
+          : 'Разделение начнётся само, когда в таблице станет столько строк, сколько задано порогом (по умолчанию 50 млн).';
     default:
       return '';
   }
@@ -154,11 +165,17 @@ export function ScaleSwitches() {
           return;
         case 'retry':
           await api.POST('/admin/system-health/partitions/{table}/retry', { params: { path: { table: p.table } } });
+          return;
+        case 'mode':
+          await api.POST('/admin/system-health/partitions/{table}/mode', {
+            params: { path: { table: p.table } },
+            body: { mode: p.mode },
+          });
       }
     },
     onSuccess: async (_r, p) => {
       toast.success(
-        p.kind === 'pause' || p.kind === 'retry' || p.kind === 'abort' ? 'Готово' : 'Отправлено на подтверждение второму админу',
+        p.kind === 'pause' || p.kind === 'retry' || p.kind === 'abort' || p.kind === 'mode' ? 'Готово' : 'Запущено',
       );
       await qc.invalidateQueries({ queryKey: ['partitions'] });
       await qc.invalidateQueries({ queryKey: ['db-replica'] });
@@ -271,7 +288,9 @@ function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => v
   return (
     <Card className="flex min-w-0 flex-col gap-2 p-4">
       <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1 text-sm font-medium text-heading">Разделить таблицу по месяцам: {c.label}</div>
+        <div className="min-w-0 flex-1 text-sm font-medium text-heading">
+          {c.mode ? 'Разделить таблицу по хешу' : 'Разделить таблицу по месяцам'}: {c.label}
+        </div>
         <Badge tone={tone} dot className="shrink-0">
           {label}
         </Badge>
@@ -281,7 +300,26 @@ function PartitionCardView({ c, onAct }: { c: PartCard; onAct: (p: Pending) => v
         {c.label.includes('хеш') ? 'по хешу' : 'по месяцам'}: <span className="text-ink">{c.partitioned ? `да (${c.partitions} кусков)` : 'нет'}</span>
       </p>
       {c.overThreshold ? (
-        <p className="text-sm text-ink">Больше 50 млн строк: самое время разделить.</p>
+        <p className="text-sm text-ink">Больше {count(c.autoRows)} строк: самое время разделить.</p>
+      ) : null}
+      {c.mode && !c.partitioned && (c.state === 'idle' || c.state === 'blocked') ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">Само:</span>
+          {(['off', 'on', 'auto'] as const).map((m) => (
+            <Button
+              key={m}
+              variant={c.mode === m ? 'gold' : 'outline'}
+              size="sm"
+              disabled={c.mode === m || !c.runnerConfigured}
+              onClick={() => onAct({ kind: 'mode', table: c.table, mode: m })}
+            >
+              {m === 'off' ? 'Выкл' : m === 'on' ? 'Вкл' : 'Авто'}
+            </Button>
+          ))}
+          <span className="text-xs text-muted">
+            Пока таблица небольшая, обычная быстрее; «Авто» разделит на {count(c.autoRows)} строк.
+          </span>
+        </div>
       ) : null}
       {c.progress != null ? (
         <div>

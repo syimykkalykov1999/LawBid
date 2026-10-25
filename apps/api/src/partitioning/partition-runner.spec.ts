@@ -55,18 +55,16 @@ describe('partition helpers', () => {
     expect(names('audit_log').part).toBe('audit_log__part');
   });
 
-  it('hash-partitioned tables are known to the card but have no button', () => {
-    expect(HASH_PARTITIONED.map((s) => [s.table, s.key])).toEqual([
-      ['messages', 'conversation_id'],
-      ['chat_group_messages', 'group_id'],
-      ['notifications', 'user_id'],
+  it('hash tables are opt-in: convertible by the runner, never in the migrated list', () => {
+    expect(HASH_PARTITIONED.map((s) => [s.table, s.key, s.hash])).toEqual([
+      ['messages', 'conversation_id', 16],
+      ['chat_group_messages', 'group_id', 16],
+      ['notifications', 'user_id', 16],
     ]);
     // The admin card reads «хеш» in the label to say «по хешу».
     for (const s of HASH_PARTITIONED) {
       expect(s.label).toContain('хеш');
       expect(specOf(s.table)).toBe(s);
-      // Not offered to the online (monthly) runner.
-      expect(PARTITION_TABLES.map((x) => x.table)).not.toContain(s.table);
       expect(MIGRATED_PARTITIONED.map((x) => x.table)).not.toContain(s.table);
     }
   });
