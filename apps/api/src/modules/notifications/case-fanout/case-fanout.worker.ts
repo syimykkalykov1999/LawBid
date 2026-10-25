@@ -1,3 +1,4 @@
+import { bullOptions } from '../../../redis/redis-connection';
 import {
   type DynamicModule,
   Inject,
@@ -58,7 +59,10 @@ export class CaseFanoutWorker
     this.worker = new Worker<CaseFanoutJob>(
       CASE_FANOUT_QUEUE,
       (job: Job<CaseFanoutJob>) => this.process(job.data),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 4 },
+      {
+        ...bullOptions(CASE_FANOUT_QUEUE, url, { worker: true }),
+        concurrency: 4,
+      },
     );
     this.worker.on('failed', (job, error) => {
       this.logger.error(

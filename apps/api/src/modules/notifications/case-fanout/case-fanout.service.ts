@@ -1,3 +1,4 @@
+import { bullOptions } from '../../../redis/redis-connection';
 import {
   Inject,
   Injectable,
@@ -115,7 +116,12 @@ export class CaseFanoutService
 
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
-    if (url) this.queue = new Queue(CASE_FANOUT_QUEUE, { connection: { url } });
+    if (url) {
+      this.queue = new Queue(
+        CASE_FANOUT_QUEUE,
+        bullOptions(CASE_FANOUT_QUEUE, url),
+      );
+    }
   }
 
   async onApplicationShutdown(): Promise<void> {
