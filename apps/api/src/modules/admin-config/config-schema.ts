@@ -236,6 +236,39 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
   };
+  for (const key of [
+    'rate_limit.bid_create_per_day',
+    'rate_limit.bid_counter_per_hour',
+    'rate_limit.case_create_per_day',
+    'rate_limit.chat_save_per_minute',
+    'rate_limit.forward_per_minute',
+  ] as const) {
+    out[key] = { ...out[key], min: 1, max: 100000 };
+  }
+  out['realtime.max_connects_per_ip_per_minute'] = {
+    ...out['realtime.max_connects_per_ip_per_minute'],
+    description:
+      'New live connections per minute from one address (0 = no limit). Mobile networks and offices share addresses: keep it generous.',
+    min: 0,
+    max: 100000,
+  };
+  out['security.password_hash_concurrency'] = {
+    ...out['security.password_hash_concurrency'],
+    description:
+      'Password checks running at once on one server (the rest wait). Keep it at about half the server threads (UV_THREADPOOL_SIZE).',
+    min: 1,
+    max: 64,
+  };
+  out['security.password_hash_max_queue'] = {
+    ...out['security.password_hash_max_queue'],
+    min: 0,
+    max: 100000,
+  };
+  out['security.password_breach_timeout_ms'] = {
+    ...out['security.password_breach_timeout_ms'],
+    min: 200,
+    max: 10000,
+  };
   out['realtime.max_sockets_per_user'] = {
     ...out['realtime.max_sockets_per_user'],
     description:

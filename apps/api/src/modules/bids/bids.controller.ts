@@ -9,6 +9,10 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../common/concurrency/optimistic-lock';
 import { RequireLegalAcceptance } from '../legal-documents/legal-acceptance.guard';
 import {
   ApiBearerAuth,
@@ -180,6 +184,7 @@ export class BidsController {
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('bids')
   @Post('bids/:id/counter')
+  @ApiIfMatchVersion()
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({
     summary: "Counter-offer, whichever party's turn it is (max 5 rounds)",
@@ -194,6 +199,7 @@ export class BidsController {
       E.BID_NOT_YOUR_TURN,
       E.BID_MAX_ROUNDS_REACHED,
       E.BID_COUNTER_NOT_ALLOWED,
+      E.STALE_VERSION,
       E.IDEMPOTENCY_KEY_CONFLICT,
     ],
   })
@@ -201,7 +207,8 @@ export class BidsController {
     @CurrentUser() user: RequestUser,
     @Param() params: BidIdParamDto,
     @Body() dto: CounterOfferDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<BidDto> {
-    return this.bids.counter(user, params.id, dto);
+    return this.bids.counter(user, params.id, dto, expectedVersion);
   }
 }
