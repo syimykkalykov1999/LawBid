@@ -54,6 +54,10 @@ import { SecretsModule } from './common/secrets/secrets.module';
 import { AdminIntegrationsModule } from './modules/admin-integrations/admin-integrations.module';
 import { AdminLaunchModule } from './modules/admin-launch/admin-launch.module';
 import { AdminOpsModule } from './modules/admin-ops/admin-ops.module';
+import {
+  AdminExperimentsModule,
+  ExperimentsCoreModule,
+} from './modules/experiments/experiments.module';
 import { AdminEconomyModule } from './modules/admin-economy/admin-economy.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { CasePaymentsModule } from './modules/case-payments/case-payments.module';
@@ -334,6 +338,9 @@ const isDev =
     // Owner 2026-10-05: Система → Здоровье системы.
     AdminOpsModule,
     AdminLaunchModule,
+    // Owner 2026-10-25: A/B experiments + ranking events log.
+    ExperimentsCoreModule,
+    AdminExperimentsModule,
     AdminEconomyModule,
     // Owner 2026-10-02: referrals + paid case promotion.
     ReferralsModule,

@@ -1,4 +1,5 @@
 import { PostsModule } from '../modules/posts/posts.module';
+import { ExperimentsCoreModule } from '../modules/experiments/experiments.module';
 import { CasePaymentsCoreModule } from '../modules/case-payments/case-payments.module';
 import { PromotionsCoreModule } from '../modules/promotions/promotions.module';
 import { StarsCoreModule } from '../modules/stars/stars.module';
@@ -87,6 +88,8 @@ export class JobsModule {
     return {
       module: JobsModule,
       imports: [
+        // Owner 2026-10-25: `experiments.metrics`.
+        ExperimentsCoreModule,
         NotificationsModule,
         // Security research #5 (A7): ContactsPepper for the contacts jobs.
         ContactsSyncModule,

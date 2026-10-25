@@ -280,6 +280,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', hint: 'что включать, когда людей становится больше: по шагам' },
       { href: '/crashes', label: 'Вылеты', icon: 'bug', area: 'settings', hint: 'ошибки приложения: где, на каких телефонах' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', hint: 'флаги, скрытые функции' },
+      // Owner 2026-10-25: A/B tests of ranking formulas on 5-10% of people (owner only, 2FA).
+      { href: '/experiments', label: 'Эксперименты', icon: 'sliders-horizontal', area: 'super', hint: 'проверка новых формул на малой части людей' },
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', hint: 'лимиты, версии приложения' },
       { href: '/storage', label: 'Хранилище', icon: 'hard-drives', area: 'settings', hint: 'место, очистка, лимиты' },
       // Owner 2026-10-07 (bug 17): every upload limit and file format.

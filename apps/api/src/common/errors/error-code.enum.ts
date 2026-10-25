@@ -546,4 +546,7 @@ export enum ErrorCode {
   // Owner 2026-10-22 (client economy plan §4). 409: `updatedSince` is
   // older than 7 days — the app reloads the list from page 1.
   SYNC_TOO_OLD = 'SYNC_TOO_OLD',
+  // Owner 2026-10-25 (experiments). 409: the action does not fit the
+  // experiment's state (start a running one, ramp up a stopped one ...).
+  EXPERIMENT_STATE_INVALID = 'EXPERIMENT_STATE_INVALID',
 }
