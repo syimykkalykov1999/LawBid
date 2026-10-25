@@ -4,6 +4,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { EngineError, OpenSearchClient } from './engine/opensearch.client';
 import { SearchDocsLoader } from './engine/search-docs.loader';
+import { SearchReindexService } from './search-reindex.service';
 import {
   MAPPING_VERSION,
   SEARCH_ENTITIES,
@@ -74,6 +75,7 @@ export class SearchIndexerService {
     private readonly client: OpenSearchClient,
     private readonly loader: SearchDocsLoader,
     @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly reindexer?: SearchReindexService,
   ) {}
 
   async engineOn(): Promise<boolean> {
@@ -108,12 +110,22 @@ export class SearchIndexerService {
       byEntity.set(c.entity, m);
     }
 
+    // Dual-write targets of a running reindex (new generation being built /
+    // old one kept warm); deletes always go to EVERY generation (GDPR).
+    const extra = (await this.reindexer?.extraIndexes()) ?? {};
     for (const [entity, rows] of byEntity) {
       const ids = [...rows.keys()];
       try {
+        const loadedAt = Date.now();
         const docs = await this.loader.load(entity, ids);
         const res = await this.client.bulk(
-          ids.map((id) => ({ entity, id, doc: docs.get(id) ?? null })),
+          ids.map((id) => ({
+            entity,
+            id,
+            doc: docs.get(id) ?? null,
+            version: loadedAt,
+          })),
+          extra,
         );
         const bad = new Map(res.failed.map((f) => [f.id, f.reason]));
         for (const [entityId, events] of rows) {
@@ -236,7 +248,7 @@ export class SearchIndexerService {
         done: false,
         startedAt: new Date().toISOString(),
       };
-      for (const e of order) await this.client.ensureIndex(e);
+      await this.client.bootstrap();
       await this.save(st, opts.entity);
     }
     while (!st.done && Date.now() < deadline) {
@@ -257,11 +269,20 @@ export class SearchIndexerService {
         await this.save(st, opts.entity);
         continue;
       }
+      const loadedAt = Date.now();
       const docs = await this.loader.load(entity, ids);
       const ops = ids
         .filter((id) => opts.deleteMissing || docs.has(id))
-        .map((id) => ({ entity, id, doc: docs.get(id) ?? null }));
-      const res = await this.client.bulk(ops);
+        .map((id) => ({
+          entity,
+          id,
+          doc: docs.get(id) ?? null,
+          version: loadedAt,
+        }));
+      const res = await this.client.bulk(
+        ops,
+        (await this.reindexer?.extraIndexes()) ?? {},
+      );
       if (res.failed.length > 0) {
         throw new EngineError(
           `reindex ${entity}: ${res.failed.length} documents rejected (${res.failed[0].reason})`,
@@ -290,13 +311,17 @@ export class SearchIndexerService {
       return { on };
     }
     try {
-      await this.client.ensureIndex('person');
+      // Aliases + first generation (or adopt a pre-alias index). A new
+      // mapping does NOT refill by itself any more: the admin starts a
+      // zero-downtime reindex (SearchReindexService).
+      await this.client.bootstrap();
       const st = await this.state();
-      if (!st || st.version !== MAPPING_VERSION || !st.done) {
+      if (!st || !st.done) {
         await this.reindex({ budgetMs });
       }
       const { done } = await this.drain();
       await this.prune(true);
+      await this.reindexer?.step(budgetMs);
       return { on, drained: done };
     } catch (e) {
       this.log.warn(

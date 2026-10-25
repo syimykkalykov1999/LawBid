@@ -69,6 +69,17 @@ export class SearchDocsLoader {
     return rows.map((r) => r.id);
   }
 
+  /** [limit] random ids of the rows a reindex walks (verification sample). */
+  async sampleIds(entity: SearchEntity, limit: number): Promise<string[]> {
+    const src = REINDEX_SOURCE[entity];
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT id::TEXT AS id FROM ${Prisma.raw(src.table)}
+       WHERE ${Prisma.raw(src.where)}
+       ORDER BY random() LIMIT ${Math.max(1, Math.floor(limit))}`,
+    );
+    return rows.map((r) => r.id);
+  }
+
   private async people(ids: string[]): Promise<Map<string, SearchDoc>> {
     const rows = await this.prisma.$queryRaw<
       {
