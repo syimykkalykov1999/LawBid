@@ -237,7 +237,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', hint: 'главный партнёр страны: команда, процент, цели' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
       // Owner 2026-10-22 (maker-checker): big payouts and refunds wait for a second admin.
-      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'выплаты и возвраты, которые ждут второго админа' },
+      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'запросы второго админа (сейчас проверка выключена: всё выполняется сразу)' },
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
     ],

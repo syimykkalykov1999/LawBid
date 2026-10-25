@@ -114597,11 +114597,16 @@
           "limitCents": {
             "type": "integer",
             "description": "billing.dual_approval_min_cents: from this amount on."
+          },
+          "dualControl": {
+            "type": "boolean",
+            "description": "admin.dual_control: the second-admin rule is on (default off)."
           }
         },
         "required": [
           "pending",
-          "limitCents"
+          "limitCents",
+          "dualControl"
         ]
       },
       "AdminApprovalsCountEnvelope": {
