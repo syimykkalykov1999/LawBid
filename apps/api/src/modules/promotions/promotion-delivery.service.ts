@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   parseAudience,
@@ -94,6 +95,9 @@ export class PromotionDeliveryService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly notifications?: NotificationsService,
+    // Owner 2026-10-25 (DB audit finding 8): the promotion row is hot — its
+    // impressions / reach / clicks go through the counter aggregator.
+    @Optional() private readonly counters?: CounterAggregator,
   ) {}
 
   async settings(): Promise<PromotionSettings> {
@@ -313,20 +317,9 @@ export class PromotionDeliveryService {
         impressions: 1,
         reach: newPerson ? 1 : 0,
       });
-      const p = await this.prisma.casePromotion.update({
-        where: { id },
-        data: {
-          impressions: { increment: 1 },
-          ...(newPerson ? { reach: { increment: 1 } } : {}),
-        },
-        select: {
-          impressions: true,
-          target_impressions: true,
-          status: true,
-          user_id: true,
-          case_id: true,
-          post_id: true,
-        },
+      const p = await this.bumpPromotion(id, {
+        impressions: 1,
+        reach: newPerson ? 1 : 0,
       });
       if (
         p.status === 'active' &&
@@ -336,6 +329,58 @@ export class PromotionDeliveryService {
         await this.finish(id, p, 'budget_spent');
       }
     }
+  }
+
+  /** Adds impressions / reach to a promotion and returns what the budget
+   * check needs. With the aggregator the row is read (not written) and the
+   * not yet flushed delta is added, so the cap triggers on the same count. */
+  private async bumpPromotion(
+    id: string,
+    d: { impressions: number; reach: number },
+  ): Promise<{
+    impressions: number;
+    target_impressions: number | null;
+    status: string;
+    user_id: string;
+    case_id: string | null;
+    post_id: string | null;
+  }> {
+    const select = {
+      impressions: true,
+      target_impressions: true,
+      status: true,
+      user_id: true,
+      case_id: true,
+      post_id: true,
+    } as const;
+    if (!this.counters) {
+      return this.prisma.casePromotion.update({
+        where: { id },
+        data: {
+          impressions: { increment: d.impressions },
+          ...(d.reach ? { reach: { increment: d.reach } } : {}),
+        },
+        select,
+      });
+    }
+    await this.counters.bump(
+      'case_promotion',
+      id,
+      'impressions',
+      d.impressions,
+    );
+    if (d.reach)
+      await this.counters.bump('case_promotion', id, 'reach', d.reach);
+    const row = await this.prisma.casePromotion.findUniqueOrThrow({
+      where: { id },
+      select,
+    });
+    const pending = await this.counters.pending(
+      'case_promotion',
+      'impressions',
+      [id],
+    );
+    return { ...row, impressions: row.impressions + (pending.get(id) ?? 0) };
   }
 
   /** active → finished (budget spent / time over), notifying the owner. */
@@ -372,10 +417,14 @@ export class PromotionDeliveryService {
       data: { clicked: true },
     });
     if (res.count === 0) return false;
-    await this.prisma.casePromotion.update({
-      where: { id: promotionId },
-      data: { clicks: { increment: 1 } },
-    });
+    if (this.counters) {
+      await this.counters.bump('case_promotion', promotionId, 'clicks', 1);
+    } else {
+      await this.prisma.casePromotion.update({
+        where: { id: promotionId },
+        data: { clicks: { increment: 1 } },
+      });
+    }
     await this.bumpDaily(promotionId, dayKey(), { clicks: 1 }).catch(
       () => undefined,
     );
