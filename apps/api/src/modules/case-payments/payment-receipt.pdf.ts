@@ -6,7 +6,7 @@ import type { PaymentQuote } from './case-payments.settings';
 
 /** Inter (same face as the app), covers Latin + Cyrillic. 3 levels up
  * from src/modules/case-payments, 4 from dist/src/modules/case-payments. */
-const FONT_PATH = [3, 4]
+export const FONT_PATH = [3, 4]
   .map((up) =>
     join(
       __dirname,

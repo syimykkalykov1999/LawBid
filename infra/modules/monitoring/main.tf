@@ -806,6 +806,10 @@ resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
 
     # Day-one foundations: the nightly money-ledger check (ledger.reconcile).
     ledger_mismatch = "LedgerMismatch"
+
+    # Stripe robustness 2026-10-27: dispute rate near the Visa / Mastercard
+    # program thresholds (stripe-ops.sweep, nightly).
+    dispute_rate = "DisputeRate"
   }
   name           = "${var.name}-ops-${replace(each.key, "_", "-")}"
   log_group_name = var.worker_log_group
@@ -1049,6 +1053,10 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
     ledger_mismatch = {
       metric = "LedgerMismatch"
       text   = "Ночная сверка денег нашла расхождение: книга учёта денег не сходится с платежами или со Stripe. Что делать: деньги пользователей не затронуты, но откройте логи воркера (поиск alert ledger_mismatch) и пришлите их Claude «ledger mismatch». Инструкция: docs/architecture/MONEY_LEDGER.md. (EN: nightly ledger reconciliation found a mismatch.)"
+    }
+    dispute_rate = {
+      metric = "DisputeRate"
+      text   = "Доля споров с банками (chargeback) за 30 дней подошла к порогу Visa/Mastercard (Visa — 0,5 %, штрафы с 1,5 %; Mastercard — от 1,5 % и 100 споров). Что делать: админка → Деньги → «Проверки Stripe» — ответьте на открытые споры, проверьте ранние предупреждения о мошенничестве. Инструкция: docs/runbooks/STRIPE_ROBUSTNESS.md. (EN: dispute rate near card-network thresholds.)"
     }
     capacity_pressure = {
       metric = "CapacityPressure"

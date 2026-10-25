@@ -436,6 +436,72 @@ export interface PaymentProvider {
     accountId: string,
     chargeId: string,
   ): Promise<ProviderConnectedCharge | null>;
+  /** Stripe robustness 2026-10-27: close an unpaid connected checkout on
+   * Stripe's side (so a late payment becomes impossible). Returns the
+   * session as Stripe has it now (a paid one stays `complete`). */
+  expireConnectedCheckout?(
+    accountId: string,
+    sessionId: string,
+  ): Promise<ProviderConnectedCheckout | null>;
+  /** A dispute on a connected (or, with [accountId] null, the platform)
+   * account as Stripe has it. */
+  retrieveDispute?(
+    accountId: string | null,
+    disputeId: string,
+  ): Promise<ProviderDispute | null>;
+  /** Saves evidence on a dispute: as a DRAFT, or submitted when [submit]. */
+  updateDisputeEvidence?(input: {
+    accountId: string | null;
+    disputeId: string;
+    evidence: Record<string, string>;
+    submit: boolean;
+  }): Promise<ProviderDispute>;
+  /** Uploads a file for dispute evidence (purpose dispute_evidence). */
+  uploadEvidenceFile?(input: {
+    accountId: string | null;
+    filename: string;
+    mime: string;
+    data: Buffer;
+  }): Promise<string>;
+  /** Stripe payout schedule of a connected account: manual = paused. */
+  setConnectPayoutsHeld?(
+    accountId: string,
+    held: boolean,
+    restoreDelayDays: number | null,
+  ): Promise<void>;
+  /** The radar early fraud warning behind a webhook, as Stripe has it. */
+  retrieveEarlyFraudWarning?(
+    accountId: string | null,
+    id: string,
+  ): Promise<ProviderEarlyFraudWarning | null>;
+  /** One refund of a connected account as Stripe has it. */
+  retrieveConnectedRefund?(
+    accountId: string,
+    refundId: string,
+  ): Promise<ProviderRefund | null>;
+}
+
+export interface ProviderDispute {
+  id: string;
+  chargeId: string | null;
+  paymentIntentId: string | null;
+  status: string;
+  reason: string;
+  amountCents: number;
+  currency: string;
+  /** Unix seconds; null when Stripe has no deadline (closed). */
+  dueBy: number | null;
+  hasEvidence: boolean;
+  pastDue: boolean;
+  submissionCount: number;
+}
+
+export interface ProviderEarlyFraudWarning {
+  id: string;
+  chargeId: string | null;
+  paymentIntentId: string | null;
+  fraudType: string;
+  actionable: boolean;
 }
 
 export interface ProviderConnectAccount {

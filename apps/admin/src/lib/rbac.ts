@@ -231,6 +231,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },
       { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'money' },
       { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'moneyOwner', hint: 'клиент платит адвокату через Stripe Connect' },
+      { href: '/stripe-review', label: 'Проверки Stripe', icon: 'shield-check', area: 'moneyOwner', hint: 'споры, сорванные выплаты и возвраты, предупреждения о мошенничестве' },
       { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'money' },
       { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'money', hint: 'скидки за приглашения' },
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },

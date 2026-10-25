@@ -51,6 +51,8 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { StripeOpsJob } from './handlers/stripe-ops.job';
+import { StripeOpsCoreModule } from '../modules/stripe-ops/stripe-ops.module';
 import { LedgerModule } from '../modules/ledger/ledger.public';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
@@ -124,6 +126,8 @@ export class JobsModule {
         TreasuryCoreModule,
         // Day-one foundations: `ledger.reconcile`.
         LedgerModule,
+        // Stripe robustness: `stripe-ops.sweep`, `stripe-ops.dispute-reminders`.
+        StripeOpsCoreModule,
         // Owner 2026-10-20: `consultations.sweep`.
         ConsultationsCoreModule,
       ],
@@ -166,6 +170,7 @@ export class JobsModule {
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
         LedgerReconcileJob,
+        StripeOpsJob,
         SearchIndexerService,
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,

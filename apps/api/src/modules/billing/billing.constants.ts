@@ -68,6 +68,19 @@ export const HANDLED_STRIPE_EVENTS = new Set([
   'charge.dispute.created',
   'charge.dispute.updated',
   'charge.dispute.closed',
+  // Stripe robustness 2026-10-27. Switch these on for BOTH webhook
+  // endpoints (platform and Connect) in Workbench → Webhooks.
+  'payment_intent.payment_failed',
+  'checkout.session.expired',
+  'charge.refund.updated',
+  'payout.failed',
+  'account.application.deauthorized',
+  'capability.updated',
+  'radar.early_fraud_warning.created',
+  'charge.dispute.funds_withdrawn',
+  'charge.dispute.funds_reinstated',
+  'invoice.upcoming',
+  'customer.subscription.trial_will_end',
 ]);
 
 /** The fake checkout pages exist only in development and tests. */

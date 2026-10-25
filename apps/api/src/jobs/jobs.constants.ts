@@ -45,6 +45,10 @@ export const CRON_JOBS = {
   searchIndex: 'search.index',
   /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
   ledgerReconcile: 'ledger.reconcile',
+  /** Stripe robustness 2026-10-27: nightly Stripe sweep + dispute rate. */
+  stripeOpsSweep: 'stripe-ops.sweep',
+  /** …and the hourly dispute deadline reminders. */
+  stripeOpsDisputeReminders: 'stripe-ops.dispute-reminders',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -247,6 +251,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
   // Nightly, after Stripe has settled the previous day (UTC).
   { name: CRON_JOBS.ledgerReconcile, pattern: '15 5 * * *' },
+  // Stripe robustness: after the ledger check, then hourly reminders.
+  { name: CRON_JOBS.stripeOpsSweep, pattern: '45 5 * * *' },
+  { name: CRON_JOBS.stripeOpsDisputeReminders, pattern: '23 * * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
   // Every minute: applies cross-family events a request could not (retries

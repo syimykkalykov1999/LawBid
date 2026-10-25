@@ -3507,6 +3507,38 @@ model LedgerLine {
 }
 
 // Existence of the row = event already handled (webhook idempotency).
+/// Stripe robustness 2026-10-27: the unified review queue of the admin —
+/// failed payouts and refunds, disputes, early fraud warnings, a disconnect
+/// from the platform, a disabled capability. One open row per (kind,
+/// stripe_ref); `due_at` is the SLA clock (or Stripe's evidence deadline).
+model StripeReviewItem {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// payout_failed | refund_failed | dispute | early_fraud_warning |
+  /// account_deauthorized | capability_disabled | reconcile_drift
+  kind         String    @db.VarChar(32)
+  /// open | resolved | dismissed
+  status       String    @default("open") @db.VarChar(12)
+  /// Stripe id (po_, dp_, issfr_, re_, acct_, ...): with `kind` the dedupe key.
+  stripe_ref   String    @db.VarChar(80)
+  case_payment_id String? @db.Uuid
+  user_id      String?   @db.Uuid
+  amount_cents Int?
+  currency     String    @default("usd") @db.VarChar(3)
+  summary      String    @db.VarChar(300)
+  details      Json      @default("{}")
+  opened_at    DateTime  @default(now()) @db.Timestamptz
+  due_at       DateTime? @db.Timestamptz
+  reminded_at  DateTime? @db.Timestamptz
+  resolved_at  DateTime? @db.Timestamptz
+  resolved_by  String?   @db.Uuid
+  resolution   String?   @db.VarChar(300)
+
+  @@unique([kind, stripe_ref])
+  @@index([status, due_at])
+  @@index([case_payment_id])
+  @@map("stripe_review_items")
+}
+
 model StripeWebhookEvent {
   stripe_event_id String    @id
   type            String
@@ -5844,6 +5876,15 @@ model PayoutAccount {
   // admin default for new attorneys applies.
   processing_fee_payer String?   @db.VarChar(16)
   last_synced_at       DateTime? @db.Timestamptz
+  // Stripe robustness 2026-10-27: payouts to the attorney's bank are
+  // paused (Stripe payout schedule = manual) while a dispute is open, and a
+  // failed payout / a disconnect from the platform is remembered.
+  payouts_held         Boolean   @default(false)
+  payouts_hold_reason  String?   @db.VarChar(200)
+  payouts_held_at      DateTime? @db.Timestamptz
+  last_payout_failure_at   DateTime? @db.Timestamptz
+  last_payout_failure_code String?   @db.VarChar(100)
+  deauthorized_at      DateTime? @db.Timestamptz
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @updatedAt @db.Timestamptz
 
@@ -5891,6 +5932,17 @@ model CasePayment {
   // Stripe dispute status while / after a chargeback.
   dispute_status           String?   @db.VarChar(32)
   disputed_at              DateTime? @db.Timestamptz
+  // Stripe robustness 2026-10-27: the Stripe dispute behind dispute_status,
+  // its evidence deadline and the state of our evidence packet
+  // (none | draft | submitted | failed), plus the funds_withdrawn /
+  // funds_reinstated moments.
+  dispute_id               String?   @db.VarChar(64)
+  dispute_reason           String?   @db.VarChar(64)
+  dispute_amount_cents     Int?
+  dispute_due_by           DateTime? @db.Timestamptz
+  dispute_evidence_status  String?   @db.VarChar(16)
+  dispute_funds_withdrawn_at   DateTime? @db.Timestamptz
+  dispute_funds_reinstated_at  DateTime? @db.Timestamptz
   paid_at                  DateTime? @db.Timestamptz
   canceled_reason          String?   @db.VarChar(100)
   failure_code             String?   @db.VarChar(100)

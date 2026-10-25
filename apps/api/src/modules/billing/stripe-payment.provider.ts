@@ -11,6 +11,8 @@ import {
   type ProviderCoupon,
   type ProviderCouponInput,
   type ProviderEvent,
+  type ProviderDispute,
+  type ProviderEarlyFraudWarning,
   type ProviderRefund,
   type ProviderInvoice,
   type ProviderSeatCharge,
@@ -1166,6 +1168,140 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
+  // ---- Stripe robustness 2026-10-27 -------------------------------------------
+
+  async expireConnectedCheckout(
+    accountId: string,
+    sessionId: string,
+  ): Promise<ProviderConnectedCheckout | null> {
+    try {
+      // Stripe refuses to expire a session that is already complete; the
+      // re-read below then returns the truth (a paid session stays paid).
+      await this.stripe.checkout.sessions.expire(sessionId, undefined, {
+        stripeAccount: accountId,
+      });
+    } catch (e) {
+      if (isNotFound(e)) return null;
+      // not "open" any more: fall through to the re-read
+    }
+    return this.retrieveConnectedCheckout(accountId, sessionId);
+  }
+
+  private disputeOpts(accountId: string | null) {
+    return accountId ? { stripeAccount: accountId } : undefined;
+  }
+
+  async retrieveDispute(
+    accountId: string | null,
+    disputeId: string,
+  ): Promise<ProviderDispute | null> {
+    try {
+      const d = await this.stripe.disputes.retrieve(
+        disputeId,
+        undefined,
+        this.disputeOpts(accountId),
+      );
+      return mapDispute(d);
+    } catch (e) {
+      if (isNotFound(e)) return null;
+      throw e;
+    }
+  }
+
+  async updateDisputeEvidence(input: {
+    accountId: string | null;
+    disputeId: string;
+    evidence: Record<string, string>;
+    submit: boolean;
+  }): Promise<ProviderDispute> {
+    const d = await this.stripe.disputes.update(
+      input.disputeId,
+      { evidence: input.evidence, submit: input.submit },
+      this.disputeOpts(input.accountId),
+    );
+    return mapDispute(d);
+  }
+
+  async uploadEvidenceFile(input: {
+    accountId: string | null;
+    filename: string;
+    mime: string;
+    data: Buffer;
+  }): Promise<string> {
+    const f = await this.stripe.files.create(
+      {
+        purpose: 'dispute_evidence',
+        file: { data: input.data, name: input.filename, type: input.mime },
+      },
+      this.disputeOpts(input.accountId),
+    );
+    return f.id;
+  }
+
+  async setConnectPayoutsHeld(
+    accountId: string,
+    held: boolean,
+    restoreDelayDays: number | null,
+  ): Promise<void> {
+    await this.stripe.accounts.update(accountId, {
+      settings: {
+        payouts: {
+          schedule: held
+            ? { interval: 'manual' }
+            : restoreDelayDays === null
+              ? { interval: 'daily', delay_days: 'minimum' }
+              : { interval: 'daily', delay_days: restoreDelayDays },
+        },
+      },
+    });
+  }
+
+  async retrieveEarlyFraudWarning(
+    accountId: string | null,
+    id: string,
+  ): Promise<ProviderEarlyFraudWarning | null> {
+    try {
+      const w = await this.stripe.radar.earlyFraudWarnings.retrieve(
+        id,
+        undefined,
+        this.disputeOpts(accountId),
+      );
+      return {
+        id: w.id,
+        chargeId:
+          typeof w.charge === 'string' ? w.charge : (w.charge?.id ?? null),
+        paymentIntentId:
+          typeof w.payment_intent === 'string'
+            ? w.payment_intent
+            : (w.payment_intent?.id ?? null),
+        fraudType: w.fraud_type,
+        actionable: w.actionable,
+      };
+    } catch (e) {
+      if (isNotFound(e)) return null;
+      throw e;
+    }
+  }
+
+  async retrieveConnectedRefund(
+    accountId: string,
+    refundId: string,
+  ): Promise<ProviderRefund | null> {
+    try {
+      const r = await this.stripe.refunds.retrieve(refundId, undefined, {
+        stripeAccount: accountId,
+      });
+      return {
+        id: r.id,
+        status: refundStatus(r.status),
+        failureReason: r.failure_reason ?? null,
+      };
+    } catch (e) {
+      if (isNotFound(e)) return null;
+      throw e;
+    }
+  }
+
   dashboardUrl(subscriptionId: string): string {
     return `https://dashboard.stripe.com/${this.live ? '' : 'test/'}subscriptions/${subscriptionId}`;
   }
@@ -1380,4 +1516,31 @@ function mapCheckout(s: Stripe.Checkout.Session): ProviderCheckoutSession {
     amountTotalCents: s.amount_total ?? null,
     paymentStatus: s.payment_status ?? null,
   };
+}
+
+function mapDispute(d: Stripe.Dispute): ProviderDispute {
+  return {
+    id: d.id,
+    chargeId: typeof d.charge === 'string' ? d.charge : (d.charge?.id ?? null),
+    paymentIntentId:
+      typeof d.payment_intent === 'string'
+        ? d.payment_intent
+        : (d.payment_intent?.id ?? null),
+    status: d.status,
+    reason: d.reason,
+    amountCents: d.amount,
+    currency: d.currency,
+    dueBy: d.evidence_details?.due_by ?? null,
+    hasEvidence: d.evidence_details?.has_evidence ?? false,
+    pastDue: d.evidence_details?.past_due ?? false,
+    submissionCount: d.evidence_details?.submission_count ?? 0,
+  };
+}
+
+function refundStatus(s: string | null): ProviderRefund['status'] {
+  if (s === 'succeeded') return 'succeeded';
+  if (s === null || s === 'pending' || s === 'requires_action') {
+    return 'pending';
+  }
+  return 'failed';
 }
