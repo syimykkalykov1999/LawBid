@@ -29,9 +29,19 @@ import { familyOf } from './shard-manifest';
  * the related row are passed to the primary query unchanged. Works at any
  * depth below sharded-to-sharded relations.
  *
- * Not covered (counted by `onUncovered`, fixed by plan step 8): relation
- * FILTERS in `where` / `orderBy` (`where: { author: { status: 'active' } }`),
- * to-many relations into a global model, `_count` through a global relation.
+ * Relation FILTERS (step 8, "two-step queries"): a to-one filter from a
+ * sharded model into a global one (`where: { author: { status: 'active' } }`,
+ * `is` / `isNot` / `null`, under AND / OR / NOT, in nested sharded relations
+ * and in `include` / `select` sub-queries) is resolved first: the primary
+ * database answers `id IN (...)` for the filter, and the shard query gets
+ * `<fk> IN ids` instead. Exact; the cost is one extra primary query per
+ * filter and an id list as long as the matching rows (fine for thousands;
+ * the hot feed filters should become a denormalized column kept by the
+ * outbox before the matching set reaches the hundreds of thousands).
+ *
+ * Not covered (counted by `onUncovered`): relation ORDERING (`orderBy:
+ * { author: ... }`), to-many relations into a global model, `_count` through
+ * a global relation.
  *
  * With one physical database the extension is not installed at all.
  */
@@ -198,6 +208,152 @@ async function stitch(
   }
 }
 
+type PrimaryIds = (target: string, filter: Obj) => Promise<string[]>;
+
+/** Rewrites one `where` (recursing through AND/OR/NOT and sharded relations). */
+async function rewriteWhere(
+  model: string,
+  where: unknown,
+  ids: PrimaryIds,
+): Promise<unknown> {
+  if (!isObj(where)) return where;
+  const rels = relations.get(model);
+  if (!rels) return where;
+  const out: Obj = {};
+  let changed = false;
+  for (const [key, v] of Object.entries(where)) {
+    if (key === 'AND' || key === 'OR' || key === 'NOT') {
+      const list = Array.isArray(v) ? v : [v];
+      const done = await Promise.all(
+        list.map((w) => rewriteWhere(model, w, ids)),
+      );
+      if (done.some((w, i) => w !== list[i])) changed = true;
+      out[key] = Array.isArray(v) ? done : done[0];
+      continue;
+    }
+    const rel = rels.get(key);
+    if (!rel || !(isObj(v) || v === null)) {
+      out[key] = v;
+      continue;
+    }
+    if (isStitched(model, rel)) {
+      const fk = rel.fk!;
+      changed = true;
+      // `{author: null}` / `{is: null}`: no related row.
+      if (v === null || (isObj(v) && v.is === null)) {
+        out[`__and_${key}`] = { [fk]: null };
+        continue;
+      }
+      const isNot = isObj(v) && isObj(v.isNot) ? v.isNot : null;
+      const filter = isObj(v) && isObj(v.is) ? v.is : isNot ? isNot : v;
+      if (isObj(v) && v.isNot === null) {
+        out[`__and_${key}`] = { [fk]: { not: null } };
+        continue;
+      }
+      const found = await ids(rel.target, filter);
+      out[`__and_${key}`] = isNot
+        ? { OR: [{ [fk]: null }, { [fk]: { notIn: found } }] }
+        : { [fk]: { in: found } };
+      continue;
+    }
+    if (familyOf(model) !== 'global' && familyOf(rel.target) === 'global') {
+      out[key] = v; // to-many into global: not covered
+      continue;
+    }
+    // A sharded relation: filters inside it can name global relations too.
+    const inner = await rewriteRelationFilter(rel.target, v, ids);
+    if (inner !== v) changed = true;
+    out[key] = inner;
+  }
+  if (!changed) return where;
+  // Fold the synthetic keys into an AND list.
+  const extra: unknown[] = [];
+  for (const k of Object.keys(out)) {
+    if (k.startsWith('__and_')) {
+      extra.push(out[k]);
+      delete out[k];
+    }
+  }
+  const andPrev: unknown[] =
+    out.AND === undefined
+      ? []
+      : Array.isArray(out.AND)
+        ? (out.AND as unknown[])
+        : [out.AND];
+  if (extra.length > 0) out.AND = [...andPrev, ...extra];
+  return out;
+}
+
+async function rewriteRelationFilter(
+  target: string,
+  v: unknown,
+  ids: PrimaryIds,
+): Promise<unknown> {
+  if (!isObj(v)) return v;
+  const keys = ['is', 'isNot', 'some', 'every', 'none'];
+  if (keys.some((k) => k in v)) {
+    const out: Obj = { ...v };
+    let changed = false;
+    for (const k of keys) {
+      if (isObj(v[k])) {
+        const w = await rewriteWhere(target, v[k], ids);
+        if (w !== v[k]) {
+          out[k] = w;
+          changed = true;
+        }
+      }
+    }
+    return changed ? out : v;
+  }
+  return rewriteWhere(target, v, ids);
+}
+
+/** Rewrites `where` of the query and of nested include / select sub-queries. */
+async function rewriteArgsFilters(
+  model: string,
+  args: Obj,
+  ids: PrimaryIds,
+): Promise<Obj> {
+  const rels = relations.get(model);
+  if (!rels) return args;
+  let out = args;
+  if (args.where !== undefined) {
+    const w = await rewriteWhere(model, args.where, ids);
+    if (w !== args.where) out = { ...out, where: w };
+  }
+  for (const mode of ['include', 'select'] as const) {
+    const sel = args[mode];
+    if (!isObj(sel)) continue;
+    let next: Obj | null = null;
+    for (const [key, v] of Object.entries(sel)) {
+      const rel = rels.get(key);
+      if (!rel || !isObj(v)) continue;
+      if (familyOf(model) !== 'global' && familyOf(rel.target) === 'global')
+        continue; // stitched from the primary database, its own filters are fine there
+      const inner = await rewriteArgsFilters(rel.target, v, ids);
+      if (inner !== v) (next ??= { ...sel })[key] = inner;
+    }
+    if (next) out = { ...out, [mode]: next };
+  }
+  return out;
+}
+
+const FILTER_OPS = new Set([
+  'findMany',
+  'findFirst',
+  'findFirstOrThrow',
+  'findUnique',
+  'findUniqueOrThrow',
+  'count',
+  'aggregate',
+  'groupBy',
+  'updateMany',
+  'deleteMany',
+  'update',
+  'delete',
+  'upsert',
+]);
+
 const READ_OPS = new Set([
   'findMany',
   'findFirst',
@@ -232,7 +388,21 @@ export function stitchHandler(
     args,
     query,
   }: StitchParams): Promise<unknown> => {
-    if (!READ_OPS.has(operation) || !isObj(args)) return query(args as never);
+    if (!isObj(args)) return query(args as never);
+    if (FILTER_OPS.has(operation) && familyOf(model) !== 'global') {
+      const p = primary() as Primary;
+      args = await rewriteArgsFilters(model, args, async (target, filter) => {
+        const delegate = target[0].toLowerCase() + target.slice(1);
+        const where: Obj = { AND: [filter] };
+        if (softDeletes.has(target)) where.deleted_at = {};
+        const rows = await p[delegate].findMany({
+          where,
+          select: { id: true },
+        });
+        return rows.map((r) => r.id as string);
+      });
+    }
+    if (!READ_OPS.has(operation)) return query(args as never);
     const rewritten = rewrite(model, args, onUncovered);
     if (!rewritten) return query(args as never);
     const result = (await query(rewritten.args as never)) as Obj | Obj[] | null;
