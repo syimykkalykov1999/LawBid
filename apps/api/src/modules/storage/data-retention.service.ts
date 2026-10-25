@@ -1,8 +1,12 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import {
+  activeHeldIds,
+  notHeldSql,
+} from '../../common/legal-hold/legal-holds';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 
@@ -80,8 +84,12 @@ export class DataRetentionService implements OnModuleDestroy {
       this.settings.number('storage.retention_user_activity_days'),
     ]);
     const before = (days: number) => new Date(now.getTime() - days * DAY_MS);
+    // Owner 2026-10-28: activity rows of a person under a legal hold stay.
+    const held = await activeHeldIds(this.prisma, 'user', now);
+    const ok = (col: string) => notHeldSql(Prisma.raw(col), held);
     const result: RetentionResult = {
-      authEvents: authDays > 0 ? await this.authEvents(before(authDays)) : 0,
+      authEvents:
+        authDays > 0 ? await this.authEvents(before(authDays), held) : 0,
       assistantActivity:
         activityDays > 0
           ? await this.batched(
@@ -90,6 +98,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM assistant_activity
                   WHERE created_at < ${before(activityDays)}
+                    AND ${ok('attorney_id')}
                   ORDER BY created_at LIMIT ${limit})`,
             )
           : 0,
@@ -110,6 +119,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_views
                   WHERE created_at < ${before(viewsDays)}
+                    AND ${ok('user_id')}
                   ORDER BY created_at LIMIT ${limit})`,
               ),
             )
@@ -131,6 +141,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM post_view_events
                   WHERE created_at < ${before(viewEventsDays)}
+                    AND ${ok('viewer_id')}
                   LIMIT ${limit})`,
               ),
             )
@@ -143,6 +154,7 @@ export class DataRetentionService implements OnModuleDestroy {
                 WHERE ctid IN (
                   SELECT ctid FROM user_activity_days
                   WHERE day < ${before(activeDaysDays)}::DATE
+                    AND ${ok('user_id')}
                   LIMIT ${limit})`,
             )
           : 0,
@@ -155,7 +167,7 @@ export class DataRetentionService implements OnModuleDestroy {
 
   /** auth_events has an explicit write shard (0..15): one shard at a time
    * keeps each DELETE on the (created_shard, created_at) index. */
-  private async authEvents(before: Date): Promise<number> {
+  private async authEvents(before: Date, held: string[]): Promise<number> {
     const db = this.retention();
     let total = 0;
     for (let shard = 0; shard < 16; shard += 1) {
@@ -165,6 +177,7 @@ export class DataRetentionService implements OnModuleDestroy {
           WHERE ctid IN (
             SELECT ctid FROM auth_events
             WHERE created_shard = ${shard} AND created_at < ${before}
+              AND ${notHeldSql(Prisma.sql`user_id`, held)}
             ORDER BY created_at LIMIT ${limit})`,
       );
     }

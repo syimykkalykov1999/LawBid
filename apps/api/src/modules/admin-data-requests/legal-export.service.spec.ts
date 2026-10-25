@@ -18,13 +18,20 @@ const REQ = 'r0000000-0000-4000-8000-000000000001';
 const USER = 'u0000000-0000-4000-8000-000000000001';
 
 function build(
-  opts: { stepUp?: boolean; requestStatus?: string; waiting?: number } = {},
+  opts: {
+    stepUp?: boolean;
+    requestStatus?: string;
+    waiting?: number;
+    maxDownloads?: number;
+    requestType?: string;
+  } = {},
 ) {
   const tx = {
     legalExport: {
       create: jest.fn().mockResolvedValue(exportRow()),
       count: jest.fn().mockResolvedValue(opts.waiting ?? 0),
       findUnique: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     legalHold: {
       create: jest.fn().mockResolvedValue(holdRow()),
@@ -35,6 +42,7 @@ function build(
       findUnique: jest.fn().mockResolvedValue({
         id: REQ,
         status: opts.requestStatus ?? 'received',
+        request_type: opts.requestType ?? 'subpoena',
       }),
       update: jest.fn(),
     },
@@ -54,7 +62,17 @@ function build(
   const storage = {
     signedGetUrl: jest.fn().mockResolvedValue('https://signed'),
   } as unknown as S3StorageService;
-  const settings = { number: jest.fn() } as unknown as AppSettingsService;
+  const settings = {
+    number: jest.fn((key: string) =>
+      Promise.resolve(
+        key === 'legal.export_max_downloads'
+          ? (opts.maxDownloads ?? 5)
+          : key === 'legal.preservation_days'
+            ? 90
+            : 0,
+      ),
+    ),
+  } as unknown as AppSettingsService;
   return {
     svc: new LegalExportService(prisma, audit, auth, storage, settings),
     prisma,
@@ -168,6 +186,36 @@ describe('LegalExportService', () => {
     expect((b.audit.record as jest.Mock).mock.calls[0][0].action).toBe(
       LEGAL_AUDIT.download,
     );
+  });
+
+  it('stops downloads once the limit is used up (atomic counter)', async () => {
+    const a = build({ maxDownloads: 2 });
+    (a.prisma.legalExport.findUnique as jest.Mock).mockResolvedValue({
+      id: 'e1',
+      status: 'ready',
+      file_bucket: 'b',
+      file_key: 'k',
+      sha256: 'abc',
+      manifest_sha256: 'mm',
+      download_count: 1,
+    });
+    const out = await a.svc.download(admin, 'e1');
+    expect(out.downloadsLeft).toBe(0);
+    const where = a.tx.legalExport.updateMany.mock.calls[0][0].where;
+    expect(where.download_count).toEqual({ lt: 2 });
+    // the counter refused (someone else took the last one)
+    a.tx.legalExport.updateMany.mockResolvedValue({ count: 0 });
+    await expect(a.svc.download(admin, 'e1')).rejects.toThrow('limit');
+    expect(a.storage.signedGetUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('a preservation request gets the 90-day hold by default (2703(f))', async () => {
+    const { svc, tx } = build({ requestType: 'preservation' });
+    await svc.createHold(admin, REQ, { targetType: 'user', targetId: USER });
+    const exp = tx.legalHold.create.mock.calls[0][0].data.expires_at as Date;
+    const days = (exp.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(89);
+    expect(days).toBeLessThan(91);
   });
 
   it('download needs a step-up too', async () => {
