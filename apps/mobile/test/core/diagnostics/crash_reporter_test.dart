@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fake_http_adapter.dart';
@@ -34,6 +36,15 @@ void main() {
   });
 
   test('an error is queued, sent as a batch, and then forgotten', () async {
+    await AppVersion.load(
+      source: () async => PackageInfo(
+        appName: 'LawBid',
+        packageName: 'com.lawbid.lawbid',
+        version: '1.4.0',
+        buildNumber: '57',
+      ),
+    );
+    addTearDown(AppVersion.resetForTest);
     CrashReporter.setRoute('/cases/3f2b1c9e-1111-4222-8333-444455556666');
     CrashReporter.instance!.report(
       StateError('boom'),
@@ -54,6 +65,8 @@ void main() {
     expect(first['fatal'], true);
     expect(first['route'], '/cases/:id');
     expect(first['flavor'], 'dev');
+    // S15-10: the store build number, not a hard-coded "1".
+    expect(first['build'], '57');
     expect(jsonDecode(prefs.getString('crash.queue.v1')!), isEmpty);
   });
 
