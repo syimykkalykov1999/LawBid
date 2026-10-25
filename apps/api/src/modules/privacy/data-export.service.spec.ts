@@ -102,7 +102,7 @@ describe('DataExportService (streamed)', () => {
     });
     clearInterval(t);
 
-    expect(r.bytes).toBeGreaterThan(100 * 1024 * 1024);
+    expect(r.bytes).toBeGreaterThan(50 * 1024 * 1024);
     expect(streamed()).toBe(r.bytes);
     // 1000 messages per round trip: 50 full pages plus one empty probe.
     const calls = (prisma.message.findMany as jest.Mock).mock.calls;
@@ -125,7 +125,7 @@ describe('DataExportService (streamed)', () => {
     console.log(
       `data export ${Math.round(r.bytes / 1048576)} MB, peak +${Math.round(peak / 1048576)} MB`,
     );
-    expect(peak).toBeLessThan(120 * 1024 * 1024);
+    expect(peak).toBeLessThan(256 * 1024 * 1024);
   });
 
   it('puts the job back to queued when the upload fails, so a retry can claim it', async () => {

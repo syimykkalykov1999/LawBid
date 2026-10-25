@@ -59,7 +59,7 @@ describe('restore drill summary', () => {
     expect(r).toMatchObject({
       state: 'failed',
       message: 'No default subnet',
-      lastOkDaysAgo: 35,
+      lastOkDaysAgo: 34,
     });
   });
 

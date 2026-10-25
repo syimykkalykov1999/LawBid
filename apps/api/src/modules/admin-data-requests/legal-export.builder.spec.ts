@@ -84,7 +84,7 @@ function build(selection: object) {
       async (b: string, k: string, body: AsyncIterable<Buffer>, t: string) => {
         const chunks: Buffer[] = [];
         for await (const c of body) chunks.push(c);
-        put(b, k, Buffer.concat(chunks), t);
+        await put(b, k, Buffer.concat(chunks), t);
       },
     ),
     remove: jest.fn(),

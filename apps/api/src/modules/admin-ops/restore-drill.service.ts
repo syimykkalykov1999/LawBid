@@ -114,7 +114,7 @@ export function summarize(
       j.Status === 'COMPLETED' ||
       j.Status === 'FAILED' ||
       j.Status === 'ABORTED' ||
-      j.Status === 'EXPIRED',
+      (j.Status as string) === 'EXPIRED',
   );
   const latest = finished[0];
   if (!latest)
