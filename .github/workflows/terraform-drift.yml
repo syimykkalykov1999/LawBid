@@ -1,0 +1,163 @@
+# P1 (2026-10-24): nightly "did anyone change AWS behind Terraform's back, or
+# is a merged infra change still not applied?" check.
+#
+# Runs `terraform plan -detailed-exitcode` on infra/envs/prod with a READ-ONLY
+# AWS role (infra/bootstrap: `<name>-github-plan`) and NEVER applies. The role
+# has no write permission anywhere; the plan runs with -lock=false.
+#   exit 0 = nothing to do   -> closes an open drift issue
+#   exit 2 = drift           -> opens / updates ONE GitHub issue (label
+#                               `infra-drift`; GitHub mails the repo watchers)
+#                               and, when DRIFT_SLACK_WEBHOOK is set, pings Slack
+#   exit 1 = the check itself broke -> issue "check failed" + red run
+# The report holds resource addresses and attribute NAMES only, never values
+# (scripts/ci/tf-drift-summary.sh); the raw plan is never printed or uploaded.
+#
+# Repository secrets (never in the repo):
+#   AWS_PLAN_ROLE        terraform output `plan_role_arn` (infra/bootstrap)
+#   AWS_REGION
+#   DRIFT_SLACK_WEBHOOK  optional, a Slack incoming-webhook URL
+# Runbook: docs/runbooks/DEPLOY_SAFETY.md (section "Ночная проверка дрейфа").
+name: Terraform drift
+
+on:
+  schedule:
+    # GitHub cron is UTC. 03:00 America/Chicago = 08:00 UTC in summer (CDT) and
+    # 09:00 UTC in winter (CST). Both lines fire; the "Is it 03:00 in Chicago"
+    # step lets only the right one through, so DST needs no edit.
+    - cron: "0 8 * * *"
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+concurrency:
+  group: terraform-drift
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "0"
+
+jobs:
+  drift:
+    name: terraform plan (prod, read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      HAS_PLAN_ROLE: ${{ secrets.AWS_PLAN_ROLE != '' }}
+    steps:
+      - name: Is it 03:00 in Chicago? (scheduled runs only)
+        id: gate
+        run: |
+          H=$(TZ=America/Chicago date +%H)
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$H" != "03" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Chicago hour is $H, not 03; the other cron line handles it"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Role configured?
+        if: steps.gate.outputs.run == 'true' && env.HAS_PLAN_ROLE != 'true'
+        run: echo "::warning::secret AWS_PLAN_ROLE is not set (terraform output plan_role_arn in infra/bootstrap); drift check skipped"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.gate.outputs.run == 'true' && env.HAS_PLAN_ROLE == 'true'
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        if: steps.gate.outputs.run == 'true' && env.HAS_PLAN_ROLE == 'true'
+        with:
+          role-to-assume: ${{ secrets.AWS_PLAN_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 3600
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        if: steps.gate.outputs.run == 'true' && env.HAS_PLAN_ROLE == 'true'
+        with:
+          # Latest 1.x: the state is written by the owner's (newer) Terraform
+          # and an older CLI refuses to read a newer state.
+          terraform_version: ">=1.9"
+          terraform_wrapper: false
+      - name: Plan (output stays in a file, never in the log)
+        id: plan
+        if: steps.gate.outputs.run == 'true' && env.HAS_PLAN_ROLE == 'true'
+        working-directory: infra/envs/prod
+        run: |
+          set +x
+          set -u
+          # The git-ignored prod tfvars live in Secrets Manager (owner backup).
+          aws secretsmanager get-secret-value --secret-id lawbid-prod/terraform-tfvars \
+            --query SecretString --output text > terraform.tfvars
+          chmod 600 terraform.tfvars
+          # Deploy registers task definitions outside Terraform; use the tags
+          # that run now, otherwise every night would show an image "drift".
+          ../../../scripts/deploy/current-tag.sh > current-images.auto.tfvars
+          cp backend.hcl.example backend.hcl
+          terraform init -input=false -backend-config=backend.hcl > init.log 2>&1 || { echo "::error::terraform init failed"; grep -E '^(Error|│ Error)' init.log | head -5 || true; echo "result=error" >> "$GITHUB_OUTPUT"; exit 0; }
+          set +e
+          terraform plan -detailed-exitcode -lock=false -input=false -no-color -out=plan.bin > plan.log 2>&1
+          RC=$?
+          set -e
+          echo "terraform plan exit code: $RC"
+          if [ "$RC" = "0" ]; then echo "result=clean" >> "$GITHUB_OUTPUT"; fi
+          if [ "$RC" = "1" ]; then
+            echo "result=error" >> "$GITHUB_OUTPUT"
+            # Error headline lines only; the full log can hold values.
+            grep -E '^(Error|│ Error)' plan.log | cut -c1-200 | head -10 || true
+          fi
+          if [ "$RC" = "2" ]; then
+            echo "result=drift" >> "$GITHUB_OUTPUT"
+            terraform show -json plan.bin > plan.json
+            set +e
+            ../../../scripts/ci/tf-drift-summary.sh plan.json > ../../../drift.md
+            SRC=$?
+            set -e
+            # Only the benign task_definition difference -> not drift.
+            if [ "$SRC" = "0" ]; then echo "result=clean" >> "$GITHUB_OUTPUT"; fi
+          fi
+          # Never leave the secrets-bearing files around.
+          rm -f terraform.tfvars current-images.auto.tfvars plan.json plan.bin plan.log init.log
+      - name: Safety net (the report must not hold a secret)
+        if: steps.plan.outputs.result == 'drift'
+        run: |
+          if grep -Eq 'AKIA[0-9A-Z]{16}|aws_secret_access_key|-----BEGIN [A-Z ]*PRIVATE KEY|hooks\.slack\.com|events\.pagerduty\.com' drift.md; then
+            echo "::error::drift.md looks like it contains a secret; not published"
+            rm -f drift.md
+            exit 1
+          fi
+      - name: Report (issue + optional Slack)
+        if: always() && steps.plan.outputs.result != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ steps.plan.outputs.result }}
+          SLACK: ${{ secrets.DRIFT_SLACK_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -u
+          gh label create infra-drift --color B60205 --description "Terraform prod plan is not empty" 2>/dev/null || true
+          N=$(gh issue list --label infra-drift --state open --json number --jq '.[0].number // empty')
+          case "$RESULT" in
+            drift)
+              { echo "Nightly check $(date -u +%F): AWS and the code in \`main\` differ."; echo;
+                cat drift.md; echo;
+                echo "Nothing was changed. Meaning and what to do: docs/runbooks/DEPLOY_SAFETY.md (Ночная проверка дрейфа). Run: $RUN_URL"; } > body.md
+              cat body.md >> "$GITHUB_STEP_SUMMARY"
+              if [ -n "$N" ]; then gh issue edit "$N" --body-file body.md; else gh issue create --label infra-drift --title "Terraform drift on prod" --body-file body.md; fi
+              if [ -n "$SLACK" ]; then
+                curl -fsS -X POST -H 'Content-type: application/json' --data "{\"text\":\"LawBid: Terraform drift on prod, see $RUN_URL\"}" "$SLACK" >/dev/null || true
+              fi
+              ;;
+            error)
+              MSG="The nightly drift check could not run (terraform init/plan failed). Run: $RUN_URL"
+              echo "$MSG" >> "$GITHUB_STEP_SUMMARY"
+              if [ -n "$N" ]; then gh issue comment "$N" --body "$MSG"; else gh issue create --label infra-drift --title "Terraform drift check failed to run" --body "$MSG"; fi
+              if [ -n "$SLACK" ]; then
+                curl -fsS -X POST -H 'Content-type: application/json' --data "{\"text\":\"LawBid: Terraform drift CHECK FAILED, see $RUN_URL\"}" "$SLACK" >/dev/null || true
+              fi
+              exit 1
+              ;;
+            clean)
+              echo "No drift." >> "$GITHUB_STEP_SUMMARY"
+              if [ -n "$N" ]; then gh issue close "$N" --comment "Plan is empty again ($RUN_URL)."; fi
+              ;;
+          esac
