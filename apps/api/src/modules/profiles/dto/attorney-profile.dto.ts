@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -284,6 +284,14 @@ export class OwnAttorneyProfileDto {
   })
   advertisingLabel!: boolean;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Owner 2026-10-28: the results disclaimer to show under the bio — the attorney is licensed in a state that requires it and the bio quotes results or testimonials.',
+  })
+  advertisingDisclaimer?: string | null;
+
   @ApiProperty({
     description:
       'Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares.',
@@ -389,6 +397,20 @@ export class PublicAttorneyProfileDto {
       'Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы).',
   })
   advertisingLabel!: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-28: true when this attorney holds paid priority in search (plan «higher in search»). Show the word "Sponsored" next to the result.',
+  })
+  sponsored?: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Owner 2026-10-28: the results disclaimer to show under the bio — the attorney is licensed in a state that requires it and the bio quotes results or testimonials.',
+  })
+  advertisingDisclaimer?: string | null;
 
   @ApiProperty({
     description:

@@ -7405,3 +7405,31 @@ model SearchIndexState {
 
   @@map("search_index_state")
 }
+
+/// Owner 2026-10-28: attorney advertising archive. One row per published
+/// VERSION of an attorney's ad text (profile bio, post, promotion), kept
+/// until `retain_until` for the state's record-keeping rule. No FK to
+/// users: a copy must outlive the account. Global family.
+model AttorneyAdArchive {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attorney_id  String   @db.Uuid
+  /// profile_bio | post | promotion
+  kind         String   @db.VarChar(16)
+  /// The post / promotion id (the attorney id for a bio).
+  source_id    String   @db.Uuid
+  version      Int
+  content      String
+  content_hash String   @db.VarChar(64)
+  /// «Attorney Advertising» / results disclaimers the server added.
+  disclaimers  String[]  @default([])
+  /// Checker findings at save time (rule ids).
+  findings     String[]  @default([])
+  state_codes  String[]  @default([])
+  created_at   DateTime @default(now()) @db.Timestamptz
+  retain_until DateTime @db.Timestamptz
+
+  @@unique([kind, source_id, version])
+  @@index([attorney_id, created_at(sort: Desc)])
+  @@index([retain_until])
+  @@map("attorney_ad_archive")
+}

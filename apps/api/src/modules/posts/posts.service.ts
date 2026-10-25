@@ -1,3 +1,4 @@
+import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
@@ -128,6 +129,8 @@ export class PostsService {
     @Optional() private readonly alerts?: SubscriptionAlertsService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
     @Optional() private readonly flags?: FeatureFlagsService,
+    // Owner 2026-10-28: attorney ad-text checker + archive (off by default).
+    @Optional() private readonly ads?: AttorneyAdsService,
   ) {}
 
   /** Owner 2026-10-06: News is switched off for now (flag `news_posts`,
@@ -179,6 +182,11 @@ export class PostsService {
     // Owner 2026-10-18: the title and the text are optional when photos, a
     // video or files are attached (Instagram / TikTok); an empty post is not.
     assertNotEmptyPost(dto.title, dto.body, hasFiles);
+    // Owner 2026-10-28: an attorney's post is attorney advertising —
+    // checked per the author's states (block mode refuses a guarantee).
+    if (user.role === 'attorney') {
+      await this.ads?.enforce(user.sub, [`${dto.title ?? ''}\n${dto.body}`]);
+    }
     // Owner 2026-10-13: documents need the right to attach (the admin's
     // setting + plan). Owner 2026-10-16: photos (up to the admin's count,
     // 9) and a reel's video never do.
@@ -331,6 +339,14 @@ export class PostsService {
       }
     }
     if (finalStatus === 'published') await this.afterPublish(post.id);
+    if (user.role === 'attorney' && finalStatus !== 'hidden') {
+      await this.ads?.archive(
+        user.sub,
+        'post',
+        post.id,
+        post.title ? `${post.title}\n${post.body}` : post.body,
+      );
+    }
     return (await this.presenter.present([post], user.sub))[0];
   }
 
@@ -532,6 +548,9 @@ export class PostsService {
             })
           )?.code
         : undefined);
+    if (user.role === 'attorney') {
+      await this.ads?.enforce(user.sub, [title ? `${title}\n${body}` : body]);
+    }
     const verdict = await this.moderate(
       title ? `${title}\n${body}` : body,
       user.sub,
@@ -593,6 +612,14 @@ export class PostsService {
         user.sub,
         'posts_count',
         -1,
+      );
+    }
+    if (user.role === 'attorney' && post.status === 'published') {
+      await this.ads?.archive(
+        user.sub,
+        'post',
+        id,
+        title ? `${title}\n${body}` : body,
       );
     }
     return (await this.presenter.present([post], user.sub))[0];

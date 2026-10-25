@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { attorneyPublicUrl } from '../../../common/utils/public-urls';
 import { AttorneyAdvertisingService } from '../../countries/attorney-advertising.service';
+import { AttorneyAdsService } from '../../attorney-ads/attorney-ads.service';
 import { UsernamePolicyService } from '../../usernames/username-policy.service';
 import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
@@ -105,11 +106,29 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     // canonical public link.
     @Optional() private readonly advertising?: AttorneyAdvertisingService,
     @Optional() private readonly config?: ConfigService,
+    // Owner 2026-10-28: ad-text checker + archive for the bio.
+    @Optional() private readonly ads?: AttorneyAdsService,
   ) {}
 
   /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
-  private async labelFor(stateCodes: Iterable<string>): Promise<boolean> {
-    return (await this.advertising?.requiresLabel(stateCodes)) ?? false;
+  private async labelFor(
+    attorneyId: string,
+    stateCodes: Iterable<string>,
+  ): Promise<boolean> {
+    return (await this.advertising?.labelFor(attorneyId, stateCodes)) ?? false;
+  }
+
+  /** The per-state results disclaimer under the bio (owner 2026-10-28). */
+  private async disclaimerFor(
+    attorneyId: string,
+    bio: string | null,
+  ): Promise<string | null> {
+    if (!this.advertising || !bio) return null;
+    return this.advertising.disclaimerFor(
+      await this.advertising.resultsDisclaimers([attorneyId]),
+      attorneyId,
+      bio,
+    );
   }
 
   private publicUrl(username: string): string {
@@ -160,10 +179,12 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       // (AttorneyTrustService keeps attorney_profiles.trust_badge).
       verifiedBadge: row.trust_badge,
       advertisingLabel: await this.labelFor(
+        row.user_id,
         row.licenses
           .filter((l) => l.license_status === 'verified')
           .map((l) => l.state_code),
       ),
+      advertisingDisclaimer: await this.disclaimerFor(row.user_id, row.bio),
       publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       nameMismatch: row.name_mismatch,
@@ -204,6 +225,9 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     const cooldownDays = await this.settings.number(
       'profile.username_change_cooldown_days',
     );
+    // Owner 2026-10-28: the bio is attorney advertising — checked per the
+    // attorney's states (off by default).
+    if (dto.bio) await this.ads?.enforce(userId, [dto.bio]);
 
     try {
       await withTxRetry(this.prisma, async (tx) => {
@@ -296,6 +320,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       }
       throw error;
     }
+    if (dto.bio)
+      await this.ads?.archive(userId, 'profile_bio', userId, dto.bio);
     return this.getOwn(userId, now);
   }
 
@@ -539,7 +565,13 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       avatarUrl256: photoOk.has(row.user_id) ? avatar.url256 : null,
       languages: row.languages,
       verifiedBadge: row.trust_badge,
-      advertisingLabel: await this.labelFor(states.keys()),
+      advertisingLabel: await this.labelFor(row.user_id, states.keys()),
+      sponsored:
+        (await this.advertising?.sponsored([row.user_id]))?.has(row.user_id) ??
+        false,
+      advertisingDisclaimer: aboutOk.has(row.user_id)
+        ? await this.disclaimerFor(row.user_id, row.bio)
+        : null,
       publicUrl: this.publicUrl(row.username),
       trustLevel: row.trust_level,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),

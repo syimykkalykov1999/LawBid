@@ -133,6 +133,10 @@ import {
   CountriesModule,
 } from './modules/countries/countries.module';
 import { AdminEmailTemplatesModule } from './modules/admin-email-templates/admin-email-templates.module';
+import {
+  AttorneyAdsCoreModule,
+  AttorneyAdsModule,
+} from './modules/attorney-ads/attorney-ads.module';
 import { PrivacyModule } from './modules/privacy/privacy.module';
 import { MediaModerationModule } from './modules/media-moderation/media-moderation.module';
 import { CostGuardModule } from './common/cost-guard/cost-guard.module';
@@ -382,6 +386,9 @@ const isDev =
     // Owner 2026-10-05: countries (Система → Страны).
     CountriesCoreModule,
     CountriesModule,
+    // Owner 2026-10-28: attorney advertising compliance.
+    AttorneyAdsCoreModule,
+    AttorneyAdsModule,
     FilesModule,
     ProfilesModule,
     PublicDirectoryModule,

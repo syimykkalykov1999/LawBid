@@ -3,6 +3,7 @@ import { AttorneyAdvertisingService } from './attorney-advertising.service';
 
 function make(labelled: string[]) {
   const prisma = {
+    appConfig: { findUnique: jest.fn(() => Promise.resolve(null)) },
     state: {
       findMany: jest.fn(() =>
         Promise.resolve(labelled.map((code) => ({ code }))),
