@@ -200,6 +200,10 @@ enum ErrorCode {
   barNumberBlocked('BAR_NUMBER_BLOCKED'),
   @JsonValue('ACCOUNT_RESTRICTED')
   accountRestricted('ACCOUNT_RESTRICTED'),
+  @JsonValue('REPORTING_SUSPENDED')
+  reportingSuspended('REPORTING_SUSPENDED'),
+  @JsonValue('ACCOUNT_STRIKE_LIMITED')
+  accountStrikeLimited('ACCOUNT_STRIKE_LIMITED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
   @JsonValue('REASON_REQUIRED')

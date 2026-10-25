@@ -84,6 +84,102 @@ class _ModerationClient implements ModerationClient {
     return _value;
   }
 
+  @override
+  Future<MyStandingEnvelope> myStanding({Map<String, dynamic>? extras}) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<MyStandingEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/moderation/standing',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late MyStandingEnvelope _value;
+    try {
+      _value = MyStandingEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<ReportingStatusEnvelope> appealReporting({
+    required AppealMessageDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<ReportingStatusEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/moderation/reporting-appeal',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late ReportingStatusEnvelope _value;
+    try {
+      _value = ReportingStatusEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<AutoActionEnvelope> appealAuto({
+    required String id,
+    required AppealMessageDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<AutoActionEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/moderation/auto-actions/${id}/appeal',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late AutoActionEnvelope _value;
+    try {
+      _value = AutoActionEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
   RequestOptions _setStreamType<T>(RequestOptions requestOptions) {
     if (T != dynamic &&
         !(requestOptions.responseType == ResponseType.bytes ||

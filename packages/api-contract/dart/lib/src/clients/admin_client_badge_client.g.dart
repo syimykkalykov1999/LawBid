@@ -22,7 +22,7 @@ class _AdminClientBadgeClient implements AdminClientBadgeClient {
 
   @override
   Future<AdminClientBadgeRowListEnvelope> listAdminClientBadges({
-    Status13? status,
+    Status14? status,
     SubStatus? subStatus,
     String? q,
     String? cursor,
