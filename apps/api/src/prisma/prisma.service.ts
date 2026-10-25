@@ -216,6 +216,13 @@ export class PrismaService
       return byContext();
     };
 
+    const FIND_ONE_OPS: ReadonlySet<string> = new Set([
+      'findUniqueOrThrow',
+      'findFirstOrThrow',
+      'update',
+      'delete',
+    ]);
+
     const multiDb = (): boolean => Object.keys(shardUrls).length > 0;
 
     /** A delegate whose every operation picks its database from its own
@@ -259,6 +266,48 @@ export class PrismaService
                       );
                     }),
                   ).then((results) => mergeScatter(op, args, results));
+                }
+              }
+              // A single-row write or OrThrow read that names no shard (a
+              // legacy random id): try each database in turn; only "record
+              // not found" moves on to the next one.
+              if (shard === undefined && FIND_ONE_OPS.has(op)) {
+                const keys = router.physicalKeys();
+                if (keys.length === 1 && keys[0] !== PRIMARY_DB) {
+                  const c = clientFor(keys[0]) as unknown as Record<
+                    string,
+                    Record<string, unknown>
+                  >;
+                  return (c[prop][op] as (a?: unknown) => unknown).call(
+                    c[prop],
+                    args,
+                  );
+                }
+                if (keys.length > 1) {
+                  shardStats.scatter(model);
+                  return (async () => {
+                    let last: unknown;
+                    for (const k of keys) {
+                      const c = clientFor(k) as unknown as Record<
+                        string,
+                        Record<string, unknown>
+                      >;
+                      try {
+                        return await (
+                          c[prop][op] as (a?: unknown) => Promise<unknown>
+                        ).call(c[prop], args);
+                      } catch (e) {
+                        if (
+                          (e as { code?: string })?.code !== 'P2025' &&
+                          (e as { name?: string })?.name !== 'NotFoundError'
+                        ) {
+                          throw e;
+                        }
+                        last = e;
+                      }
+                    }
+                    throw last;
+                  })();
                 }
               }
               const client = (shard === undefined

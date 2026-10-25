@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { FileReleaseService } from '../files/storage/file-release.service';
 
 /** Rows per statement: small transactions, no long locks. */
@@ -47,12 +48,21 @@ export class DisappearingSweepService {
   }
 
   async run(now: Date = new Date()): Promise<DisappearingSweepResult> {
-    const messages = await this.drain((limit) =>
-      this.expireMessages(now, limit),
-    );
-    const groupMessages = await this.drain((limit) =>
-      this.expireGroupMessages(now, limit),
-    );
+    // Shard-ready step 8: the raw SQL runs on each physical database in turn.
+    const per = await forEachDatabase(this.prisma, async () => ({
+      messages: await this.drain((limit) => this.expireMessages(now, limit)),
+      groupMessages: await this.drain((limit) =>
+        this.expireGroupMessages(now, limit),
+      ),
+    }));
+    const messages = {
+      count: per.reduce((n, r) => n + r.messages.count, 0),
+      files: per.flatMap((r) => r.messages.files),
+    };
+    const groupMessages = {
+      count: per.reduce((n, r) => n + r.groupMessages.count, 0),
+      files: per.flatMap((r) => r.groupMessages.files),
+    };
     const fileIds = [...messages.files, ...groupMessages.files];
     const released = fileIds.length
       ? await this.releases.release(fileIds, 'disappeared', now)

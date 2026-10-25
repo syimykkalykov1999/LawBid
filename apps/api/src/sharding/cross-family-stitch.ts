@@ -403,7 +403,7 @@ export function stitchHandler(
       });
     }
     if (!READ_OPS.has(operation)) return query(args as never);
-    const rewritten = rewrite(model, args, onUncovered);
+    const rewritten = rewrite(model, args as Obj, onUncovered);
     if (!rewritten) return query(args as never);
     const result = (await query(rewritten.args as never)) as Obj | Obj[] | null;
     if (result === null || result === undefined) return result;
