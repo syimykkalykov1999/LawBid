@@ -47,6 +47,7 @@ import {
   PRESIGN_TTL_SEC,
   PURPOSE_RULES,
   UPLOAD_INTENT_TTL_SEC,
+  newFileKey,
   variantKey,
   avifKey,
   AVIF_PURPOSES,
@@ -214,7 +215,9 @@ export class FilesService {
     await this.assertDemoQuota(userId, dto.sizeBytes);
 
     const fileId = randomUUID();
-    const key = `${demoKeyPrefix()}${dto.purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() +
+      newFileKey({ purpose: dto.purpose, ownerId: userId, fileId });
     const target = {
       bucket,
       key,
@@ -980,7 +983,8 @@ export class FilesService {
     }
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);
-    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, src.mime);
     const sha256 = createHash('sha256').update(data).digest('hex');
     await this.prisma.file.create({
@@ -1017,7 +1021,8 @@ export class FilesService {
     const fileId = randomUUID();
     const bucket = this.storage.bucket(rule.bucket);
     await this.costGuard.consume('storage');
-    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, mime);
     const sha256 = createHash('sha256').update(data).digest('hex');
     return this.prisma.file.create({

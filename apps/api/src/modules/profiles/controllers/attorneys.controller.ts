@@ -20,6 +20,10 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   CurrentUser,
@@ -81,18 +85,20 @@ export class AttorneysController {
 
   @AttorneyOnly()
   @Patch('me/profile')
+  @ApiIfMatchVersion()
   @ApiEnvelopeResponse(OwnAttorneyProfileDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.USERNAME_RESERVED],
     403: [E.FORBIDDEN],
     404: [E.NOT_FOUND],
-    409: [E.USERNAME_TAKEN, E.USERNAME_CHANGE_TOO_SOON],
+    409: [E.USERNAME_TAKEN, E.USERNAME_CHANGE_TOO_SOON, E.STALE_VERSION],
   })
   async updateMyAttorneyProfile(
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdateAttorneyProfileDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<OwnAttorneyProfileDto> {
-    return this.profiles.updateOwn(user.sub, dto);
+    return this.profiles.updateOwn(user.sub, dto, new Date(), expectedVersion);
   }
 
   @Get('me/practice-areas')

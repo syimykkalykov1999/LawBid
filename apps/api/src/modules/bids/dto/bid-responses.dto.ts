@@ -133,6 +133,10 @@ export class BidDto {
   @ApiProperty({ type: 'integer', minimum: 0, maximum: 5 })
   roundCount!: number;
 
+  /** Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION). */
+  @ApiProperty({ type: 'integer' })
+  version!: number;
+
   @ApiProperty({ enum: PartyRole, enumName: 'PartyRole' })
   turn!: PartyRole;
 

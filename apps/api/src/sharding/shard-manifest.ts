@@ -335,6 +335,11 @@ export const GLOBAL_MODELS: readonly string[] = [
   'SearchIndexState',
   // Owner 2026-10-28: attorney advertising archive.
   'AttorneyAdArchive',
+  // Day-one foundations: the double-entry money ledger (global: platform
+  // accounts and cross-party entries; docs/architecture/MONEY_LEDGER.md).
+  'LedgerAccount',
+  'LedgerEntry',
+  'LedgerLine',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);

@@ -43,6 +43,10 @@ export class ClientProfileDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
+  /** Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION). */
+  @ApiProperty({ type: 'integer' })
+  version!: number;
+
   @ApiProperty({ description: 'OQ-026: the client @username.' })
   username!: string;
 

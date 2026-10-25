@@ -20,6 +20,7 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { EntitlementsService } from '../plans/entitlements.service';
+import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
@@ -158,6 +159,8 @@ export class PromotionsService {
     @Optional() private readonly payLink?: PayLinkService,
     // Owner 2026-10-28: a copy of every attorney promotion (ad archive).
     @Optional() private readonly ads?: AttorneyAdsService,
+    // Day-one foundations: the double-entry money ledger (same transaction).
+    @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
 
   /** Owner 2026-10-28: the promoted post of an attorney is paid
@@ -1028,6 +1031,7 @@ export class PromotionsService {
           paid_at: now,
         },
       });
+      await this.ledger?.paymentReceived(tx, payment, 'revenue_promotions');
       if (review) {
         const row = await tx.casePromotion.update({
           where: { id: p.id },

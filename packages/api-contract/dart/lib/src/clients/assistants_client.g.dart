@@ -667,13 +667,15 @@ class _AssistantsClient implements AssistantsClient {
   Future<TaskEnvelope> updateTask({
     required String id,
     required UpdateTaskDto body,
+    int? ifMatch,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-Match': ifMatch};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<TaskEnvelope>(
@@ -725,13 +727,15 @@ class _AssistantsClient implements AssistantsClient {
   Future<TaskEnvelope> setTaskStatus({
     required String id,
     required UpdateTaskStatusDto body,
+    int? ifMatch,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'If-Match': ifMatch};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<TaskEnvelope>(

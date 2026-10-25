@@ -12,6 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { LedgerPostingService } from '../ledger/ledger.public';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { PAYMENT_PROVIDER } from '../billing/billing.constants';
@@ -90,6 +91,8 @@ export class BidPacksService {
     @Optional() private readonly payLink?: PayLinkService,
     // Owner 2026-10-28: per-state flag «bid packs allowed» (default on).
     @Optional() private readonly ads?: AttorneyAdsService,
+    // Day-one foundations: the double-entry money ledger (same transaction).
+    @Optional() private readonly ledger?: LedgerPostingService,
   ) {}
 
   async enabled(): Promise<boolean> {
@@ -376,6 +379,7 @@ export class BidPacksService {
           paid_at: now,
         },
       });
+      await this.ledger?.paymentReceived(tx, payment, 'revenue_bid_packs');
       await tx.bidPackPurchase.update({
         where: { id },
         data: { status: 'paid', paid_at: now, payment_id: payment.id },

@@ -4,3 +4,5 @@ export { FileDto, PresignedFileDto } from './dto/files.dto';
 // own (media moderation).
 export { S3StorageService } from './storage/s3-storage.service';
 export { FileReleaseService } from './storage/file-release.service';
+// Owner-independent object keys for new uploads (day-one foundations).
+export { newFileKey } from './files.policy';
