@@ -1659,6 +1659,8 @@ resource "aws_iam_role_policy_attachment" "db_replica_monitoring" {
   count      = length(aws_iam_role.db_replica_monitoring)
   role       = aws_iam_role.db_replica_monitoring[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
+}
+
 variable "ops_role_split" {
   type        = bool
   default     = false
