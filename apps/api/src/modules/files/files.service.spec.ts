@@ -1,3 +1,4 @@
+import { imageFormatContext } from './processing/image-format-context';
 import { createHash } from 'node:crypto';
 import { HttpException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
@@ -648,6 +649,61 @@ describe('FilesService', () => {
         }).service.mediaUrl('f1'),
       ).toBeNull();
       expect(await make().service.mediaUrl(null)).toBeNull();
+    });
+
+    describe('AVIF twins (owner 2026-10-25)', () => {
+      const withSettings = (on: boolean, since: string, created: Date) => {
+        const m = make({
+          file: { width: 1024, mime: 'image/webp', created_at: created },
+        });
+        (m.deps.settings as Record<string, unknown>).boolean = jest.fn(() =>
+          Promise.resolve(on),
+        );
+        (m.deps.settings as Record<string, unknown>).string = jest.fn(() =>
+          Promise.resolve(since),
+        );
+        return m;
+      };
+      const asAvifClient = <T>(fn: () => Promise<T>) =>
+        imageFormatContext.run(true, fn);
+      const since = '2026-10-25T00:00:00Z';
+      const after = new Date('2026-10-26T00:00:00Z');
+
+      it('serves the .avif twin to a client that asked, after the since time', async () => {
+        const { service, deps } = withSettings(true, since, after);
+        await asAvifClient(() => service.avatarUrls('f1'));
+        expect(deps.storage.signedGetUrl).toHaveBeenCalledWith(
+          'media',
+          'avatar/u1/f1.avif',
+          3600,
+        );
+        expect(deps.storage.signedGetUrl).toHaveBeenCalledWith(
+          'media',
+          'avatar/u1/f1_w256.avif',
+          3600,
+        );
+      });
+
+      it('keeps WebP/JPEG links when: no opt-in, switch off, empty since, or an older file', async () => {
+        const cases: Array<[boolean, string, Date, boolean]> = [
+          [true, since, after, false],
+          [false, since, after, true],
+          [true, '', after, true],
+          [true, since, new Date('2026-10-01T00:00:00Z'), true],
+        ];
+        for (const [on, s, created, optIn] of cases) {
+          const { service, deps } = withSettings(on, s, created);
+          await (optIn
+            ? asAvifClient(() => service.avatarUrls('f1'))
+            : service.avatarUrls('f1'));
+          const keys = deps.storage.signedGetUrl.mock.calls.map(
+            (c: unknown[]) => c[1],
+          );
+          expect(keys.some((k: unknown) => String(k).endsWith('.avif'))).toBe(
+            false,
+          );
+        }
+      });
     });
 
     it('isCleanAvatar: own, clean, live avatar only', async () => {

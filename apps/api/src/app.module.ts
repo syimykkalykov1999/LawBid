@@ -9,6 +9,7 @@ import {
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { startTime, type Options as PinoHttpOptions } from 'pino-http';
+import { ImageFormatInterceptor } from './modules/files/processing/image-format-context';
 import { ViewerContextInterceptor } from './common/viewer/viewer-context';
 import { ShardContextInterceptor } from './sharding/shard-context.interceptor';
 import { ConfigModule } from './config/config.module';
@@ -420,6 +421,7 @@ const isDev =
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ImageFormatInterceptor },
     // Batch C item 14: opt-in shared-cache header for guest-only GETs.
     { provide: APP_INTERCEPTOR, useClass: AnonymousCacheInterceptor },
     // Shard-ready step 4: the shard context of the request (route ids, else
