@@ -1,3 +1,4 @@
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { BidPacksService } from '../bid-packs/bid-packs.service';
 import {
   BadRequestException,
@@ -479,6 +480,17 @@ export class BidsService {
    * treats as "not active") still withdraws stale active bids.
    */
   async withdrawActiveBidsForAttorney(attorneyId: string): Promise<number> {
+    // Shard-ready step 8: the attorney's bids sit on every database that
+    // holds a case they bid on; one transaction per database.
+    const counts = await forEachDatabase(this.prisma, () =>
+      this.withdrawActiveBidsOnThisDatabase(attorneyId),
+    );
+    return counts.reduce((a, b) => a + b, 0);
+  }
+
+  private async withdrawActiveBidsOnThisDatabase(
+    attorneyId: string,
+  ): Promise<number> {
     return withTxRetry(this.prisma, async (tx) => {
       const targets = await tx.bid.findMany({
         where: { attorney_id: attorneyId, status: 'active' },
