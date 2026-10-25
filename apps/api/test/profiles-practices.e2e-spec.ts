@@ -387,7 +387,8 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         const a = await attorney({
           status: 'verified',
           licenses: [
-            { state: 'NJ', expires: today },
+            // Past the 14-day grace (verification.license_expiry_grace_days).
+            { state: 'NJ', expires: new Date(today.getTime() - 15 * DAY) },
             { state: 'NY', expires: new Date(today.getTime() + 100 * DAY) },
           ],
         });
@@ -475,7 +476,8 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         const b = await attorney({
           status: 'verified',
           licenses: [
-            { state: 'CA', expires: new Date(today.getTime() + 60 * DAY) },
+            // Beyond the farthest reminder (60 days).
+            { state: 'CA', expires: new Date(today.getTime() + 100 * DAY) },
           ],
         });
         const job = app.get(LicenseExpiryJob);
