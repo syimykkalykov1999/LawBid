@@ -18,6 +18,7 @@ import {
 } from './group-fanout.queue';
 import { GroupsModule } from './groups.module';
 import { GroupsService } from './groups.service';
+import { bullOptions } from '../../redis/redis-connection';
 
 export const GROUP_FANOUT_OPTIONS = Symbol('GROUP_FANOUT_OPTIONS');
 
@@ -61,7 +62,10 @@ export class GroupFanoutWorker
       const worker = new Worker<GroupFanoutJob>(
         fanoutQueueName(i),
         (job: Job<GroupFanoutJob>) => this.process(job.data),
-        { connection: { url, maxRetriesPerRequest: null }, concurrency: 1 },
+        {
+          ...bullOptions(fanoutQueueName(i), url, { worker: true }),
+          concurrency: 1,
+        },
       );
       worker.on('failed', (job, error) => {
         this.logger.error(

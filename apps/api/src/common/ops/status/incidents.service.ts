@@ -5,6 +5,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import type { IncidentEventKind } from './incident-texts';
 import type { ProbeResult } from './status-probes.service';
+import { ck } from '../../../redis/redis-cluster-safe';
 
 /** Two bad (or good) checks in a row change the state: one blip is noise. */
 export const STREAK_TO_CHANGE = 2;
@@ -67,8 +68,8 @@ export class IncidentsService {
     component: string,
     bad: boolean,
   ): Promise<{ bad: number; ok: number }> {
-    const kBad = `ops:inc:bad:${component}`;
-    const kOk = `ops:inc:ok:${component}`;
+    const kBad = ck(component, `ops:inc:bad:${component}`);
+    const kOk = ck(component, `ops:inc:ok:${component}`);
     const [inc, del] = bad ? [kBad, kOk] : [kOk, kBad];
     const pipe = this.redis.multi();
     pipe.incr(inc);

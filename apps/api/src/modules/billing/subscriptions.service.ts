@@ -75,6 +75,7 @@ const PAYMENTS_PAGE = 20;
  * after creation is driven by webhooks (SubscriptionSyncService).
  */
 import { ReferralsService } from '../referrals/referrals.service';
+import { bullOptions } from '../../redis/redis-connection';
 /** `sessionId` of a payment made on our own card page. */
 export const OWN_PAGE_SESSION_PREFIX = 'own:';
 
@@ -124,7 +125,10 @@ export class SubscriptionsService implements OnModuleDestroy {
       config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app';
     const url = config.get<string>('REDIS_URL');
     if (url)
-      this.queue = new Queue(SUBSCRIPTION_JOBS_QUEUE, { connection: { url } });
+      this.queue = new Queue(
+        SUBSCRIPTION_JOBS_QUEUE,
+        bullOptions(SUBSCRIPTION_JOBS_QUEUE, url),
+      );
   }
 
   /** The queue keeps its own Redis connection: close it with the app (an

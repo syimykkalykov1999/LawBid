@@ -68,6 +68,11 @@ variable "p95_target_ms" {
   type    = number
   default = 600
 }
+variable "search_p95_alarm_ms" {
+  type        = number
+  default     = 300
+  description = "p95 of the Postgres search (log metric search_latency) above this for 15 minutes = «пора включить отдельный поиск». 0 = no alarm."
+}
 variable "kms_key_arn" { type = string }
 variable "tags" {
   type    = map(string)
@@ -105,6 +110,14 @@ resource "aws_sns_topic_policy" "alerts" {
         Condition = {
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
         }
+      },
+      {
+        # Cost Anomaly Detection (modules/budget, IMMEDIATE subscription).
+        Sid       = "CostAnomalyPublisher"
+        Effect    = "Allow"
+        Principal = { Service = "costalerts.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alerts.arn
       },
     ]
   })
@@ -308,6 +321,39 @@ resource "aws_cloudwatch_log_metric_filter" "sms_sent" {
 }
 
 # --- alarms (docs/06 §8 list) ----------------------------------------------
+# --- «пора вынести поиск» (docs/architecture/SEARCH_READY.md) ---------------
+# One log line per search answered by Postgres: {metric: "search_latency",
+# engine: "postgres", ms}. p95 over 15 minutes above the threshold means the
+# built-in search is slowing the database down: turn the separate search on.
+resource "aws_cloudwatch_log_metric_filter" "search_latency" {
+  name           = "${var.name}-search-pg-latency"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"search_latency\" && $.engine = \"postgres\" }"
+  metric_transformation {
+    name      = "SearchPgLatencyMs"
+    namespace = local.ns
+    value     = "$.ms"
+    unit      = "Milliseconds"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "search_slow" {
+  count               = var.search_p95_alarm_ms > 0 ? 1 : 0
+  alarm_name          = "${var.name}-search-slow"
+  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 300
+  threshold           = var.search_p95_alarm_ms
+  extended_statistic  = "p95"
+  metric_name         = aws_cloudwatch_log_metric_filter.search_latency.metric_transformation[0].name
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 resource "aws_cloudwatch_metric_alarm" "alb_5xx_ratio" {
   alarm_name          = "${var.name}-api-5xx-ratio"
   alarm_description   = "LawBid: Приложение выдаёт ошибки (больше 1 % запросов). Что делать: Обычно это неудачное обновление — оно откатывается само. Не прошло за 15 минут: GitHub → Actions → «Rollback production». Инструкция: ${var.runbook_base_url}/api-5xx.md (EN: 5xx > 1% for 5 minutes.)"
