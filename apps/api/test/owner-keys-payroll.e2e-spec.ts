@@ -76,7 +76,8 @@ describe('Key sets + payroll (e2e)', () => {
     await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
   });
 
-  /** Owner 2026-10-24: the second-admin rule is off by default. */
+  // admin.dual_control is off by default (owner 2026-10-25); this file's
+  // maker-checker test turns the second-admin rule on for its own run.
   async function setDualControl(on: boolean): Promise<void> {
     await prisma.appConfig.upsert({
       where: { key: 'admin.dual_control' },
