@@ -55,6 +55,7 @@ import { viewerContext } from '../../../common/viewer/viewer-context';
 import { FilesService } from '../../files/files.service';
 import {
   CHAT_SENDER_SELECT,
+  chatCollapseKey,
   chatPushData,
   chatPushKind,
   chatPushPreview,
@@ -134,6 +135,12 @@ export class PushDispatcher
     @Optional() private readonly texts?: ServerTextsService,
   ) {
     this.logger.setContext(PushDispatcher.name);
+  }
+
+  /** Owner 2026-10-24: chat pushes collapse per conversation (chat-push.ts
+   * chatCollapseKey); PUSH_CHAT_COLLAPSE=0 turns it off. */
+  private chatCollapse(): boolean {
+    return process.env.PUSH_CHAT_COLLAPSE !== '0';
   }
 
   /** The push words in [lang] (the app's own 85-language keys; built-in
@@ -813,6 +820,13 @@ export class PushDispatcher
         sound: 'message',
         // One stack per chat in the shade (WhatsApp).
         threadId: data.groupId,
+        ...(this.chatCollapse()
+          ? {
+              collapseKey: chatCollapseKey(data.groupId, {
+                mention: mentioned,
+              }),
+            }
+          : {}),
         ...(chat ? { chat: true } : {}),
       },
     };
@@ -955,7 +969,10 @@ export class PushDispatcher
       collapseKey = `react-${data.messageId}`;
       dedupeKey = `r:${data.messageId}:${data.actorId}:${data.emoji ?? ''}`;
     } else {
-      collapseKey = `msg-${data.messageId}`;
+      // Owner 2026-10-24: a burst replaces itself, the newest text wins.
+      collapseKey = this.chatCollapse()
+        ? chatCollapseKey(data.conversationId)
+        : `msg-${data.messageId}`;
     }
     const pics = await this.avatarUrls(data.recipientId, [
       sender?.avatar_file_id,
