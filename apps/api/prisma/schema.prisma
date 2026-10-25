@@ -29,12 +29,7 @@ generator client {
   // build on one CPU never ships a runtime that downloads (or lacks) its
   // engine. The image is Alpine (musl) on Fargate X86_64 or ARM64; the
   // glibc arm64 target covers a Graviton build on a Debian runner.
-  binaryTargets = [
-    "native",
-    "linux-musl-openssl-3.0.x",
-    "linux-musl-arm64-openssl-3.0.x",
-    "linux-arm64-openssl-3.0.x",
-  ]
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {
