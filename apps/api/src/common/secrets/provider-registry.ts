@@ -588,6 +588,56 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'opensearch',
+    label: 'Search engine (OpenSearch)',
+    description:
+      'A dedicated search engine for people, cases, posts and questions. Used only when «search.engine» is set to shadow or engine in Settings; searches fall back to Postgres if the engine fails or is slow. Off by default.',
+    fields: [
+      {
+        name: 'url',
+        label: 'Address (OPENSEARCH_URL)',
+        secret: false,
+        required: true,
+        pattern: /^https?:\/\/[^\s]+$/,
+        patternHint:
+          'https://vpc-lawbid-search-xxxx.us-east-1.es.amazonaws.com',
+        env: 'OPENSEARCH_URL',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'username',
+        label: 'User name (OPENSEARCH_USERNAME), if the engine asks for one',
+        secret: false,
+        required: false,
+        env: 'OPENSEARCH_USERNAME',
+      },
+      {
+        name: 'password',
+        label: 'Password (OPENSEARCH_PASSWORD), if the engine asks for one',
+        secret: true,
+        required: false,
+        env: 'OPENSEARCH_PASSWORD',
+      },
+      {
+        name: 'prefix',
+        label: 'Index name prefix (OPENSEARCH_PREFIX), default lawbid',
+        secret: false,
+        required: false,
+        pattern: /^[a-z][a-z0-9_-]{1,30}$/,
+        patternHint: 'lawbid or lawbid-loadtest',
+        env: 'OPENSEARCH_PREFIX',
+      },
+    ],
+    // Cluster answers its root page (read-only).
+    test: async (f) => {
+      const headers: Record<string, string> = {};
+      if (f.username && f.password) {
+        headers.authorization = `Basic ${Buffer.from(`${f.username}:${f.password}`).toString('base64')}`;
+      }
+      await probe(`${f.url.replace(/\/+$/, '')}/`, { headers });
+    },
+  },
+  {
     id: 'persona',
     label: 'Persona (ID checks)',
     description: 'Identity verification of attorneys.',

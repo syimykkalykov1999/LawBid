@@ -169,6 +169,11 @@ variable "livekit_enabled" {
   type    = bool
   default = false
 }
+# Growth switches of the stack under test (same object as prod, all off by
+# default). To load-test the search engine: -var 'growth={opensearch_enabled=true}'
+# (or a line in a profile), apply, then in the loadtest admin set
+# search.engine = shadow, later engine (docs/architecture/SEARCH_READY.md §9).
+# The loadtest stack is a separate stack, so it gets its own domain.
 variable "growth" {
   type    = any
   default = {}

@@ -88,7 +88,7 @@
 
 в) **Реплик больше**: `rds_read_replicas = 2` или 3. ≈ +$200 за каждую. Минут: 10.
 
-г) **Поисковый движок** (OpenSearch): `growth = { opensearch_enabled = true, opensearch_instance_type = "m6g.large.search", opensearch_instance_count = 3 }` ≈ +$280. **Но:** переключатель только создаёт сам движок. Подключение приложения (провайдер поиска) — это код, ~1-2 недели. Включать после того, как разработчик его напишет. Кто: разработчик + я.
+г) **Поисковый движок** (OpenSearch): `growth = { opensearch_enabled = true }` (маленький узел ≈ $28 в месяц; `opensearch_instance_type = "m6g.large.search", opensearch_instance_count = 3` ≈ +$280). **Код приложения готов (2026-10-24):** после `apply` в админке Настройки `search.engine` = `shadow`, через пару дней `engine`; вернуться можно в любой момент значением `postgres`. Подробно и с ценой всех вариантов: `docs/architecture/SEARCH_READY.md`. Кто: вы + я.
 
 д) **Картинки через Bunny** вместо CloudFront (дешевле в 8-17 раз за гигабайт): завести «pull zone» в Bunny, потом `growth = { cdn_images_provider = "bunny", cdn_images_base_url = "https://<ваша-зона>" }`, выкатить. Экономия при 10 млн DAU ≈ несколько тысяч долларов в месяц (считается по трафику). Минут: 30. Кто: вы + я.
 
