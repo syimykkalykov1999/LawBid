@@ -122,4 +122,4 @@ The daily self-check warns when the last drill is older than 100 days.
 
 | Date | Backup (time) | Target | RTO measured | RPO measured | Checks | Issues / follow-ups | Run by |
 |---|---|---|---|---|---|---|---|
-| _pending — first drill before launch (owner: `scripts/ops/restore-drill.sh`)_ | | | | | | | |
+| 2026-10-25 | backup-vault: 2026-10-24T23:00:00-07:00 | lawbid-drill-20261025-0644 (db.t4g.micro) | 20 min | newest user row 2026-10-21T19:06:58.441Z | rows ok, migrations ok (116) | backup-vault metadata fixed: keep only restore inputs, Port 0 → 5432 | sima |

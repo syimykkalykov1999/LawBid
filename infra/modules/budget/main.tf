@@ -61,6 +61,13 @@ resource "aws_budgets_budget" "monthly" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
 
+  # Owner 2026-10-24: the owner changes the limit in the admin («Масштаб»,
+  # four-eyes-free but 2FA-protected). Terraform only sets it at creation;
+  # monthly_budget_usd is the starting value, not a pin.
+  lifecycle {
+    ignore_changes = [limit_amount]
+  }
+
   dynamic "notification" {
     for_each = [50, 80, 100]
     content {
