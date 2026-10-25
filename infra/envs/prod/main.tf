@@ -161,6 +161,8 @@ module "stack" {
   backup_vault_lock_mode             = var.backup_vault_lock_mode
   backup_vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
   ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
+  deploy_alarm_rollback              = var.deploy_alarm_rollback
+  deploy_rollback_on_slo             = var.deploy_rollback_on_slo
   dmarc_policy                       = var.dmarc_policy
 
   # Load audit 6: growth switches (growth.tf).
