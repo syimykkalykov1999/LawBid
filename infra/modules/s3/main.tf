@@ -316,6 +316,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "documents_replica" {
     filter { prefix = "" }
     expiration { expired_object_delete_marker = true }
   }
+  # S9-8 (2026-10-25): the primary already tiers (intelligent-tiering rule
+  # above); the replica is written as STANDARD_IA by the replication rule
+  # (30-day minimum), and after those 30 days a copy nobody reads moves on to
+  # Intelligent-Tiering like the primary. Small files stay where they are
+  # (IA bills 128 KB minimum anyway).
+  rule {
+    id     = "intelligent-tiering-after-ia"
+    status = "Enabled"
+    filter { object_size_greater_than = 131072 }
+    transition {
+      days          = 30
+      storage_class = "INTELLIGENT_TIERING"
+    }
+  }
   depends_on = [aws_s3_bucket_versioning.documents_replica]
 }
 
