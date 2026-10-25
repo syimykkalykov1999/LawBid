@@ -165,7 +165,10 @@ describe('LegalDocumentsSeed', () => {
   });
 
   it('does nothing the second time', async () => {
-    const all: Record<string, { content_md: string; status: string }[]> = {};
+    const all: Record<
+      string,
+      { content_md: string; status: string; change_note?: string }[]
+    > = {};
     for (const t of SEEDED) {
       for (const l of hasRu(t) ? ['en', 'ru'] : ['en']) {
         all[`${t}.${l}`] = [
