@@ -940,6 +940,18 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'files.access_log_enabled': true,
 };
 
+/** S12-8 (observability round 12): per-route request / error / latency
+ * metrics for ~15 journey routes, written as CloudWatch EMF lines
+ * (namespace LawBid/Routes, dimension Route). 3 metrics x 15 routes = 45
+ * custom metrics = about $13.5 a month once every route has data.
+ * `off` — nothing written; `on` — every minute for every route; `auto`
+ * (default) — a route writes a minute only while it has 5xx answers or a
+ * slow 95th percentile (> 1 s), so a healthy system costs nothing and a
+ * sick route is visible at once. RED dashboard in infra/modules/monitoring. */
+export const OWNER_OBSERVABILITY_SETTINGS = {
+  'ops.route_metrics.mode': 'auto',
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -983,6 +995,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_OBSERVABILITY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

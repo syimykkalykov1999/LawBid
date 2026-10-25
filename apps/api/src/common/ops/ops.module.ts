@@ -9,8 +9,10 @@ import { LaunchChecksService } from './launch/launch-checks.service';
 import { SpendService } from './spend/spend.service';
 import { AwsOpsService } from './aws-ops.service';
 import { HttpStatsService } from './http-stats.service';
+import { RouteMetricsService } from './route-metrics.service';
 import { RealtimeStatsService } from './realtime-stats.service';
 import { OpsStateService } from './ops-state.service';
+import { AlarmEventsController } from './status/alarm-events.controller';
 import { IncidentsService } from './status/incidents.service';
 import { StatusProbesService } from './status/status-probes.service';
 
@@ -18,11 +20,13 @@ import { StatusProbesService } from './status/status-probes.service';
  * the worker (RedisModule and ConfigModule are global). */
 @Global()
 @Module({
+  controllers: [AlarmEventsController],
   providers: [
     AwsOpsService,
     AwsCapacityService,
     OpsStateService,
     HttpStatsService,
+    RouteMetricsService,
     RealtimeStatsService,
     StatusProbesService,
     IncidentsService,
@@ -37,6 +41,7 @@ import { StatusProbesService } from './status/status-probes.service';
     AwsCapacityService,
     OpsStateService,
     HttpStatsService,
+    RouteMetricsService,
     RealtimeStatsService,
     StatusProbesService,
     IncidentsService,

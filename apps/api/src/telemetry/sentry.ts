@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/nestjs';
-import type { INestApplicationContext } from '@nestjs/common';
+import { HttpException, type INestApplicationContext } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { ErrorEvent } from '@sentry/nestjs';
 import { SecretsService } from '../common/secrets/secrets.service';
@@ -11,6 +11,30 @@ import { SecretsService } from '../common/secrets/secrets.service';
  * at start — a change applies after a restart (restartRequired in the
  * provider registry).
  */
+/** A 4xx answer is the caller's mistake, not a bug: never an event. */
+export function isClientError(hint: { originalException?: unknown }): boolean {
+  const e = hint.originalException;
+  return e instanceof HttpException && e.getStatus() < 500;
+}
+
+/** S12-6: env knobs with safe defaults (errors 100 %, traces off). */
+export function sentryRates(env: NodeJS.ProcessEnv = process.env): {
+  sampleRate: number;
+  tracesSampleRate: number;
+} {
+  const rate = (raw: string | undefined, fallback: number) => {
+    const n = Number(raw);
+    return raw !== undefined && Number.isFinite(n)
+      ? Math.min(1, Math.max(0, n))
+      : fallback;
+  };
+  return {
+    sampleRate: rate(env.SENTRY_SAMPLE_RATE, 1),
+    // Billable vendor quota: off unless the owner sets SENTRY_TRACES_SAMPLE_RATE.
+    tracesSampleRate: rate(env.SENTRY_TRACES_SAMPLE_RATE, 0),
+  };
+}
+
 export async function startSentry(
   app: INestApplicationContext,
   config: ConfigService,
@@ -23,8 +47,12 @@ export async function startSentry(
   Sentry.init({
     dsn,
     environment: config.get<string>('NODE_ENV') ?? 'development',
-    tracesSampleRate: 0,
-    beforeSend,
+    // S12-6: the deploy that produced an error (regressions, suspect commits).
+    release: process.env.APP_VERSION,
+    ...sentryRates(),
+    maxBreadcrumbs: 50,
+    beforeSend: (event, hint) =>
+      isClientError(hint) ? null : beforeSend(event),
   });
   return true;
 }
