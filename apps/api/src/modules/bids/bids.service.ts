@@ -1,4 +1,5 @@
 import { forEachDatabase } from '../../sharding/for-each-database';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { BidPacksService } from '../bid-packs/bid-packs.service';
 import {
   BadRequestException,
@@ -104,6 +105,8 @@ export class BidsService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-20: the conflict-of-interest record kept on each bid.
     @Optional() private readonly conflicts?: ConflictCheckService,
+    // Owner 2026-10-25: per-day / per-hour caps against scripts.
+    @Optional() private readonly limits?: UsageLimitsService,
   ) {}
 
   /** Codes of the case's topics (the first and the extras). */
@@ -149,6 +152,7 @@ export class BidsService {
         message: 'Only attorneys can place bids.',
       });
     }
+    await this.limits?.consume('bid_create', user.sub);
     const amountCents = normalizeAmount(dto);
     if (dto.startAvailability === 'custom_date') {
       assertNotPast(dto.startDate);
@@ -433,6 +437,7 @@ export class BidsService {
     dto: CounterOfferDto,
     expectedVersion?: number,
   ): Promise<BidDto> {
+    await this.limits?.consume('bid_counter', user.sub);
     const { bid, by } = await this.loadForEitherParty(bidId, user);
     // OQ-054: a counter from the client is their own action on the case.
     if (by === 'client') {

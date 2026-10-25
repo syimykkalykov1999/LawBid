@@ -1,3 +1,4 @@
+import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { ReferralsCoreModule } from '../referrals/referrals.module';
@@ -35,6 +36,7 @@ import { BidStateMachine } from './domain/bid-state-machine';
   imports: [
     JournalModule,
     LegalAcceptanceModule,
+    UsageLimitsModule,
     NotificationsModule,
     SubscriptionsModule,
     ChatSystemModule,
