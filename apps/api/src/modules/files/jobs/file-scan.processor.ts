@@ -10,13 +10,18 @@ import { ImageProcessor } from '../processing/image-processor';
 import { detectMime } from '../magic-bytes';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
-  ALL_VARIANT_PX,
   DEDUP_PROFILE,
+  avifKey,
+  derivedKeys,
   purposesOfProfile,
   variantKey,
   FILE_MIME,
 } from '../files.policy';
-import type { ImageFormat } from '../processing/image-processor';
+import {
+  avifSince,
+  imageQuality,
+  type ImageFormat,
+} from '../processing/image-processor';
 import { MediaModerationQueue } from '../../media-moderation/media-moderation.queue';
 
 export type ScanOutcome =
@@ -112,6 +117,7 @@ export class FileScanProcessor {
           file.purpose === 'chat_attachment' ||
           file.purpose === 'support_attachment',
         format: await this.imageFormat(),
+        quality: await imageQuality(this.settings),
       });
     } catch (err) {
       // Undecodable image: permanent, retrying won't help.
@@ -130,6 +136,7 @@ export class FileScanProcessor {
           img.mime,
         );
       }
+      await this.putAvifTwins(file, processed);
       const main = processed.main;
       if (main) {
         await this.storage.put(
@@ -178,6 +185,9 @@ export class FileScanProcessor {
     const profile = DEDUP_PROFILE[file.purpose];
     if (!profile || !file.source_sha256 || !this.settings) return false;
     if (!(await this.settings.boolean('storage.dedup'))) return false;
+    // An object stored before AVIF was switched on has no AVIF twin; a
+    // new row sharing it would be served a missing file.
+    const since = await avifSince(this.settings);
     const twin = await this.prisma.file.findFirst({
       where: {
         id: { not: file.id },
@@ -187,6 +197,7 @@ export class FileScanProcessor {
         scan_status: 'clean',
         deleted_at: null,
         s3_key: { not: file.s3_key },
+        ...(since ? { created_at: { gte: since } } : {}),
       },
       orderBy: { created_at: 'asc' },
     });
@@ -208,7 +219,7 @@ export class FileScanProcessor {
     try {
       await this.storage.remove(file.s3_bucket, [
         file.s3_key,
-        ...ALL_VARIANT_PX.map((px) => variantKey(file.s3_key, px)),
+        ...derivedKeys(file.s3_key),
       ]);
     } catch (err) {
       this.logger.warn(
@@ -217,6 +228,35 @@ export class FileScanProcessor {
       );
     }
     return true;
+  }
+
+  /** Owner 2026-10-25: the AVIF twins (`images.avif_enabled`). A failure
+   * only costs the smaller file — the WebP/JPEG stays what is served. */
+  private async putAvifTwins(
+    file: File,
+    processed: Awaited<ReturnType<ImageProcessor['process']>>,
+  ): Promise<void> {
+    try {
+      if (processed.main?.avif) {
+        await this.storage.put(
+          file.s3_bucket,
+          avifKey(file.s3_key),
+          processed.main.avif.data,
+          processed.main.avif.mime,
+        );
+      }
+      for (const [px, img] of processed.variants) {
+        if (!img.avif) continue;
+        await this.storage.put(
+          file.s3_bucket,
+          avifKey(variantKey(file.s3_key, px)),
+          img.avif.data,
+          img.avif.mime,
+        );
+      }
+    } catch (err) {
+      this.logger.warn({ fileId: file.id, err }, 'AVIF twins not stored');
+    }
   }
 
   private async imageFormat(): Promise<ImageFormat> {
