@@ -19,6 +19,11 @@ ALTER ROLE lawbid_retention SET idle_in_transaction_session_timeout = '5min';
 ALTER ROLE lawbid_readonly SET statement_timeout = '2min';
 ALTER ROLE lawbid_readonly SET default_transaction_read_only = 'on';
 
--- Migrations (lawbid_migrator) keep the defaults: a schema change on a big
--- table may legitimately run for minutes. Migrations are expand/contract
+-- Migrations (lawbid_migrator): never wait long for a lock (a queued
+-- ALTER TABLE blocks every query behind it; the deploy retries once on
+-- SQLSTATE 55P03, scripts/deploy/run-migrations.sh) and no statement runs
+-- longer than 10 minutes. Also set by migration 20261029710000.
+-- Migrations are expand/contract
 -- only (docs/02 §7.1, checked in CI by apps/api/scripts/check-migrations.mjs).
+ALTER ROLE lawbid_migrator SET lock_timeout = '5s';
+ALTER ROLE lawbid_migrator SET statement_timeout = '10min';
