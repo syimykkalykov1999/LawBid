@@ -903,6 +903,32 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'files.access_log_enabled': true,
 };
 
+/**
+ * Owner 2026-10-25: new-case alerts in waves (docs/CASE_FANOUT.md). The
+ * defaults keep today's reach: one wave of up to 5000 attorneys, no daily
+ * cap, no stop at N offers; only the ORDER is new (best first, newcomers
+ * reserved a share). Tune from the admin panel without a release.
+ * - fraud actions: 'normal' | 'small' (a small delayed wave, then stop) |
+ *   'none' (no alerts) for a client whose fraud status is review /
+ *   restricted (docs/CLIENT_FRAUD.md);
+ * - 0 means "off" for `stop_at_bids`, `daily_cap`, `new_quota_percent`. */
+export const OWNER_CASE_FANOUT_SETTINGS = {
+  'case_fanout.enabled': true,
+  'case_fanout.first_wave_size': 5000,
+  'case_fanout.wave_size': 5000,
+  'case_fanout.wave_interval_minutes': 10,
+  'case_fanout.max_waves': 20,
+  'case_fanout.stop_at_bids': 0,
+  'case_fanout.new_quota_percent': 20,
+  'case_fanout.new_max_alerts': 20,
+  'case_fanout.new_max_bids': 3,
+  'case_fanout.daily_cap': 0,
+  'case_fanout.fraud_review_action': 'normal',
+  'case_fanout.fraud_restricted_action': 'none',
+  'case_fanout.fraud_small_wave_size': 10,
+  'case_fanout.fraud_delay_minutes': 60,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -946,6 +972,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_CASE_FANOUT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
