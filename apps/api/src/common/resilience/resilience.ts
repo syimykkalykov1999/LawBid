@@ -90,6 +90,20 @@ export interface BreakerOptions {
  * good enough, every task protects itself.
  */
 export class CircuitBreaker {
+  /** Every breaker of the process by service name (system-health reads it). */
+  private static readonly registry = new Map<string, CircuitBreaker>();
+
+  /** Snapshot of all breakers: closed, open, or half_open (one trial due). */
+  static snapshot(): {
+    service: string;
+    state: 'closed' | 'open' | 'half_open';
+  }[] {
+    return [...CircuitBreaker.registry.values()].map((b) => ({
+      service: b.service,
+      state: b.state,
+    }));
+  }
+
   private failures = 0;
   private openUntil = 0;
   private trial = false;
@@ -104,6 +118,12 @@ export class CircuitBreaker {
     this.threshold = options.threshold ?? 5;
     this.openMs = options.openMs ?? 60_000;
     this.now = options.now ?? Date.now;
+    CircuitBreaker.registry.set(service, this);
+  }
+
+  get state(): 'closed' | 'open' | 'half_open' {
+    if (this.isOpen) return 'open';
+    return this.openUntil !== 0 ? 'half_open' : 'closed';
   }
 
   get isOpen(): boolean {

@@ -8,13 +8,16 @@ import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 
 import 'package:lawbid/core/network/app_check_interceptor.dart';
 import 'package:lawbid/core/network/auth_interceptor.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
+import 'package:lawbid/core/network/turnstile_interceptor.dart';
 import 'package:lawbid/core/security/app_check.dart';
+import 'package:lawbid/core/security/turnstile.dart';
 import 'package:lawbid/features/legal/application/legal_reaccept_interceptor.dart';
 
 /// The single [Dio] instance for the whole app (docs/01_FOUNDATION_AUTH.md
@@ -44,6 +47,18 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(
     AppCheckInterceptor(token: ref.read(appCheckTokenProvider)),
   );
+  // 2026-10-24 (abuse batch D, item 4): the website's Cloudflare Turnstile
+  // token on the same routes. Web only: the phones are not touched.
+  if (kIsWeb) {
+    dio.interceptors.add(
+      TurnstileInterceptor(
+        siteKey: () => turnstileSiteKeyFrom(
+          ref.read(featureFlagsControllerProvider).appConfig,
+        ),
+        token: ref.read(turnstileTokenProvider),
+      ),
+    );
+  }
   dio.interceptors.add(AppUpdateInterceptor(ref));
   dio.interceptors.add(AccountSuspendedInterceptor(ref));
   dio.interceptors.add(AccountRestrictedInterceptor(ref));

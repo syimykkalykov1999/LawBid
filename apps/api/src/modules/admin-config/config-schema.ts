@@ -54,6 +54,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Where new PUBLIC media (avatars, post and review photos, stickers) is stored: aws or r2 (Cloudflare R2; needs Integrations → Cloudflare R2). Private files (chats, cases, documents, verification) always stay on AWS.',
     pattern: /^(aws|r2)$/,
   };
+  // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
+  out['search.engine'] = {
+    type: 'string',
+    defaultValue: 'postgres',
+    description:
+      'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
+    pattern: /^(postgres|shadow|engine)$/,
+  };
+  out['search.engine_timeout_ms'] = {
+    type: 'integer',
+    defaultValue: 800,
+    description:
+      'The search engine answers slower than this, milliseconds: the search falls back to Postgres for that request.',
+    min: 100,
+    max: 5000,
+  };
   out['calls.video_provider'] = {
     type: 'string',
     defaultValue: 'p2p',
@@ -251,6 +267,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Firebase App Check on sign-in codes, password reset, social sign-in and the phone-status check: off | monitor (log only, default) | enforce (a request without a valid token from the app gets 403; a code by e-mail still works).',
     pattern: /^(off|monitor|enforce)$/,
   };
+  out['security.turnstile.mode'] = {
+    ...out['security.turnstile.mode'],
+    description:
+      'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
+    pattern: /^(off|monitor|enforce)$/,
+  };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
     ...out['security.attorney_strong_auth'],
@@ -331,6 +353,47 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 50,
   };
+  // 2026-10-24 (abuse batch B, item 10): SMS pumping.
+  out['sms.prefix_velocity_max'] = {
+    ...out['sms.prefix_velocity_max'],
+    description:
+      'Most SMS codes in the window to numbers with the same first 6 digits; above it the prefix is blocked for «sms.prefix_block_minutes», nothing is sent and an alert is logged (SMS-pumping brake). 0 = off.',
+    min: 0,
+    max: 1000,
+  };
+  out['sms.country_velocity_max'] = {
+    ...out['sms.country_velocity_max'],
+    description:
+      'Most SMS codes in the window to one country (dial code); above it the country is blocked for «sms.prefix_block_minutes». 0 = off.',
+    min: 0,
+    max: 100_000,
+  };
+  out['sms.prefix_velocity_window_minutes'] = {
+    ...out['sms.prefix_velocity_window_minutes'],
+    description: 'Window of the two SMS velocity rules, minutes.',
+    min: 1,
+    max: 1440,
+  };
+  out['sms.prefix_block_minutes'] = {
+    ...out['sms.prefix_block_minutes'],
+    description: 'How long a tripped prefix / country stays blocked, minutes.',
+    min: 1,
+    max: 10_080,
+  };
+  out['sms.signup_daily_cap'] = {
+    ...out['sms.signup_daily_cap'],
+    description:
+      'Hard cap of SMS sign-up codes (to new numbers) per UTC day. When reached, SMS sign-up is closed until 00:00 UTC and an alert is logged; password reset and e-mail codes keep working. Not touched by the auto spend limits. 0 = off.',
+    min: 0,
+    max: 1_000_000,
+  };
+  out['storage.daily_upload_mb_per_user'] = {
+    ...out['storage.daily_upload_mb_per_user'],
+    description:
+      'Most MB one person may upload per UTC day (avatars, documents and exports do not count). Stops an upload-and-delete loop. 0 = no cap.',
+    min: 0,
+    max: 1_000_000,
+  };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],
@@ -345,6 +408,54 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Alert when the newest database backup is older than this many hours.',
     min: 2,
     max: 24 * 14,
+  };
+  out['search.ranked_cache_ttl_sec'] = {
+    ...out['search.ranked_cache_ttl_sec'],
+    description:
+      'Seconds a search result list is shared by everyone asking the same query (30-60 is right).',
+    min: 10,
+    max: 900,
+  };
+  out['usage.cloudflare_egress_warn_gb'] = {
+    ...out['usage.cloudflare_egress_warn_gb'],
+    description:
+      'Warn when Cloudflare calls traffic this month (GB) reaches this; 0 = off. Free until 1000.',
+    min: 0,
+    max: 10000,
+  };
+  out['usage.cloudflare_egress_crit_gb'] = {
+    ...out['usage.cloudflare_egress_crit_gb'],
+    description:
+      'Urgent alert when Cloudflare calls traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 10000,
+  };
+  out['usage.bunny_bandwidth_warn_gb'] = {
+    ...out['usage.bunny_bandwidth_warn_gb'],
+    description:
+      'Warn when Bunny video traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_bandwidth_crit_gb'] = {
+    ...out['usage.bunny_bandwidth_crit_gb'],
+    description:
+      'Urgent alert when Bunny video traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_storage_warn_gb'] = {
+    ...out['usage.bunny_storage_warn_gb'],
+    description: 'Warn when Bunny stored video (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_storage_crit_gb'] = {
+    ...out['usage.bunny_storage_crit_gb'],
+    description:
+      'Urgent alert when Bunny stored video (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
   };
   out['economy.max_spend_percent'] = {
     ...out['economy.max_spend_percent'],

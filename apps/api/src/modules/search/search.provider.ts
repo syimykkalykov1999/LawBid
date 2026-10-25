@@ -112,6 +112,9 @@ export interface SearchProvider {
     perKind: number,
   ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]>;
   searchTags(prefix: string, limit: number): Promise<string[]>;
+  /** «Вопрос юристу»: published question ids matching [text], newest
+   * first, at most 500. */
+  searchQuestions(text: string): Promise<string[]>;
   /** Practices whose name in ANY language has a word starting with [q]. */
   practiceMatches(
     q: string,

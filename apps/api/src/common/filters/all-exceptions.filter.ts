@@ -10,6 +10,7 @@ import type { Request, Response } from 'express';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { getRequestId } from '../middleware/request-id.middleware';
+import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
 import type { ApiErrorBody } from '../dto/api-response.dto';
 
 /**
@@ -32,7 +33,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const requestId = getRequestId(request);
 
-    const { status, code, message, details } = this.normalize(exception);
+    const { status, code, message, details, retryAfterSec } =
+      this.normalize(exception);
 
     // Plain numeric threshold (not HttpStatus.INTERNAL_SERVER_ERROR) —
     // eslint's no-unsafe-enum-comparison rejects comparing a `number`
@@ -44,6 +46,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     const body: ApiErrorBody = { error: { code, message, details, requestId } };
+    if (
+      retryAfterSec !== undefined &&
+      typeof response.setHeader === 'function'
+    ) {
+      response.setHeader('Retry-After', String(retryAfterSec));
+    }
     response.status(status).json(body);
   }
 
@@ -52,6 +60,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     code: string;
     message: string;
     details?: Record<string, unknown>;
+    retryAfterSec?: number;
   } {
     // body-parser's limit (docs/06 §4.1, stage 6.1) throws before Nest's
     // pipeline; it carries `type` instead of an HttpException status.
@@ -124,6 +133,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status: HttpStatus.SERVICE_UNAVAILABLE,
         code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
         message: 'Payments are temporarily unavailable.',
+      };
+    }
+
+    // Batch C item 6: an outside service (SES, Twilio, Bunny, Stripe) is
+    // paused by its circuit breaker or timed out: «try again shortly», the
+    // same answer the apps already retry for load shedding.
+    if (
+      exception instanceof CircuitOpenError ||
+      exception instanceof CallTimeoutError
+    ) {
+      return {
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: 'SERVER_BUSY',
+        message: 'A partner service is slow right now. Try again shortly.',
+        retryAfterSec: 10,
       };
     }
 

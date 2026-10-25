@@ -62,6 +62,9 @@ export enum ErrorCode {
   PASSKEY_NOT_FOUND = 'PASSKEY_NOT_FOUND',
   PASSKEY_LIMIT = 'PASSKEY_LIMIT',
   DEVICE_ATTESTATION_REQUIRED = 'DEVICE_ATTESTATION_REQUIRED',
+  // 2026-10-24 (abuse batch B): 403 — the web page's Cloudflare Turnstile
+  // token was rejected (security.turnstile.mode = enforce).
+  TURNSTILE_FAILED = 'TURNSTILE_FAILED',
   ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
   ACCOUNT_DELETED = 'ACCOUNT_DELETED',
 
@@ -170,6 +173,10 @@ export enum ErrorCode {
   // Owner 2026-10-05: 400 — this chat already holds storage.chat_quota_mb
   // of files (details.quotaBytes, details.usedBytes).
   CHAT_STORAGE_FULL = 'CHAT_STORAGE_FULL',
+  // 2026-10-24 (abuse batch B): 429 — the person already uploaded
+  // storage.daily_upload_mb_per_user today (details.limitBytes,
+  // details.usedBytes, details.retryAfterSeconds = until 00:00 UTC).
+  DAILY_UPLOAD_LIMIT_EXCEEDED = 'DAILY_UPLOAD_LIMIT_EXCEEDED',
   // Verification (docs/03_VERIFICATION_PROFILES.md §2, stages 3.3–3.4)
   // 409: the attorney already has a draft/submitted/in_review/
   // needs_more_info request (§2.3: one at a time).

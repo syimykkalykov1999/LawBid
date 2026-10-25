@@ -20,6 +20,8 @@ enum EconomyEventDtoKind {
   redisMemory('redis_memory'),
   @JsonValue('scaled_up')
   scaledUp('scaled_up'),
+  @JsonValue('scaled_down')
+  scaledDown('scaled_down'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

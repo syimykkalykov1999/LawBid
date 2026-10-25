@@ -84,6 +84,7 @@ module "stack" {
   create_database         = true
   database_instance_class = var.database_instance_class
   db_autoscale_enabled    = var.db_autoscale_enabled
+  redis_autoscale_enabled = var.redis_autoscale_enabled
   database_multi_az       = false # failover is not what this test measures; Multi-AZ doubles the price
   # RDS needs at least 7 days of automated backups to allow point-in-time
   # restore; the instance (and its backups) is deleted at the end.

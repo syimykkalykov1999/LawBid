@@ -10,4 +10,5 @@ crash.log
 !envs/loadtest/profiles/*.tfvars
 # Owner 2026-10-24: the zipped database-autoscale Lambda (generated at plan).
 .db-autoscale-*.zip
+.redis-autoscale-*.zip
 __pycache__/

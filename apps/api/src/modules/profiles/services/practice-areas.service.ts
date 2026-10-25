@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../../redis/redis.constants';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import type {
   PracticeAreaCategoryDto,
@@ -74,7 +74,7 @@ export function buildPracticeTree(rows: AreaRow[]): PracticeAreaCategoryDto[] {
 export class PracticeAreasService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
   ) {}
 
   async tree(): Promise<PracticeTree> {

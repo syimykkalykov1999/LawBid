@@ -7,6 +7,7 @@ import type {
   VerificationProvider,
 } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
@@ -55,6 +56,9 @@ export class VerificationChecksService {
     private readonly logger: PinoLogger,
     // Owner 2026-10-14: a registry miss counts as a wrong number.
     @Optional() private readonly attempts?: BarAttemptsService,
+    // 2026-10-24 (abuse batch B, item 13): a paid identity check (Persona /
+    // Stripe Identity) counts against the daily `id_check` cap.
+    @Optional() private readonly costGuard?: CostGuardService,
   ) {
     this.logger.setContext(VerificationChecksService.name);
   }
@@ -134,7 +138,13 @@ export class VerificationChecksService {
     }
 
     const input = { requestId: request.id, attorneyId: request.attorney_id };
-    const idCheck = await this.safe(() => impl.verify(input), provider);
+    // A refused budget is a PROVIDER_BUDGET_EXCEEDED that `safe` turns into
+    // `manual_review` (reason budget_exceeded): no provider session is
+    // opened and a person looks at the documents instead.
+    const idCheck = await this.safe(async () => {
+      await this.costGuard?.consume('id_check');
+      return impl.verify(input);
+    }, provider);
     await this.record(request.id, 'id_check', provider, idCheck);
     // No provider session when the budget refused the ID check.
     const faceMatch =

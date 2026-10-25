@@ -24,6 +24,7 @@ import { SMS_PROVIDER, EMAIL_PROVIDER } from '../providers/provider.tokens';
 import type { SmsProvider } from '../providers/sms/sms-provider.interface';
 import type { EmailProvider } from '../providers/email/email-provider.interface';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
+import { SmsAbuseGuardService } from '../../../common/cost-guard/sms-abuse-guard.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { AppConfigService } from '../../feature-flags/services/app-config.service';
 import { checkSmsDestination } from '../dto/validators';
@@ -125,6 +126,8 @@ export class OtpService {
     @Optional() private readonly ops?: OpsStateService,
     // Owner 2026-10-22 (audit #4 §7): OTP delivery SLO.
     @Optional() private readonly slo?: SloMetricsService,
+    // 2026-10-24 (abuse batch B, item 10): prefix velocity + sign-up cap.
+    @Optional() private readonly smsAbuse?: SmsAbuseGuardService,
   ) {
     this.codeTtlSeconds = this.config.getOrThrow<number>(
       'OTP_CODE_TTL_SECONDS',
@@ -172,10 +175,21 @@ export class OtpService {
           HttpStatus.SERVICE_UNAVAILABLE,
         );
       }
+      const country = this.countries?.countryOfPhone(identifier) ?? null;
+      // 2026-10-24 (abuse batch B, item 10): SMS pumping. A tripped prefix
+      // sends nothing but answers like a normal request (no signal to the
+      // attacker); the sign-up daily cap throws 503.
+      // Local dev and e2e (NODE_ENV development / test) send no real SMS and
+      // tests reuse one number range, so it is not pumping.
+      if (
+        this.smsAbuse &&
+        this.smsCostsMoney() &&
+        (await this.smsAbuse.check(identifier, purpose, country)) === 'blocked'
+      ) {
+        return;
+      }
       // Owner 2026-10-22 (audit #4 §6): priced by the destination country.
-      await this.costGuard.consume('sms', 1, {
-        country: this.countries?.countryOfPhone(identifier) ?? null,
-      });
+      await this.costGuard.consume('sms', 1, { country });
     } else {
       await this.costGuard.consume('email');
     }
@@ -295,6 +309,13 @@ export class OtpService {
       this.codeTtlSeconds,
     );
     return token;
+  }
+
+  /** False in local dev and e2e: no carrier is paid there, and tests reuse
+   * one number range (staging / production never run on the mock). */
+  private smsCostsMoney(): boolean {
+    const env = this.config.get<string>('NODE_ENV') ?? 'production';
+    return env !== 'development' && env !== 'test';
   }
 
   /** Also used by support's phone change (admin-users). */

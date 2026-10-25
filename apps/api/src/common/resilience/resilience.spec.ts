@@ -111,4 +111,16 @@ describe('CircuitBreaker', () => {
     await expect(b.run(failing)).rejects.toThrow();
     expect(b.isOpen).toBe(false);
   });
+
+  it('lists every breaker with its state for the health board', () => {
+    const b = new CircuitBreaker('snap-test', { threshold: 1, openMs: 60_000 });
+    expect(
+      CircuitBreaker.snapshot().find((x) => x.service === 'snap-test'),
+    ).toEqual({ service: 'snap-test', state: 'closed' });
+    return b.run(failing).catch(() => {
+      expect(
+        CircuitBreaker.snapshot().find((x) => x.service === 'snap-test')?.state,
+      ).toBe('open');
+    });
+  });
 });

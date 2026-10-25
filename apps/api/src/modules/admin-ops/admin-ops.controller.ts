@@ -29,9 +29,11 @@ import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   HeavyJobsDto,
   ScaleDto,
+  ScaleExtrasDto,
   SystemHealthDto,
   UpdateOpsSettingsDto,
 } from './admin-ops.dto';
+import { ScaleService } from './scale.service';
 import { SystemHealthService } from './system-health.service';
 
 const E = ErrorCode;
@@ -55,6 +57,7 @@ export class AdminOpsController {
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
     private readonly reencrypt: MessageReencryptJob,
+    private readonly scale: ScaleService,
   ) {}
 
   @Get()
@@ -62,6 +65,15 @@ export class AdminOpsController {
   @ApiEnvelopeResponse(SystemHealthDto)
   getSystemHealth(): Promise<SystemHealthDto> {
     return this.health.report();
+  }
+
+  @Get('scale')
+  @ApiOperation({
+    summary: 'Scale page extras: autoscale switches, pooler, search engine',
+  })
+  @ApiEnvelopeResponse(ScaleExtrasDto)
+  getScaleExtras(): Promise<ScaleExtrasDto> {
+    return this.scale.report();
   }
 
   @Post('restart-worker')

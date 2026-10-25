@@ -256,6 +256,27 @@ export class AdminConfigService {
     });
   }
 
+  /** Owner 2026-10-24: the search engine cannot be switched on without its address. */
+  private async assertSearchEngineReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'search.engine' || value === 'postgres') return;
+    const f = (await this.secrets?.get('opensearch'))?.fields ?? {};
+    const url = (
+      f.url ??
+      this.config.get<string>('OPENSEARCH_URL') ??
+      ''
+    ).trim();
+    if (url) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'The search engine is not configured: add its address (OPENSEARCH_URL) in Integrations → Search engine first.',
+      details: { field: 'value', missing: ['OPENSEARCH_URL'] },
+    });
+  }
+
   /** Owner 2026-10-22: livekit cannot be switched on without its keys. */
   private async assertLivekitReady(key: string, value: unknown): Promise<void> {
     const needs =
@@ -325,6 +346,7 @@ export class AdminConfigService {
     await this.assertLivekitReady(key, value);
     await this.assertCloudflareSfuReady(key, value);
     await this.assertR2Ready(key, value);
+    await this.assertSearchEngineReady(key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });

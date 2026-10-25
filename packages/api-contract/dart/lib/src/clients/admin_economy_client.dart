@@ -34,4 +34,11 @@ abstract class AdminEconomyClient {
     @Body() required IncreaseCapacityDto body,
     @Extras() Map<String, dynamic>? extras,
   });
+
+  /// Database or Redis one tier down, only when the load is low (needs step-up)
+  @POST('/admin/economy/decrease')
+  Future<EconomyReportEnvelope> decreaseCapacity({
+    @Body() required IncreaseCapacityDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
 }

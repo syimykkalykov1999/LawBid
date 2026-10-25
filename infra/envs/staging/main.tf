@@ -74,11 +74,12 @@ module "stack" {
   monthly_budget_usd     = var.monthly_budget_usd
   create_anomaly_monitor = var.create_anomaly_monitor
 
-  database_multi_az      = var.database_multi_az
-  db_autoscale_enabled   = var.db_autoscale_enabled
-  backup_enabled         = var.backup_enabled
-  worker_jobs_per_task   = var.worker_jobs_per_task
-  interface_endpoint_azs = var.interface_endpoint_azs
+  database_multi_az       = var.database_multi_az
+  db_autoscale_enabled    = var.db_autoscale_enabled
+  redis_autoscale_enabled = var.redis_autoscale_enabled
+  backup_enabled          = var.backup_enabled
+  worker_jobs_per_task    = var.worker_jobs_per_task
+  interface_endpoint_azs  = var.interface_endpoint_azs
 
   # Security research #5 (2026-10-22): WAF, cloud detector, container.
   waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
