@@ -120,6 +120,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   verification_documents: 'verification uploads',
   verification_checks: 'verification checks',
   attorney_trust: 'trust scores',
+  attorney_ad_archive: 'attorney ad text archive',
   attorney_trust_events: 'trust history',
   bar_number_blocks: 'bar numbers blocked during the test',
   bar_number_block_events: 'their history',
