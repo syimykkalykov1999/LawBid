@@ -244,6 +244,7 @@ export class PasswordAuthService {
         });
       }
     }
+    await this.passwords.assertNotCompromised(dto.password);
     await this.storePassword(user.id, dto.password);
     await this.authEvents.record({
       userId: user.id,
@@ -326,6 +327,8 @@ export class PasswordAuthService {
     const { channel, identifier } = this.parseIdentifier(dto.identifier);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
     this.assertResetByPhone(channel);
+    // Owner 2026-10-25: a refused password does not spend the sign-in code.
+    await this.passwords.assertNotCompromised(dto.newPassword);
     await this.limit(
       ['pwd-reset-verify', 'id', this.rateLimit.hashIdentifier(identifier)],
       RESET_VERIFY_PER_IDENTIFIER,
