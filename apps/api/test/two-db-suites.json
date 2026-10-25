@@ -5,55 +5,88 @@
     "app",
     "auth",
     "auth-hardening",
+    "authz-matrix",
     "cost-guard",
+    "cross-family-outbox",
     "db-auth-schema",
     "db-cases-schema",
     "db-profiles-schema",
     "db-sessions",
     "db-social-billing-schema",
-    "db-soft-delete",
     "db-tx-retry",
+    "files",
     "legal-security",
     "link-preview",
     "magic-link",
+    "onboarding",
+    "ops-livekit-status",
     "owner-admin-roles",
     "owner-app-events",
-    "owner-bulk-moderation",
+    "owner-assistants",
+    "owner-bar-format",
+    "owner-call-history",
+    "owner-case-cabinet-audit",
+    "owner-case-invites",
+    "owner-case-tools",
+    "owner-channel-calls",
+    "owner-channels",
+    "owner-chat-attachments",
+    "owner-chat-delivered",
+    "owner-chat-folders",
+    "owner-chat-saved",
+    "owner-chat-voice",
+    "owner-contingency",
     "owner-crash-reports",
+    "owner-direct-chats",
     "owner-document-templates",
+    "owner-firms",
+    "owner-group-calls",
+    "owner-group-chat-calls",
+    "owner-group-discover",
+    "owner-group-invites",
+    "owner-groups",
+    "owner-icon-badge",
     "owner-keys-payroll",
+    "owner-media-only-posts",
+    "owner-mute-calls",
+    "owner-open-reviews",
     "owner-outreach",
     "owner-partners",
+    "owner-presence",
     "owner-public-directory",
+    "owner-qa-scope-limits",
+    "owner-role-swap",
     "owner-seat-limit",
     "owner-single-device",
     "owner-sms-rules",
     "owner-starter-catalog",
-    "owner-storage",
-    "owner-subscription-alerts",
+    "owner-subscription-cancel",
+    "owner-support-attachments",
+    "owner-support-desk-rewards",
+    "owner-task-board",
+    "owner-tasks-planner",
     "owner-templates-search",
     "owner-text-limits",
     "passkeys",
+    "profiles-onboarding",
     "realtime-lifecycle",
+    "security-contact-leak",
     "security-hardening",
     "shard-routing",
     "shard-triggers",
     "stage-3-1",
+    "stage-4-2",
     "stage-4-3",
-    "stage-5-1",
+    "stage-4-4",
+    "stage-4-7",
+    "stage-4-8",
+    "stage-5-7",
     "stage-6-1",
     "stage-6-2",
     "stage-6-6",
-    "stage-6-9"
+    "state-registries"
   ],
   "knownLimitations": [
-    {
-      "spec": "authz-matrix",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Authorization matrix (e2e, docs/06 §4.2) object routes refuse anonymous, strangers and the wrong rol"
-    },
     {
       "spec": "cases-feed-filters-audit",
       "kind": "read",
@@ -67,13 +100,6 @@
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
       "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
       "firstFailingTest": "Client economy (e2e, owner 2026-10-22) A: POST /posts/events kind=view counts three posts once, not "
-    },
-    {
-      "spec": "files",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Files (e2e) — presign, confirm, scan, signed links avatar pipeline + PATCH /users/me clean JPEG avat"
     },
     {
       "spec": "guest-browsing",
@@ -90,20 +116,6 @@
       "firstFailingTest": "Background jobs (e2e) — BullMQ cron queue sessions.cleanup removes expired and long-revoked sessions"
     },
     {
-      "spec": "onboarding",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Onboarding (e2e) — stage 1.7 server side client: full flow, resume, contact gate, POST /cases"
-    },
-    {
-      "spec": "ops-livekit-status",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "LiveKit + status board (e2e) LiveKit with keys: switch, token for the call, signed webhook ends the "
-    },
-    {
       "spec": "owner-admin-content",
       "kind": "read",
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
@@ -116,20 +128,6 @@
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
       "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
       "firstFailingTest": "Own analytics (e2e) opening the app counts a person once a day"
-    },
-    {
-      "spec": "owner-assistants",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Assistants (e2e, OQ-048) owner 2026-10-04: a signed-in account without a team joins with the code"
-    },
-    {
-      "spec": "owner-bar-format",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Bar number format and stepped cooldown (e2e) a number must fit the state's shape; a good one is stor"
     },
     {
       "spec": "owner-blocks",
@@ -153,13 +151,6 @@
       "firstFailingTest": "Boost (e2e, owner 2026-10-15) the switches: master, role and content type"
     },
     {
-      "spec": "owner-call-history",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Call history (e2e) lists my finished calls newest first with a cursor, and the running group calls"
-    },
-    {
       "spec": "owner-calls",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
@@ -167,25 +158,11 @@
       "firstFailingTest": "In-app calls (e2e, OQ-041) rings, connects, relays signaling to the peer only, ends with a duration"
     },
     {
-      "spec": "owner-case-cabinet-audit",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Case cabinet audit (e2e, 2026-10-19) updates, tasks, done marks and files tell the other side"
-    },
-    {
       "spec": "owner-case-comments",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
       "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
       "firstFailingTest": "Case comments, category filter, documents (e2e, OQ-034) owner and visible attorneys comment; strange"
-    },
-    {
-      "spec": "owner-case-invites",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Client → attorney case invites (e2e, owner 2026-10-05) invite → attorney notified and sees it; one p"
     },
     {
       "spec": "owner-case-payments",
@@ -202,13 +179,6 @@
       "firstFailingTest": "Case photos (e2e, OQ-031) owner sees photos; other attorneys only the count; the accepted attorney s"
     },
     {
-      "spec": "owner-case-tools",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Case tools (e2e, 2026-10-20) logs time and expenses, then issues an invoice the client can read"
-    },
-    {
       "spec": "owner-case-topics",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
@@ -223,46 +193,11 @@
       "firstFailingTest": "Case urgency: levels and dates (e2e, owner 2026-10-05) a date alone means by_date, a level clears it"
     },
     {
-      "spec": "owner-channel-calls",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Channel calls (e2e) admins start, subscribers join freely, outsiders cannot; the channel shows it"
-    },
-    {
-      "spec": "owner-channels",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Channels (e2e) manages the admin team, search, reports and bans"
-    },
-    {
       "spec": "owner-chat-actions",
       "kind": "read",
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
       "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
       "firstFailingTest": "Chat message actions (e2e, owner 2026-10-20) edits within the window, marks it edited and keeps the "
-    },
-    {
-      "spec": "owner-chat-attachments",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Chat attachments (e2e, OQ-047) sends documents and photos both ways after acceptance; lists them"
-    },
-    {
-      "spec": "owner-chat-delivered",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Delivery receipts (e2e, owner 2026-10-20) delivered moves forward only, is idempotent and shows to t"
-    },
-    {
-      "spec": "owner-chat-folders",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Chat folders (e2e, owner 2026-10-01) folders, waiting with a note, moving and pinning"
     },
     {
       "spec": "owner-chat-post-share",
@@ -272,13 +207,6 @@
       "firstFailingTest": "Post cards in chats (e2e) sends a post card that is never masked, and lists it"
     },
     {
-      "spec": "owner-chat-saved",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Saved chat messages, contact cards, places (e2e) shares an attorney card and a place"
-    },
-    {
       "spec": "owner-chat-search",
       "kind": "read",
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
@@ -286,32 +214,11 @@
       "firstFailingTest": "Chat list search (e2e, owner 2026-10-18) finds chats by name across alphabets, @username, case title"
     },
     {
-      "spec": "owner-chat-voice",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Chat voice messages (e2e, OQ-040) sends, lists with a signed link, marks listened once, never re-sen"
-    },
-    {
       "spec": "owner-client-profile",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
       "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
       "firstFailingTest": "Client profile: posts, follows, attorney reviews (e2e, OQ-038) a client posts, is followed, and the "
-    },
-    {
-      "spec": "owner-contingency",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Percent budgets and bids (e2e, OQ-053) a percent budget, a percent bid and a percent counter-offer"
-    },
-    {
-      "spec": "owner-direct-chats",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Direct chats and message requests (e2e, OQ-043) delete stops the requester; accept works; wrong pair"
     },
     {
       "spec": "owner-disappearing",
@@ -335,46 +242,11 @@
       "firstFailingTest": "Filters audit (e2e, 2026-10-01) state filter keeps the author checks (suspended authors stay hidden)"
     },
     {
-      "spec": "owner-firms",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Firm profile (e2e) a case is matched to the members whose licence fits its state"
-    },
-    {
       "spec": "owner-follows-search",
       "kind": "read",
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
       "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
       "firstFailingTest": "Followers / following search (e2e, owner 2026-10-18) narrows the followers and following lists by na"
-    },
-    {
-      "spec": "owner-group-calls",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Group calls (e2e) adds a person, relays signals per member, host mutes and removes, leaving ends the"
-    },
-    {
-      "spec": "owner-group-chat-calls",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Group chat calls (e2e) starts from the group, rings chosen members, others join, leaving drops out"
-    },
-    {
-      "spec": "owner-group-discover",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Recommended groups (e2e) offers public groups of people I share, never mine / private / blocked"
-    },
-    {
-      "spec": "owner-group-invites",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Group invitations (e2e) only the invited person answers; a decline keeps them out and a second invit"
     },
     {
       "spec": "owner-group-shared",
@@ -384,32 +256,11 @@
       "firstFailingTest": "Group shared media (e2e) splits the group into media, files, links and voice; newest first"
     },
     {
-      "spec": "owner-groups",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Group chats and polls (e2e) roles: admins add / remove, only the owner promotes; removal is announce"
-    },
-    {
       "spec": "owner-hidden-counts",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
       "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
       "firstFailingTest": "Hidden counters (e2e) hides likes and views from others, not from the author"
-    },
-    {
-      "spec": "owner-icon-badge",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "App icon badge switch (e2e) defaults on, persists off, and the push badge follows"
-    },
-    {
-      "spec": "owner-media-only-posts",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Media-only posts (e2e, owner 2026-10-18) publishes photos with no title and no text"
     },
     {
       "spec": "owner-mentions",
@@ -433,25 +284,11 @@
       "firstFailingTest": "Mine search/filters and any-qualification feed (e2e, owner 2026-09-30) searches and filters the clie"
     },
     {
-      "spec": "owner-mute-calls",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Mute calls and notification switches (e2e) a member can mute the calls of one group, and the answer "
-    },
-    {
       "spec": "owner-notifications-search",
       "kind": "read",
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
       "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
       "firstFailingTest": "Notifications search (e2e, owner 2026-10-18) narrows the list by stored text and by the attorney nam"
-    },
-    {
-      "spec": "owner-open-reviews",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Reviews by who worked together (e2e, owner 2026-10-06) only clients who completed a case review an a"
     },
     {
       "spec": "owner-people-search",
@@ -503,25 +340,11 @@
       "firstFailingTest": "Practice search in any language (e2e) a topic is found by its name in English, Russian and Kyrgyz"
     },
     {
-      "spec": "owner-presence",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Online / last seen (e2e, owner 2026-10-01) online while the app is open, last seen after, live to a "
-    },
-    {
       "spec": "owner-privacy-moderation",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
       "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
       "firstFailingTest": "Privacy settings and moderation appeals (e2e, owner 2026-10-20) defaults to everyone; a change is st"
-    },
-    {
-      "spec": "owner-qa-scope-limits",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Q&A feed scope, answer cap, privacy, close and sweep (e2e) close hides a question from attorneys; th"
     },
     {
       "spec": "owner-reel-views",
@@ -543,13 +366,6 @@
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
       "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
       "firstFailingTest": "Reposts (e2e) reposts, counts once, notifies, lists reposters, undoes"
-    },
-    {
-      "spec": "owner-role-swap",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Role swap during onboarding (e2e) a draft verification request does not lock the role: Client can be"
     },
     {
       "spec": "owner-search-engine",
@@ -608,41 +424,6 @@
       "firstFailingTest": "Stories (e2e) the tray also has people in my phone book and people who saved me"
     },
     {
-      "spec": "owner-subscription-cancel",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Admin cancels a subscription (e2e, fake provider) cancels at period end, resumes, then cancels now w"
-    },
-    {
-      "spec": "owner-support-attachments",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Support attachments, device info, macros (e2e, OQ-055) ticket with a photo, a PDF and device info; a"
-    },
-    {
-      "spec": "owner-support-desk-rewards",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Support 24/7, rewards, workspace (e2e) support 24/7: shift, SLA, after-hours answer, ready answers, "
-    },
-    {
-      "spec": "owner-task-board",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Case task board (e2e, owner 2026-10-15) both sides add tasks; a joint one is ticked by either; the b"
-    },
-    {
-      "spec": "owner-tasks-planner",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Tasks planner (e2e, owner 2026-10-05) many places and people on one task; app people only when known"
-    },
-    {
       "spec": "owner-topics",
       "kind": "read",
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
@@ -662,13 +443,6 @@
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
       "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
       "firstFailingTest": "Work list: search by client (e2e, owner 2026-10-18) finds the attorney work by client name (any alph"
-    },
-    {
-      "spec": "profiles-onboarding",
-      "kind": "read",
-      "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
-      "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
-      "firstFailingTest": "Profiles onboarding (e2e) — client_profiles / attorney_profiles client: profile step writes client_p"
     },
     {
       "spec": "profiles-practices",
@@ -699,27 +473,6 @@
       "firstFailingTest": "Search text audit (e2e) posts: title only, text only, hashtag with and without #, case-insensitive, "
     },
     {
-      "spec": "security-contact-leak",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "security — client contact leak (e2e, docs/06 §9.3) before acceptance: feed, case, bid, chat, search,"
-    },
-    {
-      "spec": "stage-4-2",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Stage 4.2 — case creation and management (e2e) rejects creation without the client_contact_sharing c"
-    },
-    {
-      "spec": "stage-4-4",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Bids and negotiation (e2e, docs/04 §5–§6, stage 4.4) creates a bid: client notified, journal written"
-    },
-    {
       "spec": "stage-4-5",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
@@ -732,20 +485,6 @@
       "reason": "A response joins or lists across families or shards (feed, lists, counters, profile cards with includes), or the suite seeds / reads sharded rows through an unscoped client that only sees the primary database.",
       "fixedBy": "steps 6 (UserDirectory, no cross-family includes) and 8 (feed fan-out, scatter-gather lists)",
       "firstFailingTest": "Case lifecycle and jobs (e2e, docs/04 §10, stage 4.6) \"Выполнено\" → reminder at ≤24 h once → auto-cl"
-    },
-    {
-      "spec": "stage-4-7",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Case history (e2e, docs/04 §12, stage 4.7) needs reauth; keeps deleted cases; logs history_viewed"
-    },
-    {
-      "spec": "stage-4-8",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Case & bid notifications (e2e, docs/04 §13, stage 4.8) a full negotiation: one row per event and rec"
     },
     {
       "spec": "stage-4-mine",
@@ -790,13 +529,6 @@
       "firstFailingTest": "Search (e2e, docs/05 §7, stage 5.6) attorneys: clients and suspended attorneys are never found; exac"
     },
     {
-      "spec": "stage-5-7",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "Chats and realtime (e2e, docs/05 §8, stage 5.7) a repeated clientMessageId does not create a duplica"
-    },
-    {
       "spec": "stage-5-8",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
@@ -825,13 +557,6 @@
       "firstFailingTest": "stage 6.5 — disputes, contact issues, data requests (e2e) dispute queue + decision: closed with jour"
     },
     {
-      "spec": "state-registries",
-      "kind": "write",
-      "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
-      "fixedBy": "step 7 (outbox for cross-family writes, audit of the 53 transactions)",
-      "firstFailingTest": "State bar registries (e2e, owner 2026-10-05) self-attestation: approved at once; a match leaves no f"
-    },
-    {
       "spec": "verification",
       "kind": "write",
       "reason": "A request writes rows of two families in ONE transaction (e.g. a case plus the global user_consents / counters / notifications), so on a split the transaction runs on one database and the other family's foreign row is missing.",
@@ -851,6 +576,48 @@
       "reason": "Economy guard cycle reads and writes global settings plus per-shard usage in one flow; flaky across databases in CI.",
       "fixedBy": "steps 6-8",
       "firstFailure": "guard cycle: over the rule floors the caps, back under restores them"
+    },
+    {
+      "spec": "owner-bulk-moderation",
+      "kind": "read",
+      "reason": "Passed in the first two-DB mode only because the suite seeded sharded rows (and the raw SQL under test) through the primary database. Sharded rows now land on the shard database they belong to (args routing), which shows what is left: admin lists and bulk actions join posts / comments / reviews with authors.",
+      "fixedBy": "step 8 (raw SQL joins -> one query per family, scatter-gather jobs)",
+      "firstFailingTest": "FAIL Error: expect(received).toEqual(expected) // deep equality  - Expected  - 4 + Received  + 1  - "
+    },
+    {
+      "spec": "db-soft-delete",
+      "kind": "read",
+      "reason": "Passed in the first two-DB mode only because the suite seeded sharded rows (and the raw SQL under test) through the primary database. Sharded rows now land on the shard database they belong to (args routing), which shows what is left: seeds cases and posts with a raw primary-database client.",
+      "fixedBy": "step 8 (raw SQL joins -> one query per family, scatter-gather jobs)",
+      "firstFailingTest": "FAIL Error: expect(received).toEqual(expected) // deep equality  - Expected  - 3 + Received  + 1  - "
+    },
+    {
+      "spec": "stage-6-9",
+      "kind": "read",
+      "reason": "Passed in the first two-DB mode only because the suite seeded sharded rows (and the raw SQL under test) through the primary database. Sharded rows now land on the shard database they belong to (args routing), which shows what is left: account anonymization, data export and journal retention run unkeyed transactions and raw SQL across families.",
+      "fixedBy": "step 8 (raw SQL joins -> one query per family, scatter-gather jobs)",
+      "firstFailingTest": "FAIL NotFoundException: Case not found.     at caseNotFound (/Users/sima/Desktop/LawBid/.claude/work"
+    },
+    {
+      "spec": "owner-storage",
+      "kind": "read",
+      "reason": "Passed in the first two-DB mode only because the suite seeded sharded rows (and the raw SQL under test) through the primary database. Sharded rows now land on the shard database they belong to (args routing), which shows what is left: storage cleanup and snapshot jobs count rows with raw SQL across families.",
+      "fixedBy": "step 8 (raw SQL joins -> one query per family, scatter-gather jobs)",
+      "firstFailingTest": "FAIL Error: expect(received).toBeNull()  Received: 2026-10-25T00:52:09.928Z     at Object.<anonymous"
+    },
+    {
+      "spec": "owner-subscription-alerts",
+      "kind": "read",
+      "reason": "Passed in the first two-DB mode only because the suite seeded sharded rows (and the raw SQL under test) through the primary database. Sharded rows now land on the shard database they belong to (args routing), which shows what is left: follower and new-case alerts are raw SQL joins of follows / cases with users, settings and blocks.",
+      "fixedBy": "step 8 (raw SQL joins -> one query per family, scatter-gather jobs)",
+      "firstFailingTest": "FAIL Error: expect(received).toBe(expected) // Object.is equality  Expected: 1 Received: 0     at Ob"
+    },
+    {
+      "spec": "stage-5-1",
+      "kind": "read",
+      "reason": "Passed in the first two-DB mode only because the suite seeded sharded rows (and the raw SQL under test) through the primary database. Sharded rows now land on the shard database they belong to (args routing), which shows what is left: post view counters are read with raw SQL joins across families.",
+      "fixedBy": "step 8 (raw SQL joins -> one query per family, scatter-gather jobs)",
+      "firstFailingTest": "FAIL Error: expect(received).toBe(expected) // Object.is equality  Expected: 3 Received: 0     at Ob"
     }
   ],
   "environmentOnly": [
