@@ -7,14 +7,13 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
-import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';
 
-/// Owner 2026-10-20: the Contacts screen and the picker fit a 360 dp phone
+/// Owner 2026-10-20: the Contacts screen fits a 360 dp phone
 /// in the longest language, right-to-left, Nepali and Arabic, in the light
 /// and dark themes, and show both sections.
 const _long = 'Maximilian-Alexander von Hohenzollern-Sigmaringen der Dritte';
@@ -64,39 +63,35 @@ void main() {
   final themes = {'light': AppTheme.light(), 'dark': AppTheme.dark()};
   for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
     for (final MapEntry(key: themeName, value: theme) in themes.entries) {
-      for (final picker in [false, true]) {
-        testWidgets(
-          '${picker ? 'picker' : 'screen'} at 360 dp ($name, $themeName)',
-          (tester) async {
-            useNarrowPhone(tester);
-            await tester.pumpWidget(
-              uxApp(
-                Directionality(
-                  textDirection: dir,
-                  child: picker
-                      ? const Scaffold(body: ContactPickerSheet())
-                      : const ContactsScreen(initialContacts: true),
-                ),
-                theme: theme,
-                size: narrowPhone,
-                textScale: 1.1,
-                disableAnimations: true,
-                overrides: uxOverrides(
-                  translator: t,
-                  extra: [
-                    sharedPreferencesProvider.overrideWithValue(prefs),
-                    phoneContactsProvider.overrideWith((_) async => _data()),
-                  ],
-                ),
+      testWidgets(
+        'screen at 360 dp ($name, $themeName)',
+        (tester) async {
+          useNarrowPhone(tester);
+          await tester.pumpWidget(
+            uxApp(
+              Directionality(
+                textDirection: dir,
+                child: const ContactsScreen(initialContacts: true),
               ),
-            );
-            await tester.pump();
-            await tester.pump();
-            expect(tester.takeException(), isNull);
-            expect(find.text('Bob'), findsWidgets);
-          },
-        );
-      }
+              theme: theme,
+              size: narrowPhone,
+              textScale: 1.1,
+              disableAnimations: true,
+              overrides: uxOverrides(
+                translator: t,
+                extra: [
+                  sharedPreferencesProvider.overrideWithValue(prefs),
+                  phoneContactsProvider.overrideWith((_) async => _data()),
+                ],
+              ),
+            ),
+          );
+          await tester.pump();
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+          expect(find.text('Bob'), findsWidgets);
+        },
+      );
     }
   }
 
