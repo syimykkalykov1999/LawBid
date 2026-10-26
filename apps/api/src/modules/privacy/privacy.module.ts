@@ -16,9 +16,11 @@ import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { VideosModule } from '../videos/videos.module';
 import { AccountAnonymizationService } from './account-anonymization.service';
+import { PersonalDataErasureService } from './personal-data-erasure.service';
 import { AccountDeletionRunner } from './account-deletion.runner';
 import {
   ACCOUNT_ERASER,
+  ERASURE_RECORDS,
   DELETION_NOTICES,
 } from '../../common/privacy/privacy.ports';
 import { DataExportController } from './data-export.controller';
@@ -78,6 +80,7 @@ export class PrivacyModule {
           inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
           useFactory: createEmailProvider,
         },
+        PersonalDataErasureService,
         AccountAnonymizationService,
         AccountDeletionRunner,
         DataExportService,
@@ -92,15 +95,18 @@ export class PrivacyModule {
         DeletionNoticesService,
         PrivacyRetentionService,
         { provide: ACCOUNT_ERASER, useExisting: AccountAnonymizationService },
+        { provide: ERASURE_RECORDS, useExisting: PersonalDataErasureService },
         { provide: DELETION_NOTICES, useExisting: DeletionNoticesService },
       ],
       exports: [
         ACCOUNT_ERASER,
+        ERASURE_RECORDS,
         DELETION_NOTICES,
         ErasureLedgerService,
         DeletionStepsService,
         DeletionNoticesService,
         PrivacyRetentionService,
+        PersonalDataErasureService,
         AccountAnonymizationService,
         AccountDeletionRunner,
         DataExportService,

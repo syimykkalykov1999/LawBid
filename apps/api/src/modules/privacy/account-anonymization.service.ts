@@ -45,6 +45,7 @@ import {
   type ErasureReason,
 } from './erasure-ledger.service';
 import { VendorDeletionService } from './vendor-deletion.service';
+import { PersonalDataErasureService } from './personal-data-erasure.service';
 import { shardContext } from '../../sharding/shard-context';
 import { userDirectory } from '../../sharding/user-directory';
 
@@ -107,6 +108,9 @@ export class AccountAnonymizationService implements AccountEraser {
     @Optional()
     @Inject(CDN_INVALIDATOR)
     private readonly cdn?: CdnInvalidator,
+    // Owner 2026-10-29: the personal-data registry walk (every database,
+    // every external store, certificate).
+    @Optional() private readonly erasure?: PersonalDataErasureService,
   ) {
     this.logger.setContext(AccountAnonymizationService.name);
   }
@@ -129,7 +133,18 @@ export class AccountAnonymizationService implements AccountEraser {
       orderBy: { deletion_requested_at: 'asc' },
       take,
     });
-    return due.map((u) => u.id);
+    const ids = due.map((u) => u.id);
+    // Owner 2026-10-29: accounts already anonymized whose registry walk
+    // never finished (a store failed, a worker died) are resumed too.
+    if (this.erasure && ids.length < take) {
+      const open = await this.erasure.incompleteUserIds(
+        [...skip, ...ids],
+        take - ids.length,
+        now,
+      );
+      ids.push(...open);
+    }
+    return ids;
   }
 
   /** Owner 2026-10-22: GDPR Art. 17(3)(e) — a legal hold on the person
@@ -390,9 +405,17 @@ export class AccountAnonymizationService implements AccountEraser {
         },
       },
     });
-    if (!user || user.anonymized_at) return false;
+    if (!user) return false;
+    if (user.anonymized_at) {
+      // Resume: the account is scrubbed, the registry walk may be open.
+      if (this.erasure && (await this.erasure.hasOpenRun(userId))) {
+        await this.completeErasure(userId, now);
+      }
+      return false;
+    }
     if (await this.isOnLegalHold(userId, now)) {
       this.logger.info({ userId }, 'anonymization deferred: legal hold');
+      await this.erasure?.markBlocked(userId, now);
       return false;
     }
 
@@ -779,6 +802,7 @@ export class AccountAnonymizationService implements AccountEraser {
     }
     await this.access.invalidate(userId);
     await this.afterErasure(userId, reason);
+    await this.completeErasure(userId, now);
     this.logger.info({ userId, role: user.role }, 'account anonymized');
     return true;
   }
@@ -814,6 +838,18 @@ export class AccountAnonymizationService implements AccountEraser {
       }
     } catch (err) {
       this.logger.warn({ err, userId }, 'erasure follow-up steps failed');
+    }
+  }
+
+  /** Owner 2026-10-29: the registry walk; throws when a store failed so the
+   * job retries (only the failed stores run again). */
+  private async completeErasure(userId: string, now: Date): Promise<void> {
+    if (!this.erasure) return;
+    const outcome = await this.erasure.run(userId, now);
+    if (!outcome.completed) {
+      throw new Error(
+        `personal data erasure incomplete: ${outcome.failed.join(', ')}`,
+      );
     }
   }
 }

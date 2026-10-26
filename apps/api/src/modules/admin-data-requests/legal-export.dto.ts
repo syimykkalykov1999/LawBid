@@ -247,3 +247,21 @@ export class TransparencyReportDto {
   @ApiProperty() holdsPlaced!: number;
   @ApiProperty() productionsMade!: number;
 }
+
+/** Owner 2026-10-29: the personal-data erasure record of an account and,
+ * once every store is done, its certificate. */
+export class ErasureRecordDto {
+  @ApiProperty({
+    enum: ['running', 'failed', 'blocked', 'completed'],
+    description: 'blocked = a legal hold defers the erasure.',
+  })
+  status!: string;
+  @ApiProperty({
+    type: Object,
+    description:
+      'Per-store result (registry store id -> status, count, detail).',
+  })
+  stores!: Record<string, unknown>;
+  @ApiProperty({ type: Object, nullable: true })
+  certificate!: Record<string, unknown> | null;
+}

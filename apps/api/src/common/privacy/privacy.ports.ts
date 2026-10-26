@@ -19,3 +19,15 @@ export interface DeletionNotices {
   /** S13-14: the day-0 confirmation (push + e-mail with a cancel link). */
   onRequested(userId: string): Promise<void>;
 }
+
+export const ERASURE_RECORDS = Symbol('ERASURE_RECORDS');
+
+export interface ErasureRecords {
+  /** S13: the per-store erasure results and the certificate of [userId],
+   * or null when the account was never erased (admin legal page). */
+  certificateOf(userId: string): Promise<{
+    status: string;
+    stores: Record<string, unknown>;
+    certificate: unknown;
+  } | null>;
+}

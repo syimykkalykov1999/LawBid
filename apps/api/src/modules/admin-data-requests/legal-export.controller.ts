@@ -4,7 +4,9 @@ import {
   Delete,
   Get,
   HttpCode,
+  NotFoundException,
   HttpStatus,
+  Inject,
   Param,
   Patch,
   Post,
@@ -25,7 +27,12 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
+  ERASURE_RECORDS,
+  type ErasureRecords,
+} from '../../common/privacy/privacy.ports';
+import {
   CreateLegalExportDto,
+  ErasureRecordDto,
   CreateLegalHoldDto,
   CustodyEntryDto,
   LegalAccountCardDto,
@@ -65,6 +72,8 @@ export class AdminLegalExportController {
     private readonly exports: LegalExportService,
     private readonly requests: LegalRequestService,
     private readonly audit: AuditLogService,
+    // Via a port, not an import of the privacy module (module-boundaries).
+    @Inject(ERASURE_RECORDS) private readonly erasure: ErasureRecords,
   ) {}
 
   @Get('lookup')
@@ -112,6 +121,40 @@ export class AdminLegalExportController {
       justification: admin.justification,
     });
     return card;
+  }
+
+  @Get('erasure/:userId')
+  @Justification()
+  @ApiOperation({
+    summary: 'Account erasure record and certificate (per-store results)',
+  })
+  @ApiEnvelopeResponse(ErasureRecordDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  async erasureRecord(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: LegalUserParamDto,
+  ): Promise<ErasureRecordDto> {
+    const record = await this.erasure.certificateOf(params.userId);
+    if (!record) {
+      throw new NotFoundException({
+        code: E.NOT_FOUND,
+        message: 'No erasure record for this account',
+      });
+    }
+    await this.audit.record({
+      adminId: admin.id,
+      action: LEGAL_AUDIT.card,
+      targetType: 'user',
+      targetId: params.userId,
+      after: { erasure: record.status },
+      ip: admin.ip,
+      justification: admin.justification,
+    });
+    return {
+      status: record.status,
+      stores: record.stores,
+      certificate: record.certificate as Record<string, unknown> | null,
+    };
   }
 
   @Get('requests/:requestId/exports')

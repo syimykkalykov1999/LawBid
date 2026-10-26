@@ -804,6 +804,10 @@ model User {
   password_hash            String?
   password_set_at          DateTime?               @db.Timestamptz
   ui_language              String                  @default("en")
+  /// Owner 2026-10-29 (data residency, groundwork only): where the person's
+  /// data should live. `us` for everyone today; nothing reads it for routing,
+  /// only the deletion certificate and shard_map metadata.
+  home_region              String                  @default("us") @db.VarChar(8)
   /// Owner 2026-10-20: the person's IANA time zone (the app sends it at
   /// sign-in and when it changes). Repeating tasks and the daily
   /// reminders follow this local clock; null = the quiet-hours zone, else UTC.
@@ -1298,6 +1302,9 @@ model ShardMap {
   physical_db   String   @default("primary")
   state         String   @default("active")
   version       Int      @default(1)
+  /// Data residency groundwork: the region the physical database sits in
+  /// (matches users.home_region). Informational; routing ignores it.
+  region        String   @default("us") @db.VarChar(8)
   updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("shard_map")
