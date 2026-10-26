@@ -4,6 +4,7 @@ import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/data/auth_repository.dart';
 import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
 import 'package:lawbid/features/auth/domain/reauth_result.dart';
+import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/profile/domain/delete_account_flow_state.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -37,13 +38,36 @@ class DeleteAccountController extends _$DeleteAccountController {
   /// Warning step's "Продолжить" — also probes biometric availability so
   /// the reauth-phone step knows whether to show the Face ID/Touch ID
   /// affordance at all.
+  ///
+  /// Owner 2026-10-08: a demo session cannot receive the code, so it gets
+  /// its token from `POST /auth/reauth/demo` right here and goes straight
+  /// to [DeleteAccountStep.confirmPhrase]. The server decides whether the
+  /// session really is a demo one; a refusal stays on this step.
   Future<void> acknowledgeWarning() async {
+    if (ref.read(isDemoSessionProvider)) return _demoReauth();
     final available =
         await ref.read(biometricAuthServiceProvider).isAvailable();
     state = state.copyWith(
       step: DeleteAccountStep.reauthPhone,
       biometricAvailable: available,
     );
+  }
+
+  Future<void> _demoReauth() async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    final result = await _repo.reauthDemo();
+    state = switch (result) {
+      ReauthSuccess(:final reauthToken) => state.copyWith(
+          reauthToken: reauthToken,
+          isSubmitting: false,
+          step: DeleteAccountStep.confirmPhrase,
+        ),
+      _ => state.copyWith(
+          isSubmitting: false,
+          errorMessage: 'network',
+          step: DeleteAccountStep.warning,
+        ),
+    };
   }
 
   /// Local biometric gate (see `BiometricAuthService`'s doc comment for
@@ -132,6 +156,10 @@ class DeleteAccountController extends _$DeleteAccountController {
       errorMessage: null,
       step: DeleteAccountStep.submitting,
     );
+    // A demo session gets a fresh token from the warning step's button.
+    final reauthStep = ref.read(isDemoSessionProvider)
+        ? DeleteAccountStep.warning
+        : DeleteAccountStep.reauthPhone;
     final result = await _repo.deleteAccount(reauthToken: token);
     var succeeded = false;
     result.when(
@@ -150,7 +178,7 @@ class DeleteAccountController extends _$DeleteAccountController {
           isSubmitting: false,
           reauthToken: null,
           errorMessage: 'reauthExpired',
-          step: DeleteAccountStep.reauthPhone,
+          step: reauthStep,
         );
       },
       reauthInvalid: () {
@@ -158,7 +186,7 @@ class DeleteAccountController extends _$DeleteAccountController {
           isSubmitting: false,
           reauthToken: null,
           errorMessage: 'reauthExpired',
-          step: DeleteAccountStep.reauthPhone,
+          step: reauthStep,
         );
       },
       networkError: () {
