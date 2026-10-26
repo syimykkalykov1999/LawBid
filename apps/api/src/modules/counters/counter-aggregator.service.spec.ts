@@ -67,6 +67,7 @@ function fakeRedis() {
       '0',
       [...(hashes.get(k)?.entries() ?? [])].flatMap(([a, b]) => [a, String(b)]),
     ],
+    exists: async (k: string) => (strings.has(k) ? 1 : 0),
     hdel: async (k: string, ...ids: string[]) => {
       ids.forEach((i) => hashes.get(k)?.delete(i));
       return 1;
@@ -74,7 +75,7 @@ function fakeRedis() {
     spop: async () => [],
     multi: () => ({ hincrby: () => undefined, exec: async () => [] }),
   };
-  return { redis: redis as unknown as Redis, hashes, sets, evalCalls };
+  return { redis: redis as unknown as Redis, hashes, sets, evalCalls, strings };
 }
 
 function aggregator(r: Redis) {
@@ -123,6 +124,66 @@ describe('CounterAggregator (S6-6)', () => {
     expect(evalCalls).toHaveLength(1);
     expect(hashes.get(pendingKey('post', 'like_count', 3))?.get(id)).toBe(1000);
     expect(hashes.get(legacyKey('post', 'like_count'))).toBeUndefined();
+  });
+
+  it('a read during flushLocal still sees the delta once (read-your-writes)', async () => {
+    const { redis } = fakeRedis();
+    const { agg } = aggregator(redis);
+    const id = ID('4');
+    await agg.bump('post', id, 'like_count', 2);
+    // The Redis write is in flight: the delta is neither local nor in Redis.
+    const realEval = redis.eval.bind(redis);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    jest
+      .spyOn(redis, 'eval')
+      .mockImplementationOnce(async (...a: Parameters<Redis['eval']>) => {
+        await gate;
+        return realEval(...a);
+      });
+    const flushing = agg.flushLocal();
+    expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(2);
+    release();
+    await flushing;
+    expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(2);
+  });
+
+  it('a read while the database update runs still sees the drained delta once', async () => {
+    const { redis } = fakeRedis();
+    const { agg } = aggregator(redis);
+    const id = ID('5');
+    await agg.bump('post', id, 'like_count', 3);
+    await agg.flushLocal();
+    let during: number | undefined;
+    const prisma = (agg as unknown as { prisma: PrismaService }).prisma;
+    (prisma.$executeRaw as unknown as jest.Mock).mockImplementationOnce(
+      async () => {
+        during = (await agg.pending('post', 'like_count', [id])).get(id);
+        return 1;
+      },
+    );
+    await agg.flush();
+    expect(during).toBe(3);
+    // Committed: no longer pending (the row holds it now).
+    expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(
+      undefined,
+    );
+  });
+
+  it('an explicit flush waits for a flush already running elsewhere, then lands its deltas', async () => {
+    const { redis, strings } = fakeRedis();
+    const { agg, executed } = aggregator(redis);
+    const id = ID('6');
+    await agg.bump('post', id, 'like_count', 3);
+    // Another pod (or the 10-second timer) holds the flush lock.
+    strings.set('lock:job:counters.flush', 'other');
+    setTimeout(() => strings.delete('lock:job:counters.flush'), 250);
+    await agg.flush();
+    expect(executed.flatMap((e) => e.keep)).toContain(id);
+    // The timer does not wait: with the lock held it does nothing.
+    strings.set('lock:job:counters.flush', 'other');
+    await agg.bump('post', id, 'like_count', 1);
+    expect((await agg.flush({ waitForRunning: false })).rows).toBe(0);
   });
 
   it('ids of different shards go to different hash keys, in one EVAL each', async () => {

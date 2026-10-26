@@ -1,12 +1,19 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import {
+  dailyDue,
+  withSnapshotTimeout,
+} from '../../common/admin-summary/snapshot-gate';
 import { demoContext } from '../../common/demo/demo-context';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { AnalyticsDto } from './analytics.dto';
 import { AppEventsService } from './app-events.service';
 
-const CACHE_TTL_SEC = 300;
+/** Period lengths the admin page offers; the daily job keeps all of them. */
+export const ANALYTICS_SNAPSHOT_DAYS = [7, 30, 90] as const;
+const analyticsKey = (days: number) => `analytics:${days}`;
 const DAY_MS = 86_400_000;
 
 function dayKey(d: Date): string {
@@ -26,11 +33,7 @@ export class AnalyticsService {
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly appEvents: AppEventsService,
-    // Batch C item 9: the admin overview cache → cache Redis; the daily
-    // activity dedupe key (`act:`) stays on the main one.
-    @Optional()
-    @Inject(REDIS_CACHE_CLIENT)
-    private readonly cacheRedis?: Redis,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   /** The person opened the app today: one write a day, not one per call. */
@@ -49,18 +52,44 @@ export class AnalyticsService {
       .catch(() => undefined);
   }
 
+  /**
+   * Owner 2026-10-25: the page only READS the stored snapshot (counted by
+   * the daily `admin.summaries` run). Only when nothing was ever stored does
+   * the first read compute it once (shared lock), so the page is never empty.
+   */
   async overview(days: number): Promise<AnalyticsDto> {
-    const key = `adm:analytics:${days}`;
-    const cache = this.cacheRedis ?? this.redis;
-    const cached = await cache.get(key);
-    if (cached) return JSON.parse(cached) as AnalyticsDto;
-    const fresh = await this.compute(days);
-    await cache.set(key, JSON.stringify(fresh), 'EX', CACHE_TTL_SEC);
-    return fresh;
+    if (!this.summary) return this.compute(days);
+    const hit = await this.summary.peek<AnalyticsDto>(analyticsKey(days));
+    if (hit) return hit.data;
+    return (
+      await this.summary.refresh(
+        analyticsKey(days),
+        () => this.compute(days),
+        true,
+      )
+    ).data;
   }
 
-  private async compute(days: number): Promise<AnalyticsDto> {
-    const p = this.prisma;
+  /** The daily job's entry: recount the periods that are due. */
+  async refreshSnapshots(): Promise<void> {
+    if (!this.summary) return;
+    for (const days of ANALYTICS_SNAPSHOT_DAYS) {
+      const hit = await this.summary.peek<AnalyticsDto>(analyticsKey(days));
+      if (dailyDue(hit?.computedAt))
+        await this.summary.refresh(analyticsKey(days), () =>
+          this.compute(days),
+        );
+    }
+  }
+
+  private compute(days: number): Promise<AnalyticsDto> {
+    return withSnapshotTimeout(this.prisma, (p) => this.computeWith(p, days));
+  }
+
+  private async computeWith(
+    p: PrismaService,
+    days: number,
+  ): Promise<AnalyticsDto> {
     const now = new Date();
     const since = new Date(now.getTime() - days * DAY_MS);
     const today = dayKey(now);

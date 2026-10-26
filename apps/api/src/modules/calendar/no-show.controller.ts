@@ -15,7 +15,7 @@ import {
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { RateLimitService } from '../auth/services/rate-limit.service';
+import { RateLimitService } from '../auth/auth.public';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
   AdminEndpoint,

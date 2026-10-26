@@ -52,9 +52,11 @@ export class LegalRetentionService {
     const cut = new Date(now.getTime() - days * DAY_MS);
     const result: LegalRetentionResult = {
       messages: await this.batched(
+        // BUG-1 (package N-12b): the scrubbed messages' search tokens go
+        // in the same statement (a moderation-hidden message kept them, so
+        // a restore stays searchable until this point).
         (limit) => this.prisma.$executeRaw`
-          UPDATE messages SET body_original = '', body_display = '', file_name = NULL
-          WHERE id IN (
+          WITH picked AS (
             SELECT m.id FROM messages m
             JOIN conversations c ON c.id = m.conversation_id
             WHERE (m.deleted_at < ${cut} OR m.revoked_at < ${cut})
@@ -63,7 +65,12 @@ export class LegalRetentionService {
               AND NOT ${held('user', Prisma.sql`c.client_id`)}
               AND NOT ${held('user', Prisma.sql`c.attorney_id`)}
               AND (m.sender_id IS NULL OR NOT ${held('user', Prisma.sql`m.sender_id`)})
-            LIMIT ${limit})`,
+            LIMIT ${limit}),
+          tokens AS (
+            DELETE FROM message_search_tokens st
+            WHERE st.message_id IN (SELECT id FROM picked))
+          UPDATE messages SET body_original = '', body_display = '', file_name = NULL
+          WHERE id IN (SELECT id FROM picked)`,
       ),
       messageEdits: await this.batched(
         (limit) => this.prisma.$executeRaw`
