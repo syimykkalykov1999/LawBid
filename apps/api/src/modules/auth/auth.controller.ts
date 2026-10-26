@@ -45,6 +45,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ReauthDto } from './dto/reauth.dto';
 import { LinkIdentifierDto } from './dto/link-identifier.dto';
 import type { RequestMeta } from './services/session.service';
+import { DemoReauthService } from './services/demo-reauth.service';
 import {
   AuthTokensDto,
   IdentifierLinkedDto,
@@ -137,6 +138,7 @@ export class AuthController {
     private readonly qrLogin: QrLoginService,
     private readonly webCookies: WebSessionCookies,
     private readonly reauthVerifier: ReauthVerifier,
+    private readonly demoReauth: DemoReauthService,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
@@ -385,6 +387,17 @@ export class AuthController {
     @CurrentUser() user: RequestUser,
   ): Promise<ReauthTokenDto> {
     return this.auth.reauth(dto, user);
+  }
+
+  /** Owner 2026-10-08: a DEMO session gets its reauth token without the
+   * one-time code (the demo world cannot deliver one). Decided on the
+   * server from the signed demo claim — see DemoReauthService. */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(ReauthTokenDto, { status: HttpStatus.CREATED })
+  @ApiErrors({ 401: BEARER_401, 403: [E.FORBIDDEN] })
+  @Post('reauth/demo')
+  async reauthDemo(@CurrentUser() user: RequestUser): Promise<ReauthTokenDto> {
+    return this.demoReauth.issue(user);
   }
 
   @ApiBearerAuth()

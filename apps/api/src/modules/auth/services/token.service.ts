@@ -147,9 +147,8 @@ export class TokenService {
       sid: claims.sid as string,
       verified: claims.verified as boolean,
       subscriptionStatus: claims.subscriptionStatus as string,
-      // The demo flag must survive verification: the guard compares it with
-      // the X-LawBid-Demo header, and without it every demo session (store
-      // reviewers' code) was refused on its first request.
+      // The signed demo claim must survive verification: JwtAuthGuard,
+      // the realtime gateway and DemoReauthService read it from here.
       ...(claims.demo === true ? { demo: true } : {}),
     };
   }
