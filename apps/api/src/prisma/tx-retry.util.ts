@@ -33,9 +33,22 @@ export interface TxRetryOptions {
   baseDelayMs?: number;
   /** Interactive-transaction timeout (Prisma default 5 s) for big jobs. */
   timeoutMs?: number;
+  /**
+   * Isolation level. Default `serializable` (money, bids, accept flows and
+   * everything written against it). `readCommitted` (PostgreSQL's own
+   * default) is for transactions that already serialize themselves with an
+   * explicit row lock (`SELECT ... FOR UPDATE`, advisory xact lock) or whose
+   * writes are idempotent: it avoids SSI predicate-lock overhead and 40001
+   * aborts under load (DB-ops hardening S5-7). In that mode a deadlock
+   * (40P01) is retried too.
+   */
+  isolation?: 'serializable' | 'readCommitted';
+  /** Call-site name; added to the retry log line (CloudWatch metric tag). */
+  op?: string;
 }
 
 const SERIALIZATION_FAILURE = '40001';
+const DEADLOCK_DETECTED = '40P01';
 
 export async function withTxRetry<T>(
   prisma: PrismaService,
@@ -46,25 +59,35 @@ export async function withTxRetry<T>(
   const maxAttempts = options.maxAttempts ?? 5;
   const baseDelayMs = options.baseDelayMs ?? 25;
 
+  const readCommitted = options.isolation === 'readCommitted';
   let attempt = 0;
 
   while (true) {
     attempt += 1;
     try {
       return await prisma.$transaction(fn, {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        isolationLevel: readCommitted
+          ? Prisma.TransactionIsolationLevel.ReadCommitted
+          : Prisma.TransactionIsolationLevel.Serializable,
         ...(options.timeoutMs
           ? { timeout: options.timeoutMs, maxWait: 10_000 }
           : {}),
       });
     } catch (error) {
-      if (!isSerializationFailure(error) || attempt >= maxAttempts) {
+      const retriable =
+        isSerializationFailure(error) || (readCommitted && isDeadlock(error));
+      if (!retriable || attempt >= maxAttempts) {
         throw error;
       }
       const jitter = Math.random() * baseDelayMs;
       const delay = baseDelayMs * 2 ** (attempt - 1) + jitter;
       retryLog.info(
-        { attempt, delayMs: Math.round(delay) },
+        {
+          attempt,
+          delayMs: Math.round(delay),
+          ...(options.op ? { op: options.op } : {}),
+          ...(readCommitted ? { isolation: 'readCommitted' } : {}),
+        },
         'transaction retried',
       );
       await sleep(delay);
@@ -79,6 +102,17 @@ function isSerializationFailure(error: unknown): boolean {
   }
   if (error instanceof PrismaClientUnknownRequestError) {
     return error.message.includes(SERIALIZATION_FAILURE);
+  }
+  return false;
+}
+
+function isDeadlock(error: unknown): boolean {
+  if (error instanceof PrismaClientKnownRequestError) {
+    const meta = error.meta as { code?: string } | undefined;
+    return meta?.code === DEADLOCK_DETECTED;
+  }
+  if (error instanceof PrismaClientUnknownRequestError) {
+    return error.message.includes(DEADLOCK_DETECTED);
   }
   return false;
 }

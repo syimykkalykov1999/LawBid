@@ -17,6 +17,7 @@ function make(opts: { enabled?: boolean; dedupe?: boolean } = {}) {
   };
   const settings = {
     boolean: jest.fn().mockResolvedValue(opts.enabled ?? true),
+    raw: jest.fn().mockResolvedValue(opts.enabled === false ? 'off' : 'on'),
   };
   const logger = { setContext: jest.fn(), warn: jest.fn() };
   const svc = new FileAccessService(
