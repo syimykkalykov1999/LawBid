@@ -52,6 +52,29 @@ export class PlansService {
     return rows;
   }
 
+  /** Delta audit P7: the inputs of GET /plans' cheap ETag (plans and
+   * prices; settings such as trial days are covered by the controller's
+   * time bucket). Two indexed aggregates, no row bodies. */
+  async etagStamp(): Promise<(string | number | Date | null)[]> {
+    const [plans, prices] = await Promise.all([
+      this.prisma.plan.aggregate({
+        _max: { updated_at: true },
+        _count: { _all: true },
+      }),
+      this.prisma.planPrice.aggregate({
+        where: { active: true },
+        _max: { created_at: true },
+        _count: { _all: true },
+      }),
+    ]);
+    return [
+      plans._max.updated_at,
+      plans._count._all,
+      prices._max.created_at,
+      prices._count._all,
+    ];
+  }
+
   async byId(id: string): Promise<Plan> {
     const plan = (await this.all()).find((p) => p.id === id);
     if (!plan) {

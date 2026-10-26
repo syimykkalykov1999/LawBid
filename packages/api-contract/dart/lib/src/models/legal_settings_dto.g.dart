@@ -15,6 +15,11 @@ LegalSettingsDto _$LegalSettingsDtoFromJson(
   ),
   dmcaStrikesToSuspend: (json['dmcaStrikesToSuspend'] as num).toInt(),
   texts: LegalTextsByLangDto.fromJson(json['texts'] as Map<String, dynamic>),
+  textsNeedReview: json['textsNeedReview'] == null
+      ? null
+      : LegalTextsNeedReviewDto.fromJson(
+          json['textsNeedReview'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$LegalSettingsDtoToJson(LegalSettingsDto instance) =>
@@ -23,4 +28,5 @@ Map<String, dynamic> _$LegalSettingsDtoToJson(LegalSettingsDto instance) =>
       'incidentContact': instance.incidentContact.toJson(),
       'dmcaStrikesToSuspend': instance.dmcaStrikesToSuspend,
       'texts': instance.texts.toJson(),
+      'textsNeedReview': ?instance.textsNeedReview?.toJson(),
     };
