@@ -243,13 +243,15 @@ abstract class CasesClient {
 
   /// Bids on my case with the attorney summary (client, docs/04 §5.2; sort newest / lowest_price / highest_rating).
   ///
+  /// [sort] - Owner 2026-10-25: when omitted the admin setting bids.default_sort applies (newest by default).
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/cases/{id}/bids')
   Future<CaseBidItemListEnvelope> listCaseBids({
     @Path('id') required String id,
-    @Query('cursor') String? cursor,
-    @Query('sort') Sort? sort = Sort.newest,
     @Query('limit') int? limit = 20,
+    @Query('sort') Sort? sort,
+    @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
 
