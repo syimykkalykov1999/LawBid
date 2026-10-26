@@ -500,8 +500,8 @@ variable "livekit_egress_alarm_gb_per_day" {
 
 variable "uptime_check" {
   type        = string
-  default     = "synthetics"
-  description = "synthetics (≈ $10/month) or route53 (≈ $2/month, us-east-1 only)."
+  default     = "route53"
+  description = "off ($0), route53 (≈ $2/month, us-east-1 only) or synthetics (≈ $10/month)."
 }
 variable "cpu_architecture" {
   type        = string

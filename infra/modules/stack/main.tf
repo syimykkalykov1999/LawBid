@@ -571,7 +571,7 @@ variable "monthly_budget_usd" {
 variable "uptime_check" {
   type        = string
   default     = "synthetics"
-  description = "External uptime probe: \"synthetics\" (CloudWatch canary, ≈ $10/month) or \"route53\" (HTTPS health check, ≈ $2/month, us-east-1 only). Off: uptime_canary_enabled = false."
+  description = "External uptime probe: \"off\" ($0), \"synthetics\" (CloudWatch canary, ≈ $10/month) or \"route53\" (HTTPS health check, ≈ $2/month, us-east-1 only). Off: uptime_canary_enabled = false."
 }
 # --- Batch A (docs/architecture/P0_AND_COST_PLAN.md): paging, budgets, NAT, backup alarm ---
 variable "pagerduty_https_endpoint" {

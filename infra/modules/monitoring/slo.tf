@@ -60,12 +60,12 @@ variable "canary_url" {
 }
 
 variable "uptime_check" {
-  description = "How `canary_url` is watched from outside: \"synthetics\" (CloudWatch Synthetics canary, about $10 a month at one run per 5 minutes) or \"route53\" (Route 53 HTTPS health check, about $2 a month, every 30 seconds; its CloudWatch metric exists in us-east-1 only, so use it only when the stack runs there)."
+  description = "How `canary_url` is watched from outside: \"off\" (no outside probe, $0), \"synthetics\" (CloudWatch Synthetics canary, about $10 a month at one run per 5 minutes) or \"route53\" (Route 53 HTTPS health check, about $2 a month, every 30 seconds; its CloudWatch metric exists in us-east-1 only, so use it only when the stack runs there)."
   type        = string
   default     = "synthetics"
   validation {
-    condition     = contains(["synthetics", "route53"], var.uptime_check)
-    error_message = "uptime_check must be synthetics or route53."
+    condition     = contains(["synthetics", "route53", "off"], var.uptime_check)
+    error_message = "uptime_check must be synthetics, route53 or off."
   }
 }
 
