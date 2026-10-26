@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { pipeline } from '../../redis/redis-cluster-safe';
+import { ck, pipeline } from '../../redis/redis-cluster-safe';
 
 /** How long a missed event can still be fetched (owner 2026-10-23). */
 export const EVENT_LOG_WINDOW_MS = 5 * 60_000;
@@ -15,7 +15,13 @@ export const EVENT_LOG_MAX_BYTES = 8 * 1024;
  * logged (huge audiences refetch on reconnect). */
 export const EVENT_LOG_MAX_FANOUT = 1000;
 
-const SEQ_KEY = 'rt:seq';
+const SEQ_KEY = ck('rtseq', 'rt:seq');
+/** S1-2: the log's epoch canary — the cursor just below the first event
+ * written since the log last started from empty. No TTL. If Redis loses
+ * its data (failover to a stale replica, restart) the key is gone or
+ * newer, so a client whose cursor predates it learns the gap is unknown
+ * (`complete: false`) instead of "nothing missed". */
+const EPOCH_KEY = ck('rtseq', 'rt:epoch');
 const logKey = (userId: string) => `rt:log:${userId}`;
 
 /**
@@ -32,7 +38,22 @@ local last = tonumber(redis.call('GET', KEYS[1]) or '0')
 local nxt = now
 if last >= now then nxt = last + 1 end
 redis.call('SET', KEYS[1], nxt, 'PX', 600000)
+redis.call('SET', KEYS[2], now - 1, 'NX')
 return nxt
+`;
+
+/**
+ * S1-5: one command per person instead of four (a 1000-member group sent
+ * 4000 commands): the event is added, entries older than the window and
+ * beyond the newest [max] are trimmed, the key's TTL moves. One key per
+ * script (cluster-safe). ARGV = seq, member, window floor, max, ttl.
+ */
+const APPEND_LUA = `
+redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[3])
+redis.call('ZREMRANGEBYRANK', KEYS[1], 0, -(tonumber(ARGV[4]) + 1))
+redis.call('EXPIRE', KEYS[1], ARGV[5])
+return 1
 `;
 
 export interface LoggedEvent {
@@ -77,7 +98,7 @@ export class RealtimeEventLog {
   }
 
   async nextSeq(): Promise<number> {
-    return Number(await this.redis.eval(NEXT_SEQ_LUA, 1, SEQ_KEY));
+    return Number(await this.redis.eval(NEXT_SEQ_LUA, 2, SEQ_KEY, EPOCH_KEY));
   }
 
   /** Newest cursor handed out; with none live, just below the next one
@@ -87,6 +108,19 @@ export class RealtimeEventLog {
     if (Number.isFinite(n) && n > 0) return n;
     const [sec, micro] = await this.redis.time();
     return (Number(sec) * 1000 + Math.floor(Number(micro) / 1000)) * 1000 - 1;
+  }
+
+  /** The epoch cursor; creates it (from Redis' clock) when missing, which
+   * itself means the log started empty just now. */
+  async epochSeq(): Promise<number> {
+    const have = Number(await this.redis.get(EPOCH_KEY));
+    if (Number.isFinite(have) && have > 0) return have;
+    const [sec, micro] = await this.redis.time();
+    const fresh =
+      (Number(sec) * 1000 + Math.floor(Number(micro) / 1000)) * 1000 - 1;
+    await this.redis.set(EPOCH_KEY, fresh, 'NX');
+    const now = Number(await this.redis.get(EPOCH_KEY));
+    return Number.isFinite(now) && now > 0 ? now : fresh;
   }
 
   /** Keeps [event] for each of [userIds] under cursor [seq]. */
@@ -104,11 +138,16 @@ export class RealtimeEventLog {
     const ttlSec = Math.ceil(EVENT_LOG_WINDOW_MS / 1000) + 30;
     const pipe = pipeline(this.redis);
     for (const id of new Set(userIds)) {
-      const key = logKey(id);
-      pipe.zadd(key, seq, member);
-      pipe.zremrangebyscore(key, '-inf', `(${floor}`);
-      pipe.zremrangebyrank(key, 0, -(EVENT_LOG_MAX + 1));
-      pipe.expire(key, ttlSec);
+      pipe.eval(
+        APPEND_LUA,
+        1,
+        logKey(id),
+        seq,
+        member,
+        floor,
+        EVENT_LOG_MAX,
+        ttlSec,
+      );
     }
     await pipe.exec();
   }
@@ -139,6 +178,9 @@ export class RealtimeEventLog {
     const events: LoggedEvent[] = [];
     // Older than the window: nothing can be promised.
     let complete = since >= floor;
+    // S1-2: the cursor predates the log's current life (Redis was lost).
+    const epoch = await this.epochSeq();
+    if (since < epoch) complete = false;
     ids.forEach((_, i) => {
       const members = (rows[i * 3]?.[1] ?? []) as string[];
       const oldest = (rows[i * 3 + 1]?.[1] ?? []) as string[];
@@ -159,6 +201,12 @@ export class RealtimeEventLog {
     const unique = events.filter(
       (e, i) => i === 0 || e.seq !== events[i - 1].seq,
     );
-    return { seq: await this.currentSeq(), events: unique, complete };
+    // Never hand out a cursor below the epoch: the client would be told
+    // "incomplete" again on its next reconnect.
+    return {
+      seq: Math.max(await this.currentSeq(), epoch),
+      events: unique,
+      complete,
+    };
   }
 }

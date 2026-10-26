@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma, type Story } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -16,6 +17,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
+import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { FilesService } from '../files/files.service';
 import { UserBriefService } from '../user-brief/user-brief.service';
@@ -85,6 +87,8 @@ export class StoriesService {
     private readonly limits: UsageLimitsService,
     private readonly flags: FeatureFlagsService,
     private readonly briefs: UserBriefService,
+    // Owner 2026-10-25 (DB audit finding 8): view_count is a hot row.
+    @Optional() private readonly counters?: CounterAggregator,
   ) {}
 
   async assertEnabled(): Promise<void> {
@@ -417,10 +421,14 @@ export class StoriesService {
       skipDuplicates: true,
     });
     if (count > 0) {
-      await this.prisma.story.update({
-        where: { id },
-        data: { view_count: { increment: 1 } },
-      });
+      if (this.counters) {
+        await this.counters.bump('story', id, 'view_count', 1);
+      } else {
+        await this.prisma.story.update({
+          where: { id },
+          data: { view_count: { increment: 1 } },
+        });
+      }
     }
   }
 
@@ -577,6 +585,14 @@ export class StoriesService {
       this.blocks.hiddenIds(viewerId),
     ]);
     const videos = await this.videos.present(assets);
+    // Views not flushed to the row yet (counter aggregator).
+    const pendingViews = this.counters
+      ? await this.counters.pending(
+          'story',
+          'view_count',
+          rows.filter((r) => r.author_id === viewerId).map((r) => r.id),
+        )
+      : new Map<string, number>();
     const viewed = new Set(seen.map((v) => v.story_id));
     const noReplies = new Set(settings.map((s) => s.user_id));
     return rows.flatMap((r) => {
@@ -603,7 +619,7 @@ export class StoriesService {
           expiresAt: r.expires_at.toISOString(),
           viewedByMe: mine || viewed.has(r.id),
           isMine: mine,
-          viewCount: mine ? r.view_count : 0,
+          viewCount: mine ? r.view_count + (pendingViews.get(r.id) ?? 0) : 0,
           canReply:
             !mine && !noReplies.has(r.author_id) && !hidden.has(r.author_id),
         },

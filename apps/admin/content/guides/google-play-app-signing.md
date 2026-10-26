@@ -1,7 +1,7 @@
 ---
 id: google-play-app-signing
 title: Подпись приложения в Google Play (Play App Signing)
-category: stores
+category: launch
 cost: бесплатно
 time: 1-2 часа
 verified: 2026-10-25

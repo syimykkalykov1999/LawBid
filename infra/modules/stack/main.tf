@@ -9,6 +9,7 @@ terraform {
       configuration_aliases = [aws.replica]
     }
     random = { source = "hashicorp/random", version = "~> 3.6" }
+    tls    = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
 
@@ -1238,6 +1239,17 @@ variable "pgbouncer_query_wait_timeout" {
   type    = number
   default = 30
 }
+# Security pass 2026-10-25 (S3-7). Both default to today's behaviour.
+variable "pgbouncer_db_tls_mode" {
+  type        = string
+  default     = "require"
+  description = "PgBouncer -> database TLS: require (encrypted only) or verify-full (also checks the RDS certificate against the RDS CA bundle baked into the pgbouncer image). Rebuild and deploy the image first, then set verify-full."
+}
+variable "pgbouncer_client_tls_private_ca" {
+  type        = bool
+  default     = false
+  description = "true: the pooler gets a certificate from a private CA made by Terraform and the api / worker verify it. false: encrypted, certificate not checked (as before)."
+}
 
 locals {
   db_memory_gib = {
@@ -1427,6 +1439,8 @@ module "pgbouncer" {
   reserve_pool_size          = local.pgb_reserve
   max_client_conn            = var.db_pooler_max_client_conn
   query_wait_timeout         = var.pgbouncer_query_wait_timeout
+  db_tls_mode                = var.pgbouncer_db_tls_mode
+  client_tls_private_ca      = var.pgbouncer_client_tls_private_ca
   metrics_namespace          = "LawBid/${local.name}/PgBouncer"
   alarm_actions              = [module.monitoring.alerts_topic_arn]
   runbook_url                = "${var.runbook_base_url}/db-pooler.md"
@@ -1439,6 +1453,10 @@ locals {
   db_pooler_env = var.db_pooler_enabled ? {
     DB_POOLER_HOST = module.pgbouncer[0].endpoint
     DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
+  } : {}
+  # The private CA's PUBLIC certificate (src/prisma/pooler-url.ts pins it).
+  db_pooler_ca_env = var.db_pooler_enabled && var.pgbouncer_client_tls_private_ca ? {
+    DB_POOLER_CA_PEM = module.pgbouncer[0].client_ca_pem
   } : {}
 }
 
@@ -1455,7 +1473,7 @@ module "ecs" {
   api_image                = var.api_image
   admin_image              = var.admin_image
   kms_key_arn              = module.kms.key_arn
-  api_env                  = merge(local.api_env, local.db_pooler_env)
+  api_env                  = merge(local.api_env, local.db_pooler_env, local.db_pooler_ca_env)
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
@@ -1756,22 +1774,24 @@ module "monitoring" {
     { web = module.web.web_distribution_id, media = module.s3.media_distribution_id },
     var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
   )
-  api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
-  admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
-  deploy_rollback_on_slo        = var.deploy_rollback_on_slo
-  cluster_name                  = module.ecs.cluster_name
-  api_service_name              = module.ecs.api_service_name
-  worker_service_name           = module.ecs.worker_service_name
-  redis_replication_group_id    = "${local.name}-redis"
-  redis_replicas                = var.redis_replicas
-  db_instance_id                = var.create_database ? "${local.name}-postgres" : ""
-  db_max_connections            = local.db_max_connections
-  acm_certificate_arns          = [var.certificate_arn]
-  api_log_group                 = module.ecs.log_group_names["api"]
-  worker_log_group              = module.ecs.log_group_names["worker"]
-  p95_target_ms                 = var.p95_target_ms
-  runbook_base_url              = var.runbook_base_url
-  kms_key_arn                   = module.kms.key_arn
+  api_target_group_arn_suffix      = module.alb.api_target_group_arn_suffix
+  admin_target_group_arn_suffix    = module.alb.admin_target_group_arn_suffix
+  deploy_rollback_on_slo           = var.deploy_rollback_on_slo
+  cluster_name                     = module.ecs.cluster_name
+  api_service_name                 = module.ecs.api_service_name
+  worker_service_name              = module.ecs.worker_service_name
+  redis_replication_group_id       = "${local.name}-redis"
+  redis_replicas                   = var.redis_replicas
+  redis_node_type                  = var.redis_node_type
+  redis_cache_replication_group_id = var.redis_cache_node ? "${local.name}-cache-redis" : ""
+  db_instance_id                   = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections               = local.db_max_connections
+  acm_certificate_arns             = [var.certificate_arn]
+  api_log_group                    = module.ecs.log_group_names["api"]
+  worker_log_group                 = module.ecs.log_group_names["worker"]
+  p95_target_ms                    = var.p95_target_ms
+  runbook_base_url                 = var.runbook_base_url
+  kms_key_arn                      = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check      = var.uptime_check
