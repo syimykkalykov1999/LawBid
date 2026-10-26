@@ -33,7 +33,7 @@ jobs:
         run: echo "Add the secret AWS_LOADTEST_WATCHDOG_ROLE (docs/runbooks/LOAD_TEST.md, one-time setup) to enable the watchdog."
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: env.ROLE != ''
-      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         if: env.ROLE != ''
         with:
           role-to-assume: ${{ secrets.AWS_LOADTEST_WATCHDOG_ROLE }}
