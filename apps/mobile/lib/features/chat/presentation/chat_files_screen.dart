@@ -174,8 +174,54 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
   }
 
   bool _onScroll(ScrollNotification n) {
-    if (n.metrics.extentAfter < 400 && !_loading && !_done) _load();
+    // After an error only the retry button asks again (not every scroll).
+    if (n.metrics.extentAfter < 400 && !_loading && !_done && _error == null) {
+      _load();
+    }
     return false;
+  }
+
+  // The four sections are worked out again only when the loaded items or
+  // the thread's lists change (not on every tab animation tick).
+  Object? _mMessages;
+  Object? _mOutbox;
+  Object? _mVoiceOutbox;
+  int _mItems = -1;
+  List<ChatMessage> _media = const [];
+  List<ChatMessage> _docs = const [];
+  List<ChatMessage> _voice = const [];
+  List<ChatLink> _links = const [];
+
+  void _refreshSections(ChatThreadState thread) {
+    if (identical(thread.messages, _mMessages) &&
+        identical(thread.outbox, _mOutbox) &&
+        identical(thread.voiceOutbox, _mVoiceOutbox) &&
+        _items.length == _mItems) {
+      return;
+    }
+    _mMessages = thread.messages;
+    _mOutbox = thread.outbox;
+    _mVoiceOutbox = thread.voiceOutbox;
+    _mItems = _items.length;
+    _media = [
+      for (final m in _items)
+        if (m.attachment != null &&
+            (m.attachment!.isImage || m.attachment!.isVideo))
+          m,
+    ];
+    _docs = [
+      for (final m in _items)
+        if (m.attachment != null &&
+            !m.attachment!.isImage &&
+            !m.attachment!.isVideo)
+          m,
+    ];
+    final all = thread.all;
+    _links = extractChatLinks(all);
+    _voice = [
+      for (final m in all)
+        if (m.kind == MessageKind.voice && m.voice != null) m,
+    ];
   }
 
   @override
@@ -184,24 +230,11 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final thread = ref.watch(chatThreadProvider(widget.conversationId));
-    final media = [
-      for (final m in _items)
-        if (m.attachment != null &&
-            (m.attachment!.isImage || m.attachment!.isVideo))
-          m,
-    ];
-    final docs = [
-      for (final m in _items)
-        if (m.attachment != null &&
-            !m.attachment!.isImage &&
-            !m.attachment!.isVideo)
-          m,
-    ];
-    final links = extractChatLinks(thread.all);
-    final voice = [
-      for (final m in thread.all)
-        if (m.kind == MessageKind.voice && m.voice != null) m,
-    ];
+    _refreshSections(thread);
+    final media = _media;
+    final docs = _docs;
+    final links = _links;
+    final voice = _voice;
     final more = !_done || thread.nextCursor != null;
 
     String plus(int n, {required bool partial}) => partial ? '$n+' : '$n';
