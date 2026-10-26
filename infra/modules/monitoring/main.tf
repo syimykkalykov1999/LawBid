@@ -198,7 +198,7 @@ resource "aws_sns_topic_subscription" "critical_email" {
 locals {
   ns  = "LawBid/${var.name}"
   ops = [aws_sns_topic.alerts.arn]
-  # Normal mail stream + the page. Only the SLO composites use it.
+  # Normal mail stream + the page. The SLO composites and the 7 P0 alarms (S12-1: db-down, journal-integrity, api-5xx-ratio, unhealthy-hosts, no-running-tasks, uptime canary, backup-stale) use it; everything else stays on ops (mail/Slack). PagerDuty Free = 100 pages a month, so keep this list short.
   page = [aws_sns_topic.alerts.arn, aws_sns_topic.critical.arn]
 }
 
@@ -340,7 +340,7 @@ resource "aws_cloudwatch_log_metric_filter" "search_latency" {
 resource "aws_cloudwatch_metric_alarm" "search_slow" {
   count               = var.search_p95_alarm_ms > 0 ? 1 : 0
   alarm_name          = "${var.name}-search-slow"
-  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
+  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: ${var.runbook_base_url}/infra-alarms.md#search, подробно: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 3
   period              = 300
@@ -387,8 +387,8 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_ratio" {
       dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
     }
   }
-  alarm_actions = local.ops
-  ok_actions    = local.ops
+  alarm_actions = local.page
+  ok_actions    = local.page
   tags          = var.tags
 }
 
@@ -420,8 +420,8 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   metric_name         = "UnHealthyHostCount"
   namespace           = "AWS/ApplicationELB"
   dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -499,7 +499,8 @@ resource "aws_cloudwatch_metric_alarm" "journal_integrity" {
   metric_name         = "JournalChainBroken"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -635,8 +636,8 @@ resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
     Service = "worker"
   }
   treat_missing_data = "breaching"
-  alarm_actions      = local.ops
-  ok_actions         = local.ops
+  alarm_actions      = local.page
+  ok_actions         = local.page
   tags               = var.tags
 }
 
@@ -882,8 +883,8 @@ resource "aws_cloudwatch_metric_alarm" "db_down" {
   metric_name         = "DbOk"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -929,8 +930,8 @@ resource "aws_cloudwatch_metric_alarm" "backup_stale" {
   metric_name         = "BackupStale"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
+  alarm_actions       = local.page
+  ok_actions          = local.page
   tags                = var.tags
 }
 
@@ -951,7 +952,7 @@ resource "aws_cloudwatch_log_metric_filter" "storage_growth" {
 
 resource "aws_cloudwatch_metric_alarm" "storage_growth" {
   alarm_name          = "${var.name}-storage-growth"
-  alarm_description   = "LawBid: Файлы или база выросли за сутки быстрее обычного. Что делать: откройте админку → Система → Хранилище и посмотрите «Кто занимает больше всего» и «Самые большие таблицы»; при необходимости поставьте пользователю лимит. Ненужные файлы система удаляет сама. (EN: files or DB grew more than storage.growth_alert_percent in a day.)"
+  alarm_description   = "LawBid: Файлы или база выросли за сутки быстрее обычного. Что делать: откройте админку → Система → Хранилище и посмотрите «Кто занимает больше всего» и «Самые большие таблицы»; при необходимости поставьте пользователю лимит. Ненужные файлы система удаляет сама. Инструкция: ${var.runbook_base_url}/infra-alarms.md#storage-growth (EN: files or DB grew more than storage.growth_alert_percent in a day.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -996,7 +997,7 @@ resource "aws_cloudwatch_log_metric_filter" "r2" {
 resource "aws_cloudwatch_metric_alarm" "r2" {
   for_each            = local.r2_alerts
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = each.value.text
+  alarm_description   = "${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#r2"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1056,7 +1057,7 @@ resource "aws_cloudwatch_log_metric_filter" "treasury" {
 resource "aws_cloudwatch_metric_alarm" "treasury" {
   for_each            = local.treasury_alerts
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = each.value.text
+  alarm_description   = "${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#treasury"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1073,7 +1074,7 @@ resource "aws_cloudwatch_metric_alarm" "treasury" {
 # cost-autoscale.service.ts) want to grow past their safety ceiling.
 resource "aws_cloudwatch_metric_alarm" "cost_budget_ceiling" {
   alarm_name          = "${var.name}-cost-budget-ceiling"
-  alarm_description   = "LawBid: Автоматический лимит расходов (SMS, письма, проверки, загрузки, перевод или видео) упёрся в потолок безопасности. Что делать: если пользователей действительно стало больше — админка → Система → Настройки → Лимиты расходов → поднимите «Потолок». Если роста не было — возможно, это злоупотребление, и лимит вас защищает: напишите Claude «лимиты». (EN: cost autoscale target clamped by its ceiling.)"
+  alarm_description   = "LawBid: Автоматический лимит расходов (SMS, письма, проверки, загрузки, перевод или видео) упёрся в потолок безопасности. Что делать: если пользователей действительно стало больше — админка → Система → Настройки → Лимиты расходов → поднимите «Потолок». Если роста не было — возможно, это злоупотребление, и лимит вас защищает: напишите Claude «лимиты». Инструкция: ${var.runbook_base_url}/cost.md#ceiling (EN: cost autoscale target clamped by its ceiling.)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 3600
@@ -1108,7 +1109,7 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
     }
   }
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = "LawBid: ${each.value.text}"
+  alarm_description   = "LawBid: ${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#economy"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 300
@@ -1283,7 +1284,7 @@ resource "aws_cloudwatch_metric_alarm" "usage_alert" {
     }
   }
   alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
-  alarm_description   = "LawBid: ${each.value.text}"
+  alarm_description   = "LawBid: ${each.value.text}${strcontains(each.value.text, var.runbook_base_url) ? "" : " Инструкция: ${var.runbook_base_url}/infra-alarms.md#usage"}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   period              = 86400

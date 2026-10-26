@@ -660,3 +660,28 @@ variable "alb_websocket_target_group" {
   type    = bool
   default = false
 }
+
+# Observability round 12: everything billable starts OFF (docs/runbooks/slo.md).
+variable "tracing_enabled" {
+  type        = bool
+  default     = false
+  description = "ADOT collector sidecar + OTEL env: spans to AWS X-Ray, 5 % sampled. X-Ray first 100k traces/month free, then $5 per million."
+}
+variable "synthetic_journey_enabled" {
+  type        = bool
+  default     = false
+  description = "Synthetic sign-in + feed + message canary, about $3.5/month."
+}
+variable "synthetic_journey_secret_arn" {
+  type    = string
+  default = null
+}
+variable "synthetic_journey_conversation_id" {
+  type    = string
+  default = null
+}
+variable "alarm_incident_hook_enabled" {
+  type        = bool
+  default     = false
+  description = "Lambda: CloudWatch alarm state changes become incident rows in the admin."
+}

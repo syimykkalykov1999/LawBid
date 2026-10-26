@@ -185,6 +185,11 @@ module "stack" {
   ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
   deploy_alarm_rollback              = var.deploy_alarm_rollback
   deploy_rollback_on_slo             = var.deploy_rollback_on_slo
+  tracing_enabled                    = var.tracing_enabled
+  synthetic_journey_enabled          = var.synthetic_journey_enabled
+  synthetic_journey_secret_arn       = var.synthetic_journey_secret_arn
+  synthetic_journey_conversation_id  = var.synthetic_journey_conversation_id
+  alarm_incident_hook_enabled        = var.alarm_incident_hook_enabled
   dmarc_policy                       = var.dmarc_policy
 
   # Load audit 6: growth switches (growth.tf).
