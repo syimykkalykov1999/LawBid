@@ -9,6 +9,7 @@ import {
 import type { Prisma, Sticker, StickerPack } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { readSwitchMode } from '../../common/app-settings/switch-mode';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -438,7 +439,11 @@ export class StickersService {
   ): Promise<'pending' | 'active' | 'hidden'> {
     if (!(await this.settings.boolean('stickers.scan_uploads')))
       return 'active';
-    if (!(await this.settings.boolean('moderation.image.enabled')))
+    // 3-state switch (off | on | auto): only `off` stops the paid scan.
+    if (
+      (await readSwitchMode(this.settings, 'moderation.image.enabled')) ===
+      'off'
+    )
       return 'active';
     const check = await this.prisma.mediaModerationCheck.findUnique({
       where: { file_id: fileId },
