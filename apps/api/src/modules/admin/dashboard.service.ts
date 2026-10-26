@@ -1,7 +1,15 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import {
+  dailyDue,
+  withSnapshotTimeout,
+} from '../../common/admin-summary/snapshot-gate';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { DashboardDto } from './admin.dto';
+import type {
+  DashboardDto,
+  DashboardRoleTotalsDto,
+  DashboardTotalsDto,
+} from './admin.dto';
 import {
   liveSubscriptionWhere,
   monthlyRevenueCents,
@@ -10,7 +18,59 @@ import {
 export const DASHBOARD_SUMMARY_KEY = 'dashboard';
 /** Older than this, a read still answers at once and one process recounts. */
 const FRESH_SECONDS = 150;
+export const USER_TOTALS_KEY = 'user-totals';
 const DAY_MS = 86_400_000;
+/** The admin button recounts at most this often. */
+export const TOTALS_BUTTON_COOLDOWN_MS = 10 * 60_000;
+
+export interface UserRoleRow {
+  role: string;
+  total: bigint | number;
+  active: bigint | number;
+  verified: bigint | number;
+}
+export interface AssistantRow {
+  total: bigint | number;
+  active: bigint | number;
+}
+const n = (v: bigint | number | undefined) => Number(v ?? 0);
+
+/** Pure: GROUP BY rows -> the totals block (without the stamp). */
+export function buildTotals(
+  rows: UserRoleRow[],
+  assistants: AssistantRow | undefined,
+  computedAt: string,
+): DashboardTotalsDto {
+  const by = (role: string, withVerified: boolean): DashboardRoleTotalsDto => {
+    const r = rows.find((x) => x.role === role);
+    return {
+      total: n(r?.total),
+      active: n(r?.active),
+      verified: withVerified ? n(r?.verified) : null,
+    };
+  };
+  const clients = by('client', true);
+  const attorneys = by('attorney', true);
+  const admins = by('admin', false);
+  const seats: DashboardRoleTotalsDto = {
+    total: n(assistants?.total),
+    active: n(assistants?.active),
+    verified: null,
+  };
+  const parts = [clients, attorneys, admins, seats];
+  return {
+    clients,
+    attorneys,
+    assistants: seats,
+    admins,
+    all: {
+      total: parts.reduce((a, x) => a + x.total, 0),
+      active: parts.reduce((a, x) => a + x.active, 0),
+      verified: null,
+    },
+    computedAt,
+  };
+}
 
 /**
  * docs/06 §2.3 item 1. Fourteen counts. Owner 2026-10-23 (admin economy
@@ -37,6 +97,65 @@ export class DashboardService {
     ).data;
   }
 
+  /**
+   * Owner 2026-10-25: the admin button «Обновить» for the user totals.
+   * At most once per 10 minutes (a fresher stored value is returned as is);
+   * recounts the totals and the dashboard summary that carries them.
+   */
+  async refreshTotals(): Promise<void> {
+    const hit = await this.summary?.peek<DashboardTotalsDto>(USER_TOTALS_KEY);
+    if (
+      hit &&
+      Date.now() - Date.parse(hit.computedAt) < TOTALS_BUTTON_COOLDOWN_MS
+    )
+      return;
+    if (this.summary) {
+      await this.summary.refresh(USER_TOTALS_KEY, () => this.countTotals());
+      await this.refresh();
+    }
+  }
+
+  /**
+   * Totals ride on the dashboard summary but are counted once a day: the
+   * cron (every 2 min) reuses the stored value until it is 24 h old.
+   */
+  async totals(): Promise<DashboardTotalsDto> {
+    if (!this.summary) return this.countTotals();
+    const hit = await this.summary.peek<DashboardTotalsDto>(USER_TOTALS_KEY);
+    if (hit && !dailyDue(hit.computedAt)) return hit.data;
+    return (
+      await this.summary.refresh(USER_TOTALS_KEY, () => this.countTotals())
+    ).data;
+  }
+
+  /** One GROUP BY role over users (+ one tiny one over assistant seats). */
+  async countTotals(): Promise<DashboardTotalsDto> {
+    const [rows, seats] = await withSnapshotTimeout(
+      this.prisma,
+      async (p) =>
+        [
+          await p.$queryRaw<UserRoleRow[]>`
+        SELECT u.role::text AS role,
+               COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE u.status = 'active') AS active,
+               COUNT(*) FILTER (WHERE ap.verification_status = 'verified'
+                                   OR cv.status = 'approved') AS verified
+          FROM users u
+          LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+          LEFT JOIN client_verifications cv ON cv.user_id = u.id
+         WHERE u.role IS NOT NULL AND u.status <> 'deleted'
+           AND u.deleted_at IS NULL
+         GROUP BY u.role`,
+          await p.$queryRaw<AssistantRow[]>`
+        SELECT COUNT(*) AS total,
+               COUNT(*) FILTER (WHERE status = 'active') AS active
+          FROM assistant_memberships
+         WHERE status <> 'removed'`,
+        ] as const,
+    );
+    return buildTotals(rows, seats[0], new Date().toISOString());
+  }
+
   /** The cron's entry: recount now and store. */
   async refresh(): Promise<void> {
     if (this.summary)
@@ -48,6 +167,7 @@ export class DashboardService {
     const since24h = new Date(now.getTime() - DAY_MS);
     const since7d = new Date(now.getTime() - 7 * DAY_MS);
     const p = this.prisma;
+    const totals = await this.totals();
     const [
       clients24h,
       attorneys24h,
@@ -125,6 +245,7 @@ export class DashboardService {
     );
     return {
       newUsers: { clients24h, attorneys24h, clients7d, attorneys7d },
+      totals,
       verification: {
         queueSize,
         oldestAgeSeconds: oldest?.submitted_at

@@ -1,7 +1,7 @@
 ---
 id: dns-to-cloudflare
 title: Домен под управлением Cloudflare (смена серверов имён)
-category: dns
+category: launch
 cost: Бесплатно (тариф Free). Сам домен остаётся у регистратора (у нас Namecheap).
 time: 15 минут работы, затем ожидание до 24 часов
 launch: dns
