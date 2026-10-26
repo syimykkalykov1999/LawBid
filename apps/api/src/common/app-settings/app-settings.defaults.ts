@@ -866,6 +866,19 @@ export const OWNER_OPS_SETTINGS = {
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
+  /** Queues hardening 2026-10-25 (S10): the number the worker autoscales
+   * on. off = flat count of waiting jobs (the old way); on = jobs weighted
+   * by how heavy they are; auto = weighted + extra pressure while the
+   * oldest waiting job is older than 2 minutes. Costs nothing: it only
+   * changes WHEN the existing autoscaling adds a worker (still capped by
+   * the economy ceiling). */
+  'queues.scale_signal_mode': 'auto',
+  /** Push sending speed limit to FCM/APNs, per second for the whole
+   * system (FCM allows 10 000/s per project). off = no limit; on = always
+   * the number below; auto = the number below, and it also slows down by
+   * itself for a minute when FCM answers «слишком часто» (429). */
+  'queues.push_rate_mode': 'auto',
+  'queues.push_rate_per_sec': 8000,
 };
 
 /** Owner 2026-10-05 «Прибыль и резерв» (Деньги): the monthly split of the

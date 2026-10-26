@@ -177,7 +177,7 @@ export class CounterAggregator
 
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
-      this.flush().catch((error: unknown) =>
+      this.flush({ waitForRunning: false }).catch((error: unknown) =>
         this.logger.error(
           { err: error instanceof Error ? error.message : String(error) },
           'counter flush failed',
@@ -319,10 +319,28 @@ export class CounterAggregator
     return out;
   }
 
-  /** Applies all pending deltas; one flusher across pods. */
-  async flush(): Promise<{ rows: number }> {
+  /** Applies all pending deltas; one flusher across pods. An explicit call
+   * (the nightly job, tests) that finds another flush running waits for it
+   * (up to one flush period) and then runs, so what was pending when it was
+   * called has landed when it returns. The 10-second timer does not wait. */
+  async flush(
+    opts: { waitForRunning?: boolean } = {},
+  ): Promise<{ rows: number }> {
+    const first = await this.flushOnce();
+    if (first !== null || opts.waitForRunning === false) {
+      return { rows: first ?? 0 };
+    }
+    const until = Date.now() + COUNTER_FLUSH_MS;
+    while (Date.now() < until) {
+      if (!(await this.redis.exists('lock:job:counters.flush'))) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return { rows: (await this.flushOnce()) ?? 0 };
+  }
+
+  private async flushOnce(): Promise<number | null> {
     await this.flushLocal();
-    const result = await withJobLock(
+    return withJobLock(
       this.redis,
       'counters.flush',
       COUNTER_FLUSH_MS,
@@ -338,7 +356,6 @@ export class CounterAggregator
         return rows;
       },
     );
-    return { rows: result ?? 0 };
   }
 
   private async flushField(
