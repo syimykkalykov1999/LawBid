@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { generateKeyPairSync } from 'node:crypto';
 import type Redis from 'ioredis';
@@ -116,6 +118,22 @@ describe('S3StorageService cache headers and CDN invalidation', () => {
     expect(s.cacheControlFor('lawbid-documents')).toBe(PRIVATE_CACHE_CONTROL);
     expect(s.cacheControlFor('lawbid-media')).toBe(IMMUTABLE_CACHE_CONTROL);
     expect(PRIVATE_CACHE_CONTROL).toMatch(/^private,/);
+  });
+
+  it('private header is cacheable at the edge (max-age >= 60) and the CDN policy min_ttl is validated >= 60', () => {
+    const m = /max-age=(\d+)/.exec(PRIVATE_CACHE_CONTROL);
+    expect(Number(m?.[1])).toBeGreaterThanOrEqual(60);
+    const tf = readFileSync(
+      join(__dirname, '../../../../../../infra/modules/s3/main.tf'),
+      'utf8',
+    );
+    const policy = tf.slice(
+      tf.indexOf('resource "aws_cloudfront_cache_policy" "documents"'),
+    );
+    expect(policy.slice(0, 600)).toContain(
+      'min_ttl     = var.documents_edge_min_ttl',
+    );
+    expect(tf).toMatch(/var\.documents_edge_min_ttl >= 60/);
   });
 
   it('presigned S3 reads of private files ask for a private header', async () => {

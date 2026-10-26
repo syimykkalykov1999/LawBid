@@ -46,6 +46,21 @@ variable "documents_cdn_public_key_pem" {
   default     = ""
   description = "Owner 2026-10-22 (systems checklist §22): PEM public key of the CloudFront signing key pair for private media (chat photos/voice/files, case files, documents). Empty = no documents CloudFront; the API keeps presigned S3 GET links. The private key goes to Secrets Manager as CLOUDFRONT_PRIVATE_KEY_PEM (extra_secrets)."
 }
+# R-3: the API sends `Cache-Control: private, max-age=3600` for private files.
+# CloudFront never stores a `private` answer while min_ttl is 0, so the edge
+# cache would be dead (every chat photo/video view and Range request would hit
+# S3). A min_ttl above 0 overrides `private` at the edge only; browsers still
+# honour `private`. Validation keeps it from silently going back to 0.
+variable "documents_edge_min_ttl" {
+  type        = number
+  default     = 60
+  description = "Seconds CloudFront keeps a private media object even though the origin says `private` (must stay between 60 and the 3600 s max TTL)."
+  validation {
+    condition     = var.documents_edge_min_ttl >= 60 && var.documents_edge_min_ttl <= 3600
+    error_message = "documents_edge_min_ttl must be 60..3600: 0 stops CloudFront caching `Cache-Control: private` private media."
+  }
+}
+
 variable "cors_allowed_origins" {
   type        = list(string)
   default     = ["https://syimykkalykov1999.github.io"]
@@ -537,7 +552,7 @@ resource "aws_cloudfront_cache_policy" "documents" {
   comment     = "Private media: edge copy at most an hour (a deleted file must not outlive it), key on the response-* params"
   default_ttl = 3600
   max_ttl     = 3600
-  min_ttl     = 0
+  min_ttl     = var.documents_edge_min_ttl
   parameters_in_cache_key_and_forwarded_to_origin {
     enable_accept_encoding_brotli = true
     enable_accept_encoding_gzip   = true
