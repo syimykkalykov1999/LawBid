@@ -41,6 +41,7 @@ import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
+import { EventsMaintenance } from '../modules/events/events.maintenance';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { ShardMoveService } from '../sharding/move/shard-move.service';
 import { OrphanChecker } from '../sharding/orphan-checker';
@@ -166,6 +167,8 @@ export class CronProcessor {
     // Shard-ready steps 9-10.
     @Optional() private readonly shardMoves?: ShardMoveService,
     @Optional() private readonly orphans?: OrphanChecker,
+    // Events pipeline (N-2): `events.maintain`.
+    @Optional() private readonly eventsMaintenance?: EventsMaintenance,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Owner 2026-10-25: `experiments.metrics`.
@@ -288,6 +291,8 @@ export class CronProcessor {
         return this.shardMoves?.tick() ?? null;
       case CRON_JOBS.shardOrphanCheck:
         return this.orphans?.run() ?? null;
+      case CRON_JOBS.eventsMaintain:
+        return this.eventsMaintenance?.run() ?? null;
       case CRON_JOBS.opsBusinessMetrics:
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:

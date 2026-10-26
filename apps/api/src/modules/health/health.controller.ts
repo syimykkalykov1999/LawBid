@@ -15,6 +15,10 @@ import { RedisHealthIndicator } from './indicators/redis.health';
  * HEALTH_CHECK_TIMEOUT_MS; otherwise 503 so the ALB/k8s stops routing to
  * it (docs/06_PRODUCTION.md rolling deploys, docs/01 §13 availability).
  *
+ * Both answers carry `version` (the APP_VERSION of the release this task runs,
+ * the image tag; `dev` locally) so the deploy smoke test and the 5-minute
+ * synthetic check can prove WHICH release answers (S11-5).
+ *
  * @Public() (added stage 1.4, docs/CHANGELOG.md): once AuthModule
  * registers JwtAuthGuard as the global APP_GUARD, every route 401s
  * without an explicit opt-out. A load balancer / k8s liveness probe has
@@ -33,6 +37,9 @@ import { RedisHealthIndicator } from './indicators/redis.health';
  * and its Redis-backed storage would turn a Redis outage into a 500
  * before `ready` could report a proper 503.
  */
+/** The release this process runs: the image tag set by roll-services.sh. */
+const appVersion = (): string => process.env.APP_VERSION || 'dev';
+
 @ApiTags('health')
 @SkipThrottle()
 @Controller('health')
@@ -47,18 +54,19 @@ export class HealthController {
   @SkipVersionCheck()
   @Get('live')
   @HealthCheck()
-  live() {
-    return this.health.check([]);
+  async live() {
+    return { ...(await this.health.check([])), version: appVersion() };
   }
 
   @Public()
   @SkipVersionCheck()
   @Get('ready')
   @HealthCheck()
-  ready() {
-    return this.health.check([
+  async ready() {
+    const result = await this.health.check([
       () => this.database.isHealthy(),
       () => this.redis.isHealthy(),
     ]);
+    return { ...result, version: appVersion() };
   }
 }

@@ -37,7 +37,8 @@
     "i18n:import": "node dist/src/cli/import-translations.js",
     "flags:sync": "ts-node --transpile-only scripts/sync-flag-defaults.ts",
     "counters:reconcile": "ts-node --transpile-only scripts/counters-reconcile.ts",
-    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts"
+    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts",
+    "media:avatar-previews": "ts-node --transpile-only scripts/backfill-avatar-previews.ts"
   },
   "dependencies": {
     "@aws-sdk/client-application-auto-scaling": "^3.1146.0",
@@ -49,7 +50,7 @@
     "@aws-sdk/client-kms": "^3.1152.0",
     "@aws-sdk/client-rds": "^3.1152.0",
     "@aws-sdk/client-rekognition": "^3.1152.0",
-    "@aws-sdk/client-s3": "^3.1141.0",
+    "@aws-sdk/client-s3": "^3.1152.0",
     "@aws-sdk/client-ses": "^3.1137.0",
     "@aws-sdk/client-sns": "^3.1146.0",
     "@aws-sdk/client-ssm": "^3.1152.0",
@@ -116,7 +117,7 @@
     "@types/express": "^5.0.0",
     "@types/heic-decode": "^2.0.0",
     "@types/jest": "^30.0.0",
-    "@types/multer": "^2.0.0",
+    "@types/multer": "^2.3.0",
     "@types/node": "^24.0.0",
     "@types/nodemailer": "^8.0.2",
     "@types/pdfkit": "^0.17.6",
@@ -154,6 +155,19 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
+    "coverageReporters": [
+      "json-summary",
+      "text-summary",
+      "lcov"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 57,
+        "branches": 45,
+        "functions": 33,
+        "lines": 58
+      }
+    },
     "testEnvironment": "node",
     "transformIgnorePatterns": [
       "node_modules/(?!(@nestjs/jwt|jose)/)"

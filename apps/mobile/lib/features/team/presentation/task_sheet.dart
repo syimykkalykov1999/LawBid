@@ -484,7 +484,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     setState(() => _busy = true);
     try {
       await ref.read(teamRepositoryProvider).deleteTask(_task.id);
-      invalidateAllTasks(ref);
+      ref.read(tasksHubProvider).drop(_task.id);
       if (!mounted) return;
       Navigator.of(context).pop();
       showAppSnackBar(context, t.t('tasks.deleted'));
@@ -503,8 +503,8 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     setState(() => _busy = true);
     try {
       await ref.read(teamRepositoryProvider).bulkTasks([_task.id], action);
-      invalidateAllTasks(ref);
       final updated = await ref.read(teamRepositoryProvider).task(_task.id);
+      ref.read(tasksHubProvider).apply(updated);
       if (!mounted) return;
       setState(() {
         _busy = false;

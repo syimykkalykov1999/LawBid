@@ -9,8 +9,6 @@
   "features/blocks/presentation/block_actions.dart:suggestionsProvider": "same: they leave the suggestions (swr 30 min list)",
   "features/cases/application/cases_providers.dart:caseFeedProvider": "the case feed is a pull list (no updatedSince on GET /cases); my bid changes its row's state",
   "features/cases/application/cases_providers.dart:savedCasesProvider": "GET /saved-items has no updatedSince (API: own actions only)",
-  "features/channels/application/channels_providers.dart:archivedChannelsProvider": "channels are «coming soon» (flag off); list sync not built yet",
-  "features/channels/application/channels_providers.dart:channelListProvider": "channels are «coming soon» (flag off); SyncedListNotifier for channels is the next step",
   "features/chat/application/chat_providers.dart:conversationsProvider": "conversation:update (closed / unlocked / request answered) may move a chat between folders — debounced first page, documented in the notifier",
   "features/chat/application/chat_providers.dart:folderConversationsProvider": "same as conversationsProvider",
   "features/chat/application/chat_providers.dart:messageRequestsProvider": "answering a request moves it to the inbox; the requests list has no delta",
@@ -26,7 +24,6 @@
   "features/groups/application/chat_list_merge.dart:archivedGroupsProvider": "archiving from the main list: the Archive list has no event of its own (the main list is edited in place)",
   "features/groups/application/group_invite_actions.dart:groupInvitesProvider": "an answered invitation leaves the small invites list; no delta on the server",
   "features/notifications/application/push_service.dart:notificationsProvider": "a push tap marks one row read while the bell may be open; the bell notifier catches up by delta on its own events — this read is a one-off",
-  "features/notifications/application/task_reminders.dart:tasksProvider": "a reminder fired for a task; tasks have no delta yet",
   "features/privacy/application/privacy_providers.dart:conversationsProvider": "a privacy setting changes who may write to me; rare",
   "features/reels/application/reel_publish_job.dart:attorneyReelsProvider": "my new reel enters my profile tab; cursor list, no event for own writes",
   "features/social/application/social_providers.dart:archivedPostsProvider": "archive / restore moves a post between my lists; no event for own writes",
@@ -38,7 +35,6 @@
   "features/social/application/social_providers.dart:postRepostersProvider": "my repost changes the reposters list of the post; small list, no event",
   "features/social/application/social_providers.dart:userRepostsProvider": "same for my reposts tab",
   "features/stories/application/story_publish_job.dart:storyTrayProvider": "stories are off (owner); untouched by the plan",
-  "features/stories/application/story_publish_job.dart:userStoriesProvider": "stories are off (owner); untouched by the plan",
-  "features/team/application/team_providers.dart:tasksProvider": "the tasks board after my change; tasks have no delta yet"
+  "features/stories/application/story_publish_job.dart:userStoriesProvider": "stories are off (owner); untouched by the plan"
  }
 }

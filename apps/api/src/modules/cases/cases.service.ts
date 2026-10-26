@@ -79,6 +79,10 @@ import {
   CrossFamilyOutbox,
   type OutboxTicket,
 } from '../../sharding/outbox/cross-family-outbox';
+import {
+  DomainEvents,
+  type DomainEventTicket,
+} from '../events/domain-events.service';
 
 /** docs/04 §11.1 tab filters -> case_status values. */
 const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
@@ -387,6 +391,8 @@ export class CasesService {
     @Optional() private readonly limits?: UsageLimitsService,
     // S3-5: «Личные данные» are stored sealed.
     @Optional() private readonly cipher?: MessageBodyCipher,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   /** The client's private details as plain text (legacy rows are plain). */
@@ -470,10 +476,12 @@ export class CasesService {
     }
 
     const tickets: Array<OutboxTicket | null> = [];
+    const eventTickets: Array<DomainEventTicket | null | undefined> = [];
     // S3-5: the id is chosen here so the sealed details are bound to it.
     const newCaseId = randomUUID();
     const created = await withTxRetry(this.prisma, async (tx) => {
       tickets.length = 0;
+      eventTickets.length = 0;
       const now = new Date();
       const kase = await tx.case.create({
         data: {
@@ -529,6 +537,18 @@ export class CasesService {
           budgetPercentBps: kase.budget_percent_bps,
         },
       });
+      eventTickets.push(
+        await this.events?.emit(
+          tx,
+          'case.created',
+          {
+            caseId: kase.id,
+            clientId: user.sub,
+            practiceAreaId: kase.practice_area_id,
+          },
+          { actorId: user.sub, key: `case.created:${kase.id}` },
+        ),
+      );
       if (!consentGranted) {
         // Shard-ready step 7: the consent is a global-family row written
         // next to a sharded one. On the primary database the outbox runs it
@@ -563,6 +583,7 @@ export class CasesService {
       return kase;
     });
     await this.outbox?.flush(tickets);
+    await this.events?.flush(eventTickets);
     // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
     const alerts = this.alerts;
     alerts?.later(() => alerts.attorneysForCase(created.id));

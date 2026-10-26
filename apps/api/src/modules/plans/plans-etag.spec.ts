@@ -114,3 +114,51 @@ describe('GET /stickers/featured cheap ETag', () => {
     expect(a.headers.ETag).not.toBe(b.headers.ETag);
   });
 });
+
+describe('GET /plans ETag across processes (review R-17)', () => {
+  const tagOf = async (now: number, version: string): Promise<string> => {
+    let tag = '';
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    process.env.APP_VERSION = version;
+    let Fresh: typeof PlansController | undefined;
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    jest.isolateModules(() => {
+      Fresh = (
+        require('./plans.controller') as {
+          PlansController: typeof PlansController;
+        }
+      ).PlansController;
+    });
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    const plans = {
+      etagStamp: jest
+        .fn()
+        .mockResolvedValue([new Date('2026-10-01T00:00:00Z'), 4, null, 0]),
+      purchasable: jest.fn().mockResolvedValue([]),
+      baseline: jest.fn().mockResolvedValue(null),
+    };
+    const c = new (Fresh as typeof PlansController)(
+      plans as never,
+      {} as never,
+      {} as never,
+    );
+    const h = http();
+    await c.listPlans({ audience: 'attorney' }, h.req, h.res);
+    tag = h.headers.ETag;
+    nowSpy.mockRestore();
+    return tag;
+  };
+
+  it('two tasks of the same build send the same tag (no per-process clock)', async () => {
+    // Same 5-minute bucket, different "process start" clocks.
+    const a = await tagOf(1_800_000_000_000, 'abc1234');
+    const b = await tagOf(1_800_000_001_000, 'abc1234');
+    expect(a).toBe(b);
+  });
+
+  it('a new build still changes the tag', async () => {
+    const a = await tagOf(1_800_000_000_000, 'abc1234');
+    const c = await tagOf(1_800_000_000_000, 'def5678');
+    expect(c).not.toBe(a);
+  });
+});

@@ -1,0 +1,73 @@
+# S11-6: one reusable "tell the owner" job. Every pipeline that must not fail
+# silently calls it from a last job with `if: failure()` (or `always()` for a
+# rollback, which is announced on success too):
+#
+#   notify:
+#     needs: [build, deploy-prod]
+#     if: ${{ always() && contains(needs.*.result, 'failure') }}
+#     uses: ./.github/workflows/notify-failure.yml
+#     with: { title: "Deploy failed", kind: deploy }
+#     secrets: inherit
+#
+# Three channels, each optional, all fed from the same message:
+#   1. a GitHub issue labelled `ci-alert` (always; GitHub mails the watchers,
+#      one open issue per `kind`, later alerts are comments, so no spam);
+#   2. AWS SNS topic `lawbid-prod-alerts` (the owner's existing e-mail / push
+#      path of infra/modules/monitoring) when the secret AWS_NOTIFY_ROLE is
+#      set (role `<name>-github-notify`, infra/bootstrap);
+#   3. a chat webhook (Slack / Telegram bridge) when ALERT_WEBHOOK_URL is set.
+# The message holds the workflow name, branch, commit and run link — never a
+# secret value (the repository is public).
+name: Notify failure
+
+on:
+  workflow_call:
+    inputs:
+      title:
+        description: "One line, plain words: what failed"
+        type: string
+        required: true
+      kind:
+        description: "Dedup key: deploy, rollback, self-check, drift, scan, synthetic, heartbeat ..."
+        type: string
+        required: true
+      severity:
+        description: "error (default) or info (announcement, no issue)"
+        type: string
+        default: error
+      remind_after_minutes:
+        description: "Comment on the open issue again only after this many minutes"
+        type: number
+        default: 60
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  notify:
+    name: Notify the owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TITLE: ${{ inputs.title }}
+      KIND: ${{ inputs.kind }}
+      SEVERITY: ${{ inputs.severity }}
+      REMIND_MIN: ${{ inputs.remind_after_minutes }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      GH_TOKEN: ${{ github.token }}
+      HAS_ROLE: ${{ secrets.AWS_NOTIFY_ROLE != '' }}
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        if: ${{ env.HAS_ROLE == 'true' }}
+        continue-on-error: true
+        with:
+          role-to-assume: ${{ secrets.AWS_NOTIFY_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Send
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: scripts/ci/notify-failure.sh
