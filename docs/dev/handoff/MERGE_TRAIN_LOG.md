@@ -130,3 +130,6 @@ Required checks for merge (as I apply them): API CI "Lint, typecheck, unit + e2e
 06:15 merged main & pushed (clean): #417 #418 #405 #376 #364 #352.
 06:27 pushed: #360 (re-merged: streamed export + crash-safe claim, chat-actions ctor order, settings), #387 (main's mock), #392 (config-schema union, counts/ERD/contract), #378/#391 (contract regen — oasdiff red was stale openapi), #368 profile cache now stamp-validated (suspend/avatar seen at once; e2e profiles+verification 28/28 local).
 06:29 pushed: #366 (data-export streamed+claim specs adapted, queue retry+heavy hitters), #347 (admin-ops backfills+queue retry, contract), #368 (profile cache stamp check + contract). #330: its worktree was removed during disk cleanup → my contract regen for it was lost; will recreate after #419 (heap) lands. Hold now: 415 414 (calls audit) 373 369 (fixers).
+06:33 MERGED #363 (required checks green)
+06:37 #363 MERGED (loop). #389 #411 merged main (+ERD/contract) & pushed. Prepared: #379 (on re-merged #360 + main), #401, #356 (migrations → 20261105100000/110000), #395 (migration → 20261105200000) — checks running.
+06:40 pushed #379 (legal requests via auth.public, export spec created_at, baseline) and #401 (fan-out baseline for events module, ERD).
