@@ -131,7 +131,7 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
+          node-version: "22.23.4"
           cache: "npm"
 
       - name: Install dependencies (root workspace, hoisted)
@@ -300,6 +300,10 @@ jobs:
         # client, and fail on ANY difference (modified or new files) — a
         # controller/DTO change without a committed regeneration is
         # contract drift. Then the client must analyze clean.
+        # `nest build` + the export outgrew Node's ~4 GB default heap on the
+        # runner (exit 134 on #330, 2026-10-26).
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           sh packages/api-contract/generate.sh
           git diff --exit-code -- packages/api-contract

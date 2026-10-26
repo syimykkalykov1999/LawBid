@@ -13,7 +13,6 @@ class AdminCountsDto {
     required this.openReports,
     required this.supportUnread,
     required this.trustQueue,
-    required this.approvalsPending,
   });
 
   factory AdminCountsDto.fromJson(Map<String, Object?> json) =>
@@ -30,9 +29,6 @@ class AdminCountsDto {
 
   /// Attorneys in the trust queue.
   final int trustQueue;
-
-  /// Approvals this admin could decide.
-  final int approvalsPending;
 
   Map<String, Object?> toJson() => _$AdminCountsDtoToJson(this);
 }
