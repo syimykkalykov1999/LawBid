@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LawBid Status</title>
+<style>
+  :root { --bg:#fff; --fg:#14181f; --muted:#5b6472; --line:#e3e6eb; --ok:#1a8f4c; --warn:#b7791f; --bad:#c0392b; --info:#2b6cb0; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1319; --fg:#e8ebf0; --muted:#98a1b0; --line:#262d38; --ok:#3fbf7a; --warn:#e0a443; --bad:#ec6a5c; --info:#63a4ee; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:720px; margin:0 auto; padding:32px 16px 64px; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:24px; }
+  h1 { font-size:20px; margin:0; }
+  h2 { font-size:15px; margin:32px 0 8px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  button.lang { background:none; border:1px solid var(--line); color:var(--fg); border-radius:8px; padding:6px 12px; cursor:pointer; font:inherit; font-size:14px; }
+  .banner { border:1px solid var(--line); border-radius:12px; padding:16px; font-weight:600; display:flex; gap:10px; align-items:center; }
+  .dot { width:10px; height:10px; border-radius:50%; flex:none; background:var(--muted); }
+  .operational .dot, .dot.operational { background:var(--ok); }
+  .degraded .dot, .dot.degraded { background:var(--warn); }
+  .outage .dot, .dot.outage { background:var(--bad); }
+  .maintenance .dot, .dot.maintenance { background:var(--info); }
+  .stale .dot, .dot.unknown { background:var(--muted); }
+  ul { list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:12px; }
+  li { display:flex; align-items:center; gap:10px; padding:12px 16px; border-top:1px solid var(--line); }
+  li:first-child { border-top:0; }
+  li .state { margin-left:auto; color:var(--muted); font-size:14px; }
+  .inc { border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-bottom:8px; }
+  .inc b { display:block; }
+  .inc small, .meta { color:var(--muted); font-size:13px; }
+  .inc p { margin:4px 0 0; white-space:pre-wrap; }
+  .warn { margin-top:12px; color:var(--warn); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">LawBid Status</h1>
+    <button class="lang" id="lang" type="button">RU</button>
+  </header>
+  <div id="banner" class="banner"><span class="dot"></span><span id="bannerText">…</span></div>
+  <div id="warn" class="warn" hidden></div>
+  <h2 id="hComp">Services</h2>
+  <ul id="comps"></ul>
+  <h2 id="hInc">Incidents</h2>
+  <div id="incs"></div>
+  <p class="meta" id="updated"></p>
+</main>
+<script>
+(function () {
+  // Static page: it reads status.json from the same host (pushed by the
+  // worker every minute) and works while our API is down. If the file is
+  // older than STALE_MIN the page says so instead of showing a stale "all good".
+  var STALE_MIN = 6;
+  var T = {
+    en: { title: "LawBid Status", services: "Services", incidents: "Incidents",
+      operational: "Operational", degraded: "Degraded", outage: "Outage", maintenance: "Maintenance", unknown: "Unknown",
+      all_ok: "All systems operational", some: "Some services have problems", down: "Service outage",
+      none: "No incidents in the last 7 days.", resolved: "Resolved", ongoing: "Ongoing",
+      updated: "Updated", stale: "Monitoring has not reported for a while. The information below may be out of date.",
+      fail: "Could not load the status. Please try again later." },
+    ru: { title: "Статус LawBid", services: "Сервисы", incidents: "Инциденты",
+      operational: "Работает", degraded: "Есть проблемы", outage: "Не работает", maintenance: "Работы", unknown: "Неизвестно",
+      all_ok: "Все системы работают", some: "У некоторых сервисов есть проблемы", down: "Сбой сервиса",
+      none: "За последние 7 дней инцидентов не было.", resolved: "Устранён", ongoing: "Идёт сейчас",
+      updated: "Обновлено", stale: "Мониторинг давно не присылал данные. Информация ниже может быть устаревшей.",
+      fail: "Не удалось загрузить статус. Попробуйте позже." }
+  };
+  var lang = (function () { try { var s = localStorage.getItem("lang"); if (s) return s; } catch (e) {}
+    return (navigator.language || "en").slice(0, 2) === "ru" ? "ru" : "en"; })();
+  var data = null, failed = false;
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function fmt(iso) { return new Date(iso).toLocaleString(lang === "ru" ? "ru-RU" : "en-GB"); }
+  function render() {
+    var t = T[lang];
+    document.documentElement.lang = lang; document.title = t.title;
+    $("title").textContent = t.title; $("hComp").textContent = t.services; $("hInc").textContent = t.incidents;
+    $("lang").textContent = lang === "ru" ? "EN" : "RU";
+    var banner = $("banner"), comps = $("comps"), incs = $("incs");
+    comps.textContent = ""; incs.textContent = "";
+    if (!data) { banner.className = "banner stale"; $("bannerText").textContent = failed ? t.fail : "…"; $("warn").hidden = true; $("updated").textContent = ""; return; }
+    var ageMin = (Date.now() - new Date(data.updatedAt).getTime()) / 60000;
+    var stale = !(ageMin < STALE_MIN);
+    $("warn").hidden = !stale; $("warn").textContent = t.stale;
+    banner.className = "banner " + (stale ? "stale" : data.overall);
+    $("bannerText").textContent = stale ? t.unknown : data.overall === "operational" ? t.all_ok : data.overall === "degraded" ? t.some : t.down;
+    data.components.forEach(function (c) {
+      var li = el("li"); li.appendChild(el("span", "dot " + (stale ? "unknown" : c.state)));
+      li.appendChild(el("span", null, c.name[lang] || c.name.en));
+      li.appendChild(el("span", "state", stale ? t.unknown : t[c.state]));
+      comps.appendChild(li);
+    });
+    if (!data.incidents.length) incs.appendChild(el("p", "meta", t.none));
+    data.incidents.forEach(function (i) {
+      var d = el("div", "inc");
+      d.appendChild(el("b", null, i.title[lang] || i.title.en));
+      d.appendChild(el("small", null, (i.resolvedAt ? t.resolved + ": " + fmt(i.resolvedAt) : t.ongoing) + " · " + fmt(i.startedAt)));
+      var m = i.message[lang] || i.message.en; if (m) d.appendChild(el("p", null, m));
+      incs.appendChild(d);
+    });
+    $("updated").textContent = t.updated + ": " + fmt(data.updatedAt);
+  }
+  function load() {
+    fetch("status.json?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (j) { data = j; failed = false; render(); })
+      .catch(function () { failed = true; render(); });
+  }
+  $("lang").addEventListener("click", function () { lang = lang === "ru" ? "en" : "ru"; try { localStorage.setItem("lang", lang); } catch (e) {} render(); });
+  render(); load(); setInterval(load, 60000); setInterval(render, 30000);
+})();
+</script>
+</body>
+</html>

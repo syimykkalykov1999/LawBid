@@ -16,6 +16,7 @@ import { ConsultationsService } from '../../consultations/consultations.service'
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaReadService } from '../../../prisma/prisma-read.service';
 import { weakEtag } from '../../../common/sync/cheap-etag';
 
 /** The public profile ETag rotates at least this often (see publicEtag). */
@@ -109,6 +110,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     // canonical public link.
     @Optional() private readonly advertising?: AttorneyAdvertisingService,
     @Optional() private readonly config?: ConfigService,
+    // DB-ops S5-6: the public profile row may be a few seconds old.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
@@ -445,12 +448,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     );
   }
 
-  async getPublic(
-    username: string,
-    viewerId: string,
-  ): Promise<PublicAttorneyProfileDto> {
-    if (!isValidUsername(username)) throw notFound();
-    const row = await this.prisma.attorneyProfile.findUnique({
+  private publicRow(db: PrismaService, username: string) {
+    return db.attorneyProfile.findUnique({
       where: { username_lower: username.toLowerCase() },
       select: {
         user_id: true,
@@ -485,6 +484,23 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
         },
       },
     });
+  }
+
+  async getPublic(
+    username: string,
+    viewerId: string,
+  ): Promise<PublicAttorneyProfileDto> {
+    if (!isValidUsername(username)) throw notFound();
+    // DB-ops S5-6: the profile row itself tolerates a few seconds of replica
+    // lag (the counters shown are stale by their flush interval anyway). The
+    // viewer's own relations below stay on the primary, and so does the
+    // viewer's own profile (read-your-writes after an edit).
+    const reader = this.read?.db ?? this.prisma;
+    let row = await this.publicRow(reader, username);
+    // A miss may only be lag (a profile created seconds ago): ask the primary.
+    if (reader !== this.prisma && (!row || row.user_id === viewerId)) {
+      row = await this.publicRow(this.prisma, username);
+    }
     if (
       !row ||
       row.verification_status === 'suspended' ||

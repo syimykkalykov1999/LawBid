@@ -358,7 +358,7 @@ class QaPersonRow extends ConsumerWidget {
                       child: AppIcon(
                         AppIcons.verifiedRounded,
                         size: 16,
-                        color: colors.success,
+                        color: colors.verifiedGreen,
                       ),
                     ),
                   ],

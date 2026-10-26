@@ -495,7 +495,12 @@ export class AccountAnonymizationService {
       // the follows either way — the other people's followers / following
       // counters drop with them (the lists already hid the account).
       const published = await tx.post.count({
-        where: { author_id: userId, deleted_at: null, status: 'published' },
+        where: {
+          author_id: userId,
+          deleted_at: null,
+          archived_at: null,
+          status: 'published',
+        },
       });
       await tx.post.updateMany({
         where: { author_id: userId, deleted_at: null },
