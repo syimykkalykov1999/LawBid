@@ -30,6 +30,10 @@ PartitionCardDto _$PartitionCardDtoFromJson(Map<String, dynamic> json) =>
           : DateTime.parse(json['finalizeAfter'] as String),
       overThreshold: json['overThreshold'] as bool,
       runnerConfigured: json['runnerConfigured'] as bool,
+      mode: json['mode'] == null
+          ? null
+          : PartitionCardDtoMode.fromJson(json['mode'] as String),
+      autoRows: (json['autoRows'] as num).toInt(),
     );
 
 Map<String, dynamic> _$PartitionCardDtoToJson(PartitionCardDto instance) =>
@@ -52,4 +56,6 @@ Map<String, dynamic> _$PartitionCardDtoToJson(PartitionCardDto instance) =>
       'finalizeAfter': ?instance.finalizeAfter?.toIso8601String(),
       'overThreshold': instance.overThreshold,
       'runnerConfigured': instance.runnerConfigured,
+      'mode': ?instance.mode?.toJson(),
+      'autoRows': instance.autoRows,
     };

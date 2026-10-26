@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'partition_card_dto_mode.dart';
 import 'partition_card_dto_state.dart';
 
 part 'partition_card_dto.g.dart';
@@ -29,6 +30,8 @@ class PartitionCardDto {
     required this.finalizeAfter,
     required this.overThreshold,
     required this.runnerConfigured,
+    required this.mode,
+    required this.autoRows,
   });
 
   factory PartitionCardDto.fromJson(Map<String, Object?> json) =>
@@ -64,6 +67,12 @@ class PartitionCardDto {
 
   /// The owner-role connection for the runner exists.
   final bool runnerConfigured;
+
+  /// Hash tables: off (default) / on (convert now) / auto (convert at autoRows). Null for the monthly tables.
+  final PartitionCardDtoMode? mode;
+
+  /// Rows at which «auto» converts (admin-editable).
+  final int autoRows;
 
   Map<String, Object?> toJson() => _$PartitionCardDtoToJson(this);
 }
