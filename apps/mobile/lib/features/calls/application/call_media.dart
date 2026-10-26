@@ -23,26 +23,11 @@ enum CallMediaState {
   failed,
 }
 
-/// The media side of a call: microphone (and camera in a video call),
-/// peer connections, speaker. Kept behind an interface so the call logic is
-/// tested without WebRTC.
-///
-/// A two-person call has one link (to the first peer); a group call (owner
-/// 2026-10-20) adds one link per other member, all sharing the same
-/// microphone/camera — a mesh. The single-link methods address the first
-/// link; the `…For` methods address any member by user id.
-abstract interface class CallMedia {
-  /// Opens the mic (+ the front camera when [video]) and the first peer
-  /// connection (to [peer]); [onSignal] gets our ICE candidates to relay,
-  /// [onState] the link state.
-  Future<void> open(
-    List<IceServer> iceServers, {
-    required void Function(Map<String, Object?> signal) onSignal,
-    required void Function(CallMediaState state) onState,
-    bool video = false,
-    String peer = '',
-  });
-
+/// Owner 2026-10-26 (UI-01): the pictures a call screen draws — the part
+/// of [CallMedia] the screen reads. The controller hands the screen ONE
+/// view for the whole call (see `HeldCallMediaView`), so a media swapped
+/// underneath (SFU → mesh) never shows as "no media".
+abstract interface class CallMediaView {
   /// Owner 2026-10-05 (video calls): our camera picture; null in an audio
   /// call or with the camera off.
   ValueListenable<MediaStream?> get localVideo;
@@ -55,6 +40,31 @@ abstract interface class CallMedia {
 
   /// Group calls: who is speaking now (user ids; [kSelfSpeaker] = us).
   ValueListenable<Set<String>> get speaking;
+
+  /// Owner 2026-10-21: the worst link right now. Video is thinned or paused
+  /// by itself as it drops; the call screen may say so.
+  ValueListenable<LinkQuality> get quality;
+}
+
+/// The media side of a call: microphone (and camera in a video call),
+/// peer connections, speaker. Kept behind an interface so the call logic is
+/// tested without WebRTC.
+///
+/// A two-person call has one link (to the first peer); a group call (owner
+/// 2026-10-20) adds one link per other member, all sharing the same
+/// microphone/camera — a mesh. The single-link methods address the first
+/// link; the `…For` methods address any member by user id.
+abstract interface class CallMedia implements CallMediaView {
+  /// Opens the mic (+ the front camera when [video]) and the first peer
+  /// connection (to [peer]); [onSignal] gets our ICE candidates to relay,
+  /// [onState] the link state.
+  Future<void> open(
+    List<IceServer> iceServers, {
+    required void Function(Map<String, Object?> signal) onSignal,
+    required void Function(CallMediaState state) onState,
+    bool video = false,
+    String peer = '',
+  });
 
   // ignore: avoid_positional_boolean_parameters
   Future<void> setCameraOn(bool on);
@@ -96,10 +106,6 @@ abstract interface class CallMedia {
   /// Caller, after the network changed: a new offer that gathers fresh
   /// candidates; the callee answers it like the first one.
   Future<Map<String, Object?>> restartIce();
-
-  /// Owner 2026-10-21: the worst link right now. Video is thinned or paused
-  /// by itself as it drops; the call screen may say so.
-  ValueListenable<LinkQuality> get quality;
 
   /// A fresh TURN login (the old one runs out in hours): taken by every
   /// link for its next ICE restart / relay refresh.

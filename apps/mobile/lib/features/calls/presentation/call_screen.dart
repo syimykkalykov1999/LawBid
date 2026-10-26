@@ -336,7 +336,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
     BuildContext context,
     CallSession s,
     CallController c,
-    CallMedia? media,
+    CallMediaView? media,
     bool group,
     MediaStream? remoteStream,
     MediaStream? localStream,

@@ -251,9 +251,14 @@ class _FakeRepo implements CallsRepository {
     IceServer(urls: ['stun:stun.example.com:3478']),
   ];
 
+  /// A slow server: the answer waits for this gate (the 1.8 s budget).
+  Completer<void>? iceGate;
+
   @override
   Future<List<IceServer>> iceServers({bool relayFailed = false}) async {
     iceAsks.add(relayFailed);
+    final gate = iceGate;
+    if (gate != null) await gate.future;
     return servers;
   }
 }
@@ -508,6 +513,7 @@ class _Harness {
     container = ProviderContainer(
       overrides: [
         callsRepositoryProvider.overrideWithValue(repo),
+        callClockProvider.overrideWithValue(() => now()),
         callMediaFactoryProvider.overrideWithValue(() => media),
         realtimeEventsProvider.overrideWithValue(events.stream),
         appSoundsProvider.overrideWithValue(sounds),
@@ -526,6 +532,17 @@ class _Harness {
   }
 
   final repo = _FakeRepo();
+
+  /// The controller's clock; a [fakeAsync] test drives it with [fakeClock].
+  DateTime Function() now = DateTime.now;
+
+  /// Inside [fakeAsync] the wall clock stands still for the test while the
+  /// timers move: the controller reads the fake elapsed time instead.
+  void fakeClock(FakeAsync async) {
+    final start = DateTime(2026, 10, 26, 12);
+    now = () => start.add(async.elapsed);
+  }
+
   final sounds = _Sounds();
   final foreground = _FakeForeground();
   final systemUi = _SystemUi();
@@ -545,6 +562,13 @@ class _Harness {
     sub.close();
     container.dispose();
     await events.close();
+  }
+
+  /// Inside [fakeAsync]: no awaits — the clock is moved by hand.
+  void close() {
+    sub.close();
+    container.dispose();
+    unawaited(events.close());
   }
 }
 
@@ -608,111 +632,118 @@ void main() {
     expect(h.sounds.played, ['ringback', 'stop', 'end']);
   });
 
-  test('a network drop mid-call shows reconnecting and restarts ICE', () async {
-    final h = _Harness();
-    addTearDown(h.dispose);
+  test('a network drop mid-call shows reconnecting and restarts ICE', () {
+    fakeAsync((async) {
+      final h = _Harness();
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      async.flushMicrotasks();
+      h.media.onState!(CallMediaState.connected);
+      expect(h.s.phase, CallPhase.active);
 
-    await h.c.call('conv', peer: _peer);
-    h.emit(
-      'call:accepted',
-      _event(_call('c1', CallStatus.active, outgoing: true)),
-    );
-    await _settle();
-    h.media.onState!(CallMediaState.connected);
-    expect(h.s.phase, CallPhase.active);
+      h.media.onState!(CallMediaState.disconnected);
+      async.flushMicrotasks();
+      expect(h.media.iceRestarts, 1);
+      // Owner 2026-10-26: «Reconnecting…» only once the drop lasts > 3 s.
+      expect(h.s.reconnecting, isFalse);
+      async.elapse(kCallReconnectingDelay + const Duration(milliseconds: 100));
+      expect(h.s.reconnecting, isTrue);
 
-    h.media.onState!(CallMediaState.disconnected);
-    await _settle();
-    expect(h.media.iceRestarts, 1);
-    // Owner 2026-10-26: «Reconnecting…» only once the drop lasts > 3 s.
-    expect(h.s.reconnecting, isFalse);
-    await Future<void>.delayed(
-      kCallReconnectingDelay + const Duration(milliseconds: 100),
-    );
-    expect(h.s.reconnecting, isTrue);
-
-    h.media.onState!(CallMediaState.connected);
-    expect(h.s.reconnecting, isFalse);
-    expect(h.s.phase, CallPhase.active);
-    await h.c.hangUp();
+      h.media.onState!(CallMediaState.connected);
+      expect(h.s.reconnecting, isFalse);
+      expect(h.s.phase, CallPhase.active);
+      h.c.hangUp();
+      async.flushMicrotasks();
+      h.close();
+    });
   });
 
   test(
     'failover: ICE fails through the Cloudflare relay — fresh servers '
     '(relayFailed, own TURN first) go into the media BEFORE the ICE '
     'restart; same call, same media',
-    () async {
+    () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.repo.servers = const [
+          IceServer(
+            urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
+            username: 'cf',
+            credential: 'x',
+          ),
+        ];
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.media.onState!(CallMediaState.connected);
+        final asksBefore = h.repo.iceAsks.length;
+        const own = [
+          IceServer(
+            urls: ['turn:own.example:3478'],
+            username: 'o',
+            credential: 'y',
+          ),
+        ];
+        h.repo.servers = own;
+
+        h.media.onState!(CallMediaState.failed);
+        async.flushMicrotasks();
+        // One fresh ask, flagged as a dead Cloudflare relay.
+        expect(h.repo.iceAsks.sublist(asksBefore), [true]);
+        // The fresh list reached the links, then ICE restarted.
+        expect(h.media.iceUpdates.last.single.urls, ['turn:own.example:3478']);
+        expect(h.media.iceRestarts, 1);
+        expect(h.media.closed, isFalse);
+        expect(h.s.phase, CallPhase.active);
+        expect(h.s.call?.id, 'c1');
+
+        // Back on our own relay: a second drop does not blame Cloudflare.
+        h.media.onState!(CallMediaState.connected);
+        async.elapse(kCallIceRefreshEvery + const Duration(milliseconds: 100));
+        h.media.onState!(CallMediaState.disconnected);
+        async.flushMicrotasks();
+        expect(h.repo.iceAsks.last, isFalse);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    },
+  );
+
+  test('an offer that nobody heard is renewed until an answer comes', () {
+    fakeAsync((async) {
       final h = _Harness();
-      addTearDown(h.dispose);
-      h.repo.servers = const [
-        IceServer(
-          urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
-          username: 'cf',
-          credential: 'x',
-        ),
-      ];
-      await h.c.call('conv', peer: _peer);
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
       h.emit(
         'call:accepted',
         _event(_call('c1', CallStatus.active, outgoing: true)),
       );
-      await _settle();
-      h.media.onState!(CallMediaState.connected);
-      final asksBefore = h.repo.iceAsks.length;
-      const own = [
-        IceServer(
-          urls: ['turn:own.example:3478'],
-          username: 'o',
-          credential: 'y',
-        ),
-      ];
-      h.repo.servers = own;
-
-      h.media.onState!(CallMediaState.failed);
-      await _settle();
-      // One fresh ask, flagged as a dead Cloudflare relay.
-      expect(h.repo.iceAsks.sublist(asksBefore), [true]);
-      // The fresh list reached the links, then ICE restarted.
-      expect(h.media.iceUpdates.last.single.urls, ['turn:own.example:3478']);
+      async.flushMicrotasks();
+      expect(h.media.iceRestarts, 0);
+      // The callee's socket was not in its room yet: no answer for 3 s.
+      async.elapse(const Duration(milliseconds: 3300));
       expect(h.media.iceRestarts, 1);
-      expect(h.media.closed, isFalse);
-      expect(h.s.phase, CallPhase.active);
-      expect(h.s.call?.id, 'c1');
-
-      // Back on our own relay: a second drop does not blame Cloudflare.
-      h.media.onState!(CallMediaState.connected);
-      await Future<void>.delayed(
-        kCallIceRefreshEvery + const Duration(milliseconds: 100),
-      );
-      h.media.onState!(CallMediaState.disconnected);
-      await _settle();
-      expect(h.repo.iceAsks.last, isFalse);
-      await h.c.hangUp();
-    },
-    timeout: const Timeout(Duration(seconds: 30)),
-  );
-
-  test('an offer that nobody heard is renewed until an answer comes', () async {
-    final h = _Harness();
-    addTearDown(h.dispose);
-    await h.c.call('conv', peer: _peer);
-    h.emit(
-      'call:accepted',
-      _event(_call('c1', CallStatus.active, outgoing: true)),
-    );
-    await _settle();
-    expect(h.media.iceRestarts, 0);
-    // The callee's socket was not in its room yet: no answer for 3 s.
-    await Future<void>.delayed(const Duration(milliseconds: 3300));
-    expect(h.media.iceRestarts, 1);
-    h.emit('call:signal', {
-      'callId': 'c1',
-      'data': {'type': 'answer', 'sdp': 'a'},
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'data': {'type': 'answer', 'sdp': 'a'},
+      });
+      async
+        ..flushMicrotasks()
+        ..elapse(const Duration(milliseconds: 3300));
+      expect(h.media.iceRestarts, 1);
+      h.c.hangUp();
+      async.flushMicrotasks();
+      h.close();
     });
-    await _settle();
-    await Future<void>.delayed(const Duration(milliseconds: 3300));
-    expect(h.media.iceRestarts, 1);
-    await h.c.hangUp();
   });
 
   test('hanging up reaches the server before the media closes', () async {
@@ -751,27 +782,29 @@ void main() {
     });
   });
 
-  test('409 with no local call: stays open, "end it there" ends that call',
-      () async {
-    final h = _Harness();
-    h.repo.refuse = const ApiException(
-      code: 'CALL_IN_PROGRESS',
-      message: 'x',
-      statusCode: 409,
-      details: <String, dynamic>{'callId': 'old1'},
-    );
-    await h.c.call('conv', peer: _peer);
-    await _settle();
-    expect(h.s.phase, CallPhase.ended);
-    expect(h.s.staleCallId, 'old1');
-    // No auto-clear while the sheet is up.
-    await Future<void>.delayed(kCallEndedLinger + const Duration(seconds: 1));
-    expect(h.s.staleCallId, 'old1');
-    await h.c.endOtherDeviceCall();
-    expect(h.repo.endedIds, ['old1']);
-    expect(h.s.phase, CallPhase.idle);
-    expect(h.s.staleCallId, isNull);
-    await h.dispose();
+  test('409 with no local call: stays open, "end it there" ends that call', () {
+    fakeAsync((async) {
+      final h = _Harness();
+      h.repo.refuse = const ApiException(
+        code: 'CALL_IN_PROGRESS',
+        message: 'x',
+        statusCode: 409,
+        details: <String, dynamic>{'callId': 'old1'},
+      );
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      expect(h.s.phase, CallPhase.ended);
+      expect(h.s.staleCallId, 'old1');
+      // No auto-clear while the sheet is up.
+      async.elapse(kCallEndedLinger + const Duration(seconds: 1));
+      expect(h.s.staleCallId, 'old1');
+      h.c.endOtherDeviceCall();
+      async.flushMicrotasks();
+      expect(h.repo.endedIds, ['old1']);
+      expect(h.s.phase, CallPhase.idle);
+      expect(h.s.staleCallId, isNull);
+      h.close();
+    });
   });
 
   test('409 sheet: cancel clears it without ending anything', () async {
@@ -2230,6 +2263,93 @@ void main() {
         h
           ..sub.close()
           ..container.dispose();
+      });
+    });
+  });
+
+  group('the relay list stays fresh (owner 2026-10-26, failover)', () {
+    _Harness talking(FakeAsync async) {
+      final h = _Harness()..fakeClock(async);
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      async.flushMicrotasks();
+      h.media.onState!(CallMediaState.connected);
+      h.repo.getStatus = CallStatus.active;
+      return h;
+    }
+
+    test(
+        'FO-4: the fresh list is slow — the first restart goes ahead on the '
+        'old one within the budget, the late answer still lands, the next '
+        'retry carries it, and a later retry asks again', () {
+      fakeAsync((async) {
+        final h = talking(async);
+        final asksBefore = h.repo.iceAsks.length;
+        const fresh = [
+          IceServer(
+            urls: ['turn:own.example:3478'],
+            username: 'o',
+            credential: 'y',
+          ),
+        ];
+        h.repo.servers = fresh;
+        h.repo.iceGate = Completer<void>();
+
+        h.media.onState!(CallMediaState.disconnected);
+        async.flushMicrotasks();
+        expect(h.repo.iceAsks.length, asksBefore + 1);
+        // Waiting for the list, within the budget: no restart yet.
+        expect(h.media.iceRestarts, 0);
+        async.elapse(kCallIceRefreshBudget + const Duration(milliseconds: 50));
+        // The budget ran out: the restart went ahead on the old list.
+        expect(h.media.iceRestarts, 1);
+        expect(h.media.iceUpdates, isEmpty);
+
+        // The slow answer comes: it still goes into the links.
+        h.repo.iceGate!.complete();
+        async.flushMicrotasks();
+        expect(h.media.iceUpdates, hasLength(1));
+        expect(h.media.iceUpdates.last.single.urls, ['turn:own.example:3478']);
+
+        // The retry: a restart with the fresh list in the links; within the
+        // 10 s of the last ask no second request.
+        async.elapse(kCallReconnectRetry);
+        expect(h.media.iceRestarts, 2);
+        expect(h.repo.iceAsks.length, asksBefore + 1);
+        // The next retry is past the 10 s: the list is asked anew first.
+        h.repo.iceGate = null;
+        async.elapse(kCallReconnectRetry);
+        expect(h.repo.iceAsks.length, asksBefore + 2);
+        expect(h.media.iceRestarts, 3);
+
+        h.media.onState!(CallMediaState.connected);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('TS-4: a new call after a hang-up asks /calls/ice-servers again', () {
+      fakeAsync((async) {
+        final h = talking(async);
+        expect(h.repo.iceAsks, hasLength(1));
+        h.c.hangUp();
+        async
+          ..flushMicrotasks()
+          ..elapse(kCallEndedLinger + const Duration(milliseconds: 100));
+        expect(h.s.phase, CallPhase.idle);
+        // Within the old 5 min: the keys switched on in the admin meanwhile
+        // must reach this call — asked anew.
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        expect(h.repo.iceAsks, hasLength(2));
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
       });
     });
   });

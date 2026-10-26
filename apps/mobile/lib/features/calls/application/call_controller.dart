@@ -16,6 +16,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
+import 'package:lawbid/features/calls/application/call_media_view.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/application/cloudflare_sfu_call_media.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
@@ -349,6 +350,22 @@ const kCallIceRefreshBudget = Duration(milliseconds: 1800);
 /// drop together share one request).
 const kCallIceRefreshEvery = Duration(seconds: 10);
 
+/// Owner 2026-10-26 (failover, TS-4): a relay list fetched for a call is
+/// reused this long within one ringing / answer sequence; a NEW call always
+/// asks again, so keys switched on in the admin reach the next call at once.
+const kCallIceCacheTtl = Duration(seconds: 60);
+
+/// Owner 2026-10-26 (UI-01): through an SFU → mesh swap the last pictures
+/// stay on screen — at most this long, and [kCallSwapSettle] after the
+/// first mesh link is up (the new pictures have had a moment to arrive).
+const kCallSwapHoldMax = Duration(seconds: 10);
+const kCallSwapSettle = Duration(milliseconds: 1500);
+
+/// Owner 2026-10-26 (failover, LC-5): a phone that cannot reach the
+/// Cloudflare SFU (while the API answers) tells the server at most this
+/// often; enough phones saying so move the call to our own path.
+const kCallSfuReportEvery = Duration(minutes: 1);
+
 /// Owner 2026-10-26: alone in a group call this long → it ends by itself
 /// (the server's `calls.solo_end_seconds` has the same 3 s).
 const kCallAloneGrace = Duration(seconds: 3);
@@ -373,6 +390,9 @@ String callLabel(CallSession s, String? me) {
   final n = (s.peer ?? call?.peer)?.name ?? '';
   return n.isEmpty ? 'LawBid' : n;
 }
+
+/// The clock the call's timings read (tests move it by hand).
+final callClockProvider = Provider<DateTime Function()>((_) => DateTime.now);
 
 /// OQ-041: one call at a time on this device. Rings in (`call:incoming`),
 /// calls out, answers, relays WebRTC signaling over the realtime socket,
@@ -400,6 +420,13 @@ class CallController extends Notifier<CallSession> {
   /// The SFU media is being swapped for the mesh (the call moved off
   /// Cloudflare): true until the first mesh link connects.
   bool _swapping = false;
+
+  /// Owner 2026-10-26 (UI-01): what the screen draws — one object for the
+  /// whole call, holding the last pictures through a swap.
+  final _view = HeldCallMediaView();
+
+  /// When this phone last told the server its SFU link is dead (LC-5).
+  DateTime? _sfuReportedAt;
 
   /// Mesh signals that came while this phone still had the SFU media (the
   /// others swapped first); replayed after the swap.
@@ -447,6 +474,8 @@ class CallController extends Notifier<CallSession> {
 
   CallsRepository get _repo => ref.read(callsRepositoryProvider);
 
+  DateTime get _now => ref.read(callClockProvider)();
+
   Future<List<IceServer>>? _ice;
   DateTime? _iceAt;
 
@@ -460,10 +489,10 @@ class CallController extends Notifier<CallSession> {
     var ask = _providerOk;
     if (ask == null ||
         at == null ||
-        DateTime.now().difference(at) > const Duration(minutes: 5)) {
+        _now.difference(at) > const Duration(minutes: 5)) {
       ask = _repo.providerSupported();
       _providerOk = ask;
-      _providerAt = DateTime.now();
+      _providerAt = _now;
     }
     if (!await ask) {
       throw const ApiException(
@@ -482,12 +511,12 @@ class CallController extends Notifier<CallSession> {
     final cached = _ice;
     if (cached != null &&
         at != null &&
-        DateTime.now().difference(at) < const Duration(minutes: 5)) {
+        _now.difference(at) < kCallIceCacheTtl) {
       return cached;
     }
     final fresh = _repo.iceServers();
     _ice = fresh;
-    _iceAt = DateTime.now();
+    _iceAt = _now;
     fresh.ignore();
     // A failed fetch must not stay cached.
     unawaited(
@@ -501,8 +530,15 @@ class CallController extends Notifier<CallSession> {
     return fresh;
   }
 
-  /// The live media — the call screen shows its video streams.
-  CallMedia? get media => _media;
+  /// What the call screen draws: the live media's pictures, held through
+  /// an SFU → mesh swap (never null in the middle of a call).
+  CallMediaView? get media => _media == null && !_view.holding ? null : _view;
+
+  /// The live media from now on; the screen's view follows it.
+  void _useMedia(CallMedia? media) {
+    _media = media;
+    _view.follow(media);
+  }
 
   @override
   CallSession build() {
@@ -1094,7 +1130,11 @@ class CallController extends Notifier<CallSession> {
     _syncReconnecting();
     final startedVideo = _startedVideo;
     final camera = state.video && state.cameraOn;
-    _media = null;
+    // UI-01: the pictures on screen stay (the last frame of each) while the
+    // media underneath is replaced; the mesh's pictures take their place one
+    // by one as they arrive. The screen never sees "no media".
+    _view.hold(atMost: kCallSwapHoldMax);
+    _useMedia(null);
     _mediaOpen = false;
     try {
       await old.close();
@@ -1102,6 +1142,14 @@ class CallController extends Notifier<CallSession> {
       callTrace('swap $callId: SFU close failed: $e');
     }
     if (gen != _gen || !ref.mounted) return;
+    // FO-5: the mesh opens on a FRESH relay list (Cloudflare may be the very
+    // thing that died; the cached list is Cloudflare-only). At most
+    // [kCallIceRefreshBudget]; on a timeout the cached list serves.
+    final cachedIce = _ice;
+    _ice = null;
+    await _freshIce(relayFailed: false, force: true);
+    if (gen != _gen || !ref.mounted) return;
+    _ice ??= cachedIce;
     try {
       await _openMedia(callId, video: camera);
     } on Object catch (e) {
@@ -1780,7 +1828,7 @@ class CallController extends Notifier<CallSession> {
             ref.read(callsSfuApiProvider),
           )
         : ref.read(callMediaFactoryProvider)();
-    _media = media;
+    _useMedia(media);
     _startedVideo = video;
     final link = sfu ? kSfuLinkId : peer;
     await media.open(
@@ -1873,18 +1921,20 @@ class CallController extends Notifier<CallSession> {
   /// breaker) and gives our own TURN first and a new Cloudflare login, so
   /// the restart finds a working relay whichever side is down. The call id,
   /// the tracks and the peer connections stay. Waits at most
-  /// [kCallIceRefreshBudget]; links that drop together share one request.
-  /// Never throws.
-  Future<void> _freshIce({required bool relayFailed}) {
+  /// [kCallIceRefreshBudget]; links that drop together share one request
+  /// ([force] asks anyway — the SFU → mesh swap must not open on a stale
+  /// list). Never throws.
+  Future<void> _freshIce({required bool relayFailed, bool force = false}) {
     final at = _iceRefreshAt;
     final pending = _iceRefresh;
-    if (pending != null &&
+    if (!force &&
+        pending != null &&
         at != null &&
-        DateTime.now().difference(at) < kCallIceRefreshEvery &&
+        _now.difference(at) < kCallIceRefreshEvery &&
         (_iceRefreshFailed || !relayFailed)) {
       return pending;
     }
-    _iceRefreshAt = DateTime.now();
+    _iceRefreshAt = _now;
     _iceRefreshFailed = relayFailed;
     final gen = _gen;
     final run = () async {
@@ -1892,7 +1942,7 @@ class CallController extends Notifier<CallSession> {
         final servers = await _repo.iceServers(relayFailed: relayFailed);
         if (gen != _gen || !ref.mounted) return;
         _ice = Future.value(servers);
-        _iceAt = DateTime.now();
+        _iceAt = _now;
         _servers = servers;
         await _media?.updateIceServers(servers);
       } on Object {
@@ -1955,6 +2005,8 @@ class CallController extends Notifier<CallSession> {
         if (_swapping) {
           _swapping = false;
           callTrace('swap: the mesh carries the call');
+          // The held pictures give way once the mesh's have had a moment.
+          _view.releaseAfter(kCallSwapSettle);
         }
         _stopReconnect(peer);
         _syncReconnecting();
@@ -1973,6 +2025,9 @@ class CallController extends Notifier<CallSession> {
       case CallMediaState.failed:
         _connected.remove(peer);
         _askServer();
+        // LC-5: the SFU is out of reach for THIS phone (the API answers,
+        // else the server would have moved the call itself).
+        if (peer == kSfuLinkId) unawaited(_reportSfuFailed());
         if (state.phase == CallPhase.active) {
           _startReconnect(peer);
         } else if (state.busy) {
@@ -2013,9 +2068,11 @@ class CallController extends Notifier<CallSession> {
     unawaited(hangUp(reason: CallEndReason.failed));
   }
 
-  /// The audio link to [peer] dropped mid-call: show "Reconnecting…", let
-  /// the offering side restart ICE every few seconds, give the link up only
-  /// when the grace runs out.
+  /// The audio link to [peer] dropped mid-call: show "Reconnecting…" (after
+  /// [kCallReconnectingDelay]), take a fresh relay list and let the
+  /// offering side restart ICE — again every [kCallReconnectRetry] with the
+  /// list asked anew each time (FO-4: a dead relay must not be retried for
+  /// the whole grace) — and give the link up only when the grace runs out.
   void _startReconnect(String peer) {
     if (_reconnect.containsKey(peer)) return;
     _reconnect[peer] = (
@@ -2028,7 +2085,9 @@ class CallController extends Notifier<CallSession> {
       }),
       retry: Timer.periodic(kCallReconnectRetry, (_) {
         _askServer();
-        unawaited(_restartOrAsk(peer));
+        // LC-5: still no SFU link after a retry period — tell the server.
+        if (peer == kSfuLinkId) unawaited(_reportSfuFailed());
+        unawaited(_freshIceThenRestart(peer));
       }),
     );
     _syncReconnecting();
@@ -2042,6 +2101,27 @@ class CallController extends Notifier<CallSession> {
     await _freshIce(relayFailed: _onCloudflareRelay);
     if (!ref.mounted || !state.busy || !_reconnect.containsKey(peer)) return;
     await _restartOrAsk(peer);
+  }
+
+  /// Owner 2026-10-26 (failover, LC-5): this phone cannot reach the
+  /// Cloudflare SFU while the API answers — the server cannot see that by
+  /// itself. Told at most once a minute; when enough of the call's members
+  /// say so the server moves the call to our own path (the swap follows
+  /// through `call:participants`). Never throws.
+  Future<void> _reportSfuFailed() async {
+    final call = state.call;
+    if (call == null || !state.busy || _sfu == null) return;
+    final at = _sfuReportedAt;
+    if (at != null && _now.difference(at) < kCallSfuReportEvery) {
+      return;
+    }
+    _sfuReportedAt = _now;
+    callTrace('sfu ${call.id}: no link from this phone, telling the server');
+    try {
+      await ref.read(callsSfuApiProvider).failed(call.id);
+    } on Object catch (e) {
+      callTrace('sfu ${call.id}: report failed: $e');
+    }
   }
 
   void _stopReconnect(String peer) {
@@ -2521,7 +2601,8 @@ class CallController extends Notifier<CallSession> {
     // The media goes first: nothing after it may keep our mic and camera
     // live (owner 2026-10-26).
     final media = _media;
-    _media = null;
+    _useMedia(null);
+    _view.clear();
     _mediaOpen = false;
     if (media != null) {
       callTrace('reset: closing media');
@@ -2551,6 +2632,12 @@ class CallController extends Notifier<CallSession> {
     _servers = const [];
     _iceRefresh = null;
     _iceRefreshAt = null;
+    // TS-4: the next call asks /calls/ice-servers anew (keys switched on in
+    // the admin meanwhile must reach it; a 1:1 call must not start on a
+    // Cloudflare-only list after an outage).
+    _ice = null;
+    _iceAt = null;
+    _sfuReportedAt = null;
   }
 
   void _clearTimers() {

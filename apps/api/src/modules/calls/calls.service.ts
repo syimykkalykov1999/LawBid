@@ -101,6 +101,11 @@ export const CALL_RING_TIMEOUT_MS = 65_000;
 export { CALL_SILENT_MS };
 const LIVE: CallStatus[] = ['ringing', 'active'];
 
+/** Owner 2026-10-26 (failover, LC-5): a phone's «I cannot reach the SFU»
+ * report lives this long; half of the joined members within it move the
+ * call. */
+export const SFU_REPORT_TTL_MS = 60_000;
+
 /** Owner 2026-10-21: a network that blocks UDP (offices, some mobile
  * carriers) still gets a call — every plain `turn:` address is also offered
  * over TCP (coturn listens on 3478 for both). UDP stays first. */
@@ -555,6 +560,84 @@ export class CallsService {
   ) {
     const ctx = await this.sfuCtx(user, id);
     return this.viaSfu(ctx, (sfu) => sfu.setLayer(ctx, dto));
+  }
+
+  /** Phones that cannot reach the SFU of a call, by call: userId -> until
+   * (ms since epoch). The in-process fallback of [sfuFailed] without Redis
+   * (made on first use: unit tests build the service without its
+   * constructor). */
+  private sfuReports?: Map<string, Map<string, number>>;
+
+  /**
+   * POST /calls/:id/sfu/failed — owner 2026-10-26 (failover, LC-5): a phone
+   * whose Cloudflare SFU link is dead while the API answers. The server
+   * cannot see such an outage (Cloudflare's API is fine, only the media
+   * edge is unreachable from the phones), so the phones say so: one voice
+   * per person per [SFU_REPORT_TTL_MS]; when at least half of the joined
+   * members report within that window the call moves to our own path
+   * (moveCallToOwn, same id). Each report also teaches the shared breaker
+   * (counted only when many phones across the fleet say so). A call that
+   * already moved answers moved=true and counts nothing.
+   */
+  async sfuFailed(
+    user: RequestUser,
+    id: string,
+  ): Promise<{ moved: boolean; reports: number }> {
+    const call = await this.prisma.call.findUnique({ where: { id } });
+    if (!call || !call.is_group) throw notFound();
+    const rows = await this.rowsOf(call.id);
+    const me = rows.find((r) => r.user_id === user.sub);
+    if (me?.status !== 'joined') throw notFound();
+    if (!LIVE.includes(call.status)) throw conflict();
+    if (this.mediaOf(call) !== 'cloudflare') {
+      return { moved: true, reports: 0 };
+    }
+    void this.cfTransport
+      .recordClientFailure('sfu', user.sub, 'phone cannot reach the SFU')
+      .catch(() => undefined);
+    const reports = await this.countSfuReport(call.id, user.sub);
+    const joined = rows.filter((r) => r.status === 'joined').length;
+    const needed = Math.max(1, Math.ceil(joined / 2));
+    if (reports < needed) return { moved: false, reports };
+    this.logger.warn(
+      `alert=cloudflare_sfu_unreachable call ${call.id}: ${reports} of ${joined} phones cannot reach the SFU`,
+    );
+    const moved = await this.moveCallToOwn(call.id, 'phones_report');
+    return { moved, reports };
+  }
+
+  /** Remembers [userId]'s report for [callId]; answers how many distinct
+   * members reported in the window. Redis when it is ready (every API
+   * instance sees the same count), this process otherwise. */
+  private async countSfuReport(
+    callId: string,
+    userId: string,
+  ): Promise<number> {
+    const r = this.redis && this.redis.status === 'ready' ? this.redis : null;
+    if (r) {
+      try {
+        const key = `calls:sfu:failed:${callId}`;
+        await r.sadd(key, userId);
+        await r.pexpire(key, SFU_REPORT_TTL_MS);
+        return await r.scard(key);
+      } catch {
+        // Redis hiccup: this process counts.
+      }
+    }
+    const now = Date.now();
+    const all = (this.sfuReports ??= new Map<string, Map<string, number>>());
+    let m = all.get(callId);
+    if (!m) {
+      m = new Map<string, number>();
+      all.set(callId, m);
+    }
+    m.set(userId, now + SFU_REPORT_TTL_MS);
+    for (const [u, until] of m) if (until <= now) m.delete(u);
+    // Old calls are forgotten (a bounded map).
+    for (const [c, reps] of all) {
+      if ([...reps.values()].every((until) => until <= now)) all.delete(c);
+    }
+    return m.size;
   }
 
   /** POST /conversations/:id/calls */

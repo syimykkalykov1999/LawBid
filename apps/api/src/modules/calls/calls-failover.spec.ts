@@ -22,6 +22,10 @@ const SDP = 'v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\n';
 const APP = 'b'.repeat(32);
 
 type Svc = CallsService & {
+  sfuFailed(
+    u: { sub: string },
+    id: string,
+  ): Promise<{ moved: boolean; reports: number }>;
   sfuSession(u: { sub: string }, id: string): Promise<unknown>;
   sfuPublish(u: { sub: string }, id: string, dto: unknown): Promise<unknown>;
   sfuSubscribe(u: { sub: string }, id: string, dto: unknown): Promise<unknown>;
@@ -459,5 +463,55 @@ describe('1:1: the relay died mid-call (relayFailed)', () => {
       await t.recordClientFailure('turn', `user-${i}`, 'ICE failed');
     }
     expect((await t.state('turn')).failures).toBe(0);
+  });
+});
+
+describe('LC-5: the phones cannot reach the SFU while the API answers', () => {
+  it('phones report the SFU: half of the members within a minute move the call', async () => {
+    const w = world({ joined: 3 });
+    await joinAll(w);
+    w.realtime.toUsers.mockClear();
+
+    // One phone: a lift, not an outage — nothing moves.
+    expect(await w.svc.sfuFailed({ sub: 'u1' }, 'call-1')).toEqual({
+      moved: false,
+      reports: 1,
+    });
+    // The same phone again: still one voice.
+    expect(await w.svc.sfuFailed({ sub: 'u1' }, 'call-1')).toEqual({
+      moved: false,
+      reports: 1,
+    });
+    expect(w.calls.get('call-1')!.media_provider).toBe('cloudflare');
+    expect(participantEvents(w.realtime)).toHaveLength(0);
+
+    // A second of three: half of the call — it moves, same id, everyone
+    // hears mediaProvider p2p.
+    expect(await w.svc.sfuFailed({ sub: 'u2' }, 'call-1')).toEqual({
+      moved: true,
+      reports: 2,
+    });
+    const call = w.calls.get('call-1')!;
+    expect(call.id).toBe('call-1');
+    expect(call.status).toBe('active');
+    expect(call.media_provider).toBe('p2p');
+    const events = participantEvents(w.realtime);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ callId: 'call-1', mediaProvider: 'p2p' });
+
+    // A late report on a call that already moved: moved, nothing counted.
+    expect(await w.svc.sfuFailed({ sub: 'u3' }, 'call-1')).toEqual({
+      moved: true,
+      reports: 0,
+    });
+    expect(participantEvents(w.realtime)).toHaveLength(1);
+  });
+
+  it('a stranger to the call is refused', async () => {
+    const w = world({ joined: 2 });
+    await joinAll(w);
+    await expect(
+      w.svc.sfuFailed({ sub: 'nobody' }, 'call-1'),
+    ).rejects.toMatchObject({ status: 404 });
   });
 });

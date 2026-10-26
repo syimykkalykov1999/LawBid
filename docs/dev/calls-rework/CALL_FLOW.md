@@ -113,14 +113,27 @@ Owner: «when Cloudflare goes down, people must not notice the switch».
             → media.updateIceServers (setConfiguration) → ICE restart (offerer) / ask (answerer)
             same call id, same tracks, same peer connections
 network change / socket back → _restartAllFresh (fresh list, no report) → ICE restart
+every reconnect retry (6 s) asks the list anew first (FO-4; ≤ 1 request per 10 s)
+a relay list is reused ≤ 60 s and dropped at the call's end (TS-4): the next call asks
 
 SFU group   any /calls/:id/sfu/* answers 503 CALL_MEDIA_UNAVAILABLE (5xx, timeout, 401/403,
             key removed)  OR  the SFU breaker opens (CloudflareTransport.onOpen)
             → CallsService.moveCallToOwn(callId): media_provider cloudflare → p2p
               (updateMany = idempotent), > calls.sfu_fallback_mesh_max people → audio only,
               Cloudflare state closed, call:participants {mediaProvider: p2p, mediaFallback}
-            → every phone: _applyProvider → _swapToMesh: SFU media closed, mesh media
+            → every phone: _applyProvider → _swapToMesh: SFU media closed, a FRESH
+              /calls/ice-servers list (FO-5, ≤ 1.8 s, else the cached one), mesh media
               opened (mic / camera / speaker kept), early mesh offers replayed, _syncLinks
+              the screen keeps every picture (UI-01): CallController.media is ONE
+              HeldCallMediaView for the whole call — it holds the last frames while the
+              media underneath is swapped, each tile's renderer stays (key = userId) and
+              only its stream changes when the mesh's picture arrives; the hold ends
+              1.5 s after the first mesh link is up (10 s at most)
+            the phone cannot reach the SFU while the API answers (LC-5): the SFU link
+              «failed» / still down at a retry → POST /calls/:id/sfu/failed (once a
+              minute per phone) → CallsService.sfuFailed: recordClientFailure('sfu') for
+              the breaker + per-call reporters (Redis set / in-process, 60 s); half of the
+              joined members → moveCallToOwn(callId, 'phones_report') → the swap above
             missed event → _resync (GET /calls/:id) swaps too; a mesh offer reaching an SFU
             phone is kept and makes it ask the server
             never moves back mid-call (per-call stickiness); new calls return by themselves

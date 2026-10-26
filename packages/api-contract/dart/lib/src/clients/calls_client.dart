@@ -19,6 +19,7 @@ import '../models/ongoing_group_call_list_envelope.dart';
 import '../models/sfu_answer_dto.dart';
 import '../models/sfu_close_dto.dart';
 import '../models/sfu_close_result_envelope.dart';
+import '../models/sfu_failed_result_envelope.dart';
 import '../models/sfu_layer_dto.dart';
 import '../models/sfu_ok_envelope.dart';
 import '../models/sfu_publish_dto.dart';
@@ -168,6 +169,13 @@ abstract class CallsClient {
   Future<SfuOkEnvelope> sfuLayer({
     @Path('id') required String id,
     @Body() required SfuLayerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My phone cannot reach the Cloudflare SFU of this call
+  @POST('/calls/{id}/sfu/failed')
+  Future<SfuFailedResultEnvelope> sfuFailed({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 

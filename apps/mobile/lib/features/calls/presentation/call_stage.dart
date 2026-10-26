@@ -132,7 +132,7 @@ class CallGroupGrid extends ConsumerStatefulWidget {
   });
 
   final CallSession session;
-  final CallMedia? media;
+  final CallMediaView? media;
 
   /// How much of the bottom the controls take (0 while they are hidden).
   final double controlsInset;
@@ -417,8 +417,11 @@ class CallTile extends StatelessWidget {
                 duration:
                     context.reduceMotion ? Duration.zero : CallMotion.quick,
                 child: picture != null
+                    // UI-01: one renderer per person for the whole call —
+                    // a new stream (the SFU → mesh swap) goes into the same
+                    // renderer, never a fresh black box.
                     ? CallVideoView(
-                        key: ValueKey(picture.id),
+                        key: ValueKey('video-${member.userId}'),
                         stream: picture,
                         mirror: mirror,
                       )
@@ -591,7 +594,7 @@ class CallGroupAudio extends ConsumerWidget {
   });
 
   final CallSession session;
-  final CallMedia? media;
+  final CallMediaView? media;
   final double bottomInset;
 
   @override

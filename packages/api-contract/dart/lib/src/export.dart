@@ -1822,6 +1822,8 @@ export 'models/sfu_close_result_dto.dart';
 export 'models/sfu_close_dto.dart';
 export 'models/sfu_close_result_envelope.dart';
 export 'models/sfu_layer_dto.dart';
+export 'models/sfu_failed_result_dto.dart';
+export 'models/sfu_failed_result_envelope.dart';
 export 'models/ice_server_dto.dart';
 export 'models/ice_servers_dto.dart';
 export 'models/ice_servers_envelope.dart';

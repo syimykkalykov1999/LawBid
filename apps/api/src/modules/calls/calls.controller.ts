@@ -43,6 +43,7 @@ import {
   SfuAnswerDto,
   SfuCloseDto,
   SfuCloseResultDto,
+  SfuFailedResultDto,
   SfuLayerDto,
   SfuOkDto,
   SfuPublishDto,
@@ -325,6 +326,24 @@ export class CallsController {
     @Body() dto: SfuLayerDto,
   ) {
     return this.calls.sfuLayer(user, p.id, dto);
+  }
+
+  // Owner 2026-10-26 (failover, LC-5): this phone cannot reach the
+  // Cloudflare SFU although the API answers (the server cannot see that by
+  // itself). One voice per person a minute; when at least half of the
+  // joined members say so within a minute the call moves to our own path
+  // (same id, `call:participants` with mediaProvider p2p), and the shared
+  // breaker hears it too.
+  @Post('calls/:id/sfu/failed')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'My phone cannot reach the Cloudflare SFU of this call',
+  })
+  @ApiEnvelopeResponse(SfuFailedResultDto)
+  @ApiErrors({ 404: [ErrorCode.CALL_NOT_FOUND] })
+  sfuFailed(@CurrentUser() user: RequestUser, @Param() p: CallIdParamDto) {
+    return this.calls.sfuFailed(user, p.id);
   }
 
   // Owner 2026-10-26 (failover): `relayFailed=true` = the relay of my
