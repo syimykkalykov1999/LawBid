@@ -75,7 +75,7 @@ describe('CloudflareSfuClient', () => {
 
   it('FO-3: a mutation (tracks/new) is retried ONCE after a backoff on 5xx; a second 5xx is final', async () => {
     const cf = new FakeCloudflare();
-    const sleep = jest.fn(() => Promise.resolve());
+    const sleep = jest.fn<Promise<void>, [number]>(() => Promise.resolve());
     const c = new CloudflareSfuClient(creds, cf.fetch, { sleep });
     const { sessionId } = await c.newSession();
     cf.failStatus = 503;
@@ -87,7 +87,7 @@ describe('CloudflareSfuClient', () => {
     ).rejects.toMatchObject({ status: 503, isOutage: true });
     expect(cf.calls.length - before).toBe(2);
     expect(sleep).toHaveBeenCalledTimes(1);
-    const wait = sleep.mock.calls[0][0] as number;
+    const wait = sleep.mock.calls[0][0];
     expect(wait).toBeGreaterThanOrEqual(200);
     expect(wait).toBeLessThan(400);
   });
@@ -149,7 +149,7 @@ describe('CloudflareSfuClient', () => {
 
   it('CF-3: HTTP 429 is a rate limit of this session — retried once after Retry-After, never an outage', async () => {
     const cf = new FakeCloudflare();
-    const sleep = jest.fn(() => Promise.resolve());
+    const sleep = jest.fn<Promise<void>, [number]>(() => Promise.resolve());
     const c = new CloudflareSfuClient(creds, cf.fetch, { sleep });
     const { sessionId } = await c.newSession();
     cf.failStatus = 429;

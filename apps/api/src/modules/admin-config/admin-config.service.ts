@@ -279,9 +279,7 @@ export class AdminConfigService {
 
   /** Owner 2026-10-22: livekit cannot be switched on without its keys. */
   private async assertLivekitReady(key: string, value: unknown): Promise<void> {
-    const needs =
-      (key === 'calls.video_provider' && value === 'livekit') ||
-      (key === 'calls.channel_live_enabled' && value === true);
+    const needs = key === 'calls.video_provider' && value === 'livekit';
     if (!needs) return;
     const f = (await this.secrets?.get('livekit'))?.fields ?? {};
     const has = (name: string, env: string) =>
