@@ -112,6 +112,7 @@ function harness(opts: {
   };
   const settings = {
     boolean: jest.fn((k: string) => Promise.resolve(SETTINGS[k])),
+    raw: jest.fn((k: string) => Promise.resolve(SETTINGS[k])),
     number: jest.fn((k: string) => Promise.resolve(SETTINGS[k])),
   };
   const costGuard = {

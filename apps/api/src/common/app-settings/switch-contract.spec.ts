@@ -12,6 +12,9 @@ import { LinkPreviewService } from '../../modules/link-preview/link-preview.serv
 import { SubscriptionsService } from '../../modules/billing/subscriptions.service';
 import { AuthService } from '../../modules/auth/auth.service';
 import { EconomyService } from '../economy/economy.service';
+import { FileAccessService } from '../../modules/files/file-access.service';
+import { viewerContext } from '../viewer/viewer-context';
+import { readSwitchMode } from './switch-mode';
 import { parseAppCheckMode } from '../../modules/auth/app-check/app-check.guard';
 
 /**
@@ -32,16 +35,15 @@ describe('switch contract: defaults (a)', () => {
     ['case_fanout.enabled', false],
     ['billing.stripe_tax_enabled', false],
     ['sms.login_code_enabled', false],
-    ['calls.channel_live_enabled', false],
     ['rewards.enabled', false],
     ['security.turnstile.mode', 'off'],
     ['security.app_check.mode', 'monitor'],
     ['economy.ceiling_mode', 'auto'],
     ['storage.auto_cleanup', true],
     ['storage.auto_retention', true],
-    ['chat.link_preview_enabled', true],
-    ['files.access_log_enabled', true],
-    ['moderation.image.enabled', true],
+    ['chat.link_preview_enabled', 'auto'],
+    ['files.access_log_enabled', 'auto'],
+    ['moderation.image.enabled', 'auto'],
     ['fraud.enabled', true],
     ['trust.enabled', true],
     ['ops.auto_pause_heavy_jobs', true],
@@ -126,38 +128,106 @@ describe('storage.auto_cleanup / storage.auto_retention', () => {
   });
 });
 
-describe('chat.link_preview_enabled', () => {
+describe('chat.link_preview_enabled (off | on | auto)', () => {
   const make = (stored: Record<string, unknown>) => {
     const redis = { get: jest.fn().mockResolvedValue(null), set: jest.fn() };
+    const limiter = {
+      consumeFixedWindow: jest.fn().mockResolvedValue({ allowed: true }),
+    };
     const svc = Object.assign(Object.create(LinkPreviewService.prototype), {
       redis,
-      limiter: {
-        consumeFixedWindow: jest.fn().mockResolvedValue({ allowed: true }),
-      },
-      settings: settingsWith({
-        'chat.link_preview_denylist': [],
-        ...stored,
-      }),
+      limiter,
+      settings: settingsWith(stored),
       config: { get: () => 'test' },
       inflight: new Map(),
       denylist: jest.fn().mockResolvedValue([]),
     }) as LinkPreviewService;
-    return { svc, redis };
+    return { svc, redis, limiter };
   };
-  it('off: empty card, no cache read, no outbound fetch, no cache write', async () => {
-    const { svc, redis } = make({ 'chat.link_preview_enabled': false });
-    const r = await svc.preview('u1', 'https://example.com/');
-    expect(r.title).toBeNull();
-    expect(redis.get).not.toHaveBeenCalled();
-    expect(redis.set).not.toHaveBeenCalled();
+  it('off (and the old false): empty card, no cache, no outbound fetch', async () => {
+    for (const off of ['off', false]) {
+      const { svc, redis } = make({ 'chat.link_preview_enabled': off });
+      expect(
+        (await svc.preview('u1', 'https://example.com/')).title,
+      ).toBeNull();
+      expect(redis.get).not.toHaveBeenCalled();
+      expect(redis.set).not.toHaveBeenCalled();
+    }
   });
-  it('on: goes on to the cache lookup', async () => {
-    const { svc, redis } = make({ 'chat.link_preview_enabled': true });
-    redis.get.mockResolvedValue(
-      JSON.stringify({ url: 'https://example.com/', title: 'T' }),
-    );
+  it.each(['on', 'auto', true, undefined])(
+    '%p: goes on to the cache',
+    async (v) => {
+      const { svc, redis } = make({ 'chat.link_preview_enabled': v });
+      redis.get.mockResolvedValue(
+        JSON.stringify({ url: 'https://example.com/', title: 'T' }),
+      );
+      await svc.preview('u1', 'https://example.com/');
+      expect(redis.get).toHaveBeenCalled();
+    },
+  );
+  it('ceiling: the per-person daily cap comes from chat.link_preview_per_user_per_day', async () => {
+    const { svc, limiter } = make({ 'chat.link_preview_per_user_per_day': 7 });
     await svc.preview('u1', 'https://example.com/');
-    expect(redis.get).toHaveBeenCalled();
+    expect(limiter.consumeFixedWindow).toHaveBeenCalledWith(
+      ['link-preview', 'user', 'd', 'u1'],
+      7,
+      86_400,
+    );
+  });
+});
+
+describe('files.access_log_enabled (off | on | auto)', () => {
+  const run = async (stored: Record<string, unknown>, rnd: number) => {
+    jest.spyOn(Math, 'random').mockReturnValue(rnd);
+    const set = jest.fn().mockResolvedValue(null);
+    const svc = Object.assign(Object.create(FileAccessService.prototype), {
+      settings: settingsWith(stored),
+      redis: { set },
+      logger: { warn: jest.fn() },
+    }) as FileAccessService;
+    await viewerContext.run('v1', () =>
+      svc.recordViews([
+        { id: 'f1', owner_user_id: 'o', purpose: 'case_attachment' },
+      ]),
+    );
+    return set;
+  };
+  afterEach(() => jest.restoreAllMocks());
+  it('off: nothing is recorded', async () => {
+    expect(
+      await run({ 'files.access_log_enabled': 'off' }, 0),
+    ).not.toHaveBeenCalled();
+  });
+  it('on: every view, whatever the sample says', async () => {
+    const set = await run(
+      {
+        'files.access_log_enabled': 'on',
+        'files.access_log_sample_percent': 0,
+      },
+      0.99,
+    );
+    expect(set).toHaveBeenCalled();
+  });
+  it('auto: follows the sample percent (ceiling)', async () => {
+    const stored = { 'files.access_log_sample_percent': 50 };
+    expect(await run(stored, 0.9)).not.toHaveBeenCalled();
+    expect(await run(stored, 0.1)).toHaveBeenCalled();
+  });
+});
+
+describe('moderation.image.enabled (off | on | auto)', () => {
+  it('off and the old false disable; everything else checks', async () => {
+    const mode = (v: unknown) =>
+      readSwitchMode(
+        settingsWith({ 'moderation.image.enabled': v }),
+        'moderation.image.enabled',
+      );
+    expect(await mode('off')).toBe('off');
+    expect(await mode(false)).toBe('off');
+    expect(await mode(true)).toBe('on');
+    expect(await mode('on')).toBe('on');
+    expect(await mode(undefined)).toBe('auto');
+    expect(await mode('typo')).toBe('auto');
   });
 });
 

@@ -121,7 +121,9 @@ export const FILE_06_SETTINGS = {
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
-  'moderation.image.enabled': true,
+  /** off | on | auto (default). auto = on inside the daily cost-guard cap
+   * (`image_moderation`, over the cap checks are skipped as `budget`). */
+  'moderation.image.enabled': 'auto',
   'moderation.image.hide_confidence': 90,
   'moderation.image.review_confidence': 60,
   /** The lowest label confidence the provider reports (Rekognition
@@ -736,8 +738,9 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * (4) stay device-to-device with their video; with more, everyone is
    * audio-only (a call is never refused, seats stay as in the SFU limit). */
   'calls.sfu_fallback_mesh_max': 4,
-  'calls.channel_live_enabled': false,
-  'chat.link_preview_enabled': true,
+  /** off | on | auto (default). Ceiling: per person per day below. */
+  'chat.link_preview_enabled': 'auto',
+  'chat.link_preview_per_user_per_day': 1000,
   'chat.link_preview_denylist': [] as string[],
 };
 
@@ -942,7 +945,9 @@ import {
 export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'security.attorney_strong_auth': true,
   'files.confidential_url_ttl_sec': 900,
-  'files.access_log_enabled': true,
+  /** off | on (every view) | auto (default: a sample, below). */
+  'files.access_log_enabled': 'auto',
+  'files.access_log_sample_percent': 100,
   /** Security pass 2026-10-25 (S3-5): file names of chat attachments and
    * the case's «Личные данные» are stored sealed (AES-256-GCM, bound to the
    * row), and the key job seals the old rows too. Reads accept both forms;
