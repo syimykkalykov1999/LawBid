@@ -383,8 +383,7 @@ final chatFolderCountsProvider = FutureProvider.autoDispose<
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new') {
         if (gate.onMessage(e).waiting) debounce.poke();
-      } else if (e.name == 'conversation:update' ||
-          e.name == 'group:invite') {
+      } else if (e.name == 'conversation:update' || e.name == 'group:invite') {
         debounce.poke();
       }
     });
@@ -414,8 +413,7 @@ final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'message:new') {
         if (gate.onMessage(e).requests) debounce.poke();
-      } else if (e.name == 'conversation:update' ||
-          e.name == 'group:invite') {
+      } else if (e.name == 'conversation:update' || e.name == 'group:invite') {
         debounce.poke();
       }
     });
@@ -657,6 +655,56 @@ final deliveryAckerProvider = Provider<DeliveryAcker>(DeliveryAcker.new);
 
 // --- One conversation (docs/05 §8.2) -----------------------------------------
 
+/// [ChatThreadState.all] for these lists: the outbox and the voice outbox
+/// (newest first) on top of the server messages that have not disappeared
+/// yet. Kept per `messages` list until one of the inputs changes or a
+/// disappearing message is due, so it is the same list on every read.
+@visibleForTesting
+List<ChatMessage> chatAllMessages(
+  List<ChatMessage> messages,
+  List<ChatMessage> outbox,
+  List<ChatMessage> voiceOutbox,
+) {
+  final now = DateTime.now();
+  final hit = _allMemo[messages];
+  if (hit != null &&
+      identical(hit.outbox, outbox) &&
+      identical(hit.voiceOutbox, voiceOutbox) &&
+      (hit.validUntil == null || now.isBefore(hit.validUntil!))) {
+    return hit.result;
+  }
+  final pending = [...outbox, ...voiceOutbox]
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  // Owner 2026-10-21: disappearing messages vanish by the clock, before
+  // the server's sweep (and from a cached page) reaches the device.
+  DateTime? validUntil;
+  final kept = <ChatMessage>[];
+  for (final m in messages) {
+    if (m.isExpired(now)) continue;
+    kept.add(m);
+    final at = m.expiresAt;
+    if (at != null && (validUntil == null || at.isBefore(validUntil))) {
+      validUntil = at;
+    }
+  }
+  final result = List<ChatMessage>.unmodifiable([...pending, ...kept]);
+  _allMemo[messages] = (
+    outbox: outbox,
+    voiceOutbox: voiceOutbox,
+    result: result,
+    validUntil: validUntil,
+  );
+  return result;
+}
+
+final _allMemo = Expando<
+    ({
+      List<ChatMessage> outbox,
+      List<ChatMessage> voiceOutbox,
+      List<ChatMessage> result,
+      DateTime? validUntil,
+    })>('chat.all');
+
 @immutable
 class ChatThreadState {
   const ChatThreadState({
@@ -715,17 +763,12 @@ class ChatThreadState {
   final List<ChatMessage> voiceOutbox;
 
   /// Newest first, the outbox on top.
-  List<ChatMessage> get all {
-    final pending = [...outbox, ...voiceOutbox]
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    // Owner 2026-10-21: disappearing messages vanish by the clock, before
-    // the server's sweep (and from a cached page) reaches the device.
-    final now = DateTime.now();
-    return [
-      ...pending,
-      ...messages.where((m) => !m.isExpired(now)),
-    ];
-  }
+  ///
+  /// Owner 2026-10-26 (smoothness): worked out once per change of the
+  /// three lists (by identity) and kept until the next disappearing
+  /// message is due, instead of copying and sorting on every read. The
+  /// result is read-only.
+  List<ChatMessage> get all => chatAllMessages(messages, outbox, voiceOutbox);
 
   ChatThreadState copyWith({
     Conversation? conversation,
