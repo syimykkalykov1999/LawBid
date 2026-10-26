@@ -6,6 +6,7 @@ terraform {
   required_providers {
     aws    = { source = "hashicorp/aws", version = "~> 5.60" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
+    tls    = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
 
@@ -45,6 +46,10 @@ module "stack" {
   web_certificate_arn             = var.web_certificate_arn
   web_create_certificate          = var.web_create_certificate
   web_extra_hosts                 = var.web_extra_hosts
+  status_page_enabled             = var.status_page_enabled
+  status_host                     = var.status_host
+  status_certificate_arn          = var.status_certificate_arn
+  status_create_certificate       = var.status_create_certificate
   hosted_zone_id                  = var.hosted_zone_id
   dmarc_rua                       = var.dmarc_rua
   ses_from_address                = var.ses_from_address
@@ -59,6 +64,8 @@ module "stack" {
   db_pooler_enabled               = var.db_pooler_enabled
   pgbouncer_image                 = var.pgbouncer_image
   pgbouncer_max_tasks             = var.pgbouncer_max_tasks
+  pgbouncer_db_tls_mode           = var.pgbouncer_db_tls_mode
+  pgbouncer_client_tls_private_ca = var.pgbouncer_client_tls_private_ca
   fcm_project_id                  = var.fcm_project_id
   fcm_client_email                = var.fcm_client_email
   google_client_ids               = var.google_client_ids
@@ -69,6 +76,7 @@ module "stack" {
   api_max_tasks                   = var.api_max_tasks
   worker_max_tasks                = var.worker_max_tasks
   min_tasks                       = var.min_tasks
+  api_min_tasks                   = var.api_min_tasks
   container_insights              = var.container_insights
   worker_spot                     = var.worker_spot
   api_spot                        = var.api_spot
@@ -102,12 +110,18 @@ module "stack" {
   critical_email_too           = var.critical_email_too
   redis_memory_alarm_percent   = var.redis_memory_alarm_percent
   nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
+  ops_role_split               = var.ops_role_split
+  ops_role_external_id         = var.ops_role_external_id
   budget_forecast_thresholds   = var.budget_forecast_thresholds
   budget_to_alerts_topic       = var.budget_to_alerts_topic
   anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_threshold_usd        = var.anomaly_threshold_usd
   backup_age_missing_data      = var.backup_age_missing_data
+  service_budgets              = var.service_budgets
+  guardduty_enabled            = var.guardduty_enabled
+  guardduty_s3_events          = var.guardduty_s3_events
+  guardduty_rds_login          = var.guardduty_rds_login
   guardduty_ebs_malware        = var.guardduty_ebs_malware
   guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
   create_anomaly_monitor       = var.create_anomaly_monitor
@@ -115,35 +129,54 @@ module "stack" {
   # Reliability (owner 2026-10-22): Multi-AZ, AWS Backup copies to the
   # replica region (+ optional backup account), worker scaling on queue
   # depth, cheaper endpoint placement, optional cache-only Redis.
-  database_multi_az            = var.database_multi_az
-  db_autoscale_enabled         = var.db_autoscale_enabled
-  db_autoscale_min_class       = var.db_autoscale_min_class
-  db_autoscale_max_class       = var.db_autoscale_max_class
-  db_autoscale_mode            = var.db_autoscale_mode
-  db_autoscale_tuning          = var.db_autoscale_tuning
-  redis_autoscale_enabled      = var.redis_autoscale_enabled
-  redis_autoscale_min_class    = var.redis_autoscale_min_class
-  redis_autoscale_max_class    = var.redis_autoscale_max_class
-  redis_autoscale_mode         = var.redis_autoscale_mode
-  redis_autoscale_tuning       = var.redis_autoscale_tuning
-  existing_database_identifier = var.existing_database_identifier
-  backup_enabled               = var.backup_enabled
-  backup_retention_days        = var.backup_retention_days
-  backup_copy_account_id       = var.backup_copy_account_id
-  backup_copy_vault_name       = var.backup_copy_vault_name
-  backup_copy_region           = var.backup_copy_region
-  interface_endpoint_azs       = var.interface_endpoint_azs
-  redis_cache_node             = var.redis_cache_node
-  redis_cache_node_type        = var.redis_cache_node_type
-  worker_jobs_per_task         = var.worker_jobs_per_task
+  database_multi_az                      = var.database_multi_az
+  db_autoscale_enabled                   = var.db_autoscale_enabled
+  db_autoscale_min_class                 = var.db_autoscale_min_class
+  db_autoscale_max_class                 = var.db_autoscale_max_class
+  db_autoscale_mode                      = var.db_autoscale_mode
+  db_autoscale_initial_ceiling_class     = var.db_autoscale_initial_ceiling_class
+  redis_autoscale_initial_ceiling_class  = var.redis_autoscale_initial_ceiling_class
+  db_autoscale_tuning                    = var.db_autoscale_tuning
+  redis_autoscale_enabled                = var.redis_autoscale_enabled
+  secret_rotation                        = var.secret_rotation
+  redis_autoscale_min_class              = var.redis_autoscale_min_class
+  redis_autoscale_max_class              = var.redis_autoscale_max_class
+  redis_autoscale_mode                   = var.redis_autoscale_mode
+  redis_autoscale_tuning                 = var.redis_autoscale_tuning
+  existing_database_identifier           = var.existing_database_identifier
+  backup_enabled                         = var.backup_enabled
+  backup_retention_days                  = var.backup_retention_days
+  backup_copy_account_id                 = var.backup_copy_account_id
+  backup_copy_vault_name                 = var.backup_copy_vault_name
+  backup_copy_region                     = var.backup_copy_region
+  interface_endpoint_azs                 = var.interface_endpoint_azs
+  redis_cache_node                       = var.redis_cache_node
+  redis_cache_node_type                  = var.redis_cache_node_type
+  worker_jobs_per_task                   = var.worker_jobs_per_task
+  adopt_existing_database                = var.adopt_existing_database
+  replicate_media                        = var.replicate_media
+  database_deletion_protection           = var.database_deletion_protection
+  rds_cross_region_backups               = var.rds_cross_region_backups
+  rds_cross_region_backup_retention_days = var.rds_cross_region_backup_retention_days
 
   # Security research #5 (2026-10-22): WAF, cloud detector, container.
-  waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
-  waf_bot_control_enabled   = var.waf_bot_control_enabled
-  waf_bot_control_block     = var.waf_bot_control_block
-  cdn_waf_rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
-  security_hub_enabled      = var.security_hub_enabled
-  guardduty_alert_severity  = var.guardduty_alert_severity
+  waf_enabled                    = var.waf_enabled
+  cdn_waf_enabled                = var.cdn_waf_enabled
+  waf_requests_alarm_per_day     = var.waf_requests_alarm_per_day
+  cdn_waf_requests_alarm_per_day = var.cdn_waf_requests_alarm_per_day
+  cloudfront_gb_alarm_per_day    = var.cloudfront_gb_alarm_per_day
+  waf_otp_rate_limit_per_5m      = var.waf_otp_rate_limit_per_5m
+  waf_device_header              = var.waf_device_header
+  waf_auth_rate_action           = var.waf_auth_rate_action
+  waf_auth_rules_enabled         = var.waf_auth_rules_enabled
+  alb_deletion_protection        = var.alb_deletion_protection
+  alb_least_outstanding_requests = var.alb_least_outstanding_requests
+  alb_websocket_target_group     = var.alb_websocket_target_group
+  waf_bot_control_enabled        = var.waf_bot_control_enabled
+  waf_bot_control_block          = var.waf_bot_control_block
+  cdn_waf_rate_limit_per_5m      = var.cdn_waf_rate_limit_per_5m
+  security_hub_enabled           = var.security_hub_enabled
+  guardduty_alert_severity       = var.guardduty_alert_severity
 
   # Security & legal pass 2026-10-24.
   securityhub_fsbp_enabled       = var.securityhub_fsbp_enabled

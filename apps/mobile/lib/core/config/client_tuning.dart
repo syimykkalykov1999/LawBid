@@ -10,6 +10,7 @@
 /// (api/src/common/app-settings/client-tuning.ts): a wrong number can
 /// neither silence the app nor make it hammer the server.
 abstract final class ClientTuning {
+  static int _fastTimeoutS = 8;
   static int _retryMax = 2;
   static int _retryBaseMs = 1000;
   static int _retryAfterMaxS = 10;
@@ -24,6 +25,12 @@ abstract final class ClientTuning {
   static int _videoPrefetchAhead = 3;
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
+
+  /// S15-12: receive timeout of the latency-critical reads (the start's
+  /// `GET /me/session` and `/config/bootstrap`) instead of the 15 s every
+  /// other call gets: a bad network or a captive portal gives its verdict
+  /// sooner (`client.fast_timeout_s`). Never used for writes.
+  static Duration get fastTimeout => Duration(seconds: _fastTimeoutS);
 
   /// Repeats of a failed safe request (RetryInterceptor).
   static int get retryMax => _retryMax;
@@ -72,22 +79,35 @@ abstract final class ClientTuning {
       return (v ?? fallback).clamp(min, max);
     }
 
+    _fastTimeoutS = pick('client.fast_timeout_s', 8, 3, 30);
     _retryMax = pick('client.retry_max', 2, 0, 4);
     _retryBaseMs = pick('client.retry_base_ms', 1000, 200, 30000);
     _retryAfterMaxS = pick('client.retry_after_max_s', 10, 1, 120);
     _outboxRetryMaxS = pick('client.outbox_retry_max_s', 30, 5, 600);
-    _reconnectMinMs =
-        pick('client.realtime_reconnect_min_ms', 1000, 500, 60000);
-    _reconnectMaxMs =
-        pick('client.realtime_reconnect_max_ms', 10000, 2000, 300000);
+    _reconnectMinMs = pick(
+      'client.realtime_reconnect_min_ms',
+      1000,
+      500,
+      60000,
+    );
+    _reconnectMaxMs = pick(
+      'client.realtime_reconnect_max_ms',
+      10000,
+      2000,
+      300000,
+    );
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
-    _chatPhotoMaxPx =
-        pick('media.chat_photo_max_px', 1600, 640, 4096).toDouble();
+    _chatPhotoMaxPx = pick(
+      'media.chat_photo_max_px',
+      1600,
+      640,
+      4096,
+    ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
   }
 

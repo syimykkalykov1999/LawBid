@@ -167,7 +167,7 @@ describe('Link preview (e2e)', () => {
       .expect(200);
     expect(denied.body.data.title).toBeNull();
     await setConfig('chat.link_preview_denylist', []);
-    await setConfig('chat.link_preview_enabled', false);
+    await setConfig('chat.link_preview_enabled', 'off');
     const off = await api()
       .get('/api/v1/link-preview')
       .set('Authorization', u.Authorization)
@@ -175,7 +175,7 @@ describe('Link preview (e2e)', () => {
       .expect(200);
     expect(off.body.data.title).toBeNull();
     expect(hits - before).toBe(0);
-    await setConfig('chat.link_preview_enabled', true);
+    await setConfig('chat.link_preview_enabled', 'auto');
   });
 
   it('limits one person to 30 a minute', async () => {

@@ -273,6 +273,18 @@ export class AccountAnonymizationService implements AccountEraser {
    * rows are skipped). Round 13 (S13-3): the edit history, the file name,
    * the assistant's name and the forwarded-from name go with them. */
   private async scrubMessages(userId: string): Promise<void> {
+    // BUG-1 (package N-12b): the person's words leave the search index
+    // first (by message id, 5 000 rows per statement).
+    for (;;) {
+      const n = await this.prisma.$executeRaw`
+        DELETE FROM message_search_tokens
+        WHERE ctid IN (
+          SELECT st.ctid FROM message_search_tokens st
+          JOIN messages m ON m.id = st.message_id
+          WHERE m.sender_id = ${userId}::UUID
+          LIMIT 5000)`;
+      if (n < 5000) break;
+    }
     for (;;) {
       const n = await this.prisma.$executeRaw`
         UPDATE message_edits
@@ -711,7 +723,12 @@ export class AccountAnonymizationService implements AccountEraser {
       // the follows either way — the other people's followers / following
       // counters drop with them (the lists already hid the account).
       const published = await tx.post.count({
-        where: { author_id: userId, deleted_at: null, status: 'published' },
+        where: {
+          author_id: userId,
+          deleted_at: null,
+          archived_at: null,
+          status: 'published',
+        },
       });
       await tx.post.updateMany({
         where: { author_id: userId, deleted_at: null },

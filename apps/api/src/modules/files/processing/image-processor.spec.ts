@@ -175,6 +175,9 @@ describe('ImageProcessor', () => {
   });
 
   describe('AVIF twins and quality (owner 2026-10-25)', () => {
+    // AVIF encoding of a 1600x1200 photo in every size is CPU-heavy; on a
+    // busy shared CI runner it exceeded jest's default 5 s.
+    jest.setTimeout(30_000);
     const photo = async () => {
       // Noisy gradient: compresses like a photo, not like a flat colour.
       const w = 1600;

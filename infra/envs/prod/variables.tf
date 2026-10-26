@@ -168,7 +168,7 @@ variable "redis_memory_alarm_percent" {
 }
 variable "nat_traffic_alarm_gb_per_day" {
   type        = number
-  default     = 100
+  default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
 variable "budget_forecast_thresholds" {
@@ -201,6 +201,30 @@ variable "backup_age_missing_data" {
   default     = "breaching"
   description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
 }
+variable "service_budgets" {
+  type = map(number)
+  default = {
+    "Amazon GuardDuty"  = 25
+    "AWS WAF"           = 50
+    "Amazon CloudFront" = 60
+  }
+  description = "Per-service monthly ceilings (e-mail at 100 % actual and forecast) for GuardDuty, WAF and CloudFront, the lines that grow with traffic. {} = none. About $0.60/month per budget beyond the two free ones."
+}
+variable "guardduty_enabled" {
+  type        = bool
+  default     = true
+  description = "GuardDuty on/off. Default ON (owner security decision 2026-10-22), about $4/month on a quiet account; the cost ladder shows how it grows (docs/runbooks/COST_LADDER.md)."
+}
+variable "guardduty_s3_events" {
+  type        = bool
+  default     = true
+  description = "GuardDuty S3 data-event feature: its bill grows with S3 traffic. The first thing to turn off if the GuardDuty line grows."
+}
+variable "guardduty_rds_login" {
+  type        = bool
+  default     = true
+  description = "GuardDuty RDS login-event feature (anomalous database sign-ins)."
+}
 variable "guardduty_ebs_malware" {
   type        = bool
   default     = false
@@ -231,6 +255,18 @@ variable "pgbouncer_max_tasks" {
   type    = number
   default = 4
 }
+# Security pass 2026-10-25 (S3-7, runbook docs/runbooks/DB_POOLER.md section
+# "Verified TLS"): both keep today's behaviour until the owner flips them.
+variable "pgbouncer_db_tls_mode" {
+  type        = string
+  default     = "require"
+  description = "require | verify-full (RDS CA bundle baked into the pgbouncer image; rebuild the image first)."
+}
+variable "pgbouncer_client_tls_private_ca" {
+  type        = bool
+  default     = false
+  description = "true: private CA + certificate for the pooler, verified by the api / worker."
+}
 variable "clamav_image" {
   type    = string
   default = "clamav/clamav:1.4"
@@ -257,6 +293,22 @@ variable "web_create_certificate" {
 variable "web_extra_hosts" {
   type    = list(string)
   default = []
+}
+variable "status_page_enabled" {
+  type    = bool
+  default = false
+}
+variable "status_host" {
+  type    = string
+  default = ""
+}
+variable "status_certificate_arn" {
+  type    = string
+  default = ""
+}
+variable "status_create_certificate" {
+  type    = bool
+  default = false
 }
 variable "create_database" {
   type    = bool
@@ -291,6 +343,24 @@ variable "existing_database_identifier" {
   default     = ""
   description = "The production RDS created outside Terraform (lawbid-prod-postgres): backed up by AWS Backup and checked at plan time, never modified."
 }
+# --- automatic secret rotation (owner 2026-10-25, docs/runbooks/secrets-rotation.md) --
+variable "secret_rotation" {
+  type = object({
+    db_enabled               = optional(bool, false)
+    db_master_secret_arn     = optional(string, "")
+    db_master_secret_kms_arn = optional(string, "")
+    db_every_days            = optional(number, 30)
+    redis_enabled            = optional(bool, false)
+    redis_every_days         = optional(number, 90)
+    keys_enabled             = optional(bool, false)
+    keys_every_days          = optional(number, 90)
+    grace_hours              = optional(number, 6)
+    strict_hours             = optional(number, 24)
+    jwt_retire_days          = optional(number, 2)
+  })
+  default     = {}
+  description = "OFF by default. db_enabled / redis_enabled / keys_enabled switch each part on one by one; order and checks: docs/runbooks/secrets-rotation.md."
+}
 # --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) -----
 variable "db_autoscale_enabled" {
   type        = bool
@@ -305,6 +375,11 @@ variable "db_autoscale_max_class" {
   type        = string
   default     = "db.r7g.xlarge"
   description = "Ceiling for the bill: ≈ $698/month with Multi-AZ. Above it the owner gets an e-mail and decides."
+}
+variable "db_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "db.t4g.medium"
+  description = "Day-1 money ceiling inside db_autoscale_max_class (db.t4g.medium ≈ $94/month Multi-AZ). The app raises or lowers it with the allowed spend; db_autoscale_max_class stays the absolute cap (docs/runbooks/COST_LADDER.md)."
 }
 variable "db_autoscale_mode" {
   type        = string
@@ -334,6 +409,11 @@ variable "redis_autoscale_max_class" {
   type        = string
   default     = "cache.r7g.large"
   description = "Ceiling for the bill: ≈ $320/month with one replica. Above it the owner gets an e-mail."
+}
+variable "redis_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "cache.t4g.small"
+  description = "Day-1 money ceiling inside redis_autoscale_max_class (cache.t4g.small ≈ $47/month with one replica)."
 }
 variable "redis_autoscale_mode" {
   type        = string
@@ -446,9 +526,34 @@ variable "cpu_architecture" {
 }
 
 # Security research #5 (2026-10-22): WAF, cloud detector, container.
+variable "waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The load-balancer web ACL (6 rules). Default ON: it carries the admin IP allow-list and the OTP rate limit. About $11/month + $0.60 per million requests. false = no ACL (docs/runbooks/COST_LADDER.md says what that costs you in safety)."
+}
+variable "cdn_waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The CloudFront web ACL (3 rules: per-IP rate, IP reputation, bad inputs). Default ON. About $8/month + $0.60 per million requests."
+}
+variable "waf_requests_alarm_per_day" {
+  type        = number
+  default     = 3000000
+  description = "E-mail when the ALB web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cdn_waf_requests_alarm_per_day" {
+  type        = number
+  default     = 10000000
+  description = "E-mail when the CloudFront web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cloudfront_gb_alarm_per_day" {
+  type        = number
+  default     = 60
+  description = "E-mail when one CloudFront distribution serves more than this many GB in 24 h (free tier 1 TB/month ≈ 33 GB/day, then ≈ $0.085/GB); 0 = no alarm."
+}
 variable "waf_otp_rate_limit_per_5m" {
   type    = number
-  default = 20
+  default = 20 # raise to 60 when the per-device rules are on (waf_device_header)
 }
 variable "waf_bot_control_enabled" {
   type    = bool
@@ -588,4 +693,75 @@ variable "anomaly_to_alerts_topic" {
   type        = bool
   default     = true
   description = "Cost Anomaly findings also to the alerts topic (free)."
+}
+
+# S4-1 (audit 2026-10-25): separate `ops` role for the admin scale / launch /
+# cost calls. Order: ship the API release with OPS_ROLE_ARN support, then set
+# ops_role_split = true and ops_role_external_id in the tfvars secret.
+# docs/runbooks/aws-guardrails.md.
+variable "ops_role_split" {
+  type    = bool
+  default = false
+}
+variable "ops_role_external_id" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+variable "api_min_tasks" {
+  type        = number
+  default     = null
+  description = "Separate api floor (null = min_tasks). 2 = one api task per AZ (S4-11)."
+}
+
+# S4-3 / S4-6 (audit 2026-10-25): see modules/stack/main.tf and
+# docs/runbooks/infra-hardening.md for the owner steps.
+variable "adopt_existing_database" {
+  type    = bool
+  default = false
+}
+variable "database_deletion_protection" {
+  type    = bool
+  default = true
+}
+variable "rds_cross_region_backups" {
+  type    = bool
+  default = false
+}
+variable "rds_cross_region_backup_retention_days" {
+  type    = number
+  default = 14
+}
+
+variable "replicate_media" {
+  type        = bool
+  default     = true
+  description = "S4-5: copy new media objects to the replica Region (delete markers stay behind). Costs the media storage in us-west-2."
+}
+
+# S4-7 / S4-8 / S4-10 (audit 2026-10-25): load balancer and edge rules.
+variable "waf_device_header" {
+  type    = string
+  default = "" # "x-device-id" turns on the per-device rules (+$2/month)
+}
+variable "waf_auth_rules_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_auth_rate_action" {
+  type    = string
+  default = "count"
+}
+variable "alb_deletion_protection" {
+  type    = bool
+  default = true
+}
+variable "alb_least_outstanding_requests" {
+  type    = bool
+  default = false
+}
+variable "alb_websocket_target_group" {
+  type    = bool
+  default = false
 }

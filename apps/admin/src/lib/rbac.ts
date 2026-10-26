@@ -125,10 +125,10 @@ export function covers(outer: Permissions, inner: Permissions): boolean {
 /** Sidebar badge sources (see shell/use-nav-counts). */
 export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust' | 'approvals';
 
-/** An area key, `everyone` for the personal workspace, `super` for
- * sections only the super admin opens, `moneyOwner` for owner-only money
- * pages the deputy may read, `config` for Настройки (settings or budget
- * caps), or `admins` for admin management (super admin or a granted manager). */
+/** An area key, `everyone` for the personal workspace, `partner` for the
+ * country partner's page, `formTemplates` for the document forms, `config`
+ * for Настройки (settings or budget caps). Owner-only pages carry
+ * `ownerOnly: true` instead of an area trick. */
 type SectionArea = string;
 
 interface Section {
@@ -142,12 +142,15 @@ interface Section {
   hint?: string;
   /** Hidden from the menu while this feature flag is off (owner 2026-10-20). */
   flag?: string;
+  /** Owner 2026-10-25: only the super admin sees and opens it. For everyone
+   * else it is not in the menu and `canOpen` answers false (the 403 page). */
+  ownerOnly?: boolean;
 }
 
-/** Owner 2026-10-05: the menu is 9 sections; each opens on its first
- * allowed tab and shows the rest as tabs. Rights stay per tab (per page):
- * a tab without the right is not shown, a section with no allowed tab is
- * not in the menu, and its URLs answer 404 — exactly as before. */
+/** Owner 2026-10-25 (ADM-NAV): the menu is eight tabs (the dashboard plus
+ * seven topics); each opens on its first allowed page and shows the rest
+ * as sub-items. Page URLs are unchanged. A page without the right is not
+ * shown, a tab with no allowed page is not in the menu. */
 interface SectionGroup {
   key: string;
   label: string;
@@ -168,55 +171,14 @@ export const GROUPS: readonly SectionGroup[] = [
     ],
   },
   {
-    key: 'people',
-    label: 'Люди',
-    icon: 'users',
+    key: 'launch',
+    label: 'Запуск',
+    icon: 'rocket-launch',
     items: [
-      { href: '/users', label: 'Пользователи', icon: 'users', area: 'users', hint: 'поиск, санкции, сессии' },
-      { href: '/teams', label: 'Команды адвокатов', icon: 'users-three', area: 'teams', hint: 'помощники и места' },
-      { href: '/admins', label: 'Администраторы', icon: 'shield-check', area: 'admins', hint: 'сотрудники, права, пароли' },
-      { href: '/rewards', label: 'Поощрения', icon: 'trophy', area: 'super', hint: 'лучший сотрудник по отделам, призы' },
-    ],
-  },
-  {
-    key: 'badges',
-    label: 'Галочки',
-    icon: 'seal-check',
-    items: [
-      { href: '/verification', label: 'Адвокаты', icon: 'seal-check', area: 'verification', count: 'verification', hint: 'лицензии и галочки адвокатов' },
-      { href: '/verification/trust', label: 'Борьба с мошенниками', icon: 'shield-check', area: 'verification', count: 'trust', hint: 'что требовать от адвокатов и очередь проверки' },
-      { href: '/client-badges', label: 'Клиенты', icon: 'shield-check', area: 'verification', hint: 'платная золотая галочка' },
-    ],
-  },
-  {
-    key: 'moderation',
-    label: 'Модерация',
-    icon: 'flag',
-    items: [
-      { href: '/moderation', label: 'Жалобы', icon: 'flag', area: 'moderation', count: 'reports', hint: 'очередь модерации' },
-      { href: '/media-moderation', label: 'Фото и видео', icon: 'flag', area: 'moderation', hint: 'автопроверка картинок: скрытые, подозрительные, CSAM' },
-      { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
-      { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
-      { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },
-      { href: '/legal-qa', label: 'Вопросы юристу', icon: 'article', area: 'moderation', hint: 'публичные вопросы и ответы адвокатов' },
-      { href: '/group-chats', label: 'Группы', icon: 'users-three', area: 'moderation', hint: 'групповые чаты, участники' },
-      { href: '/sanctions', label: 'Санкции', icon: 'prohibit', area: 'sanctions', hint: 'блокировки и баны' },
-      { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
-      { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },
-      { href: '/document-templates', label: 'Шаблоны документов', icon: 'file-text', area: 'content', hint: 'PDF и Word для приложения' },
-      { href: '/form-templates', label: 'Формы документов', icon: 'file-text', area: 'formTemplates', hint: 'тексты с полями для документов в кейсе' },
-      { href: '/search', label: 'Поиск', icon: 'magnifying-glass', area: 'content', hint: 'синонимы, что не нашлось, чему научился' },
-    ],
-  },
-  {
-    key: 'cases',
-    label: 'Кейсы',
-    icon: 'briefcase',
-    items: [
-      { href: '/cases', label: 'Кейсы', icon: 'briefcase', area: 'cases', hint: 'кейсы, споры, «не могу связаться»' },
-      { href: '/bids', label: 'Ставки', icon: 'gavel', area: 'cases' },
-      { href: '/deadlines', label: 'Сроки', icon: 'scales', area: 'cases', hint: 'сроки судов, давность, выходные суда', flag: 'deadline_calculator' },
-      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платное продвижение постов и кейсов, как в Instagram' },
+      { href: '/launch', label: 'Запуск', icon: 'rocket-launch', area: 'super', ownerOnly: true, hint: 'ваши шаги перед запуском: что готово, что осталось' },
+      // Owner 2026-10-25: step-by-step guides for everything done outside our code.
+      { href: '/guides', label: 'Инструкции', icon: 'article', area: 'super', ownerOnly: true, hint: 'где зарегистрироваться, что нажать и куда вставить: по шагам' },
+      { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', ownerOnly: true, hint: 'серверы, база, бэкапы, расходы: всё ли в порядке' },
     ],
   },
   {
@@ -224,43 +186,74 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Деньги',
     icon: 'wallet',
     items: [
-      { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'moneyOwner', hint: 'кто заходит, воронка, отток, покупки' },
-      { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', hint: 'стоимость тарифов и галочки' },
-      { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', hint: 'планы подписок и их возможности' },
       { href: '/subscriptions', label: 'Подписки', icon: 'crown-simple', area: 'money', hint: 'тарифы адвокатов' },
-      { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },
       { href: '/payments', label: 'Платежи и возвраты', icon: 'receipt', area: 'money' },
-      { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'moneyOwner', hint: 'клиент платит адвокату через Stripe Connect' },
+      { href: '/case-payments', label: 'Оплаты адвокатам', icon: 'hand-coins', area: 'moneyOwner', ownerOnly: true, hint: 'клиент платит адвокату через Stripe Connect' },
       { href: '/promo-codes', label: 'Промокоды', icon: 'ticket', area: 'money' },
       { href: '/referrals', label: 'Рефералы', icon: 'share-network', area: 'money', hint: 'скидки за приглашения' },
       { href: '/partners', label: 'Партнёры', icon: 'handshake', area: 'money', hint: 'блогеры и агенты: плата за адвокатов и клиентов' },
-      { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', hint: 'главный партнёр страны: команда, процент, цели' },
+      { href: '/country-partners', label: 'Партнёры стран', icon: 'globe', area: 'moneyOwner', ownerOnly: true, hint: 'главный партнёр страны: команда, процент, цели' },
+      { href: '/contracts', label: 'По договору', icon: 'handshake', area: 'money', hint: 'бесплатно блогерам 3–12 мес.' },
+      { href: '/promotions', label: 'Продвижение', icon: 'rocket-launch', area: 'money', hint: 'платное продвижение постов и кейсов, как в Instagram' },
+      { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', ownerOnly: true, hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
+      { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', ownerOnly: true, hint: 'стоимость тарифов и галочки' },
+      { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', ownerOnly: true, hint: 'планы подписок и их возможности' },
+      { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту: чистая прибыль' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
-      // Owner 2026-10-22 (maker-checker): big payouts and refunds wait for a second admin.
-      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'запросы второго админа (сейчас проверка выключена: всё выполняется сразу)' },
-      { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
-      { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту — чистая прибыль' },
+      // Owner 2026-10-22 (maker-checker): the check is off (one owner), the page stays for the history.
+      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'запросы на подтверждение (сейчас проверка выключена: всё выполняется сразу)' },
+      { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
+      { href: '/spend', label: 'Расходы', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'сколько денег уходит каждому сервису и сколько держать на счету' },
     ],
   },
   {
-    key: 'comms',
-    label: 'Связь',
-    icon: 'lifebuoy',
+    key: 'people',
+    label: 'Люди',
+    icon: 'users',
     items: [
+      { href: '/users', label: 'Пользователи', icon: 'users', area: 'users', hint: 'поиск, санкции, сессии' },
       { href: '/support', label: 'Поддержка', icon: 'lifebuoy', area: 'support', count: 'support', hint: 'обращения пользователей' },
+      { href: '/cases', label: 'Кейсы', icon: 'briefcase', area: 'cases', hint: 'кейсы, споры, «не могу связаться»' },
+      { href: '/bids', label: 'Ставки', icon: 'gavel', area: 'cases' },
+      { href: '/deadlines', label: 'Сроки', icon: 'scales', area: 'cases', hint: 'сроки судов, давность, выходные суда', flag: 'deadline_calculator' },
+      { href: '/verification', label: 'Адвокаты', icon: 'seal-check', area: 'verification', count: 'verification', hint: 'лицензии и галочки адвокатов' },
+      { href: '/verification/trust', label: 'Борьба с мошенниками', icon: 'shield-check', area: 'verification', count: 'trust', hint: 'что требовать от адвокатов и очередь проверки' },
+      { href: '/client-badges', label: 'Клиенты', icon: 'shield-check', area: 'verification', hint: 'платная золотая галочка' },
+      { href: '/teams', label: 'Команды адвокатов', icon: 'users-three', area: 'teams', hint: 'помощники и места' },
+      { href: '/sanctions', label: 'Санкции', icon: 'prohibit', area: 'sanctions', hint: 'блокировки и баны' },
+      { href: '/admins', label: 'Администраторы', icon: 'shield-check', area: 'admins', ownerOnly: true, hint: 'сотрудники, права, пароли' },
+      { href: '/rewards', label: 'Поощрения', icon: 'trophy', area: 'super', ownerOnly: true, hint: 'лучший сотрудник по отделам, призы' },
+    ],
+  },
+  {
+    key: 'content',
+    label: 'Контент и модерация',
+    icon: 'flag',
+    items: [
+      { href: '/moderation', label: 'Жалобы', icon: 'flag', area: 'moderation', count: 'reports', hint: 'очередь модерации' },
+      { href: '/media-moderation', label: 'Фото и видео', icon: 'flag', area: 'moderation', hint: 'автопроверка картинок: скрытые, подозрительные, CSAM' },
+      { href: '/review-appeals', label: 'Обжалования отзывов', icon: 'scales', area: 'moderation', count: 'appeals' },
+      { href: '/moderation-appeals', label: 'Обжалования решений', icon: 'scales', area: 'moderation', hint: 'автор просит вернуть скрытый пост, комментарий или сообщение' },
+      { href: '/moderation-journal', label: 'Журнал решений', icon: 'article', area: 'moderation', hint: 'кто, когда и почему скрыл, удалил, предупредил' },
+      { href: '/content', label: 'Посты и отзывы', icon: 'article', area: 'content', hint: 'посты, комментарии, отзывы' },
+      { href: '/media', label: 'Рилсы и стикеры', icon: 'film-strip', area: 'media', hint: 'видео, наборы стикеров' },
+      { href: '/legal-qa', label: 'Вопросы юристу', icon: 'article', area: 'moderation', hint: 'публичные вопросы и ответы адвокатов' },
+      { href: '/group-chats', label: 'Группы', icon: 'users-three', area: 'moderation', hint: 'групповые чаты, участники' },
+      { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },
+      { href: '/document-templates', label: 'Шаблоны документов', icon: 'file-text', area: 'content', hint: 'PDF и Word для приложения' },
+      { href: '/form-templates', label: 'Формы документов', icon: 'file-text', area: 'formTemplates', hint: 'тексты с полями для документов в кейсе' },
       { href: '/broadcasts', label: 'Рассылки', icon: 'megaphone', area: 'broadcasts', hint: 'пуш всем или сегменту' },
-      { href: '/email-templates', label: 'Шаблоны писем', icon: 'envelope-simple', area: 'email_templates' },
       { href: '/outreach', label: 'Привлечение', icon: 'address-book', area: 'outreach', hint: 'база контактов, звонки, письма, кто сколько сделал' },
     ],
   },
   {
-    key: 'security',
-    label: 'Безопасность',
-    icon: 'lock',
+    key: 'legal',
+    label: 'Право',
+    icon: 'scales',
     items: [
-      { href: '/audit-log', label: 'Журнал аудита', icon: 'clock-counter-clockwise', area: 'audit', hint: 'кто что сделал' },
-      { href: '/sessions', label: 'Сессии админов', icon: 'devices', area: 'moneyOwner', hint: 'кто сейчас в админке' },
-      { href: '/integrations', label: 'Ключи и сервисы', icon: 'key', area: 'super', hint: 'API-ключи, ротация' },
+      { href: '/legal-documents', label: 'Юридические документы', icon: 'file-text', area: 'legal', hint: 'все документы: черновики, публикация, история' },
+      // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.
+      { href: '/legal-settings', label: 'Право и жалобы', icon: 'scales', area: 'legal', hint: 'DMCA, дисклеймеры, контакт при инцидентах' },
       { href: '/data-requests', label: 'Запросы госорганов', icon: 'bank', area: 'data_requests' },
     ],
   },
@@ -269,31 +262,35 @@ export const GROUPS: readonly SectionGroup[] = [
     label: 'Система',
     icon: 'sliders-horizontal',
     items: [
-      { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
       // Batch D (2026-10-24): every part that grows by itself, its ceiling and buttons, and the open alarms.
-      { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
-      // Owner 2026-10-24: the owner's launch steps with a light each, and the money per service.
-      { href: '/launch', label: 'Запуск', icon: 'rocket-launch', area: 'super', hint: 'ваши шаги перед запуском: что готово, что осталось' },
-      // Owner 2026-10-25: step-by-step guides for everything done outside our code.
-      { href: '/guides', label: 'Инструкции', icon: 'article', area: 'super', hint: 'где зарегистрироваться, что нажать и куда вставить: по шагам' },
-      { href: '/spend', label: 'Расходы', icon: 'chart-line', area: 'super', hint: 'сколько денег уходит каждому сервису и сколько держать на счету' },
-      { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
+      { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', ownerOnly: true, hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
+      // Owner 2026-10-25: what users see on status.lawbid.dev; post / close an incident.
+      { href: '/status-page', label: 'Страница статуса', icon: 'megaphone', area: 'super', ownerOnly: true, hint: 'сообщить пользователям о сбое или работах' },
       // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
-      { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', hint: 'что включать, когда людей становится больше: по шагам' },
-      { href: '/crashes', label: 'Вылеты', icon: 'bug', area: 'settings', hint: 'ошибки приложения: где, на каких телефонах' },
-      { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', hint: 'флаги, скрытые функции' },
-      { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', hint: 'лимиты, версии приложения' },
+      { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', ownerOnly: true, hint: 'что включать, когда людей становится больше: по шагам' },
+      { href: '/integrations', label: 'Ключи и сервисы', icon: 'key', area: 'super', ownerOnly: true, hint: 'API-ключи, ротация' },
+      { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', ownerOnly: true, hint: 'лимиты, версии приложения' },
+      { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', ownerOnly: true, hint: 'флаги, скрытые функции' },
+      { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'moneyOwner', ownerOnly: true, hint: 'кто заходит, воронка, отток, покупки' },
+      { href: '/search', label: 'Поиск', icon: 'magnifying-glass', area: 'content', hint: 'синонимы, что не нашлось, чему научился' },
       { href: '/storage', label: 'Хранилище', icon: 'hard-drives', area: 'settings', hint: 'место, очистка, лимиты' },
       // Owner 2026-10-07 (bug 17): every upload limit and file format.
       { href: '/uploads', label: 'Загрузки и файлы', icon: 'paperclip', area: 'settings', hint: 'сколько файлов, размер, форматы' },
-      { href: '/practice-areas', label: 'Квалификации', icon: 'books', area: 'content' },
+      { href: '/sessions', label: 'Сессии админов', icon: 'devices', area: 'moneyOwner', ownerOnly: true, hint: 'кто сейчас в админке' },
+      { href: '/audit-log', label: 'Журнал аудита', icon: 'clock-counter-clockwise', area: 'audit', ownerOnly: true, hint: 'кто что сделал' },
+      { href: '/crashes', label: 'Вылеты', icon: 'bug', area: 'settings', hint: 'ошибки приложения: где, на каких телефонах' },
+      { href: '/exports', label: 'Выгрузки CSV', icon: 'download-simple', area: 'exports' },
+    ],
+  },
+  {
+    key: 'i18n',
+    label: 'Переводы',
+    icon: 'translate',
+    items: [
       { href: '/i18n', label: 'Локализация', icon: 'translate', area: 'localization' },
       // Owner 2026-10-18: the app's «Справочник» texts, every language.
       { href: '/countries', label: 'Страны', icon: 'globe', area: 'localization', hint: 'где работает приложение' },
-      { href: '/legal-documents', label: 'Юридические документы', icon: 'file-text', area: 'legal', hint: 'все документы: черновики, публикация, история' },
-      // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.
-      { href: '/legal-settings', label: 'Право и жалобы', icon: 'scales', area: 'legal', hint: 'DMCA, дисклеймеры, контакт при инцидентах' },
-      { href: '/exports', label: 'Выгрузки CSV', icon: 'download-simple', area: 'exports' },
+      { href: '/email-templates', label: 'Шаблоны писем', icon: 'envelope-simple', area: 'email_templates' },
     ],
   },
 ];
@@ -301,24 +298,22 @@ export const GROUPS: readonly SectionGroup[] = [
 export const SECTIONS: readonly Section[] = GROUPS.flatMap((g) => g.items);
 
 function opens(me: AccessSubject, s: Section): boolean {
+  // Owner 2026-10-25: owner-only pages are the super admin's and nobody
+  // else's (the deputy and the accountant do not see them at all). One
+  // exception: a country partner's lead hires their own team on /admins.
+  if (s.ownerOnly) {
+    if (me.role === 'super_admin') return true;
+    return s.href === '/admins' && me.partnerLead === true;
+  }
   // Every admin has their own workspace (it shows only their own queues).
   if (s.area === 'everyone') return true;
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
-  if (s.area === 'super') return me.role === 'super_admin';
   // Owner 2026-10-22: whoever can pay salaries or refund sees what waits
   // for a second admin (the API shows each admin only their kinds).
   if (s.area === 'approvals') return can(me, 'payroll', 'manage') || can(me, 'money', 'manage');
   // Document forms: the API lets only the super admin and moderators in.
   if (s.area === 'formTemplates') return me.role === 'super_admin' || me.role === 'moderator';
-  // Owner-only money pages (prices, plans, analytics, payments to attorneys,
-  // country partners, admin sessions); the deputy reads them.
-  if (s.area === 'moneyOwner') return me.role === 'super_admin' || me.canManageAdmins === true;
-  // Настройки: the whole page, or just the budget caps card.
-  if (s.area === 'config') return can(me, 'settings') || can(me, 'budget_limits');
-  // Admin management: the super admin, an admin given that right, or a
-  // country partner (their own team only).
-  if (s.area === 'admins') return me.role === 'super_admin' || me.canManageAdmins === true || me.partnerLead === true;
   return can(me, s.area);
 }
 

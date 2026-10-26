@@ -13,6 +13,7 @@ import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
 import { MessageReencryptJob } from './handlers/message-reencrypt.job';
+import { ChatSearchBackfillJob } from './handlers/chat-search-backfill.job';
 import { ContactsSyncModule } from '../modules/contacts-sync/contacts-sync.module';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
@@ -52,10 +53,15 @@ import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { DbHealthJob } from './handlers/db-health.job';
 import { LedgerModule } from '../modules/ledger/ledger.public';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
 import { SearchIndexerService } from '../modules/search/search-indexer.service';
+import { FeatureFlagsModule } from '../modules/feature-flags/feature-flags.module';
+import { AnalyticsService } from '../modules/analytics/analytics.service';
+import { AppEventsService } from '../modules/analytics/app-events.service';
+import { SearchReindexService } from '../modules/search/search-reindex.service';
 import { DashboardService } from '../modules/admin/dashboard.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -67,6 +73,7 @@ import {
 } from './handlers/tasks-planner.jobs';
 import { S3StorageService } from '../modules/files/storage/s3-storage.service';
 import { CallsModule } from '../modules/calls/calls.module';
+import { ChatModule } from '../modules/chat/chat.module';
 import { ClientReviewsCoreModule } from '../modules/client-reviews/client-reviews.module';
 import { CaseLifecycleModule } from '../modules/cases/lifecycle/case-lifecycle.module';
 import { BidsModule } from '../modules/bids/bids.module';
@@ -91,9 +98,13 @@ export class JobsModule {
       module: JobsModule,
       imports: [
         NotificationsModule,
+        // AppEventsService (analytics snapshot) needs the flags.
+        FeatureFlagsModule,
         // Security research #5 (A7): ContactsPepper for the contacts jobs.
         ContactsSyncModule,
         CallsModule,
+        // S1-3: `chat.redeliver`.
+        ChatModule,
         ClientReviewsCoreModule,
         SubscriptionsModule,
         BidsModule,
@@ -141,6 +152,7 @@ export class JobsModule {
         ContactsJoinedJob,
         ContactsPepperBackfillJob,
         MessageReencryptJob,
+        ChatSearchBackfillJob,
         OtpCleanupJob,
         DisposableDomainsRefreshJob,
         ReviewReminderJob,
@@ -169,10 +181,15 @@ export class JobsModule {
         LedgerReconcileJob,
         // Privacy round 13: `privacy.reconcile`.
         PrivacyReconcileJob,
+        // DB-ops hardening: `db.health` (daily).
+        DbHealthJob,
         SearchIndexerService,
+        SearchReindexService,
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,
         DashboardService,
+        AnalyticsService,
+        AppEventsService,
         BillingOverviewService,
         OpsGuardJob,
         StatusWatchdogJob,

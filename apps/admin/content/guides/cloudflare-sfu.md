@@ -1,7 +1,7 @@
 ---
 id: cloudflare-sfu
 title: Cloudflare: групповые видеозвонки (SFU)
-category: keys
+category: system
 cost: Первые 1000 ГБ в месяц бесплатно (общие с TURN), дальше $0,05 за ГБ исходящего трафика.
 time: 10 минут
 launch: cloudflare_sfu

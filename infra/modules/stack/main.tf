@@ -9,6 +9,7 @@ terraform {
       configuration_aliases = [aws.replica]
     }
     random = { source = "hashicorp/random", version = "~> 3.6" }
+    tls    = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
 
@@ -68,6 +69,25 @@ variable "database_multi_az" {
   type        = bool
   default     = false
   description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
+}
+variable "database_engine_version" {
+  type        = string
+  default     = "16"
+  description = "PostgreSQL version of the created database (\"16\" = latest minor; pin e.g. \"16.6\" with database_auto_minor_upgrade = false). docs/runbooks/db-ops.md."
+}
+variable "database_auto_minor_upgrade" {
+  type    = bool
+  default = true
+}
+variable "database_logical_replication" {
+  type        = bool
+  default     = false
+  description = "rds.logical_replication = 1 (static: needs a reboot). Needed for shard moves and Blue/Green upgrades."
+}
+variable "database_monitoring_interval" {
+  type        = number
+  default     = 0
+  description = "RDS Enhanced Monitoring interval in seconds (0 = off, 60 = cheapest on)."
 }
 variable "existing_database_identifier" {
   type        = string
@@ -187,6 +207,24 @@ variable "web_create_certificate" {
 variable "web_extra_hosts" {
   type    = list(string)
   default = []
+}
+# Owner 2026-10-25: public status page (modules/status-page), off by default.
+variable "status_page_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the public status page (S3 + CloudFront, independent of the API) and let the worker publish status.json to it."
+}
+variable "status_host" {
+  type    = string
+  default = ""
+}
+variable "status_certificate_arn" {
+  type    = string
+  default = ""
+}
+variable "status_create_certificate" {
+  type    = bool
+  default = false
 }
 variable "hosted_zone_id" {
   type    = string
@@ -372,6 +410,11 @@ variable "min_tasks" {
   default     = 2
   description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
 }
+variable "api_min_tasks" {
+  type        = number
+  default     = null
+  description = "Separate api floor (null = min_tasks). 2 = one api task per AZ (S4-11); the worker can stay at 1."
+}
 variable "cpu_architecture" {
   type        = string
   default     = "X86_64"
@@ -435,7 +478,37 @@ variable "waf_rate_limit_per_5m" {
 variable "waf_otp_rate_limit_per_5m" {
   type        = number
   default     = 20
-  description = "Requests to the OTP / password-reset / phone-status paths from one IP in 5 minutes before the ALB WAF blocks it."
+  description = "Requests to the OTP / password-reset / phone-status paths from one IP in 5 minutes before the ALB WAF blocks it (backstop for callers without a device header; S4-8: one CGNAT address carries many people)."
+}
+variable "waf_device_header" {
+  type        = string
+  default     = ""
+  description = "S4-8: second WAF rate-limit key next to the IP (per-device rules, 2 WAF rules = +$2/month). Empty = off (default); set x-device-id to turn on."
+}
+variable "waf_auth_rules_enabled" {
+  type        = bool
+  default     = false
+  description = "S4-8: add the login-path rate rule (and the refresh rule when waf_device_header is set); each is a WAF rule at $1/month. Off by default."
+}
+variable "waf_auth_rate_action" {
+  type        = string
+  default     = "count"
+  description = "S4-8: login / refresh rate rules: count (measure) or block."
+}
+variable "alb_deletion_protection" {
+  type        = bool
+  default     = false
+  description = "S4-10: ALB deletion protection. Prod: true (never on load-test stacks)."
+}
+variable "alb_least_outstanding_requests" {
+  type        = bool
+  default     = false
+  description = "S4-7: least_outstanding_requests instead of round_robin for the API target group (has no effect while stickiness is on for it; see alb_websocket_target_group)."
+}
+variable "alb_websocket_target_group" {
+  type        = bool
+  default     = false
+  description = "S4-7: separate sticky target group for /socket.io only; the API group loses stickiness and uses least_outstanding_requests. Replaces the ECS api service in the AWS provider (short blip): apply in a quiet window."
 }
 # AWS Bot Control (paid: ~$10/month + $1 per million requests). Off by
 # default; on, it only COUNTS (labels in the WAF metrics) until
@@ -448,6 +521,31 @@ variable "waf_bot_control_block" {
   type        = bool
   default     = false
   description = "Block the Bot Control verdicts instead of counting them (only with waf_bot_control_enabled)."
+}
+variable "waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The load-balancer web ACL (6 rules). Default ON: it carries the admin IP allow-list and the OTP rate limit. About $11/month + $0.60 per million requests. false = no ACL (docs/runbooks/COST_LADDER.md says what that costs you in safety)."
+}
+variable "cdn_waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The CloudFront web ACL (3 rules: per-IP rate, IP reputation, bad inputs). Default ON. About $8/month + $0.60 per million requests."
+}
+variable "waf_requests_alarm_per_day" {
+  type        = number
+  default     = 3000000
+  description = "E-mail when the ALB web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cdn_waf_requests_alarm_per_day" {
+  type        = number
+  default     = 10000000
+  description = "E-mail when the CloudFront web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cloudfront_gb_alarm_per_day" {
+  type        = number
+  default     = 60
+  description = "E-mail when one CloudFront distribution serves more than this many GB in 24 h (free tier 1 TB/month ≈ 33 GB/day, then ≈ $0.085/GB); 0 = no alarm."
 }
 variable "cdn_waf_rate_limit_per_5m" {
   type        = number
@@ -497,7 +595,7 @@ variable "redis_memory_alarm_percent" {
 }
 variable "nat_traffic_alarm_gb_per_day" {
   type        = number
-  default     = 100
+  default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
 variable "budget_forecast_thresholds" {
@@ -529,6 +627,30 @@ variable "backup_age_missing_data" {
   type        = string
   default     = "breaching"
   description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
+}
+variable "service_budgets" {
+  type = map(number)
+  default = {
+    "Amazon GuardDuty"  = 25
+    "AWS WAF"           = 50
+    "Amazon CloudFront" = 60
+  }
+  description = "Per-service monthly ceilings (an e-mail at 100 % actual and forecast) for the lines that grow with traffic: GuardDuty S3 events, WAF requests, CloudFront bytes. Day-1 cost of each is under $20 (docs/runbooks/COST_LADDER.md). {} = none. AWS gives two budgets free, each further one is about $0.60/month."
+}
+variable "guardduty_enabled" {
+  type        = bool
+  default     = true
+  description = "GuardDuty on/off (security baseline). Default ON (owner security decision); about $4/month on a quiet account (docs/runbooks/COST_LADDER.md)."
+}
+variable "guardduty_s3_events" {
+  type        = bool
+  default     = true
+  description = "GuardDuty S3 data-event feature: the part of GuardDuty whose bill grows with S3 traffic. Turn off first if the GuardDuty line grows (docs/runbooks/COST_LADDER.md)."
+}
+variable "guardduty_rds_login" {
+  type        = bool
+  default     = true
+  description = "GuardDuty RDS login-event feature (anomalous database sign-ins)."
 }
 variable "guardduty_ebs_malware" {
   type        = bool
@@ -602,6 +724,7 @@ locals {
     "ADMIN_TOTP_ENC_KEY",
     "SECRETS_MASTER_KEYS", # admin key store ("k1:<secret>")
     "MESSAGE_ENC_KEYS",    # chat texts at rest ("m1:<secret>"), scaling TZ point 11
+    "SEARCH_INDEX_KEY",    # chat search blind index (HMAC key, BUG-1 / N-12b); fill it right after the secret exists (DEPLOY_PROD.md)
   ], var.extra_secrets)
 }
 
@@ -712,6 +835,13 @@ module "s3" {
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
   force_destroy                = var.ephemeral
   access_log_bucket            = try(module.audit_logs[0].bucket, "")
+  replicate_media              = var.replicate_media && !var.ephemeral
+}
+
+variable "replicate_media" {
+  type        = bool
+  default     = false
+  description = "S4-5: replicate the media bucket to the replica Region (no delete markers). Prod: true. Never on load-test stacks."
 }
 
 # Security & legal pass 2026-10-24: the access logs that prove who touched
@@ -744,6 +874,7 @@ module "macie" {
 module "cdn_waf" {
   source            = "../cdn-waf"
   name              = local.name
+  enabled           = var.cdn_waf_enabled
   rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
   tags              = local.tags
 }
@@ -765,6 +896,17 @@ module "web" {
   force_destroy          = var.ephemeral
 }
 
+module "status_page" {
+  count              = var.status_page_enabled && !var.ephemeral ? 1 : 0
+  source             = "../status-page"
+  name               = local.name
+  status_host        = var.status_host
+  certificate_arn    = var.status_certificate_arn
+  create_certificate = var.status_create_certificate
+  hosted_zone_id     = var.hosted_zone_id == null ? "" : var.hosted_zone_id
+  tags               = local.tags
+}
+
 module "ses" {
   count          = var.ephemeral ? 0 : 1 # one SES identity per domain per account
   source         = "../ses"
@@ -783,11 +925,18 @@ module "alb" {
   certificate_arn       = var.certificate_arn
   api_host              = var.api_host
   admin_host            = var.admin_host
+  waf_enabled           = var.waf_enabled
   waf_rate_limit_per_5m = var.waf_rate_limit_per_5m
   admin_allowed_cidrs   = var.admin_allowed_cidrs
   tags                  = local.tags
 
   waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
+  waf_device_header         = var.waf_device_header
+  waf_auth_rate_action      = var.waf_auth_rate_action
+  waf_auth_rules_enabled    = var.waf_auth_rules_enabled
+  deletion_protection       = var.alb_deletion_protection && !var.ephemeral
+  load_balancing_algorithm  = var.alb_least_outstanding_requests ? "least_outstanding_requests" : "round_robin"
+  ws_target_group_enabled   = var.alb_websocket_target_group
   waf_bot_control_enabled   = var.waf_bot_control_enabled
   waf_bot_control_block     = var.waf_bot_control_block
 
@@ -844,6 +993,10 @@ module "postgres" {
   instance_class             = var.database_instance_class
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
+  engine_version             = var.database_engine_version
+  auto_minor_version_upgrade = var.database_auto_minor_upgrade
+  rds_logical_replication    = var.database_logical_replication
+  monitoring_interval        = var.database_monitoring_interval
   tags                       = local.tags
 
   deletion_protection     = !var.ephemeral
@@ -903,6 +1056,86 @@ check "existing_database_settings" {
   }
 }
 
+# --- adopt the prod database into Terraform (audit S4-3, 2026-10-25) -------
+# The instance was created in the console. With adopt_existing_database =
+# true (and the import block in envs/prod/imports.tf) it becomes a Terraform
+# resource, so the daily drift check sees Multi-AZ off, short backup
+# retention, deletion protection off, Performance Insights off. Everything
+# the platform changes at run time or that would force a REPLACEMENT is in
+# ignore_changes: class (db-autoscale / admin), storage (RDS autoscaling),
+# engine version, credentials, network, KMS key, parameter group, windows.
+# prevent_destroy: a plan that would delete the database fails instead.
+# First plan: review it; only the declared attributes below may show a diff.
+variable "adopt_existing_database" {
+  type        = bool
+  default     = false
+  description = "Manage the database named in existing_database_identifier as aws_db_instance.existing (imported by envs/prod/imports.tf). Needs create_database = false. Never replaces or deletes it."
+}
+variable "database_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Deletion protection of the adopted database (drift shows when it is off)."
+}
+
+resource "aws_db_instance" "existing" {
+  count      = var.adopt_existing_database && !var.create_database && var.existing_database_identifier != "" ? 1 : 0
+  identifier = var.existing_database_identifier
+
+  # Required by the provider; the real values are kept (ignore_changes).
+  engine         = "postgres"
+  instance_class = var.database_instance_class
+
+  # Declared, drift-checked attributes.
+  multi_az                              = var.database_multi_az
+  backup_retention_period               = var.database_backup_retention_days
+  deletion_protection                   = var.database_deletion_protection
+  storage_encrypted                     = true
+  publicly_accessible                   = false
+  copy_tags_to_snapshot                 = true
+  auto_minor_version_upgrade            = true
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+  skip_final_snapshot                   = false
+  final_snapshot_identifier             = "${local.name}-postgres-final"
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [
+      instance_class, allocated_storage, max_allocated_storage, storage_type, iops, storage_throughput,
+      engine, engine_version, db_name, username, password, manage_master_user_password, kms_key_id,
+      performance_insights_kms_key_id, db_subnet_group_name, vpc_security_group_ids, parameter_group_name,
+      option_group_name, backup_window, maintenance_window, enabled_cloudwatch_logs_exports,
+      delete_automated_backups, apply_immediately, tags, tags_all, snapshot_identifier,
+      replicate_source_db, character_set_name, license_model, ca_cert_identifier, network_type,
+      monitoring_interval, monitoring_role_arn, iam_database_authentication_enabled, port, availability_zone,
+    ]
+  }
+}
+
+# --- RDS cross-Region automated backups (audit S4-6) -------------------------
+# Snapshots + transaction logs shipped to the replica Region: point-in-time
+# restore there, RPO of minutes instead of 24 h. Costs the stored backup size
+# (about the size of the database) in us-west-2. Works on any instance, so it
+# does not need S4-3. Off by default.
+variable "rds_cross_region_backups" {
+  type        = bool
+  default     = false
+  description = "Replicate RDS automated backups (snapshots and WAL) to the replica Region with PITR there (aws_db_instance_automated_backups_replication). Needs create_database or existing_database_identifier, and the instance's backup_retention_period > 0."
+}
+variable "rds_cross_region_backup_retention_days" {
+  type        = number
+  default     = 14
+  description = "Retention of the replicated automated backups (1-35)."
+}
+
+resource "aws_db_instance_automated_backups_replication" "this" {
+  provider               = aws.replica
+  count                  = var.rds_cross_region_backups && local.database_arn != "" ? 1 : 0
+  source_db_instance_arn = local.database_arn
+  kms_key_id             = module.kms_replica.key_arn
+  retention_period       = var.rds_cross_region_backup_retention_days
+}
+
 module "backup" {
   count               = var.backup_enabled && (var.create_database || var.existing_database_identifier != "") ? 1 : 0
   source              = "../backup"
@@ -928,7 +1161,7 @@ module "secrets" {
   source      = "../secrets"
   name        = local.name
   kms_key_arn = module.kms.key_arn
-  names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL"])
+  names       = concat(local.secret_names, ["MIGRATOR_DATABASE_URL"], var.secret_rotation.db_enabled ? ["DB_APP_CREDENTIALS"] : [])
   tags        = local.tags
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
@@ -948,6 +1181,11 @@ variable "db_autoscale_max_class" {
   type        = string
   default     = "db.r7g.xlarge"
   description = "Ceiling for the bill. Above it the owner gets an e-mail."
+}
+variable "db_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "db.t4g.medium"
+  description = "Day-1 money ceiling inside db_autoscale_max_class: db.t4g.medium (≈ $94/month Multi-AZ) keeps launch + one DB step under monthly_budget_usd. The app raises or lowers it with the allowed spend (economy tick writes SSM max-class, docs/runbooks/COST_LADDER.md); db_autoscale_max_class stays the absolute cap."
 }
 variable "db_autoscale_mode" {
   type        = string
@@ -980,6 +1218,11 @@ variable "redis_autoscale_max_class" {
   type        = string
   default     = "cache.r7g.large"
   description = "Ceiling for the bill: ≈ $320/month with one replica. Above it the owner gets an e-mail."
+}
+variable "redis_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "cache.t4g.small"
+  description = "Day-1 money ceiling inside redis_autoscale_max_class: cache.t4g.small (≈ $47/month with one replica). Raised with the allowed spend like the database one."
 }
 variable "redis_autoscale_mode" {
   type        = string
@@ -1047,7 +1290,18 @@ variable "db_pooler_max_client_conn" {
 }
 variable "pgbouncer_query_wait_timeout" {
   type    = number
-  default = 30
+  default = 10
+}
+# Security pass 2026-10-25 (S3-7). Both default to today's behaviour.
+variable "pgbouncer_db_tls_mode" {
+  type        = string
+  default     = "require"
+  description = "PgBouncer -> database TLS: require (encrypted only) or verify-full (also checks the RDS certificate against the RDS CA bundle baked into the pgbouncer image). Rebuild and deploy the image first, then set verify-full."
+}
+variable "pgbouncer_client_tls_private_ca" {
+  type        = bool
+  default     = false
+  description = "true: the pooler gets a certificate from a private CA made by Terraform and the api / worker verify it. false: encrypted, certificate not checked (as before)."
 }
 
 locals {
@@ -1065,6 +1319,11 @@ locals {
   # (db_autoscale_min_class); the check below asks only that the LARGEST size
   # (db_autoscale_max_class) can carry the task ceiling at all.
   db_autoscale_on    = var.db_autoscale_enabled && local.db_identifier != ""
+  redis_autoscale_on = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on
+  autoscale_ssm_params = concat(
+    local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class"] : [],
+    local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class"] : [],
+  )
   db_pool_class      = local.db_autoscale_on ? var.db_autoscale_min_class : var.database_instance_class
   db_ceiling_class   = local.db_autoscale_on ? var.db_autoscale_max_class : var.database_instance_class
   db_pool_memory_gib = lookup(local.db_memory_gib, local.db_pool_class, 4)
@@ -1120,6 +1379,7 @@ locals {
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
     MEDIA_CDN_BASE_URL  = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
+    STATUS_PAGE_BUCKET  = length(module.status_page) > 0 ? module.status_page[0].bucket : ""
     # Owner 2026-10-22: private media through CloudFront signed URLs (empty
     # until the owner supplies documents_cdn_public_key_pem; the private key
     # is the CLOUDFRONT_PRIVATE_KEY_PEM secret in extra_secrets).
@@ -1140,8 +1400,11 @@ locals {
     GOOGLE_CLIENT_IDS     = var.google_client_ids
     APPLE_BUNDLE_IDS      = var.apple_bundle_ids
     APPLE_TEAM_ID         = var.apple_team_id
-    # Key ids inside the two key secrets above (rotation: add k2/m2 to
-    # the secret, then switch these).
+    # Key ids inside the key secrets above. Manual rotation: add k2/m2 to the
+    # secret, then switch these. With secret_rotation.keys_enabled these three
+    # are NOT set here (api_env_effective): they come from the *_ACTIVE_KID
+    # secrets that the rotation follow-up changes (docs/runbooks/secrets-rotation.md).
+    # Keep rot_active_kids[*].first in sync with them.
     JWT_ACTIVE_KID         = "j1"
     SECRETS_ACTIVE_KID     = "k1"
     MESSAGE_ENC_ACTIVE_KID = "m1"
@@ -1162,8 +1425,14 @@ locals {
     OPS_REDIS_GROUP     = local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
     # Batch D (2026-10-24): the admin «Масштаб» page says whether the size
     # changes by itself (the Lambda's own on / dry-run / off switch is in SSM).
-    OPS_DB_AUTOSCALE    = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on ? "on" : "off"
+    # Cost registry: SSM parameter NAMES (built from the stack name, not from
+    # the autoscale modules, which depend on this cluster).
+    OPS_DB_AUTOSCALE_MODE_PARAM        = local.db_autoscale_on ? "/${local.name}/db-autoscale/mode" : ""
+    OPS_DB_AUTOSCALE_MAXCLASS_PARAM    = local.db_autoscale_on ? "/${local.name}/db-autoscale/max-class" : ""
+    OPS_REDIS_AUTOSCALE_MODE_PARAM     = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/mode" : ""
+    OPS_REDIS_AUTOSCALE_MAXCLASS_PARAM = local.redis_autoscale_on ? "/${local.name}/redis-autoscale/max-class" : ""
+    OPS_DB_AUTOSCALE                   = local.db_autoscale_on ? "on" : "off"
+    OPS_REDIS_AUTOSCALE                = local.redis_autoscale_on ? "on" : "off"
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
     REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
@@ -1180,6 +1449,12 @@ locals {
     OPS_API_SPOT             = var.api_spot ? "on" : "off"
     OPS_WORKER_SPOT          = var.worker_spot ? "on" : "off"
     AWS_REGION               = data.aws_region.current.name
+    # Admin health: rotation dates per secret (empty list while rotation is off).
+    ROTATION_STATUS_SECRETS   = jsonencode(local.rot_status_items)
+    ROTATION_METRIC_NAMESPACE = "LawBid/${local.name}/SecretRotation"
+    # S4-1: set only after ops_role_split (the app then assumes this role for
+    # every admin AWS call; the ExternalId arrives as a secret).
+    OPS_ROLE_ARN = var.ops_role_split ? aws_iam_role.ops[0].arn : ""
     # Search engine (growth.opensearch_enabled, modules/stack/growth.tf):
     # empty while off. The app uses it only when the admin sets
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
@@ -1194,9 +1469,122 @@ locals {
     { for k in local.secret_names : k => module.secrets.arns[k] },
     { REDIS_URL = local.redis_cluster_on ? module.redis.cluster_url_secret_arn : module.redis.redis_url_secret_arn },
     var.redis_cache_node ? { REDIS_CACHE_URL = module.redis_cache[0].redis_url_secret_arn } : {},
+    # Key rotation on: the active kids are secrets the rotation follow-up changes.
+    { for k, v in aws_secretsmanager_secret.active_kid : k => v.arn },
     # LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET (values generated by modules/livekit).
     var.livekit_enabled ? module.livekit[0].secret_arns : {},
+    var.ops_role_split ? { OPS_ROLE_EXTERNAL_ID = aws_secretsmanager_secret.ops_external_id[0].arn } : {},
   )
+}
+
+# --- automatic secret rotation (owner 2026-10-25, docs/runbooks/secrets-rotation.md) --
+# Every part is OFF by default; with everything off nothing below is created
+# and the stack is exactly as before.
+variable "secret_rotation" {
+  type = object({
+    db_enabled               = optional(bool, false)
+    db_master_secret_arn     = optional(string, "")
+    db_master_secret_kms_arn = optional(string, "")
+    db_every_days            = optional(number, 30)
+    redis_enabled            = optional(bool, false)
+    redis_every_days         = optional(number, 90)
+    keys_enabled             = optional(bool, false)
+    keys_every_days          = optional(number, 90)
+    grace_hours              = optional(number, 6)
+    strict_hours             = optional(number, 24)
+    jwt_retire_days          = optional(number, 2)
+  })
+  default     = {}
+  description = "Automatic rotation: db_enabled (database login, alternating users; needs db_master_secret_arn), redis_enabled (AUTH token(s)), keys_enabled (JWT / admin key store / chat encryption key lists, new key active after grace_hours). All false = nothing is created."
+  validation {
+    condition     = !var.secret_rotation.db_enabled || var.secret_rotation.db_master_secret_arn != ""
+    error_message = "secret_rotation.db_enabled needs db_master_secret_arn (the secret with the database master user; docs/runbooks/secrets-rotation.md, step 1)."
+  }
+  validation {
+    condition     = var.secret_rotation.db_every_days >= 1 && var.secret_rotation.redis_every_days >= 1 && var.secret_rotation.keys_every_days >= 1
+    error_message = "secret_rotation: every_days must be at least 1."
+  }
+}
+
+locals {
+  rot_key_secrets = ["JWT_KEYS", "SECRETS_MASTER_KEYS", "MESSAGE_ENC_KEYS"]
+  # "active kid" env var => its key list secret and the first kid in use today
+  rot_active_kids = {
+    JWT_ACTIVE_KID         = { list = "JWT_KEYS", first = "j1" }
+    SECRETS_ACTIVE_KID     = { list = "SECRETS_MASTER_KEYS", first = "k1" }
+    MESSAGE_ENC_ACTIVE_KID = { list = "MESSAGE_ENC_KEYS", first = "m1" }
+  }
+  rot_any = var.secret_rotation.db_enabled || var.secret_rotation.redis_enabled || var.secret_rotation.keys_enabled
+  # With key rotation the active kids are injected as secrets (changed by the
+  # follow-up after the grace period), not baked into the task definition.
+  api_env_effective = { for k, v in local.api_env : k => v if !(var.secret_rotation.keys_enabled && contains(keys(local.rot_active_kids), k)) }
+
+  # The admin «Здоровье системы» shows last / next rotation per secret from the
+  # metrics the follow-up Lambda publishes (the task role already reads
+  # CloudWatch statistics; it never gets access to the secrets).
+  rot_status_items = concat(
+    var.secret_rotation.db_enabled ? [{ name = "DB_APP_CREDENTIALS", everyDays = var.secret_rotation.db_every_days }] : [],
+    var.secret_rotation.redis_enabled ? [{ name = "REDIS_URL", everyDays = var.secret_rotation.redis_every_days }] : [],
+    var.secret_rotation.redis_enabled && var.redis_cache_node ? [{ name = "REDIS_CACHE_URL", everyDays = var.secret_rotation.redis_every_days }] : [],
+    var.secret_rotation.keys_enabled ? [for n in local.rot_key_secrets : { name = n, everyDays = var.secret_rotation.keys_every_days }] : [],
+  )
+}
+
+resource "aws_secretsmanager_secret" "active_kid" {
+  for_each                = var.secret_rotation.keys_enabled ? local.rot_active_kids : {}
+  name                    = "${local.name}/${each.key}"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+# The first value is what the task definition carried until now; afterwards
+# only the rotation follow-up changes it (terraform ignores it).
+resource "aws_secretsmanager_secret_version" "active_kid" {
+  for_each      = aws_secretsmanager_secret.active_kid
+  secret_id     = each.value.id
+  secret_string = local.rot_active_kids[each.key].first
+  lifecycle { ignore_changes = [secret_string, version_stages] }
+}
+
+module "secret_rotation" {
+  count  = local.rot_any ? 1 : 0
+  source = "../secret-rotation"
+
+  name                  = local.name
+  cluster_name          = module.ecs.cluster_name
+  service_names         = concat([module.ecs.api_service_name, module.ecs.worker_service_name], var.db_pooler_enabled ? ["pgbouncer"] : [])
+  alerts_topic_arn      = module.monitoring.alerts_topic_arn
+  kms_key_arn           = module.kms.key_arn
+  data_keys_kms_key_arn = aws_kms_key.data_keys.arn
+  kms_app               = local.name
+  grace_hours           = var.secret_rotation.grace_hours
+  strict_hours          = var.secret_rotation.strict_hours
+  jwt_retire_days       = var.secret_rotation.jwt_retire_days
+  tags                  = local.tags
+
+  db = var.secret_rotation.db_enabled ? {
+    json_secret_arn       = module.secrets.arns["DB_APP_CREDENTIALS"]
+    url_secret_arn        = module.secrets.arns["DATABASE_URL"]
+    master_secret_arn     = var.secret_rotation.db_master_secret_arn
+    master_secret_kms_arn = var.secret_rotation.db_master_secret_kms_arn
+    every_days            = var.secret_rotation.db_every_days
+    subnet_ids            = module.network.private_subnet_ids
+    security_group_ids    = [aws_security_group.tasks.id]
+  } : null
+
+  redis = var.secret_rotation.redis_enabled ? merge(
+    { REDIS_URL = { secret_arn = module.redis.redis_url_secret_arn, group_id = "${local.name}-redis", every_days = var.secret_rotation.redis_every_days } },
+    var.redis_cache_node ? { REDIS_CACHE_URL = { secret_arn = module.redis_cache[0].redis_url_secret_arn, group_id = "${local.name}-cache-redis", every_days = var.secret_rotation.redis_every_days } } : {},
+  ) : {}
+
+  keys = var.secret_rotation.keys_enabled ? {
+    for k, v in local.rot_active_kids : v.list => {
+      secret_arn        = module.secrets.arns[v.list]
+      active_kid_secret = aws_secretsmanager_secret.active_kid[k].arn
+      every_days        = var.secret_rotation.keys_every_days
+    }
+  } : {}
 }
 
 # --- own connection pooler: PgBouncer service, Cloud Map name, alarms ----------------
@@ -1223,6 +1611,8 @@ module "pgbouncer" {
   reserve_pool_size          = local.pgb_reserve
   max_client_conn            = var.db_pooler_max_client_conn
   query_wait_timeout         = var.pgbouncer_query_wait_timeout
+  db_tls_mode                = var.pgbouncer_db_tls_mode
+  client_tls_private_ca      = var.pgbouncer_client_tls_private_ca
   metrics_namespace          = "LawBid/${local.name}/PgBouncer"
   alarm_actions              = [module.monitoring.alerts_topic_arn]
   runbook_url                = "${var.runbook_base_url}/db-pooler.md"
@@ -1236,6 +1626,10 @@ locals {
     DB_POOLER_HOST = module.pgbouncer[0].endpoint
     DB_POOLER_PORT = tostring(module.pgbouncer[0].port)
   } : {}
+  # The private CA's PUBLIC certificate (src/prisma/pooler-url.ts pins it).
+  db_pooler_ca_env = var.db_pooler_enabled && var.pgbouncer_client_tls_private_ca ? {
+    DB_POOLER_CA_PEM = module.pgbouncer[0].client_ca_pem
+  } : {}
 }
 
 module "ecs" {
@@ -1246,11 +1640,12 @@ module "ecs" {
   private_subnet_ids       = module.network.private_subnet_ids
   tasks_security_group_id  = aws_security_group.tasks.id
   api_target_group_arn     = module.alb.api_target_group_arn
+  api_ws_target_group_arn  = module.alb.api_ws_target_group_arn
   admin_target_group_arn   = module.alb.admin_target_group_arn
   api_image                = var.api_image
   admin_image              = var.admin_image
   kms_key_arn              = module.kms.key_arn
-  api_env                  = merge(local.api_env, local.db_pooler_env)
+  api_env                  = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env)
   admin_env = {
     NODE_ENV      = "production"
     API_BASE_URL  = "https://${var.api_host}/api/v1"
@@ -1272,6 +1667,7 @@ module "ecs" {
   api_max_tasks                    = var.api_max_tasks
   worker_max_tasks                 = var.worker_max_tasks
   min_tasks                        = var.min_tasks
+  api_min_tasks                    = var.api_min_tasks
   admin_tasks                      = var.admin_tasks
   api_cpu                          = var.api_cpu
   api_memory                       = var.api_memory
@@ -1299,9 +1695,29 @@ module "ecs" {
 
 # Task role: the app's own permissions (buckets, SES, KMS for SSE-KMS).
 data "aws_iam_policy_document" "task" {
+  # S4-1 (audit 2026-10-25): the admin scale / launch / cost calls live in
+  # data.aws_iam_policy_document.ops. With ops_role_split = false (default)
+  # they are merged back into this role, exactly as before; with true the
+  # request-serving role keeps only buckets, KMS and SES, plus the right to
+  # assume the separate ops role (below).
+  source_policy_documents = var.ops_role_split ? [] : [data.aws_iam_policy_document.ops.json]
+  dynamic "statement" {
+    for_each = var.ops_role_split ? [1] : []
+    content {
+      actions   = ["sts:AssumeRole"]
+      resources = [aws_iam_role.ops[0].arn]
+    }
+  }
   statement {
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"]
     resources = ["${module.s3.documents_bucket_arn}/*", "${module.s3.media_bucket_arn}/*"]
+  }
+  dynamic "statement" {
+    for_each = module.status_page
+    content {
+      actions   = ["s3:PutObject"]
+      resources = ["${statement.value.bucket_arn}/status.json"]
+    }
   }
   statement {
     actions   = ["s3:ListBucket"]
@@ -1331,6 +1747,13 @@ data "aws_iam_policy_document" "task" {
       values   = [var.ses_from_address]
     }
   }
+}
+
+# S4-1: the infrastructure-changing calls of the admin «Масштаб / Запуск /
+# Расходы» screens. rds:ModifyDBInstance alone can reset the master password
+# and set backup retention to 0, so this must not sit on the role of the
+# process that serves the internet.
+data "aws_iam_policy_document" "ops" {
   # Zero maintenance: restart the worker, cap / restore autoscaling, read
   # this month's spend. Only these two services and this one budget.
   statement {
@@ -1390,6 +1813,20 @@ data "aws_iam_policy_document" "task" {
     actions   = ["ce:GetCostAndUsage", "ce:GetCostForecast", "ce:ListCostAllocationTags"]
     resources = ["*"]
   }
+  # Cost registry (owner 2026-10-25): the admin «Расходы» switches the database
+  # / Redis autoscalers Выкл / Вкл / Авто (the `mode` parameter) and the
+  # economy tick writes the money ceiling (`max-class`). Only those four
+  # parameters; the Lambdas' own `state` parameters stay theirs.
+  dynamic "statement" {
+    for_each = length(local.autoscale_ssm_params) > 0 ? [1] : []
+    content {
+      actions = ["ssm:GetParameter", "ssm:PutParameter"]
+      resources = [
+        for p in local.autoscale_ssm_params :
+        "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter${p}"
+      ]
+    }
+  }
   # Economy guard (owner 2026-10-16): read database / Redis load and move
   # them one tier up from the admin. Metrics have no resource-level scope.
   statement {
@@ -1404,6 +1841,73 @@ data "aws_iam_policy_document" "task" {
     actions   = ["elasticache:DescribeReplicationGroups", "elasticache:ModifyReplicationGroup"]
     resources = ["arn:aws:elasticache:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:replicationgroup:${local.name}-redis"]
   }
+}
+
+variable "ops_role_split" {
+  type        = bool
+  default     = false
+  description = "S4-1: move the admin scale / launch / cost permissions off the api+worker task role into a separate role `<name>-ops` that the app assumes through STS (needs ops_role_external_id). DEPLOY THE API CODE WITH OPS_ROLE_ARN SUPPORT FIRST, then turn this on (docs/runbooks/aws-guardrails.md)."
+}
+variable "ops_role_external_id" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Shared secret the app must present when assuming the ops role (sts:ExternalId). 32+ random characters, kept in the Secrets Manager tfvars. It lives only in a Secrets Manager secret injected into the task as OPS_ROLE_EXTERNAL_ID, so stolen task credentials alone cannot assume the ops role."
+  validation {
+    condition     = var.ops_role_external_id == "" || length(var.ops_role_external_id) >= 32
+    error_message = "ops_role_external_id must be empty (split off) or at least 32 characters."
+  }
+}
+
+data "aws_iam_policy_document" "ops_trust" {
+  count = var.ops_role_split ? 1 : 0
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = [module.ecs.task_role_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "sts:ExternalId"
+      values   = [var.ops_role_external_id]
+    }
+  }
+}
+
+resource "aws_iam_role" "ops" {
+  count                = var.ops_role_split ? 1 : 0
+  name                 = "${local.name}-ops"
+  assume_role_policy   = data.aws_iam_policy_document.ops_trust[0].json
+  max_session_duration = 3600
+  tags                 = local.tags
+
+  lifecycle {
+    precondition {
+      condition     = var.ops_role_external_id != ""
+      error_message = "ops_role_split = true needs ops_role_external_id (32+ random characters)."
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "ops" {
+  count  = var.ops_role_split ? 1 : 0
+  role   = aws_iam_role.ops[0].id
+  policy = data.aws_iam_policy_document.ops.json
+}
+
+resource "aws_secretsmanager_secret" "ops_external_id" {
+  count                   = var.ops_role_split ? 1 : 0
+  name                    = "${local.name}/OPS_ROLE_EXTERNAL_ID"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "ops_external_id" {
+  count         = var.ops_role_split ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.ops_external_id[0].id
+  secret_string = var.ops_role_external_id
 }
 
 resource "aws_iam_role_policy" "task" {
@@ -1426,34 +1930,47 @@ module "budget" {
   anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_sns_topic_arn        = var.anomaly_to_alerts_topic ? module.monitoring.alerts_topic_arn : ""
+  service_budgets              = var.service_budgets
 }
 
 module "monitoring" {
-  source                        = "../monitoring"
-  name                          = local.name
-  alert_emails                  = var.alert_emails
-  slack_webhook_url             = var.slack_webhook_url
-  pagerduty_https_endpoint      = var.pagerduty_https_endpoint
-  critical_email_too            = var.critical_email_too
-  redis_memory_alarm_percent    = var.redis_memory_alarm_percent
-  nat_gateway_ids               = module.network.nat_gateway_ids
-  nat_traffic_alarm_gb_per_day  = var.nat_traffic_alarm_gb_per_day
-  alb_arn_suffix                = module.alb.arn_suffix
-  api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
-  admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
-  deploy_rollback_on_slo        = var.deploy_rollback_on_slo
-  cluster_name                  = module.ecs.cluster_name
-  api_service_name              = module.ecs.api_service_name
-  worker_service_name           = module.ecs.worker_service_name
-  redis_replication_group_id    = "${local.name}-redis"
-  redis_replicas                = var.redis_replicas
-  db_instance_id                = var.create_database ? "${local.name}-postgres" : ""
-  db_max_connections            = local.db_max_connections
-  api_log_group                 = module.ecs.log_group_names["api"]
-  worker_log_group              = module.ecs.log_group_names["worker"]
-  p95_target_ms                 = var.p95_target_ms
-  runbook_base_url              = var.runbook_base_url
-  kms_key_arn                   = module.kms.key_arn
+  source                       = "../monitoring"
+  name                         = local.name
+  alert_emails                 = var.alert_emails
+  slack_webhook_url            = var.slack_webhook_url
+  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
+  critical_email_too           = var.critical_email_too
+  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
+  nat_gateway_ids              = module.network.nat_gateway_ids
+  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
+  alb_arn_suffix               = module.alb.arn_suffix
+  waf_alb_acl_name             = module.alb.waf_acl_name
+  waf_alb_requests_per_day     = var.waf_requests_alarm_per_day
+  waf_cdn_acl_name             = module.cdn_waf.web_acl_name
+  waf_cdn_requests_per_day     = var.cdn_waf_requests_alarm_per_day
+  cloudfront_gb_per_day_alarm  = var.cloudfront_gb_alarm_per_day
+  cloudfront_distribution_ids = merge(
+    { web = module.web.web_distribution_id, media = module.s3.media_distribution_id },
+    var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
+  )
+  api_target_group_arn_suffix      = module.alb.api_target_group_arn_suffix
+  admin_target_group_arn_suffix    = module.alb.admin_target_group_arn_suffix
+  deploy_rollback_on_slo           = var.deploy_rollback_on_slo
+  cluster_name                     = module.ecs.cluster_name
+  api_service_name                 = module.ecs.api_service_name
+  worker_service_name              = module.ecs.worker_service_name
+  redis_replication_group_id       = "${local.name}-redis"
+  redis_replicas                   = var.redis_replicas
+  redis_node_type                  = var.redis_node_type
+  redis_cache_replication_group_id = var.redis_cache_node ? "${local.name}-cache-redis" : ""
+  db_instance_id                   = var.create_database ? "${local.name}-postgres" : ""
+  db_max_connections               = local.db_max_connections
+  acm_certificate_arns             = [var.certificate_arn]
+  api_log_group                    = module.ecs.log_group_names["api"]
+  worker_log_group                 = module.ecs.log_group_names["worker"]
+  p95_target_ms                    = var.p95_target_ms
+  runbook_base_url                 = var.runbook_base_url
+  kms_key_arn                      = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check      = var.uptime_check
@@ -1474,6 +1991,7 @@ module "db_autoscale" {
   ladder           = var.db_autoscale_ladder
   min_class        = var.db_autoscale_min_class
   max_class        = var.db_autoscale_max_class
+  initial_ceiling  = var.db_autoscale_initial_ceiling_class
   mode             = var.db_autoscale_mode
   tuning           = var.db_autoscale_tuning
   tags             = local.tags
@@ -1483,7 +2001,7 @@ module "db_autoscale" {
 # node_type changes, so terraform apply never undoes it).
 module "redis_autoscale" {
   # Not for a cluster-mode group (the Lambda would skip it anyway: cluster_mode).
-  count                = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on ? 1 : 0
+  count                = local.redis_autoscale_on ? 1 : 0
   source               = "../redis-autoscale"
   name                 = local.name
   replication_group_id = "${local.name}-redis"
@@ -1494,6 +2012,7 @@ module "redis_autoscale" {
   kms_key_arn          = module.kms.key_arn
   min_node_type        = var.redis_autoscale_min_class
   max_node_type        = var.redis_autoscale_max_class
+  initial_ceiling      = var.redis_autoscale_initial_ceiling_class
   mode                 = var.redis_autoscale_mode
   tuning               = var.redis_autoscale_tuning
   tags                 = local.tags
@@ -1535,6 +2054,9 @@ module "security_baseline" {
   documents_data_events          = var.documents_data_events
   documents_bucket_arn           = module.s3.documents_bucket_arn
 
+  guardduty_enabled            = var.guardduty_enabled
+  guardduty_s3_events          = var.guardduty_s3_events
+  guardduty_rds_login          = var.guardduty_rds_login
   guardduty_ebs_malware        = var.guardduty_ebs_malware
   guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
 }
@@ -1628,6 +2150,8 @@ output "documents_cdn_domain" { value = module.s3.documents_cdn_domain }
 output "documents_cdn_key_pair_id" { value = module.s3.documents_cdn_key_pair_id }
 output "data_keys_kms_key_arn" { value = aws_kms_key.data_keys.arn }
 output "data_keys_kms_alias" { value = aws_kms_alias.data_keys.name }
+output "status_page_dns_target" { value = length(module.status_page) > 0 ? module.status_page[0].dns_target : "" }
+output "status_page_validation_records" { value = length(module.status_page) > 0 ? module.status_page[0].validation_records : [] }
 output "web_bucket" { value = module.web.web_bucket }
 output "web_certificate_validation" { value = module.web.web_certificate_validation }
 output "web_distribution_id" { value = module.web.web_distribution_id }

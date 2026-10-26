@@ -16,6 +16,7 @@ export class HealthItemDto {
       'backup',
       'cost',
       'message_keys',
+      'secret_rotation',
       'stripe_webhooks',
       'push',
       'turn',
@@ -176,4 +177,23 @@ export class ScaleExtrasDto {
     description: 'The `search.engine` setting (postgres until another is set).',
   })
   searchEngine!: string;
+}
+
+/** S10-7: what one press of «Повторить упавшие задачи» did. */
+export class QueueRetryResultDto {
+  @ApiProperty({ description: 'Failed jobs put back in their queues.' })
+  retried!: number;
+
+  @ApiProperty({
+    description:
+      'Stripe events moved from the dead-letter queue to processing.',
+  })
+  stripeReplayed!: number;
+
+  @ApiProperty({
+    type: 'object',
+    additionalProperties: { type: 'number' },
+    description: 'Per queue: failed jobs retried.',
+  })
+  byQueue!: Record<string, number>;
 }
