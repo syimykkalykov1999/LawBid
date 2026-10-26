@@ -70169,6 +70169,209 @@
         ]
       }
     },
+    "/admin/spend/registry": {
+      "get": {
+        "operationId": "registryReport",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostRegistryReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Every billable item: real month cost, forecast, live Выкл/Вкл/Авто state, steps",
+        "tags": [
+          "admin-spend"
+        ]
+      }
+    },
+    "/admin/spend/registry/{id}/mode": {
+      "patch": {
+        "operationId": "setRegistryMode",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCostModeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostModeResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Put one item in Выкл / Вкл / Авто (app settings and autoscale switches; needs step-up)",
+        "tags": [
+          "admin-spend"
+        ]
+      }
+    },
     "/admin/spend": {
       "get": {
         "operationId": "spendReport",
@@ -149991,6 +150194,7 @@
               "backup",
               "cost",
               "message_keys",
+              "secret_rotation",
               "stripe_webhooks",
               "push",
               "turn",
@@ -150966,6 +151170,460 @@
         },
         "required": [
           "name"
+        ]
+      },
+      "CostRowStatusDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "type": "string"
+          },
+          "live": {
+            "enum": [
+              "active",
+              "idle",
+              "attention"
+            ],
+            "type": "string",
+            "description": "green works now · grey off or waiting · yellow look at it"
+          },
+          "reason": {
+            "type": "string",
+            "description": "One Russian phrase for the hover text."
+          },
+          "checkedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "live",
+          "reason",
+          "checkedAt"
+        ]
+      },
+      "CostRegistryRowDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "aws",
+              "vendor",
+              "sdk",
+              "ci"
+            ],
+            "type": "string"
+          },
+          "controlType": {
+            "enum": [
+              "app-setting",
+              "ssm-mode",
+              "tfvars",
+              "fixed"
+            ],
+            "type": "string"
+          },
+          "controlKey": {
+            "type": "string",
+            "description": "Setting key, SSM switch, Terraform variables, or the reason it is fixed."
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "The owner can flip it from this page."
+          },
+          "lockedReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "off",
+                "on",
+                "auto"
+              ]
+            }
+          },
+          "defaultState": {
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "nullable": true,
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "type": "string"
+          },
+          "stateKnown": {
+            "type": "boolean",
+            "description": "false: the state is the code default or unreadable."
+          },
+          "stateNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateHints": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "state → what that position means, where it is not obvious."
+          },
+          "ceilingLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "ceilingKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "ceilingWhere": {
+            "type": "string",
+            "nullable": true
+          },
+          "priceText": {
+            "type": "string"
+          },
+          "priceModel": {
+            "type": "string"
+          },
+          "priceSourceUrl": {
+            "type": "string"
+          },
+          "priceCheckedAt": {
+            "type": "string"
+          },
+          "priceVerified": {
+            "type": "boolean"
+          },
+          "usdLaunch": {
+            "description": "[min, max] $/month at launch.",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "usdK100": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "usdM1": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "ifOnUsd": {
+            "nullable": true,
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "needed": {
+            "enum": [
+              "yes",
+              "auto",
+              "later",
+              "no"
+            ],
+            "type": "string"
+          },
+          "neededNote": {
+            "type": "string"
+          },
+          "alarm": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "ceService": {
+            "type": "string",
+            "nullable": true,
+            "description": "AWS Cost Explorer service name whose bill belongs to the row."
+          },
+          "status": {
+            "$ref": "#/components/schemas/CostRowStatusDto"
+          },
+          "monthUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "projectedUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "monthSource": {
+            "enum": [
+              "real",
+              "split",
+              "none"
+            ],
+            "type": "string"
+          },
+          "steps": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "state → plain-Russian steps to put the item in that state."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "purpose",
+          "kind",
+          "controlType",
+          "controlKey",
+          "editable",
+          "lockedReason",
+          "states",
+          "defaultState",
+          "state",
+          "stateKnown",
+          "stateNote",
+          "stateHints",
+          "ceilingLabel",
+          "ceilingKey",
+          "ceilingWhere",
+          "priceText",
+          "priceModel",
+          "priceSourceUrl",
+          "priceCheckedAt",
+          "priceVerified",
+          "usdLaunch",
+          "usdK100",
+          "usdM1",
+          "ifOnUsd",
+          "needed",
+          "neededNote",
+          "alarm",
+          "note",
+          "ceService",
+          "status",
+          "monthUsd",
+          "projectedUsd",
+          "monthSource",
+          "steps"
+        ]
+      },
+      "CostRegistryUnclaimedDto": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "usd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "service",
+          "usd"
+        ]
+      },
+      "CostLadderDayOneDto": {
+        "type": "object",
+        "properties": {
+          "aws": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "vendors": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "all": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "aws",
+          "vendors",
+          "all"
+        ]
+      },
+      "CostLadderScenarioDto": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "number"
+          },
+          "usd": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "users",
+          "usd"
+        ]
+      },
+      "CostLadderDto": {
+        "type": "object",
+        "properties": {
+          "dayOne": {
+            "$ref": "#/components/schemas/CostLadderDayOneDto"
+          },
+          "scenarios": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostLadderScenarioDto"
+            }
+          },
+          "monthToDateUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "projectedUsd": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "dayOne",
+          "scenarios",
+          "monthToDateUsd",
+          "projectedUsd"
+        ]
+      },
+      "CostRegistryReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "spendRefreshedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostRegistryRowDto"
+            }
+          },
+          "unclaimed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostRegistryUnclaimedDto"
+            }
+          },
+          "ladder": {
+            "$ref": "#/components/schemas/CostLadderDto"
+          }
+        },
+        "required": [
+          "generatedAt",
+          "spendRefreshedAt",
+          "rows",
+          "unclaimed",
+          "ladder"
+        ]
+      },
+      "CostRegistryReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CostRegistryReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CostModeResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state"
+        ]
+      },
+      "SetCostModeDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "CostModeResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CostModeResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "DayUsdDto": {
