@@ -124,6 +124,28 @@ export class OrphanChecker {
     };
   }
 
+  private readonly types = new Map<string, string | null>();
+
+  /** The SQL type of a column (e.g. `uuid`), cached; null when absent. */
+  private async columnType(
+    db: MoveDb,
+    table: string,
+    column: string,
+  ): Promise<string | null> {
+    const key = `${db.key}:${table}.${column}`;
+    if (this.types.has(key)) return this.types.get(key) ?? null;
+    const r: { t: string }[] = await db.query(
+      `SELECT format_type(a.atttypid, a.atttypmod) AS t FROM pg_attribute a
+        WHERE a.attrelid = to_regclass($1) AND a.attname = $2 AND NOT a.attisdropped`,
+      [`public.${q(table)}`, column],
+    );
+    const t = r[0]?.t ?? null;
+    // Interpolated into SQL: only plain type names are accepted.
+    const safe = t && /^[a-z][a-z0-9 _(),]*$/i.test(t) ? t : null;
+    this.types.set(key, safe);
+    return safe;
+  }
+
   private async checkEdge(
     db: MoveDb,
     parentDbs: MoveDb[],
@@ -143,11 +165,20 @@ export class OrphanChecker {
     const sample: string[] = [];
     let truncated = false;
     try {
+      // Compare in the column's own type (perf review 2026-10-26, R-22): a
+      // `col::text > $2` filter / ORDER BY defeats the index and turns every
+      // page into a full scan + sort; casting the PARAMETER keeps an index
+      // range scan. Same for the parent lookup (`id = ANY($1::uuid[])`).
+      const childType = await this.columnType(db, e.childTable, e.column);
+      if (!childType) return null; // table not on this database
+      const col = q(e.column);
       while (checked < o.maxValuesPerEdge) {
         const rows: { v: string }[] = await db.query(
-          `SELECT DISTINCT ${q(e.column)}::text AS v FROM ${q(e.childTable)}
-            WHERE ${q(e.column)} IS NOT NULL ${cursor ? `AND ${q(e.column)}::text > $2` : ''}
-            ORDER BY v LIMIT $1::int`,
+          `SELECT s.${col}::text AS v FROM (
+             SELECT DISTINCT ${col} FROM ${q(e.childTable)}
+              WHERE ${col} IS NOT NULL ${cursor ? `AND ${col} > $2::${childType}` : ''}
+              ORDER BY ${col} LIMIT $1::int) s
+            ORDER BY s.${col}`,
           cursor ? [o.pageSize, cursor] : [o.pageSize],
         );
         if (rows.length === 0) {
@@ -157,9 +188,15 @@ export class OrphanChecker {
         const ids = rows.map((r) => r.v);
         const found = new Set<string>();
         for (const p of parentDbs) {
+          const parentType = await this.columnType(
+            p,
+            e.parentTable,
+            e.parentColumn,
+          );
+          if (!parentType) continue; // parent table not on this database
           const hit: { v: string }[] = await p.query(
             `SELECT ${q(e.parentColumn)}::text AS v FROM ${q(e.parentTable)}
-              WHERE ${q(e.parentColumn)}::text = ANY($1::text[])`,
+              WHERE ${q(e.parentColumn)} = ANY($1::${parentType}[])`,
             [ids],
           );
           hit.forEach((h) => found.add(h.v));

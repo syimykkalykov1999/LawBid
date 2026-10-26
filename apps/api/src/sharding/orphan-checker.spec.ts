@@ -3,6 +3,9 @@ import type { MoveDb } from './move/move-db';
 import type { CrossFamilyEdge } from './move/move-plan';
 import { OrphanChecker } from './orphan-checker';
 
+/** Every SQL the fakes saw (index-friendliness checks). */
+const sqls: string[] = [];
+
 /** A fake database: tables as lists of column values. */
 function fakeDb(
   key: string,
@@ -11,9 +14,13 @@ function fakeDb(
   return {
     key,
     async query(sql: string, params: unknown[] = []) {
-      const distinct = /SELECT DISTINCT "(\w+)"::text AS v FROM "(\w+)"/.exec(
-        sql,
-      );
+      sqls.push(sql);
+      const typ = /format_type/.exec(sql);
+      if (typ) {
+        const tbl = /"(\w+)"/.exec(params[0] as string)?.[1] ?? '';
+        return data[tbl]?.[params[1] as string] ? [{ t: 'uuid' }] : [];
+      }
+      const distinct = /SELECT DISTINCT "(\w+)" FROM "(\w+)"/.exec(sql);
       if (distinct) {
         const [, col, tbl] = distinct;
         const hasCursor = params.length > 1;
@@ -139,5 +146,23 @@ describe('OrphanChecker', () => {
     );
     expect(r.edges[0].truncated).toBe(true);
     expect(r.edges[0].checked).toBe(4);
+  });
+  it('compares in the column type, never casts the column (index range scan)', async () => {
+    sqls.length = 0;
+    const primary = fakeDb('primary', { users: { id: ['u1', 'u2', 'u3'] } });
+    const db1 = fakeDb('db1', {
+      notifications: { user_id: ['u1', 'u2', 'u3'] },
+    });
+    await new OrphanChecker(undefined, undefined).check(
+      [primary, db1],
+      [edge({})],
+      o,
+    );
+    const all = sqls.join('\n');
+    expect(all).toContain('"user_id" > $2::uuid');
+    expect(all).toContain('"id" = ANY($1::uuid[])');
+    expect(all).not.toMatch(/"user_id"::text >/);
+    expect(all).not.toMatch(/"id"::text = ANY/);
+    expect(all).not.toMatch(/ORDER BY v\b/);
   });
 });
