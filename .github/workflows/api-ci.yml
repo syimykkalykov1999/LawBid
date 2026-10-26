@@ -102,8 +102,8 @@ jobs:
     name: API static (lint, types, unit, migrations, contract)
     runs-on: ubuntu-latest
     # Two full PostgreSQL migration runs (clean DB + upgrade from the
-    # previous release) at ~10 min each.
-    timeout-minutes: 45
+    # previous release) at ~10 min each, plus the e2e database.
+    timeout-minutes: 75
     services:
       # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a

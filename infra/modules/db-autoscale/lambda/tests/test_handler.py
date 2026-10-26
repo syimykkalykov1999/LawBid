@@ -131,6 +131,24 @@ class HandlerTests(unittest.TestCase):
         f = Fake(status="modifying")
         self.assertEqual(self.run_with(f, {"action": "force", "class": "db.t4g.medium"})["result"], "refused")
 
+    def test_ceiling_param_can_only_lower_the_ceiling(self):
+        os.environ["MAX_CLASS_PARAM"] = "/x/max-class"
+        self.addCleanup(os.environ.pop, "MAX_CLASS_PARAM", None)
+        f = Fake()
+        f.param["/x/max-class"] = "db.t4g.micro"  # money allows only the smallest size
+        self.run_with(f)
+        self.assertEqual([c for c in f.calls if c[0] == "modify"], [])
+
+    def test_ceiling_param_never_raises_and_ignores_garbage(self):
+        os.environ["MAX_CLASS_PARAM"] = "/x/max-class"
+        self.addCleanup(os.environ.pop, "MAX_CLASS_PARAM", None)
+        for value in ("db.r7g.2xlarge", "nonsense", ""):
+            f = Fake()
+            f.param["/x/max-class"] = value
+            self.assertEqual(self.run_with(f)["to"], "db.t4g.small")
+        f = Fake()  # parameter missing: Terraform ceiling alone
+        self.assertEqual(self.run_with(f)["to"], "db.t4g.small")
+
 
 if __name__ == "__main__":
     unittest.main()

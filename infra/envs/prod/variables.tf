@@ -201,6 +201,30 @@ variable "backup_age_missing_data" {
   default     = "breaching"
   description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
 }
+variable "service_budgets" {
+  type = map(number)
+  default = {
+    "Amazon GuardDuty"  = 25
+    "AWS WAF"           = 50
+    "Amazon CloudFront" = 60
+  }
+  description = "Per-service monthly ceilings (e-mail at 100 % actual and forecast) for GuardDuty, WAF and CloudFront, the lines that grow with traffic. {} = none. About $0.60/month per budget beyond the two free ones."
+}
+variable "guardduty_enabled" {
+  type        = bool
+  default     = true
+  description = "GuardDuty on/off. Default ON (owner security decision 2026-10-22), about $4/month on a quiet account; the cost ladder shows how it grows (docs/runbooks/COST_LADDER.md)."
+}
+variable "guardduty_s3_events" {
+  type        = bool
+  default     = true
+  description = "GuardDuty S3 data-event feature: its bill grows with S3 traffic. The first thing to turn off if the GuardDuty line grows."
+}
+variable "guardduty_rds_login" {
+  type        = bool
+  default     = true
+  description = "GuardDuty RDS login-event feature (anomalous database sign-ins)."
+}
 variable "guardduty_ebs_malware" {
   type        = bool
   default     = false
@@ -303,6 +327,24 @@ variable "existing_database_identifier" {
   default     = ""
   description = "The production RDS created outside Terraform (lawbid-prod-postgres): backed up by AWS Backup and checked at plan time, never modified."
 }
+# --- automatic secret rotation (owner 2026-10-25, docs/runbooks/secrets-rotation.md) --
+variable "secret_rotation" {
+  type = object({
+    db_enabled               = optional(bool, false)
+    db_master_secret_arn     = optional(string, "")
+    db_master_secret_kms_arn = optional(string, "")
+    db_every_days            = optional(number, 30)
+    redis_enabled            = optional(bool, false)
+    redis_every_days         = optional(number, 90)
+    keys_enabled             = optional(bool, false)
+    keys_every_days          = optional(number, 90)
+    grace_hours              = optional(number, 6)
+    strict_hours             = optional(number, 24)
+    jwt_retire_days          = optional(number, 2)
+  })
+  default     = {}
+  description = "OFF by default. db_enabled / redis_enabled / keys_enabled switch each part on one by one; order and checks: docs/runbooks/secrets-rotation.md."
+}
 # --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) -----
 variable "db_autoscale_enabled" {
   type        = bool
@@ -317,6 +359,11 @@ variable "db_autoscale_max_class" {
   type        = string
   default     = "db.r7g.xlarge"
   description = "Ceiling for the bill: ≈ $698/month with Multi-AZ. Above it the owner gets an e-mail and decides."
+}
+variable "db_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "db.t4g.medium"
+  description = "Day-1 money ceiling inside db_autoscale_max_class (db.t4g.medium ≈ $94/month Multi-AZ). The app raises or lowers it with the allowed spend; db_autoscale_max_class stays the absolute cap (docs/runbooks/COST_LADDER.md)."
 }
 variable "db_autoscale_mode" {
   type        = string
@@ -346,6 +393,11 @@ variable "redis_autoscale_max_class" {
   type        = string
   default     = "cache.r7g.large"
   description = "Ceiling for the bill: ≈ $320/month with one replica. Above it the owner gets an e-mail."
+}
+variable "redis_autoscale_initial_ceiling_class" {
+  type        = string
+  default     = "cache.t4g.small"
+  description = "Day-1 money ceiling inside redis_autoscale_max_class (cache.t4g.small ≈ $47/month with one replica)."
 }
 variable "redis_autoscale_mode" {
   type        = string
@@ -458,6 +510,31 @@ variable "cpu_architecture" {
 }
 
 # Security research #5 (2026-10-22): WAF, cloud detector, container.
+variable "waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The load-balancer web ACL (6 rules). Default ON: it carries the admin IP allow-list and the OTP rate limit. About $11/month + $0.60 per million requests. false = no ACL (docs/runbooks/COST_LADDER.md says what that costs you in safety)."
+}
+variable "cdn_waf_enabled" {
+  type        = bool
+  default     = true
+  description = "The CloudFront web ACL (3 rules: per-IP rate, IP reputation, bad inputs). Default ON. About $8/month + $0.60 per million requests."
+}
+variable "waf_requests_alarm_per_day" {
+  type        = number
+  default     = 3000000
+  description = "E-mail when the ALB web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cdn_waf_requests_alarm_per_day" {
+  type        = number
+  default     = 10000000
+  description = "E-mail when the CloudFront web ACL inspects more requests than this in 24 h ($0.60 per million); 0 = no alarm."
+}
+variable "cloudfront_gb_alarm_per_day" {
+  type        = number
+  default     = 60
+  description = "E-mail when one CloudFront distribution serves more than this many GB in 24 h (free tier 1 TB/month ≈ 33 GB/day, then ≈ $0.085/GB); 0 = no alarm."
+}
 variable "waf_otp_rate_limit_per_5m" {
   type    = number
   default = 20 # raise to 60 when the per-device rules are on (waf_device_header)

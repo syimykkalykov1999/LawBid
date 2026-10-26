@@ -40,6 +40,24 @@ def load_config(env=os.environ):
     return replace(base, **json.loads(env.get("TUNING") or "{}"))
 
 
+def apply_ceiling_param(cfg, env=os.environ):
+    """Cost registry V4: the app writes the biggest size the money allows into
+    the SSM parameter MAX_CLASS_PARAM (economy tick, from the allowed spend).
+    It can only LOWER the Terraform ceiling (MAX_CLASS), never raise it; a
+    missing, unknown or empty value changes nothing."""
+    name = env.get("MAX_CLASS_PARAM")
+    if not name:
+        return cfg
+    try:
+        v = client("ssm").get_parameter(Name=name)["Parameter"]["Value"].strip()
+    except client("ssm").exceptions.ParameterNotFound:
+        return cfg
+    i, top = cfg.index(v), cfg.index(cfg.max_class)
+    if i < 0 or top < 0 or i >= top:
+        return cfg
+    return replace(cfg, max_class=v)
+
+
 # --- state (SSM parameter) --------------------------------------------------
 
 
@@ -220,7 +238,7 @@ SKIP_NOTICE_RU = {
 def handler(event, context=None, now=None):
     env = os.environ
     now = time.time() if now is None else now
-    cfg = load_config()
+    cfg = apply_ceiling_param(load_config())
     group, topic = env["GROUP_ID"], env["TOPIC_ARN"]
     state_name = env["STATE_PARAM"]
     action = event.get("action", "auto")

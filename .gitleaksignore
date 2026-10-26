@@ -37,3 +37,9 @@ ac627bb4e800fc525c963e5bcd26efd5233e9c0d:apps/mobile/lib/features/cases/presenta
 # 2026-10-25: CI-only dummy test pepper ("ci_otp_key_pepper_...") in workflow env, not a secret. Pinned to this commit, file and line.
 10f40f7f399eb69bbac0da4f541c709a3c048cb6:.github/workflows/e2e-quarantine.yml:generic-api-key:29
 10f40f7f399eb69bbac0da4f541c709a3c048cb6:.github/workflows/api-ci.yml:generic-api-key:82
+# Chat search blind index (#394): fixed test-only SEARCH_INDEX_KEY values in specs and
+# the e2e env helper, not secrets. Pinned to this one commit, file and line.
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/jobs/handlers/chat-search-backfill.job.spec.ts:generic-api-key:234
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/modules/chat/chat-search-query.spec.ts:generic-api-key:11
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/modules/chat/chat-search-tokens.spec.ts:generic-api-key:14
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/test/support/blind-index-env.ts:generic-api-key:10
