@@ -1,7 +1,7 @@
 ---
 id: cloudflare-account
 title: Cloudflare: аккаунт и защита входа
-category: accounts
+category: launch
 cost: Бесплатно (тариф Free). Платите только за отдельные услуги, которые включите сами.
 time: 10 минут
 verified: 2026-10-25

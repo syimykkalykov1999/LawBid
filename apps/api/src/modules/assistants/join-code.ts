@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomInt } from 'node:crypto';
+import { joinCodeAad } from '../../common/secrets/aad';
+import { readKey } from '../../common/secrets/key-holder';
 import { SecretEnvelope } from '../../common/secrets/secret-envelope';
 
 /**
@@ -58,7 +60,9 @@ export class JoinCodeCipher {
   private readonly envelope: SecretEnvelope | null;
 
   constructor(config: ConfigService) {
-    const keys = config.get<string>('SECRETS_MASTER_KEYS');
+    const keys = readKey('SECRETS_MASTER_KEYS', () =>
+      config.get<string>('SECRETS_MASTER_KEYS'),
+    );
     const kid = config.get<string>('SECRETS_ACTIVE_KID');
     this.envelope = keys && kid ? new SecretEnvelope(keys, kid) : null;
   }
@@ -81,6 +85,4 @@ export class JoinCodeCipher {
   }
 }
 
-function aad(membershipId: string): string {
-  return `assistant_memberships.join_code:${membershipId}`;
-}
+const aad = joinCodeAad;

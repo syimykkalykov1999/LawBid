@@ -8,6 +8,7 @@ import {
   type KeyObject,
 } from 'node:crypto';
 import { parseJwtKeys } from './jwt-keys.util';
+import { readKey } from '../../../common/secrets/key-holder';
 import { demoContext } from '../../../common/demo/demo-context';
 
 export interface AccessTokenClaims {
@@ -99,7 +100,10 @@ export class TokenService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {
-    this.keys = parseJwtKeys(this.config.getOrThrow<string>('JWT_KEYS'));
+    this.keys = parseJwtKeys(
+      readKey('JWT_KEYS', () => this.config.getOrThrow<string>('JWT_KEYS')) ??
+        '',
+    );
     for (const [kid, secret] of this.keys) {
       this.keyObjects.set(kid, createSecretKey(Buffer.from(secret)));
     }

@@ -838,6 +838,12 @@ erDiagram
     DateTime updated_at
     Int shard_id
   }
+  message_search_tokens {
+    String conversation_id PK
+    Bytes token PK
+    String message_id PK
+    DateTime created_at
+  }
   message_hidden {
     String message_id PK,FK
     String user_id PK

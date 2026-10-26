@@ -75,6 +75,9 @@ import {
   OrganizeConversationDto,
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { fileNameAad } from '../../common/secrets/field-aad';
+import { MessageSearchIndex } from '../../common/secrets/message-search-index';
+import { writeSearchTokens } from './chat-search-tokens';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
@@ -186,6 +189,8 @@ export class ChatService {
     @Optional() private readonly postCards?: SharedPostCardsService,
     // S1-3: the "effects still owed" list (see [markEffectsPending]).
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // BUG-1 (package N-12b): blind word index of the sealed texts.
+    @Optional() private readonly searchIndex?: MessageSearchIndex,
   ) {}
 
   /**
@@ -374,6 +379,37 @@ export class ChatService {
   }
 
   /**
+   * BUG-1 (package N-12b): which messages of chat `c` hold every typed word.
+   * Sealed bodies (MESSAGE_ENC_KEYS) are matched through the blind index
+   * `message_search_tokens` — per word one of its tokens must be there
+   * (intersection: COUNT(DISTINCT word) = words), read by the primary key
+   * (conversation_id, token, …). Without the key nothing in a sealed body
+   * can match (FALSE; names and titles still do). Plain bodies (local dev)
+   * keep the LIKE.
+   */
+  private async messageTextMatch(
+    q: string,
+    words: string[],
+  ): Promise<Prisma.Sql> {
+    if (!this.searchIndex?.sealed && !this.cipher?.enabled) {
+      return allWordsSql(Prisma.sql`m.body_display`, words);
+    }
+    if (!this.searchIndex?.enabled) return Prisma.sql`FALSE`;
+    const t = this.searchIndex.queryTokens(
+      q,
+      await this.searchIndex.prefixMode(),
+    );
+    if (t.words === 0) return Prisma.sql`FALSE`;
+    return Prisma.sql`m.id IN (
+            SELECT st.message_id FROM message_search_tokens st
+            JOIN unnest(${t.hex}::TEXT[], ${t.word}::INT[]) AS qt(h, w)
+              ON st.token = decode(qt.h, 'hex')
+            WHERE st.conversation_id = c.id
+            GROUP BY st.message_id
+            HAVING COUNT(DISTINCT qt.w) = ${t.words})`;
+  }
+
+  /**
    * Owner 2026-10-18: chat search. The chats of [me] where the OTHER person's
    * name (any alphabet / typo / word order) or @username, the case title, or
    * a (not deleted) message contains the typed words. Id → snippet of the
@@ -388,6 +424,7 @@ export class ChatService {
     const words = typedWords(q);
     if (!words.length) return new Map();
     const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+    const textMatch = await this.messageTextMatch(q, words);
     const rows = await this.prisma.$queryRaw<
       {
         id: string;
@@ -414,7 +451,7 @@ export class ChatService {
         WHERE m.conversation_id = c.id
           AND m.deleted_at IS NULL
           AND m.type IN ('text', 'attachment')
-          AND ${allWordsSql(Prisma.sql`m.body_display`, words)}
+          AND ${textMatch}
         ORDER BY m.created_at DESC LIMIT 1) msg ON TRUE
       WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
         AND c.last_message_at IS NOT NULL) t
@@ -747,7 +784,7 @@ export class ChatService {
           kind: 'attachment',
           text,
           fileId: src.file_id,
-          fileName: src.file_name ?? 'file',
+          fileName: this.openFileName(src.file_name, src.id) ?? 'file',
           mime: file?.mime,
           fromName,
         };
@@ -1150,6 +1187,10 @@ export class ChatService {
       opts.silent === true,
       requestFirst,
     );
+    // BUG-1 (package N-12b): read before the transaction (a settings read).
+    const searchPrefixes = this.searchIndex?.enabled
+      ? await this.searchIndex.prefixMode()
+      : false;
     let message: Message;
     try {
       message = await withTxRetry(this.prisma, async (tx) => {
@@ -1187,6 +1228,12 @@ export class ChatService {
           : null;
         // Audit #6: the id is chosen here, the sealed bodies are bound to it.
         const messageId = randomUUID();
+        // S3-5: the attachment's original name is sealed like the body.
+        const fileName = attachment ? cleanFileName(dto.fileName!) : null;
+        const storedFileName =
+          fileName !== null && this.cipher
+            ? await this.cipher.sealMetadata(fileName, fileNameAad(messageId))
+            : fileName;
         const m = await tx.message.create({
           data: {
             id: messageId,
@@ -1227,7 +1274,7 @@ export class ChatService {
               : attachment
                 ? {
                     file_id: dto.fileId,
-                    file_name: cleanFileName(dto.fileName!),
+                    file_name: storedFileName,
                   }
                 : sticker
                   ? { sticker_id: dto.stickerId }
@@ -1236,6 +1283,15 @@ export class ChatService {
                     : {}),
           },
         });
+        // BUG-1: the words of the shown text, as blind tokens, in the same
+        // transaction (a message is never searchable-less or vice versa).
+        await writeSearchTokens(
+          tx,
+          this.searchIndex,
+          m,
+          gift ? '' : masked.text,
+          searchPrefixes,
+        );
         await tx.conversation.update({
           where: { id },
           data: { last_message_at: m.created_at, last_message_id: m.id },
@@ -2198,6 +2254,17 @@ export class ChatService {
     return out;
   }
 
+  /** A stored attachment name as plain text (legacy rows are plaintext). */
+  private openFileName(
+    stored: string | null,
+    messageId: string,
+  ): string | null {
+    if (stored === null) return null;
+    const plain =
+      this.cipher?.openField(stored, fileNameAad(messageId)) ?? stored;
+    return plain === '' ? null : plain;
+  }
+
   private seal(text: string, messageId: string): string {
     return this.cipher?.seal(text, messageId) ?? text;
   }
@@ -2322,7 +2389,7 @@ export class ChatService {
     const f = m.file_id ? media?.attachments.get(m.file_id) : undefined;
     return {
       fileId: m.file_id ?? '',
-      name: m.file_name ?? 'file',
+      name: this.openFileName(m.file_name, m.id) ?? 'file',
       mime: f?.mime ?? null,
       sizeBytes: f?.sizeBytes ?? null,
       isImage: f ? isImageMime(f.mime) : false,
