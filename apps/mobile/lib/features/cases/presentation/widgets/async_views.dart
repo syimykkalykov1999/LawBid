@@ -126,7 +126,12 @@ class PagedListBody<T> extends ConsumerWidget {
       }
     }
 
-    final body = switch (value) {
+    // A reload that still holds the previous rows (invalidate / refresh)
+    // keeps showing them instead of flashing the skeleton.
+    final shown = value.isLoading && value.hasValue
+        ? AsyncData(value.requireValue)
+        : value;
+    final body = switch (shown) {
       AsyncData(:final value) when value.items.isEmpty && !value.hasMore =>
         RefreshIndicator(
           key: const ValueKey('empty'),
@@ -258,7 +263,10 @@ class AsyncDetailBody<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Widget body = switch (value) {
+    // A reload that still holds the previous value keeps showing it.
+    final shown =
+        value.isLoading && value.hasValue ? AsyncData(value.requireValue) : value;
+    final Widget body = switch (shown) {
       AsyncData(:final value) => KeyedSubtree(
           key: const ValueKey('data'),
           child: builder(value),
