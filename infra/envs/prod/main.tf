@@ -106,25 +106,26 @@ module "stack" {
   monthly_budget_usd = var.monthly_budget_usd
 
   # Batch A: paging, budgets, NAT, backup alarm, GuardDuty extras.
-  pagerduty_https_endpoint     = var.pagerduty_https_endpoint
-  critical_email_too           = var.critical_email_too
-  redis_memory_alarm_percent   = var.redis_memory_alarm_percent
-  nat_traffic_alarm_gb_per_day = var.nat_traffic_alarm_gb_per_day
-  ops_role_split               = var.ops_role_split
-  ops_role_external_id         = var.ops_role_external_id
-  budget_forecast_thresholds   = var.budget_forecast_thresholds
-  budget_to_alerts_topic       = var.budget_to_alerts_topic
-  anomaly_existing_monitor_arn = var.anomaly_existing_monitor_arn
-  anomaly_extra_emails         = var.anomaly_extra_emails
-  anomaly_threshold_usd        = var.anomaly_threshold_usd
-  backup_age_missing_data      = var.backup_age_missing_data
-  service_budgets              = var.service_budgets
-  guardduty_enabled            = var.guardduty_enabled
-  guardduty_s3_events          = var.guardduty_s3_events
-  guardduty_rds_login          = var.guardduty_rds_login
-  guardduty_ebs_malware        = var.guardduty_ebs_malware
-  guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
-  create_anomaly_monitor       = var.create_anomaly_monitor
+  pagerduty_https_endpoint         = var.pagerduty_https_endpoint
+  critical_email_too               = var.critical_email_too
+  redis_memory_alarm_percent       = var.redis_memory_alarm_percent
+  nat_traffic_alarm_gb_per_day     = var.nat_traffic_alarm_gb_per_day
+  media_replication_max_gb_per_day = var.media_replication_max_gb_per_day
+  ops_role_split                   = var.ops_role_split
+  ops_role_external_id             = var.ops_role_external_id
+  budget_forecast_thresholds       = var.budget_forecast_thresholds
+  budget_to_alerts_topic           = var.budget_to_alerts_topic
+  anomaly_existing_monitor_arn     = var.anomaly_existing_monitor_arn
+  anomaly_extra_emails             = var.anomaly_extra_emails
+  anomaly_threshold_usd            = var.anomaly_threshold_usd
+  backup_age_missing_data          = var.backup_age_missing_data
+  service_budgets                  = var.service_budgets
+  guardduty_enabled                = var.guardduty_enabled
+  guardduty_s3_events              = var.guardduty_s3_events
+  guardduty_rds_login              = var.guardduty_rds_login
+  guardduty_ebs_malware            = var.guardduty_ebs_malware
+  guardduty_runtime_monitoring     = var.guardduty_runtime_monitoring
+  create_anomaly_monitor           = var.create_anomaly_monitor
 
   # Reliability (owner 2026-10-22): Multi-AZ, AWS Backup copies to the
   # replica region (+ optional backup account), worker scaling on queue
