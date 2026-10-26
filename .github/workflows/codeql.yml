@@ -3,14 +3,13 @@
 name: CodeQL
 
 on:
-  merge_group:
-    types: [checks_requested]
-  pull_request:
-    branches: [main, master]
+  # Runs once per merge into main and once a day (not on every PR): the PR checks that gate a merge are
+  # API CI, admin-ci, Mobile CI and Secret scan; CodeQL findings appear under Security → Code scanning.
   push:
     branches: [main, master]
   schedule:
-    - cron: "0 3 * * 1"
+    - cron: "0 3 * * *"
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -20,8 +19,6 @@ permissions:
 jobs:
   analyze:
     name: CodeQL (javascript-typescript)
-    # Analysis ran on the PR; the merge-queue run only needs the check to report.
-    if: ${{ github.event_name != 'merge_group' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

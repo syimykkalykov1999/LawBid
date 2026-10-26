@@ -194,10 +194,12 @@ sigstore/cosign-installer и anchore/sbom-action (GitHub, 2026).
 
 1. **Ruleset на `main`** (Settings -> Rules -> Rulesets -> New branch ruleset, Target:
    `main`): Require a pull request; Require status checks: `API CI`, `Admin CI`,
-   `gitleaks`, `Build image + Trivy`, `Analyze, lint checks, unit/widget/golden tests`;
+   `gitleaks`, `Analyze, lint checks, unit/widget/golden tests`;
    Require merge queue; Block force pushes. (Создать его может только владелец.)
+   CodeQL и Container scan (`Build image + Trivy`) не обязательные: они идут только
+   после слияния в main и раз в день, не на каждом PR.
 2. **Merge queue**: включается в том же ruleset (Require merge queue, метод Squash).
-   Во всех CI-workflow уже есть триггер `merge_group`.
+   Во всех CI-workflow, которые идут на PR, уже есть триггер `merge_group`.
 3. **Environment `production`** -> Deployment branches and tags -> Selected branches
    -> `main` (то же для `release` и `load-test`). Это вторая половина защиты: первая
    в Terraform (`job_workflow_ref`, `infra/bootstrap`): роль деплоя отдаётся только

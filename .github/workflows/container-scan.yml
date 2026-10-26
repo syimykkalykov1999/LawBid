@@ -3,18 +3,12 @@
 name: Container scan
 
 on:
-  merge_group:
-    types: [checks_requested]
-  pull_request:
-    branches: [main, master]
-    paths:
-      - "apps/api/**"
-      - "packages/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/container-scan.yml"
+  # Runs once per merge into main and once a day (not on every PR); results go to Security → Code scanning.
   push:
     branches: [main, master]
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -79,7 +73,7 @@ jobs:
   notify:
     name: Notify the owner
     needs: [trivy]
-    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ always() && contains(needs.*.result, 'failure') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'schedule') }}
     permissions:
       contents: read
       issues: write
