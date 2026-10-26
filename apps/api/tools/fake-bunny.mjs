@@ -259,6 +259,6 @@ createServer(async (req, res) => {
     console.error('[fake-bunny]', e);
     json(res, 500, { message: String(e) });
   }
-}).listen(PORT, '0.0.0.0', () => {
+}).listen(PORT, process.env.FAKE_BUNNY_HOST ?? '0.0.0.0', () => {
   console.log(`[fake-bunny] listening on :${PORT}, data in ${ROOT}`);
 });

@@ -51,6 +51,7 @@ class HeadersInterceptor extends Interceptor {
     final deviceKey = DeviceKey.current;
     if (deviceKey != null) options.headers['X-Device-Key'] = deviceKey;
     applyWebSession(options, isWeb: kIsWeb);
+    applyImageFormats(options, isWeb: kIsWeb);
     handler.next(options);
   }
 
@@ -66,6 +67,22 @@ class HeadersInterceptor extends Interceptor {
   }
 
   static const webSessionHeader = 'X-LawBid-Web-Session';
+
+  /// Owner 2026-10-25 (S17-6): every browser the web app runs in decodes
+  /// AVIF (Chrome/Edge/Firefox, Safari 16+), so the web asks for the AVIF
+  /// twin of a photo. The server answers with it only while the admin
+  /// switch `images.avif` is on and the file has a twin; otherwise the
+  /// header changes nothing. Phones do not send it. The CORS list of the
+  /// API allows it (app.setup.ts).
+  static void applyImageFormats(
+    RequestOptions options, {
+    required bool isWeb,
+  }) {
+    if (!isWeb) return;
+    options.headers[imageFormatsHeader] = 'avif';
+  }
+
+  static const imageFormatsHeader = 'X-Image-Formats';
 
   static String _languageTag(Ref ref) {
     final language =
