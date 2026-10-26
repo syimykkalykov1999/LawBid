@@ -49,6 +49,11 @@ variable "nat_traffic_alarm_gb_per_day" {
 }
 variable "alb_arn_suffix" { type = string }
 variable "api_target_group_arn_suffix" { type = string }
+variable "media_cdn_distribution_id" {
+  type        = string
+  default     = ""
+  description = "S8-6: media CloudFront distribution id for the cache-hit and origin-latency alarms (\"\" = none; CloudFront metrics exist in us-east-1 only)."
+}
 variable "cluster_name" { type = string }
 variable "api_service_name" { type = string }
 variable "worker_service_name" { type = string }
@@ -1296,4 +1301,40 @@ resource "aws_cloudwatch_metric_alarm" "usage_alert" {
   tags                = var.tags
 
   depends_on = [aws_cloudwatch_log_metric_filter.usage_alert]
+}
+
+# S8-6: CDN health from the CloudFront additional metrics (us-east-1, dimension
+# Region=Global). Cents: $0.10 per alarm. Missing data (no traffic) is fine.
+resource "aws_cloudwatch_metric_alarm" "media_cdn_hit_rate" {
+  count               = var.media_cdn_distribution_id == "" ? 0 : 1
+  alarm_name          = "${var.name}-media-cdn-hit-rate-low"
+  alarm_description   = "LawBid: Кэш картинок и видео (CDN) отдаёт из памяти меньше 60% запросов три часа подряд — вместо этого трафик идёт в хранилище: дороже и медленнее. Что делать: ничего срочного; проверьте, не сменились ли ссылки на файлы или заголовки кэша. (EN: media CloudFront CacheHitRate < 60% for 3 h.)"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "CacheHitRate"
+  dimensions          = { DistributionId = var.media_cdn_distribution_id, Region = "Global" }
+  statistic           = "Average"
+  period              = 3600
+  evaluation_periods  = 3
+  comparison_operator = "LessThanThreshold"
+  threshold           = 60
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "media_cdn_origin_latency" {
+  count               = var.media_cdn_distribution_id == "" ? 0 : 1
+  alarm_name          = "${var.name}-media-cdn-origin-latency-high"
+  alarm_description   = "LawBid: Хранилище отвечает CDN дольше 1,5 секунды (в среднем, 15 минут подряд) — картинки и видео открываются медленно. Что делать: ничего срочного; смотрите статус AWS S3. (EN: media CloudFront OriginLatency avg > 1500 ms for 15 min.)"
+  namespace           = "AWS/CloudFront"
+  metric_name         = "OriginLatency"
+  dimensions          = { DistributionId = var.media_cdn_distribution_id, Region = "Global" }
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 3
+  comparison_operator = "GreaterThanThreshold"
+  threshold           = 1500
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
 }

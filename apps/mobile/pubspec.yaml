@@ -39,6 +39,10 @@ dependencies:
   # for the refresh token only (see core/session/token_secure_store.dart's
   # doc comment for why it's not in LocalKvStore/SharedPreferences).
   dio: ^5.9.0
+  # S8-1 (speed): iOS URLSession / Android Cronet transport (HTTP/2+3, OS
+  # connection reuse) behind a fallback to dart:io (core/network/http_transport*.dart).
+  native_dio_adapter: ^1.8.0
+  http: ^1.5.0
   # Browser file save (core/platform/web_download_web.dart).
   web: ^1.1.0
   flutter_secure_storage: ^9.2.4

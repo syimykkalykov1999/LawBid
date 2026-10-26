@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection' show Queue;
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/network/http_transport.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 
@@ -26,7 +27,13 @@ class HlsPrefetcher {
     this.maxConcurrent = 2,
     this.maxRemembered = 16,
     this.maxSegmentBytes = 1024 * 1024,
-  }) : _dio = dio ?? Dio(BaseOptions(connectTimeout: _timeout));
+  }) : _dio = dio ?? _newDio();
+
+  static Dio _newDio() {
+    final d = Dio(BaseOptions(connectTimeout: _timeout));
+    HttpTransport.apply(d); // S8-1: native stack, same connections as the API
+    return d;
+  }
 
   static const _timeout = Duration(seconds: 8);
 

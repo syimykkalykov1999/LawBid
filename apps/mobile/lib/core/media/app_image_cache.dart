@@ -1,4 +1,5 @@
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:lawbid/core/network/http_transport.dart';
 
 /// Owner 2026-10-22 (load audit finding 8): the phone's picture caches.
 /// flutter_cache_manager's default keeps only 200 files, so scrolling the
@@ -12,6 +13,13 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 /// Media keys are unique and immutable on the CDN (package I), so a file
 /// on the phone is never re-validated while it is kept.
 abstract final class AppImageCaches {
+  /// S8-1: picture downloads ride the native stack (HTTP/2+3 to the CDN)
+  /// when there is one; without one it is the package's own client.
+  static FileService _fileService() {
+    final client = HttpTransport.nativeClient();
+    return HttpFileService(httpClient: client);
+  }
+
   static const feedKey = 'lawbid_images';
   static const chatMediaKey = 'lawbid_chat_media';
 
@@ -21,6 +29,7 @@ abstract final class AppImageCaches {
       feedKey,
       stalePeriod: const Duration(days: 7),
       maxNrOfCacheObjects: 2000,
+      fileService: _fileService(),
     ),
   );
 
@@ -49,6 +58,7 @@ abstract final class AppImageCaches {
               ? const Duration(days: 3650)
               : Duration(days: _keepChatMediaDays),
           maxNrOfCacheObjects: 1000,
+          fileService: _fileService(),
         ),
       );
 }

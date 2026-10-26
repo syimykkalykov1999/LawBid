@@ -414,6 +414,11 @@ variable "api_cpu" {
   type    = number
   default = 1024
 }
+variable "api_uv_threadpool_size" {
+  type        = number
+  default     = 4
+  description = "S8-7: UV_THREADPOOL_SIZE of the API task (4 = Node default / unset). Raise to 8 after the load test shows ThreadPoolLagMs > 5 ms."
+}
 variable "api_memory" {
   type    = number
   default = 2048
@@ -466,6 +471,11 @@ variable "alb_least_outstanding_requests" {
   type        = bool
   default     = false
   description = "S4-7: least_outstanding_requests instead of round_robin for the API target group (has no effect while stickiness is on for it; see alb_websocket_target_group)."
+}
+variable "alb_slow_start_seconds" {
+  type        = number
+  default     = 90
+  description = "S8-4: ALB slow start of the API target group, seconds (0 = off, 30..900). Not used with least_outstanding_requests."
 }
 variable "alb_websocket_target_group" {
   type        = bool
@@ -748,6 +758,13 @@ module "s3" {
   force_destroy                = var.ephemeral
   access_log_bucket            = try(module.audit_logs[0].bucket, "")
   replicate_media              = var.replicate_media && !var.ephemeral
+  cdn_additional_metrics       = var.cdn_additional_metrics && !var.ephemeral
+}
+
+variable "cdn_additional_metrics" {
+  type        = bool
+  default     = true
+  description = "S8-6: CloudFront additional metrics + 2 alarms on the media CDN (cache-hit ratio, origin latency). ~$0.16 + $0.20 a month, fixed. Off on load-test stacks."
 }
 
 variable "replicate_media" {
@@ -836,6 +853,7 @@ module "alb" {
   deletion_protection       = var.alb_deletion_protection && !var.ephemeral
   load_balancing_algorithm  = var.alb_least_outstanding_requests ? "least_outstanding_requests" : "round_robin"
   ws_target_group_enabled   = var.alb_websocket_target_group
+  slow_start_seconds        = var.alb_slow_start_seconds
   waf_bot_control_enabled   = var.waf_bot_control_enabled
   waf_bot_control_block     = var.waf_bot_control_block
 
@@ -1409,6 +1427,7 @@ module "ecs" {
   admin_tasks                      = var.admin_tasks
   api_cpu                          = var.api_cpu
   api_memory                       = var.api_memory
+  api_uv_threadpool_size           = var.api_uv_threadpool_size
   worker_cpu                       = var.worker_cpu
   worker_memory                    = var.worker_memory
   clamav_image                     = var.clamav_image
@@ -1661,6 +1680,7 @@ module "monitoring" {
   nat_traffic_alarm_gb_per_day  = var.nat_traffic_alarm_gb_per_day
   alb_arn_suffix                = module.alb.arn_suffix
   api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
+  media_cdn_distribution_id     = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.name == "us-east-1" ? module.s3.media_distribution_id : ""
   admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
   deploy_rollback_on_slo        = var.deploy_rollback_on_slo
   cluster_name                  = module.ecs.cluster_name

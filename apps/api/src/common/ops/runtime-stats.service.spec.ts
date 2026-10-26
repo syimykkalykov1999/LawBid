@@ -12,6 +12,7 @@ describe('runtime stats', () => {
           HeapUsedMb: 300,
           HeapLimitMb: 1400,
           RssMb: 600,
+          ThreadPoolLagMs: 0.4,
         },
         1_700_000_000_000,
       ),

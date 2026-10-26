@@ -8,6 +8,7 @@ import { NestFactory } from '@nestjs/core';
 import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { installOutboundAgents } from './common/http/outbound-agent';
 import { configureApp } from './app.setup';
 
 /** ALB idle_timeout in infra/modules/alb/main.tf — keep the two in sync. */
@@ -17,6 +18,8 @@ async function bootstrap(): Promise<void> {
   // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
   // in memory, before any module reads the config.
   await unwrapKmsWrappedKeys();
+  // S8-3: keep-alive agent for every outbound fetch, HTTP/2 agent for FCM.
+  installOutboundAgents();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true, // needed later for Stripe webhook signature verification (docs/06_PRODUCTION.md §1.5)
     bufferLogs: true,

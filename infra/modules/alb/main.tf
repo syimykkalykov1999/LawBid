@@ -87,6 +87,15 @@ variable "load_balancing_algorithm" {
     error_message = "load_balancing_algorithm: round_robin or least_outstanding_requests."
   }
 }
+variable "slow_start_seconds" {
+  type        = number
+  default     = 90
+  description = "S8-4: a new API task gets a growing share of traffic over this many seconds (30-900; 0 = off) instead of a full share at second 0. Ignored (AWS: not combinable) while the API group uses least_outstanding_requests. Cost: none; load: a scale-out adds capacity this much slower."
+  validation {
+    condition     = var.slow_start_seconds == 0 || (var.slow_start_seconds >= 30 && var.slow_start_seconds <= 900)
+    error_message = "slow_start_seconds: 0 or 30..900."
+  }
+}
 variable "ws_target_group_enabled" {
   type        = bool
   default     = false
@@ -192,6 +201,9 @@ resource "aws_lb_target_group" "api" {
   # keeps its open connections for this long while its sockets drain
   # (`server:going-away`); must be <= the container stopTimeout (60 s).
   deregistration_delay = 60
+  # S8-4: ramp a new task up (AWS target-group attribute `slow_start.duration_seconds`;
+  # cannot be used with least_outstanding_requests, so only for round robin).
+  slow_start = (var.ws_target_group_enabled || var.load_balancing_algorithm == "least_outstanding_requests") ? 0 : var.slow_start_seconds
   # Liveness, not readiness: ECS replaces tasks the ALB marks unhealthy, so a
   # DB/Redis blip on /health/ready would kill every API task at once.
   health_check {

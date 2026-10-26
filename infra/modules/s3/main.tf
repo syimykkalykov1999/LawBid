@@ -398,6 +398,12 @@ resource "aws_cloudfront_response_headers_policy" "media_cors" {
   }
 }
 
+variable "cdn_additional_metrics" {
+  type        = bool
+  default     = true
+  description = "S8-6: CloudFront additional metrics (CacheHitRate, OriginLatency, 4xx/5xx by status) on the media and documents distributions. About $0.01 per metric per distribution per month (8 metrics x 2 = ~$0.16/month, fixed at any scale). false = off."
+}
+
 resource "aws_cloudfront_distribution" "media" {
   enabled         = true
   comment         = "${var.name} media"
@@ -755,3 +761,26 @@ resource "aws_s3_bucket_replication_configuration" "media" {
 }
 
 output "media_replica_bucket" { value = var.replicate_media ? aws_s3_bucket.media_replica[0].id : "" }
+
+# S8-6: nothing could say the cache-hit ratio or origin latency of the CDN.
+# Opt-in per distribution (AWS CloudFront developer guide, "Additional
+# metrics"); the alarms live in module monitoring.
+resource "aws_cloudfront_monitoring_subscription" "media" {
+  count           = var.cdn_additional_metrics ? 1 : 0
+  distribution_id = aws_cloudfront_distribution.media.id
+  monitoring_subscription {
+    realtime_metrics_subscription_config {
+      realtime_metrics_subscription_status = "Enabled" # the API name for the additional-metrics switch
+    }
+  }
+}
+resource "aws_cloudfront_monitoring_subscription" "documents" {
+  count           = var.cdn_additional_metrics && length(aws_cloudfront_distribution.documents) > 0 ? 1 : 0
+  distribution_id = aws_cloudfront_distribution.documents[0].id
+  monitoring_subscription {
+    realtime_metrics_subscription_config {
+      realtime_metrics_subscription_status = "Enabled"
+    }
+  }
+}
+output "media_distribution_id" { value = aws_cloudfront_distribution.media.id }
