@@ -14,12 +14,12 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/data/sms_code_retriever.dart';
-import 'package:lawbid/features/auth/data/stub_auth_repository.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/onboarding_harness.dart' show FixedUserController;
+import '../../helpers/stub_auth_repository.dart';
 
 /// Records every OTP call; no simulated latency.
 class RecordingAuthRepository extends StubAuthRepository {

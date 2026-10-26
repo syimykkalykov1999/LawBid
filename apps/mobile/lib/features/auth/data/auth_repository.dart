@@ -11,8 +11,8 @@ import 'package:lawbid/features/auth/domain/reauth_result.dart';
 /// `RealAuthRepository` is now `authRepositoryProvider`'s default,
 /// dio-backed against the live `/auth/*` endpoints (core/network +
 /// core/session hold the interceptors/secure storage/`SessionState`).
-/// `StubAuthRepository` stays in the codebase for widget/golden tests but
-/// is no longer wired by default — swap back via an explicit provider
+/// `StubAuthRepository` lives in test/helpers (widget/golden tests only) and
+/// is not wired by default — swap back via an explicit provider
 /// override in a test, never by editing this interface's default
 /// implementation pointer.
 ///
