@@ -138,3 +138,6 @@ Required checks for merge (as I apply them): API CI "Lint, typecheck, unit + e2e
 07:01 pushed #356 (migrations renamed, manifest count, guide category; tf valid) and #395 (migration renamed, registry row google/microsoft calendar, auth.public import, baseline). #411 tf valid.
 07:06 pushed #369 (fixer tip + main, contract same) and #373 (count 72, admin-access fan-out, ERD/contract).
 07:08 MERGED #399 (required checks green)
+07:17 pushed #417 (ERD/contract), #405 (spec ctor args + contract), #413 (migration → 20261105400000; ERD/contract), #388 (migration → 20261105300000), #403 (registry row OpenSearch Serverless).
+07:20 pushed #370 (e2e: 7 cost lines; analytics snapshot dropped before assert — order-dependent flake from #377 also fixed there).
+07:21 #419 also raises mobile analyze/test job limit 40→70 min (it was cancelled at 40 on busy macOS runners). #399 MERGED 07:08.
