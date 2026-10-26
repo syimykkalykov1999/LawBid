@@ -561,6 +561,22 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  openai_moderation: {
+    steps: [
+      'Откройте platform.openai.com и войдите (или зарегистрируйтесь).',
+      'API keys → Create new secret key. Название любое, например lawbid-moderation.',
+      'Скопируйте ключ (он начинается с sk-). Показывается один раз. Платить отдельно за проверку не нужно: она бесплатна или стоит около нуля.',
+    ],
+    links: [{ label: 'OpenAI API keys', url: 'https://platform.openai.com/api-keys' }],
+    enable: [
+      'Вставьте ключ в поле (OPENAI_MODERATION_API_KEY) → «Сохранить» (код 2FA) → «Проверить» → «Включить».',
+      'Режим проверки текста (выкл / тень / действовать) и суточный потолок запросов задаются в Модерация → Автомодерация. Начните с «Тень». Ключ секретный: не отправляйте его в чат.',
+    ],
+    fields: {
+      apiKey: { how: 'Секретный ключ из platform.openai.com → API keys.', example: 'sk-…' },
+    },
+  },
+
   photodna: {
     steps: [
       'Доступ к Microsoft PhotoDNA Cloud Service выдаётся по заявке: подайте её на microsoft.com/photodna (нужен юридический адрес компании).',

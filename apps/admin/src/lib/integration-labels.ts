@@ -93,6 +93,11 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
     description:
       'Смотрит публичные фото, аватары, фото отзывов и обложки рилсов на откровенный и жестокий контент; выше порога файл скрывается и попадает в Модерация → Медиа. На AWS при пустых ключах используется роль сервера.',
   },
+  openai_moderation: {
+    label: 'Проверка текста (OpenAI omni-moderation)',
+    description:
+      'Проверяет новые посты и комментарии на оскорбления, ненависть, сексуальный и опасный контент до жалоб. Режимы выкл / тень / действовать и суточный потолок задаются в Модерация → Автомодерация. Стоит около нуля.',
+  },
   photodna: {
     label: 'PhotoDNA (известные материалы о насилии над детьми)',
     description:
@@ -187,6 +192,7 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'apns.teamId': 'ID команды Apple',
   'aws_rekognition.accessKeyId': 'ID ключа доступа (пусто = роль сервера)',
   'aws_rekognition.secretAccessKey': 'Секретный ключ доступа',
+  'openai_moderation.apiKey': 'Ключ OpenAI (начинается с sk-)',
   'fcm.clientEmail': 'Email сервисного аккаунта',
   'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
@@ -293,6 +299,7 @@ const FIELD_EN: Record<string, string> = {
   'aws_rekognition.region': 'Region',
   'aws_rekognition.accessKeyId': 'Access key ID',
   'aws_rekognition.secretAccessKey': 'Secret access key',
+  'openai_moderation.apiKey': 'API key',
   'photodna.subscriptionKey': 'Ocp-Apim-Subscription-Key',
   'photodna.endpoint': 'Endpoint',
   'ncmec.username': 'Username',
@@ -386,6 +393,7 @@ export const FIELD_ENV: Record<string, string> = {
   'aws_rekognition.region': 'REKOGNITION_REGION',
   'aws_rekognition.accessKeyId': 'REKOGNITION_ACCESS_KEY_ID',
   'aws_rekognition.secretAccessKey': 'REKOGNITION_SECRET_ACCESS_KEY',
+  'openai_moderation.apiKey': 'OPENAI_MODERATION_API_KEY',
   'photodna.subscriptionKey': 'PHOTODNA_SUBSCRIPTION_KEY',
   'photodna.endpoint': 'PHOTODNA_ENDPOINT',
   'ncmec.username': 'NCMEC_USERNAME',

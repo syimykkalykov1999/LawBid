@@ -10,6 +10,7 @@ import {
 } from '../../modules/billing/billing.constants';
 import { HISTORY_EXPORT_QUEUE } from '../../modules/case-history/case-history-export.runner';
 import { FILES_QUEUE } from '../../modules/files/jobs/file-scan.runner';
+import { CASE_FANOUT_QUEUE } from '../../modules/notifications/case-fanout/case-fanout.service';
 import { PUSH_QUEUE } from '../../modules/notifications/push/push.constants';
 import { DATA_EXPORT_QUEUE } from '../../modules/privacy/privacy.constants';
 import { CRON_QUEUE } from '../jobs.constants';
@@ -19,6 +20,7 @@ import { bullOptions } from '../../redis/redis-connection';
 export const OBSERVED_QUEUES: readonly string[] = [
   CRON_QUEUE,
   PUSH_QUEUE,
+  CASE_FANOUT_QUEUE,
   FILES_QUEUE,
   STRIPE_WEBHOOKS_QUEUE,
   STRIPE_WEBHOOKS_DLQ,

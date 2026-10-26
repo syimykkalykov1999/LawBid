@@ -1,6 +1,12 @@
-import { Controller, Get, Header, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query, Req, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Plan } from '@prisma/client';
+import type { Request, Response } from 'express';
+import {
+  notModified,
+  timeBucket,
+  weakEtag,
+} from '../../common/sync/cheap-etag';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -30,6 +36,10 @@ import {
 } from './plans.dto';
 import { highlights, PlansService, text } from './plans.service';
 
+/** A new process (deploy) changes the plans ETag. */
+const BOOT_ID = Date.now();
+const PLANS_ETAG_BUCKET_MS = 300_000;
+
 /** Owner 2026-10-05: the plan list the app's "choose a plan" screen shows
  * (public, like /pricing) and the signed-in user's own entitlements. */
 @ApiTags('plans')
@@ -48,8 +58,23 @@ export class PlansController {
   @ApiOperation({ summary: 'Purchasable plans of an audience, with prices' })
   @ApiEnvelopeResponse(PlansListDto)
   @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR] })
-  async listPlans(@Query() q: PlansQueryDto): Promise<PlansListDto> {
+  async listPlans(
+    @Query() q: PlansQueryDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PlansListDto | undefined> {
     const audience: Audience = q.audience ?? 'attorney';
+    // Delta audit P7: cheap ETag → 304 without building the answer. The
+    // boot id covers the code-side catalog; the bucket bounds staleness for
+    // admin settings the tag does not read.
+    const tag = weakEtag(
+      'plans',
+      audience,
+      BOOT_ID,
+      timeBucket(PLANS_ETAG_BUCKET_MS),
+      ...(await this.plans.etagStamp()),
+    );
+    if (notModified(req, res, tag)) return undefined;
     const [plans, baseline] = await Promise.all([
       this.plans.purchasable(audience),
       this.plans.baseline(audience),

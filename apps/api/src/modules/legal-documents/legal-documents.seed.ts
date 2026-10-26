@@ -13,6 +13,23 @@ import { nextVersion } from './legal-documents.logic';
  * the one-line placeholder, or a new user is asked to accept nothing. */
 const CONSENT_DOC_TYPES = ['terms', 'privacy', 'disclaimer'] as const;
 
+/** Owner 2026-10-25 (legal texts): the improved English texts
+ * (docs/legal/drafts of the legal register). Tag written into the
+ * change_note of the draft that carries them, so each is created once. */
+export const REVISION_TAG = '[legal-texts-2026-10]';
+export const REVISION_TYPES = [
+  'terms',
+  'privacy',
+  'attorney_agreement',
+  'client_agreement',
+  'cookies',
+  'accessibility',
+  'dmca_policy',
+  'community_guidelines',
+  'advertising_disclosure',
+  'sms_terms',
+] as const;
+
 /** apps/api/assets/legal: 3 levels up from src/modules/legal-documents,
  * 4 from dist/src/modules/legal-documents. */
 export function seedDir(): string | null {
@@ -79,7 +96,9 @@ export class LegalDocumentsSeed implements OnModuleInit {
             is_current: false,
             content_md: readFileSync(file, 'utf8'),
             change_note:
-              'Черновик подготовлен для проверки лицензированным юристом США',
+              locale === 'en' || locale === 'ru'
+                ? 'Черновик подготовлен для проверки лицензированным юристом США'
+                : 'Машинный перевод: нужна проверка носителем языка и юристом США',
           },
         });
         created += 1;
@@ -87,6 +106,52 @@ export class LegalDocumentsSeed implements OnModuleInit {
     }
     if (created > 0) this.log.log(`legal document drafts seeded: ${created}`);
     await this.publishOverPlaceholders();
+    created += await this.seedRevisions();
+    return created;
+  }
+
+  /**
+   * Owner 2026-10-25 (legal texts): where the owner already published an
+   * older English text of a revised type, the improved text is put in as a
+   * NEW DRAFT (never published by itself) so the owner reads it in the
+   * admin, edits it, and publishes it as the next version (ticking
+   * "re-acceptance" only for a material change). Done once per type: the
+   * draft carries REVISION_TAG, and nothing is created when the owner
+   * already has a draft of their own or the tag was seen before (even after
+   * the draft was published).
+   */
+  async seedRevisions(): Promise<number> {
+    const dir = seedDir();
+    if (!dir) return 0;
+    let created = 0;
+    for (const type of REVISION_TYPES) {
+      const file = join(dir, `${type}.en.md`);
+      if (!existsSync(file)) continue;
+      const rows = await this.prisma.legalDocument.findMany({
+        where: { doc_type: type, locale: 'en' },
+        select: { content_md: true, status: true, change_note: true },
+      });
+      // Nothing real yet: the plain seed / placeholder replacement handles it.
+      if (rows.every((r) => isPlaceholder(r.content_md))) continue;
+      const text = readFileSync(file, 'utf8');
+      // The shipped text is already in (published unchanged, or a draft).
+      if (rows.some((r) => r.content_md === text)) continue;
+      if (rows.some((r) => r.change_note?.includes(REVISION_TAG))) continue;
+      if (rows.some((r) => r.status === 'draft')) continue;
+      await this.prisma.legalDocument.create({
+        data: {
+          doc_type: type,
+          locale: 'en',
+          version: DRAFT_VERSION,
+          status: 'draft',
+          is_current: false,
+          content_md: text,
+          change_note: `${REVISION_TAG} Улучшенный текст: нужна проверка юристом США; поля в [скобках] заполнить владельцу`,
+        },
+      });
+      created += 1;
+    }
+    if (created > 0) this.log.log(`legal revision drafts seeded: ${created}`);
     return created;
   }
 
