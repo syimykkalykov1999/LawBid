@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'data_export_job_dto_status.dart';
+import 'progress.dart';
 
 part 'data_export_job_dto.g.dart';
 
@@ -16,6 +17,7 @@ class DataExportJobDto {
     required this.url,
     required this.expiresAt,
     required this.createdAt,
+    this.progress,
   });
 
   factory DataExportJobDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +30,9 @@ class DataExportJobDto {
   final String? url;
   final DateTime? expiresAt;
   final DateTime createdAt;
+
+  /// While the export is being built: rows written and bytes so far.
+  final Progress? progress;
 
   Map<String, Object?> toJson() => _$DataExportJobDtoToJson(this);
 }

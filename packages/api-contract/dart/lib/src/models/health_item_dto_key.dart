@@ -26,6 +26,8 @@ enum HealthItemDtoKey {
   cost('cost'),
   @JsonValue('message_keys')
   messageKeys('message_keys'),
+  @JsonValue('restore_drill')
+  restoreDrill('restore_drill'),
   @JsonValue('stripe_webhooks')
   stripeWebhooks('stripe_webhooks'),
   @JsonValue('push')
