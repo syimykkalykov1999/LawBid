@@ -14,6 +14,7 @@
     "start:prod": "node dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "seed:demo": "ts-node --transpile-only prisma/seed-demo.ts",
+    "seed:perf": "ts-node --transpile-only prisma/seed-perf.ts",
     "seed:economy": "ts-node --transpile-only scripts/seed-economy.ts",
     "seed:i18n": "ts-node --transpile-only prisma/seed.ts --i18n-only",
     "test": "jest",
@@ -135,7 +136,7 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.71.2"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -168,9 +169,13 @@
     "testEnvironment": "node",
     "transformIgnorePatterns": [
       "node_modules/(?!(@nestjs/jwt|jose)/)"
-    ]
+    ],
+    "workerIdleMemoryLimit": "1GB"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=22.23.4 <23"
   }
 }

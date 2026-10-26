@@ -81,6 +81,7 @@ class _Repo extends TemplatesRepository {
   Future<CursorPage<DocTemplate>> list(
     TemplatesQuery q, {
     String? cursor,
+    bool fresh = false,
   }) async {
     queries.add(q);
     return CursorPage(

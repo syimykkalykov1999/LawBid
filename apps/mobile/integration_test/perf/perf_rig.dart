@@ -27,6 +27,11 @@ class PerfRig {
   final Map<String, List<double>> latency = {};
   final List<Map<String, Object?>> memory = [];
 
+  /// Which pass over the scroll scenarios this is (PERF_ROUNDS). Frame stats,
+  /// latencies and video starts are recorded in round 1 only; every round
+  /// samples memory.
+  int round = 1;
+
   double get refreshRate {
     final displays = ui.PlatformDispatcher.instance.displays;
     final hz = displays.isEmpty ? 60.0 : displays.first.refreshRate;
@@ -46,14 +51,41 @@ class PerfRig {
     bool Function() done, {
     required Duration timeout,
     required String what,
+    Future<void> Function()? onTick,
   }) async {
     final end = DateTime.now().add(timeout);
+    var tick = 0;
     while (!done()) {
       if (DateTime.now().isAfter(end)) {
         fail('perf: timed out waiting for $what');
       }
       await idle(const Duration(milliseconds: 100));
+      // Every ~4 s, e.g. press "Retry" on a no-connection splash (the first
+      // request of a fresh iOS install can lose to the Local Network prompt).
+      if (onTick != null && ++tick % 40 == 0) await onTick();
     }
+  }
+
+  bool _probed = false;
+
+  /// Presses the "Повторить" button of the no-connection screen, if shown.
+  Future<void> tapRetryIfShown() async {
+    final f = find.text('Повторить').hitTestable();
+    if (f.evaluate().isEmpty) return;
+    debugPrint('perf: no-connection screen, pressing Retry');
+    if (!_probed) {
+      _probed = true;
+      const base = String.fromEnvironment('API_BASE_URL');
+      try {
+        final c = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+        final r =
+            await (await c.getUrl(Uri.parse('$base/config/bootstrap'))).close();
+        debugPrint('perf: probe $base -> HTTP ${r.statusCode}');
+      } on Object catch (e) {
+        debugPrint('perf: probe $base failed: $e');
+      }
+    }
+    await tester.tapAt(tester.getCenter(f.first));
   }
 
   // --- touches ---------------------------------------------------------
@@ -95,36 +127,52 @@ class PerfRig {
     await tester.tapAt(tester.getCenter(hit.first));
   }
 
-  /// Taps slot [slot] (0 feed, 1 search, 3 mine, 4 profile; 2 is the "+")
-  /// of the floating bottom bar.
-  Future<void> tapNav(int slot) async {
-    final box = tester.renderObject<RenderBox>(find.byType(AppBottomNav));
-    final o = box.localToGlobal(Offset.zero);
-    await tester.tapAt(
-      Offset(
-        o.dx + box.size.width * (slot + 0.5) / 5,
-        o.dy + box.size.height / 2,
-      ),
-    );
+  /// "Not now" on the notification explanation that follows a sign-in
+  /// (it covers the app and blocks every tap); true when it was there.
+  Future<bool> dismissPrimer() async {
+    // The explanations come one after another (notifications, then the
+    // microphone, ...): keep pressing "Not now" until none shows up for 3 s.
+    var any = false;
+    for (var i = 0; i < 6; i++) {
+      final f = find.byKey(const ValueKey<String>('permission-primer-later'));
+      if (f.evaluate().isEmpty) {
+        await idle(const Duration(seconds: 3));
+        if (f.evaluate().isEmpty) break;
+      }
+      await tester.tapAt(tester.getCenter(f.first));
+      await idle(const Duration(milliseconds: 800));
+      any = true;
+    }
+    return any;
   }
+
+  /// Taps the first hit-testable widget with this [ValueKey] string.
+  Future<void> tapKey(String key) async {
+    final f = find.byKey(ValueKey<String>(key)).hitTestable();
+    if (f.evaluate().isEmpty) fail('perf: nothing to tap with key "$key"');
+    await tester.tapAt(tester.getCenter(f.first));
+  }
+
+  /// Taps a tab of the bottom bar by its key (`nav-tab-<name>`).
+  Future<void> tapNav(AppTabKey tab) => tapKey('nav-tab-${tab.name}');
 
   // --- frames ----------------------------------------------------------
 
-  /// Runs [action] under `watchPerformance` (Flutter's own summary, stored
-  /// as `<name>.flutter`) and records every FrameTiming for [FrameStats].
+  /// Runs [action] and records every FrameTiming for [FrameStats].
   Future<void> scroll(String name, Future<void> Function() action) async {
     final timings = <ui.FrameTiming>[];
     void collect(List<ui.FrameTiming> t) => timings.addAll(t);
-    await binding.watchPerformance(
-      () async {
-        SchedulerBinding.instance.addTimingsCallback(collect);
-        await action();
-        // FrameTimings arrive in batches (about once a second).
-        await idle(const Duration(milliseconds: 2500));
-        SchedulerBinding.instance.removeTimingsCallback(collect);
-      },
-      reportKey: '$name.flutter',
-    );
+    // FrameTimings only: binding.watchPerformance needs the VM service, which
+    // a phone cannot reach from inside (its ws://localhost is the Mac's).
+    SchedulerBinding.instance.addTimingsCallback(collect);
+    await action();
+    if (round > 1) {
+      SchedulerBinding.instance.removeTimingsCallback(collect);
+      return;
+    }
+    // FrameTimings arrive in batches (about once a second).
+    await idle(const Duration(milliseconds: 2500));
+    SchedulerBinding.instance.removeTimingsCallback(collect);
     double ms(Duration d) => d.inMicroseconds / 1000;
     final stats = FrameStats(
       build: [for (final f in timings) ms(f.buildDuration)],
@@ -166,6 +214,7 @@ class PerfRig {
     SchedulerBinding.instance.addPostFrameCallback(check);
     await trigger();
     final v = await done.future;
+    if (round > 1) return v;
     if (v >= 0) {
       latency
           .putIfAbsent(name, () => [])
@@ -181,8 +230,11 @@ class PerfRig {
   vm.VmService? _service;
   String? _isolateId;
 
+  bool _triedConnect = false;
+
   Future<void> _connect() async {
-    if (_service != null) return;
+    if (_service != null || _triedConnect) return;
+    _triedConnect = true;
     try {
       var info = await developer.Service.getInfo();
       if (info.serverWebSocketUri == null) {
@@ -219,6 +271,7 @@ class PerfRig {
     final cache = PaintingBinding.instance.imageCache;
     memory.add({
       'at': at,
+      'round': round,
       'rss_mb':
           double.parse((ProcessInfo.currentRss / 1048576).toStringAsFixed(1)),
       if (heapMb != null) 'heap_mb': double.parse(heapMb.toStringAsFixed(1)),

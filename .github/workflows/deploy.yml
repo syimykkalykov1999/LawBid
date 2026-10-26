@@ -308,6 +308,14 @@ jobs:
       # (not just "stable") and goes red on FAILED. S11-14: api first, smoked
       # against the tag, then worker and admin, so one bad shared change does not
       # hit all three services at once.
+      # Canary (OFF unless repository variable CANARY_ENABLED=true): one extra task
+      # with the new image takes a little live traffic for CANARY_BAKE_MINUTES while
+      # the api alarms are watched; a bad release stops here, before the real api.
+      - name: Canary (1 task, watch alarms)
+        env:
+          CANARY_ENABLED: ${{ vars.CANARY_ENABLED }}
+          CANARY_BAKE_MINUTES: ${{ vars.CANARY_BAKE_MINUTES }}
+        run: scripts/deploy/canary.sh lawbid-prod "$IMAGE_TAG"
       - name: Rolling deploy api
         env:
           ROLL_TIMEOUT_SECONDS: "2400"

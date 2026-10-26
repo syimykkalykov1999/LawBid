@@ -15,7 +15,7 @@ import { Field, Input, Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
-import { ApiError, api, errorText } from '@/lib/api/client';
+import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
 import {
@@ -604,7 +604,6 @@ function PayDialog({
   onDone: () => void;
 }) {
   const toast = useToast();
-  const qc = useQueryClient();
   const [method, setMethod] = useState<Method>('manual');
   const [note, setNote] = useState('');
   const [amounts, setAmounts] = useState<Record<string, string>>(() =>
@@ -654,15 +653,7 @@ function PayDialog({
       else toast.success(text);
       onDone();
     },
-    onError: (e) => {
-      toast.error(e);
-      // Owner 2026-10-22: from the limit on it waits for a second admin.
-      if (e instanceof ApiError && e.code === 'ADMIN_APPROVAL_PENDING') {
-        void qc.invalidateQueries({ queryKey: ['approvals-count'] });
-        void qc.invalidateQueries({ queryKey: ['admin-counts'] });
-        onDone();
-      }
-    },
+    onError: (e) => toast.error(e),
   });
 
   return (

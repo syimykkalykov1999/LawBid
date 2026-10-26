@@ -3,9 +3,18 @@
 name: Container scan
 
 on:
-  # Runs once per merge into main and once a day (not on every PR); results go to Security → Code scanning.
+  # Runs after a merge into main and once a day (not on every PR); results go to Security → Code scanning.
+  # Dedup D-27: deploy.yml already builds the API image on every push to main,
+  # so a push builds it a second time here only when API-related files
+  # changed; the daily run scans the image whatever changed.
   push:
     branches: [main, master]
+    paths:
+      - "apps/api/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/container-scan.yml"
   schedule:
     - cron: "30 3 * * *"
   workflow_dispatch:
