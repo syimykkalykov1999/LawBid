@@ -160,7 +160,7 @@ class _DeadlineCalculatorScreenState
     final f = ref.read(l10nFormatsProvider);
     setState(() => _busy = true);
     try {
-      await ref.read(teamRepositoryProvider).createTask(
+      final created = await ref.read(teamRepositoryProvider).createTask(
             TaskDraft(
               kind: TaskKind.deadline,
               title: _title(t, r, f.locale),
@@ -172,7 +172,7 @@ class _DeadlineCalculatorScreenState
                   r.rule.kind == DeadlineKind.statute ? 10080 : 1440,
             ),
           );
-      invalidateAllTasks(ref);
+      ref.read(tasksHubProvider).apply(created);
       if (mounted) showAppSnackBar(context, t.t('deadline.added'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));

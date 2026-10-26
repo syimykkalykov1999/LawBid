@@ -171,6 +171,11 @@ variable "nat_traffic_alarm_gb_per_day" {
   default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
+variable "media_replication_max_gb_per_day" {
+  type        = number
+  default     = 50
+  description = "Ceiling for the media copy to the other Region: alarm when media grows more than this many GB in a day (0 = off). The copy has no hard byte cap in S3: on the alarm set replicate_media = false. Registry row aws.s3."
+}
 variable "budget_forecast_thresholds" {
   type        = list(number)
   default     = [80, 100]
@@ -621,6 +626,11 @@ variable "critical_api_alerts_enabled" {
   type        = bool
   default     = true
   description = "Alerts on key deletion, CloudTrail off, backup vault/lock deletion, root use. Free."
+}
+variable "signing_guard_enabled" {
+  type        = bool
+  default     = false
+  description = "S11-10: alert when an ECS task starts from an image without a cosign signature (modules/signing-guard). Enable after the first signed release."
 }
 variable "documents_data_events" {
   type        = bool

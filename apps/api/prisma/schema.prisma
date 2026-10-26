@@ -3357,6 +3357,10 @@ model PushToken {
   /// notifications itself (sender's photo, one stack per chat) from a
   /// data-only push. Older app versions keep the normal alert.
   chat_style      Boolean  @default(false)
+  /// Owner 2026-10-26: the app on this Android device also draws
+  /// notifications with a person (bid, comment, like, missed call …) with
+  /// that person's round photo from a data-only push.
+  actor_style     Boolean  @default(false)
   /// Owner 2026-10-20: reminders (`<taskId>@<remindAt ms>`) this iPhone has
   /// armed as local alarms; the reminder push skips them (no double banner).
   armed_reminders String[] @default([])
@@ -7542,8 +7546,8 @@ model SystemIncident {
 // Search-ready (owner 2026-10-24, docs/architecture/SEARCH_READY.md): the
 // transactional outbox the search-engine indexer drains. Rows are written by
 // database triggers (migration 20261024160000_search_outbox) only while
-// `search.engine` is not postgres. The partial index search_outbox_due_idx
-// is raw SQL.
+// `search.engine` is not postgres. The partial indexes search_outbox_due_idx
+// and search_outbox_pending_uq (one pending event per row) are raw SQL.
 model SearchOutbox {
   id              BigInt    @id @default(autoincrement())
   entity          String
@@ -7564,6 +7568,26 @@ model SearchIndexState {
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
 
   @@map("search_index_state")
+}
+
+/// Internal domain-event stream (events pipeline, N-2). One append-only row
+/// per business event (user.signed_up, case.created, bid.placed ...), written
+/// through the cross-family outbox effect `domain.event.record` in the same
+/// transaction as the business write. `idempotency_key` makes a re-emit a
+/// no-op. `published_at` is NULL only while the `stream` sink has not yet
+/// shipped the row to Kinesis. Pruned after `events.retention_days`.
+model DomainEvent {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type            String
+  idempotency_key String    @unique
+  actor_user_id   String?   @db.Uuid
+  payload         Json
+  occurred_at     DateTime  @default(now()) @db.Timestamptz
+  published_at    DateTime? @db.Timestamptz
+
+  @@index([occurred_at])
+  @@index([type, occurred_at])
+  @@map("domain_events")
 }
 
 // Experiments (owner 2026-10-25, docs/architecture/EXPERIMENTS.md): A/B tests
