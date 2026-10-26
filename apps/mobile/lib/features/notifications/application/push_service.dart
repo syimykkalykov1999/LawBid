@@ -10,12 +10,15 @@ import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
+import 'package:lawbid/core/realtime/app_signals.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/notifications/application/data_push_sync_hook.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/application/push_registrar.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
 import 'package:lawbid/features/notifications/application/task_reminders.dart';
@@ -35,7 +38,7 @@ class PushService {
   PushService(this._ref);
 
   final Ref _ref;
-  String? _token;
+  PushRegistrar? _registrar;
 
   /// The user this device is registered for; a different sign-in
   /// registers again (review: user B after user A got no pushes).
@@ -50,6 +53,18 @@ class PushService {
       await s.cancel();
     }
     _subs.clear();
+    _registrar?.stop();
+    final registrar = _registrar = _newRegistrar(user);
+    // S15-7: once a week (on resume) the token is registered again.
+    try {
+      _subs.add(
+        _ref.read(appSignalsProvider).signals.listen((s) {
+          if (s == AppSignal.resumed) unawaited(registrar.onResume());
+        }),
+      );
+    } on Object catch (e) {
+      debugPrint('push: no resume signal: $e');
+    }
     // docs/01 §11 Шаг 3: the onboarding explainer asked first; a user who
     // said no there is not prompted by the OS at every start (Settings →
     // Notifications re-asks explicitly).
@@ -117,7 +132,8 @@ class PushService {
       final token = await m.getToken(
         vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
       );
-      if (token != null) await _register(token);
+      // Not awaited: a failed registration keeps retrying in the background.
+      if (token != null) unawaited(_register(token));
       _subs
         ..add(m.onTokenRefresh.listen(_register))
         ..add(FirebaseMessaging.onMessageOpenedApp.listen(_open))
@@ -161,6 +177,13 @@ class PushService {
               );
               return;
             }
+            // S15-8: the trigger of a "go and fetch" sync (a stub until the
+            // changes-since endpoint exists).
+            unawaited(
+              _ref
+                  .read(dataPushSyncHookProvider)(msg.data)
+                  .catchError((Object _) {}),
+            );
             _ref.read(badgesProvider.notifier).refresh();
           }),
         );
@@ -216,10 +239,40 @@ class PushService {
 
   static const _fullScreenAskedKey = 'push.fullScreenIntentAsked';
 
-  Future<void> _register(String token) async {
-    _token = token;
-    try {
-      await _ref.read(notificationsRepositoryProvider).registerPushToken(
+  /// S15-7: retry with backoff + a 7-day re-register (push_registrar.dart).
+  PushRegistrar _newRegistrar(String user) => PushRegistrar(
+        send: _post,
+        readLastRegisteredMs: () async {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            return prefs.getInt('push.registeredAt.$user');
+          } on Object {
+            return null;
+          }
+        },
+        writeLastRegisteredMs: (ms) async {
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setInt('push.registeredAt.$user', ms);
+          } on Object {
+            // Only the 7-day reminder suffers.
+          }
+        },
+        currentToken: () async => Firebase.apps.isEmpty
+            ? null
+            : FirebaseMessaging.instance.getToken(
+                vapidKey: kIsWeb ? WebPushConfig.vapidKey : null,
+              ),
+      );
+
+  Future<void> _register(String token) {
+    final registrar = _registrar;
+    if (registrar == null) return _post(token).catchError((Object _) {});
+    return registrar.register(token);
+  }
+
+  Future<void> _post(String token) =>
+      _ref.read(notificationsRepositoryProvider).registerPushToken(
             token,
             ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
             web: kIsWeb,
@@ -230,10 +283,6 @@ class PushService {
             chatStyle:
                 !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
           );
-    } on Object {
-      // Next app start registers again.
-    }
-  }
 
   String? _voipToken;
 
@@ -288,7 +337,9 @@ class PushService {
         // The server also drops tokens of signed-out sessions.
       }
     }
-    final token = _token;
+    final token = _registrar?.token;
+    _registrar?.stop();
+    _registrar = null;
     if (token == null) return;
     try {
       await _ref.read(notificationsRepositoryProvider).deletePushToken(token);

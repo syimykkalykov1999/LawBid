@@ -342,3 +342,20 @@ describe('SfuBrokerService.decide (fallback at call start)', () => {
     expect(cf.calls).toHaveLength(0);
   });
 });
+
+describe('SfuBrokerService hard stop (cost registry V7)', () => {
+  const make = (stopped: boolean) =>
+    new SfuBrokerService(undefined, undefined, undefined, undefined, {
+      stopped: jest.fn().mockResolvedValue(stopped),
+    } as never);
+
+  it('turns a cloudflare choice into p2p while the hard stop is on', async () => {
+    expect(await make(true).effectiveChoice('cloudflare')).toBe('p2p');
+  });
+
+  it('leaves every other choice and the normal case alone', async () => {
+    expect(await make(false).effectiveChoice('cloudflare')).toBe('cloudflare');
+    expect(await make(true).effectiveChoice('livekit')).toBe('livekit');
+    expect(await make(true).effectiveChoice('p2p')).toBe('p2p');
+  });
+});

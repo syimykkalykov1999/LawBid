@@ -18,6 +18,11 @@ terraform {
 }
 
 variable "name" { type = string }
+variable "enabled" {
+  type        = bool
+  default     = true
+  description = "The CloudFront web ACL (3 rules). Default ON. About $8/month plus $0.60 per million requests (us-east-1, 2026-10); false removes it and the CDN rate limit with it."
+}
 variable "rate_limit_per_5m" {
   type        = number
   default     = 2000
@@ -31,6 +36,7 @@ variable "tags" {
 data "aws_region" "current" {}
 
 resource "aws_wafv2_web_acl" "cdn" {
+  count = var.enabled ? 1 : 0
   name  = "${var.name}-cdn-waf"
   scope = "CLOUDFRONT"
   default_action {
@@ -96,4 +102,11 @@ resource "aws_wafv2_web_acl" "cdn" {
   }
 }
 
-output "web_acl_arn" { value = aws_wafv2_web_acl.cdn.arn }
+moved {
+  from = aws_wafv2_web_acl.cdn
+  to   = aws_wafv2_web_acl.cdn[0]
+}
+
+# "" = no ACL: the distributions treat it as null (modules/web, modules/s3).
+output "web_acl_arn" { value = var.enabled ? aws_wafv2_web_acl.cdn[0].arn : "" }
+output "web_acl_name" { value = var.enabled ? "${var.name}-cdn-waf" : "" }

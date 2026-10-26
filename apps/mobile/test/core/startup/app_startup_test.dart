@@ -1,13 +1,16 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/connectivity/network_interface_monitor.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/l10n/l10n_database.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/realtime/app_signals.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/core/startup/app_session.dart';
@@ -47,6 +50,35 @@ class _Session extends SessionController {
       );
     }
     return result;
+  }
+}
+
+/// bootstrap() answers the given results one after another (the last repeats).
+class _SeqSession extends SessionController {
+  _SeqSession(this.results);
+
+  final List<SessionBootstrapResult> results;
+  int calls = 0;
+
+  @override
+  SessionState? build() => null;
+
+  @override
+  Future<SessionBootstrapResult> bootstrap() async {
+    final r = results[calls < results.length ? calls : results.length - 1];
+    calls++;
+    if (r == SessionBootstrapResult.signedIn) {
+      state = SessionState(
+        accessToken: 'at',
+        sub: 'u1',
+        role: 'client',
+        sid: 's1',
+        verified: false,
+        subscriptionStatus: 'none',
+        accessTokenExpiresAt: DateTime.utc(2030),
+      );
+    }
+    return r;
   }
 }
 
@@ -94,7 +126,9 @@ class _SessionLoader implements AppSessionLoader {
         'iconBadge': true,
       },
       'bootstrapVersion': '17',
-      'client': {'timings': {'reconnectMinMs': 1500}},
+      'client': {
+        'timings': {'reconnectMinMs': 1500},
+      },
       'flags': {'video_posts': true},
       'unreadSupport': 1,
       'hasOngoingCalls': false,
@@ -149,6 +183,8 @@ void main() {
   Future<ProviderContainer> make({
     SessionBootstrapResult result = SessionBootstrapResult.signedIn,
     bool sessionFails = false,
+    SessionController Function()? session,
+    List<Override> extra = const [],
   }) async {
     driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
     SharedPreferences.setMockInitialValues({});
@@ -163,13 +199,15 @@ void main() {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(sp),
         l10nDatabaseProvider.overrideWithValue(l10nDb),
-        sessionControllerProvider.overrideWith(() => _Session(result)),
+        sessionControllerProvider
+            .overrideWith(session ?? () => _Session(result)),
         featureFlagsControllerProvider.overrideWith(() => flags),
         l10nCacheControllerProvider.overrideWith(() => l10n),
         appSessionLoaderProvider.overrideWithValue(loader),
         onboardingRepositoryProvider.overrideWithValue(meRepo),
         startupL10nDelayProvider
             .overrideWithValue(const Duration(milliseconds: 20)),
+        ...extra,
       ],
     );
     addTearDown(c.dispose);
@@ -225,4 +263,70 @@ void main() {
     expect(l10n.refreshes, 1);
     await Future<void>.delayed(const Duration(milliseconds: 60));
   });
+
+  test('the offline splash retries by itself and then gets ready', () async {
+    final seq = _SeqSession([
+      SessionBootstrapResult.offline,
+      SessionBootstrapResult.signedIn,
+    ]);
+    final c = await make(
+      session: () => seq,
+      extra: [
+        startupOfflineRetryDelaysProvider
+            .overrideWithValue(const [Duration(milliseconds: 10)]),
+      ],
+    );
+    await c.read(appStartupProvider.notifier).run();
+    expect(c.read(appStartupProvider), StartupStatus.offline);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(seq.calls, 2);
+    expect(c.read(appStartupProvider), StartupStatus.ready);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+  });
+
+  test('resume re-reads flags and tuning once the app was away long enough',
+      () async {
+    final signals = AppSignals(
+      monitor: _NoNetworkEvents(),
+      pageSignals: const Stream.empty(),
+    );
+    addTearDown(signals.dispose);
+    final c = await make(
+      extra: [
+        appSignalsProvider.overrideWithValue(signals),
+        startupConfigResumeAfterProvider.overrideWithValue(Duration.zero),
+      ],
+    );
+    await c.read(appStartupProvider.notifier).run();
+    expect(loader.calls, 1);
+    signals.emitForTest(AppSignal.resumed);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(loader.calls, 2);
+    expect(flags.calls, hasLength(2));
+    expect(flags.calls.last.$1, '17');
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+  });
+
+  test('resume within the interval asks nothing', () async {
+    final signals = AppSignals(
+      monitor: _NoNetworkEvents(),
+      pageSignals: const Stream.empty(),
+    );
+    addTearDown(signals.dispose);
+    final c =
+        await make(extra: [appSignalsProvider.overrideWithValue(signals)]);
+    await c.read(appStartupProvider.notifier).run();
+    signals.emitForTest(AppSignal.resumed);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(loader.calls, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+  });
+}
+
+class _NoNetworkEvents implements NetworkInterfaceMonitor {
+  @override
+  Future<bool> hasNetwork() async => true;
+
+  @override
+  Stream<bool> get changes => const Stream.empty();
 }
