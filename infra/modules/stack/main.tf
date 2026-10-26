@@ -1976,10 +1976,10 @@ module "monitoring" {
   runbook_base_url                 = var.runbook_base_url
   kms_key_arn                      = module.kms.key_arn
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
-  canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
-  uptime_check      = var.uptime_check
+  canary_url             = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
+  uptime_check           = var.uptime_check
   anomaly_alarms_enabled = var.anomaly_alarms_enabled
-  min_daily_signups = var.min_daily_signups
+  min_daily_signups      = var.min_daily_signups
 
   # S12-12 / S12-14 (all off by default).
   synthetic_journey_enabled         = var.synthetic_journey_enabled
