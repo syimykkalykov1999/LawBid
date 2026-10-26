@@ -6,13 +6,12 @@
  * (lib/guides-server.ts reads the folder), so it is easy to test.
  */
 export const GUIDE_CATEGORIES = [
-  { id: 'accounts', title: 'Аккаунты и регистрации' },
-  { id: 'keys', title: 'Ключи и сервисы' },
-  { id: 'aws', title: 'AWS' },
-  { id: 'stores', title: 'Магазины приложений' },
-  { id: 'legal', title: 'Юридическое и налоги' },
-  { id: 'dns', title: 'Домены и DNS' },
-  { id: 'security', title: 'Безопасность' },
+  { id: 'launch', title: 'Запуск' },
+  { id: 'money', title: 'Деньги' },
+  { id: 'people', title: 'Люди' },
+  { id: 'content', title: 'Контент' },
+  { id: 'legal', title: 'Право' },
+  { id: 'system', title: 'Система' },
 ] as const;
 
 export type GuideCategory = (typeof GUIDE_CATEGORIES)[number]['id'];
@@ -115,6 +114,11 @@ export function groupGuides<T extends GuideMeta>(guides: readonly T[]): { id: Gu
 /** The guide that explains a «Запуск» step (null if none). */
 export function guideForStep<T extends GuideMeta>(guides: readonly T[], stepId: string): T | null {
   return guides.find((g) => g.launch.includes(stepId)) ?? null;
+}
+
+/** The newest check date among the guides («последнее обновление»), or '' for none. */
+export function latestVerified<T extends Pick<GuideMeta, 'verified'>>(guides: readonly T[]): string {
+  return guides.map((g) => g.verified).filter((v) => Number.isFinite(Date.parse(v))).sort().at(-1) ?? '';
 }
 
 /** «проверено 25 октября 2026». */

@@ -33,7 +33,7 @@ d('OpenSearch (real engine)', () => {
     client.searchIds(e, q, 20, 5000);
 
   beforeAll(async () => {
-    for (const e of SEARCH_ENTITIES) await client.ensureIndex(e);
+    await client.bootstrap();
     const res = await client.bulk([
       {
         entity: 'post',

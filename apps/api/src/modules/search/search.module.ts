@@ -10,6 +10,7 @@ import { OpenSearchProvider } from './engine/opensearch-search.provider';
 import { SearchDocsLoader } from './engine/search-docs.loader';
 import { PostgresSearchProvider } from './postgres-search.provider';
 import { SearchIndexerService } from './search-indexer.service';
+import { SearchReindexService } from './search-reindex.service';
 import { SwitchingSearchProvider } from './search-switch.provider';
 import { SearchController } from './search.controller';
 import { SearchLogService } from './search-log.service';
@@ -41,6 +42,7 @@ import { SearchService } from './search.service';
     OPENSEARCH_CLIENT_PROVIDER,
     SearchDocsLoader,
     SearchIndexerService,
+    SearchReindexService,
     SwitchingSearchProvider,
     { provide: SEARCH_PROVIDER, useExisting: SwitchingSearchProvider },
   ],
@@ -49,6 +51,7 @@ import { SearchService } from './search.service';
     SearchLogService,
     SEARCH_PROVIDER,
     SearchIndexerService,
+    SearchReindexService,
   ],
 })
 export class SearchModule {}

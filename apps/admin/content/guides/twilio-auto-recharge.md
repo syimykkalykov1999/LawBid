@@ -1,7 +1,7 @@
 ---
 id: twilio-auto-recharge
 title: Twilio - автопополнение баланса
-category: keys
+category: money
 cost: Бесплатно. Платите только за потраченные SMS.
 time: 5 минут
 verified: 2026-10-25
