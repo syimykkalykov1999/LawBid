@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -61,6 +62,7 @@ class _Chats implements ChatRepository {
   final organized = <String>[];
   final hiddenIds = <String>[];
   final folders = <ChatListFolder>[];
+  final queries = <String?>[];
 
   @override
   Future<CursorPage<Conversation>> conversations({
@@ -71,6 +73,7 @@ class _Chats implements ChatRepository {
     String? q,
   }) async {
     folders.add(requests ? ChatListFolder.requests : folder);
+    queries.add(q);
     return CursorPage(
       items: switch (folder) {
         ChatListFolder.waiting => [
@@ -343,6 +346,48 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('chats-new-chat')));
     await tester.pumpAndSettle();
     expect(find.text('contacts-page'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets(
+      'owner 2026-10-26 (smoothness): a search query rebuilds the chats page, '
+      'not the whole Inbox', (tester) async {
+    final repo = _Chats();
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      uxApp(
+        const InboxScreen(),
+        size: const Size(1000, 2000),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(repo),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chat-search-top')));
+    await tester.pumpAndSettle();
+    BuildCounter.reset();
+    await tester.enterText(find.byKey(const ValueKey('chat-search')), 'anna');
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('chat-search')), '');
+    await tester.pumpAndSettle();
+    final builds = BuildCounter.of('inbox.screen');
+    // ignore: avoid_print
+    print('inbox: two queries -> inbox screen builds=$builds');
+    expect(builds, 0);
+    // The query still reached the list.
+    expect(repo.queries, contains('anna'));
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });

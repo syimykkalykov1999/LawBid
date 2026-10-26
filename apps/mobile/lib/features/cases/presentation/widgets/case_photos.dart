@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
@@ -174,8 +175,12 @@ class CasePhotosPicker extends ConsumerWidget {
                                             color: colors.iconTint,
                                           ),
                                         )
-                                      : Image.memory(
-                                          p.bytes,
+                                      : Image(
+                                          image: thumbImage(
+                                            context,
+                                            p.bytes,
+                                            maxSide: tile,
+                                          ),
                                           fit: BoxFit.cover,
                                         ),
                         ),

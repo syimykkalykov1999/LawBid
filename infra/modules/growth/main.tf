@@ -335,8 +335,9 @@ resource "aws_opensearch_domain" "search" {
 # A provisioned domain does NOT add or remove nodes by itself. The signals
 # below say "make it one size bigger" (opensearch_instance_type / _count /
 # _volume_gb in tfvars, one apply; the app answers from Postgres while a node
-# is replaced). The pay-per-use alternative, OpenSearch Serverless, was
-# rejected in docs/architecture/SEARCH_READY.md (price floor, request signing).
+# is replaced). The pay-per-use alternative, OpenSearch Serverless, is
+# modules/opensearch-serverless (growth.opensearch_serverless_enabled, default
+# off: price floor about $350 a month; the app now signs requests with SigV4).
 locals {
   opensearch_alarms = var.opensearch_enabled && var.alarms_enabled ? {
     cpu = {
