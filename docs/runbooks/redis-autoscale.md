@@ -100,3 +100,7 @@ redis_autoscale_min_class = "cache.t4g.small"    # пол (по умолчани
 - Кластерный режим (горизонтальное масштабирование): см. раздел 3 архитектурного
   документа; это решение владельца, автоматики нет. Дешёвый шаг раньше:
   отдельный узел под кэш ([redis.md](redis.md) «Разделение»).
+
+## Потолок «по деньгам» (cost registry, 2026-10-25)
+
+Как у базы (docs/runbooks/db-autoscale.md): параметр SSM `/<имя стека>/redis-autoscale/max-class` пишет `economy.guard`; Redis может стоить не больше 15 % допустимой суммы месяца (при бюджете $350 это `cache.t4g.small`, ≈ $47 за пару). Стартовое значение: `redis_autoscale_initial_ceiling_class`. Жёсткий потолок из Terraform (`redis_autoscale_max_class`) остаётся выше всего.

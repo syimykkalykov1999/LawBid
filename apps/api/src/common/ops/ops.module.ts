@@ -11,8 +11,11 @@ import { AwsOpsService } from './aws-ops.service';
 import { HttpStatsService } from './http-stats.service';
 import { RealtimeStatsService } from './realtime-stats.service';
 import { OpsStateService } from './ops-state.service';
+import { SecretRotationService } from './secret-rotation.service';
 import { IncidentsService } from './status/incidents.service';
 import { StatusProbesService } from './status/status-probes.service';
+import { SsmParamGateway } from './ssm-param.gateway';
+import { UsageHardStopService } from './usage/usage-hard-stop.service';
 
 /** Owner 2026-10-05: zero-maintenance operations, shared by the API and
  * the worker (RedisModule and ConfigModule are global). */
@@ -22,6 +25,7 @@ import { StatusProbesService } from './status/status-probes.service';
     AwsOpsService,
     AwsCapacityService,
     OpsStateService,
+    SecretRotationService,
     HttpStatsService,
     RealtimeStatsService,
     StatusProbesService,
@@ -31,11 +35,14 @@ import { StatusProbesService } from './status/status-probes.service';
     PagerDutySnsService,
     LaunchChecksService,
     SpendService,
+    UsageHardStopService,
+    SsmParamGateway,
   ],
   exports: [
     AwsOpsService,
     AwsCapacityService,
     OpsStateService,
+    SecretRotationService,
     HttpStatsService,
     RealtimeStatsService,
     StatusProbesService,
@@ -45,6 +52,8 @@ import { StatusProbesService } from './status/status-probes.service';
     PagerDutySnsService,
     LaunchChecksService,
     SpendService,
+    UsageHardStopService,
+    SsmParamGateway,
   ],
 })
 export class OpsModule {}

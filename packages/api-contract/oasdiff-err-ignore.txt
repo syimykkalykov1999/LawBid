@@ -432,6 +432,12 @@ POST /admin/system-health/message-reencrypt/restart added the new `table_growth`
 POST /admin/system-health/restart-worker added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
 POST /admin/system-health/scale added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
 PATCH /admin/system-health/settings added the new `table_growth` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
 GET /admin/legal/documents added the new `advertising_disclosure` enum value to the `data/items/docType` response property for the response status `200`
 GET /admin/legal/documents added the new `community_guidelines` enum value to the `data/items/docType` response property for the response status `200`
 GET /admin/legal/documents added the new `sms_terms` enum value to the `data/items/docType` response property for the response status `200`
