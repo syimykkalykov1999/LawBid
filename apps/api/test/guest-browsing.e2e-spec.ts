@@ -206,6 +206,23 @@ describe('Guest browsing (e2e)', () => {
   it('the admin kill switch closes guest browsing', async () => {
     await setConfig('guest.browsing_enabled', false);
     await guest().get('/feed').expect(401);
+    // One switch: the app and the website are told «no» too (dedup D-12).
+    await setConfig('client.guest_browse_app_enabled', true);
+    await setConfig('client.guest_browse_web_enabled', true);
+    const off = await guest().get('/config/bootstrap').expect(200);
+    const offCfg = (off.body.data ?? off.body).app_config;
+    expect(offCfg['client.guest_browse_app_enabled']).toBe(false);
+    expect(offCfg['client.guest_browse_web_enabled']).toBe(false);
+    await prisma.appConfig.deleteMany({
+      where: {
+        key: {
+          in: [
+            'client.guest_browse_app_enabled',
+            'client.guest_browse_web_enabled',
+          ],
+        },
+      },
+    });
     await setConfig('guest.browsing_enabled', true);
     await guest().get('/feed').expect(200);
   });
