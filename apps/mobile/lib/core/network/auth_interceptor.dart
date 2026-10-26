@@ -68,8 +68,9 @@ class AuthInterceptor extends Interceptor {
         rootMessengerKey.currentState?.showSnackBar(
           SnackBar(
             duration: const Duration(seconds: 6),
-            content:
-                Text(apiErrorText(_ref.read(translatorProvider), apiError)),
+            content: Text(
+              apiErrorText(_ref.read(translatorProvider), apiError),
+            ),
           ),
         );
       }
@@ -94,11 +95,12 @@ class AuthInterceptor extends Interceptor {
     } catch (_) {
       // Refresh itself failed (expired/reused/invalid refresh token, or a
       // network error while refreshing) — the session is unrecoverable.
-      // `SessionController.refreshAccessToken()` already cleared state and
-      // secure storage on failure; propagate the ORIGINAL error so the
-      // caller sees why its own request actually failed, and the router's
-      // next redirect check (`AppRouterGuard`) drops the user to
-      // `/welcome`.
+      // `SessionController.refreshAccessToken()` signs out only on a
+      // definitive 401/403 rejection (S15-1); a busy server or a network
+      // error keeps the session and its refresh token. Propagate the
+      // ORIGINAL error so the caller sees why its own request actually
+      // failed, and the router's next redirect check (`AppRouterGuard`)
+      // drops the user to `/welcome`.
       handler.next(err);
     }
   }
