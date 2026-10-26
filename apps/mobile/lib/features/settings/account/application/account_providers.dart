@@ -32,9 +32,10 @@ class AccountIdentifiersController
 
   Future<void> refresh() async {
     state = const AsyncLoading<List<AccountIdentifier>>();
-    state = await AsyncValue.guard(
+    final next = await AsyncValue.guard(
       () => ref.read(accountRepositoryProvider).listIdentifiers(),
     );
+    if (ref.mounted) state = next;
   }
 
   /// Re-reads without flashing the skeleton (after a successful link).

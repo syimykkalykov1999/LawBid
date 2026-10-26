@@ -521,6 +521,7 @@ export function splitSqlStatements(sql: string): string[] {
   let cur = '';
   let inQuote = false;
   let inDollar = false;
+  let dollarTag = '';
   let inComment = false;
   for (let i = 0; i < sql.length; i += 1) {
     const ch = sql[i];
@@ -539,11 +540,19 @@ export function splitSqlStatements(sql: string): string[] {
       cur += ch;
       continue;
     }
-    if (!inQuote && ch === '$' && next === '$') {
-      inDollar = !inDollar;
-      cur += '$$';
-      i += 1;
-      continue;
+    // Dollar quotes: `$$ … $$` and tagged ones like `$fn$ … $fn$` (the
+    // closing tag must match the opening one).
+    if (!inQuote && ch === '$') {
+      const tag = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(
+        sql.slice(i, i + 64),
+      );
+      if (tag && (!inDollar || tag[0] === dollarTag)) {
+        inDollar = !inDollar;
+        dollarTag = inDollar ? tag[0] : '';
+        cur += tag[0];
+        i += tag[0].length - 1;
+        continue;
+      }
     }
     if (!inQuote && !inDollar && ch === ';') {
       const s = cur.trim();
