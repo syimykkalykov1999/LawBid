@@ -196,6 +196,9 @@ export const OWNER_MEDIA_SETTINGS = {
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
   // Engine answers slower than this fall back to Postgres, ms.
+  // Which kind of engine 'search.engine' talks to: domain (provisioned
+  // OpenSearch, default) or serverless (Amazon OpenSearch Serverless, SigV4).
+  'search.engine_kind': 'domain',
   'search.engine_timeout_ms': 800,
   // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
   // the old index generation is kept this many days for a rollback, and the
