@@ -955,11 +955,24 @@ class ChatThread extends Notifier<ChatThreadState> {
           if (--left == 0) break;
         }
       }
+      // The page replaces the list (a 409 reload must drop the stale copy),
+      // but a message that arrived by realtime while the page was loading
+      // (newer than the page) stays.
+      final pageIds = {for (final m in page.items) m.id};
+      final newestOnPage = page.items.firstOrNull?.createdAt;
+      final arrived = [
+        for (final m in state.messages)
+          if (!pageIds.contains(m.id) &&
+              newestOnPage != null &&
+              m.createdAt.isAfter(newestOnPage))
+            m,
+      ];
+      state = state.copyWith(messages: page.items);
+      _merge(arrived);
       state = state.copyWith(
         conversation: conv,
         unreadFromId: firstUnread,
         unreadCount: firstUnread == null ? null : conv.unreadCount,
-        messages: page.items,
         nextCursor: page.nextCursor,
         clearCursor: page.nextCursor == null,
         loading: false,
@@ -987,12 +1000,30 @@ class ChatThread extends Notifier<ChatThreadState> {
     }
   }
 
-  Future<void> loadMore() async {
+  Future<void>? _loadMoreRunning;
+
+  /// One older page; a second caller (e.g. a jump to a quoted message)
+  /// waits for the one already running instead of returning at once.
+  Future<void> loadMore() {
+    final running = _loadMoreRunning;
+    if (running != null) return running;
+    final f = _loadMore().whenComplete(() => _loadMoreRunning = null);
+    _loadMoreRunning = f;
+    return f;
+  }
+
+  Future<void> _loadMore() async {
     final cursor = state.nextCursor;
     if (cursor == null || state.loadingMore) return;
     state = state.copyWith(loadingMore: true, loadMoreFailed: false);
     if (cursor == localCursor) {
-      await _loadMoreLocal();
+      try {
+        await _loadMoreLocal();
+      } on Object {
+        if (ref.mounted) {
+          state = state.copyWith(loadingMore: false, loadMoreFailed: true);
+        }
+      }
       return;
     }
     try {
@@ -1120,7 +1151,10 @@ class ChatThread extends Notifier<ChatThreadState> {
     /// call); the queue uploads them at once and sends them in order.
     Future<void>? after,
   }) async {
+    // Read before the first await: the screen may be left meanwhile (this
+    // provider is auto-disposed) and the photo must still be queued.
     final queue = ref.read(chatMediaOutboxProvider);
+    final files = ref.read(uploadFilesProvider);
     if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
     final isImage = mime.startsWith('image/');
@@ -1128,10 +1162,10 @@ class ChatThread extends Notifier<ChatThreadState> {
         ? await imageSizeOf(bytes)
         : (mime.startsWith('video/') ? videoSizeOf(bytes) : null);
     _previewBytes[cmid] = bytes;
-    final file = await ref.read(uploadFilesProvider).keep(
-          '$cmid.bin',
-          bytes: bytes,
-        );
+    final file = await files.keep(
+      '$cmid.bin',
+      bytes: bytes,
+    );
     if (after != null) {
       try {
         await after;
@@ -1632,6 +1666,9 @@ class ChatThread extends Notifier<ChatThreadState> {
       messages: merged,
       outbox:
           state.outbox.where((o) => !done.contains(o.clientMessageId)).toList(),
+      voiceOutbox: state.voiceOutbox
+          .where((o) => !done.contains(o.clientMessageId))
+          .toList(),
     );
   }
 
@@ -1731,6 +1768,10 @@ class ChatThread extends Notifier<ChatThreadState> {
         unawaited(_catchUp());
     }
   }
+
+  /// Re-reads only the conversation header (pin, note, block...) — the
+  /// loaded messages, local bubbles and outbox stay.
+  Future<void> refreshConversation() => _refreshConversation();
 
   Future<void> _refreshConversation() async {
     try {

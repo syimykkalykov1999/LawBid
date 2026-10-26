@@ -10,7 +10,6 @@ import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_banners.dart';
-import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/practice/practice_options.dart'
     as practice_options;
 import 'package:lawbid/features/practice/practice_options.dart' as practices;
@@ -389,7 +388,9 @@ List<Widget> commentThreadSlivers(
                 );
               }
               if (value.canLoadMore) {
-                notifier.loadMore();
+                // Audit C18: not while the list is being built.
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => notifier.loadMore());
                 return const Padding(
                   padding: EdgeInsets.all(AppSpacing.lg),
                   child: Center(
@@ -881,7 +882,7 @@ class ProfileBriefsAndReposts extends ConsumerWidget {
     }
 
     final ownProfile =
-        ref.watch(currentUserControllerProvider).user?.id == attorneyId;
+        ref.watch(currentUserIdProvider) == attorneyId;
     return Column(
       children: [
         // Owner 2026-10-23: the posts being published lead the own profile.

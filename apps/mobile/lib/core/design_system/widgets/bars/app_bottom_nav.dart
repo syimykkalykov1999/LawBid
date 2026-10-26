@@ -81,6 +81,7 @@ class AppBottomNav extends StatelessWidget {
       // itself turns gold (the gold of the client check).
       final iconColor = selected ? colors.goldAccent : colors.textSecondary;
       return Expanded(
+        key: ValueKey('nav-tab-${tab.key.name}'),
         child: Semantics(
           button: true,
           selected: selected,

@@ -28,6 +28,10 @@ abstract final class ApiErrorCodes {
   /// older than the server keeps — reload the list from the first page.
   static const syncTooOld = 'SYNC_TOO_OLD';
 
+  /// Owner 2026-10-25 (experiments, 409): the action does not fit the
+  /// experiment's state (start a running one, ramp up a stopped one ...).
+  static const experimentStateInvalid = 'EXPERIMENT_STATE_INVALID';
+
   /// A write sent an old `version` (409): somebody else saved first.
   static const staleVersion = 'STALE_VERSION';
 
@@ -271,11 +275,8 @@ abstract final class ApiErrorCodes {
   static const adminCredentialsInvalid = 'ADMIN_CREDENTIALS_INVALID';
   static const adminLoginTaken = 'ADMIN_LOGIN_TAKEN';
   static const adminRecoveryFailed = 'ADMIN_RECOVERY_FAILED';
-  // Owner 2026-10-22: mandatory authenticator, second admin's approval.
+  // Owner 2026-10-22: mandatory authenticator.
   static const adminTotpSetupRequired = 'ADMIN_TOTP_SETUP_REQUIRED';
-  static const adminApprovalPending = 'ADMIN_APPROVAL_PENDING';
-  static const adminApprovalSelf = 'ADMIN_APPROVAL_SELF';
-  static const adminApprovalNotPending = 'ADMIN_APPROVAL_NOT_PENDING';
   static const referralCodeInvalid = 'REFERRAL_CODE_INVALID';
   static const referralNotAllowed = 'REFERRAL_NOT_ALLOWED';
   static const referralInvalidState = 'REFERRAL_INVALID_STATE';
@@ -339,6 +340,7 @@ abstract final class ApiErrorCodes {
     idempotencyKeyConflict,
     appUpdateRequired,
     syncTooOld,
+    experimentStateInvalid,
     staleVersion,
     tokenExpired,
     authOtpInvalid,
@@ -522,9 +524,6 @@ abstract final class ApiErrorCodes {
     adminLoginTaken,
     adminRecoveryFailed,
     adminTotpSetupRequired,
-    adminApprovalPending,
-    adminApprovalSelf,
-    adminApprovalNotPending,
     referralCodeInvalid,
     referralNotAllowed,
     referralInvalidState,

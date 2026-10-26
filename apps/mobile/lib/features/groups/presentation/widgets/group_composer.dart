@@ -160,7 +160,10 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
     if (text.isEmpty) return;
     AppHaptics.light();
     if (widget.editing != null) {
+      // The field is cleared when the edit succeeds (the parent leaves edit
+      // mode); a failed edit keeps what was typed.
       widget.onSaveEdit(text);
+      return;
     } else {
       final ids = [
         for (final e in _picked.entries)

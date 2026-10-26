@@ -25,6 +25,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_impression_trac
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
 /// for the next one, the current reel plays with sound and loops; tap
@@ -163,12 +164,14 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   Future<void> _load() async {
     if (_loading || !_more) return;
     unawaited(_mixFresh());
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       final page = await ref.read(reelsRepositoryProvider).reels(
             cursor: _cursor,
             practice: widget.practice,
           );
+      if (!mounted) return;
       final seen = _items.map((p) => p.id).toSet();
       setState(() {
         _items.addAll(page.items.where((p) => !seen.contains(p.id)));
@@ -177,7 +180,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         _error = null;
       });
     } on Object catch (e) {
-      setState(() => _error = e);
+      if (mounted) setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -558,6 +561,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     // exactly the caption's height when there is one.
     final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
+      // Audit C3: a guest gets the sign-in sheet instead of a 401.
+      if (!requireSignIn(context, ref)) return;
       final e = await a();
       if (e != null && context.mounted) {
         showAppSnackBar(context, errorText(t, e));

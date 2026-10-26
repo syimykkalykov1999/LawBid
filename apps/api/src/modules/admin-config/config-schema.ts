@@ -62,6 +62,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
     pattern: /^(postgres|shadow|engine)$/,
   };
+  out['search.engine_kind'] = {
+    type: 'string',
+    defaultValue: 'domain',
+    description:
+      'Which search engine the app talks to: domain (OpenSearch domain, about $25 a month for the smallest) or serverless (Amazon OpenSearch Serverless, from about $350 a month, no servers to size). Serverless needs growth.opensearch_serverless_enabled in Terraform. Changing it needs a reindex.',
+    pattern: /^(domain|serverless)$/,
+  };
   out['search.engine_timeout_ms'] = {
     type: 'integer',
     defaultValue: 800,
@@ -572,6 +579,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  out['ranking.events_mode'] = {
+    ...out['ranking.events_mode'],
+    description:
+      'Ranking events log: off, on, or auto (impressions only while an experiment runs).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ranking.impression_sample_percent'] = {
+    ...out['ranking.impression_sample_percent'],
+    min: 0,
+    max: 100,
+  };
   out['chat.search.backfill_mode'] = {
     ...out['chat.search.backfill_mode'],
     description:
@@ -630,18 +648,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Free trial for new attorney subscriptions, days (0 = no trial). Running trials keep their end date.',
     min: 0,
     max: TRIAL_DAYS_MAX,
-  };
-  out['billing.dual_approval_min_cents'] = {
-    ...out['billing.dual_approval_min_cents'],
-    description:
-      'Bulk payouts and refunds of this many cents or more wait for a second admin to approve them (0 = all of them). Changing it needs a fresh 2FA code.',
-    min: 0,
-    max: 100_000_000,
-  };
-  out['admin.dual_control'] = {
-    ...out['admin.dual_control'],
-    description:
-      'Second-admin approval for payouts, refunds, bonuses and the ops buttons. Off (default): the admin who asks runs the action at once after a fresh 2FA code. On: amounts from billing.dual_approval_min_cents wait for another admin.',
   };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],

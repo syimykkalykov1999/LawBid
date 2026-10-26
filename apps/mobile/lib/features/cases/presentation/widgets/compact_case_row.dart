@@ -7,6 +7,7 @@ import 'package:flutter/semantics.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
@@ -87,6 +88,7 @@ class CompactCaseRow extends StatelessWidget {
     final picture = coverUrl != null
         ? CachedNetworkImage(
             imageUrl: coverUrl!,
+            cacheManager: AppImageCaches.feed,
             fit: BoxFit.cover,
             memCacheWidth: 200,
             placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),

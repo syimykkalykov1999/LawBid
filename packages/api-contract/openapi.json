@@ -388,6 +388,43 @@
         ]
       }
     },
+    "/config/flags": {
+      "get": {
+        "operationId": "myFeatureFlags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyFlagsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Feature flags for the signed-in user (rollout applied)",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/auth/otp/request": {
       "post": {
         "operationId": "requestOtp",
@@ -1512,6 +1549,83 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reauth/demo": {
+      "post": {
+        "operationId": "reauthDemo",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthTokenEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner 2026-10-08: a DEMO session gets its reauth token without the\none-time code (the demo world cannot deliver one). Decided on the\nserver from the signed demo claim — see DemoReauthService.",
         "tags": [
           "auth"
         ]
@@ -5321,419 +5435,6 @@
         ]
       }
     },
-    "/admin/approvals": {
-      "get": {
-        "operationId": "listAdminApprovals",
-        "parameters": [
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "description": "pending = waiting for a second admin; done = decided.",
-            "schema": {
-              "default": "pending",
-              "type": "string",
-              "enum": [
-                "pending",
-                "done"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Requests waiting for a second admin (or decided ones), newest first",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
-    "/admin/approvals/count": {
-      "get": {
-        "operationId": "countAdminApprovals",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalsCountEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "How many this admin could approve now (badge)",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
-    "/admin/approvals/{id}/approve": {
-      "post": {
-        "operationId": "approveAdminApproval",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED, ADMIN_APPROVAL_SELF",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_NOT_PENDING",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Approve as the second admin (fresh step-up; never your own request) — the action runs now, once",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
-    "/admin/approvals/{id}/reject": {
-      "post": {
-        "operationId": "rejectAdminApproval",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminApprovalRejectDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_NOT_PENDING",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Turn it down (or withdraw your own request); nothing runs",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
     "/admin/dashboard": {
       "get": {
         "operationId": "getDashboard",
@@ -5959,7 +5660,7 @@
             "admin": []
           }
         ],
-        "summary": "Sidebar badges: verification queue, open reports, support unread, trust queue, approvals (ETag → 304)",
+        "summary": "Sidebar badges: verification queue, open reports, support unread, trust queue (ETag → 304)",
         "tags": [
           "admin-dashboard"
         ]
@@ -33867,13 +33568,14 @@
             "name": "sort",
             "required": false,
             "in": "query",
+            "description": "Owner 2026-10-25: when omitted the admin setting bids.default_sort applies (newest by default).",
             "schema": {
-              "default": "newest",
               "type": "string",
               "enum": [
                 "newest",
                 "lowest_price",
-                "highest_rating"
+                "highest_rating",
+                "best_match"
               ]
             }
           },
@@ -48935,7 +48637,7 @@
             }
           },
           "409": {
-            "description": "Conflict: REFUND_AMOUNT_EXCEEDED, ADMIN_APPROVAL_PENDING, REFUND_NOT_ALLOWED, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: REFUND_AMOUNT_EXCEEDED, REFUND_NOT_ALLOWED, IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -51854,7 +51556,7 @@
             }
           },
           "409": {
-            "description": "Conflict: VALIDATION_ERROR, ADMIN_APPROVAL_PENDING",
+            "description": "Conflict: VALIDATION_ERROR",
             "content": {
               "application/json": {
                 "schema": {
@@ -52189,16 +51891,6 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING",
             "content": {
               "application/json": {
                 "schema": {
@@ -70234,7 +69926,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING, FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -70279,7 +69971,7 @@
             "admin": []
           }
         ],
-        "summary": "Change the monthly limit of the prod budget (step-up; second admin only if admin.dual_control is on)",
+        "summary": "Change the monthly limit of the prod budget (fresh 2FA step-up)",
         "tags": [
           "admin-launch"
         ]
@@ -70341,7 +70033,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING, FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -70386,7 +70078,7 @@
             "admin": []
           }
         ],
-        "summary": "Delete the obsolete «LawBid Monthly» budget (step-up; second admin only if admin.dual_control is on)",
+        "summary": "Delete the obsolete «LawBid Monthly» budget (fresh 2FA step-up)",
         "tags": [
           "admin-launch"
         ]
@@ -70940,6 +70632,656 @@
         "summary": "Vendor prices used for the estimate (needs step-up)",
         "tags": [
           "admin-spend"
+        ]
+      }
+    },
+    "/admin/experiments": {
+      "get": {
+        "operationId": "listExperiments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Experiments with their latest report",
+        "tags": [
+          "admin-experiments"
+        ]
+      },
+      "post": {
+        "operationId": "createExperiment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExperimentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: EXPERIMENT_STATE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Create an experiment (draft: changes nothing yet)",
+        "tags": [
+          "admin-experiments"
+        ]
+      }
+    },
+    "/admin/experiments/{id}/start": {
+      "post": {
+        "operationId": "startExperiment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartExperimentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: EXPERIMENT_STATE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Start a draft at a small share of users (2FA)",
+        "tags": [
+          "admin-experiments"
+        ]
+      }
+    },
+    "/admin/experiments/{id}/traffic": {
+      "post": {
+        "operationId": "setExperimentTraffic",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartExperimentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: EXPERIMENT_STATE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Raise the share of a running experiment (2FA)",
+        "tags": [
+          "admin-experiments"
+        ]
+      }
+    },
+    "/admin/experiments/{id}/stop": {
+      "post": {
+        "operationId": "stopExperiment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopExperimentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: EXPERIMENT_STATE_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Stop = roll back to the default behaviour (2FA)",
+        "tags": [
+          "admin-experiments"
+        ]
+      }
+    },
+    "/admin/experiments/{id}/refresh": {
+      "post": {
+        "operationId": "refreshReport",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExperimentEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Recompute the report now",
+        "tags": [
+          "admin-experiments"
         ]
       }
     },
@@ -114597,9 +114939,6 @@
           "ADMIN_LOGIN_TAKEN",
           "ADMIN_RECOVERY_FAILED",
           "ADMIN_TOTP_SETUP_REQUIRED",
-          "ADMIN_APPROVAL_PENDING",
-          "ADMIN_APPROVAL_SELF",
-          "ADMIN_APPROVAL_NOT_PENDING",
           "CONTENT_BLOCKED",
           "MODERATION_ACTION_NOT_APPLICABLE",
           "FLAG_PROVIDER_KEYS_MISSING",
@@ -114731,6 +115070,7 @@
           "CONTENT_PROTECTED",
           "UNSUPPORTED_IN_TARGET",
           "SYNC_TOO_OLD",
+          "EXPERIMENT_STATE_INVALID",
           "STALE_VERSION"
         ]
       },
@@ -114965,6 +115305,35 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/BootstrapDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MyFlagsDto": {
+        "type": "object",
+        "properties": {
+          "flags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "Every flag as THIS user sees it: a flag rolled out to part of the users is resolved by a stable hash of (flag, user)."
+          }
+        },
+        "required": [
+          "flags"
+        ]
+      },
+      "MyFlagsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MyFlagsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -116818,220 +117187,6 @@
           "answer"
         ]
       },
-      "AdminApprovalPersonDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "email": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "email"
-        ]
-      },
-      "AdminApprovalDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "payroll_bulk_payout",
-              "billing_refund",
-              "payroll_bonus",
-              "partner_payout",
-              "partner_commission_paid"
-            ]
-          },
-          "label": {
-            "type": "string",
-            "description": "Russian label of the kind."
-          },
-          "summary": {
-            "type": "string"
-          },
-          "amountCents": {
-            "type": "integer",
-            "description": "Compared with the limit (cents)."
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "approved",
-              "rejected",
-              "failed",
-              "expired"
-            ]
-          },
-          "payload": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "The request body the action runs with."
-          },
-          "requestedBy": {
-            "$ref": "#/components/schemas/AdminApprovalPersonDto"
-          },
-          "approvedBy": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AdminApprovalPersonDto"
-              }
-            ]
-          },
-          "rejectedBy": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AdminApprovalPersonDto"
-              }
-            ]
-          },
-          "decisionNote": {
-            "type": "string",
-            "nullable": true
-          },
-          "error": {
-            "type": "string",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "decidedAt": {
-            "type": "string",
-            "nullable": true,
-            "format": "date-time"
-          },
-          "executedAt": {
-            "type": "string",
-            "nullable": true,
-            "format": "date-time"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "canDecide": {
-            "type": "boolean",
-            "description": "The viewer may approve or reject it now."
-          },
-          "mine": {
-            "type": "boolean",
-            "description": "The viewer asked for it."
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "label",
-          "summary",
-          "amountCents",
-          "status",
-          "payload",
-          "requestedBy",
-          "approvedBy",
-          "rejectedBy",
-          "decisionNote",
-          "error",
-          "createdAt",
-          "decidedAt",
-          "executedAt",
-          "expiresAt",
-          "canDecide",
-          "mine"
-        ]
-      },
-      "AdminApprovalListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminApprovalDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminApprovalsCountDto": {
-        "type": "object",
-        "properties": {
-          "pending": {
-            "type": "integer",
-            "description": "Requests this admin could approve now."
-          },
-          "limitCents": {
-            "type": "integer",
-            "description": "billing.dual_approval_min_cents: from this amount on."
-          },
-          "dualControl": {
-            "type": "boolean",
-            "description": "admin.dual_control: the second-admin rule is on (default off)."
-          }
-        },
-        "required": [
-          "pending",
-          "limitCents",
-          "dualControl"
-        ]
-      },
-      "AdminApprovalsCountEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminApprovalsCountDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminApprovalEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminApprovalDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminApprovalRejectDto": {
-        "type": "object",
-        "properties": {
-          "note": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "Why (optional)."
-          }
-        }
-      },
       "DashboardNewUsersDto": {
         "type": "object",
         "properties": {
@@ -117276,18 +117431,13 @@
           "trustQueue": {
             "type": "integer",
             "description": "Attorneys in the trust queue."
-          },
-          "approvalsPending": {
-            "type": "integer",
-            "description": "Approvals this admin could decide."
           }
         },
         "required": [
           "verificationQueue",
           "openReports",
           "supportUnread",
-          "trustQueue",
-          "approvalsPending"
+          "trustQueue"
         ]
       },
       "AdminCountsEnvelope": {
@@ -131559,7 +131709,6 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string",
             "enum": [
               "terms",
               "privacy",
@@ -131573,7 +131722,8 @@
               "client_agreement",
               "eula",
               "do_not_sell"
-            ]
+            ],
+            "type": "string"
           },
           "granted": {
             "type": "boolean"
@@ -133476,6 +133626,14 @@
           },
           "attorney": {
             "$ref": "#/components/schemas/BidAttorneySummaryDto"
+          },
+          "bestPrice": {
+            "type": "boolean",
+            "description": "Owner 2026-10-25: the lowest reasonable price on the case (suspiciously low bids excluded). For a later \"best price\" label."
+          },
+          "lowOffer": {
+            "type": "boolean",
+            "description": "Owner 2026-10-25: far below the case median (setting bids.dumping_guard on); false when the guard is off."
           }
         },
         "required": [
@@ -133496,7 +133654,9 @@
           "outsidePractice",
           "outsideLicensedStates",
           "createdAt",
-          "attorney"
+          "attorney",
+          "bestPrice",
+          "lowOffer"
         ]
       },
       "CaseBidItemListEnvelope": {
@@ -152389,6 +152549,281 @@
         "required": [
           "values"
         ]
+      },
+      "ExperimentVariantDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 32,
+            "example": "control"
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "key",
+          "weight"
+        ]
+      },
+      "ExperimentGuardrailsDto": {
+        "type": "object",
+        "properties": {
+          "reportsRelIncreasePct": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "description": "Stop when reports per 1000 impressions grow by more than this percent vs control."
+          },
+          "errorsRelIncreasePct": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "description": "Same for errors per 1000 impressions."
+          },
+          "minImpressions": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 1000000,
+            "description": "Do not judge a guardrail before this many impressions per variant."
+          }
+        }
+      },
+      "ExperimentResultDto": {
+        "type": "object",
+        "properties": {
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "srmP": {
+            "type": "number",
+            "nullable": true
+          },
+          "srmFlag": {
+            "type": "boolean"
+          },
+          "guardrailTripped": {
+            "type": "boolean"
+          },
+          "summary": {
+            "description": "Plain-Russian lines for the page.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "report": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Full report: exposures, per-variant metrics with intervals."
+          }
+        },
+        "required": [
+          "computedAt",
+          "srmP",
+          "srmFlag",
+          "guardrailTripped",
+          "summary",
+          "report"
+        ]
+      },
+      "ExperimentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "hypothesis": {
+            "type": "string",
+            "nullable": true
+          },
+          "surface": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "running",
+              "stopped"
+            ]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExperimentVariantDto"
+            }
+          },
+          "trafficPercent": {
+            "type": "integer"
+          },
+          "guardrails": {
+            "$ref": "#/components/schemas/ExperimentGuardrailsDto"
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "endAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "stoppedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "stopReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "stoppedBySystem": {
+            "type": "boolean"
+          },
+          "exposed": {
+            "type": "integer",
+            "description": "Units that have been given a variant."
+          },
+          "latest": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExperimentResultDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "hypothesis",
+          "surface",
+          "status",
+          "variants",
+          "trafficPercent",
+          "guardrails",
+          "startedAt",
+          "endAt",
+          "stoppedAt",
+          "stopReason",
+          "stoppedBySystem",
+          "exposed",
+          "latest"
+        ]
+      },
+      "ExperimentListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExperimentDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreateExperimentDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,63}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          },
+          "hypothesis": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "surface": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,39}$",
+            "example": "case_feed"
+          },
+          "variants": {
+            "minItems": 2,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExperimentVariantDto"
+            }
+          },
+          "guardrails": {
+            "$ref": "#/components/schemas/ExperimentGuardrailsDto"
+          },
+          "endAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Stops by itself at this moment."
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "surface",
+          "variants"
+        ]
+      },
+      "ExperimentEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ExperimentDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StartExperimentDto": {
+        "type": "object",
+        "properties": {
+          "trafficPercent": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Share of users who enter the test (5-10 to begin)."
+          }
+        },
+        "required": [
+          "trafficPercent"
+        ]
+      },
+      "StopExperimentDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
       },
       "SpendLineDto": {
         "type": "object",
