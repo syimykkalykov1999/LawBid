@@ -84,6 +84,8 @@ export const CRON_JOBS = {
   privacyReconcile: 'privacy.reconcile',
   /** Privacy round 13 (S13-14): "will be deleted tomorrow" at day 13. */
   privacyDeletionNotices: 'privacy.deletion-notices',
+  /** DB-ops hardening: daily table size / dead-tuple ratio / txid age → log metrics. */
+  dbHealth: 'db.health',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -299,6 +301,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.privacyRetention, pattern: '45 3 * * *' },
   { name: CRON_JOBS.privacyReconcile, pattern: '30 5 * * *' },
   { name: CRON_JOBS.privacyDeletionNotices, pattern: '20 15 * * *' },
+  // Daily, off the busy hours: read-only statistics of every database.
+  { name: CRON_JOBS.dbHealth, pattern: '35 4 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
   // Every minute: applies cross-family events a request could not (retries

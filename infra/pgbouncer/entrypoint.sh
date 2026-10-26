@@ -17,7 +17,7 @@
 #   CLIENT_TLS_KEY_PEM / CLIENT_TLS_CERT_PEM  optional; the pooler's own
 #                  key and certificate (private CA, from Terraform). Without
 #                  them a self-signed certificate is made at start.
-#   QUERY_WAIT_TIMEOUT  seconds a client may wait for a server connection [30]
+#   QUERY_WAIT_TIMEOUT  seconds a client may wait for a server connection [10]
 #   STATS_INTERVAL seconds between CloudWatch metric lines (0 = off)   [30]
 #   METRICS_NAMESPACE   CloudWatch namespace of the metric lines  [LawBid/PgBouncer]
 #
@@ -132,7 +132,7 @@ tcp_keepcnt = 3
 tcp_user_timeout = 30000
 
 ; Fail fast instead of piling up: a client that waits this long gets an error.
-query_wait_timeout = ${QUERY_WAIT_TIMEOUT:-30}
+query_wait_timeout = ${QUERY_WAIT_TIMEOUT:-10}
 client_login_timeout = 10
 idle_transaction_timeout = 120
 listen_backlog = 1024
