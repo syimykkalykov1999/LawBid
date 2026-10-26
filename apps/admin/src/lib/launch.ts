@@ -261,3 +261,179 @@ export function usersWord(n: number): string {
       ? `${n / 1000} тыс.`
       : String(n);
 }
+
+// --- registry view: search, filters, sort, summary (owner 2026-10-26) ------
+
+export type RegistryCategory =
+  "all" | "aws" | "vendor" | "sdk" | "ci" | "hidden";
+export type RegistryStateFilter =
+  "" | "off" | "on" | "auto" | "paying" | "auto_idle";
+export type RegistrySort = "paying" | "launch" | "m1" | "name";
+
+export interface RegistryView {
+  q: string;
+  cat: RegistryCategory;
+  state: RegistryStateFilter;
+  sort: RegistrySort;
+}
+
+export const DEFAULT_REGISTRY_VIEW: RegistryView = {
+  q: "",
+  cat: "all",
+  state: "",
+  sort: "paying",
+};
+
+export const REGISTRY_CATEGORIES: { id: RegistryCategory; label: string }[] = [
+  { id: "all", label: "Все" },
+  { id: "aws", label: "AWS" },
+  { id: "vendor", label: "Сервисы" },
+  { id: "sdk", label: "Аккаунты и пакеты" },
+  { id: "ci", label: "CI" },
+  { id: "hidden", label: "Скрытые расходы и нагрузка" },
+];
+
+export const REGISTRY_STATE_FILTERS: {
+  id: RegistryStateFilter;
+  label: string;
+}[] = [
+  { id: "off", label: "Выкл" },
+  { id: "on", label: "Вкл" },
+  { id: "auto", label: "Авто" },
+  { id: "paying", label: "Платим сейчас" },
+  { id: "auto_idle", label: "Выключено, но включится само" },
+];
+
+const midOf = (r: number[]): number => ((r[0] ?? 0) + (r[1] ?? 0)) / 2;
+
+export const rowCategory = (
+  r: CostRegistryRow,
+): Exclude<RegistryCategory, "all"> =>
+  isHiddenRow(r) ? "hidden" : (r.kind as Exclude<RegistryCategory, "all">);
+
+export function rowMatchesSearch(r: CostRegistryRow, q: string): boolean {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = [
+    r.name,
+    r.purpose,
+    r.id,
+    r.controlKey,
+    r.ceilingKey ?? "",
+    r.ceService ?? "",
+    r.priceText,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
+function rowMatchesState(r: CostRegistryRow, f: RegistryStateFilter): boolean {
+  if (f === "") return true;
+  if (f === "paying") return midOf(r.usdLaunch) > 0;
+  if (f === "auto_idle") return r.state === "auto" && midOf(r.usdLaunch) === 0;
+  return r.state === f;
+}
+
+/** Search + category + state filter, then sort (default: paying first, dearest first). */
+export function filterRegistry(
+  rows: CostRegistryRow[],
+  v: RegistryView,
+): CostRegistryRow[] {
+  const out = rows.filter(
+    (r) =>
+      (v.cat === "all" || rowCategory(r) === v.cat) &&
+      rowMatchesState(r, v.state) &&
+      rowMatchesSearch(r, v.q),
+  );
+  const byName = (a: CostRegistryRow, b: CostRegistryRow) =>
+    a.name.localeCompare(b.name, "ru");
+  const cmp: Record<
+    RegistrySort,
+    (a: CostRegistryRow, b: CostRegistryRow) => number
+  > = {
+    paying: (a, b) => {
+      const pa = midOf(a.usdLaunch) > 0 ? 1 : 0;
+      const pb = midOf(b.usdLaunch) > 0 ? 1 : 0;
+      return pb - pa || midOf(b.usdLaunch) - midOf(a.usdLaunch) || byName(a, b);
+    },
+    launch: (a, b) => midOf(b.usdLaunch) - midOf(a.usdLaunch) || byName(a, b),
+    m1: (a, b) => midOf(b.usdM1) - midOf(a.usdM1) || byName(a, b),
+    name: byName,
+  };
+  return [...out].sort(cmp[v.sort]);
+}
+
+/** Chip counts: how many rows each category has under the OTHER filters. */
+export function categoryCounts(
+  rows: CostRegistryRow[],
+  v: RegistryView,
+): Record<RegistryCategory, number> {
+  const base = filterRegistry(rows, { ...v, cat: "all" });
+  const out: Record<RegistryCategory, number> = {
+    all: base.length,
+    aws: 0,
+    vendor: 0,
+    sdk: 0,
+    ci: 0,
+    hidden: 0,
+  };
+  for (const r of base) out[rowCategory(r)] += 1;
+  return out;
+}
+
+/** Totals of the rows shown: now (launch), at 100k, at 1M. */
+export function registrySummary(rows: CostRegistryRow[]): {
+  count: number;
+  now: number;
+  k100: number;
+  m1: number;
+} {
+  let now = 0;
+  let k100 = 0;
+  let m1 = 0;
+  for (const r of rows) {
+    now += midOf(r.usdLaunch);
+    k100 += midOf(r.usdK100);
+    m1 += midOf(r.usdM1);
+  }
+  const rd = (n: number) => Math.round(n);
+  return { count: rows.length, now: rd(now), k100: rd(k100), m1: rd(m1) };
+}
+
+const VIEW_KEY = "spend-registry-view";
+
+export function loadRegistryView(): RegistryView {
+  try {
+    const raw =
+      typeof localStorage === "undefined"
+        ? null
+        : localStorage.getItem(VIEW_KEY);
+    if (!raw) return DEFAULT_REGISTRY_VIEW;
+    const j = JSON.parse(raw) as Partial<RegistryView>;
+    return {
+      q: typeof j.q === "string" ? j.q : "",
+      cat: REGISTRY_CATEGORIES.some((c) => c.id === j.cat)
+        ? (j.cat as RegistryCategory)
+        : "all",
+      state: ["", "off", "on", "auto", "paying", "auto_idle"].includes(
+        j.state ?? "",
+      )
+        ? (j.state as RegistryStateFilter)
+        : "",
+      sort: ["paying", "launch", "m1", "name"].includes(j.sort ?? "")
+        ? (j.sort as RegistrySort)
+        : "paying",
+    };
+  } catch {
+    return DEFAULT_REGISTRY_VIEW;
+  }
+}
+
+export function saveRegistryView(v: RegistryView): void {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify(v));
+  } catch {
+    /* private window or blocked storage: the view just is not remembered */
+  }
+}

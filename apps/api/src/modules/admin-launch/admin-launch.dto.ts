@@ -271,6 +271,13 @@ export class CostRegistryRowDto {
   @ApiProperty() neededNote!: string;
   @ApiProperty({ type: String, nullable: true }) alarm!: string | null;
   @ApiProperty({ type: String, nullable: true }) note!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'AWS Cost Explorer service name whose bill belongs to the row.',
+  })
+  ceService!: string | null;
   @ApiProperty({ type: Number, nullable: true }) monthUsd!: number | null;
   @ApiProperty({ type: Number, nullable: true }) projectedUsd!: number | null;
   @ApiProperty({ enum: ['real', 'split', 'none'] }) monthSource!:

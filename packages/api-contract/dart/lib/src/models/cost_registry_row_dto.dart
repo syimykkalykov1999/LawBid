@@ -17,7 +17,7 @@ part 'cost_registry_row_dto.g.dart';
 @JsonSerializable()
 class CostRegistryRowDto {
   const CostRegistryRowDto({
-    required this.stateKnown,
+    required this.stateNote,
     required this.name,
     required this.purpose,
     required this.kind,
@@ -28,8 +28,8 @@ class CostRegistryRowDto {
     required this.states,
     required this.defaultState,
     required this.state,
+    required this.stateKnown,
     required this.id,
-    required this.stateNote,
     required this.stateHints,
     required this.ceilingLabel,
     required this.ceilingKey,
@@ -38,8 +38,8 @@ class CostRegistryRowDto {
     required this.priceModel,
     required this.priceSourceUrl,
     required this.priceCheckedAt,
+    required this.priceVerified,
     required this.steps,
-    required this.usdLaunch,
     required this.usdK100,
     required this.usdM1,
     required this.ifOnUsd,
@@ -47,10 +47,11 @@ class CostRegistryRowDto {
     required this.neededNote,
     required this.alarm,
     required this.note,
+    required this.ceService,
     required this.monthUsd,
     required this.projectedUsd,
     required this.monthSource,
-    required this.priceVerified,
+    required this.usdLaunch,
   });
 
   factory CostRegistryRowDto.fromJson(Map<String, Object?> json) =>
@@ -96,6 +97,9 @@ class CostRegistryRowDto {
   final String neededNote;
   final String? alarm;
   final String? note;
+
+  /// AWS Cost Explorer service name whose bill belongs to the row.
+  final String? ceService;
   final num? monthUsd;
   final num? projectedUsd;
   final CostRegistryRowDtoMonthSource monthSource;

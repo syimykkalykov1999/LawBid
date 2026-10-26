@@ -150434,6 +150434,11 @@
             "type": "string",
             "nullable": true
           },
+          "ceService": {
+            "type": "string",
+            "nullable": true,
+            "description": "AWS Cost Explorer service name whose bill belongs to the row."
+          },
           "monthUsd": {
             "type": "number",
             "nullable": true
@@ -150492,6 +150497,7 @@
           "neededNote",
           "alarm",
           "note",
+          "ceService",
           "monthUsd",
           "projectedUsd",
           "monthSource",

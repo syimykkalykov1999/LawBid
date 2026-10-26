@@ -65,6 +65,7 @@ export interface RegistryRow {
   neededNote: string;
   alarm: string | null;
   note: string | null;
+  ceService: string | null;
   monthUsd: number | null;
   projectedUsd: number | null;
   monthSource: 'real' | 'split' | 'none';
@@ -219,6 +220,7 @@ export class CostRegistryService {
         neededNote: e.neededNote,
         alarm: e.alarm,
         note: e.note ?? null,
+        ceService: e.ceService ?? null,
         monthUsd: a.monthUsd,
         projectedUsd: a.projectedUsd,
         monthSource: a.source,

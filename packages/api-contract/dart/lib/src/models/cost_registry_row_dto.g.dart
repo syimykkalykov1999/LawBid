@@ -9,7 +9,7 @@ part of 'cost_registry_row_dto.dart';
 CostRegistryRowDto _$CostRegistryRowDtoFromJson(
   Map<String, dynamic> json,
 ) => CostRegistryRowDto(
-  stateKnown: json['stateKnown'] as bool,
+  stateNote: json['stateNote'] as String?,
   name: json['name'] as String,
   purpose: json['purpose'] as String,
   kind: CostRegistryRowDtoKind.fromJson(json['kind'] as String),
@@ -28,8 +28,8 @@ CostRegistryRowDto _$CostRegistryRowDtoFromJson(
   state: json['state'] == null
       ? null
       : CostRegistryRowDtoState.fromJson(json['state'] as String),
+  stateKnown: json['stateKnown'] as bool,
   id: json['id'] as String,
-  stateNote: json['stateNote'] as String?,
   stateHints: Map<String, String>.from(json['stateHints'] as Map),
   ceilingLabel: json['ceilingLabel'] as String?,
   ceilingKey: json['ceilingKey'] as String?,
@@ -38,11 +38,11 @@ CostRegistryRowDto _$CostRegistryRowDtoFromJson(
   priceModel: json['priceModel'] as String,
   priceSourceUrl: json['priceSourceUrl'] as String,
   priceCheckedAt: json['priceCheckedAt'] as String,
+  priceVerified: json['priceVerified'] as bool,
   steps: (json['steps'] as Map<String, dynamic>).map(
     (k, e) =>
         MapEntry(k, (e as List<dynamic>).map((e) => e as String).toList()),
   ),
-  usdLaunch: (json['usdLaunch'] as List<dynamic>).map((e) => e as num).toList(),
   usdK100: (json['usdK100'] as List<dynamic>).map((e) => e as num).toList(),
   usdM1: (json['usdM1'] as List<dynamic>).map((e) => e as num).toList(),
   ifOnUsd: (json['ifOnUsd'] as List<dynamic>?)?.map((e) => e as num).toList(),
@@ -50,12 +50,13 @@ CostRegistryRowDto _$CostRegistryRowDtoFromJson(
   neededNote: json['neededNote'] as String,
   alarm: json['alarm'] as String?,
   note: json['note'] as String?,
+  ceService: json['ceService'] as String?,
   monthUsd: json['monthUsd'] as num?,
   projectedUsd: json['projectedUsd'] as num?,
   monthSource: CostRegistryRowDtoMonthSource.fromJson(
     json['monthSource'] as String,
   ),
-  priceVerified: json['priceVerified'] as bool,
+  usdLaunch: (json['usdLaunch'] as List<dynamic>).map((e) => e as num).toList(),
 );
 
 Map<String, dynamic> _$CostRegistryRowDtoToJson(CostRegistryRowDto instance) =>
@@ -90,6 +91,7 @@ Map<String, dynamic> _$CostRegistryRowDtoToJson(CostRegistryRowDto instance) =>
       'neededNote': instance.neededNote,
       'alarm': ?instance.alarm,
       'note': ?instance.note,
+      'ceService': ?instance.ceService,
       'monthUsd': ?instance.monthUsd,
       'projectedUsd': ?instance.projectedUsd,
       'monthSource': instance.monthSource.toJson(),

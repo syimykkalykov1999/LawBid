@@ -41,6 +41,7 @@ const row = (o: Partial<CostRegistryRow>): CostRegistryRow => ({
   neededNote: "Нужен для регистрации.",
   alarm: "лимит SMS",
   note: null,
+  ceService: null,
   monthUsd: 7,
   projectedUsd: 14,
   monthSource: "real",
@@ -151,6 +152,7 @@ import { CostRegistry } from "./registry";
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   patch.mockClear();
 });
 
@@ -185,18 +187,23 @@ describe("cost registry on «Расходы»", () => {
   it("hidden costs and load have their own section", async () => {
     renderIt();
     await screen.findByTestId("registry-hidden.cron_jobs");
-    expect(screen.getByText(/Скрытые расходы и нагрузка/)).toBeTruthy();
     expect(
-      screen.getByTestId("registry-hidden.cron_jobs").textContent,
+      screen.getAllByText(/Скрытые расходы и нагрузка/).length,
+    ).toBeGreaterThan(0);
+    fireEvent.click(screen.getByTestId("toggle-hidden.cron_jobs"));
+    expect(
+      screen.getByTestId("details-hidden.cron_jobs").textContent,
     ).toContain("Нагрузка");
   });
 
-  it("a row shows real money, the price source and the useful-now note", async () => {
+  it("a row is one line; clicking opens money, price source and the useful-now note", async () => {
     renderIt();
     const money = await screen.findByTestId("registry-money-vendor.twilio");
     expect(money.textContent).toContain("$7");
-    expect(money.textContent).toContain("$14");
-    const card = screen.getByTestId("registry-vendor.twilio");
+    expect(screen.queryByTestId("details-vendor.twilio")).toBeNull();
+    fireEvent.click(screen.getByTestId("toggle-vendor.twilio"));
+    const card = screen.getByTestId("details-vendor.twilio");
+    expect(card.textContent).toContain("$14");
     expect(card.textContent).toContain("Нужно сейчас");
     expect(card.textContent).toContain("Нужен для регистрации.");
     expect(card.querySelector("a")?.getAttribute("href")).toContain(
@@ -204,7 +211,46 @@ describe("cost registry on «Расходы»", () => {
     );
     expect(
       screen.getByTestId("registry-money-aws.guardduty").textContent,
-    ).toContain("нет данных");
+    ).toContain("$4");
+  });
+
+  it("search narrows the list instantly, Esc clears it, the summary follows the filter", async () => {
+    renderIt();
+    await screen.findByTestId("registry-vendor.twilio");
+    const box = screen.getByLabelText(
+      "Поиск по реестру расходов",
+    ) as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "guardduty" } });
+    expect(screen.queryByTestId("registry-vendor.twilio")).toBeNull();
+    expect(screen.getByTestId("registry-aws.guardduty")).toBeTruthy();
+    expect(screen.getByTestId("registry-summary").textContent).toContain(
+      "Показано: 1",
+    );
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(box.value).toBe("");
+    expect(screen.getByTestId("registry-vendor.twilio")).toBeTruthy();
+  });
+
+  it("category chips carry counts and filter; the choice is remembered", async () => {
+    renderIt();
+    await screen.findByTestId("registry-vendor.twilio");
+    expect(screen.getByTestId("cat-vendor").textContent).toContain("· 1");
+    expect(screen.getByTestId("cat-hidden").textContent).toContain("· 1");
+    fireEvent.click(screen.getByTestId("cat-hidden"));
+    expect(screen.queryByTestId("registry-vendor.twilio")).toBeNull();
+    expect(screen.getByTestId("registry-hidden.cron_jobs")).toBeTruthy();
+    expect(
+      JSON.parse(localStorage.getItem("spend-registry-view") ?? "{}").cat,
+    ).toBe("hidden");
+  });
+
+  it('"/" focuses the search box', async () => {
+    renderIt();
+    await screen.findByTestId("registry-vendor.twilio");
+    fireEvent.keyDown(window, { key: "/" });
+    expect(document.activeElement).toBe(
+      screen.getByLabelText("Поиск по реестру расходов"),
+    );
   });
 
   it("flipping an editable item sends the new state; unsupported and locked positions do not", async () => {
@@ -232,6 +278,7 @@ describe("cost registry on «Расходы»", () => {
   it("three positions on an autoscaler, steps expandable, Terraform steps shown", async () => {
     renderIt();
     await screen.findByTestId("registry-aws.db_autoscale");
+    fireEvent.click(screen.getByTestId("toggle-aws.guardduty"));
     for (const st of ["off", "on", "auto"]) {
       expect(screen.getByTestId(`state-aws.db_autoscale-${st}`)).toBeTruthy();
     }
