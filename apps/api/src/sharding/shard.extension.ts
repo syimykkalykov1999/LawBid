@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { hashShard, isShardedId, newShardedId, shardOf } from './shard-id';
 import { SHARDED_MODELS, ShardKey } from './shard-manifest';
+import { shardStats } from './shard-stats';
 
 /**
  * Shard-ready steps 1 and 2 (docs/architecture/SHARDING_READY.md §4): a
@@ -144,6 +145,13 @@ async function stamp(
   if (meta.generateId && out.id === undefined) {
     out.id = newShardedId(shard ?? 0);
   }
+  // DB-ops S5-12: count the insert by the kind of key it gets.
+  if (meta.generateId) {
+    shardStats.idInsert(
+      model,
+      typeof out.id === 'string' ? isShardedId(out.id) : false,
+    );
+  }
   return out;
 }
 
@@ -170,7 +178,14 @@ export function shardOperationHandler(
     query,
   }: OperationParams): Promise<unknown> => {
     const run = (a: unknown) => query(a as never);
-    if (!model || !metaFor(model) || !enabled()) return run(args);
+    if (!model || !metaFor(model)) return run(args);
+    if (!enabled()) {
+      // SHARD_IDS=off: every id of a generating model is the database's v4.
+      if (operation.startsWith('create') || operation === 'upsert') {
+        if (metaFor(model)?.generateId) shardStats.idInsert(model, false);
+      }
+      return run(args);
+    }
     const a = args as Row;
     switch (operation) {
       case 'create':

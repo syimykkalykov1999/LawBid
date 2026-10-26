@@ -265,6 +265,8 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       // Batch D (2026-10-24): every part that grows by itself, its ceiling and buttons, and the open alarms.
       { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', ownerOnly: true, hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
+      // Owner 2026-10-25: what users see on status.lawbid.dev; post / close an incident.
+      { href: '/status-page', label: 'Страница статуса', icon: 'megaphone', area: 'super', ownerOnly: true, hint: 'сообщить пользователям о сбое или работах' },
       // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', ownerOnly: true, hint: 'что включать, когда людей становится больше: по шагам' },
       { href: '/integrations', label: 'Ключи и сервисы', icon: 'key', area: 'super', ownerOnly: true, hint: 'API-ключи, ротация' },

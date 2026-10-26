@@ -81,6 +81,8 @@ export const CRON_JOBS = {
   /** …and the hourly dispute deadline reminders. */
   stripeOpsDisputeReminders: 'stripe-ops.dispute-reminders',
   stripeWebhooksRequeue: 'stripe-webhooks.requeue',
+  /** DB-ops hardening: daily table size / dead-tuple ratio / txid age → log metrics. */
+  dbHealth: 'db.health',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -297,6 +299,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Every minute: a stored webhook event whose queue job was lost (Redis
   // down / failover) is queued again; idempotent (jobId = event id).
   { name: CRON_JOBS.stripeWebhooksRequeue, pattern: '* * * * *' },
+  // Daily, off the busy hours: read-only statistics of every database.
+  { name: CRON_JOBS.dbHealth, pattern: '35 4 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
   // Every minute: applies cross-family events a request could not (retries
