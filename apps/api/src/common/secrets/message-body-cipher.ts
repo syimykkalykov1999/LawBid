@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../app-settings/app-settings.service';
+import { readKey } from './key-holder';
 import { SecretEnvelope } from './secret-envelope';
 
 /** Marks a stored body as ciphertext; anything else is legacy plaintext. */
@@ -11,6 +13,10 @@ const V3 = 'v3';
 /** v3: the AAD binds the ciphertext to its own message row, so a
  * ciphertext copied onto another message (DB write access) fails. */
 const aadV3 = (messageId: string) => `messages.body:${messageId}`;
+/** Marks a sealed metadata field (file name, private details, journal
+ * text); the AAD (`<table.column>:<row id>`) is supplied by the caller. */
+const FIELD_PREFIX = 'encf:';
+const SEALED_FIELD = /^encf:v2\.[\w-]+\.[\w-]+\.[\w-]+\.[\w-]*$/;
 const SEALED = /^enc:v[23]\.[\w-]+\.[\w-]+\.[\w-]+\.[\w-]*$/;
 
 /**
@@ -35,8 +41,13 @@ export class MessageBodyCipher {
   private readonly logger = new Logger(MessageBodyCipher.name);
   private readonly envelope: SecretEnvelope | null;
 
-  constructor(config: ConfigService) {
-    const keys = config.get<string>('MESSAGE_ENC_KEYS');
+  constructor(
+    config: ConfigService,
+    @Optional() private readonly settings?: AppSettingsService,
+  ) {
+    const keys = readKey('MESSAGE_ENC_KEYS', () =>
+      config.get<string>('MESSAGE_ENC_KEYS'),
+    );
     const kid = config.get<string>('MESSAGE_ENC_ACTIVE_KID');
     this.envelope = keys && kid ? new SecretEnvelope(keys, kid) : null;
   }
@@ -96,6 +107,99 @@ export class MessageBodyCipher {
           ? this.envelope.decrypt(`v2${body.slice(2)}`, aadV3(messageId))
           : this.envelope.decrypt(body, AAD_V2);
       return this.seal(plain, messageId);
+    } catch {
+      return null;
+    }
+  }
+
+  // --- sealed metadata fields (S3-5) -----------------------------------------
+  // `encf:v2.<kid>.<iv>.<tag>.<ct>` with a caller-supplied AAD that names the
+  // column and the row (`messages.file_name:<id>`), so a value copied to
+  // another row fails to open. Legacy plaintext stays readable.
+
+  /** True for a sealed metadata field. */
+  static isFieldSealed(stored: string): boolean {
+    return SEALED_FIELD.test(stored);
+  }
+
+  /** The key id of a sealed field (null for plaintext). */
+  static fieldKidOf(stored: string): string | null {
+    return SEALED_FIELD.test(stored)
+      ? SecretEnvelope.kidOf(stored.slice(FIELD_PREFIX.length))
+      : null;
+  }
+
+  /** New file names and case private details: sealed unless the admin
+   * switched `security.seal_case_metadata` off (plaintext without keys). */
+  async sealMetadata(plain: string, aad: string): Promise<string> {
+    if (!this.envelope) return plain;
+    if (
+      this.settings &&
+      !(await this.settings.boolean('security.seal_case_metadata'))
+    ) {
+      return plain;
+    }
+    return this.sealField(plain, aad);
+  }
+
+  /** Case-journal free text: sealed only when `security.seal_journal_text`
+   * is on (the journal cannot be rewritten later). */
+  async sealJournalText(plain: string, aad: string): Promise<string> {
+    if (!this.envelope || !this.settings) return plain;
+    if (!(await this.settings.boolean('security.seal_journal_text'))) {
+      return plain;
+    }
+    return this.sealField(plain, aad);
+  }
+
+  /** Seals [plain] under the active key; plaintext without keys. */
+  sealField(plain: string, aad: string): string {
+    if (!this.envelope) return plain;
+    return `${FIELD_PREFIX}${this.envelope.encrypt(plain, aad)}`;
+  }
+
+  /** Opens a sealed field; a plaintext value passes through. A value that
+   * cannot be opened reads as '' (logged without any text). */
+  openField(stored: string, aad: string): string {
+    if (!SEALED_FIELD.test(stored)) return stored;
+    const kid = SecretEnvelope.kidOf(stored.slice(FIELD_PREFIX.length));
+    if (!this.envelope) {
+      this.logger.error(
+        `Sealed field but MESSAGE_ENC_KEYS unset (${aad.split(':')[0]}, key ${kid})`,
+      );
+      return '';
+    }
+    try {
+      return this.envelope.decrypt(stored.slice(FIELD_PREFIX.length), aad);
+    } catch {
+      this.logger.warn(
+        `Sealed field failed to decrypt (${aad.split(':')[0]}, key ${kid})`,
+      );
+      return '';
+    }
+  }
+
+  /** Backfill / rotation: a plaintext value, or one under a retired kid. */
+  fieldNeedsWrite(stored: string): boolean {
+    if (!this.envelope) return false;
+    if (!SEALED_FIELD.test(stored)) return stored.length > 0;
+    return (
+      SecretEnvelope.kidOf(stored.slice(FIELD_PREFIX.length)) !==
+      this.envelope.activeKid
+    );
+  }
+
+  /** Re-seals [stored] (plaintext or any known kid) under the active key;
+   * null when it cannot be opened. */
+  resealField(stored: string, aad: string): string | null {
+    if (!this.envelope) return null;
+    if (!SEALED_FIELD.test(stored)) return this.sealField(stored, aad);
+    try {
+      const plain = this.envelope.decrypt(
+        stored.slice(FIELD_PREFIX.length),
+        aad,
+      );
+      return this.sealField(plain, aad);
     } catch {
       return null;
     }

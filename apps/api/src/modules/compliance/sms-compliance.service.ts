@@ -3,7 +3,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
-import type { SmsProvider } from '../auth/providers/sms/sms-provider.interface';
+import type { SmsProvider } from '../auth/auth.public';
 import {
   disclosureHash,
   inQuietHours,

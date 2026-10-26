@@ -618,10 +618,46 @@ export class PostgresSearchProvider implements SearchProvider {
    * the title), plain substrings, and the topic the query's synonyms point
    * at — over the title, the text and every published answer.
    * (Moved here from LegalQaService unchanged: the Q&A search is a search.)
+   *
+   * Package N-12b (2026-10-25): first through the indexes only — the GIN
+   * full-text indexes on questions and answers, the trigram index on the
+   * folded title, the topic index (migration 20261031200100) — so a search
+   * never scans the tables. Only when that finds nothing does the old full
+   * query run (typos, a fragment inside the text), like the main search's
+   * exact → typo steps.
    */
   async searchQuestions(text: string): Promise<string[]> {
     const topics = (await this.synonyms?.resolve(text))?.practiceIds ?? [];
     const like = `%${escapeLike(text)}%`;
+    const fast = await this.db.$queryRaw<{ id: string }[]>`
+      SELECT t.id::TEXT AS id FROM (
+        SELECT q.id, q.created_at FROM legal_questions q
+        WHERE q.status = 'published' AND q.deleted_at IS NULL
+          AND to_tsvector('simple', f_unaccent(q.title || ' ' || q.body))
+                @@ websearch_to_tsquery('simple', f_unaccent(${text}))
+        UNION
+        SELECT q.id, q.created_at FROM legal_questions q
+        WHERE q.status = 'published' AND q.deleted_at IS NULL
+          AND f_unaccent(lower(q.title)) LIKE f_unaccent(lower(${like}))
+        UNION
+        SELECT q.id, q.created_at FROM legal_answers a
+        JOIN legal_questions q ON q.id = a.question_id
+        WHERE a.status = 'published' AND a.deleted_at IS NULL
+          AND q.status = 'published' AND q.deleted_at IS NULL
+          AND to_tsvector('simple', f_unaccent(a.body))
+                @@ websearch_to_tsquery('simple', f_unaccent(${text}))
+        ${
+          topics.length > 0
+            ? Prisma.sql`UNION
+        SELECT q.id, q.created_at FROM legal_questions q
+        WHERE q.status = 'published' AND q.deleted_at IS NULL
+          AND q.practice_area_id = ANY(${topics}::UUID[])`
+            : Prisma.empty
+        }
+      ) t
+      ORDER BY t.created_at DESC
+      LIMIT 500`;
+    if (fast.length > 0) return fast.map((r) => r.id);
     const rows = await this.db.$queryRaw<{ id: string }[]>`
       SELECT q.id::TEXT AS id
       FROM legal_questions q

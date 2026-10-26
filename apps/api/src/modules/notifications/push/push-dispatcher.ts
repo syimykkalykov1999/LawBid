@@ -4,6 +4,7 @@ import {
 } from '../../../common/i18n/server-texts.service';
 import { ApnsVoipSender } from './apns-voip.sender';
 import { VoipTokensService } from './voip-tokens.service';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import {
@@ -16,6 +17,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { NotificationCategory, NotificationType } from '@prisma/client';
 import { Worker, type Job } from 'bullmq';
+import { parseQueueMode } from '../../../common/queues/queue-hardening';
+import type { QueueMode } from '../../../common/queues/queue-mode';
 import { PinoLogger } from 'nestjs-pino';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -35,7 +38,7 @@ import { topicOf } from '../notification-topics';
 import { NotificationTemplateService } from './notification-template.service';
 import { fillTemplate } from './notification-templates';
 import { PushQueueService } from './push-queue.service';
-import { inChunks } from './fcm-push.sender';
+import { FcmRateLimitError, inChunks } from './fcm-push.sender';
 import {
   NOTIFICATION_EMAIL,
   PUSH_MODULE_OPTIONS,
@@ -64,6 +67,10 @@ import {
   type PushTextName,
 } from './chat-push';
 import { bullOptions } from '../../../redis/redis-connection';
+import {
+  closeWorker,
+  workerTuning,
+} from '../../../common/queues/queue-hardening';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -134,8 +141,53 @@ export class PushDispatcher
     @Optional() private readonly files?: FilesService,
     // Owner 2026-10-22 (audit #4 §4): push words in every app language.
     @Optional() private readonly texts?: ServerTextsService,
+    // S3-11: `push.chat_preview` (off = no message text in a push);
+    // S10-5: admin «queues.push_rate_*» (three-state limiter).
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {
     this.logger.setContext(PushDispatcher.name);
+  }
+
+  private rateMode: QueueMode = 'auto';
+  private rateTimer?: NodeJS.Timeout;
+
+  /** Reads the admin push-rate switch and applies it to the live worker
+   * (BullMQ reads `opts.limiter` on every fetch). off = no limit. */
+  async applyRatePolicy(): Promise<void> {
+    if (!this.appSettings) return;
+    try {
+      this.rateMode = parseQueueMode(
+        await this.appSettings.string('queues.push_rate_mode'),
+      );
+      const perSec = await this.appSettings.number('queues.push_rate_per_sec');
+      if (this.worker) {
+        this.worker.opts.limiter =
+          this.rateMode === 'off'
+            ? undefined
+            : { max: Math.max(1, perSec), duration: 1000 };
+      }
+    } catch {
+      // keep the last policy; a settings hiccup must not stop pushes
+    }
+  }
+
+  /** The worker body: dispatches one job; an FCM 429 pauses the WHOLE queue
+   * for the time FCM asked (auto mode) and puts the job back without using
+   * up one of its attempts (BullMQ `Worker.RateLimitError`). */
+  async processJob(job: Job<PushJobData>): Promise<DispatchResult> {
+    try {
+      return await this.dispatch(job.data, job.id ?? '');
+    } catch (error) {
+      if (error instanceof FcmRateLimitError && this.rateMode === 'auto') {
+        this.logger.warn(
+          { retryAfterMs: error.retryAfterMs },
+          'fcm rate limited: push queue paused',
+        );
+        await this.queue.pauseFor(error.retryAfterMs);
+        throw Worker.RateLimitError();
+      }
+      throw error;
+    }
   }
 
   /** Per-conversation chat collapse (chat-push.ts chatCollapseKey) is opt-in:
@@ -172,9 +224,19 @@ export class PushDispatcher
     const url = this.config.getOrThrow<string>('REDIS_URL');
     this.worker = new Worker<PushJobData>(
       PUSH_QUEUE,
-      (job: Job<PushJobData>) => this.dispatch(job.data, job.id ?? ''),
-      { ...bullOptions(PUSH_QUEUE, url, { worker: true }), concurrency: 20 },
+      (job: Job<PushJobData>) => this.processJob(job),
+      {
+        ...bullOptions(PUSH_QUEUE, url, { worker: true }),
+        ...workerTuning(PUSH_QUEUE),
+        concurrency: 20,
+        // S10-5: ceiling under FCM's 10 000/s project quota; the admin
+        // switch refreshes it every minute.
+        limiter: { max: 8000, duration: 1000 },
+      },
     );
+    void this.applyRatePolicy();
+    this.rateTimer = setInterval(() => void this.applyRatePolicy(), 60_000);
+    this.rateTimer.unref();
     this.worker.on('error', (error) => {
       this.logger.error({ err: error.message }, 'push worker error');
     });
@@ -206,6 +268,17 @@ export class PushDispatcher
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);
+  }
+
+  /** S3-11: with `push.chat_preview` off a chat push never carries the
+   * message text (Google / Apple see only «New message» or the kind of
+   * attachment). On by default = today's behaviour. */
+  private async chatPreviewOn(): Promise<boolean> {
+    try {
+      return (await this.appSettings?.boolean('push.chat_preview')) ?? true;
+    } catch {
+      return true;
+    }
   }
 
   /** Owner 2026-10-22: an on-call alert. An admin who switched «дежурный»
@@ -749,15 +822,22 @@ export class PushDispatcher
           : null;
       // Owner 2026-10-22: the display name, else the @username.
       const who = chatSenderName(sender);
-      const caption = [
-        ...(message.type === 'poll'
-          ? (message.poll?.question ?? '')
-          : message.body),
-      ]
-        .slice(0, MESSAGE_PREVIEW_CHARS)
-        .join('');
+      const previewOn = await this.chatPreviewOn();
+      const caption = previewOn
+        ? [
+            ...(message.type === 'poll'
+              ? (message.poll?.question ?? '')
+              : message.body),
+          ]
+            .slice(0, MESSAGE_PREVIEW_CHARS)
+            .join('')
+        : '';
       const kind = chatPushKind(message.type, message.file?.mime);
       let preview = chatPushPreview(kind, caption, t);
+      if (!preview) {
+        preview = (await this.templates.render('new_message', user.ui_language))
+          .body;
+      }
       if (mentioned) {
         preview = `@ ${fillVars(t.mentioned, { name: who || '' }).trim()}. ${preview}`;
       }
@@ -930,12 +1010,14 @@ export class PushDispatcher
     const text = await this.templates.render('new_message', user.ui_language);
     // OQ-040: a voice note has no text — say what it is.
     const t = await this.pushTexts(user.ui_language);
-    const caption = [
-      ...(this.cipher?.open(message.body_display, data.messageId) ??
-        message.body_display),
-    ]
-      .slice(0, MESSAGE_PREVIEW_CHARS)
-      .join('');
+    const caption = (await this.chatPreviewOn())
+      ? [
+          ...(this.cipher?.open(message.body_display, data.messageId) ??
+            message.body_display),
+        ]
+          .slice(0, MESSAGE_PREVIEW_CHARS)
+          .join('')
+      : '';
     // Owner 2026-10-22: «📷 Фото» / «🎥 Видео» / «📎 Файл» / «🎤 …».
     const kind = chatPushKind(message.type, message.file?.mime);
     const preview = chatPushPreview(kind, caption, t, message.duration_ms);
@@ -1112,6 +1194,7 @@ export class PushDispatcher
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.worker?.close();
+    if (this.rateTimer) clearInterval(this.rateTimer);
+    await closeWorker(this.worker);
   }
 }

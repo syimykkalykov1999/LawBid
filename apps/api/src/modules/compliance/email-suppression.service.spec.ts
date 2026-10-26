@@ -7,7 +7,7 @@ import {
   ComplianceEmailProvider,
   withAddressFooter,
 } from './compliance-email.provider';
-import type { EmailMessage } from '../auth/providers/email/email-provider.interface';
+import type { EmailMessage } from '../auth/auth.public';
 
 function build(existing: { reason: string } | null = null) {
   const prisma = {

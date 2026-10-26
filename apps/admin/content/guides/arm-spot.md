@@ -1,7 +1,7 @@
 ---
 id: arm-spot
 title: Серверы дешевле: ARM64 и Spot
-category: aws
+category: system
 cost: Экономит деньги: Spot до 70 %, ARM64 около 20 % (оценки AWS, проверяйте в Cost Explorer)
 time: 1-2 часа с проверками, по шагам в разные дни
 launch: arm_spot

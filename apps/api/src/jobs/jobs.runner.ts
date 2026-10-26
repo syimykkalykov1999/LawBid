@@ -14,11 +14,17 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import {
+  CRON_LANES,
+  CRON_LANE_CONCURRENCY,
   CRON_QUEUE,
   CRON_SCHEDULES,
   JOBS_OPTIONS,
+  cronLaneOf,
+  isSubHourly,
   type CronJobName,
+  type CronLane,
 } from './jobs.constants';
+import { closeWorker, workerTuning } from '../common/queues/queue-hardening';
 import { CronProcessor } from './cron.processor';
 import { bullOptions } from '../redis/redis-connection';
 
@@ -37,6 +43,17 @@ export const CRON_JOB_TEMPLATE_OPTS = {
   removeOnFail: { count: 200 },
 } as const;
 
+/** S10-13: sub-hourly schedules are their own retry (see isSubHourly). */
+export const CRON_FREQUENT_JOB_OPTS = {
+  ...CRON_JOB_TEMPLATE_OPTS,
+  attempts: 1,
+} as const;
+
+/** Job options of one schedule (template for the scheduler, `runNow`). */
+export function cronJobOpts(pattern: string) {
+  return isSubHourly(pattern) ? CRON_FREQUENT_JOB_OPTS : CRON_JOB_TEMPLATE_OPTS;
+}
+
 /**
  * Owns the `cron` BullMQ queue (docs/01 §5.2, docs/06 §6): registers the
  * repeatable schedules and runs the worker that executes them.
@@ -54,8 +71,8 @@ export const CRON_JOB_TEMPLATE_OPTS = {
 export class JobsRunner
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  private queue?: Queue;
-  private worker?: Worker;
+  private readonly queues = new Map<CronLane, Queue>();
+  private workers: Worker[] = [];
   private starting?: Promise<void>;
   private stopping = false;
   private heartbeat?: NodeJS.Timeout;
@@ -106,33 +123,45 @@ export class JobsRunner
 
   private async start(): Promise<void> {
     const url = this.config.getOrThrow<string>('REDIS_URL');
-    this.queue = new Queue(CRON_QUEUE, bullOptions(CRON_QUEUE, url));
-    await this.ensureSchedules(this.queue);
+    for (const lane of CRON_LANES) {
+      const queue = new Queue(lane, bullOptions(lane, url));
+      this.queues.set(lane, queue);
+      await this.ensureSchedules(queue, lane);
+    }
     if (this.stopping) return;
 
-    this.worker = new Worker(
-      CRON_QUEUE,
-      (job: Job) => this.processor.process(job.name),
-      {
-        // Required by BullMQ for the worker's blocking connection.
-        ...bullOptions(CRON_QUEUE, url, { worker: true }),
-        // One maintenance job at a time per process: DB-heavy sweeps, not
-        // latency-sensitive.
-        concurrency: 1,
-      },
-    );
-    this.worker.on('failed', (job, error) => {
-      this.logger.error(
-        { job: job?.name, attempts: job?.attemptsMade, err: error.message },
-        'cron job failed',
+    for (const lane of CRON_LANES) {
+      const worker = new Worker(
+        lane,
+        (job: Job) => this.processor.process(job.name),
+        {
+          // Required by BullMQ for the worker's blocking connection.
+          ...bullOptions(lane, url, { worker: true }),
+          ...workerTuning(lane),
+          // S10-2: one lane never waits for another; inside a lane the
+          // DB-heavy sweeps still run one (fast: three short) at a time.
+          concurrency: CRON_LANE_CONCURRENCY[lane],
+        },
       );
-    });
-    this.worker.on('error', (error) => {
-      this.logger.error({ err: error.message }, 'cron worker error');
-    });
+      worker.on('failed', (job, error) => {
+        this.logger.error(
+          {
+            lane,
+            job: job?.name,
+            attempts: job?.attemptsMade,
+            err: error.message,
+          },
+          'cron job failed',
+        );
+      });
+      worker.on('error', (error) => {
+        this.logger.error({ lane, err: error.message }, 'cron worker error');
+      });
+      this.workers.push(worker);
+    }
     this.logger.info(
       { mode: this.options.mode, jobs: CRON_SCHEDULES.map((s) => s.name) },
-      'cron jobs scheduled; worker started',
+      'cron jobs scheduled; workers started',
     );
     this.startHeartbeat();
   }
@@ -146,7 +175,14 @@ export class JobsRunner
   private startHeartbeat(): void {
     const beat = async () => {
       try {
-        if (this.stopping || !this.worker?.isRunning()) return;
+        if (
+          this.stopping ||
+          this.workers.length === 0 ||
+          !this.workers.every((w) => w.isRunning())
+        ) {
+          return;
+        }
+        await this.reconcileSchedules();
         const at = new Date().toISOString();
         await writeFile(WORKER_HEARTBEAT_FILE, at).catch(() => undefined);
         await this.redis?.set(
@@ -169,14 +205,68 @@ export class JobsRunner
     this.heartbeat.unref();
   }
 
-  /** Idempotent: upserts every schedule, removes stale ones. */
-  async ensureSchedules(queue: Queue): Promise<void> {
-    const wanted = new Set<string>(CRON_SCHEDULES.map((s) => s.name));
-    for (const schedule of CRON_SCHEDULES) {
+  /**
+   * S6-1: job schedulers live ONLY in Redis, so a Redis replacement or a
+   * failover that loses the last writes would silently stop every cron
+   * until the next deploy. Each heartbeat (30 s) counts the schedulers on
+   * every lane (S10-2); when one is missing the idempotent
+   * [ensureSchedules] puts that lane's back. The count is logged as metric
+   * `cron_schedulers` (alarm: `missing` > 0). Never throws.
+   */
+  async reconcileSchedules(): Promise<number> {
+    if (this.queues.size === 0) return 0;
+    const expected = CRON_SCHEDULES.length;
+    try {
+      let count = 0;
+      for (const [lane, queue] of this.queues) {
+        const mine = CRON_SCHEDULES.filter((x) => cronLaneOf(x.name) === lane);
+        const keys = new Set(
+          (await queue.getJobSchedulers()).map((x) => x.key),
+        );
+        const found = mine.filter((x) => keys.has(x.name)).length;
+        if (found < mine.length) {
+          this.logger.warn(
+            { lane, found, expected: mine.length },
+            'cron schedules missing in Redis; re-registering',
+          );
+          await this.ensureSchedules(queue, lane);
+          count += mine.length;
+        } else {
+          count += found;
+        }
+      }
+      this.logger.info(
+        {
+          metric: 'cron_schedulers',
+          count,
+          expected,
+          missing: expected - count,
+        },
+        'cron schedulers',
+      );
+      return count;
+    } catch (error) {
+      this.logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'cron schedule check failed',
+      );
+      return -1;
+    }
+  }
+
+  /** Idempotent: upserts the schedules of [lane], removes stale ones (a
+   * job renamed or moved to another lane leaves its old scheduler here). */
+  async ensureSchedules(
+    queue: Queue,
+    lane: CronLane = CRON_QUEUE,
+  ): Promise<void> {
+    const mine = CRON_SCHEDULES.filter((s) => cronLaneOf(s.name) === lane);
+    const wanted = new Set<string>(mine.map((s) => s.name));
+    for (const schedule of mine) {
       await queue.upsertJobScheduler(
         schedule.name,
         { pattern: schedule.pattern, tz: 'UTC' },
-        { name: schedule.name, opts: CRON_JOB_TEMPLATE_OPTS },
+        { name: schedule.name, opts: cronJobOpts(schedule.pattern) },
       );
     }
     const existing = await queue.getJobSchedulers();
@@ -189,22 +279,31 @@ export class JobsRunner
 
   /** Enqueue a job now (ops / tests). The queue exists only when enabled. */
   async runNow(name: CronJobName): Promise<Job> {
-    if (!this.queue) throw new Error('background jobs are disabled');
-    return this.queue.add(name, {}, CRON_JOB_TEMPLATE_OPTS);
+    const queue = this.queues.get(cronLaneOf(name));
+    if (!queue) throw new Error('background jobs are disabled');
+    const pattern = CRON_SCHEDULES.find((s) => s.name === name)?.pattern ?? '';
+    return queue.add(name, {}, cronJobOpts(pattern));
   }
 
+  /** The default lane (kept for callers that only need "a cron queue"). */
   get cronQueue(): Queue | undefined {
-    return this.queue;
+    return this.queues.get(CRON_QUEUE);
+  }
+
+  /** One lane's queue (ops / tests); undefined while jobs are disabled. */
+  laneQueue(lane: CronLane): Queue | undefined {
+    return this.queues.get(lane);
   }
 
   async onApplicationShutdown(): Promise<void> {
     this.stopping = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
     // A background start still in flight would otherwise create the
-    // worker after we closed everything.
+    // workers after we closed everything.
     await this.starting?.catch(() => undefined);
-    // Worker first: lets an in-flight job finish, stops taking new ones.
-    await this.worker?.close();
-    await this.queue?.close();
+    // Workers first (in parallel, bounded by the shared drain deadline,
+    // S10-9): they stop taking new jobs at once and let running ones finish.
+    await Promise.all(this.workers.map((w) => closeWorker(w)));
+    await Promise.all([...this.queues.values()].map((q) => q.close()));
   }
 }

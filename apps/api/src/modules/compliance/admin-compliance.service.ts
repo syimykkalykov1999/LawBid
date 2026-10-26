@@ -4,7 +4,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
-import { SessionRevocationService } from '../auth/services/session-revocation.service';
+import { SessionRevocationService } from '../auth/auth.public';
 import { AccountAnonymizationService } from '../privacy/account-anonymization.service';
 import type {
   MinorActionResultDto,

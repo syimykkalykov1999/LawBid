@@ -1,9 +1,6 @@
 import type { PinoLogger } from 'nestjs-pino';
 import type { PrismaService } from '../../prisma/prisma.service';
-import type {
-  EmailMessage,
-  EmailProvider,
-} from '../auth/providers/email/email-provider.interface';
+import type { EmailMessage, EmailProvider } from '../auth/auth.public';
 import {
   OUTREACH_SETTINGS_KEY,
   parseOutreachSettings,

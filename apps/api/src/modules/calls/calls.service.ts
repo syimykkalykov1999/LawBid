@@ -215,9 +215,13 @@ export class CallsService {
   /** `calls.video_provider`: p2p (default) or livekit — livekit only while
    * its keys exist, so a removed key can never leave calls without media. */
   private async activeVideoProvider(): Promise<VideoCallProvider> {
-    const choice = this.settings
+    const rawChoice = this.settings
       ? await this.settings.string('calls.video_provider')
       : 'p2p';
+    // Cost registry V7: Cloudflare hard stop turns `cloudflare` into `p2p`.
+    const choice = this.sfu
+      ? await this.sfu.effectiveChoice(rawChoice)
+      : rawChoice;
     if (choice === 'livekit' && (await this.livekit.isConfigured())) {
       return this.livekit;
     }
@@ -486,7 +490,7 @@ export class CallsService {
     }
     await this.assertSubscription(conv);
     await this.limits.consume('message', user.sub);
-    await this.sweep();
+    await this.sweepIfDue();
 
     const mine = await this.liveCallOf(user.sub);
     if (mine) {
@@ -577,7 +581,7 @@ export class CallsService {
 
   /** POST /calls/:id/accept — the callee picks up. */
   async accept(user: RequestUser, id: string): Promise<CallDto> {
-    await this.sweep();
+    await this.sweepIfDue();
     const call = await this.load(user, id);
     const invite = call.is_group ? await this.rowOf(call.id, user.sub) : null;
     if (invite?.status === 'invited') {
@@ -702,7 +706,7 @@ export class CallsService {
   }
 
   async get(user: RequestUser, id: string): Promise<CallDto> {
-    await this.sweep();
+    await this.sweepIfDue();
     const call = await this.load(user, id);
     if (call.channel_id && LIVE.includes(call.status)) {
       // The channel was deleted or closed by moderation: its call is over.
@@ -864,6 +868,41 @@ export class CallsService {
    * Ringing too long → missed; active for hours (both apps gone) →
    * ended. Run by the cron every minute and before call actions.
    */
+  /**
+   * S1-6: the request paths used to run the whole sweep (six scans) on every
+   * call request, including the app's every-few-seconds poll. With
+   * `realtime.server.calls_request_sweep_seconds` > 0 only one request per
+   * that many seconds, cluster-wide (a Redis lock), sweeps; the
+   * `calls.sweep` cron (every minute) does the rest. 0 = every request, as
+   * before.
+   */
+  private async sweepIfDue(): Promise<void> {
+    let every = 0;
+    try {
+      every =
+        (await this.settings?.number(
+          'realtime.server.calls_request_sweep_seconds',
+        )) ?? 0;
+    } catch {
+      // settings unreachable: sweep as before
+    }
+    if (every > 0 && this.redis?.status === 'ready') {
+      try {
+        const won = await this.redis.set(
+          'calls:sweep:lock',
+          '1',
+          'PX',
+          Math.round(every * 1000),
+          'NX',
+        );
+        if (won === null) return;
+      } catch {
+        // Redis trouble: sweep (the safe side)
+      }
+    }
+    await this.sweep();
+  }
+
   async sweep(now = new Date()): Promise<number> {
     const stale = await this.prisma.call.findMany({
       where: {
@@ -1097,7 +1136,7 @@ export class CallsService {
         message: 'Video calls are not available yet.',
       });
     }
-    await this.sweep();
+    await this.sweepIfDue();
     // A call of this group is already running: join it instead of a second.
     const running = await this.runningGroupCall(groupId);
     if (running) return this.joinCall(user, running.id);
@@ -1269,7 +1308,7 @@ export class CallsService {
   ): Promise<CallDto> {
     const video = dto.video === true;
     const role = await this.assertChannelReader(user.sub, channelId);
-    await this.sweep();
+    await this.sweepIfDue();
     const running = await this.runningChannelCall(channelId);
     if (running) return this.joinCall(user, running.id);
     if (!role) {
@@ -1334,7 +1373,7 @@ export class CallsService {
    * «Call in progress · Join»), 404 CALL_NOT_FOUND when there is none. */
   async channelCall(user: RequestUser, channelId: string): Promise<CallDto> {
     await this.assertChannelReader(user.sub, channelId);
-    await this.sweep();
+    await this.sweepIfDue();
     const call = await this.runningChannelCall(channelId);
     if (!call) throw notFound();
     if (call.updated_at.getTime() < Date.now() - CALL_SILENT_MS) {
@@ -1405,7 +1444,7 @@ export class CallsService {
     const groups = this.groups;
     if (!groups) throw notFound();
     await groups.assertMember(user.sub, groupId);
-    await this.sweep();
+    await this.sweepIfDue();
     const call = await this.runningGroupCall(groupId);
     if (!call) throw notFound();
     // Silent for a while (everybody's app is gone): not a call to join.
@@ -1431,7 +1470,7 @@ export class CallsService {
       // whoever was in it (or asked in) may come back while it runs.
       throw notFound();
     }
-    await this.sweep();
+    await this.sweepIfDue();
     const fresh = await this.prisma.call.findUniqueOrThrow({ where: { id } });
     if (fresh.status !== 'active') throw conflict();
     if (
@@ -1664,7 +1703,7 @@ export class CallsService {
     id: string,
     dto: InviteCallDto,
   ): Promise<CallDto> {
-    await this.sweep();
+    await this.sweepIfDue();
     let call = await this.load(user, id);
     if (call.status !== 'active') throw conflict();
     const me = await this.rowOf(call.id, user.sub);
@@ -2105,7 +2144,7 @@ export class CallsService {
     id: string,
     targetId: string,
   ): Promise<CallDto> {
-    await this.sweep();
+    await this.sweepIfDue();
     const call = await this.load(user, id);
     if (!call.is_group || call.status !== 'active') throw conflict();
     const rows = await this.rowsOf(call.id);

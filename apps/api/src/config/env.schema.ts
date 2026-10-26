@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { keyStrengthProblem, weakKeysInList } from './key-strength';
 import {
   isDeployedEnv,
   resolveEmailProvider,
@@ -123,6 +124,11 @@ export const envSchema = z
     // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
     // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
     REDIS_CLUSTER: envBoolean(false),
+    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
+    // the load test; false = old behaviour) and an optional single BullMQ
+    // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
+    REDIS_AUTOPIPELINE: envBoolean(false),
+    REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
     // Local docker cluster only: JSON natMap for announced addresses.
     REDIS_CLUSTER_NAT_MAP: z.string().optional(),
     SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),
@@ -164,6 +170,15 @@ export const envSchema = z
     // for it; without it the API warns at boot on production and stores
     // the plain hashes as before.
     CONTACTS_PEPPER: z.string().min(32).optional(),
+    // BUG-1 (2026-10-25, package N-12b): HMAC key of the chat search blind
+    // index (common/secrets/message-search-index.ts). Optional like
+    // CONTACTS_PEPPER so a deploy never fails for it; without it sealed
+    // chats are searchable by name / case title only (a boot warning says
+    // so). Deployed environments also run the key-strength check below.
+    SEARCH_INDEX_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().min(32).optional(),
+    ),
     OTP_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
     OTP_LOCKOUT_SECONDS: z.coerce.number().int().positive().default(900),
@@ -1074,6 +1089,49 @@ export const envSchema = z
             code: 'custom',
             path: [key],
             message: `${key} still holds a placeholder/test value; generate a real secret (docs/KEYS_SETUP.md)`,
+          });
+        }
+      }
+    }
+    // S3-13: on a deployed environment the data keys must look random.
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      process.env.KEY_STRENGTH_CHECK !== 'off'
+    ) {
+      const lists = {
+        JWT_KEYS: env.JWT_KEYS,
+        SECRETS_MASTER_KEYS: env.SECRETS_MASTER_KEYS,
+        MESSAGE_ENC_KEYS: env.MESSAGE_ENC_KEYS,
+      } as const;
+      for (const [name, list] of Object.entries(lists)) {
+        // A placeholder is already reported above.
+        if (!list || placeholderSecretPattern.test(list)) continue;
+        for (const weak of weakKeysInList(list)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: `${name} key ${weak}; use base64 of 32 random bytes (openssl rand -base64 32) or a KMS-wrapped key`,
+          });
+        }
+      }
+      // BUG-1 (package N-12b): the chat search index key, same rule.
+      if (env.SEARCH_INDEX_KEY) {
+        const problem = keyStrengthProblem(env.SEARCH_INDEX_KEY);
+        if (problem) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['SEARCH_INDEX_KEY'],
+            message: `SEARCH_INDEX_KEY ${problem}; use base64 of 32+ random bytes (openssl rand -base64 48)`,
+          });
+        }
+      }
+      if (env.ADMIN_TOTP_ENC_KEY) {
+        const problem = keyStrengthProblem(env.ADMIN_TOTP_ENC_KEY);
+        if (problem) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['ADMIN_TOTP_ENC_KEY'],
+            message: `ADMIN_TOTP_ENC_KEY ${problem}; use base64 of 32 random bytes (openssl rand -base64 32)`,
           });
         }
       }
