@@ -321,6 +321,12 @@ export const GLOBAL_MODELS: readonly string[] = [
   'SearchSynonymTerm',
   'SearchQueryLog',
   'SearchClick',
+  // Owner 2026-10-25 (experiments): assignments, nightly reports and the
+  // append-only ranking events log (partitioned weekly, kept 90 days).
+  'Experiment',
+  'ExperimentExposure',
+  'ExperimentResult',
+  'RankingEvent',
   'SearchLearnedLink',
   'AppEventDay',
   'CrashReport',
