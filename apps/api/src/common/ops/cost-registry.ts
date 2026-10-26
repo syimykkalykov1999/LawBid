@@ -1232,6 +1232,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     providers: ['opensearch'],
   },
   {
+    id: 'aws.opensearch_serverless',
+    name: 'Поисковый движок без серверов (OpenSearch Serverless)',
+    purpose:
+      'Запасной вариант поиска (#403): AWS сам держит мощность; дороже домена на старте.',
+    kind: 'aws',
+    control: tf(['growth.opensearch_serverless_enabled'], {
+      off: 'growth = { opensearch_serverless_enabled = false }',
+      on: 'growth = { opensearch_serverless_enabled = true }',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'fixed',
+      'минимум 2 OCU ≈ $0,24 в час каждая ≈ $350 в месяц даже без нагрузки (тест без резерва ≈ $175)',
+      U.os,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(175, 700),
+    needed: 'no',
+    neededNote:
+      'На запуске не нужен: домен OpenSearch дешевле. Имеет смысл, когда домену нужно много узлов.',
+    alarm: 'бюджетные тревоги AWS (строка OpenSearch Serverless)',
+    awsTypes: [
+      'aws_opensearchserverless_collection',
+      'aws_opensearchserverless_security_policy',
+      'aws_opensearchserverless_access_policy',
+      'aws_opensearchserverless_vpc_endpoint',
+    ],
+  },
+  {
     id: 'aws.pgbouncer',
     name: 'Свой пул соединений базы (PgBouncer на Fargate)',
     purpose: 'Своя замена RDS Proxy: один «привратник» соединений перед базой.',
