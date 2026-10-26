@@ -5811,6 +5811,83 @@
         ]
       }
     },
+    "/admin/dashboard/totals/refresh": {
+      "post": {
+        "operationId": "refreshTotals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Recount user totals now (max once per 10 min)",
+        "tags": [
+          "admin-dashboard"
+        ]
+      }
+    },
     "/admin/counts": {
       "get": {
         "operationId": "getCounts",
@@ -68586,6 +68663,83 @@
         ]
       }
     },
+    "/admin/system-health/queues/retry-failed": {
+      "post": {
+        "operationId": "retryFailedJobs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueRetryResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Retry failed background jobs and replay Stripe dead letters (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/heavy-jobs": {
       "post": {
         "operationId": "setHeavyJobsPaused",
@@ -68755,6 +68909,256 @@
           }
         ],
         "summary": "Switch the automatic reactions on / off",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/status-page": {
+      "get": {
+        "operationId": "getStatusPage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusPageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Incidents shown on the public status page",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/status-page/incidents": {
+      "post": {
+        "operationId": "createIncident",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostStatusIncidentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusPageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Post an incident on the public status page",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/status-page/incidents/{id}/resolve": {
+      "post": {
+        "operationId": "resolveIncident",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusPageEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Mark a posted incident as resolved",
         "tags": [
           "admin-ops"
         ]
@@ -116651,6 +117055,72 @@
           "attorneys7d"
         ]
       },
+      "DashboardRoleTotalsDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "description": "Accounts of this role, not deleted."
+          },
+          "active": {
+            "type": "integer",
+            "description": "Not suspended, not deleted."
+          },
+          "verified": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Attorneys: verified licence. Clients: approved verification. null where it does not apply."
+          }
+        },
+        "required": [
+          "total",
+          "active",
+          "verified"
+        ]
+      },
+      "DashboardTotalsDto": {
+        "type": "object",
+        "properties": {
+          "clients": {
+            "$ref": "#/components/schemas/DashboardRoleTotalsDto"
+          },
+          "attorneys": {
+            "$ref": "#/components/schemas/DashboardRoleTotalsDto"
+          },
+          "assistants": {
+            "description": "Assistant seats (assistant_memberships): total = invited + active, active = joined.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardRoleTotalsDto"
+              }
+            ]
+          },
+          "admins": {
+            "$ref": "#/components/schemas/DashboardRoleTotalsDto"
+          },
+          "all": {
+            "description": "Clients + attorneys + admins + assistants.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DashboardRoleTotalsDto"
+              }
+            ]
+          },
+          "computedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When these totals were counted (daily or by the admin button)."
+          }
+        },
+        "required": [
+          "clients",
+          "attorneys",
+          "assistants",
+          "admins",
+          "all",
+          "computedAt"
+        ]
+      },
       "DashboardVerificationDto": {
         "type": "object",
         "properties": {
@@ -116711,6 +117181,9 @@
           "newUsers": {
             "$ref": "#/components/schemas/DashboardNewUsersDto"
           },
+          "totals": {
+            "$ref": "#/components/schemas/DashboardTotalsDto"
+          },
           "verification": {
             "$ref": "#/components/schemas/DashboardVerificationDto"
           },
@@ -116756,6 +117229,7 @@
         },
         "required": [
           "newUsers",
+          "totals",
           "verification",
           "subscriptions",
           "openCases",
@@ -150305,6 +150779,45 @@
           "data"
         ]
       },
+      "QueueRetryResultDto": {
+        "type": "object",
+        "properties": {
+          "retried": {
+            "type": "number",
+            "description": "Failed jobs put back in their queues."
+          },
+          "stripeReplayed": {
+            "type": "number",
+            "description": "Stripe events moved from the dead-letter queue to processing."
+          },
+          "byQueue": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Per queue: failed jobs retried."
+          }
+        },
+        "required": [
+          "retried",
+          "stripeReplayed",
+          "byQueue"
+        ]
+      },
+      "QueueRetryResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/QueueRetryResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "HeavyJobsDto": {
         "type": "object",
         "properties": {
@@ -150341,6 +150854,142 @@
             "type": "boolean"
           }
         }
+      },
+      "StatusIncidentDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "app",
+              "chats",
+              "calls",
+              "payments",
+              "notifications"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "degraded",
+              "outage",
+              "maintenance"
+            ]
+          },
+          "titleRu": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "messageRu": {
+            "type": "string"
+          },
+          "messageEn": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "component",
+          "kind",
+          "titleRu",
+          "titleEn",
+          "messageRu",
+          "messageEn",
+          "startedAt",
+          "resolvedAt"
+        ]
+      },
+      "StatusPageDto": {
+        "type": "object",
+        "properties": {
+          "publishing": {
+            "type": "boolean",
+            "description": "false until STATUS_PAGE_BUCKET is set: nothing is published."
+          },
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusIncidentDto"
+            }
+          }
+        },
+        "required": [
+          "publishing",
+          "incidents"
+        ]
+      },
+      "StatusPageEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StatusPageDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PostStatusIncidentDto": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "app",
+              "chats",
+              "calls",
+              "payments",
+              "notifications"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "degraded",
+              "outage",
+              "maintenance"
+            ]
+          },
+          "titleRu": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "titleEn": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "messageRu": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "messageEn": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "component",
+          "kind",
+          "titleRu"
+        ]
       },
       "SearchIndexVerifyDto": {
         "type": "object",
