@@ -152,6 +152,16 @@ export class CounterAggregator
   private localTimer?: ReturnType<typeof setInterval>;
   /** entity|field|id -> delta not yet sent to Redis (S6-6). */
   private local = new Map<string, number>();
+  /** Deltas this process has taken out of `local` (on their way to Redis)
+   * or out of Redis (on their way to the database) and not yet landed:
+   * [pending] adds them, so a read in this process never sees a delta in
+   * neither place (read-your-writes during a flush). */
+  private inflight = new Map<string, number>();
+  private moveInflight(k: string, delta: number): void {
+    const v = (this.inflight.get(k) ?? 0) + delta;
+    if (v === 0) this.inflight.delete(k);
+    else this.inflight.set(k, v);
+  }
   /** Set once a flush saw every legacy (unsharded) hash empty; reads then
    * skip the extra HMGET. Flush keeps draining the legacy hashes anyway. */
   private legacyDrained = false;
@@ -215,6 +225,7 @@ export class CounterAggregator
     if (this.local.size === 0) return;
     const taken = this.local;
     this.local = new Map();
+    for (const [k, d] of taken) this.moveInflight(k, d);
     const groups = new Map<
       string,
       {
@@ -251,6 +262,11 @@ export class CounterAggregator
             this.local.set(k, (this.local.get(k) ?? 0) + Number(g.args[i + 1]));
           }
           throw error;
+        } finally {
+          for (let i = 0; i < g.args.length; i += 2) {
+            const k = `${g.entity}|${g.field}|${String(g.args[i])}`;
+            this.moveInflight(k, -Number(g.args[i + 1]));
+          }
         }
       }),
     );
@@ -296,6 +312,8 @@ export class CounterAggregator
     for (const id of ids) {
       const l = this.local.get(`${entity}|${field}|${id}`);
       if (l) add(id, l);
+      const f = this.inflight.get(`${entity}|${field}|${id}`);
+      if (f) add(id, f);
     }
     for (const [id, v] of out) if (v === 0) out.delete(id);
     return out;
@@ -332,6 +350,7 @@ export class CounterAggregator
     let applied = 0;
     for (let i = 0; i < COUNTER_SHARDS; i += 1) {
       applied += await this.flushHash(
+        entity,
         pendingKey(entity, field, i),
         table,
         key,
@@ -340,6 +359,7 @@ export class CounterAggregator
     }
     // The pre-S6-6 hash (all ids in one key): drained like any shard.
     const legacy = await this.flushHash(
+      entity,
       legacyKey(entity, field),
       table,
       key,
@@ -350,6 +370,7 @@ export class CounterAggregator
   }
 
   private async flushHash(
+    entity: string,
     hash: string,
     table: string,
     key: string,
@@ -375,6 +396,11 @@ export class CounterAggregator
         }
       });
       if (keep.length === 0) continue;
+      // Between the drain and the commit the deltas are in neither Redis nor
+      // the row: keep them visible to this process' reads.
+      keep.forEach((id, i) =>
+        this.moveInflight(`${entity}|${field}|${id}`, deltas[i]),
+      );
       try {
         // Identifiers come from the COUNTERS constant, never from input.
         const update = () =>
@@ -400,6 +426,10 @@ export class CounterAggregator
         keep.forEach((id, i) => restore.hincrby(hash, id, deltas[i]));
         await restore.exec();
         throw error;
+      } finally {
+        keep.forEach((id, i) =>
+          this.moveInflight(`${entity}|${field}|${id}`, -deltas[i]),
+        );
       }
     } while (cursor !== '0');
     return applied;
