@@ -19,6 +19,9 @@ CaseCommentDto _$CaseCommentDtoFromJson(Map<String, dynamic> json) =>
       canDelete: json['canDelete'] as bool,
       isMine: json['isMine'] as bool,
       createdAt: json['createdAt'] as String,
+      editedAt: json['editedAt'] == null
+          ? null
+          : DateTime.parse(json['editedAt'] as String),
       parentCommentId: json['parentCommentId'] as String?,
     );
 
@@ -36,4 +39,5 @@ Map<String, dynamic> _$CaseCommentDtoToJson(CaseCommentDto instance) =>
       'canDelete': instance.canDelete,
       'isMine': instance.isMine,
       'createdAt': instance.createdAt,
+      'editedAt': ?instance.editedAt?.toIso8601String(),
     };
