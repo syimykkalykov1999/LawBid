@@ -18,6 +18,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  Inject,
 } from '@nestjs/common';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import {
@@ -41,6 +42,9 @@ import {
 } from '../../common/search/name-match.sql';
 import { PrismaService } from '../../prisma/prisma.service';
 import { randomUUID } from 'node:crypto';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { shardContext } from '../../sharding/shard-context';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
@@ -148,6 +152,13 @@ function isAfter(
  * subscription/trial), read receipts and mute. Realtime only delivers —
  * every event is re-derivable from these REST reads (§8.5).
  */
+/** S1-3: sent messages whose live event / badge / push may still be owed
+ * (ZSET: score = send time, member = which message). */
+const EFFECTS_PENDING_KEY = 'rt:fx:pending';
+/** A request that is alive finishes in seconds; later than this it died. */
+const EFFECTS_GRACE_MS = 120_000;
+const EFFECTS_SWEEP_BATCH = 100;
+
 @Injectable()
 export class ChatService {
   constructor(
@@ -173,6 +184,8 @@ export class ChatService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     // Owner 2026-10-21 (Instagram «Поделиться»): posts sent as cards.
     @Optional() private readonly postCards?: SharedPostCardsService,
+    // S1-3: the "effects still owed" list (see [markEffectsPending]).
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
   /**
@@ -1126,6 +1139,17 @@ export class ChatService {
       if (!quoted) throw notFound();
       replyToId = quoted.id;
     }
+    // S1-3: a crash between the commit and the live event / badge / push
+    // used to lose them for good. The entry below is the safety net: the
+    // sweep (`chat.redeliver`) finishes whatever is still listed 2 minutes
+    // later; the request removes it once its own effects are done.
+    const pending = await this.markEffectsPending(
+      id,
+      user.sub,
+      dto.clientMessageId,
+      opts.silent === true,
+      requestFirst,
+    );
     let message: Message;
     try {
       message = await withTxRetry(this.prisma, async (tx) => {
@@ -1231,6 +1255,8 @@ export class ChatService {
         return m;
       });
     } catch (error) {
+      // Nothing was stored (or a retry's own request delivers): no effects owed.
+      await this.clearEffectsPending(pending);
       // A concurrent retry with the same clientMessageId won the insert.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -1254,29 +1280,11 @@ export class ChatService {
     if (conv.case_id && user.sub === conv.client_id) {
       await touchClientActive(this.prisma, conv.case_id, user.sub);
     }
-    const other =
-      user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
-    const urls = await this.mediaLinks([message]);
-    this.realtime.toUsers([user.sub], 'message:new', {
-      message: this.toMessage(message, user.sub, undefined, urls),
+    const urls = await this.deliverEffects(conv, message, user.sub, {
+      silent: opts.silent === true,
+      requestFirst,
     });
-    this.realtime.toUsers([other], 'message:new', {
-      message: this.toMessage(message, other, conv, urls),
-    });
-    // §8.4: badge + push to the recipient (the dispatcher skips it while
-    // the chat is open on their device or muted). OQ-043: a pending
-    // request pings once (its first message) and never bumps the badge.
-    const pendingRequest =
-      conv.request_status === 'pending' && conv.requested_by === user.sub;
-    if (!pendingRequest) await this.badges.messageArrived(other);
-    // Owner 2026-10-21: a forwarded batch rings once (its last message).
-    if ((!pendingRequest || requestFirst) && !opts.silent) {
-      await this.notifications.emit({
-        type: 'new_message',
-        recipientId: other,
-        payload: { conversationId: id, messageId: message.id },
-      });
-    }
+    await this.clearEffectsPending(pending);
     return this.toMessage(message, user.sub, undefined, urls);
   }
 
@@ -1910,6 +1918,137 @@ export class ChatService {
     return out;
   }
 
+  /** One entry per sent message until its live event, badge and push went
+   * out (S1-3). Redis trouble only loses the safety net, never the send. */
+  private async markEffectsPending(
+    conversationId: string,
+    senderId: string,
+    clientMessageId: string,
+    silent: boolean,
+    requestFirst: boolean,
+  ): Promise<string | null> {
+    const redis = this.redis;
+    if (!redis || redis.status !== 'ready') return null;
+    const member = JSON.stringify({
+      c: conversationId,
+      u: senderId,
+      k: clientMessageId,
+      s: silent ? 1 : 0,
+      r: requestFirst ? 1 : 0,
+    });
+    try {
+      await redis.zadd(EFFECTS_PENDING_KEY, Date.now(), member);
+      return member;
+    } catch {
+      return null;
+    }
+  }
+
+  private async clearEffectsPending(member: string | null): Promise<void> {
+    if (!member || !this.redis || this.redis.status !== 'ready') return;
+    try {
+      await this.redis.zrem(EFFECTS_PENDING_KEY, member);
+    } catch {
+      // the sweep clears a stale entry itself
+    }
+  }
+
+  /** The live event to both sides, the recipient's badge and push. Returns
+   * the media links (the sender's own response reuses them). */
+  private async deliverEffects(
+    conv: Conversation,
+    message: Message,
+    senderId: string,
+    flags: { silent: boolean; requestFirst: boolean; recount?: boolean },
+  ): Promise<MediaLinks> {
+    const other =
+      senderId === conv.client_id ? conv.attorney_id : conv.client_id;
+    const urls = await this.mediaLinks([message]);
+    this.realtime.toUsers([senderId], 'message:new', {
+      message: this.toMessage(message, senderId, undefined, urls),
+    });
+    this.realtime.toUsers([other], 'message:new', {
+      message: this.toMessage(message, other, conv, urls),
+    });
+    // §8.4: badge + push to the recipient (the dispatcher skips it while
+    // the chat is open on their device or muted). OQ-043: a pending
+    // request pings once (its first message) and never bumps the badge.
+    const pendingRequest =
+      conv.request_status === 'pending' && conv.requested_by === senderId;
+    if (!pendingRequest) {
+      // A re-run after a crash recounts instead of adding one more.
+      if (flags.recount) await this.badges.chatsChanged(other);
+      else await this.badges.messageArrived(other);
+    }
+    // Owner 2026-10-21: a forwarded batch rings once (its last message).
+    if ((!pendingRequest || flags.requestFirst) && !flags.silent) {
+      await this.notifications.emit({
+        type: 'new_message',
+        recipientId: other,
+        payload: { conversationId: conv.id, messageId: message.id },
+      });
+    }
+    return urls;
+  }
+
+  /**
+   * S1-3, cron `chat.redeliver`: finishes the effects of messages whose
+   * request died after the commit. Entries older than 2 minutes: the message
+   * is looked up (it may never have been stored), its live event, badge
+   * and push are sent, the entry is dropped.
+   */
+  async redeliverPending(
+    now = Date.now(),
+  ): Promise<{ redelivered: number; dropped: number }> {
+    const out = { redelivered: 0, dropped: 0 };
+    const redis = this.redis;
+    if (!redis || redis.status !== 'ready') return out;
+    const due = await redis.zrangebyscore(
+      EFFECTS_PENDING_KEY,
+      '-inf',
+      now - EFFECTS_GRACE_MS,
+      'LIMIT',
+      0,
+      EFFECTS_SWEEP_BATCH,
+    );
+    for (const member of due) {
+      try {
+        const p = JSON.parse(member) as {
+          c: string;
+          u: string;
+          k: string;
+          s: number;
+          r: number;
+        };
+        const done = await shardContext.runForCase(p.c, async () => {
+          const message = await this.findOwn(p.c, p.u, p.k);
+          const conv = message
+            ? await this.prisma.conversation.findUnique({
+                where: { id: p.c },
+              })
+            : null;
+          if (!message || !conv) return false;
+          await this.deliverEffects(conv, message, p.u, {
+            silent: p.s === 1,
+            requestFirst: p.r === 1,
+            recount: true,
+          });
+          return true;
+        });
+        if (done) out.redelivered += 1;
+        else out.dropped += 1;
+      } catch {
+        // A database blip: retried next run, unless the entry is an hour
+        // old (then it is dropped: the next list open shows the message).
+        const sentAt = Number(await redis.zscore(EFFECTS_PENDING_KEY, member));
+        if (now - sentAt < 3_600_000) continue;
+        out.dropped += 1;
+      }
+      await redis.zrem(EFFECTS_PENDING_KEY, member);
+    }
+    return out;
+  }
+
   async load(user: RequestUser, id: string): Promise<Conversation> {
     const conv = await this.prisma.conversation.findUnique({ where: { id } });
     if (
@@ -2265,6 +2404,7 @@ export class ChatService {
                     WHERE m.conversation_id = cp.conversation_id
                       AND m.deleted_at IS NULL
                       AND (m.sender_id IS NULL OR m.sender_id <> ${viewerId}::UUID)
+                      AND (lr.id IS NULL OR m.created_at >= lr.created_at)
                       AND (lr.id IS NULL
                            OR (m.created_at, m.id) > (lr.created_at, lr.id))
                     ORDER BY m.created_at DESC
