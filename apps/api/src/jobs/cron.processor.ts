@@ -44,6 +44,7 @@ import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
@@ -163,6 +164,8 @@ export class CronProcessor {
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
+    // DB-ops hardening: `db.health`.
+    @Optional() private readonly dbHealth?: DbHealthJob,
     // S10-13: one lock per job name for every schedule.
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
@@ -265,6 +268,8 @@ export class CronProcessor {
         return this.searchIndex?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:
         return this.ledgerReconcile?.run() ?? null;
+      case CRON_JOBS.dbHealth:
+        return this.dbHealth?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:

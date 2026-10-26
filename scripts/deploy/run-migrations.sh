@@ -40,45 +40,60 @@ if [ -n "$RUNNING" ]; then
   echo "::error::a migrate task is still running ($RUNNING). Wait for it or stop it (docs/runbooks/migrate-resolve.md)." >&2
   exit 1
 fi
-RUN_OUT=$(aws ecs run-task \
-  --cluster "$CLUSTER" \
-  --launch-type FARGATE \
-  --task-definition "$TASK_DEF" \
-  --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
-  --output json)
-FAILS=$(printf '%s' "$RUN_OUT" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const j=JSON.parse(d);console.log((j.failures||[]).map(f=>f.reason||f.detail||f.arn).join("; "))})')
-TASK_ARN=$(printf '%s' "$RUN_OUT" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const j=JSON.parse(d);console.log((j.tasks||[])[0]?.taskArn||"")})')
-if [ -n "$FAILS" ] || [ -z "$TASK_ARN" ]; then
-  echo "::error::the migrate task did not start: ${FAILS:-no task returned} (Fargate capacity or network). Nothing was migrated; re-run the deploy." >&2
-  exit 1
-fi
-echo "migrate task: $TASK_ARN"
-LOG_STREAM_PREFIX="/lawbid/${CLUSTER}/migrate"
-
-stop_task() {
-  aws ecs stop-task --cluster "$CLUSTER" --task "$TASK_ARN" --reason "$1" >/dev/null 2>&1 || true
-}
-# Job cancelled (GitHub sends SIGINT, then SIGTERM): stop the task, do not leave it holding locks.
-trap 'echo "::warning::cancelled, stopping the migrate task"; stop_task "deploy cancelled"; exit 130' INT TERM
-
-start=$(date +%s)
-while :; do
-  STATUS=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].lastStatus' --output text 2>/dev/null || echo UNKNOWN)
-  [ "$STATUS" = "STOPPED" ] && break
-  if [ $(( $(date +%s) - start )) -ge "$MIGRATE_TIMEOUT_SECONDS" ]; then
-    echo "::error::the migration ran longer than ${MIGRATE_TIMEOUT_SECONDS}s: stopping it. Check _prisma_migrations for a half-applied row (docs/runbooks/migrate-resolve.md)." >&2
-    stop_task "deadline ${MIGRATE_TIMEOUT_SECONDS}s"
-    aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN" 2>/dev/null || true
-    aws logs tail "$LOG_STREAM_PREFIX" --since 2h 2>/dev/null | tail -n 200 || true
+# One guarded run of the migrate task (start failures, deadline, cancel).
+# Sets EXIT and LOGS.
+run_once() {
+  RUN_OUT=$(aws ecs run-task \
+    --cluster "$CLUSTER" \
+    --launch-type FARGATE \
+    --task-definition "$TASK_DEF" \
+    --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SG}],assignPublicIp=DISABLED}" \
+    --output json)
+  FAILS=$(printf '%s' "$RUN_OUT" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const j=JSON.parse(d);console.log((j.failures||[]).map(f=>f.reason||f.detail||f.arn).join("; "))})')
+  TASK_ARN=$(printf '%s' "$RUN_OUT" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const j=JSON.parse(d);console.log((j.tasks||[])[0]?.taskArn||"")})')
+  if [ -n "$FAILS" ] || [ -z "$TASK_ARN" ]; then
+    echo "::error::the migrate task did not start: ${FAILS:-no task returned} (Fargate capacity or network). Nothing was migrated; re-run the deploy." >&2
     exit 1
   fi
-  sleep 10
-done
-trap - INT TERM
-EXIT=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].containers[0].exitCode' --output text)
-REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].stoppedReason' --output text 2>/dev/null || true)
-echo "migrate exit code: $EXIT ($REASON)"
-aws logs tail "$LOG_STREAM_PREFIX" --since 2h 2>/dev/null | tail -n 200 || true
+  echo "migrate task: $TASK_ARN"
+  LOG_STREAM_PREFIX="/lawbid/${CLUSTER}/migrate"
+
+  stop_task() {
+    aws ecs stop-task --cluster "$CLUSTER" --task "$TASK_ARN" --reason "$1" >/dev/null 2>&1 || true
+  }
+  # Job cancelled (GitHub sends SIGINT, then SIGTERM): stop the task, do not leave it holding locks.
+  trap 'echo "::warning::cancelled, stopping the migrate task"; stop_task "deploy cancelled"; exit 130' INT TERM
+
+  start=$(date +%s)
+  while :; do
+    STATUS=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].lastStatus' --output text 2>/dev/null || echo UNKNOWN)
+    [ "$STATUS" = "STOPPED" ] && break
+    if [ $(( $(date +%s) - start )) -ge "$MIGRATE_TIMEOUT_SECONDS" ]; then
+      echo "::error::the migration ran longer than ${MIGRATE_TIMEOUT_SECONDS}s: stopping it. Check _prisma_migrations for a half-applied row (docs/runbooks/migrate-resolve.md)." >&2
+      stop_task "deadline ${MIGRATE_TIMEOUT_SECONDS}s"
+      aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN" 2>/dev/null || true
+      aws logs tail "$LOG_STREAM_PREFIX" --since 2h 2>/dev/null | tail -n 200 || true
+      exit 1
+    fi
+    sleep 10
+  done
+  trap - INT TERM
+  EXIT=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].containers[0].exitCode' --output text)
+  REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].stoppedReason' --output text 2>/dev/null || true)
+  echo "migrate exit code: $EXIT ($REASON)"
+  LOGS=$(aws logs tail "$LOG_STREAM_PREFIX" --since 15m 2>/dev/null | tail -n 200 || true)
+  printf '%s\n' "$LOGS"
+}
+
+run_once
+# DB-ops S5-2 (#363): the migrator role has lock_timeout = 5 s. A migration
+# that lost the race for a lock fails with SQLSTATE 55P03 and changed nothing
+# (each migration is one transaction): run the task once more after a pause.
+if [ "$EXIT" != "0" ] && printf '%s' "$LOGS" | grep -Eqi '55P03|lock timeout'; then
+  echo "migration hit lock_timeout (55P03); retrying once in 20 s"
+  sleep 20
+  run_once
+fi
 if [ "$EXIT" != "0" ]; then
   echo "::error::migration failed (exit $EXIT). If the log says P3009 / 'failed migrations': docs/runbooks/migrate-resolve.md" >&2
   exit 1
