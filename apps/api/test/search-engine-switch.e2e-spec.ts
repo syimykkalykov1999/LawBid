@@ -35,6 +35,11 @@ async function body(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+/** Read alias, write alias and physical name all mean `<prefix>-<entity>-v1`. */
+function canon(i: string): string {
+  return i.replace(/-write$/, '').replace(/-v\d+$/, '') + '-v1';
+}
+
 async function fakeEngine(): Promise<Fake> {
   const fake: Fake = {
     url: '',
@@ -54,6 +59,10 @@ async function fakeEngine(): Promise<Fake> {
       const url = req.url ?? '/';
       if (fake.fail && url !== '/') return json(500, { error: 'down' });
       if (url === '/') return json(200, { version: 'fake' });
+      // Alias-based layout: the fake keeps ONE index per entity (-v1); the
+      // aliases are mapped onto it by canon().
+      if (url.startsWith('/_cat/')) return json(200, []);
+      if (url === '/_aliases') return json(200, { acknowledged: true });
       if (url === '/_bulk') {
         const lines = raw.trim().split('\n');
         const items: unknown[] = [];
@@ -64,13 +73,13 @@ async function fakeEngine(): Promise<Fake> {
           >;
           if (act.index) {
             fake.docs.set(
-              `${act.index._index}/${act.index._id}`,
+              `${canon(act.index._index)}/${act.index._id}`,
               JSON.parse(lines[++i]) as Record<string, unknown>,
             );
             items.push({ index: { status: 200 } });
           } else {
             const had = fake.docs.delete(
-              `${act.delete._index}/${act.delete._id}`,
+              `${canon(act.delete._index)}/${act.delete._id}`,
             );
             items.push({ delete: { status: had ? 200 : 404 } });
           }
@@ -87,7 +96,7 @@ async function fakeEngine(): Promise<Fake> {
       }
       if (url.endsWith('/_search')) {
         fake.searches++;
-        const index = url.slice(1, -'/_search'.length);
+        const index = canon(url.slice(1, -'/_search'.length));
         const hits = [...fake.docs.keys()]
           .filter((k) => k.startsWith(`${index}/`))
           .map((k) => ({ _id: k.slice(index.length + 1) }));

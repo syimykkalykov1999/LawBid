@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { canOpen } from './rbac';
-import { groupGuides, guideForStep, guideProblems, isStale, parseGuide, searchGuides, verifiedWord } from './guides';
+import { groupGuides, guideForStep, latestVerified, guideProblems, isStale, parseGuide, searchGuides, verifiedWord } from './guides';
 import { parseMarkdown, safeHref } from './markdown';
 
 const DIR = path.join(__dirname, '../../content/guides');
@@ -68,13 +68,17 @@ describe('guides: search, groups, helpers', () => {
   });
   it('groups in the owner order and skips empty categories', () => {
     const groups = groupGuides(list);
-    expect(groups.map((g) => g.title)[0]).toBe('Аккаунты и регистрации');
+    expect(groups.map((g) => g.title)[0]).toBe('Запуск');
     expect(groups.every((g) => g.guides.length > 0)).toBe(true);
   });
   it('says the date in words and notices old guides', () => {
     expect(verifiedWord('2026-10-25')).toBe('проверено 25 октября 2026 г.');
     expect(isStale('2026-01-01', new Date('2026-10-25'))).toBe(true);
     expect(isStale('2026-10-01', new Date('2026-10-25'))).toBe(false);
+  });
+  it('names the newest check date', () => {
+    expect(latestVerified([{ verified: '2026-01-02' }, { verified: '2026-10-25' }, { verified: 'bad' }])).toBe('2026-10-25');
+    expect(latestVerified([])).toBe('');
   });
   it('the menu item is owner only', () => {
     expect(canOpen({ role: 'super_admin' }, '/guides')).toBe(true);
@@ -84,7 +88,7 @@ describe('guides: search, groups, helpers', () => {
 
 describe('guides: content rules (keep it maintainable)', () => {
   it('there are guides', () => {
-    expect(guides.length).toBeGreaterThanOrEqual(30);
+    expect(guides.length).toBeGreaterThanOrEqual(42);
   });
 
   it('every file is valid: id = file name, sources, verified date, https links', () => {
@@ -92,6 +96,12 @@ describe('guides: content rules (keep it maintainable)', () => {
       expect(g.id, file).toBe(file.replace(/\.md$/, ''));
       expect(guideProblems(g), file).toEqual([]);
     }
+  });
+
+  it('all six categories have guides, and the owner-requested explainers exist', () => {
+    const cats = new Set(guides.map((x) => x.g.category));
+    for (const c of ['launch', 'money', 'people', 'content', 'legal', 'system']) expect(cats.has(c as never), c).toBe(true);
+    for (const id of ['what-we-pay', 'auto-switches', 'big-bill', 'check-after-deploy']) expect(guides.some((x) => x.g.id === id), id).toBe(true);
   });
 
   it('ids are unique', () => {

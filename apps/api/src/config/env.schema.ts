@@ -124,6 +124,11 @@ export const envSchema = z
     // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
     // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
     REDIS_CLUSTER: envBoolean(false),
+    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
+    // the load test; false = old behaviour) and an optional single BullMQ
+    // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
+    REDIS_AUTOPIPELINE: envBoolean(false),
+    REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
     // Local docker cluster only: JSON natMap for announced addresses.
     REDIS_CLUSTER_NAT_MAP: z.string().optional(),
     SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),

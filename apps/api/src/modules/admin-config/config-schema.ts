@@ -70,6 +70,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 5000,
   };
+  out['search.reindex_keep_days'] = {
+    type: 'integer',
+    defaultValue: 7,
+    description:
+      'After a search reindex, the old index is kept this many days so you can roll back, then deleted.',
+    min: 1,
+    max: 60,
+  };
+  out['search.reindex_throttle_ms'] = {
+    type: 'integer',
+    defaultValue: 200,
+    description:
+      'A search reindex pauses this many milliseconds between batches of 500 documents, so it does not slow the database.',
+    min: 0,
+    max: 5000,
+  };
   out['calls.video_provider'] = {
     type: 'string',
     defaultValue: 'p2p',

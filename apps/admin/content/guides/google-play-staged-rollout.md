@@ -1,7 +1,7 @@
 ---
 id: google-play-staged-rollout
 title: Постепенный выпуск в Google Play (staged rollout)
-category: stores
+category: launch
 cost: бесплатно
 time: 5 минут на запуск; процент вы повышаете сами
 verified: 2026-10-25
