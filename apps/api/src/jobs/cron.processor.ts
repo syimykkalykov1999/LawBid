@@ -43,6 +43,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -167,6 +168,8 @@ export class CronProcessor {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Owner 2026-10-25: `experiments.metrics`.
+    @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
     // Privacy round 13: `privacy.retention`, `privacy.reconcile`,
@@ -276,6 +279,8 @@ export class CronProcessor {
         return this.opsMetrics.queueDepths();
       case CRON_JOBS.searchIndex:
         return this.searchIndex?.run() ?? null;
+      case CRON_JOBS.experimentsMetrics:
+        return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:
         return this.ledgerReconcile?.run() ?? null;
       case CRON_JOBS.privacyRetention:
