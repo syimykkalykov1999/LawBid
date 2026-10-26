@@ -587,6 +587,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Autoscaling ceiling: auto (follows the economy rule) or manual.',
     pattern: /^(auto|manual)$/,
   };
+  // Queues hardening 2026-10-25: three-state switches (off | on | auto).
+  for (const key of ['queues.scale_signal_mode', 'queues.push_rate_mode']) {
+    out[key] = {
+      ...out[key],
+      description: 'off, on or auto (default auto).',
+      pattern: /^(off|on|auto)$/,
+    };
+  }
+  out['queues.push_rate_per_sec'] = {
+    ...out['queues.push_rate_per_sec'],
+    description:
+      'Push sends per second for the whole system (FCM project quota is 10 000/s).',
+    min: 50,
+    max: 10_000,
+  };
   for (const key of ['economy.manual_api_max', 'economy.manual_worker_max']) {
     out[key] = { ...out[key], min: 1, max: 1000 };
   }

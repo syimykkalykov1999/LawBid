@@ -25,6 +25,11 @@
 // added in stage 2.2 (docs/02_DATABASE.md §8).
 generator client {
   provider = "prisma-client-js"
+  // DB-ops S5-13: the engine files for the exact targets we run on, so a
+  // build on one CPU never ships a runtime that downloads (or lacks) its
+  // engine. The image is Alpine (musl) on Fargate X86_64 or ARM64; the
+  // glibc arm64 target covers a Graviton build on a Debian runner.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {
@@ -1362,6 +1367,8 @@ model CrossFamilyInbox {
   event_type      String
   applied_at      DateTime @default(now()) @db.Timestamptz
 
+  // DB-ops S5-3: the retention sweep removes by age.
+  @@index([applied_at])
   @@map("cross_family_inbox")
 }
 
