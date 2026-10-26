@@ -15,6 +15,7 @@ variable "growth" {
       redis_cluster_mode         MOVED: set the stack variable redis_cluster_mode = "standby" | "on" (docs/runbooks/redis-cluster.md); this field stays false.
       livekit_nodes              NOT BUILT: validation refuses > 1 (modules/livekit is one box).
       cdn_images_provider        "cloudfront" (default) or "bunny": which CDN serves public images; "bunny" needs cdn_images_base_url (https://<pull-zone>).
+      events_stream_enabled      Kinesis Data Streams (on-demand) for the internal domain-event bus (N-2). OFF = nothing is built and the app keeps events only in its own table. The app finds the stream by itself (EVENTS_STREAM_NAME) and ships to it only when the admin sets «events.sink» to stream / auto. See docs/architecture/EVENTS_PIPELINE.md.
       event_loop_p99_alarm_ms    alarm threshold for the Node event-loop delay metric; 0 = no alarm.
   EOT
   type = object({
@@ -33,6 +34,7 @@ variable "growth" {
     cdn_images_provider           = optional(string, "cloudfront")
     cdn_images_base_url           = optional(string, "")
     event_loop_p99_alarm_ms       = optional(number, 250)
+    events_stream_enabled         = optional(bool, false)
   })
   default = {}
 

@@ -59,6 +59,7 @@ import {
   UpdateTaskStatusDto,
 } from './assistants.dto';
 import { AssistantsService } from './assistants.service';
+import type { SyncPage } from '../../common/sync/sync.util';
 import { TasksService } from './tasks.service';
 
 const E = ErrorCode;
@@ -272,7 +273,7 @@ export class AssistantsController {
   listTasks(
     @CurrentUser() user: RequestUser,
     @Query() q: TasksQueryDto,
-  ): Promise<TaskDto[]> {
+  ): Promise<TaskDto[] | SyncPage<TaskDto>> {
     return this.tasks.list(user, q);
   }
 
