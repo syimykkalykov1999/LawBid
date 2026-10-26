@@ -15,6 +15,7 @@ import { BlocksService } from '../blocks/blocks.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { bullOptions } from '../../redis/redis-connection';
+import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
 
 export const CHANNEL_FANOUT_QUEUE = 'channel-fanout';
 export const CHANNEL_FANOUT_OPTIONS = Symbol('CHANNEL_FANOUT_OPTIONS');
@@ -101,6 +102,7 @@ export class ChannelFanoutRunner
       (job: Job<ChannelFanoutJob>) => this.process(job.data),
       {
         ...bullOptions(CHANNEL_FANOUT_QUEUE, url, { worker: true }),
+        ...workerTuning(CHANNEL_FANOUT_QUEUE),
         concurrency: 4,
       },
     );
@@ -113,7 +115,7 @@ export class ChannelFanoutRunner
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.worker?.close();
+    await closeWorker(this.worker);
     await this.queue?.close();
   }
 
