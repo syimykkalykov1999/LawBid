@@ -1,7 +1,7 @@
 ---
 id: key-rotation-and-verified-tls
 title: Раз в год менять ключи шифрования и включить проверенное шифрование до базы
-category: security
+category: system
 cost: Бесплатно (секрет с TLS-ключами в AWS Secrets Manager: около 0,40 доллара в месяц)
 time: 40 минут
 verified: 2026-10-25
