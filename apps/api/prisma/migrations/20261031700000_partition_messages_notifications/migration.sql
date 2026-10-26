@@ -52,7 +52,7 @@ UPDATE message_hidden c SET conversation_id = m.conversation_id FROM messages m
  WHERE m.id = c.message_id AND c.conversation_id IS DISTINCT FROM m.conversation_id;
 UPDATE saved_chat_messages c SET conversation_id = m.conversation_id FROM messages m
  WHERE m.id = c.message_id AND c.conversation_id IS DISTINCT FROM m.conversation_id;
--- message_pins already has conversation_id; make it exactly the message's.
+-- message_pins already has conversation_id; make it exactly the one of the message.
 UPDATE message_pins c SET conversation_id = m.conversation_id FROM messages m
  WHERE m.id = c.message_id AND c.conversation_id IS DISTINCT FROM m.conversation_id;
 
@@ -120,7 +120,7 @@ BEGIN
       FOREIGN KEY (conversation_id, message_id) REFERENCES messages (conversation_id, id) ON UPDATE CASCADE ON DELETE CASCADE;
     ALTER TABLE saved_chat_messages ADD CONSTRAINT saved_chat_messages_conversation_id_message_id_fkey
       FOREIGN KEY (conversation_id, message_id) REFERENCES messages (conversation_id, id) ON UPDATE CASCADE ON DELETE CASCADE;
-    -- SET NULL (reply_to_id) only: the chat id is part of the row's own key.
+    -- SET NULL (reply_to_id) only: the chat id is part of the own key of the row.
     ALTER TABLE messages ADD CONSTRAINT messages_conversation_id_reply_to_id_fkey
       FOREIGN KEY (conversation_id, reply_to_id) REFERENCES messages (conversation_id, id) ON DELETE SET NULL (reply_to_id);
     ALTER TABLE chat_group_polls ADD CONSTRAINT chat_group_polls_group_id_message_id_fkey
