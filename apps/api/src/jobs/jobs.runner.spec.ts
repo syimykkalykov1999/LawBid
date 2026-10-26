@@ -248,7 +248,8 @@ describe('JobsRunner', () => {
     // shard.orphan-check (nightly).
     // Owner 2026-10-24: + search.index (every minute).
     // Day-one foundations: + ledger.reconcile (nightly).
-    expect(upserts).toHaveLength(69);
+    // S1-3: + chat.redeliver (every minute).
+    expect(upserts).toHaveLength(70);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
