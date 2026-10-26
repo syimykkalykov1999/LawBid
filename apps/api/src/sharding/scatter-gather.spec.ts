@@ -1,4 +1,10 @@
-import { canScatter, mergeScatter, perDatabaseArgs } from './scatter-gather';
+import {
+  canScatter,
+  mergeScatter,
+  perDatabaseArgs,
+  runScatter,
+  ScatterPartialFailureError,
+} from './scatter-gather';
 
 describe('scatter-gather merge (shard-ready step 8)', () => {
   it('sums counts and update/delete counts', () => {
@@ -105,5 +111,49 @@ describe('scatter-gather merge (shard-ready step 8)', () => {
       { t: 'x', _count: { _all: 5 } },
       { t: 'z', _count: { _all: 3 } },
     ]);
+  });
+});
+
+describe('runScatter (DB-ops S5-10: partial failure of scatter writes)', () => {
+  it('writes: some databases failed -> typed error naming them', async () => {
+    const call = jest.fn((k: string) =>
+      k === 'shard2'
+        ? Promise.reject(new Error('down'))
+        : Promise.resolve({ count: 1 }),
+    );
+    const err: unknown = await runScatter(
+      'deleteMany',
+      'Post',
+      ['primary', 'shard2'],
+      call,
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ScatterPartialFailureError);
+    const e = err as ScatterPartialFailureError;
+    expect(e.failed).toEqual(['shard2']);
+    expect(e.succeeded).toEqual(['primary']);
+    expect(e.message).toContain('shard2');
+  });
+
+  it('writes: every database failed -> the first error unchanged', async () => {
+    const boom = new Error('all down');
+    await expect(
+      runScatter('updateMany', 'Post', ['a', 'b'], () => Promise.reject(boom)),
+    ).rejects.toBe(boom);
+  });
+
+  it('writes: all fine -> results in database order', async () => {
+    await expect(
+      runScatter('updateMany', 'Post', ['a', 'b'], (k) =>
+        Promise.resolve({ count: k === 'a' ? 1 : 2 }),
+      ),
+    ).resolves.toEqual([{ count: 1 }, { count: 2 }]);
+  });
+
+  it('reads keep failing whole (a half answer would be wrong)', async () => {
+    await expect(
+      runScatter('count', 'Post', ['a', 'b'], (k) =>
+        k === 'b' ? Promise.reject(new Error('x')) : Promise.resolve(1),
+      ),
+    ).rejects.toThrow('x');
   });
 });
