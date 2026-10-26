@@ -7,6 +7,8 @@ Contract tests: `apps/api/src/common/app-settings/switch-contract.spec.ts`.
 The cost registry (`common/ops/cost-registry.ts`) is not on main yet; billable 2-state rows
 move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the behaviour when it is on.
 
+Rows are sorted by key: insert a new row at its alphabetical place (never append at the end), so parallel PRs do not conflict on this file.
+
 | key | Русский ярлык (админка) | default | state | what it controls | reader | ceiling key | tested | registry row (fill after #372) |
 |---|---|---|---|---|---|---|---|---|
 | `billing.stripe_tax_enabled` | Stripe Tax | off | 2 | automatic_tax on subscriptions | `modules/billing/subscriptions.service.ts:1087` | none | yes | |
