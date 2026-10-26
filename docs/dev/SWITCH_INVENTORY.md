@@ -43,6 +43,8 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 | `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `ledger.reconcile_mode` | Ночная сверка денег (ledger) | auto | 3 (off/on/auto) | review R-26 (#411): on = whole ledger nightly; auto = last N days nightly, whole ledger weekly | `modules/ledger/ledger-reconcile.service.ts:304` | see the setting | listed | |
+| `sms.cap_mode` | Как работают лимиты SMS | auto | 2 (auto/fixed) | review R-75 (#411): auto = caps are floors that grow with the last 7 days, capped by `sms.burst_ceiling_multiplier`; fixed = typed numbers | `common/cost-guard/sms-abuse-guard.service.ts:101` | `sms.burst_ceiling_multiplier` | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
