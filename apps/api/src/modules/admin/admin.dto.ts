@@ -330,12 +330,6 @@ export class AdminCountsDto {
     description: 'Attorneys in the trust queue.',
   })
   trustQueue!: number;
-
-  @ApiProperty({
-    type: 'integer',
-    description: 'Approvals this admin could decide.',
-  })
-  approvalsPending!: number;
 }
 
 export class DashboardDto {

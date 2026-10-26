@@ -28,6 +28,31 @@ extension GroupMessageDtoX on api.GroupMessageDto {
         forwardedFrom: forwardedFrom,
       );
 
+  /// The local picture of «deleted for everyone» (same as the server's
+  /// tombstone: no text, no file, no poll).
+  api.GroupMessageDto asTombstone() => api.GroupMessageDto(
+        id: id,
+        groupId: groupId,
+        topicId: topicId,
+        type: type,
+        sender: sender,
+        body: '',
+        mine: mine,
+        clientMessageId: clientMessageId,
+        systemKind: systemKind,
+        systemPeople: systemPeople,
+        systemText: systemText,
+        replyTo: replyTo,
+        mentions: const [],
+        mentionsMe: false,
+        editedAt: editedAt,
+        deleted: true,
+        createdAt: createdAt,
+        expiresAt: expiresAt,
+        forwarded: forwarded,
+        forwardedFrom: forwardedFrom,
+      );
+
   /// Owner 2026-10-21: disappearing messages — gone by the clock.
   bool isExpired([DateTime? now]) =>
       expiresAt != null && !expiresAt!.isAfter(now ?? DateTime.now());

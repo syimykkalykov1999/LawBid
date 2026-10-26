@@ -25,7 +25,7 @@ class _AdminSanctionsClient implements AdminSanctionsClient {
     Kind? kind,
     String? q,
     String? cursor,
-    Status4? status = Status4.active,
+    Status3? status = Status3.active,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};

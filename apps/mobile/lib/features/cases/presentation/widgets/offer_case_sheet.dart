@@ -74,6 +74,7 @@ class _OfferCaseSheetState extends ConsumerState<OfferCaseSheet> {
     if (caseId == null) return;
     final dollars = int.tryParse(_budget.text.trim());
     setState(() => _busy = true);
+    final container = ProviderScope.containerOf(context);
     try {
       await ref.read(invitesRepositoryProvider).send(
             caseId,
@@ -81,7 +82,7 @@ class _OfferCaseSheetState extends ConsumerState<OfferCaseSheet> {
             message: _message.text.trim().isEmpty ? null : _message.text.trim(),
             budgetCents: dollars == null || dollars <= 0 ? null : dollars * 100,
           );
-      ref.invalidate(caseInvitesProvider(caseId));
+      container.invalidate(caseInvitesProvider(caseId));
       if (!mounted) return;
       Navigator.of(context).pop();
       showAppSnackBar(context, t.t('invite.offer.sent'));
