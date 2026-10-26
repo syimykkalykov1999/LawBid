@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-248 tables.
+249 tables.
 
 ```mermaid
 erDiagram
@@ -169,6 +169,30 @@ erDiagram
   app_config {
     String key PK
     Json value
+    DateTime updated_at
+  }
+  infra_change_requests {
+    String id PK
+    String item_id
+    String from_state "nullable"
+    String to_state
+    Json changes
+    String status
+    String requested_by
+    String confirmed_by "nullable"
+    Json cost_delta_usd
+    Boolean dry_run
+    String rollback_of "nullable"
+    Json plan_summary "nullable"
+    Json file_before "nullable"
+    String run_id "nullable"
+    String run_url "nullable"
+    String recorded "nullable"
+    String error "nullable"
+    DateTime planned_at "nullable"
+    DateTime confirmed_at "nullable"
+    DateTime finished_at "nullable"
+    DateTime created_at
     DateTime updated_at
   }
   shard_map {

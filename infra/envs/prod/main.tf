@@ -203,7 +203,7 @@ module "stack" {
   dmarc_policy                       = var.dmarc_policy
 
   # Load audit 6: growth switches (growth.tf).
-  growth = var.growth
+  growth = merge(var.growth, var.growth_switches)
 }
 
 output "stack" { value = module.stack }

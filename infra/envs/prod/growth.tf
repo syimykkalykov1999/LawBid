@@ -7,3 +7,13 @@ variable "growth" {
   type    = any
   default = {}
 }
+
+# Owner 2026-10-26: infra switches from the admin. The admin writes growth
+# keys (rds_read_replicas, opensearch_enabled) into growth.auto.tfvars.json
+# under this name; they are merged OVER `growth` from terraform.tfvars, so a
+# growth line kept there is not lost. Whitelist + JSON schema:
+# apps/api/src/common/ops/infra-switches.ts, growth.auto.tfvars.schema.json.
+variable "growth_switches" {
+  type    = any
+  default = {}
+}

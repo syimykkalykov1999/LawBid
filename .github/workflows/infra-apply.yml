@@ -1,0 +1,216 @@
+# Owner 2026-10-26: infra switches from the admin (runbook
+# docs/runbooks/infra-from-admin.md, guide «Как включить что-то в облаке
+# одной кнопкой»).
+#
+# Started ONLY by the LawBid API (GitHub App token narrowed to actions:write
+# on this repository) with one input: the change request id. Steps:
+#   1. take the job from the API (what to write; the API checks this job's
+#      OIDC token: this repository, this file, refs/heads/main);
+#   2. write the change into infra/envs/prod/growth.auto.tfvars.json with
+#      scripts/infra/write-switch.mjs (whitelist + JSON schema; anything else
+#      is refused before Terraform runs);
+#   3. terraform plan -out=plan.bin on prod; summary = addresses and actions
+#      only (scripts/infra/plan-summary.mjs), a plan that destroys data is
+#      refused here AND by the API;
+#   4. post the summary to the API: the admin shows «План: …» with the monthly
+#      cost from the cost registry; in dry-run mode the run ends here;
+#   5. wait (poll every 20 s, at most 30 min) for the owner's 2FA confirm;
+#   6. terraform apply plan.bin — exactly the plan the owner saw (Terraform
+#      refuses a saved plan whose state changed meanwhile);
+#   7. record the file on main (push; a pull request when main is protected)
+#      and report done / failed with this run's link.
+# Concurrency 1 (also enforced by the API's database). Never runs on a PR.
+#
+# Repository secrets / variables (never in the repo):
+#   AWS_DEPLOY_ROLE_PROD   the OIDC deploy role (infra/bootstrap, extended with
+#                          the infra-apply policy when infra_apply_enabled = true)
+#   AWS_REGION
+#   vars.LAWBID_API_URL    https://api.lawbid.dev (default when unset)
+name: Infra apply (from the admin)
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: "Change request id (created by the admin; do not start by hand)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: infra-apply
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  LAWBID_API_URL: ${{ vars.LAWBID_API_URL || 'https://api.lawbid.dev' }}
+  REQUEST_ID: ${{ inputs.request_id }}
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "0"
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+jobs:
+  apply:
+    name: plan → owner 2FA → apply (prod)
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    environment: infra-apply
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Check the input
+        run: |
+          [[ "$REQUEST_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+            || { echo "::error::request_id is not a UUID"; exit 1; }
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: main
+
+      - name: Take the job from the API
+        id: job
+        run: |
+          scripts/infra/api.sh POST "$REQUEST_ID" start '{}' > job.json
+          jq -e '.data.status == "planning"' job.json > /dev/null \
+            || { echo "::error::the request is not waiting for a plan"; exit 1; }
+          echo "item=$(jq -r '.data.itemId' job.json)" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$(jq -r '.data.dryRun' job.json)" >> "$GITHUB_OUTPUT"
+          jq -c '.data.changes' job.json > changes.json
+          echo "Request $REQUEST_ID: $(jq -r '.data.itemId' job.json) -> $(cat changes.json)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write the switch (whitelist + schema)
+        run: |
+          node scripts/infra/write-switch.mjs \
+            infra/envs/prod/growth.auto.tfvars.json \
+            infra/envs/prod/growth.auto.tfvars.schema.json \
+            "$(cat changes.json)" > before.json
+          git diff --stat
+
+      - name: Report a failure before the plan
+        if: failure() && steps.job.outcome == 'success'
+        run: |
+          jq -n --arg e "Не удалось подготовить изменение. Журнал: $RUN_URL" \
+            '{status:"plan_failed", error:$e}' > fail.json
+          scripts/infra/api.sh POST "$REQUEST_ID" status @fail.json > /dev/null || true
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 3600
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ">=1.9"
+          terraform_wrapper: false
+
+      - name: Plan (output stays in files, never in the log)
+        id: plan
+        working-directory: infra/envs/prod
+        run: |
+          set +x
+          set -u
+          aws secretsmanager get-secret-value --secret-id lawbid-prod/terraform-tfvars \
+            --query SecretString --output text > terraform.tfvars
+          chmod 600 terraform.tfvars
+          ../../../scripts/deploy/current-tag.sh > current-images.auto.tfvars
+          cp backend.hcl.example backend.hcl
+          terraform init -input=false -backend-config=backend.hcl > init.log 2>&1 \
+            || { grep -E '^(Error|│ Error)' init.log | cut -c1-200 | head -5; exit 1; }
+          terraform plan -input=false -no-color -out=plan.bin > plan.log 2>&1 \
+            || { grep -E '^(Error|│ Error)' plan.log | cut -c1-200 | head -10; exit 1; }
+          terraform show -json plan.bin > plan.json
+          set +e
+          node ../../../scripts/infra/plan-summary.mjs plan.json > ../../../summary.json
+          RC=$?
+          set -e
+          rm -f plan.json plan.log init.log
+          if [ "$RC" = "3" ]; then echo "::error::the plan destroys protected data; refused"; exit 1; fi
+          [ "$RC" = "0" ] || exit 1
+          jq -r '"Plan: +\(.add) ~\(.change) -\(.destroy)"' ../../../summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Send the plan to the admin
+        run: |
+          jq -s '.[0] + {fileBefore: .[1].before}' summary.json before.json > plan-body.json
+          scripts/infra/api.sh POST "$REQUEST_ID" plan @plan-body.json > /dev/null
+
+      - name: Report a failed plan
+        if: failure() && steps.job.outcome == 'success' && steps.plan.outcome == 'failure'
+        run: |
+          jq -n --arg e "План не получился или удаляет защищённые данные. Журнал: $RUN_URL" \
+            '{status:"plan_failed", error:$e}' > fail.json
+          scripts/infra/api.sh POST "$REQUEST_ID" status @fail.json > /dev/null || true
+
+      - name: Wait for the owner's 2FA confirm (at most 30 minutes)
+        id: wait
+        if: steps.job.outputs.dry_run != 'true'
+        run: |
+          deadline=$(( $(date +%s) + 31 * 60 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            D=$(scripts/infra/api.sh GET "$REQUEST_ID" decision | jq -r '.data.decision')
+            case "$D" in
+              apply) echo "go=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+              stop)  echo "go=false" >> "$GITHUB_OUTPUT"; echo "Stopped (cancelled or expired)." >> "$GITHUB_STEP_SUMMARY"; exit 0 ;;
+            esac
+            sleep 20
+          done
+          echo "go=false" >> "$GITHUB_OUTPUT"
+          echo "No confirm within 30 minutes; the plan is thrown away." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply exactly the confirmed plan
+        id: apply
+        if: steps.wait.outputs.go == 'true'
+        working-directory: infra/envs/prod
+        run: |
+          set +x
+          ../../../scripts/infra/api.sh POST "$REQUEST_ID" status '{"status":"applying"}' > /dev/null
+          terraform apply -input=false -no-color plan.bin > apply.log 2>&1 \
+            || { grep -E '^(Error|│ Error)' apply.log | cut -c1-200 | head -10; rm -f apply.log; exit 1; }
+          grep -E '^Apply complete' apply.log || true
+          rm -f apply.log
+
+      - name: Record the file on main
+        id: record
+        if: steps.apply.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          git config user.name "lawbid-infra[bot]"
+          git config user.email "infra-bot@users.noreply.github.com"
+          git add infra/envs/prod/growth.auto.tfvars.json
+          git commit -m "infra: $(jq -r '.data.itemId' job.json) from the admin (request $REQUEST_ID)" -m "Applied by $RUN_URL"
+          git pull --rebase --quiet origin main || git rebase --abort || true
+          if git push origin HEAD:main 2>/dev/null; then
+            echo "recorded=main" >> "$GITHUB_OUTPUT"
+          else
+            B="infra/request-$REQUEST_ID"
+            git push origin "HEAD:refs/heads/$B"
+            URL=$(gh pr create --base main --head "$B" \
+              --title "infra: record $(jq -r '.data.itemId' job.json) (request $REQUEST_ID)" \
+              --body "Already APPLIED on prod by $RUN_URL. Merge so growth.auto.tfvars.json on main matches AWS (the next plan from the admin would undo it otherwise).")
+            echo "recorded=pr:$URL" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report the result
+        if: always() && steps.wait.outputs.go == 'true'
+        env:
+          APPLY: ${{ steps.apply.outcome }}
+          RECORDED: ${{ steps.record.outputs.recorded }}
+        run: |
+          if [ "$APPLY" = "success" ]; then
+            jq -n --arg r "${RECORDED:-none}" '{status:"done", recorded:$r}' > result.json
+          else
+            jq -n --arg e "Применение не удалось. Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
+          fi
+          scripts/infra/api.sh POST "$REQUEST_ID" status @result.json > /dev/null
+          echo "Result: $(jq -r .status result.json)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up files that may hold values
+        if: always()
+        run: |
+          rm -f infra/envs/prod/terraform.tfvars infra/envs/prod/current-images.auto.tfvars \
+            infra/envs/prod/plan.bin infra/envs/prod/plan.json infra/envs/prod/*.log job.json

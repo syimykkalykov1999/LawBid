@@ -1012,6 +1012,21 @@ export const OWNER_COST_REGISTRY_SETTINGS = {
   'scale.cloudflare_hardstop.mode': 'auto',
 };
 
+/**
+ * Owner 2026-10-26: infra switches from the admin (docs/runbooks/
+ * infra-from-admin.md). Guards of the «План → код 2FA → применить» flow:
+ * - `infra.dry_run`: true = the cloud is only planned, never changed (the
+ *   admin shows the plan and stops). Start with true, flip after one look.
+ * - `infra.daily_cap`: at most this many change requests per 24 hours.
+ * - `infra.quiet_hours`: "HH:MM-HH:MM" (America/Chicago) when an apply may
+ *   start; empty = any time.
+ */
+export const OWNER_INFRA_SETTINGS = {
+  'infra.dry_run': true,
+  'infra.daily_cap': 3,
+  'infra.quiet_hours': '',
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -1057,6 +1072,7 @@ export const APP_SETTINGS = {
   ...OWNER_LEGAL_SECURITY_SETTINGS,
   ...OWNER_CASE_FANOUT_SETTINGS,
   ...OWNER_COST_REGISTRY_SETTINGS,
+  ...OWNER_INFRA_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

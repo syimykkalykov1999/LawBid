@@ -33,6 +33,12 @@ import {
   type RegistryView,
 } from "@/lib/launch";
 import { livePoll } from "@/lib/live";
+import {
+  InfraChip,
+  InfraPlanSheet,
+  useInfra,
+} from "@/components/infra-plan-sheet";
+import { isActive, latestFor, requestDot, type InfraRequest } from "@/lib/infra";
 
 const KEY = ["spend-registry"];
 const STATES: CostState[] = ["off", "on", "auto"];
@@ -41,6 +47,9 @@ const STATES: CostState[] = ["off", "on", "auto"];
  * Owner 2026-10-25: every billable thing in one list, with this month's real
  * number and a three-position switch Выкл / Вкл / Авто. Items that live in
  * Terraform show the exact steps instead of a button.
+ * Owner 2026-10-26: whitelisted Terraform rows (row.infraSwitch) are flipped
+ * here too: Выкл / Вкл makes a cloud change request, the «План: …» sheet
+ * shows what changes and what it costs, a 2FA code applies it.
  */
 export function CostRegistry() {
   const qc = useQueryClient();
@@ -65,6 +74,26 @@ export function CostRegistry() {
     },
     onError: (e) => toast.error(e),
   });
+  const infra = useInfra();
+  const [sheetFor, setSheetFor] = useState<string | null>(null);
+  const requests = infra.data?.requests;
+  const sheet = sheetFor ? latestFor(requests, sheetFor) : null;
+  const pick = (id: string, state: CostState) => {
+    const row = q.data?.rows.find((x) => x.id === id);
+    if (!row?.infraSwitch) {
+      setMode.mutate({ id, state });
+      return;
+    }
+    const cur = latestFor(requests, id);
+    if (isActive(cur) || state === "auto") {
+      setSheetFor(id);
+      return;
+    }
+    infra.create.mutate(
+      { itemId: id, to: state },
+      { onSuccess: () => setSheetFor(id) },
+    );
+  };
   const r = q.data;
   return (
     <>
@@ -97,9 +126,28 @@ export function CostRegistry() {
           <RegistryList
             rows={r.rows}
             pendingId={
-              setMode.isPending ? (setMode.variables?.id ?? null) : null
+              setMode.isPending
+                ? (setMode.variables?.id ?? null)
+                : infra.create.isPending
+                  ? (infra.create.variables?.itemId ?? null)
+                  : null
             }
-            onPick={(id, state) => setMode.mutate({ id, state })}
+            onPick={pick}
+            requests={requests}
+            onOpenRequest={setSheetFor}
+          />
+          <InfraPlanSheet
+            request={sheet}
+            dryRunMode={infra.data?.guards?.dryRun ?? false}
+            onClose={() => setSheetFor(null)}
+            onConfirm={(id) => infra.confirm.mutate(id)}
+            onCancel={(id) => infra.cancel.mutate(id)}
+            onRollback={(id) => infra.rollback.mutate(id)}
+            busy={
+              infra.confirm.isPending ||
+              infra.rollback.isPending ||
+              infra.create.isPending
+            }
           />
         </>
       )}
@@ -118,10 +166,14 @@ function RegistryList({
   rows,
   pendingId,
   onPick,
+  requests,
+  onOpenRequest,
 }: {
   rows: CostRegistryRow[];
   pendingId: string | null;
   onPick: (id: string, s: CostState) => void;
+  requests?: InfraRequest[];
+  onOpenRequest?: (id: string) => void;
 }) {
   const [view, setView] = useState<RegistryView>(DEFAULT_REGISTRY_VIEW);
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -272,6 +324,8 @@ function RegistryList({
             onToggle={() => toggle(row.id)}
             busy={pendingId === row.id}
             onPick={(state) => onPick(row.id, state)}
+            request={row.infraSwitch ? latestFor(requests, row.id) : null}
+            onOpenRequest={() => onOpenRequest?.(row.id)}
           />
         ))}
       </div>
@@ -386,13 +440,18 @@ function Row({
   onToggle,
   busy,
   onPick,
+  request,
+  onOpenRequest,
 }: {
   row: CostRegistryRow;
   expanded: boolean;
   onToggle: () => void;
   busy: boolean;
   onPick: (s: CostState) => void;
+  request?: InfraRequest | null;
+  onOpenRequest?: () => void;
 }) {
+  const running = isActive(request);
   const stepsStates = row.states.length > 0 ? row.states : ["on"];
   return (
     <Card className="p-0" data-testid={`registry-${row.id}`}>
@@ -408,8 +467,20 @@ function Row({
           {expanded ? "▾ " : "▸ "}
           {row.name}
         </button>
-        <StatusDot status={row.status} testId={`dot-${row.id}`} />
-        <StateControl row={row} busy={busy} onPick={onPick} />
+        <StatusDot
+          status={running && request ? requestDot(request) : row.status}
+          testId={`dot-${row.id}`}
+        />
+        {request && (running || request.status === "failed") ? (
+          <button
+            type="button"
+            onClick={onOpenRequest}
+            aria-label="Открыть план изменения"
+          >
+            <InfraChip request={request} />
+          </button>
+        ) : null}
+        <StateControl row={row} busy={busy || running} onPick={onPick} />
         <span
           className="w-28 text-right text-sm text-ink"
           data-testid={`registry-money-${row.id}`}
@@ -447,6 +518,21 @@ function Row({
           ) : null}
           {row.lockedReason && !row.editable ? (
             <p className="mt-1 text-xs text-muted">{row.lockedReason}</p>
+          ) : null}
+          {row.infraSwitch ? (
+            <p className="mt-1 text-xs text-muted" data-testid={`infra-note-${row.id}`}>
+              Облако: Выкл / Вкл сначала покажут план и цену, применится
+              только после вашего кода 2FA.{" "}
+              {request ? (
+                <button
+                  type="button"
+                  className="text-gold-600 underline-offset-2 hover:underline"
+                  onClick={onOpenRequest}
+                >
+                  Последнее изменение и «Откатить»
+                </button>
+              ) : null}
+            </p>
           ) : null}
           <div className="mt-2 grid gap-3 text-sm lg:grid-cols-2">
             <div>
@@ -522,7 +608,7 @@ function Row({
   );
 }
 
-function StateControl({
+export function StateControl({
   row,
   busy,
   onPick,
