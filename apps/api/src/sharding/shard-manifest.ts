@@ -341,6 +341,9 @@ export const GLOBAL_MODELS: readonly string[] = [
   'LedgerAccount',
   'LedgerEntry',
   'LedgerLine',
+  // BUG-1 (package N-12b): the chat search blind index. Global for now (no
+  // shard trigger needed); it joins the case family when that is split.
+  'MessageSearchToken',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);

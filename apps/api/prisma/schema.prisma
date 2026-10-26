@@ -2867,6 +2867,26 @@ model Message {
   @@map("messages")
 }
 
+/// BUG-1 (2026-10-25, package N-12b): blind search index of chat texts.
+/// One row per distinct word (and, with chat.search.prefix_tokens, per
+/// 3..12-char prefix) of a text / attachment message: the token is
+/// HMAC-SHA256(SEARCH_INDEX_KEY, word) truncated to 16 bytes — no word is
+/// stored. Written in the message's own transaction, rewritten on edit,
+/// removed on delete for everyone / disappearing / anonymization / legal
+/// retention. No foreign keys: messages may become a partitioned table.
+/// Global for now (like the search outbox); it moves with its chat once
+/// the case family is split onto separate databases.
+model MessageSearchToken {
+  conversation_id String   @db.Uuid
+  token           Bytes
+  message_id      String   @db.Uuid
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@id([conversation_id, token, message_id])
+  @@index([message_id])
+  @@map("message_search_tokens")
+}
+
 /// "Delete for me": the message stays for the other side.
 model MessageHidden {
   message_id String   @db.Uuid

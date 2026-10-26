@@ -253,6 +253,7 @@ jobs:
           for k in OTP_CODE_SECRET OTP_KEY_PEPPER AUTH_EVENT_PEPPER ADMIN_TOTP_ENC_KEY; do put "$k" "$(rnd)"; done
           put SECRETS_MASTER_KEYS "k1:$(rnd)"
           put MESSAGE_ENC_KEYS "m1:$(rnd)"
+          put SEARCH_INDEX_KEY "$(rnd)"
           echo "secrets filled"
 
       - name: Migrate the database (one-off ECS task, like deploy.yml)

@@ -36,6 +36,8 @@ export const OPS_KEYS = {
   messageReencrypt: 'ops:message-reencrypt',
   /** JSON BloatSnapshot: the nightly table / index bloat measurement. */
   dbBloat: 'ops:db-bloat',
+  /** JSON ChatSearchBackfillState (jobs/handlers/chat-search-backfill.job.ts). */
+  chatSearchBackfill: 'ops:chat-search-backfill',
 } as const;
 
 /** Result of the nightly bloat job (jobs/handlers/db-bloat.job.ts). */
@@ -69,6 +71,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.licenseRegistryRecheck,
   CRON_JOBS.opsBusinessMetrics,
   CRON_JOBS.messagesReencrypt,
+  CRON_JOBS.chatSearchBackfill,
   CRON_JOBS.adminSummaries,
   // Perf review 2026-10-26 (R-25): the nightly bloat check reads tables.
   CRON_JOBS.dbBloat,
