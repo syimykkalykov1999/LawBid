@@ -94,8 +94,7 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How many reels ahead the app warms (playlist + first segment, up to 1 MB each) while someone swipes. Video traffic is the biggest cost: lower it to save money, 0 = no warm-up.',
   },
-  // S20-9 (2026-10-25): 3-state switch over the number above. ONE key, shared
-  // with the hidden-cost PR (R-11): same text there, so the merge is a no-op.
+  // S20-9 (2026-10-25): 3-state switch over the number above.
   'client.video_prefetch_mode': {
     default: 'auto',
     pattern: /^(off|on|auto)$/,
