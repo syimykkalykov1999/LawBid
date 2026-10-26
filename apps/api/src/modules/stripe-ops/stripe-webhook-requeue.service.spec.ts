@@ -8,7 +8,12 @@ function make(
   const prisma = {
     stripeWebhookEvent: {
       findMany: jest.fn(() =>
-        Promise.resolve(rows.map((id) => ({ stripe_event_id: id }))),
+        Promise.resolve(
+          rows.map((id) => ({
+            stripe_event_id: id,
+            created_at: new Date('2026-10-25T10:00:00Z'),
+          })),
+        ),
       ),
     },
   };
@@ -68,5 +73,36 @@ describe('StripeWebhookRequeueService.sweep', () => {
     const h = make(['evt_a']);
     h.svc.queue = undefined;
     expect(await h.svc.sweep()).toEqual({ found: 0, requeued: 0 });
+  });
+  it('walks the unprocessed rows by keyset pages, never more than 1 000 a run', async () => {
+    const page = Array.from({ length: 200 }, (_, i) => ({
+      stripe_event_id: `evt_${String(i).padStart(3, '0')}`,
+      created_at: new Date('2026-10-25T10:00:00Z'),
+    }));
+    const h = make([]);
+    h.prisma.stripeWebhookEvent.findMany = jest
+      .fn()
+      .mockResolvedValueOnce(page)
+      .mockResolvedValueOnce(page.slice(0, 3)) as never;
+    const r = await h.svc.sweep(new Date('2026-10-25T12:00:00Z'));
+    expect(r.found).toBe(203);
+    const calls = (h.prisma.stripeWebhookEvent.findMany as unknown as jest.Mock)
+      .mock.calls as [{ where: { OR?: unknown[] }; orderBy: unknown }][];
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0].where.OR).toBeUndefined();
+    expect(calls[1][0].where.OR).toEqual([
+      { created_at: { gt: page[199].created_at } },
+      { created_at: page[199].created_at, stripe_event_id: { gt: 'evt_199' } },
+    ]);
+    expect(calls[0][0].orderBy).toEqual([
+      { created_at: 'asc' },
+      { stripe_event_id: 'asc' },
+    ]);
+
+    const always = make([]);
+    always.prisma.stripeWebhookEvent.findMany = jest
+      .fn()
+      .mockResolvedValue(page) as never;
+    expect((await always.svc.sweep()).found).toBe(1000);
   });
 });

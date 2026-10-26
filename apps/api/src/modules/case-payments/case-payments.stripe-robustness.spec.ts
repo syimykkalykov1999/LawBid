@@ -6,6 +6,8 @@ import type {
 import {
   CASE_PAYMENT_CHECKOUT_KIND,
   CasePaymentsService,
+  EXPIRE_MAX_CHECKS,
+  EXPIRE_PAGE,
 } from './case-payments.service';
 
 /**
@@ -158,6 +160,7 @@ function make(payment: Row, over: { appConfig?: Row } = {}) {
   );
   return {
     svc,
+    db,
     rows,
     refunds,
     accounts,
@@ -291,6 +294,66 @@ describe('CasePaymentsService.expire (asks Stripe first)', () => {
       deferred: 0,
     });
     expect(young.provider.retrieveConnectedCheckout).not.toHaveBeenCalled();
+  });
+});
+
+describe('CasePaymentsService.expire: no head-of-line (R-36)', () => {
+  it('expires checkout-less rows in their own query, keyset-pages the rest from a cursor', async () => {
+    const h = make(base({ stripe_checkout_id: null }));
+    const findMany = h.db.casePayment.findMany as unknown as jest.Mock;
+    const updateMany = h.db.casePayment.updateMany as unknown as jest.Mock;
+    await h.svc.expire();
+    // first statement: one UPDATE for rows without a checkout
+    expect(updateMany.mock.calls[0][0].where).toMatchObject({
+      status: 'pending_payment',
+      stripe_checkout_id: null,
+    });
+    const q = findMany.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+      orderBy: unknown;
+      take: number;
+    };
+    expect(q.where.stripe_checkout_id).toEqual({ not: null });
+    expect(q.orderBy).toEqual([{ created_at: 'asc' }, { id: 'asc' }]);
+    expect(q.take).toBe(EXPIRE_PAGE);
+  });
+
+  it('a full page of unresolved rows moves the cursor past them for the next run', async () => {
+    const h = make(base());
+    h.provider.retrieveConnectedCheckout.mockRejectedValue(new Error('503'));
+    const findMany = h.db.casePayment.findMany as unknown as jest.Mock;
+    const stuck = Array.from({ length: EXPIRE_PAGE }, (_, i) =>
+      base({
+        id: `cp_s${String(i).padStart(3, '0')}`,
+        created_at: new Date('2026-01-01T00:00:00Z'),
+      }),
+    );
+    findMany.mockResolvedValueOnce(stuck).mockResolvedValueOnce([]);
+    const first = await h.svc.expire();
+    expect(first.deferred).toBe(EXPIRE_PAGE);
+    // the second page asked for rows AFTER the last stuck one
+    expect(findMany.mock.calls[1][0].where.OR).toEqual([
+      { created_at: { gt: stuck[EXPIRE_PAGE - 1].created_at } },
+      {
+        created_at: stuck[EXPIRE_PAGE - 1].created_at,
+        id: { gt: stuck[EXPIRE_PAGE - 1].id },
+      },
+    ]);
+    // the end was reached: the next run starts at the oldest again
+    findMany.mockResolvedValueOnce([]);
+    await h.svc.expire();
+    expect(findMany.mock.calls[2][0].where.OR).toBeUndefined();
+  });
+
+  it('never makes more than EXPIRE_MAX_CHECKS Stripe reads in one run', async () => {
+    const h = make(base());
+    h.provider.retrieveConnectedCheckout.mockRejectedValue(new Error('503'));
+    const findMany = h.db.casePayment.findMany as unknown as jest.Mock;
+    const page = Array.from({ length: EXPIRE_PAGE }, (_, i) =>
+      base({ id: `cp_${i}`, created_at: new Date('2026-01-01T00:00:00Z') }),
+    );
+    findMany.mockResolvedValue(page);
+    expect((await h.svc.expire()).deferred).toBe(EXPIRE_MAX_CHECKS);
   });
 });
 

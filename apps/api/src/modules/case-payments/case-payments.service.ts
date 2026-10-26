@@ -99,6 +99,9 @@ const PAID_STATUSES: PaymentStatus[] = [
   'disputed',
 ];
 const DAY_MS = 86_400_000;
+/** `expire`: keyset page size and Stripe reads per run (R-36). */
+export const EXPIRE_PAGE = 200;
+export const EXPIRE_MAX_CHECKS = 1000;
 
 type Db = Prisma.TransactionClient | PrismaService;
 
@@ -2367,38 +2370,79 @@ export class CasePaymentsService {
     }
   }
 
+  /** Keyset position of `expire` between runs (worker process lifetime). */
+  private expireCursor: { created_at: Date; id: string } | null = null;
+
   /** Cron `case-payments.expire`: unpaid checkouts older than a day are
    * canceled ONLY after Stripe confirmed they are closed; a paid one is
-   * recorded as paid instead (Stripe robustness 2026-10-27). */
+   * recorded as paid instead (Stripe robustness 2026-10-27).
+   *
+   * Perf review 2026-10-26 (R-36): rows Stripe cannot settle ('unknown')
+   * used to sort first forever (`take 200 order by created_at`), so newer
+   * checkouts never expired and the same 200 Stripe reads repeated every
+   * 10 minutes. Now: (1) payments that never got a checkout are expired in
+   * their own single UPDATE (nothing to ask Stripe); (2) the rest are walked
+   * by keyset pages (created_at, id) from a cursor kept between runs, at most
+   * EXPIRE_MAX_CHECKS Stripe reads per run, wrapping to the oldest at the end,
+   * so an unresolved row never blocks the ones behind it. */
   async expire(
     now = new Date(),
   ): Promise<{ abandoned: number; recovered: number; deferred: number }> {
-    const rows = await this.prisma.casePayment.findMany({
+    const cutoff = new Date(now.getTime() - PENDING_PAYMENT_TTL_MS);
+    const bare = await this.prisma.casePayment.updateMany({
       where: {
         status: 'pending_payment',
-        created_at: { lt: new Date(now.getTime() - PENDING_PAYMENT_TTL_MS) },
+        created_at: { lt: cutoff },
+        stripe_checkout_id: null,
       },
-      orderBy: { created_at: 'asc' },
-      take: 200,
+      data: { status: 'canceled', canceled_reason: 'checkout_expired' },
     });
-    let abandoned = 0;
+    let abandoned = bare.count;
     let recovered = 0;
     let deferred = 0;
-    for (const row of rows) {
-      const verdict = await this.settleSession(row);
-      if (verdict === 'paid') {
-        recovered += 1;
-        continue;
-      }
-      if (verdict === 'unknown') {
-        deferred += 1;
-        continue;
-      }
-      const res = await this.prisma.casePayment.updateMany({
-        where: { id: row.id, status: 'pending_payment' },
-        data: { status: 'canceled', canceled_reason: 'checkout_expired' },
+    let checks = 0;
+    while (checks < EXPIRE_MAX_CHECKS) {
+      const after = this.expireCursor;
+      const rows = await this.prisma.casePayment.findMany({
+        where: {
+          status: 'pending_payment',
+          created_at: { lt: cutoff },
+          stripe_checkout_id: { not: null },
+          ...(after
+            ? {
+                OR: [
+                  { created_at: { gt: after.created_at } },
+                  { created_at: after.created_at, id: { gt: after.id } },
+                ],
+              }
+            : {}),
+        },
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+        take: EXPIRE_PAGE,
       });
-      abandoned += res.count;
+      for (const row of rows) {
+        checks += 1;
+        const verdict = await this.settleSession(row);
+        if (verdict === 'paid') {
+          recovered += 1;
+          continue;
+        }
+        if (verdict === 'unknown') {
+          deferred += 1;
+          continue;
+        }
+        const res = await this.prisma.casePayment.updateMany({
+          where: { id: row.id, status: 'pending_payment' },
+          data: { status: 'canceled', canceled_reason: 'checkout_expired' },
+        });
+        abandoned += res.count;
+      }
+      if (rows.length < EXPIRE_PAGE) {
+        this.expireCursor = null; // end reached: next run starts at the oldest
+        break;
+      }
+      const last = rows[rows.length - 1];
+      this.expireCursor = { created_at: last.created_at, id: last.id };
     }
     return { abandoned, recovered, deferred };
   }
