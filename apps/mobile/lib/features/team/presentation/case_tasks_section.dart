@@ -50,7 +50,7 @@ class CaseTasksSection extends ConsumerWidget {
                   final created = await context.push<bool>(
                     TeamRoutes.newTaskFor(caseId: caseId, caseTitle: caseTitle),
                   );
-                  if (created ?? false) invalidateAllTasks(ref);
+                  if (created ?? false) syncAllTasks(ref, board: true);
                 },
                 icon: AppIcon(AppIcons.addRounded, color: colors.iconTint),
                 label: Text(
