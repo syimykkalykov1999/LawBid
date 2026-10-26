@@ -327,6 +327,19 @@ const kCallTurnRefresh = Duration(hours: 6);
 /// A change of network (Wi-Fi ↔ 4G) restarts ICE after this short pause.
 const kCallNetworkSettle = Duration(seconds: 1);
 
+/// Owner 2026-10-26 (failover): «when Cloudflare goes down, people must not
+/// notice the switch». «Reconnecting…» shows only when a drop lasts longer
+/// than this — a relay switch or the SFU → mesh swap (1–2 s) passes unseen.
+const kCallReconnectingDelay = Duration(seconds: 3);
+
+/// A dropped link waits at most this long for a fresh relay list from the
+/// server before ICE restarts anyway (owner: within 2 s).
+const kCallIceRefreshBudget = Duration(milliseconds: 1800);
+
+/// Fresh relay lists after drops are asked at most this often (links that
+/// drop together share one request).
+const kCallIceRefreshEvery = Duration(seconds: 10);
+
 /// Owner 2026-10-26: alone in a group call this long → it ends by itself
 /// (the server's `calls.solo_end_seconds` has the same 3 s).
 const kCallAloneGrace = Duration(seconds: 3);
@@ -365,7 +378,23 @@ class CallController extends Notifier<CallSession> {
   Timer? _turnTimer;
   Timer? _netTimer;
   Timer? _aloneTimer;
+  Timer? _reconnectingTimer;
   StreamSubscription<bool>? _netSub;
+
+  /// Owner 2026-10-26 (failover): the relay list the links use now, and the
+  /// fresh one asked after a drop (shared, see [_freshIce]).
+  List<IceServer> _servers = const [];
+  Future<void>? _iceRefresh;
+  DateTime? _iceRefreshAt;
+  bool _iceRefreshFailed = false;
+
+  /// The SFU media is being swapped for the mesh (the call moved off
+  /// Cloudflare): true until the first mesh link connects.
+  bool _swapping = false;
+
+  /// Mesh signals that came while this phone still had the SFU media (the
+  /// others swapped first); replayed after the swap.
+  final _meshSignals = <({String? from, Map<String, Object?> data})>[];
   final _earlySignals = <({String? from, Map<String, Object?> data})>[];
   bool _mediaOpen = false;
 
@@ -1011,6 +1040,64 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  /// Owner 2026-10-26 (failover): the server moved this call off the
+  /// Cloudflare SFU (Cloudflare failed mid-call). The SFU media is swapped
+  /// for the device-to-device mesh in the background: same call, same id,
+  /// microphone / camera / speaker as they were. Only SFU → mesh exists — a
+  /// call never moves back mid-call (new calls return to Cloudflare).
+  void _applyProvider(CallMediaProvider provider) {
+    final call = state.call;
+    if (call == null || provider == call.mediaProvider) return;
+    state = state.copyWith(call: call.copyWith(mediaProvider: provider));
+    if (provider == CallMediaProvider.p2p && _media is SfuCallMedia) {
+      unawaited(_swapToMesh(call.id));
+    }
+  }
+
+  Future<void> _swapToMesh(String callId) async {
+    final old = _media;
+    if (old is! SfuCallMedia || _swapping || !state.busy) return;
+    final gen = _gen;
+    callTrace('swap $callId: Cloudflare SFU -> mesh');
+    _swapping = true;
+    _forgetLink(kSfuLinkId);
+    _connected.clear();
+    _syncReconnecting();
+    final startedVideo = _startedVideo;
+    final camera = state.video && state.cameraOn;
+    _media = null;
+    _mediaOpen = false;
+    try {
+      await old.close();
+    } on Object catch (e) {
+      callTrace('swap $callId: SFU close failed: $e');
+    }
+    if (gen != _gen || !ref.mounted) return;
+    try {
+      await _openMedia(callId, video: camera);
+    } on Object catch (e) {
+      callTrace('swap $callId: mesh open failed: $e');
+    }
+    if (gen != _gen || !ref.mounted) return;
+    _startedVideo = startedVideo;
+    final media = _media;
+    if (media == null) return;
+    if (state.muted) media.setMuted(true);
+    try {
+      await media.setSpeaker(state.speaker);
+    } on Object {
+      // The route stays as the system set it.
+    }
+    // Offers that came while this phone still had the SFU media.
+    final pending = List.of(_meshSignals);
+    _meshSignals.clear();
+    for (final sig in pending) {
+      if (gen != _gen) return;
+      await _onSignal(sig.data, from: sig.from);
+    }
+    await _syncLinks();
+  }
+
   Future<void> _cameraOffForAudioOnly() async {
     final media = _media;
     state = state.copyWith(
@@ -1638,6 +1725,7 @@ class CallController extends Notifier<CallSession> {
     final gen = _gen;
     final servers = await _iceServers();
     if (gen != _gen || !ref.mounted) return;
+    _servers = servers;
     // Owner 2026-10-24: a call carried by the Cloudflare SFU has ONE
     // connection to it; every other call (1:1, the mesh, the outage
     // fallback) keeps the device-to-device media exactly as before.
@@ -1660,7 +1748,10 @@ class CallController extends Notifier<CallSession> {
         s,
         to: peer.isEmpty ? null : peer,
       ),
-      onState: (s) => _onLinkState(link, s),
+      // A media that was swapped out (SFU → mesh) says nothing any more.
+      onState: (s) {
+        if (identical(_media, media)) _onLinkState(link, s);
+      },
     );
 
     if (gen != _gen) {
@@ -1688,6 +1779,7 @@ class CallController extends Notifier<CallSession> {
     try {
       _ice = null;
       final servers = await _iceServers();
+      _servers = servers;
       await media.updateIceServers(servers);
       await _restartAll();
     } on Object {
@@ -1705,7 +1797,7 @@ class CallController extends Notifier<CallSession> {
           if (!up) return;
           _netTimer?.cancel();
           _netTimer = Timer(kCallNetworkSettle, () {
-            if (ref.mounted && state.busy) unawaited(_restartAll());
+            if (ref.mounted && state.busy) unawaited(_restartAllFresh());
           });
         },
         onError: (Object _) {},
@@ -1713,6 +1805,59 @@ class CallController extends Notifier<CallSession> {
     } on Object {
       // No platform monitor (tests, web): the link states decide.
     }
+  }
+
+  /// Owner 2026-10-26 (failover): the network changed — the old relay list
+  /// may point at a relay that is gone, so a fresh one first (at most
+  /// [kCallIceRefreshBudget]), then new routes.
+  Future<void> _restartAllFresh() async {
+    await _freshIce(relayFailed: false);
+    if (!ref.mounted || !state.busy) return;
+    await _restartAll();
+  }
+
+  /// The links use a Cloudflare relay now (its failure is reported).
+  bool get _onCloudflareRelay => _servers.any(
+        (s) =>
+            s.username != null && s.urls.any((u) => u.contains('cloudflare')),
+      );
+
+  /// Owner 2026-10-26 (failover): «when Cloudflare goes down, people must not
+  /// notice the switch». A link dropped: a FRESH relay list from the server
+  /// goes into every link before ICE restarts. With [relayFailed] the
+  /// server hears that the Cloudflare relay died (it teaches the shared
+  /// breaker) and gives our own TURN first and a new Cloudflare login, so
+  /// the restart finds a working relay whichever side is down. The call id,
+  /// the tracks and the peer connections stay. Waits at most
+  /// [kCallIceRefreshBudget]; links that drop together share one request.
+  /// Never throws.
+  Future<void> _freshIce({required bool relayFailed}) {
+    final at = _iceRefreshAt;
+    final pending = _iceRefresh;
+    if (pending != null &&
+        at != null &&
+        DateTime.now().difference(at) < kCallIceRefreshEvery &&
+        (_iceRefreshFailed || !relayFailed)) {
+      return pending;
+    }
+    _iceRefreshAt = DateTime.now();
+    _iceRefreshFailed = relayFailed;
+    final gen = _gen;
+    final run = () async {
+      try {
+        final servers = await _repo.iceServers(relayFailed: relayFailed);
+        if (gen != _gen || !ref.mounted) return;
+        _ice = Future.value(servers);
+        _iceAt = DateTime.now();
+        _servers = servers;
+        await _media?.updateIceServers(servers);
+      } on Object {
+        // The old list stays; the retry timer asks again later.
+      }
+    }();
+    final bounded = run.timeout(kCallIceRefreshBudget, onTimeout: () {});
+    _iceRefresh = bounded;
+    return bounded;
   }
 
   /// A new route for every link: the side that offered restarts ICE, the
@@ -1763,7 +1908,12 @@ class CallController extends Notifier<CallSession> {
     switch (s) {
       case CallMediaState.connected:
         _connected.add(peer);
+        if (_swapping) {
+          _swapping = false;
+          callTrace('swap: the mesh carries the call');
+        }
         _stopReconnect(peer);
+        _syncReconnecting();
         if (state.phase != CallPhase.active && state.phase != CallPhase.ended) {
           _connectTimer?.cancel();
           state = state.copyWith(
@@ -1836,7 +1986,16 @@ class CallController extends Notifier<CallSession> {
       }),
     );
     _syncReconnecting();
-    unawaited(_restartOrAsk(peer));
+    unawaited(_freshIceThenRestart(peer));
+  }
+
+  /// Both sides take a fresh relay list (each gathers its own relay
+  /// candidates); then the side that offered restarts ICE, the other asks
+  /// it to. A link that healed meanwhile is left alone.
+  Future<void> _freshIceThenRestart(String peer) async {
+    await _freshIce(relayFailed: _onCloudflareRelay);
+    if (!ref.mounted || !state.busy || !_reconnect.containsKey(peer)) return;
+    await _restartOrAsk(peer);
   }
 
   void _stopReconnect(String peer) {
@@ -1847,11 +2006,30 @@ class CallController extends Notifier<CallSession> {
     _syncReconnecting();
   }
 
-  /// "Reconnecting…" shows while no link carries the call.
+  /// No link carries the call: one dropped, or the media is being swapped.
+  bool get _dropped =>
+      (_reconnect.isNotEmpty || _swapping) && _connected.isEmpty;
+
+  /// "Reconnecting…" shows while no link carries the call — owner
+  /// 2026-10-26: only once the drop lasted [kCallReconnectingDelay], so a
+  /// relay switch or the SFU → mesh swap is not seen. The field keeps its
+  /// name (`reconnecting`); the call screen reads it as before.
   void _syncReconnecting() {
     if (!ref.mounted) return;
-    final on = _reconnect.isNotEmpty && _connected.isEmpty;
-    if (state.reconnecting != on) state = state.copyWith(reconnecting: on);
+    if (!_dropped) {
+      _reconnectingTimer?.cancel();
+      _reconnectingTimer = null;
+      if (state.reconnecting) state = state.copyWith(reconnecting: false);
+      return;
+    }
+    if (state.reconnecting || _reconnectingTimer != null) return;
+    _reconnectingTimer = Timer(kCallReconnectingDelay, () {
+      _reconnectingTimer = null;
+      if (!ref.mounted || !state.busy) return;
+      if (_dropped && !state.reconnecting) {
+        state = state.copyWith(reconnecting: true);
+      }
+    });
   }
 
   /// Only the side that offered the link restarts it; the other answers.
@@ -1917,6 +2095,13 @@ class CallController extends Notifier<CallSession> {
         (data['type'] == 'offer' ||
             data['type'] == 'answer' ||
             data['type'] == 'candidate')) {
+      // Owner 2026-10-26 (failover): a member already on the mesh — the
+      // call moved off Cloudflare and we have not heard it yet. Kept for the
+      // swap; the server is asked now.
+      if (_meshSignals.length < 200) {
+        _meshSignals.add((from: from, data: data));
+      }
+      if (data['type'] == 'offer') _askServer();
       return;
     }
     try {
@@ -2065,6 +2250,8 @@ class CallController extends Notifier<CallSession> {
         final m = CallMappers.participantsFromEvent(data);
         if (m == null || m.callId != state.call?.id || !state.busy) return;
         _applyMedia(video: m.video, fallback: m.fallback);
+        final provider = m.mediaProvider;
+        if (provider != null) _applyProvider(provider);
         _applyMembers(m.hostId, m.members);
       case 'call:vote':
         final v = CallMappers.voteFromEvent(data);
@@ -2095,7 +2282,7 @@ class CallController extends Notifier<CallSession> {
           unawaited(_resync(id));
           // The socket came back: the network changed (Wi-Fi ↔ LTE) — the
           // old media routes may be dead without any link state change yet.
-          unawaited(_restartAll());
+          unawaited(_restartAllFresh());
         }
     }
   }
@@ -2144,6 +2331,8 @@ class CallController extends Notifier<CallSession> {
         _finish(call.status, call: call);
         return;
       }
+      // A missed «moved off Cloudflare» event.
+      if (state.busy) _applyProvider(call.mediaProvider);
       // The server let us go while the call lives (our heartbeat was missed
       // for a long while): back in, so the call does not go on as a ghost.
       final me = _me;
@@ -2294,6 +2483,11 @@ class CallController extends Notifier<CallSession> {
     _signalSeen = false;
     _connected.clear();
     _syncAgain = false;
+    _swapping = false;
+    _meshSignals.clear();
+    _servers = const [];
+    _iceRefresh = null;
+    _iceRefreshAt = null;
   }
 
   void _clearTimers() {
@@ -2314,6 +2508,8 @@ class CallController extends Notifier<CallSession> {
     _linger?.cancel();
     _aloneTimer?.cancel();
     _aloneTimer = null;
+    _reconnectingTimer?.cancel();
+    _reconnectingTimer = null;
   }
 }
 

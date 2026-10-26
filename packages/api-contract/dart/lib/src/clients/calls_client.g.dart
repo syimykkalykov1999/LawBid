@@ -614,11 +614,12 @@ class _CallsClient implements CallsClient {
 
   @override
   Future<IceServersEnvelope> callIceServers({
+    bool? relayFailed,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
-    final queryParameters = <String, dynamic>{};
+    final queryParameters = <String, dynamic>{r'relayFailed': relayFailed};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;

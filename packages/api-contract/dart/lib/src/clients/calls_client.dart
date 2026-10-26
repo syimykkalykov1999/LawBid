@@ -171,9 +171,12 @@ abstract class CallsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// STUN/TURN servers for WebRTC
+  /// STUN/TURN servers for WebRTC.
+  ///
+  /// [relayFailed] - The relay of my running call died (ICE failed): a fresh login, our own TURN first, and a report for the Cloudflare health breaker.
   @GET('/calls/ice-servers')
   Future<IceServersEnvelope> callIceServers({
+    @Query('relayFailed') bool? relayFailed,
     @Extras() Map<String, dynamic>? extras,
   });
 

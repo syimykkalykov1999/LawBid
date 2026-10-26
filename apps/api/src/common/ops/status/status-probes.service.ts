@@ -2,6 +2,7 @@ import { Inject, Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import type Redis from 'ioredis';
+import { createHmac } from 'node:crypto';
 import { connect } from 'node:net';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
@@ -13,6 +14,11 @@ import {
   CloudflareTransport,
   type CfPart,
 } from '../../../modules/calls/cloudflare-transport';
+import {
+  checkRelay,
+  udpTargetOf,
+  type RelayStepResult,
+} from '../../../modules/calls/relay-check';
 import { OpsStateService } from '../ops-state.service';
 import { HttpStatsService } from '../http-stats.service';
 import { RealtimeStatsService } from '../realtime-stats.service';
@@ -60,6 +66,43 @@ export const WATCHED = [
 export const OUTSIDE_PROBE_CACHE_MS = 120_000;
 /** The probe credential lives only this long. */
 const PROBE_TURN_TTL_SEC = 300;
+/** Owner 2026-10-26 (failover): the last «Проверить» of the calls card. */
+const CALLS_CHECK_KEY = 'calls:path:check';
+const CALLS_CHECK_TTL_SEC = 7 * 24 * 60 * 60;
+/** Two presses within this many ms share one check (no hammering). */
+export const CALLS_CHECK_REUSE_MS = 10_000;
+
+/** One side of the calls transport as the «Проверить» button saw it. */
+export interface CallsPathCheck {
+  at: string;
+  ok: boolean;
+  /** Total time of the check in ms (the «latency» shown next to ✓ / ✗). */
+  ms: number;
+  stun: RelayStepResult | null;
+  turn: RelayStepResult | null;
+  /** Cloudflare SFU session (cloudflare) / LiveKit TCP connect (own). */
+  media: RelayStepResult | null;
+  error: string | null;
+}
+
+export interface CallsPathSide {
+  configured: boolean;
+  /** Which of its parts have keys. */
+  parts: Record<string, boolean>;
+  lastProbeAt: string | null;
+  lastProbeOk: boolean | null;
+  check: CallsPathCheck | null;
+}
+
+/** Admin -> Integrations -> «Связь для звонков». */
+export interface CallsPathReport {
+  transport: 'auto' | 'cloudflare' | 'own';
+  /** Who carries NEW calls right now. */
+  carrying: 'cloudflare' | 'own';
+  breakers: Record<CfPart, 'open' | 'closed'>;
+  cloudflare: CallsPathSide;
+  own: CallsPathSide;
+}
 
 function withTimeout<T>(p: Promise<T>, ms = PROBE_TIMEOUT_MS): Promise<T> {
   let t: NodeJS.Timeout;
@@ -563,6 +606,269 @@ export class StatusProbesService implements OnModuleDestroy {
         };
       }
     });
+  }
+
+  // --- Owner 2026-10-26 (failover): «Связь для звонков» --------------------
+
+  private async cfTurnKeys(): Promise<{ keyId: string; token: string } | null> {
+    const f = (await this.secrets.get('cloudflare_turn'))?.fields ?? {};
+    const keyId = (
+      f.keyId ??
+      this.config.get<string>('CLOUDFLARE_TURN_KEY_ID') ??
+      ''
+    ).trim();
+    const token = (
+      f.apiToken ??
+      this.config.get<string>('CLOUDFLARE_TURN_API_TOKEN') ??
+      ''
+    ).trim();
+    return keyId && token ? { keyId, token } : null;
+  }
+
+  private async ownTurnKeys(): Promise<{
+    urls: string[];
+    secret: string;
+  } | null> {
+    const f = (await this.secrets.get('turn'))?.fields ?? {};
+    const urls = (f.urls ?? this.config.get<string>('TURN_URLS') ?? '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean);
+    const secret = f.secret ?? this.config.get<string>('TURN_SECRET') ?? '';
+    return urls.length > 0 && secret ? { urls, secret } : null;
+  }
+
+  private async livekitUrl(): Promise<string | null> {
+    const f = (await this.secrets.get('livekit'))?.fields ?? {};
+    const url = (f.url ?? this.config.get<string>('LIVEKIT_URL') ?? '').trim();
+    const ok = Boolean(
+      url &&
+      (f.apiKey ?? this.config.get<string>('LIVEKIT_API_KEY')) &&
+      (f.apiSecret ?? this.config.get<string>('LIVEKIT_API_SECRET')),
+    );
+    return ok ? url : null;
+  }
+
+  private async timed(run: () => Promise<unknown>): Promise<RelayStepResult> {
+    const started = Date.now();
+    try {
+      await withTimeout(run());
+      return { ok: true, ms: Date.now() - started };
+    } catch (e) {
+      return {
+        ok: false,
+        ms: Date.now() - started,
+        error: (e as Error).message,
+      };
+    }
+  }
+
+  /** Cloudflare: a short login, STUN Binding + TURN Allocate on its relay,
+   * and an SFU session when the SFU keys are set. */
+  private async checkCloudflare(): Promise<CallsPathCheck | null> {
+    const turn = await this.cfTurnKeys();
+    this.sfu ??= new CloudflareSfuProvider(this.secrets, this.config);
+    const sfuSet = await this.sfu.isConfigured();
+    if (!turn && !sfuSet) return null;
+    const started = Date.now();
+    let stun: RelayStepResult | null = null;
+    let relay: RelayStepResult | null = null;
+    let error: string | null = null;
+    if (turn) {
+      try {
+        const login = await fetchCloudflareTurn(
+          turn.keyId,
+          turn.token,
+          PROBE_TURN_TTL_SEC,
+        );
+        const target = udpTargetOf(login.urls);
+        if (!target) throw new Error('no UDP relay address');
+        const r = await checkRelay(target, {
+          username: login.username ?? '',
+          credential: login.credential ?? '',
+        });
+        stun = r.stun;
+        relay = r.turn;
+      } catch (e) {
+        // The message never holds the token.
+        error = (e as Error).message;
+        relay = { ok: false, ms: Date.now() - started, error };
+      }
+    }
+    const sfu = this.sfu;
+    const media = sfuSet ? await this.timed(() => sfu.probe()) : null;
+    const ok =
+      (!turn || (Boolean(stun?.ok) && Boolean(relay?.ok))) &&
+      (!media || media.ok);
+    return {
+      at: new Date().toISOString(),
+      ok,
+      ms: Date.now() - started,
+      stun,
+      turn: relay,
+      media,
+      error,
+    };
+  }
+
+  /** Our own path: STUN + TURN Allocate on coturn (a 5-minute login made
+   * with its shared secret) and a TCP connect to LiveKit when it has keys. */
+  private async checkOwn(): Promise<CallsPathCheck | null> {
+    const turn = await this.ownTurnKeys();
+    const lk = await this.livekitUrl();
+    if (!turn && !lk) return null;
+    const started = Date.now();
+    let stun: RelayStepResult | null = null;
+    let relay: RelayStepResult | null = null;
+    let error: string | null = null;
+    if (turn) {
+      const target = udpTargetOf(turn.urls);
+      if (target) {
+        const username = `${Math.floor(Date.now() / 1000) + PROBE_TURN_TTL_SEC}:status-probe`;
+        const r = await checkRelay(target, {
+          username,
+          credential: createHmac('sha1', turn.secret)
+            .update(username)
+            .digest('base64'),
+        });
+        stun = r.stun;
+        relay = r.turn;
+      } else {
+        error = 'no UDP relay address';
+        relay = { ok: false, ms: 0, error };
+      }
+    }
+    let media: RelayStepResult | null = null;
+    if (lk) {
+      const m = /^(wss?|https?):\/\/\[?([^\]/:]+)\]?(?::(\d+))?/i.exec(lk);
+      media = m
+        ? await this.timed(() =>
+            tcpProbe(
+              m[2],
+              m[3] ? Number(m[3]) : /^(ws|http):/i.test(m[1]) ? 80 : 443,
+            ),
+          )
+        : { ok: false, ms: 0, error: 'bad LiveKit address' };
+    }
+    const ok =
+      (!turn || (Boolean(stun?.ok) && Boolean(relay?.ok))) &&
+      (!media || media.ok);
+    return {
+      at: new Date().toISOString(),
+      ok,
+      ms: Date.now() - started,
+      stun,
+      turn: relay,
+      media,
+      error,
+    };
+  }
+
+  private async savedChecks(): Promise<{
+    cloudflare: CallsPathCheck | null;
+    own: CallsPathCheck | null;
+  }> {
+    try {
+      const raw = await this.redis.get(CALLS_CHECK_KEY);
+      if (raw) {
+        const v = JSON.parse(raw) as {
+          cloudflare?: CallsPathCheck | null;
+          own?: CallsPathCheck | null;
+        };
+        return { cloudflare: v.cloudflare ?? null, own: v.own ?? null };
+      }
+    } catch {
+      // Nothing saved / Redis hiccup.
+    }
+    return { cloudflare: null, own: null };
+  }
+
+  /**
+   * Owner 2026-10-26: the «Связь для звонков» card. Cheap by default (the
+   * breaker state in Redis + the last saved check, no outside request); with
+   * [check] it runs the synthetic STUN + TURN test on both sides now (the
+   * «Проверить» button; two presses within 10 s share one run).
+   */
+  async callsPath(check = false): Promise<CallsPathReport> {
+    this.cfTransport ??= new CloudflareTransport(this.redis, this.settings);
+    const t = this.cfTransport;
+    let checks = await this.savedChecks();
+    if (check) {
+      const last = checks.cloudflare?.at ?? checks.own?.at;
+      const fresh =
+        last && Date.now() - Date.parse(last) < CALLS_CHECK_REUSE_MS;
+      if (!fresh) {
+        const [cloudflare, own] = await Promise.all([
+          this.checkCloudflare().catch(() => null),
+          this.checkOwn().catch(() => null),
+        ]);
+        checks = { cloudflare, own };
+        try {
+          await this.redis.set(
+            CALLS_CHECK_KEY,
+            JSON.stringify(checks),
+            'EX',
+            CALLS_CHECK_TTL_SEC,
+          );
+        } catch {
+          // Shown once, not kept.
+        }
+      }
+    }
+    this.sfu ??= new CloudflareSfuProvider(this.secrets, this.config);
+    const [mode, turnSt, sfuSt, turnProbe, sfuProbe, cfTurn, sfuSet, own, lk] =
+      await Promise.all([
+        t.mode(),
+        t.state('turn'),
+        t.state('sfu'),
+        t.lastProbe('turn'),
+        t.lastProbe('sfu'),
+        this.cfTurnKeys(),
+        this.sfu.isConfigured(),
+        this.ownTurnKeys(),
+        this.livekitUrl(),
+      ]);
+    const cfConfigured = Boolean(cfTurn) || sfuSet;
+    const anyOpen = (cfTurn && turnSt.open) || (sfuSet && sfuSt.open);
+    const carrying: 'cloudflare' | 'own' =
+      mode === 'own' || !cfConfigured
+        ? 'own'
+        : mode === 'cloudflare' || !anyOpen
+          ? 'cloudflare'
+          : 'own';
+    // The newest of: the breaker probe (while open) and the button's check.
+    const newest = (
+      items: Array<{ at: number; ok: boolean } | null>,
+    ): { at: number; ok: boolean } | null =>
+      items
+        .filter((x): x is { at: number; ok: boolean } => x !== null)
+        .sort((a, b) => b.at - a.at)[0] ?? null;
+    const asProbe = (c: CallsPathCheck | null) =>
+      c ? { at: Date.parse(c.at), ok: c.ok } : null;
+    const cfLast = newest([turnProbe, sfuProbe, asProbe(checks.cloudflare)]);
+    const ownLast = asProbe(checks.own);
+    return {
+      transport: mode,
+      carrying,
+      breakers: {
+        turn: turnSt.open ? 'open' : 'closed',
+        sfu: sfuSt.open ? 'open' : 'closed',
+      },
+      cloudflare: {
+        configured: cfConfigured,
+        parts: { turn: Boolean(cfTurn), sfu: sfuSet },
+        lastProbeAt: cfLast ? new Date(cfLast.at).toISOString() : null,
+        lastProbeOk: cfLast ? cfLast.ok : null,
+        check: checks.cloudflare,
+      },
+      own: {
+        configured: Boolean(own) || Boolean(lk),
+        parts: { turn: Boolean(own), livekit: Boolean(lk) },
+        lastProbeAt: ownLast ? new Date(ownLast.at).toISOString() : null,
+        lastProbeOk: ownLast ? ownLast.ok : null,
+        check: checks.own,
+      },
+    };
   }
 
   private async turn(): Promise<Omit<ProbeResult, 'key'>> {

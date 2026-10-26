@@ -7,6 +7,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
@@ -29,6 +30,7 @@ import {
   CastCallVoteDto,
   EndCallDto,
   IceServersDto,
+  IceServersQueryDto,
   InviteCallDto,
   LiveKitJoinDto,
   GroupCallParamDto,
@@ -325,11 +327,19 @@ export class CallsController {
     return this.calls.sfuLayer(user, p.id, dto);
   }
 
+  // Owner 2026-10-26 (failover): `relayFailed=true` = the relay of my
+  // running call died: a fresh login, our own TURN first, and the report
+  // teaches the shared Cloudflare breaker (one report per person a minute,
+  // counted only when many phones say so). 30 a minute per person.
   @Get('calls/ice-servers')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'STUN/TURN servers for WebRTC' })
   @ApiEnvelopeResponse(IceServersDto)
-  callIceServers(@CurrentUser() user: RequestUser): Promise<IceServersDto> {
-    return this.calls.iceServers(user);
+  callIceServers(
+    @CurrentUser() user: RequestUser,
+    @Query() q: IceServersQueryDto,
+  ): Promise<IceServersDto> {
+    return this.calls.iceServers(user, { relayFailed: q?.relayFailed });
   }
 
   @Get('calls/:id')

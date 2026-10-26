@@ -208,6 +208,7 @@ class AppCall {
     bool clearVote = false,
     bool? video,
     CallMediaFallback? mediaFallback,
+    CallMediaProvider? mediaProvider,
   }) =>
       AppCall(
         id: id,
@@ -227,7 +228,7 @@ class AppCall {
         participants: participants ?? this.participants,
         moderated: moderated ?? this.moderated,
         vote: clearVote ? null : vote ?? this.vote,
-        mediaProvider: mediaProvider,
+        mediaProvider: mediaProvider ?? this.mediaProvider,
         mediaFallback: mediaFallback ?? this.mediaFallback,
       );
 

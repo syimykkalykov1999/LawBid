@@ -6,6 +6,7 @@ import {
   Optional,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -64,6 +65,7 @@ import {
   CLOUDFLARE_TURN_RETRY_MS,
   cloudflareTurnFor,
   fetchCloudflareTurn,
+  forgetCloudflareTurn,
 } from './cloudflare-turn';
 import { CloudflareTransport } from './cloudflare-transport';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
@@ -131,6 +133,17 @@ const notFound = () =>
     message: 'Call not found.',
   });
 
+/** The broker's «Cloudflare is not there for this call» (503). */
+function isMediaDown(e: unknown): boolean {
+  if (!(e instanceof HttpException) || e.getStatus() !== 503) return false;
+  const body = e.getResponse();
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    (body as { code?: unknown }).code === ErrorCode.CALL_MEDIA_UNAVAILABLE
+  );
+}
+
 const conflict = () =>
   new ConflictException({
     code: ErrorCode.CALL_STATE_CONFLICT,
@@ -188,6 +201,14 @@ export class CallsService {
     // Someone left / was removed from a group: out of its running call too.
     this.groups?.membershipEnded$.subscribe((e) => {
       void this.dropFromGroupCall(e).catch(() => undefined);
+    });
+    // Owner 2026-10-26 (failover): the SFU breaker opened on this instance —
+    // every running Cloudflare group call moves to our own path now, with
+    // its call id (the people hear a 1-2 s pause, not a dropped call).
+    const transport: CloudflareTransport | undefined = this.sfu?.transport;
+    transport?.onOpen((part) => {
+      if (part !== 'sfu') return;
+      void this.moveSfuCallsToOwn('breaker_open').catch(() => undefined);
     });
   }
 
@@ -400,31 +421,109 @@ export class CallsService {
     await this.broadcastParticipants(callId);
   }
 
+  /**
+   * Owner 2026-10-26 (failover): «when Cloudflare goes down, people must not
+   * notice the switch». Every SFU route runs through here: when Cloudflare
+   * fails for this call (5xx, timeout, refused or removed key — the broker
+   * answers 503 CALL_MEDIA_UNAVAILABLE), the call moves to our own path with
+   * the SAME id and the phones re-join in the background. The caller still
+   * gets the 503; the `call:participants` event (mediaProvider p2p) tells
+   * every phone to swap its media.
+   */
+  private async viaSfu<T>(
+    ctx: SfuCtx,
+    run: (sfu: SfuBrokerService) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await run(this.sfu!);
+    } catch (e) {
+      if (isMediaDown(e)) {
+        await this.moveCallToOwn(ctx.callId, 'sfu_failed').catch(
+          () => undefined,
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * A running Cloudflare group call moves to our own path (device to device,
+   * the outage fallback), keeping its id, members and status. Idempotent:
+   * only the first caller changes the row and tells the phones. Never moves
+   * back mid-call (per-call stickiness); new calls return to Cloudflare by
+   * themselves once its breaker closes.
+   */
+  async moveCallToOwn(callId: string, why: string): Promise<boolean> {
+    const moved = await this.prisma.call.updateMany({
+      where: { id: callId, media_provider: 'cloudflare', status: { in: LIVE } },
+      data: { media_provider: 'p2p' },
+    });
+    if (moved.count === 0) return false;
+    this.logger.warn(
+      `alert=cloudflare_sfu_call_moved call ${callId} moved from Cloudflare SFU to our own path mid-call (${why})`,
+    );
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    if (call) {
+      const joined = (await this.rowsOf(callId)).filter(
+        (r) => r.status === 'joined',
+      ).length;
+      const max = this.settings
+        ? await this.settings.number('calls.sfu_fallback_mesh_max')
+        : 4;
+      // Too many cameras for device-to-device: everybody audio only (the
+      // same rule as a call that starts during an outage).
+      if (call.video && joined > max) {
+        await this.prisma.call.update({
+          where: { id: callId },
+          data: { video: false },
+        });
+      }
+    }
+    // What Cloudflare still holds is let go (best effort, never waited on).
+    void this.sfu?.closeCall(callId).catch(() => undefined);
+    await this.broadcastParticipants(callId);
+    return true;
+  }
+
+  /** The SFU breaker opened: every running Cloudflare group call moves. */
+  async moveSfuCallsToOwn(why: string): Promise<number> {
+    const live = await this.prisma.call.findMany({
+      where: { media_provider: 'cloudflare', status: { in: LIVE } },
+      select: { id: true },
+      take: 1000,
+    });
+    let n = 0;
+    for (const c of live) {
+      if (await this.moveCallToOwn(c.id, why).catch(() => false)) n += 1;
+    }
+    return n;
+  }
+
   async sfuSession(user: RequestUser, id: string) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.createSession(ctx);
+    return this.viaSfu(ctx, (sfu) => sfu.createSession(ctx));
   }
 
   async sfuPublish(user: RequestUser, id: string, dto: SfuPublishInput) {
     const ctx = await this.sfuCtx(user, id);
-    const out = await this.sfu!.publish(ctx, dto);
+    const out = await this.viaSfu(ctx, (sfu) => sfu.publish(ctx, dto));
     await this.sfuChanged(ctx.callId);
     return out;
   }
 
   async sfuSubscribe(user: RequestUser, id: string, dto: SfuSubscribeInput) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.subscribe(ctx, dto);
+    return this.viaSfu(ctx, (sfu) => sfu.subscribe(ctx, dto));
   }
 
   async sfuAnswer(user: RequestUser, id: string, sdp: string) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.answer(ctx, sdp);
+    return this.viaSfu(ctx, (sfu) => sfu.answer(ctx, sdp));
   }
 
   async sfuClose(user: RequestUser, id: string, dto: SfuCloseInput) {
     const ctx = await this.sfuCtx(user, id);
-    const out = await this.sfu!.close(ctx, dto);
+    const out = await this.viaSfu(ctx, (sfu) => sfu.close(ctx, dto));
     if (dto.trackNames?.length) await this.sfuChanged(ctx.callId);
     return out;
   }
@@ -435,7 +534,7 @@ export class CallsService {
     dto: { userId: string; rid: string },
   ) {
     const ctx = await this.sfuCtx(user, id);
-    return this.sfu!.setLayer(ctx, dto);
+    return this.viaSfu(ctx, (sfu) => sfu.setLayer(ctx, dto));
   }
 
   /** POST /conversations/:id/calls */
@@ -763,7 +862,10 @@ export class CallsService {
   /** GET /calls/ice-servers — STUN + short-lived TURN login (RFC 7635
    * style "TURN REST API": username = expiry:userId, password =
    * base64(HMAC-SHA1(TURN_SECRET, username))). */
-  async iceServers(user: RequestUser): Promise<IceServersDto> {
+  async iceServers(
+    user: RequestUser,
+    opts: { relayFailed?: boolean } = {},
+  ): Promise<IceServersDto> {
     // Owner 2026-10-01: TURN / STUN can be changed in the admin.
     const turnKeys = (await this.secrets?.get('turn'))?.fields ?? {};
     const stun = (
@@ -804,7 +906,19 @@ export class CallsService {
     const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
     const ownTurn = turn.length > 0 && Boolean(secret);
     let cfWorks = false;
+    // Owner 2026-10-26 (failover): a phone whose call lost its relay asks
+    // again with relayFailed — it gets a NEW login and our own TURN next
+    // to (and before) Cloudflare, so the ICE restart finds a working relay
+    // whichever side is down. Its report teaches the breaker (only when
+    // many phones say so; see recordClientFailure).
+    const relayFailed = opts.relayFailed === true;
     if (cfKeyId && cfToken) {
+      if (relayFailed) {
+        forgetCloudflareTurn(cfKeyId, user.sub);
+        void this.cfTransport
+          .recordClientFailure('turn', user.sub, 'ICE failed mid-call')
+          .catch(() => undefined);
+      }
       const d = await this.cfTransport.decide(
         'turn',
         true,
@@ -826,21 +940,31 @@ export class CallsService {
         if (relay) {
           out.iceServers.unshift(relay);
           cfWorks = true;
+          // The denominator of the phones' relay reports.
+          if (!relayFailed) {
+            void this.cfTransport.noteUse('turn').catch(() => undefined);
+          }
         }
       }
     }
     // Own TURN only as the backup: dead or extra addresses next to a working
-    // Cloudflare would make ICE wait for their timeouts.
-    if (ownTurn && secret && !cfWorks) {
+    // Cloudflare would make ICE wait for their timeouts. After a relay
+    // failure it comes FIRST (WebRTC prefers the earlier TURN server).
+    if (ownTurn && secret && (!cfWorks || relayFailed)) {
       const urls = withTcpFallback(turn);
       const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
-      out.iceServers.push({
+      const own: IceServerDto = {
         urls,
         username,
         credential: createHmac('sha1', secret)
           .update(username)
           .digest('base64'),
-      });
+      };
+      if (relayFailed && cfWorks) {
+        out.iceServers.unshift(own);
+      } else {
+        out.iceServers.push(own);
+      }
     }
     return out;
   }

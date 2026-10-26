@@ -9,12 +9,14 @@ import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { StateRegistries } from '@/components/registries/state-registries';
 import { StepUpDialog } from '@/components/step-up-dialog';
+import { CallsTransportCard } from '@/components/integrations/calls-transport-card';
 import { CustomServiceDialog } from '@/components/integrations/custom-service-dialog';
 import { IntegrationCard, type Guarded, type Integration } from '@/components/integrations/integration-card';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/empty';
 import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
+import { CALL_PROVIDERS, isCallProvider } from '@/lib/calls-transport';
 import { fieldHint, fieldLabelWithKey, providerDescription, providerLabel, providerWarning } from '@/lib/integration-labels';
 
 /** Russian service / field texts (keys stay as the server sends them). */
@@ -97,7 +99,29 @@ export default function IntegrationsPage() {
   };
 
   const data = q.data;
-  const items = (data?.items ?? []).map(localize);
+  const all = (data?.items ?? []).map(localize);
+  // Owner 2026-10-26: the four call services live inside ONE card.
+  const items = all.filter((it) => !isCallProvider(it.provider));
+  const callCards = CALL_PROVIDERS.flatMap((id) => {
+    const it = all.find((x) => x.provider === id);
+    return it
+      ? [
+          {
+            id,
+            title: it.label,
+            card: (
+              <IntegrationCard
+                it={it}
+                editable={data?.storageEnabled ?? false}
+                guarded={guarded}
+                confirm={confirm}
+                ask={ask}
+              />
+            ),
+          },
+        ]
+      : [];
+  });
   return (
     <>
       {confirmDialog}
@@ -145,6 +169,9 @@ export default function IntegrationsPage() {
         <EmptyState icon={Plugs} title="Сервисов нет" text="Сервер не вернул ни одной интеграции." />
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
+          <FadeIn className="lg:col-span-2">
+            <CallsTransportCard guarded={guarded} keyCards={callCards} />
+          </FadeIn>
           {items.map((it, i) => (
             <FadeIn key={it.provider} i={i}>
               <IntegrationCard

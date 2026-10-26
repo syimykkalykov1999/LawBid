@@ -78,10 +78,15 @@ class _Repo extends Fake implements CallsRepository {
   @override
   Future<bool> providerSupported() async => true;
 
+  final iceAsks = <bool>[];
+
   @override
-  Future<List<IceServer>> iceServers() async => const [
-        IceServer(urls: ['stun:t.example.com:3478']),
-      ];
+  Future<List<IceServer>> iceServers({bool relayFailed = false}) async {
+    iceAsks.add(relayFailed);
+    return const [
+      IceServer(urls: ['stun:t.example.com:3478']),
+    ];
+  }
 
   @override
   Future<AppCall> end(
@@ -173,7 +178,10 @@ class _SfuMedia extends Fake implements SfuCallMedia {
 /// A mesh media: counts, never talks.
 class _MeshMedia extends Fake implements CallMedia {
   bool opened = false;
+  bool? openedVideo;
+  bool? muted;
   final links = <String>{};
+  final linkStates = <String, void Function(CallMediaState)>{};
 
   @override
   Future<void> open(
@@ -182,8 +190,10 @@ class _MeshMedia extends Fake implements CallMedia {
     required void Function(CallMediaState state) onState,
     bool video = false,
     String peer = '',
-  }) async =>
-      opened = true;
+  }) async {
+    opened = true;
+    openedVideo = video;
+  }
 
   @override
   Set<String> get peers => links;
@@ -193,12 +203,24 @@ class _MeshMedia extends Fake implements CallMedia {
     String peer, {
     required void Function(Map<String, Object?> signal) onSignal,
     required void Function(CallMediaState state) onState,
-  }) async =>
-      links.add(peer);
+  }) async {
+    links.add(peer);
+    linkStates[peer] = onState;
+  }
 
   @override
   Future<Map<String, Object?>> createOfferFor(String peer) async =>
       {'type': 'offer', 'sdp': 'x'};
+
+  @override
+  Future<bool> offerPendingFor(String peer) async => false;
+
+  @override
+  Future<Map<String, Object?>> answerFor(
+    String peer,
+    Map<String, Object?> offer,
+  ) async =>
+      {'type': 'answer', 'sdp': 'y'};
 
   @override
   Future<void> removePeer(String peer) async => links.remove(peer);
@@ -207,7 +229,7 @@ class _MeshMedia extends Fake implements CallMedia {
   Future<void> setSpeaker(bool on) async {}
 
   @override
-  void setMuted(bool muted) {}
+  void setMuted(bool muted) => this.muted = muted;
 
   @override
   Future<void> updateIceServers(List<IceServer> iceServers) async {}
@@ -547,15 +569,29 @@ void main() {
     test(
         'the link drops: "reconnecting", then the media is asked to '
         'reconnect (ICE restart, else a new session)', () async {
-      final h = _H(_call(provider: CallMediaProvider.cloudflare));
+      // Two people: alone, the call would end by itself after 3 s.
+      final h = _H(
+        _call(
+          provider: CallMediaProvider.cloudflare,
+          members: [
+            _m('me', tracks: {'mic'}),
+            _m('u1', tracks: {'mic'}, order: 1),
+          ],
+        ),
+      );
       addTearDown(h.dispose);
       await h.join();
       h.sfu.onState!(CallMediaState.connected);
       expect(h.s.reconnecting, isFalse);
       h.sfu.onState!(CallMediaState.disconnected);
       await _settle();
-      expect(h.s.reconnecting, isTrue);
       expect(h.sfu.reconnects, greaterThanOrEqualTo(1));
+      // Owner 2026-10-26: «Reconnecting…» only once the drop lasts > 3 s.
+      expect(h.s.reconnecting, isFalse);
+      await Future<void>.delayed(
+        kCallReconnectingDelay + const Duration(milliseconds: 100),
+      );
+      expect(h.s.reconnecting, isTrue);
       h.sfu.onState!(CallMediaState.connected);
       expect(h.s.reconnecting, isFalse);
       expect(h.s.phase, CallPhase.active);
@@ -636,6 +672,126 @@ void main() {
       );
       await _settle();
       expect(h.c.videoBlocked, isFalse);
+    });
+  });
+
+  group('failover: Cloudflare SFU fails mid-call', () {
+    test(
+        'the server moves the call to the mesh: the SFU media is swapped for '
+        'the mesh in the background — same call id, never ended, mic state '
+        'kept, no «Reconnecting…» for a quick swap', () async {
+      final members = [
+        _m('me', tracks: {'mic'}),
+        _m('u1', tracks: {'mic'}, order: -1),
+      ];
+      final h = _H(
+        _call(provider: CallMediaProvider.cloudflare, members: members),
+      );
+      addTearDown(h.dispose);
+      await h.join();
+      h.sfu.onState!(CallMediaState.connected);
+      h.c.toggleMute();
+      expect(h.s.muted, isTrue);
+      await _settle();
+
+      // The server: «this call now runs on our own path».
+      h.repo.call = _call(
+        provider: CallMediaProvider.p2p,
+        members: [_m('me'), _m('u1', order: -1)],
+      );
+      h.participants([_m('me'), _m('u1', order: -1)], provider: 'p2p');
+      await _settle();
+
+      expect(h.sfu.closed, isTrue);
+      expect(h.meshCreated, 1);
+      expect(h.mesh.opened, isTrue);
+      expect(h.s.call?.id, 'c1');
+      expect(h.s.call?.viaSfu, isFalse);
+      expect(h.s.phase, CallPhase.active);
+      expect(h.repo.ended, isEmpty);
+      // The microphone stays as it was (muted).
+      expect(h.mesh.muted, isTrue);
+      // The later joiner (us) links up to u1 and offers.
+      expect(h.mesh.links, {'u1'});
+      expect(h.signals.where((e) => e['type'] == 'offer'), hasLength(1));
+      // The SFU media is gone for good: its late «failed» ends nothing.
+      h.sfu.onState!(CallMediaState.failed);
+      await _settle();
+      expect(h.s.phase, CallPhase.active);
+
+      // The mesh connects within the 3 s: «Reconnecting…» never showed.
+      expect(h.s.reconnecting, isFalse);
+      h.mesh.linkStates['u1']!(CallMediaState.connected);
+      await Future<void>.delayed(
+        kCallReconnectingDelay + const Duration(milliseconds: 100),
+      );
+      expect(h.s.reconnecting, isFalse);
+      expect(h.s.phase, CallPhase.active);
+      await h.c.hangUp();
+    });
+
+    test(
+        'a swap that takes longer than 3 s shows «Reconnecting…» until the '
+        'mesh connects', () async {
+      final h = _H(
+        _call(
+          provider: CallMediaProvider.cloudflare,
+          members: [
+            _m('me', tracks: {'mic'}),
+            _m('u1', tracks: {'mic'}, order: -1),
+          ],
+        ),
+      );
+      addTearDown(h.dispose);
+      await h.join();
+      h.sfu.onState!(CallMediaState.connected);
+      h.repo.call = _call(
+        provider: CallMediaProvider.p2p,
+        members: [_m('me'), _m('u1', order: -1)],
+      );
+      h.participants([_m('me'), _m('u1', order: -1)], provider: 'p2p');
+      await _settle();
+      expect(h.s.reconnecting, isFalse);
+      await Future<void>.delayed(
+        kCallReconnectingDelay + const Duration(milliseconds: 100),
+      );
+      expect(h.s.reconnecting, isTrue);
+      h.mesh.linkStates['u1']!(CallMediaState.connected);
+      expect(h.s.reconnecting, isFalse);
+      expect(h.s.phase, CallPhase.active);
+      await h.c.hangUp();
+    });
+
+    test('a missed event: the resync (GET /calls/:id) swaps too', () async {
+      final h = _H(
+        _call(
+          provider: CallMediaProvider.cloudflare,
+          members: [
+            _m('me', tracks: {'mic'}),
+            _m('u1', tracks: {'mic'}, order: -1),
+          ],
+        ),
+      );
+      addTearDown(h.dispose);
+      await h.join();
+      h.sfu.onState!(CallMediaState.connected);
+      h.repo.call = _call(
+        provider: CallMediaProvider.p2p,
+        members: [_m('me'), _m('u1', order: -1)],
+      );
+      // A member already on the mesh offers: the offer is kept and the
+      // server is asked; the swap follows and the offer is answered there.
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'u1',
+        'data': {'type': 'offer', 'sdp': 'x'},
+      });
+      await _settle();
+      expect(h.sfu.closed, isTrue);
+      expect(h.meshCreated, 1);
+      expect(h.s.phase, CallPhase.active);
+      expect(h.signals.where((e) => e['type'] == 'answer'), hasLength(1));
+      await h.c.hangUp();
     });
   });
 

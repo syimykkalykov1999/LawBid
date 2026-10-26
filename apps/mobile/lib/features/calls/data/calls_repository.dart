@@ -41,7 +41,11 @@ abstract interface class CallsRepository {
     bool forAll = false,
   });
   Future<AppCall> get(String callId);
-  Future<List<IceServer>> iceServers();
+
+  /// STUN / TURN servers. Owner 2026-10-26 (failover): [relayFailed] = the relay of the running
+  /// call died — a fresh login, our own TURN first, and a report for the
+  /// server's Cloudflare health breaker.
+  Future<List<IceServer>> iceServers({bool relayFailed = false});
 
   /// Owner 2026-10-22 (wave 2): which media server the calls run on —
   /// `GET /calls/video`. False when it is one this build cannot talk to
@@ -281,8 +285,10 @@ class ApiCallsRepository implements CallsRepository {
   }
 
   @override
-  Future<List<IceServer>> iceServers() async =>
-      (await guardApiCall(_api.callIceServers))
+  Future<List<IceServer>> iceServers({bool relayFailed = false}) async =>
+      (await guardApiCall(
+        () => _api.callIceServers(relayFailed: relayFailed ? true : null),
+      ))
           .data
           .iceServers
           .map(

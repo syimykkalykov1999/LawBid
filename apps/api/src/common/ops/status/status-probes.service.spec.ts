@@ -212,3 +212,117 @@ describe('StatusProbesService usage and breaker lines (Batch C)', () => {
     expect((await withSnapshot(null).breakers()).status).toBe('green');
   });
 });
+
+describe('StatusProbesService.callsPath (Integrations -> «Связь для звонков»)', () => {
+  type CallsPath = {
+    transport: string;
+    carrying: string;
+    breakers: { turn: string; sfu: string };
+    cloudflare: {
+      configured: boolean;
+      lastProbeOk: boolean | null;
+      check: { ok: boolean } | null;
+    };
+    own: { configured: boolean; check: { ok: boolean } | null };
+  };
+  function withRedis(secrets: Record<string, Fields>, transport = 'auto') {
+    const store = new Map<string, string>();
+    const redis = {
+      status: 'end',
+      get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+      set: jest.fn((k: string, v: string) => {
+        store.set(k, v);
+        return Promise.resolve('OK');
+      }),
+    };
+    const Ctor = StatusProbesService as unknown as new (
+      ...a: unknown[]
+    ) => unknown;
+    const p = new Ctor(
+      null,
+      redis,
+      { get: () => undefined },
+      null,
+      {
+        string: (k: string) =>
+          Promise.resolve(k === 'calls.transport' ? transport : ''),
+        number: () => Promise.resolve(5),
+      },
+      {
+        get: (id: string) =>
+          Promise.resolve(secrets[id] ? { fields: secrets[id] } : null),
+      },
+      null,
+    ) as {
+      callsPath(check?: boolean): Promise<CallsPath>;
+      checkCloudflare: () => Promise<unknown>;
+      checkOwn: () => Promise<unknown>;
+    };
+    return { p, store };
+  }
+  const keys = {
+    cloudflare_turn: { keyId: 'key1', apiToken: 'tok-secret' },
+    turn: { urls: 'turn:own.example:3478', secret: 's'.repeat(20) },
+  };
+
+  it('no keys: own path carries calls, nothing is asked outside', async () => {
+    const f = jest.fn();
+    global.fetch = f as never;
+    const { p } = withRedis({});
+    const r = await p.callsPath();
+    expect(r).toMatchObject({
+      transport: 'auto',
+      carrying: 'own',
+      cloudflare: { configured: false, check: null },
+      own: { configured: false },
+    });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it('«Проверить» runs both checks once, keeps the result; a second press within 10 s reuses it', async () => {
+    const { p, store } = withRedis(keys);
+    const cf = jest.fn(() =>
+      Promise.resolve({
+        at: new Date().toISOString(),
+        ok: true,
+        ms: 80,
+        stun: null,
+        turn: null,
+        media: null,
+        error: null,
+      }),
+    );
+    const own = jest.fn(() =>
+      Promise.resolve({
+        at: new Date().toISOString(),
+        ok: false,
+        ms: 2000,
+        stun: null,
+        turn: { ok: false, ms: 2000, error: 'no answer in 2000 ms' },
+        media: null,
+        error: null,
+      }),
+    );
+    p.checkCloudflare = cf;
+    p.checkOwn = own;
+    // The plain read asks nobody.
+    const before = await p.callsPath();
+    expect(before.cloudflare.check).toBeNull();
+    expect(cf).not.toHaveBeenCalled();
+
+    const r = await p.callsPath(true);
+    expect(r.carrying).toBe('cloudflare');
+    expect(r.cloudflare).toMatchObject({ configured: true, lastProbeOk: true });
+    expect(r.own).toMatchObject({ configured: true, check: { ok: false } });
+    expect(store.has('calls:path:check')).toBe(true);
+    await p.callsPath(true);
+    expect(cf).toHaveBeenCalledTimes(1);
+    expect(own).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls.transport = own: our own path carries calls even with Cloudflare keys', async () => {
+    const { p } = withRedis(keys, 'own');
+    const r = await p.callsPath();
+    expect(r).toMatchObject({ transport: 'own', carrying: 'own' });
+  });
+});

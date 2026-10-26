@@ -22,7 +22,12 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
  *  - `calls:cf:open:{part}`  set once N failures happened in the window;
  *  - `calls:cf:probe:{part}` SET NX PX 60 s: one probe a minute fleet-wide,
  *    and only while open (no load at all while Cloudflare is healthy).
- * A call that is already running keeps its transport; only new calls switch.
+ * A call that is already running keeps its transport while it works (per-call
+ * stickiness: no switch-back mid-call). Owner 2026-10-26 failover: a group
+ * call whose Cloudflare SFU fails mid-call (or when the SFU breaker opens)
+ * moves to our own path with the SAME call id (CallsService.moveCallToOwn);
+ * a 1:1 call whose Cloudflare relay dies gets a fresh relay list (own TURN
+ * included) and an ICE restart from the phones.
  * Without a ready Redis (unit tests, a dev box) it lives in this process.
  */
 export type CallsTransport = 'cloudflare' | 'own' | 'auto';
@@ -39,6 +44,20 @@ const OPEN_TTL_SEC = 7 * 24 * 60 * 60;
 const failKey = (p: CfPart) => `calls:cf:fail:${p}`;
 const openKey = (p: CfPart) => `calls:cf:open:${p}`;
 const probeKey = (p: CfPart) => `calls:cf:probe:${p}`;
+const lastProbeKey = (p: CfPart) => `calls:cf:lastprobe:${p}`;
+const useKey = (p: CfPart) => `calls:cf:use:${p}`;
+const reportKey = (p: CfPart) => `calls:cf:report:${p}`;
+const reporterKey = (p: CfPart, u: string) => `calls:cf:reporter:${p}:${u}`;
+
+/** Owner 2026-10-26 (failover): phones report a dead Cloudflare relay; a
+ * report counts against the breaker only when at least this many came in the
+ * window AND they are at least [CF_CLIENT_REPORT_RATIO] of the calls that
+ * took Cloudflare in that window. A phone that walks into a lift reports a
+ * relay failure too — one bad network must never move the whole fleet. */
+export const CF_CLIENT_REPORT_MIN = 10;
+export const CF_CLIENT_REPORT_RATIO = 0.3;
+/** One report per person per this long (a phone retrying is one voice). */
+export const CF_CLIENT_REPORT_EVERY_MS = 60_000;
 
 export type CfDecisionReason =
   | 'cloudflare'
@@ -60,6 +79,14 @@ export interface CfBreakerState {
   failures: number;
 }
 
+/** The last breaker probe (shown in Admin -> Integrations -> «Связь для
+ * звонков»). */
+export interface CfLastProbe {
+  at: number;
+  ok: boolean;
+  ms: number;
+}
+
 export function parseTransport(raw: unknown): CallsTransport {
   return raw === 'cloudflare' || raw === 'own' ? raw : 'auto';
 }
@@ -71,7 +98,14 @@ export class CloudflareTransport {
     fail: new Map<CfPart, { count: number; until: number }>(),
     open: new Map<CfPart, number>(),
     probe: new Map<CfPart, number>(),
+    last: new Map<CfPart, CfLastProbe>(),
+    use: new Map<CfPart, { count: number; until: number }>(),
+    report: new Map<CfPart, { count: number; until: number }>(),
+    reporter: new Map<string, number>(),
   };
+  /** Called once when THIS instance opened the breaker (the running SFU
+   * calls are moved to our own path then; owner 2026-10-26 failover). */
+  private readonly openListeners: Array<(part: CfPart) => void> = [];
 
   constructor(
     private readonly redis?: Redis,
@@ -184,10 +218,151 @@ export class CloudflareTransport {
     }
     if (opened) {
       this.logger.warn(
-        `alert=cloudflare_calls_fallback Cloudflare ${part.toUpperCase()} failed ${count} times in ${Math.round(windowMs / 1000)} s: NEW calls use our own path; Cloudflare is probed every ${CF_BREAKER_PROBE_MS / 1000} s (${why})`,
+        `alert=cloudflare_calls_fallback Cloudflare ${part.toUpperCase()} failed ${count} times in ${Math.round(windowMs / 1000)} s: NEW calls use our own path, running group calls move to it; Cloudflare is probed every ${CF_BREAKER_PROBE_MS / 1000} s (${why})`,
       );
+      for (const l of this.openListeners) {
+        try {
+          l(part);
+        } catch {
+          // A listener never breaks the counting.
+        }
+      }
     }
     return opened;
+  }
+
+  /** Runs [fn] whenever THIS instance opens the breaker of a part. */
+  onOpen(fn: (part: CfPart) => void): void {
+    this.openListeners.push(fn);
+  }
+
+  /** A windowed counter (Redis INCR + PEXPIRE, or in memory). */
+  private async bump(
+    key: string,
+    mem: Map<CfPart, { count: number; until: number }>,
+    part: CfPart,
+    windowMs: number,
+  ): Promise<number> {
+    const r = this.live;
+    if (r) {
+      try {
+        const n = await r.incr(key);
+        if (n === 1) await r.pexpire(key, windowMs);
+        return n;
+      } catch {
+        return 0;
+      }
+    }
+    const t = this.now();
+    const f = mem.get(part);
+    const cur = f && f.until > t ? f : { count: 0, until: t + windowMs };
+    cur.count += 1;
+    mem.set(part, cur);
+    return cur.count;
+  }
+
+  private async peek(
+    key: string,
+    mem: Map<CfPart, { count: number; until: number }>,
+    part: CfPart,
+  ): Promise<number> {
+    const r = this.live;
+    if (r) {
+      try {
+        return Number((await r.get(key)) ?? 0) || 0;
+      } catch {
+        return 0;
+      }
+    }
+    const f = mem.get(part);
+    return f && f.until > this.now() ? f.count : 0;
+  }
+
+  /** A call took Cloudflare (the denominator of the phones' reports). One
+   * INCR per call start; nothing at all while the admin chose our own path. */
+  async noteUse(part: CfPart): Promise<void> {
+    const { windowMs } = await this.limits();
+    await this.bump(useKey(part), this.mem.use, part, windowMs);
+  }
+
+  /**
+   * A phone says the Cloudflare relay of its running call died (ICE failed
+   * through it). Counted against the breaker only when enough phones say so
+   * and they are a real share of the calls on Cloudflare (see
+   * [CF_CLIENT_REPORT_MIN] / [CF_CLIENT_REPORT_RATIO]); one report per
+   * person a minute. Returns true when it counted. Never throws.
+   */
+  async recordClientFailure(
+    part: CfPart,
+    userId: string,
+    why: string,
+  ): Promise<boolean> {
+    try {
+      const { windowMs } = await this.limits();
+      const r = this.live;
+      if (r) {
+        const first = await r.set(
+          reporterKey(part, userId),
+          '1',
+          'PX',
+          CF_CLIENT_REPORT_EVERY_MS,
+          'NX',
+        );
+        if (first !== 'OK') return false;
+      } else {
+        const k = `${part}:${userId}`;
+        const t = this.now();
+        const last = this.mem.reporter.get(k);
+        if (last !== undefined && t - last < CF_CLIENT_REPORT_EVERY_MS) {
+          return false;
+        }
+        this.mem.reporter.set(k, t);
+      }
+      const reports = await this.bump(
+        reportKey(part),
+        this.mem.report,
+        part,
+        windowMs,
+      );
+      const uses = await this.peek(useKey(part), this.mem.use, part);
+      if (
+        reports < CF_CLIENT_REPORT_MIN ||
+        reports < CF_CLIENT_REPORT_RATIO * Math.max(uses, 1)
+      ) {
+        return false;
+      }
+      await this.recordFailure(part, `phones report: ${why}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** The last breaker probe, for the admin card (null: none yet). */
+  async lastProbe(part: CfPart): Promise<CfLastProbe | null> {
+    const r = this.live;
+    if (r) {
+      try {
+        const raw = await r.get(lastProbeKey(part));
+        return raw ? (JSON.parse(raw) as CfLastProbe) : null;
+      } catch {
+        return null;
+      }
+    }
+    return this.mem.last.get(part) ?? null;
+  }
+
+  private async saveProbe(part: CfPart, p: CfLastProbe): Promise<void> {
+    const r = this.live;
+    if (r) {
+      try {
+        await r.set(lastProbeKey(part), JSON.stringify(p), 'EX', OPEN_TTL_SEC);
+      } catch {
+        // Display only.
+      }
+      return;
+    }
+    this.mem.last.set(part, p);
   }
 
   /** Back to Cloudflare: the open mark and the failure count are dropped. */
@@ -242,9 +417,15 @@ export class CloudflareTransport {
   ): Promise<boolean> {
     if (!(await this.isOpen(part))) return false;
     if (!(await this.takeProbeSlot(part))) return false;
+    const started = this.now();
     try {
       await probe();
     } catch (e) {
+      await this.saveProbe(part, {
+        at: started,
+        ok: false,
+        ms: this.now() - started,
+      });
       try {
         onFail?.(e);
       } catch {
@@ -252,6 +433,11 @@ export class CloudflareTransport {
       }
       return false;
     }
+    await this.saveProbe(part, {
+      at: started,
+      ok: true,
+      ms: this.now() - started,
+    });
     await this.close(part);
     this.logger.log(
       `Cloudflare ${part.toUpperCase()} answers again: new calls use Cloudflare`,

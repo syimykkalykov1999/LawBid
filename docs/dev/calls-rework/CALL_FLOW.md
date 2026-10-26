@@ -91,3 +91,38 @@ sends `call:ended` to everyone else (`CallsService.finish`).
    above it) itself.
 4. **`_finish` side effects could throw before the state changed** —
    guarded, so the phase always reaches `ended`.
+
+## Cloudflare failover mid-call (2026-10-26)
+
+Owner: «when Cloudflare goes down, people must not notice the switch».
+
+```
+1:1 / mesh  link failed / disconnected (either phone)
+            → CallController._startReconnect → _freshIceThenRestart
+            → GET /calls/ice-servers?relayFailed=true   (≤ 1.8 s budget, shared, ≤ 1 per 10 s)
+                 server: new Cloudflare login (cache skipped) + own TURN FIRST
+                         report → CloudflareTransport.recordClientFailure (counts only when
+                         ≥ 10 phones AND ≥ 30 % of calls that took Cloudflare in the window)
+            → media.updateIceServers (setConfiguration) → ICE restart (offerer) / ask (answerer)
+            same call id, same tracks, same peer connections
+network change / socket back → _restartAllFresh (fresh list, no report) → ICE restart
+
+SFU group   any /calls/:id/sfu/* answers 503 CALL_MEDIA_UNAVAILABLE (5xx, timeout, 401/403,
+            key removed)  OR  the SFU breaker opens (CloudflareTransport.onOpen)
+            → CallsService.moveCallToOwn(callId): media_provider cloudflare → p2p
+              (updateMany = idempotent), > calls.sfu_fallback_mesh_max people → audio only,
+              Cloudflare state closed, call:participants {mediaProvider: p2p, mediaFallback}
+            → every phone: _applyProvider → _swapToMesh: SFU media closed, mesh media
+              opened (mic / camera / speaker kept), early mesh offers replayed, _syncLinks
+            missed event → _resync (GET /calls/:id) swaps too; a mesh offer reaching an SFU
+            phone is kept and makes it ask the server
+            never moves back mid-call (per-call stickiness); new calls return by themselves
+
+«Reconnecting…»  CallSession.reconnecting becomes true only after the drop lasted
+                 kCallReconnectingDelay (3 s) — a relay switch or the swap is not seen.
+```
+
+Health: the breaker probe runs at most once a minute fleet-wide while open (driven by new
+calls and the `ops.status-watchdog` job, every minute). Admin → «Ключи и сервисы» →
+«Связь для звонков» → «Проверить» runs the synthetic STUN Binding + TURN Allocate
+(`relay-check.ts`) on both sides.

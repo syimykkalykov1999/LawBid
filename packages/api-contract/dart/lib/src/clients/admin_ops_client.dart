@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/calls_path_envelope.dart';
 import '../models/heavy_jobs_dto.dart';
 import '../models/scale_dto.dart';
 import '../models/scale_extras_envelope.dart';
@@ -18,6 +19,18 @@ part 'admin_ops_client.g.dart';
 @RestApi()
 abstract class AdminOpsClient {
   factory AdminOpsClient(Dio dio, {String? baseUrl}) = _AdminOpsClient;
+
+  /// Calls transport: who carries calls now, breakers, last probe (no outside request)
+  @GET('/admin/system-health/calls-path')
+  Future<CallsPathEnvelope> getCallsPath({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Run the synthetic STUN + TURN allocate test on Cloudflare and on our own relays now
+  @POST('/admin/system-health/calls-path/check')
+  Future<CallsPathEnvelope> checkCallsPath({
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// Traffic lights of every part of the system
   @GET('/admin/system-health')

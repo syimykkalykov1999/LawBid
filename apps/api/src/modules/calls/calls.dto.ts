@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -391,6 +392,18 @@ export class IceServerDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   credential!: string | null;
+}
+
+/** GET /calls/ice-servers?relayFailed=true — owner 2026-10-26 (failover). */
+export class IceServersQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'The relay of my running call died (ICE failed): a fresh login, our own TURN first, and a report for the Cloudflare health breaker.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  relayFailed?: boolean;
 }
 
 /** STUN + short-lived TURN credentials for WebRTC (OQ-041). */
