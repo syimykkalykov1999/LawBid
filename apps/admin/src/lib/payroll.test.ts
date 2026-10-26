@@ -68,7 +68,7 @@ describe('trusted deputy (owner 2026-10-05)', () => {
     expect(can(deputy, 'cases', 'manage')).toBe(true);
     expect(can(deputy, 'payroll', 'manage')).toBe(true);
     expect(canOpen(deputy, '/payments')).toBe(true);
-    expect(canOpen(deputy, '/audit-log')).toBe(true);
+    expect(canOpen(deputy, '/audit-log')).toBe(false);
     expect(canOpen(deputy, '/integrations')).toBe(false);
   });
   it('an admin sees only their areas', () => {

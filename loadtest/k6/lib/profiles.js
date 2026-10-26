@@ -4,6 +4,7 @@ import { SHARDS, PROFILE } from './env.js';
 
 const all = JSON.parse(open('../../profiles.json'));
 export const LIMITS = all.limits;
+export const GATES = all.gates;
 export const P = all.profiles[PROFILE];
 if (!P) throw new Error(`unknown PROFILE ${PROFILE}`);
 
@@ -98,4 +99,20 @@ export function callScenario() {
       exec: 'callFlow',
     },
   };
+}
+
+// Budget value of a gate: the profile's own number, else the default in limits.budgets.
+export const budgetOf = (name) => (P.budgets && P.budgets[name] !== undefined ? P.budgets[name] : LIMITS.budgets[name]);
+
+// p95 / error-rate budgets per scenario (profiles.json "gates"). Plain
+// thresholds, NO abortOnFail: the run completes, k6 exits 99 and the report
+// shows which budget was missed. `have` = names of the scenarios in this run.
+export function gateThresholds(have) {
+  const t = {};
+  for (const g of GATES) {
+    if (!g.requires.some((r) => have.includes(r))) continue;
+    if (g.needs_assets && !P.assets) continue;
+    (t[g.metric] = t[g.metric] || []).push(`${g.agg}${g.op}${budgetOf(g.budget)}`);
+  }
+  return t;
 }

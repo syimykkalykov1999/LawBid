@@ -4,6 +4,7 @@ import {
 } from '../../../common/i18n/server-texts.service';
 import { ApnsVoipSender } from './apns-voip.sender';
 import { VoipTokensService } from './voip-tokens.service';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import {
@@ -55,6 +56,7 @@ import { viewerContext } from '../../../common/viewer/viewer-context';
 import { FilesService } from '../../files/files.service';
 import {
   CHAT_SENDER_SELECT,
+  chatCollapseKey,
   chatPushData,
   chatPushKind,
   chatPushPreview,
@@ -62,6 +64,7 @@ import {
   PUSH_TEXT_KEYS,
   type PushTextName,
 } from './chat-push';
+import { bullOptions } from '../../../redis/redis-connection';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -132,8 +135,17 @@ export class PushDispatcher
     @Optional() private readonly files?: FilesService,
     // Owner 2026-10-22 (audit #4 §4): push words in every app language.
     @Optional() private readonly texts?: ServerTextsService,
+    // S3-11: `push.chat_preview` (off = no message text in a push).
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {
     this.logger.setContext(PushDispatcher.name);
+  }
+
+  /** Per-conversation chat collapse (chat-push.ts chatCollapseKey) is opt-in:
+   * FCM keeps at most 4 collapse keys per offline device and advises against
+   * collapsing chat, so it could drop alerts. PUSH_CHAT_COLLAPSE=1 turns it on. */
+  private chatCollapse(): boolean {
+    return process.env.PUSH_CHAT_COLLAPSE === '1';
   }
 
   /** The push words in [lang] (the app's own 85-language keys; built-in
@@ -164,7 +176,7 @@ export class PushDispatcher
     this.worker = new Worker<PushJobData>(
       PUSH_QUEUE,
       (job: Job<PushJobData>) => this.dispatch(job.data, job.id ?? ''),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 20 },
+      { ...bullOptions(PUSH_QUEUE, url, { worker: true }), concurrency: 20 },
     );
     this.worker.on('error', (error) => {
       this.logger.error({ err: error.message }, 'push worker error');
@@ -197,6 +209,17 @@ export class PushDispatcher
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);
+  }
+
+  /** S3-11: with `push.chat_preview` off a chat push never carries the
+   * message text (Google / Apple see only «New message» or the kind of
+   * attachment). On by default = today's behaviour. */
+  private async chatPreviewOn(): Promise<boolean> {
+    try {
+      return (await this.appSettings?.boolean('push.chat_preview')) ?? true;
+    } catch {
+      return true;
+    }
   }
 
   /** Owner 2026-10-22: an on-call alert. An admin who switched «дежурный»
@@ -740,15 +763,22 @@ export class PushDispatcher
           : null;
       // Owner 2026-10-22: the display name, else the @username.
       const who = chatSenderName(sender);
-      const caption = [
-        ...(message.type === 'poll'
-          ? (message.poll?.question ?? '')
-          : message.body),
-      ]
-        .slice(0, MESSAGE_PREVIEW_CHARS)
-        .join('');
+      const previewOn = await this.chatPreviewOn();
+      const caption = previewOn
+        ? [
+            ...(message.type === 'poll'
+              ? (message.poll?.question ?? '')
+              : message.body),
+          ]
+            .slice(0, MESSAGE_PREVIEW_CHARS)
+            .join('')
+        : '';
       const kind = chatPushKind(message.type, message.file?.mime);
       let preview = chatPushPreview(kind, caption, t);
+      if (!preview) {
+        preview = (await this.templates.render('new_message', user.ui_language))
+          .body;
+      }
       if (mentioned) {
         preview = `@ ${fillVars(t.mentioned, { name: who || '' }).trim()}. ${preview}`;
       }
@@ -813,6 +843,13 @@ export class PushDispatcher
         sound: 'message',
         // One stack per chat in the shade (WhatsApp).
         threadId: data.groupId,
+        ...(this.chatCollapse()
+          ? {
+              collapseKey: chatCollapseKey(data.groupId, {
+                mention: mentioned,
+              }),
+            }
+          : {}),
         ...(chat ? { chat: true } : {}),
       },
     };
@@ -914,12 +951,14 @@ export class PushDispatcher
     const text = await this.templates.render('new_message', user.ui_language);
     // OQ-040: a voice note has no text — say what it is.
     const t = await this.pushTexts(user.ui_language);
-    const caption = [
-      ...(this.cipher?.open(message.body_display, data.messageId) ??
-        message.body_display),
-    ]
-      .slice(0, MESSAGE_PREVIEW_CHARS)
-      .join('');
+    const caption = (await this.chatPreviewOn())
+      ? [
+          ...(this.cipher?.open(message.body_display, data.messageId) ??
+            message.body_display),
+        ]
+          .slice(0, MESSAGE_PREVIEW_CHARS)
+          .join('')
+      : '';
     // Owner 2026-10-22: «📷 Фото» / «🎥 Видео» / «📎 Файл» / «🎤 …».
     const kind = chatPushKind(message.type, message.file?.mime);
     const preview = chatPushPreview(kind, caption, t, message.duration_ms);
@@ -955,7 +994,10 @@ export class PushDispatcher
       collapseKey = `react-${data.messageId}`;
       dedupeKey = `r:${data.messageId}:${data.actorId}:${data.emoji ?? ''}`;
     } else {
-      collapseKey = `msg-${data.messageId}`;
+      // Owner 2026-10-24: a burst replaces itself, the newest text wins.
+      collapseKey = this.chatCollapse()
+        ? chatCollapseKey(data.conversationId)
+        : `msg-${data.messageId}`;
     }
     const pics = await this.avatarUrls(data.recipientId, [
       sender?.avatar_file_id,

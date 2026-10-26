@@ -36,5 +36,23 @@ for (const [name, p] of Object.entries(all.profiles)) {
   if (p.stack_hours * 60 > lim.max_wall_minutes) fail(`${name}: stack_hours ${p.stack_hours} exceeds the ${lim.max_wall_minutes} min wall cap`);
   if (load > lim.max_wall_minutes - 40) fail(`${name}: load ${load} min leaves no room for create + destroy inside ${lim.max_wall_minutes} min`);
 }
+// budgets / gates (k6 thresholds per scenario, loadtest/k6/lib/profiles.js gateThresholds)
+const known = new Set(['http', 'sockets', 'storm', 'calls']);
+const budgets = lim.budgets || {};
+if (!Array.isArray(all.gates) || !all.gates.length) fail('profiles.json has no "gates"');
+for (const g of all.gates || []) {
+  for (const k of ['id', 'label', 'metric', 'agg', 'op', 'budget', 'requires']) if (g[k] === undefined) fail(`gate ${g.id || '?'}: "${k}" missing`);
+  if (!['<', '>'].includes(g.op)) fail(`gate ${g.id}: op must be < or >`);
+  if (!/^(p\(\d+\)|rate)$/.test(g.agg || '')) fail(`gate ${g.id}: agg must be p(NN) or rate`);
+  if (budgets[g.budget] === undefined) fail(`gate ${g.id}: budget "${g.budget}" has no default in limits.budgets`);
+  for (const r of g.requires || []) if (!known.has(r)) fail(`gate ${g.id}: unknown scenario "${r}"`);
+}
+for (const [name, p] of Object.entries(all.profiles)) {
+  const b = { ...budgets, ...(p.budgets || {}) };
+  for (const k of Object.keys(p.budgets || {})) if (budgets[k] === undefined) fail(`${name}: budget "${k}" is not a known budget`);
+  // a budget must be tighter than the abort rule, otherwise it could never be the thing that fails
+  for (const k of ['api_p95_ms', 'cdn_p95_ms']) if (b[k] > lim.abort_p95_ms) fail(`${name}: ${k} ${b[k]} is above the abort p95 ${lim.abort_p95_ms} ms`);
+  if (b.api_error_rate > lim.abort_error_rate) fail(`${name}: api_error_rate ${b.api_error_rate} is above the abort error rate ${lim.abort_error_rate}`);
+}
 if (bad) process.exit(1);
-console.log('profiles.json and the tfvars agree');
+console.log('profiles.json and the tfvars agree; budgets and gates are consistent');

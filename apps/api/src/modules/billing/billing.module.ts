@@ -46,6 +46,7 @@ import { PlansController } from '../plans/plans.controller';
  * webhooks and reminders too. Without STRIPE_SECRET_KEY the fake provider
  * is used (dev / e2e), driven through the same webhook endpoint.
  */
+import { LedgerModule } from '../ledger/ledger.public';
 @Module({})
 export class BillingModule {
   static register(options: BillingModuleOptions): DynamicModule {
@@ -72,6 +73,7 @@ export class BillingModule {
         // Owner 2026-10-05: client → attorney payments (Connect webhooks).
         CasePaymentsCoreModule,
         ClientBadgeCoreModule,
+        LedgerModule,
         // Only the controllers need the auth guards and the admin audit log;
         // the worker must stay bootable without AppModule's global modules.
         ...(options.mode === 'api' ? [AdminAccessModule, AuthModule] : []),

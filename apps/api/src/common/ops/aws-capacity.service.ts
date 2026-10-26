@@ -22,6 +22,7 @@ import {
   nextTier,
   prevTier,
 } from '../economy/economy.rules';
+import { opsCredentials } from './ops-credentials';
 
 export type CapacityTarget = 'db' | 'redis';
 
@@ -77,13 +78,22 @@ export class AwsCapacityService {
   }
 
   private cwClient(): CloudWatchClient {
-    return (this.cw ??= new CloudWatchClient({ region: this.region() }));
+    return (this.cw ??= new CloudWatchClient({
+      region: this.region(),
+      credentials: opsCredentials((n) => this.env(n), this.region()),
+    }));
   }
   private rdsClient(): RDSClient {
-    return (this.rds ??= new RDSClient({ region: this.region() }));
+    return (this.rds ??= new RDSClient({
+      region: this.region(),
+      credentials: opsCredentials((n) => this.env(n), this.region()),
+    }));
   }
   private cacheClient(): ElastiCacheClient {
-    return (this.cache ??= new ElastiCacheClient({ region: this.region() }));
+    return (this.cache ??= new ElastiCacheClient({
+      region: this.region(),
+      credentials: opsCredentials((n) => this.env(n), this.region()),
+    }));
   }
 
   async dbClass(): Promise<string | null> {

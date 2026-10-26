@@ -20,6 +20,7 @@ import {
   type CronJobName,
 } from './jobs.constants';
 import { CronProcessor } from './cron.processor';
+import { bullOptions } from '../redis/redis-connection';
 
 export interface JobsModuleOptions {
   /** 'api': runs only when JOBS_ENABLED (default true, until the separate
@@ -105,7 +106,7 @@ export class JobsRunner
 
   private async start(): Promise<void> {
     const url = this.config.getOrThrow<string>('REDIS_URL');
-    this.queue = new Queue(CRON_QUEUE, { connection: { url } });
+    this.queue = new Queue(CRON_QUEUE, bullOptions(CRON_QUEUE, url));
     await this.ensureSchedules(this.queue);
     if (this.stopping) return;
 
@@ -114,7 +115,7 @@ export class JobsRunner
       (job: Job) => this.processor.process(job.name),
       {
         // Required by BullMQ for the worker's blocking connection.
-        connection: { url, maxRetriesPerRequest: null },
+        ...bullOptions(CRON_QUEUE, url, { worker: true }),
         // One maintenance job at a time per process: DB-heavy sweeps, not
         // latency-sensitive.
         concurrency: 1,
@@ -146,6 +147,7 @@ export class JobsRunner
     const beat = async () => {
       try {
         if (this.stopping || !this.worker?.isRunning()) return;
+        await this.reconcileSchedules();
         const at = new Date().toISOString();
         await writeFile(WORKER_HEARTBEAT_FILE, at).catch(() => undefined);
         await this.redis?.set(
@@ -166,6 +168,47 @@ export class JobsRunner
     void beat();
     this.heartbeat = setInterval(() => void beat(), 30_000);
     this.heartbeat.unref();
+  }
+
+  /**
+   * S6-1: job schedulers live ONLY in Redis, so a Redis replacement or a
+   * failover that loses the last writes would silently stop every cron
+   * until the next deploy. Each heartbeat (30 s) counts the schedulers;
+   * when one is missing the idempotent [ensureSchedules] puts them back.
+   * The count is logged as metric `cron_schedulers` (alarm: `missing` > 0). Never throws.
+   */
+  async reconcileSchedules(): Promise<number> {
+    const queue = this.queue;
+    if (!queue) return 0;
+    const expected = CRON_SCHEDULES.length;
+    try {
+      const keys = new Set((await queue.getJobSchedulers()).map((x) => x.key));
+      let count = CRON_SCHEDULES.filter((x) => keys.has(x.name)).length;
+      if (count < expected) {
+        this.logger.warn(
+          { found: count, expected },
+          'cron schedules missing in Redis; re-registering',
+        );
+        await this.ensureSchedules(queue);
+        count = CRON_SCHEDULES.length;
+      }
+      this.logger.info(
+        {
+          metric: 'cron_schedulers',
+          count,
+          expected,
+          missing: expected - count,
+        },
+        'cron schedulers',
+      );
+      return count;
+    } catch (error) {
+      this.logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'cron schedule check failed',
+      );
+      return -1;
+    }
   }
 
   /** Idempotent: upserts every schedule, removes stale ones. */

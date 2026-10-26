@@ -16,3 +16,10 @@ export { maskContactInfo } from './domain/contact-detector';
 // same view policy before it loads a case.
 export { CaseAccessPolicy } from './policies/case-access.policy';
 export { caseNotFound } from './domain/case-state-machine';
+// Owner 2026-10-25: the case fan-out audience (notifications) reads the
+// urgency thresholds the case feed uses.
+export {
+  effectiveUrgency,
+  loadUrgencyThresholds,
+  URGENT_LEVELS,
+} from './domain/case-urgency';

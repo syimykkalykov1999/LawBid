@@ -375,6 +375,7 @@ export class CaseBidsService {
         : null,
       estimatedDurationDays: bid.estimated_duration_days,
       roundCount: bid.round_count,
+      version: bid.version,
       turn: bid.turn,
       outsidePractice: bid.outside_practice,
       outsideLicensedStates: bid.outside_licensed_states,

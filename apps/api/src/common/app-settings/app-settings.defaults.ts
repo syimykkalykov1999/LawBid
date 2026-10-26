@@ -195,6 +195,11 @@ export const OWNER_MEDIA_SETTINGS = {
   'search.engine': 'postgres',
   // Engine answers slower than this fall back to Postgres, ms.
   'search.engine_timeout_ms': 800,
+  // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
+  // the old index generation is kept this many days for a rollback, and the
+  // backfill pauses this long between batches so it never hogs the database.
+  'search.reindex_keep_days': 7,
+  'search.reindex_throttle_ms': 200,
   // Owner 2026-10-15: the recommendation weights of Search (cases for
   // attorneys, people and «you may know», posts and reels) — editable in
   // the admin panel; the sum need not be 1.
@@ -665,6 +670,20 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.anonymous_rate_limit_per_minute': 100,
   /** Scale audit 2026-10-23: live connections of one person per server. */
   'realtime.max_sockets_per_user': 10,
+  /** Owner 2026-10-25: new socket connections per minute from one address
+   * (CGNAT / offices carry many people: generous). 0 = no limit. */
+  'realtime.max_connects_per_ip_per_minute': 120,
+  /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
+  'security.password_breach_check_enabled': true,
+  /** Milliseconds to wait for the breached-password service; later = skip. */
+  'security.password_breach_timeout_ms': 1500,
+  /** Refuse passwords from the bundled list of the most common ones. */
+  'security.password_common_list_enabled': true,
+  /** Password hashes (scrypt) running at once on one server; the rest wait,
+   * so a sign-in flood cannot starve the server's file / DNS work. */
+  'security.password_hash_concurrency': 4,
+  /** Hashes allowed to wait; beyond it the request gets RATE_LIMITED. */
+  'security.password_hash_max_queue': 200,
   /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
    * may ask for in a rolling 24 h, on top of the hourly limit. Range
    * 1…1000 (config-schema); 0 is refused, never "unlimited". Not seeded:
@@ -753,6 +772,18 @@ export const OWNER_STORAGE_SETTINGS = {
   'storage.purge_after_days': 7,
   'storage.deleted_posts_media_days': 30,
   'storage.image_format': 'webp',
+  /** Owner 2026-10-25: AVIF twins of public photos (≈40-50% smaller than
+   * WebP). OFF by default. `images.avif_enabled` writes the twins at
+   * upload; they are served only to clients that send
+   * `X-Image-Formats: avif`, and only for files uploaded after
+   * `images.avif_since` (ISO time, empty = serve none). Qualities 1-100,
+   * effort 0-9 (higher = smaller but slower to make). */
+  'images.avif_enabled': false,
+  'images.avif_since': '',
+  'images.avif_quality': 60,
+  'images.avif_effort': 2,
+  'images.webp_quality': 88,
+  'images.jpeg_quality': 90,
   'storage.user_quota_mb': 10240,
   'storage.chat_quota_mb': 5120,
   /** 2026-10-24 (abuse batch B, item 5): most MB one person may upload in
@@ -877,6 +908,17 @@ export const OWNER_BOOKING_QA_SETTINGS = {
   'rate_limit.question_per_day': 3,
   /** Answers (and edits) one attorney may post in an hour. */
   'rate_limit.answer_per_hour': 30,
+  /** Owner 2026-10-25 (abuse hardening): generous caps no real person
+   * reaches; they stop scripts. Offers one attorney may place in a day. */
+  'rate_limit.bid_create_per_day': 200,
+  /** Counter-offers (either side) per hour. */
+  'rate_limit.bid_counter_per_hour': 120,
+  /** Cases one client may publish in a day. */
+  'rate_limit.case_create_per_day': 30,
+  /** Messages saved to «Сохранённое» per minute. */
+  'rate_limit.chat_save_per_minute': 120,
+  /** Forwarded messages per minute (on top of the message limit). */
+  'rate_limit.forward_per_minute': 60,
   /** Pending + confirmed upcoming consultations one client may hold. */
   'consultations.max_active_per_client': 5,
   /** Owner 2026-10-20: a push to attorneys about every new question is OFF
@@ -920,6 +962,45 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'security.attorney_strong_auth': true,
   'files.confidential_url_ttl_sec': 900,
   'files.access_log_enabled': true,
+  /** Security pass 2026-10-25 (S3-5): file names of chat attachments and
+   * the case's «Личные данные» are stored sealed (AES-256-GCM, bound to the
+   * row), and the key job seals the old rows too. Reads accept both forms;
+   * off = new rows stay readable as before, already sealed ones stay sealed. */
+  'security.seal_case_metadata': true,
+  /** Free text in case-journal entries (case titles and description
+   * changes) is sealed. The journal is append-only and hash-chained, so
+   * old entries cannot be rewritten: every key id used while this is on
+   * must stay in MESSAGE_ENC_KEYS for the 5-year retention. Off by default. */
+  'security.seal_journal_text': false,
+  /** S3-11: push notifications show the message text. Off = «Новое
+   * сообщение»; Google and Apple then never see the text. */
+  'push.chat_preview': true,
+};
+
+/**
+ * Owner 2026-10-25: new-case alerts in waves (docs/CASE_FANOUT.md). The
+ * defaults keep today's reach: one wave of up to 5000 attorneys, no daily
+ * cap, no stop at N offers; only the ORDER is new (best first, newcomers
+ * reserved a share). Tune from the admin panel without a release.
+ * - fraud actions: 'normal' | 'small' (a small delayed wave, then stop) |
+ *   'none' (no alerts) for a client whose fraud status is review /
+ *   restricted (docs/CLIENT_FRAUD.md);
+ * - 0 means "off" for `stop_at_bids`, `daily_cap`, `new_quota_percent`. */
+export const OWNER_CASE_FANOUT_SETTINGS = {
+  'case_fanout.enabled': false,
+  'case_fanout.first_wave_size': 5000,
+  'case_fanout.wave_size': 5000,
+  'case_fanout.wave_interval_minutes': 10,
+  'case_fanout.max_waves': 20,
+  'case_fanout.stop_at_bids': 0,
+  'case_fanout.new_quota_percent': 20,
+  'case_fanout.new_max_alerts': 20,
+  'case_fanout.new_max_bids': 3,
+  'case_fanout.daily_cap': 0,
+  'case_fanout.fraud_review_action': 'normal',
+  'case_fanout.fraud_restricted_action': 'none',
+  'case_fanout.fraud_small_wave_size': 10,
+  'case_fanout.fraud_delay_minutes': 60,
 };
 
 export const APP_SETTINGS = {
@@ -965,6 +1046,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_CASE_FANOUT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

@@ -9,6 +9,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+  staleVersion,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
@@ -98,6 +103,7 @@ export class ClientProfilesService {
         last_name: true,
         client_profile: {
           select: {
+            version: true,
             username: true,
             username_changed_at: true,
             preferred_languages: true,
@@ -122,6 +128,7 @@ export class ClientProfilesService {
     );
     return {
       id: user.id,
+      version: profile.version,
       username,
       usernameNextChangeAt: next?.toISOString() ?? null,
       firstName: user.first_name,
@@ -137,9 +144,24 @@ export class ClientProfilesService {
     userId: string,
     dto: UpdateClientProfileDto | UpdateContactPreferencesDto,
     now = new Date(),
+    expectedVersion?: number,
   ): Promise<ClientProfileDto> {
     const current = await this.getOwn(userId, now);
+    assertExpectedVersion(current.version, expectedVersion);
     const { username, ...rest } = dto as UpdateClientProfileDto;
+    // Claim the next version first (atomic compare-and-set), then write.
+    if (Object.keys(dto).length > 0) {
+      const { count } = await this.prisma.clientProfile.updateMany({
+        where: {
+          user_id: userId,
+          ...(expectedVersion !== undefined
+            ? { version: expectedVersion }
+            : {}),
+        },
+        data: BUMP_VERSION,
+      });
+      if (count !== 1) throw staleVersion(current.version + 1);
+    }
     if (username !== undefined && username !== current.username) {
       await this.changeUsername(userId, current, username, now);
     }

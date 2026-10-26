@@ -6,16 +6,43 @@
     "max_generators": 6,
     "abort_error_rate": 0.05,
     "abort_p95_ms": 2000,
-    "abort_window_seconds": 60
+    "abort_window_seconds": 60,
+    "budgets": {
+      "api_p95_ms": 800,
+      "api_error_rate": 0.01,
+      "cdn_p95_ms": 500,
+      "cdn_error_rate": 0.01,
+      "ws_connect_p95_ms": 3000,
+      "ws_connected_min": 0.95,
+      "room_join_min": 0.98,
+      "chat_delivery_p95_ms": 2000,
+      "chat_delivered_min": 0.98,
+      "call_flow_min": 0.95
+    }
   },
+  "_gates": "P95 / error-rate budgets per scenario (owner rule 2026-10-24). Budget values: limits.budgets, overridden per profile in profiles.<name>.budgets. k6 (lib/profiles.js) turns these into thresholds WITHOUT abortOnFail (the run completes, k6 exits 99, the workflow fails and report.mjs prints the table); the abort rule above stays separate and stops the load. agg: p(95) = trend percentile, rate = Rate metric value. requires: the k6 scenarios that must exist for the gate to apply (any of).",
+  "gates": [
+    { "id": "api_p95", "label": "API p95 (ms)", "metric": "http_req_duration{scenario:http,kind:api}", "agg": "p(95)", "op": "<", "budget": "api_p95_ms", "requires": ["http"] },
+    { "id": "api_errors", "label": "API error rate", "metric": "http_req_failed{scenario:http,kind:api}", "agg": "rate", "op": "<", "budget": "api_error_rate", "requires": ["http"] },
+    { "id": "cdn_p95", "label": "CDN p95 (ms)", "metric": "http_req_duration{scenario:http,kind:cdn}", "agg": "p(95)", "op": "<", "budget": "cdn_p95_ms", "requires": ["http"], "needs_assets": true },
+    { "id": "cdn_errors", "label": "CDN error rate", "metric": "http_req_failed{scenario:http,kind:cdn}", "agg": "rate", "op": "<", "budget": "cdn_error_rate", "requires": ["http"], "needs_assets": true },
+    { "id": "ws_connect_p95", "label": "Socket connect p95 (ms)", "metric": "ws_connect_ms", "agg": "p(95)", "op": "<", "budget": "ws_connect_p95_ms", "requires": ["sockets", "storm"] },
+    { "id": "ws_connected", "label": "Socket connects succeeded", "metric": "ws_connected", "agg": "rate", "op": ">", "budget": "ws_connected_min", "requires": ["sockets", "storm"] },
+    { "id": "room_join", "label": "Room joins acknowledged", "metric": "room_join_ok", "agg": "rate", "op": ">", "budget": "room_join_min", "requires": ["sockets", "storm"] },
+    { "id": "chat_p95", "label": "Chat delivery p95 (ms)", "metric": "chat_delivery_ms", "agg": "p(95)", "op": "<", "budget": "chat_delivery_p95_ms", "requires": ["sockets"] },
+    { "id": "chat_delivered", "label": "Chat messages delivered", "metric": "chat_delivered", "agg": "rate", "op": ">", "budget": "chat_delivered_min", "requires": ["sockets"] },
+    { "id": "call_flow", "label": "Call flows completed", "metric": "call_flow_ok", "agg": "rate", "op": ">", "budget": "call_flow_min", "requires": ["calls"] }
+  ],
   "profiles": {
     "local": {
+      "budgets": { "api_p95_ms": 1500, "api_error_rate": 0.02 },
       "kind": "http", "where": "mac", "peak_rps": 40, "generators": 0,
       "stages": [["20s", 10], ["40s", 40], ["60s", 40], ["10s", 0]],
       "ws_hold": 15, "ws_storm_per_s": 3, "ws_duration": "2m",
       "calls_per_s": 1, "tokens": { "clients": 300, "attorneys": 100 }, "assets": false
     },
     "smoke": {
+      "budgets": { "api_p95_ms": 1000 },
       "kind": "http", "where": "ec2", "peak_rps": 60, "generators": 1,
       "stages": [["1m", 20], ["2m", 60], ["3m", 60], ["30s", 0]],
       "ws_hold": 100, "ws_storm_per_s": 5, "ws_duration": "5m",
@@ -25,6 +52,7 @@
       "avg_api_tasks": 2, "avg_worker_tasks": 1, "alb_lcu": 1, "cdn_gb": 0.1, "xfer_gb": 0.2
     },
     "m1": {
+      "budgets": { "api_p95_ms": 600, "api_error_rate": 0.005 },
       "kind": "http", "where": "ec2", "peak_rps": 1500, "generators": 2,
       "stages": [["3m", 300], ["5m", 800], ["5m", 1500], ["20m", 1500], ["2m", 0]],
       "ws_hold": 4000, "ws_storm_per_s": 100, "ws_duration": "30m",
@@ -34,6 +62,7 @@
       "avg_api_tasks": 9, "avg_worker_tasks": 3, "alb_lcu": 25, "cdn_gb": 15, "xfer_gb": 18
     },
     "m10": {
+      "budgets": { "api_p95_ms": 800, "api_error_rate": 0.005 },
       "kind": "http", "where": "ec2", "peak_rps": 5000, "generators": 5,
       "stages": [["4m", 800], ["6m", 2500], ["6m", 5000], ["25m", 5000], ["3m", 0]],
       "ws_hold": 20000, "ws_storm_per_s": 400, "ws_duration": "40m",
@@ -43,6 +72,7 @@
       "avg_api_tasks": 30, "avg_worker_tasks": 6, "alb_lcu": 90, "cdn_gb": 45, "xfer_gb": 75
     },
     "calls-smoke": {
+      "budgets": { "api_p95_ms": 1000 },
       "kind": "calls", "where": "ec2", "generators": 1,
       "turn_clients": 20, "turn_seconds": 60, "livekit_rooms": 1, "livekit_publishers": 3, "livekit_seconds": 60,
       "stages": [["1m", 5], ["2m", 10], ["1m", 0]], "peak_rps": 0,
@@ -53,6 +83,7 @@
       "avg_api_tasks": 2, "avg_worker_tasks": 1, "alb_lcu": 1, "cdn_gb": 0, "xfer_gb": 1
     },
     "calls-full": {
+      "budgets": { "api_p95_ms": 800 },
       "kind": "calls", "where": "ec2", "generators": 2,
       "turn_clients": 400, "turn_seconds": 600, "livekit_rooms": 10, "livekit_publishers": 9, "livekit_seconds": 600,
       "stages": [["2m", 20], ["5m", 60], ["10m", 60], ["1m", 0]], "peak_rps": 0,

@@ -25,6 +25,11 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'password',
   'token',
   'secret',
+  // Key material (S3-3): never in a report even if an env dump slips in.
+  'MESSAGE_ENC_KEYS',
+  'SECRETS_MASTER_KEYS',
+  'JWT_KEYS',
+  'ADMIN_TOTP_ENC_KEY',
   // Message / post / chat text.
   'body',
   'body_original',
@@ -71,15 +76,52 @@ export const SCRUB_MAX_CHARS = 600;
 
 /** Removes e-mails, phone numbers, URL query strings (signed links), file
  * names and cuts long text. Pure; safe to call on any string. */
-export function scrubString(input: string): string {
+export function scrubString(
+  input: string,
+  maxChars: number = SCRUB_MAX_CHARS,
+): string {
   let s = input
     .replace(URL_QUERY_RE, '$1?[REDACTED]')
     .replace(SIGNED_PARAM_RE, '$1=[REDACTED]')
     .replace(EMAIL_RE, '[email]')
     .replace(PHONE_RE, '[phone]')
     .replace(FILE_NAME_RE, '[file]');
-  if (s.length > SCRUB_MAX_CHARS) s = `${s.slice(0, SCRUB_MAX_CHARS)}…`;
+  if (s.length > maxChars) s = `${s.slice(0, maxChars)}…`;
   return s;
+}
+
+/** Longest stack kept in a log line (a stack is for debugging, but it can
+ * carry an interpolated message with client data). */
+const LOG_STACK_MAX_CHARS = 4000;
+
+/**
+ * S3-12: pino `formatters.log` hook. Provider SDK errors (axios from
+ * Twilio / Stripe / Bunny, fetch wrappers) carry the request with its
+ * headers and body; the path redaction removes the known fields and this
+ * cleans what is left in the error text the same way Sentry's scrubber
+ * does. The `err` object is copied, never mutated.
+ */
+export function scrubLogObject(
+  obj: Record<string, unknown>,
+): Record<string, unknown> {
+  const err = obj.err;
+  if (!err || typeof err !== 'object') return obj;
+  // `message` and `stack` of a real Error are not enumerable: copy them.
+  const e: Record<string, unknown> = { ...(err as Record<string, unknown>) };
+  if (err instanceof Error) {
+    e.type ??= err.name;
+    e.message ??= err.message;
+    e.stack ??= err.stack;
+  }
+  if (typeof e.message === 'string') e.message = scrubString(e.message, 2000);
+  if (typeof e.stack === 'string') {
+    e.stack = scrubString(e.stack, LOG_STACK_MAX_CHARS);
+  }
+  // A request / response object left on the error is never useful in logs.
+  for (const k of ['config', 'request', 'response']) {
+    if (k in e) e[k] = '[REDACTED]';
+  }
+  return { ...obj, err: e };
 }
 
 /** Cleans a value in place: sensitive keys become `[REDACTED]`, every other
