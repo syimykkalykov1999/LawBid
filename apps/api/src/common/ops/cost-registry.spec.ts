@@ -168,8 +168,25 @@ describe('cost registry: content rules', () => {
   });
 });
 
+describe('cost registry: hidden costs and load (owner rule)', () => {
+  it('lists the things that charge or load us just by running, each with a load note', () => {
+    const hidden = COST_REGISTRY.filter((e) => e.id.startsWith('hidden.'));
+    expect(hidden.length).toBeGreaterThanOrEqual(8);
+    for (const e of hidden) expect(e.neededNote).toContain('Нагрузка');
+    for (const id of [
+      'hidden.cost_explorer_reads',
+      'hidden.economy_tick',
+      'hidden.cron_jobs',
+      'hidden.logs_metrics',
+      'hidden.cdn_invalidations',
+    ]) {
+      expect(entryById(id)).toBeDefined();
+    }
+  });
+});
+
 describe('cost registry: the ladder numbers', () => {
-  it('day-1 total is the real ≈ $270-285, not the old $150-170', () => {
+  it('day-1 total is the real ≈ $277–287, not the old $150-170', () => {
     const t = dayOneTotals();
     expect(t.aws[0]).toBeGreaterThanOrEqual(255);
     expect(t.aws[1]).toBeLessThanOrEqual(275);

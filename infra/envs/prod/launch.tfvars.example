@@ -1,4 +1,4 @@
-# Launch size for prod: the real day-1 bill is ≈ $270-285/month (AWS ≈ $263 + vendors and
+# Launch size for prod: the real day-1 bill is ≈ $277–287/month (AWS ≈ $265 + vendors and
 # accounts ≈ $12-22; us-east-1 list prices, 2026-10-25). The old "≈ $150" forgot the public
 # IPv4 addresses ($11), both WAFs ($19), alarms and logs ($18), the Multi-AZ database copy and
 # the SMS number. Every line with price, switch and alarm: docs/runbooks/COST_LADDER.md.

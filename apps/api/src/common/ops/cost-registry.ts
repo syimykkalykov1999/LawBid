@@ -1038,7 +1038,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(1.2), k100: R(1.2), m1: R(1.2) },
     needed: 'yes',
     neededNote:
-      'Нужны: это и есть ваша защита от сюрприза в счёте. Письма настроены на реальный день-1 ≈ $270-285, поправьте monthly_budget_usd под таблицу «Лестницы».',
+      'Нужны: это и есть ваша защита от сюрприза в счёте. Письма настроены на реальный день-1 ≈ $277–287, поправьте monthly_budget_usd под таблицу «Лестницы».',
     alarm: 'письма AWS Budgets (50/80/100 %) и Cost Anomaly',
     ceService: 'AWS Budgets',
     awsTypes: [
@@ -1929,6 +1929,211 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     needed: 'no',
     neededNote: 'Не нужен.',
     alarm: null,
+  },
+
+  // ============ H. Hidden costs and load (owner rule 2026-10-26) =======
+  // Things that charge, load or slow us just by running. Ids start with
+  // `hidden.`; the admin and the ladder show them in their own section.
+  {
+    id: 'hidden.cost_explorer_reads',
+    name: 'Чтение счёта AWS (Cost Explorer) для страницы «Расходы»',
+    purpose:
+      'Каждое чтение стоит $0,01. Страница берёт данные из снимка и просит AWS не чаще раза в 6 часов.',
+    kind: 'aws',
+    control: fixed(
+      'Не чаще 4 запросов в сутки (код spend.service.ts, AWS_MIN_INTERVAL_MS); кнопка «Обновить» тоже ограничена.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'unit',
+      '$0,01 за запрос Cost Explorer ≈ $1,2 в месяц при 4 запросах в сутки',
+      'https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/',
+    ),
+    usd: { launch: R(1.2), k100: R(1.2), m1: R(1.2) },
+    needed: 'yes',
+    neededNote:
+      'Нагрузка: 4 запроса в сутки к AWS. Нужно, это глаза на расходы.',
+    alarm: null,
+  },
+  {
+    id: 'hidden.economy_tick',
+    name: 'Проверка «Экономики» каждые 5 минут (задача economy.guard)',
+    purpose:
+      'Читает нагрузку базы и Redis в CloudWatch, считает допустимый расход, ставит потолки серверов и размера базы.',
+    kind: 'aws',
+    control: fixed(
+      'Выключается флагом economy_guard (админка → Флаги): тогда потолки не пересчитываются и снимаются.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'unit',
+      'Запросы метрик CloudWatch $0,01 за 1000: ≈ 600 запросов в сутки ≈ $0,2 в месяц',
+      U.cw,
+    ),
+    usd: { launch: R(0.2), k100: R(0.2), m1: R(0.2) },
+    needed: 'auto',
+    neededNote:
+      'Нагрузка: 288 запусков в сутки, несколько запросов к CloudWatch и Redis каждый. Копейки.',
+    alarm: null,
+  },
+  {
+    id: 'hidden.autoscale_lambdas',
+    name: 'Запуски автомасштабов базы и Redis каждые 5 минут',
+    purpose:
+      'Две функции Lambda смотрят нагрузку; ночью проверяют, можно ли уменьшить.',
+    kind: 'aws',
+    control: { type: 'ssm-mode', target: 'db' },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: null,
+    price: price(
+      'free',
+      'Lambda: первый миллион запусков в месяц бесплатно (у нас ≈ 17 тысяч)',
+      U.lambda,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Нагрузка: 576 запусков в сутки на двоих. Те же переключатели, что у строк «Автомасштаб базы / Redis» выше (здесь показан переключатель базы).',
+    alarm: null,
+  },
+  {
+    id: 'hidden.cron_jobs',
+    name: 'Периодические фоновые задачи (рекомендации, теги, пересчёты, очистки)',
+    purpose:
+      'Рекомендации и теги каждые 10 минут, пересчёты счётчиков, ночные очистки. Дают нагрузку на базу и Redis.',
+    kind: 'aws',
+    control: {
+      type: 'app-setting',
+      key: 'ops.auto_pause_heavy_jobs',
+      map: { off: false, on: true },
+    },
+    states: ['off', 'on'],
+    defaultState: 'on',
+    ceiling: setCeil(
+      'ops.db_slow_ms',
+      'Сколько миллисекунд ответа базы считается «тормозит»',
+    ),
+    price: price(
+      'free',
+      'Своих денег не берут: нагрузка на базу и воркер',
+      U.fargate,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote:
+      'Нагрузка: тяжёлые задачи сами встают на паузу на 15 минут, когда база тормозит (положение Вкл = Авто по сигналу). Выкл = не ставить на паузу.',
+    alarm: 'тревога «база медленная» (db-slow)',
+  },
+  {
+    id: 'hidden.logs_metrics',
+    name: 'Объём журналов и метрик на каждый запрос',
+    purpose:
+      'Каждый запрос пишет строку журнала; фильтры превращают строки в метрики; отладочный уровень журнала увеличивает счёт в разы.',
+    kind: 'aws',
+    control: fixed(
+      'Уровень журнала задаёт LOG_LEVEL сервера (по умолчанию info); срок хранения журналов задан в Terraform.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'unit',
+      'Приём журналов $0,50 за ГБ, хранение $0,03 за ГБ в месяц',
+      U.cw,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote:
+      'Нагрузка: растёт с числом запросов; уже учтено в строке «Тревоги, графики и журналы». Не оставляйте LOG_LEVEL=debug на проде.',
+    alarm: 'бюджет месяца; Cost Anomaly',
+  },
+  {
+    id: 'hidden.health_checks',
+    name: 'Проверки «жив ли сайт» каждые 30–60 секунд',
+    purpose:
+      'Route 53 стучится на сайт снаружи; /health/ready проверяет базу и Redis на каждый такой стук.',
+    kind: 'aws',
+    control: tf(['uptime_check'], {
+      off: 'uptime_check = "off"',
+      on: 'uptime_check = "route53"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price('fixed', 'Уже в строке «Проверка жив ли сайт» ≈ $2', U.r53),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote:
+      'Нагрузка: около 2 880 запросов в сутки к одному адресу. Нужна, отключать не советуем.',
+    alarm: null,
+  },
+  {
+    id: 'hidden.usage_poll',
+    name: 'Ежедневный опрос Cloudflare и Bunny (usage-poll) и сторонних счетов',
+    purpose:
+      'Раз в сутки читает трафик звонков и видео, счета Twilio, Stripe, Bunny, Cloudflare для страницы «Расходы» и порогов.',
+    kind: 'vendor',
+    control: fixed(
+      'Раз в сутки; каждый сервис не чаще раза в 15 минут при нажатии «Обновить». API читают бесплатно.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price('free', 'Чтение статистики у поставщиков бесплатно', U.cft),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote:
+      'Нагрузка: пять коротких запросов в сутки. Питает паузы Bunny и Cloudflare.',
+    alarm: 'тревога «опрос расхода не удался» (usage-poll-failed)',
+  },
+  {
+    id: 'hidden.cdn_invalidations',
+    name: 'Сброс кэша CloudFront при выкладке сайта',
+    purpose:
+      'После каждой выкладки сайта (web-deploy) кэш сбрасывается, чтобы люди видели новую версию.',
+    kind: 'aws',
+    control: fixed(
+      'Переменная репозитория WEB_DEPLOY_ENABLED=false останавливает выкладку сайта вместе со сбросом кэша.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'unit',
+      'Первые 1000 путей в месяц бесплатно, дальше $0,005 за путь',
+      U.cf,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote:
+      'Нагрузка: пара сбросов на выкладку, до 8 путей на выкладку. Расход только при сотнях выкладок в месяц.',
+    alarm: null,
+  },
+  {
+    id: 'hidden.canary',
+    name: 'Проверки-роботы (Synthetics) и нагрузочные прогоны',
+    purpose:
+      'Робот каждые 5 минут проходит сайт (выключен); нагрузочные тесты поднимают временный стенд.',
+    kind: 'aws',
+    control: tf(['uptime_check'], {
+      off: 'uptime_check = "route53"',
+      on: 'uptime_check = "synthetics"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price('unit', '≈ $8–10 в месяц, если включить', U.cw),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(8),
+    needed: 'later',
+    neededNote:
+      'Нагрузка: 8 640 запусков в месяц робота. Выключено; стенд нагрузочных тестов сам гасится через 4 часа.',
+    alarm: 'сторож load-test-watchdog',
   },
 
   // ============ D. Apps, admin, web, CI, accounts ======================

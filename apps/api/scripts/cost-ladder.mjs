@@ -25,7 +25,9 @@ const users = (n) => (n >= 1e6 ? `${n / 1e6} млн` : n >= 1000 ? `${n / 1000} 
 const checkedAt = COST_REGISTRY.map((e) => e.price.checkedAt).sort().at(-1);
 const totals = dayOneTotals();
 
-const dayOne = COST_REGISTRY.filter((e) => e.defaultState !== 'off' && mid(e.usd.launch) > 0);
+const isHidden = (e) => e.id.startsWith('hidden.');
+const dayOne = COST_REGISTRY.filter((e) => e.defaultState !== 'off' && mid(e.usd.launch) > 0 && !isHidden(e));
+const hidden = COST_REGISTRY.filter(isHidden);
 const switchable = COST_REGISTRY.filter((e) => e.defaultState === 'off' && e.ifOnUsd);
 const auto = COST_REGISTRY.filter((e) => e.states.includes('auto') && e.defaultState === 'auto');
 const controlWhere = (e) => {
@@ -74,6 +76,14 @@ function runbook() {
   L.push('| Что | По какому сигналу и как ограничено | Тревога |');
   L.push('|---|---|---|');
   for (const e of auto) L.push(`| ${e.name} | ${e.neededNote}${e.ceiling ? ` Потолок: ${e.ceiling.label}.` : ''} | ${e.alarm ?? '—'} |`);
+  L.push('');
+  L.push('## 3а. Скрытые расходы и нагрузка');
+  L.push('');
+  L.push('Не подписки, а то, что платит или грузит нас, просто работая: частые задачи, чтение счетов, журналы, проверки, сброс кэша. Деньги из этих строк уже входят в итог дня первого (кроме двух строк по $1,2 и $0,2, которые тоже учтены), нагрузка описана словами.');
+  L.push('');
+  L.push('| Что | Цена | Нагрузка и что делать | Положения | Где переключить |');
+  L.push('|---|---|---|---|---|');
+  for (const e of hidden) L.push(`| ${e.name} | ${usd(e.usd.launch)} | ${e.neededNote} | ${statesWord(e)} | ${controlWhere(e)} |`);
   L.push('');
   L.push('## 4. Всего в месяц при росте (грубо, ошибиться можно в 2 раза)');
   L.push('');
@@ -135,6 +145,10 @@ function guide() {
   L.push('2. Ниже таблица всех платных пунктов. В каждой строке: что это, положение переключателя, деньги за этот месяц (настоящие, из счёта AWS и сервисов) и прогноз, нужно ли это сейчас, какая тревога следит.');
   L.push('3. Чтобы поменять положение, нажмите **Выкл**, **Вкл** или **Авто** и введите код 2FA. Если кнопка серая, пункт меняется через Terraform: раскройте **Как включить / выключить** и следуйте шагам.');
   L.push('4. Раз в месяц сверяйте «этот месяц» и «прогноз» с таблицей «Старт»: расхождение больше чем вдвое повод разобраться.');
+  L.push('');
+  L.push('### Скрытые расходы и нагрузка');
+  L.push('');
+  for (const e of hidden) L.push(`- **${e.name}**: ${e.neededNote} (${controlWhere(e)})`);
   L.push('');
   L.push('### Рост без вашего участия');
   L.push('');
