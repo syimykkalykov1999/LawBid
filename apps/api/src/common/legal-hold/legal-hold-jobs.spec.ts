@@ -172,8 +172,13 @@ describe('every deletion job respects a legal hold', () => {
     await svc.run();
     // auth_events (16 shards), assistant_activity, post_views,
     // post_view_events, user_activity_days: every statement excludes HELD.
-    expect($executeRaw.mock.calls.length).toBeGreaterThanOrEqual(20);
-    for (const call of $executeRaw.mock.calls) {
+    // cross_family_outbox / cross_family_inbox are system plumbing tables
+    // (no person rows), so they carry no hold filter.
+    const personCalls = $executeRaw.mock.calls.filter(
+      (call) => !mentions(call, 'cross_family_', false),
+    );
+    expect(personCalls.length).toBeGreaterThanOrEqual(20);
+    for (const call of personCalls) {
       expect(heldInSql(call)).toBe(true);
     }
   });
