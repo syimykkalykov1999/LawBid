@@ -1,4 +1,5 @@
 -- Experiments + ranking_events (owner 2026-10-25, docs/architecture/EXPERIMENTS.md).
+-- migration-safety: contract the drop statement only removes expired partitions of ranking_events, a table created in this same migration; no earlier release reads it.
 
 CREATE TABLE "experiments" (
   "id"                UUID NOT NULL DEFAULT gen_random_uuid(),
