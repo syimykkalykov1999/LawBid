@@ -128,8 +128,8 @@ describe('ExperimentMetricsService.compute', () => {
   });
 
   it('trips the reports guardrail when reports jump and the interval is clear', async () => {
-    // 0.2% -> 0.6% of impressions: three times as many reports per 1000.
-    const r = await build({ ctr: [0.1, 0.1], reports: [0.002, 0.006] }).compute(
+    // 0.2% -> 1.2% of impressions: six times as many reports per 1000.
+    const r = await build({ ctr: [0.1, 0.1], reports: [0.002, 0.012] }).compute(
       exp,
     );
     expect(r.guardrail.tripped).toBe(true);
@@ -137,7 +137,7 @@ describe('ExperimentMetricsService.compute', () => {
   });
 
   it('does not trip below the minimum number of impressions', async () => {
-    const r = await build({ ctr: [0.1, 0.1], reports: [0.002, 0.006] }).compute(
+    const r = await build({ ctr: [0.1, 0.1], reports: [0.002, 0.012] }).compute(
       {
         ...exp,
         guardrails: { ...exp.guardrails, minImpressions: 1_000_000 },

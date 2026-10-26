@@ -339,7 +339,7 @@ export class ExperimentMetricsService {
            WHERE c.kind = 'case_posted'
              AND c.experiment_key = ${key}
              AND c.created_at >= ${from}
-             AND c.created_at <= now() - make_interval(hours => ${MIN_AGE_HOURS_FOR_CASES})
+             AND c.created_at <= now() - make_interval(hours => ${MIN_AGE_HOURS_FOR_CASES}::int)
              AND c.variant IS NOT NULL
         ) t
        GROUP BY variant`);
@@ -377,7 +377,7 @@ export class ExperimentMetricsService {
                          THEN e.unit_id::uuid END
        WHERE e.experiment_id = ${experimentId}::uuid
          AND u.role = 'attorney'
-         AND u.created_at >= e.first_at - make_interval(days => ${NEW_ATTORNEY_DAYS})
+         AND u.created_at >= e.first_at - make_interval(days => ${NEW_ATTORNEY_DAYS}::int)
        LIMIT ${OPPORTUNITY_MAX_UNITS}`,
     );
     const sampled = units.filter((u) => inImpressionSample(u.id, sample));

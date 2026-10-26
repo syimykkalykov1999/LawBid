@@ -45,7 +45,7 @@ export class MyFlagsController {
   })
   @ApiEnvelopeResponse(MyFlagsDto)
   @ApiErrors({ 401: [ErrorCode.UNAUTHORIZED, ErrorCode.TOKEN_EXPIRED] })
-  async mine(@CurrentUser() user: RequestUser): Promise<MyFlagsDto> {
+  async myFeatureFlags(@CurrentUser() user: RequestUser): Promise<MyFlagsDto> {
     return { flags: await this.flags.getFlagsFor(user.sub) };
   }
 }

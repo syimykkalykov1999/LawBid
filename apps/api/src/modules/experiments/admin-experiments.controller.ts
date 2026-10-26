@@ -49,7 +49,7 @@ export class AdminExperimentsController {
   @Get()
   @ApiOperation({ summary: 'Experiments with their latest report' })
   @ApiEnvelopeResponse(ExperimentDto, { isArray: true })
-  list(): Promise<ExperimentDto[]> {
+  listExperiments(): Promise<ExperimentDto[]> {
     return this.experiments.list();
   }
 
@@ -59,7 +59,7 @@ export class AdminExperimentsController {
   })
   @ApiEnvelopeResponse(ExperimentDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 409: [E.EXPERIMENT_STATE_INVALID] })
-  create(
+  createExperiment(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreateExperimentDto,
   ): Promise<ExperimentDto> {
@@ -75,7 +75,7 @@ export class AdminExperimentsController {
     404: [E.NOT_FOUND],
     409: [E.EXPERIMENT_STATE_INVALID],
   })
-  async start(
+  async startExperiment(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ExperimentIdParamDto,
     @Body() dto: StartExperimentDto,
@@ -93,7 +93,7 @@ export class AdminExperimentsController {
     404: [E.NOT_FOUND],
     409: [E.EXPERIMENT_STATE_INVALID],
   })
-  async traffic(
+  async setExperimentTraffic(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ExperimentIdParamDto,
     @Body() dto: StartExperimentDto,
@@ -107,7 +107,7 @@ export class AdminExperimentsController {
   @ApiOperation({ summary: 'Stop = roll back to the default behaviour (2FA)' })
   @ApiEnvelopeResponse(ExperimentDto)
   @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.EXPERIMENT_STATE_INVALID] })
-  async stop(
+  async stopExperiment(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ExperimentIdParamDto,
     @Body() dto: StopExperimentDto,
@@ -121,7 +121,7 @@ export class AdminExperimentsController {
   @ApiOperation({ summary: 'Recompute the report now' })
   @ApiEnvelopeResponse(ExperimentDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  refresh(@Param() p: ExperimentIdParamDto): Promise<ExperimentDto> {
+  refreshReport(@Param() p: ExperimentIdParamDto): Promise<ExperimentDto> {
     return this.experiments.refresh(p.id);
   }
 }
