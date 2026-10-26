@@ -26,7 +26,14 @@ void main() {
       const CallVideoLayout(),
     ),
     'grid_3': (callSessionGroup(3, video: true), const CallVideoLayout()),
+    'grid_4': (callSessionGroup(4, video: true), const CallVideoLayout()),
     'grid_5': (callSessionGroup(5, video: true), const CallVideoLayout()),
+    'grid_7': (callSessionGroup(7, video: true), const CallVideoLayout()),
+    'grid_4_controls_hidden': (
+      callSessionGroup(4, video: true),
+      const CallVideoLayout(controlsHidden: true),
+    ),
+    'audio_group_5': (callSessionGroup(5), const CallVideoLayout()),
     'focused_3': (
       callSessionGroup(3, video: true),
       const CallVideoLayout(focusId: 'u1'),
