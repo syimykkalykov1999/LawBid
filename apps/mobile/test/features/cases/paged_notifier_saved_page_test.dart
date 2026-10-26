@@ -100,4 +100,45 @@ void main() {
     await settle();
     expect(container.read(p).requireValue.items, ['pulled']);
   });
+
+  test('a failed pull-to-refresh keeps rows and does not throw', () async {
+    var calls = 0;
+    final p = make(
+      live: () async {
+        calls++;
+        if (calls == 1) return const CursorPage(items: ['a']);
+        throw StateError('offline');
+      },
+    );
+    await container.read(p.future);
+    await container.read(p.notifier).refresh();
+    expect(container.read(p).requireValue.items, ['a']);
+  });
+
+  test('refresh flag is visible to fetch only during refresh', () async {
+    final seen = <bool>[];
+    final provider = AsyncNotifierProvider<_Flag, PaginatedList<String>>(
+      () => _Flag(seen),
+    );
+    container = ProviderContainer();
+    addTearDown(container.dispose);
+    await container.read(provider.future);
+    await container.read(provider.notifier).refresh();
+    expect(seen, [false, true]);
+  });
+}
+
+class _Flag extends PagedNotifier<String> {
+  _Flag(this.seen);
+
+  final List<bool> seen;
+
+  @override
+  Future<CursorPage<String>> fetch(String? cursor) async {
+    seen.add(refreshing);
+    return const CursorPage(items: ['x']);
+  }
+
+  @override
+  Object idOf(String item) => item;
 }

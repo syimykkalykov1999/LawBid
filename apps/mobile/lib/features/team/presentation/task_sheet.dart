@@ -1366,7 +1366,7 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
               onTap: () async {
                 final picked =
                     await pickDateTime(context, initial: widget.currentDue);
-                if (picked != null) setState(() => _move = picked);
+                if (picked != null && mounted) setState(() => _move = picked);
               },
             ),
           ],
