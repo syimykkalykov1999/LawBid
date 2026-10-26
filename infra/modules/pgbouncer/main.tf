@@ -95,8 +95,8 @@ variable "max_client_conn" {
 }
 variable "query_wait_timeout" {
   type        = number
-  default     = 30
-  description = "Seconds a request may wait for a server connection before it fails."
+  default     = 10
+  description = "Seconds a request may wait for a server connection before it fails (10 = the app's own pool_timeout, so a waiter fails with the app error instead of hanging 30 s)."
 }
 variable "db_tls_mode" {
   type        = string
