@@ -28,6 +28,8 @@
  * page order of rows that differ only by case or accents can differ from a
  * single database's. Time, number and uuid orderings are exact.
  */
+import { Logger } from '@nestjs/common';
+
 type Obj = Record<string, unknown>;
 
 const isObj = (v: unknown): v is Obj =>
@@ -361,4 +363,78 @@ export function mergeScatter(
     default:
       throw new Error(`mergeScatter: unsupported ${op}`);
   }
+}
+
+/** Scatter operations that WRITE: a failure on one database must never be
+ * hidden behind the sum of the others (DB-ops hardening S5-10). */
+export const SCATTER_WRITE_OPS: ReadonlySet<string> = new Set([
+  'updateMany',
+  'deleteMany',
+]);
+
+/**
+ * A scatter write that succeeded on some databases and failed on others.
+ * The databases that succeeded KEEP their change (there is no cross-database
+ * transaction), so the caller must treat it as "partly applied": retry
+ * (updateMany / deleteMany by a filter are idempotent) or reconcile.
+ */
+export class ScatterPartialFailureError extends Error {
+  constructor(
+    readonly op: string,
+    readonly model: string,
+    readonly failed: string[],
+    readonly succeeded: string[],
+    readonly causes: unknown[],
+  ) {
+    super(
+      `scatter ${model}.${op} failed on database(s) ${failed.join(', ')}` +
+        (succeeded.length
+          ? ` but was applied on ${succeeded.join(', ')} (partial failure)`
+          : ''),
+    );
+    this.name = 'ScatterPartialFailureError';
+  }
+}
+
+const scatterLog = new Logger('Scatter');
+
+/**
+ * Runs [call] on every database. Reads keep the old behaviour (the first
+ * failure fails the whole query: a half answer would be wrong). Writes wait
+ * for ALL databases, then throw a [ScatterPartialFailureError] naming the
+ * failed ones and log `{metric: "scatter_partial_failure"}` (alarm in
+ * infra/modules/monitoring/db-health.tf) when only some failed; when every
+ * database failed the first error is rethrown unchanged.
+ */
+export async function runScatter(
+  op: string,
+  model: string,
+  keys: readonly string[],
+  call: (key: string) => Promise<unknown>,
+): Promise<unknown[]> {
+  if (!SCATTER_WRITE_OPS.has(op)) return Promise.all(keys.map(call));
+  const settled = await Promise.allSettled(keys.map(call));
+  const failed: string[] = [];
+  const succeeded: string[] = [];
+  const causes: unknown[] = [];
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled') succeeded.push(keys[i]);
+    else {
+      failed.push(keys[i]);
+      causes.push(r.reason);
+    }
+  });
+  if (failed.length === 0) {
+    return settled.map((r) => (r as PromiseFulfilledResult<unknown>).value);
+  }
+  if (succeeded.length === 0) throw causes[0];
+  scatterLog.error({
+    metric: 'scatter_partial_failure',
+    model,
+    op,
+    failed,
+    succeeded,
+    msg: 'scatter write applied on some databases only',
+  });
+  throw new ScatterPartialFailureError(op, model, failed, succeeded, causes);
 }

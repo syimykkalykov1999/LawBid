@@ -75,4 +75,46 @@ describe('DataRetentionService (scale audit 2026-10-23)', () => {
     expect(res).toMatchObject({ postViewEvents: 0, userActivityDays: 0 });
     expect(exec).not.toHaveBeenCalled();
   });
+
+  it('S5-3: trims done outbox rows (7 d) and inbox keys (30 d), never pending/dead', async () => {
+    const { svc, exec } = build({
+      'storage.retention_outbox_done_days': 7,
+      'storage.retention_inbox_days': 30,
+    });
+    const now = new Date('2026-10-25T00:00:00Z');
+    exec.mockResolvedValueOnce(11).mockResolvedValueOnce(4);
+    const res = await svc.run(now);
+    expect(res).toMatchObject({
+      crossFamilyOutboxDone: 11,
+      crossFamilyInbox: 4,
+    });
+    const outbox = exec.mock.calls.find((c) =>
+      sqlOf(c).includes('FROM cross_family_outbox'),
+    )!;
+    expect(sqlOf(outbox)).toContain("status = 'done'");
+    const cut = new Date(now.getTime() - 7 * DAY);
+    expect(
+      (outbox.slice(1) as unknown[]).some(
+        (v) => v instanceof Date && +v === +cut,
+      ),
+    ).toBe(true);
+    const inbox = exec.mock.calls.find((c) =>
+      sqlOf(c).includes('FROM cross_family_inbox'),
+    )!;
+    const cutIn = new Date(now.getTime() - 30 * DAY);
+    expect(
+      (inbox.slice(1) as unknown[]).some(
+        (v) => v instanceof Date && +v === +cutIn,
+      ),
+    ).toBe(true);
+  });
+
+  it('S5-3: 0 days keeps outbox and inbox (no statement)', async () => {
+    const { svc, exec } = build({
+      'storage.retention_outbox_done_days': 0,
+      'storage.retention_inbox_days': 0,
+    });
+    await svc.run();
+    expect(exec).not.toHaveBeenCalled();
+  });
 });
