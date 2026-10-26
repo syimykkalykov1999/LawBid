@@ -910,9 +910,20 @@ class ChatThread extends Notifier<ChatThreadState> {
           if (--left == 0) break;
         }
       }
-      // Merge (not replace): a message that arrived by realtime while the
-      // page was loading must stay.
-      _merge(page.items);
+      // The page replaces the list (a 409 reload must drop the stale copy),
+      // but a message that arrived by realtime while the page was loading
+      // (newer than the page) stays.
+      final pageIds = {for (final m in page.items) m.id};
+      final newestOnPage = page.items.firstOrNull?.createdAt;
+      final arrived = [
+        for (final m in state.messages)
+          if (!pageIds.contains(m.id) &&
+              newestOnPage != null &&
+              m.createdAt.isAfter(newestOnPage))
+            m,
+      ];
+      state = state.copyWith(messages: page.items);
+      _merge(arrived);
       state = state.copyWith(
         conversation: conv,
         unreadFromId: firstUnread,
