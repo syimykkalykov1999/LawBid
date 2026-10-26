@@ -337,8 +337,9 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   Future<bool> publish() async {
     if (state.isSubmitting || !state.stepValid) return false;
     state = state.copyWith(isSubmitting: true, clearError: true);
+    final String id;
     try {
-      final id = await ref.read(casesRepositoryProvider).createCase(
+      id = await ref.read(casesRepositoryProvider).createCase(
         state.draft,
         contactSharingConsent: state.needsConsent && state.consentChecked,
         photoFileIds: [
@@ -346,12 +347,6 @@ class CreateCaseController extends Notifier<CreateCaseState> {
             if (p.fileId != null) p.fileId!,
         ],
       );
-      await ref.read(localKvStoreProvider).setString(_consentKey, '1');
-      await ref.read(casesLocalDatabaseProvider).deleteDraft(_ownerId);
-      // Package E: the lists ask one `updatedSince` for the new case.
-      ref.read(caseListsTouchedProvider.notifier).bump();
-      state = state.copyWith(isSubmitting: false, publishedCaseId: id);
-      return true;
     } on ApiException catch (e) {
       // A reinstall forgets the local flag; the server is the truth.
       final consentMissing =
@@ -367,7 +362,29 @@ class CreateCaseController extends Notifier<CreateCaseState> {
             : null,
       );
       return false;
+    } on Object catch (e) {
+      // Never leave the form stuck on "submitting".
+      state = state.copyWith(
+        isSubmitting: false,
+        error: ApiException(
+          code: ApiErrorCodes.internalError,
+          message: e.toString(),
+        ),
+      );
+      return false;
     }
+    // The case exists now: housekeeping must not turn a success into a
+    // failure (a second Publish would create a duplicate).
+    try {
+      await ref.read(localKvStoreProvider).setString(_consentKey, '1');
+      await ref.read(casesLocalDatabaseProvider).deleteDraft(_ownerId);
+    } on Object {
+      // Best effort: a stale draft is cleaned on the next close.
+    }
+    // Package E: the lists ask one `updatedSince` for the new case.
+    ref.read(caseListsTouchedProvider.notifier).bump();
+    state = state.copyWith(isSubmitting: false, publishedCaseId: id);
+    return true;
   }
 
   void _scheduleSave() {
