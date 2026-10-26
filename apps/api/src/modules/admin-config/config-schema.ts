@@ -497,6 +497,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  out['ranking.events_mode'] = {
+    ...out['ranking.events_mode'],
+    description:
+      'Ranking events log: off, on, or auto (impressions only while an experiment runs).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ranking.impression_sample_percent'] = {
+    ...out['ranking.impression_sample_percent'],
+    min: 0,
+    max: 100,
+  };
   out['economy.ceiling_mode'] = {
     ...out['economy.ceiling_mode'],
     description:

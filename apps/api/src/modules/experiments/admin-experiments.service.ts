@@ -92,7 +92,9 @@ export class AdminExperimentsService {
       targetId: row.id,
       after: {
         key: row.key,
-        variants: JSON.parse(JSON.stringify(dto.variants)) as unknown,
+        variants: JSON.parse(
+          JSON.stringify(dto.variants),
+        ) as Prisma.InputJsonValue,
       },
       ip: admin.ip,
     });

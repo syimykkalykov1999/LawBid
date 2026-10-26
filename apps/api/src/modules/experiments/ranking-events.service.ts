@@ -40,6 +40,9 @@ export interface RankingEventInput {
   features?: Record<string, number> | null;
 }
 
+/** `ranking.events_mode`: «Выкл» / «Вкл» / «Авто (по сигналу)». */
+export type RankingEventsMode = 'off' | 'on' | 'auto';
+
 /** Rows wait in memory at most this long / this many before one batch insert. */
 const FLUSH_MS = 2000;
 const FLUSH_ROWS = 200;
@@ -62,7 +65,12 @@ export class RankingEventsService implements OnModuleDestroy {
   private timer: NodeJS.Timeout | null = null;
   private flushing = false;
   private dropped = 0;
-  private cfg: { at: number; enabled: boolean; sample: number } | null = null;
+  private cfg: {
+    at: number;
+    mode: RankingEventsMode;
+    running: boolean;
+    sample: number;
+  } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -77,17 +85,35 @@ export class RankingEventsService implements OnModuleDestroy {
     await this.add(kind, e);
   }
 
-  private async config(): Promise<{ enabled: boolean; sample: number }> {
+  private async config(): Promise<{
+    mode: RankingEventsMode;
+    running: boolean;
+    sample: number;
+  }> {
     const now = Date.now();
     if (this.cfg && now - this.cfg.at < SETTINGS_TTL_MS) return this.cfg;
     try {
-      const [enabled, sample] = await Promise.all([
-        this.settings.boolean('ranking.events_enabled'),
+      const [rawMode, sample] = await Promise.all([
+        this.settings.string('ranking.events_mode'),
         this.settings.number('ranking.impression_sample_percent'),
       ]);
-      this.cfg = { at: now, enabled, sample };
+      const mode: RankingEventsMode =
+        rawMode === 'on' || rawMode === 'off' ? rawMode : 'auto';
+      // «Авто»: the signal is "at least one experiment is running".
+      const running =
+        mode === 'auto'
+          ? (await this.prisma.experiment.count({
+              where: { status: 'running' },
+            })) > 0
+          : false;
+      this.cfg = { at: now, mode, running, sample };
     } catch {
-      this.cfg = this.cfg ?? { at: now, enabled: true, sample: 10 };
+      this.cfg = this.cfg ?? {
+        at: now,
+        mode: 'auto',
+        running: false,
+        sample: 10,
+      };
     }
     return this.cfg;
   }
@@ -98,13 +124,11 @@ export class RankingEventsService implements OnModuleDestroy {
   ): Promise<void> {
     try {
       const cfg = await this.config();
-      if (!cfg.enabled) return;
-      if (
-        SAMPLED_KINDS.has(kind) &&
-        e.userId &&
-        !inImpressionSample(e.userId, cfg.sample)
-      ) {
-        return;
+      if (cfg.mode === 'off') return;
+      if (SAMPLED_KINDS.has(kind)) {
+        // «Авто» without a running experiment: the high-volume kinds wait.
+        if (cfg.mode === 'auto' && !cfg.running) return;
+        if (e.userId && !inImpressionSample(e.userId, cfg.sample)) return;
       }
       if (this.buf.length >= MAX_BUFFER) {
         this.buf.shift();

@@ -433,8 +433,10 @@ export const OWNER_CONTINGENCY_SETTINGS = {
 // users (the same users every time), everything else is always kept; weeks
 // older than the retention leave by themselves.
 export const OWNER_EXPERIMENT_SETTINGS = {
-  /** Master switch of the ranking_events log (experiments still assign). */
-  'ranking.events_enabled': true,
+  /** Cost gate, three states: 'off' | 'on' | 'auto'. Auto stores impressions
+   * and clicks only while an experiment is running (bids, accepts, reports
+   * are always kept unless off). The sample percent below is the ceiling. */
+  'ranking.events_mode': 'auto',
   /** Share of users (0-100) whose impressions and clicks are stored. */
   'ranking.impression_sample_percent': 10,
   'ranking.events_retention_days': 90,

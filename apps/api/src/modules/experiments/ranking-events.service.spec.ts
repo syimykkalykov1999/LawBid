@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { RankingEventsService } from './ranking-events.service';
 
-function build(sample = 100, enabled = true) {
+function build(sample = 100, mode: string = 'on', running = true) {
   const createMany = jest
     .fn<
       Promise<{ count: number }>,
       [{ data: Array<Record<string, unknown>> }]
     >()
     .mockResolvedValue({ count: 0 });
-  const prisma = { rankingEvent: { createMany } };
+  const prisma = {
+    rankingEvent: { createMany },
+    experiment: { count: jest.fn().mockResolvedValue(running ? 1 : 0) },
+  };
   const settings = {
-    boolean: jest.fn().mockResolvedValue(enabled),
+    string: jest.fn().mockResolvedValue(mode),
     number: jest.fn().mockResolvedValue(sample),
   };
   const svc = new RankingEventsService(prisma as never, settings as never);
@@ -88,10 +91,25 @@ describe('RankingEventsService', () => {
   });
 
   it('writes nothing while the log is switched off', async () => {
-    const { svc, createMany } = build(100, false);
+    const { svc, createMany } = build(100, 'off');
     await svc.logAction('bid', base(randomUUID()));
     await svc.flush();
     expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it('auto: impressions wait while no experiment runs, then flow at the sample', async () => {
+    const idle = build(100, 'auto', false);
+    const u = randomUUID();
+    await idle.svc.logImpression(base(u));
+    await idle.svc.logAction('bid', base(u));
+    await idle.svc.flush();
+    expect(idle.createMany.mock.calls[0][0].data.map((r) => r.kind)).toEqual([
+      'bid',
+    ]);
+    const busy = build(100, 'auto', true);
+    await busy.svc.logImpression(base(u));
+    await busy.svc.flush();
+    expect(busy.createMany.mock.calls[0][0].data).toHaveLength(1);
   });
 
   it('never throws when the database fails', async () => {
