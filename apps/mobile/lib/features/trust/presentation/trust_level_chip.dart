@@ -26,8 +26,8 @@ import 'package:lawbid/features/trust/presentation/trust_level_sheet.dart';
         ),
       _ => (
           fill: colors.successTint,
-          fg: colors.success,
-          border: colors.success
+          fg: colors.verifiedGreen,
+          border: colors.verifiedGreen
         ),
     };
 
