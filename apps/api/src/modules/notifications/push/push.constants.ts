@@ -32,6 +32,25 @@ export const PUSH_JOB_OPTS = {
   removeOnFail: { count: 1000 },
 } as const;
 
+/**
+ * S10-5: BullMQ job priorities of the `push` queue (1 = served first, docs.
+ * bullmq.io/guide/jobs/prioritized). WhatsApp/Telegram keep a call ring out
+ * of the message path; with one FIFO queue a 50 000-subscriber channel post
+ * made a call ring (and an on-call alert) wait behind its push batch.
+ */
+export const PUSH_PRIORITY = {
+  /** A ringing call, a call-end and an on-call alert: seconds matter. */
+  urgent: 1,
+  /** A chat message. */
+  message: 3,
+  /** A stored notification (one person). */
+  notification: 5,
+  /** A group message's batches. */
+  group: 7,
+  /** Bulk fan-out of a notification type (a channel post's subscribers). */
+  bulk: 10,
+} as const;
+
 /** A stored notification: realtime + badge always, push when `push`
  * (first row of an aggregate, a push type). Jobs queued before file 05
  * carry only notificationId (push = true). */
