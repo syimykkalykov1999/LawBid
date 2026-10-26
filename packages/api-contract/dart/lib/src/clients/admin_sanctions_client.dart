@@ -12,7 +12,7 @@ import '../models/block_user_dto.dart';
 import '../models/create_ban_dto.dart';
 import '../models/kind.dart';
 import '../models/lift_ban_dto.dart';
-import '../models/status4.dart';
+import '../models/status3.dart';
 
 part 'admin_sanctions_client.g.dart';
 
@@ -31,7 +31,7 @@ abstract class AdminSanctionsClient {
     @Query('kind') Kind? kind,
     @Query('q') String? q,
     @Query('cursor') String? cursor,
-    @Query('status') Status4? status = Status4.active,
+    @Query('status') Status3? status = Status3.active,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -81,8 +81,9 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
   /// Owner 2026-10-05: a document template — the server copies it into
   /// the client's own case file (nothing is uploaded from the phone).
   Future<void> _fromTemplate() async {
+    if (_busy) return;
     final tpl = await pickTemplate(context);
-    if (tpl == null || !mounted) return;
+    if (tpl == null || !mounted || _busy) return;
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {
@@ -110,7 +111,7 @@ class _OwnerCaseDossierState extends ConsumerState<OwnerCaseDossier> {
   /// Uploads [files] (antivirus-checked case files) and saves the case's
   /// full file list: the existing ones first, then the new ones.
   Future<void> _add(List<({Uint8List bytes, String? name})> files) async {
-    if (files.isEmpty || !mounted) return;
+    if (files.isEmpty || !mounted || _busy) return;
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {

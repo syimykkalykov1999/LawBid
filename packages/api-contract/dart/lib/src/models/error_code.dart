@@ -226,12 +226,6 @@ enum ErrorCode {
   adminRecoveryFailed('ADMIN_RECOVERY_FAILED'),
   @JsonValue('ADMIN_TOTP_SETUP_REQUIRED')
   adminTotpSetupRequired('ADMIN_TOTP_SETUP_REQUIRED'),
-  @JsonValue('ADMIN_APPROVAL_PENDING')
-  adminApprovalPending('ADMIN_APPROVAL_PENDING'),
-  @JsonValue('ADMIN_APPROVAL_SELF')
-  adminApprovalSelf('ADMIN_APPROVAL_SELF'),
-  @JsonValue('ADMIN_APPROVAL_NOT_PENDING')
-  adminApprovalNotPending('ADMIN_APPROVAL_NOT_PENDING'),
   @JsonValue('CONTENT_BLOCKED')
   contentBlocked('CONTENT_BLOCKED'),
   @JsonValue('MODERATION_ACTION_NOT_APPLICABLE')

@@ -194,6 +194,12 @@ class _GroupConversationScreenState
       }
       if (!s.hasMore) break;
       await _thread.loadMore();
+      // The page did not come (failed / backing off): stop instead of spinning.
+      if (!mounted) return;
+      if (ref.read(groupThreadProvider(_key)).messages.length ==
+          s.messages.length) {
+        break;
+      }
     }
     if (mounted) showAppSnackBar(context, t.t('group.conv.jumpMissing'));
   }
@@ -249,14 +255,17 @@ class _GroupConversationScreenState
   Future<void> _saveEdit(String text) async {
     final m = _editing;
     if (m == null) return;
-    setState(() => _editing = null);
-    if (text == m.body.trim()) return;
+    if (text == m.body.trim()) {
+      setState(() => _editing = null);
+      return;
+    }
     try {
       await _thread.edit(m.id, text);
+      // Leaving edit mode also clears the field; a failure keeps the text.
+      if (mounted && _editing?.id == m.id) setState(() => _editing = null);
     } on Object catch (e) {
       if (!mounted) return;
       _error(e);
-      setState(() => _editing = m);
     }
   }
 
