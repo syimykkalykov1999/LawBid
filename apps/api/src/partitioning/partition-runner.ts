@@ -28,12 +28,16 @@ export interface PartitionSpec {
 }
 
 /**
- * Tables the online runner may convert later (whitelist: no free SQL names).
- * audit_log, auth_events and search_query_log are ALREADY partitioned by the
- * migration 20261026120000; `messages` and `notifications` are listed so the
- * admin card can say honestly why they cannot be converted yet.
+ * Tables the online runner may convert (whitelist: no free SQL names). Only
+ * when an admin starts it: no migration converts a table (expand-only,
+ * perf review 2026-10-26 R-20). audit_log and auth_events are append-only,
+ * nothing points at them, so they pass the prechecks; `messages` and
+ * `notifications` are listed so the admin card can say honestly why they
+ * cannot be converted by month.
  */
 export const PARTITION_TABLES: readonly PartitionSpec[] = [
+  { table: 'audit_log', key: 'created_at', label: 'Журнал действий админов' },
+  { table: 'auth_events', key: 'created_at', label: 'События входа' },
   {
     table: 'data_access_log',
     key: 'accessed_at',
@@ -43,10 +47,20 @@ export const PARTITION_TABLES: readonly PartitionSpec[] = [
   { table: 'messages', key: 'created_at', label: 'Сообщения чатов' },
 ];
 
-/** Partitioned by the migration; the daily job keeps their future months. */
-export const MIGRATED_PARTITIONED: readonly PartitionSpec[] = [
-  { table: 'audit_log', key: 'created_at', label: 'Журнал действий админов' },
-  { table: 'auth_events', key: 'created_at', label: 'События входа' },
+/**
+ * Partitioned by a migration: none. Kept as an (empty) list so the admin
+ * card and the daily job stay one code path if that ever changes.
+ */
+export const MIGRATED_PARTITIONED: readonly PartitionSpec[] = [];
+
+/**
+ * Tables whose future months the daily job keeps (the whitelist of the SQL
+ * function lawbid_ensure_month_partitions; it returns 0 for a plain table).
+ */
+export const MONTH_MAINTAINED: readonly string[] = [
+  'audit_log',
+  'auth_events',
+  'data_access_log',
 ];
 
 export function specOf(table: string): PartitionSpec | undefined {

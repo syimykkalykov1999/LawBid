@@ -115,7 +115,7 @@ erDiagram
     String device_id "nullable"
     String user_agent "nullable"
     Json meta "nullable"
-    DateTime created_at PK
+    DateTime created_at
     Int created_shard
   }
   legal_documents {
@@ -1243,7 +1243,7 @@ erDiagram
     Json before "nullable"
     Json after "nullable"
     String ip "nullable"
-    DateTime created_at PK
+    DateTime created_at
     Int created_shard
   }
   data_access_requests {

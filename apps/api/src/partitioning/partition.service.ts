@@ -5,6 +5,7 @@ import {
   FINALIZE_AFTER_DAYS,
   GROWTH_ALARM_ROWS,
   MIGRATED_PARTITIONED,
+  MONTH_MAINTAINED,
   PARTITION_TABLES,
   PartitionRunner,
   specOf,
@@ -59,10 +60,10 @@ export interface PartitionCard {
 }
 
 /**
- * Owner 2026-10-24: partitioning by month. The migration partitioned the
- * small append-only tables already; this service (1) keeps their future
- * months created (daily job), (2) advances an admin-started online
- * conversion of another table (every-minute job), (3) feeds the admin card
+ * Owner 2026-10-24: partitioning by month. No migration converts a table
+ * (expand-only); this service (1) keeps the future months of partitioned
+ * tables created (daily job), (2) advances an admin-started online
+ * conversion of a table (every-minute job; the only path that converts), (3) feeds the admin card
  * and the «table grew past 50 million rows» health signal.
  * The online conversion needs its own database role that OWNS the table
  * (`PARTITION_DATABASE_URL`); without it the card is read-only.
@@ -120,7 +121,8 @@ export class PartitionService implements OnModuleDestroy {
   }> {
     const created: Record<string, number> = {};
     const detached: Record<string, number> = {};
-    for (const s of MIGRATED_PARTITIONED) {
+    for (const table of MONTH_MAINTAINED) {
+      const s = { table };
       try {
         const r = await this.prisma.$queryRawUnsafe<{ n: number }[]>(
           `SELECT lawbid_ensure_month_partitions($1, $2)::int AS n`,
@@ -273,17 +275,19 @@ export class PartitionService implements OnModuleDestroy {
     top: { table: string; rows: number }[];
   }> {
     const rows = await this.prisma.$queryRawUnsafe<
-      { t: string; rows: number }[]
+      { t: string; rows: number; k: string }[]
     >(
-      `SELECT c.relname AS t,
+      `SELECT c.relname AS t, c.relkind::text AS k,
               CASE WHEN c.relkind = 'p'
                    THEN (SELECT COALESCE(sum(GREATEST(p.reltuples, 0)), 0) FROM pg_inherits i JOIN pg_class p ON p.oid = i.inhrelid WHERE i.inhparent = c.oid)
                    ELSE GREATEST(c.reltuples, 0) END::float8 AS rows
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND NOT c.relispartition
-        ORDER BY 2 DESC LIMIT 8`,
+        ORDER BY 3 DESC LIMIT 8`,
     );
-    const partitioned = new Set(MIGRATED_PARTITIONED.map((s) => s.table));
+    const partitioned = new Set(
+      (rows ?? []).filter((r) => r.k === 'p').map((r) => r.t),
+    );
     const all = (rows ?? []).map((r) => ({
       table: r.t,
       rows: Math.round(Number(r.rows)),
