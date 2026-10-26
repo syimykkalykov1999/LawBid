@@ -14,6 +14,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -315,6 +316,30 @@ export class SanctionResultDto {
   archivedCases!: number;
   @ApiProperty({ type: 'integer', description: 'Attorney bids withdrawn.' })
   withdrawnBids!: number;
+}
+
+/** Privacy round 13 (S13-7): the admin confirmed the person is a minor. */
+export class ConfirmMinorDto {
+  @ApiProperty({
+    maxLength: SANCTION_TEXT_MAX,
+    description: 'How the age was confirmed (audited, mandatory).',
+  })
+  @Transform(trim)
+  @IsString()
+  @MinLength(5)
+  @MaxLength(SANCTION_TEXT_MAX)
+  reason!: string;
+}
+
+export class MinorConfirmedDto {
+  @ApiProperty({ format: 'uuid' }) userId!: string;
+  @ApiProperty({
+    enum: ['erased', 'held', 'already', 'missing'],
+    enumName: 'MinorConfirmedOutcome',
+    description:
+      'erased: anonymized now; held: a legal hold defers it (the daily job retries); already: nothing left to do.',
+  })
+  outcome!: 'erased' | 'held' | 'already' | 'missing';
 }
 
 /** Owner 2026-10-01: support changes the phone on the user's request

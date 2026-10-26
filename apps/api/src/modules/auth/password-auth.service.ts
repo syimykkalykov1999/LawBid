@@ -421,7 +421,10 @@ export class PasswordAuthService {
   ): Promise<AuthTokensResult> {
     let account = user;
     let deletionCancelled = false;
-    if (user.status === 'deletion_pending') {
+    if (
+      user.status === 'deletion_pending' &&
+      (await this.auth.loginCancelsDeletion())
+    ) {
       account = await this.prisma.user.update({
         where: { id: user.id },
         data: { status: 'active', deletion_requested_at: null },

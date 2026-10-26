@@ -136,7 +136,6 @@ GET /admin/moderation/targets/{type}/{id} added the new `legal_answer` enum valu
 GET /admin/moderation/targets/{type}/{id} added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
->>>>>>> origin/claude/release-20oct
 # release-20oct: новые enum legal_answer/legal_question, типы contact/place, conversationId nullable у звонков (групповые) — все изменения намеренные, старых клиентов в магазинах ещё нет
 GET /admin/moderation/appeals added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
 GET /admin/moderation/appeals added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
@@ -426,6 +425,9 @@ POST /admin/system-health/scale added the new `cloudflare_usage` enum value to t
 GET /admin/economy added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
 POST /admin/economy/increase added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
 PATCH /admin/economy/settings added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
+GET /admin/email-templates added the new `account_deletion` enum value to the `data/items/key` response property for the response status `200`
+GET /admin/email-templates/{key}/{locale} added the new `account_deletion` enum value to the `data/key` response property for the response status `200`
+PUT /admin/email-templates/{key}/{locale} added the new `account_deletion` enum value to the `data/key` response property for the response status `200`
 GET /admin/legal/documents added the new `advertising_disclosure` enum value to the `data/items/docType` response property for the response status `200`
 GET /admin/legal/documents added the new `community_guidelines` enum value to the `data/items/docType` response property for the response status `200`
 GET /admin/legal/documents added the new `sms_terms` enum value to the `data/items/docType` response property for the response status `200`

@@ -8,6 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import type Redis from 'ioredis';
 import { randomBytes } from 'node:crypto';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
@@ -61,7 +62,15 @@ export class SocialAuthService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a new Apple / Google
     // account of a blocked fraudster (same subject, e-mail or device).
     @Optional() private readonly fraud?: ClientFraudService,
+    // Privacy round 13 (S13-14): `privacy.login_cancels_deletion`.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  private async loginCancelsDeletion(): Promise<boolean> {
+    return (
+      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? false
+    );
+  }
 
   async login(
     dto: SocialLoginDto,
@@ -168,7 +177,10 @@ export class SocialAuthService {
         message: 'This account has been deleted.',
       });
     }
-    if (user.status === 'deletion_pending') {
+    if (
+      user.status === 'deletion_pending' &&
+      (await this.loginCancelsDeletion())
+    ) {
       // docs/01_FOUNDATION_AUTH.md §10.7: "можно отменить входом" — any
       // successful authentication during the grace period cancels the
       // pending deletion, social login included.

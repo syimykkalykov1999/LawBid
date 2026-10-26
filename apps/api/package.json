@@ -31,6 +31,8 @@
     "db:erd": "ts-node --transpile-only scripts/generate-erd.ts",
     "db:erd:fast": "bash ../../scripts/dev/skip-if-unchanged.sh api-erd apps/api/prisma/schema.prisma apps/api/scripts/generate-erd.ts -- docs/db/ERD.md -- npm run db:erd --workspace apps/api",
     "openapi:export": "nest build && node dist/src/openapi/export-openapi.js",
+    "privacy:reapply-erasures": "node dist/src/cli/reapply-erasures.js",
+    "breach:affected": "node dist/src/cli/breach-affected.js",
     "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js",
     "i18n:import": "node dist/src/cli/import-translations.js",
     "flags:sync": "ts-node --transpile-only scripts/sync-flag-defaults.ts",

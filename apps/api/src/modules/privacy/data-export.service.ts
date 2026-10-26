@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { ConfigService } from '@nestjs/config';
@@ -25,10 +25,88 @@ function toJson(value: unknown): string {
   );
 }
 
+/** Rows per page of a streamed table. */
+const PAGE = 1000;
+
+interface PageArgs {
+  take: number;
+  cursor?: { id: string };
+  skip?: number;
+}
+interface OffsetArgs {
+  take: number;
+  skip: number;
+}
+
+/** Pages of a table keyed by a unique `id`: keyset (cursor) paging. */
+async function* byId<T extends { id: string | bigint }>(
+  run: (page: PageArgs) => Promise<T[]>,
+  map?: (row: T) => unknown,
+): AsyncGenerator<unknown[]> {
+  let cursor: string | undefined;
+  for (;;) {
+    const rows = await run({
+      take: PAGE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    if (rows.length === 0) return;
+    yield map ? rows.map(map) : rows;
+    if (rows.length < PAGE) return;
+    cursor = String(rows[rows.length - 1].id);
+  }
+}
+
+/** Pages of a table with a composite key: offset paging (small tables). */
+async function* byOffset<T>(
+  run: (page: OffsetArgs) => Promise<T[]>,
+): AsyncGenerator<unknown[]> {
+  for (let skip = 0; ; skip += PAGE) {
+    const rows = await run({ take: PAGE, skip });
+    if (rows.length === 0) return;
+    yield rows;
+    if (rows.length < PAGE) return;
+  }
+}
+
+/** A JSON array, written page by page. */
+async function* array(pages: AsyncIterable<unknown[]>): AsyncGenerator<string> {
+  yield '[';
+  let first = true;
+  for await (const page of pages) {
+    for (const row of page) {
+      yield `${first ? '\n' : ',\n'}${toJson(row)}`;
+      first = false;
+    }
+  }
+  yield first ? ']\n' : '\n]\n';
+}
+
+/** One JSON value (a row, a small object). */
+async function* value(v: unknown): AsyncGenerator<string> {
+  yield toJson(await v);
+}
+
+/** A JSON object whose members are streamed in turn. */
+async function* object(
+  members: Record<string, () => AsyncGenerator<string>>,
+): AsyncGenerator<string> {
+  yield '{';
+  let first = true;
+  for (const [key, make] of Object.entries(members)) {
+    yield `${first ? '\n' : ',\n'}${JSON.stringify(key)}: `;
+    first = false;
+    yield* make();
+  }
+  yield '\n}\n';
+}
+
 /**
  * docs/06 §5.2: collects the user's own data (profile, cases, bids, posts,
- * comments, likes, own messages, consents, devices) into JSON files inside
- * one ZIP, stores it in the private documents bucket, records the `files`
+ * comments, likes, own messages, consents, devices and — round 13 — group
+ * messages, reviews, consultations, payments, notifications, follows, push
+ * devices, contact sync, stories, search history, calls, support tickets,
+ * journal events and contact disclosures) into JSON files inside
+ * one ZIP, streamed page by page, stores it in the private documents bucket, records the `files`
  * row and the `data_export_jobs` result, then notifies (push row + email
  * with a 24-hour link).
  */
@@ -48,154 +126,480 @@ export class DataExportService {
     this.logger.setContext(DataExportService.name);
   }
 
-  async collect(userId: string): Promise<Record<string, unknown>> {
+  /**
+   * Every file of the export as a lazy stream of JSON text (S13-8). Nothing
+   * is read until the ZIP reaches the entry, and tables are read in pages of
+   * {@link PAGE} rows, so a heavy user costs a few pages of memory, not the
+   * whole archive.
+   */
+  sources(userId: string): Record<string, () => AsyncGenerator<string>> {
     const p = this.prisma;
-    const [
-      user,
-      clientProfile,
-      attorneyProfile,
-      consents,
-      privacySettings,
-      sessions,
-      cases,
-      bids,
-      posts,
-      comments,
-      postLikes,
-      commentLikes,
-      messages,
-      caseComments,
-      caseCommentLikes,
-    ] = await Promise.all([
-      p.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-          status: true,
-          first_name: true,
-          last_name: true,
-          email: true,
-          email_verified_at: true,
-          phone_e164: true,
-          phone_verified_at: true,
-          ui_language: true,
-          theme: true,
-          created_at: true,
-        },
-      }),
-      p.clientProfile.findUnique({ where: { user_id: userId } }),
-      p.attorneyProfile.findUnique({
-        where: { user_id: userId },
-        include: { licenses: true, practice_areas: true },
-      }),
-      p.userConsent.findMany({ where: { user_id: userId } }),
-      p.userPrivacySettings.findUnique({ where: { user_id: userId } }),
-      p.session.findMany({
-        where: { user_id: userId },
-        select: {
-          id: true,
-          device_id: true,
-          device_name: true,
-          platform: true,
-          app_version: true,
-          ip: true,
-          created_at: true,
-          last_used_at: true,
-          revoked_at: true,
-        },
-        orderBy: { created_at: 'desc' },
-      }),
-      p.case.findMany({ where: { client_id: userId } }),
-      p.bid.findMany({ where: { attorney_id: userId } }),
-      p.post.findMany({ where: { author_id: userId } }),
-      p.comment.findMany({ where: { author_id: userId } }),
-      p.postLike.findMany({ where: { user_id: userId } }),
-      p.commentLike.findMany({ where: { user_id: userId } }),
-      p.message.findMany({
-        where: { sender_id: userId },
-        select: {
-          id: true,
-          conversation_id: true,
-          type: true,
-          body_original: true,
-          // OQ-040: voice notes (the file id; audio stays in storage).
-          file_id: true,
-          duration_ms: true,
-          created_at: true,
-        },
-        orderBy: { created_at: 'asc' },
-      }),
-      // OQ-034: comments under cases.
-      p.caseComment.findMany({ where: { author_id: userId } }),
-      p.caseCommentLike.findMany({ where: { user_id: userId } }),
-    ]);
+    const cipher = this.cipher;
+    const mine = { OR: [{ client_id: userId }, { attorney_id: userId }] };
+    const fetchById =
+      <T extends { id: string }>(
+        run: (page: PageArgs) => Promise<T[]>,
+        map?: (row: T) => unknown,
+      ) =>
+      () =>
+        byId(run, map);
+    const fetchByOffset =
+      <T>(run: (page: OffsetArgs) => Promise<T[]>) =>
+      () =>
+        byOffset(run);
     return {
-      'profile.json': { user, clientProfile, attorneyProfile },
-      'consents.json': consents,
+      'profile.json': () =>
+        object({
+          user: () =>
+            value(
+              p.user.findUnique({
+                where: { id: userId },
+                select: {
+                  id: true,
+                  role: true,
+                  status: true,
+                  first_name: true,
+                  last_name: true,
+                  email: true,
+                  email_verified_at: true,
+                  phone_e164: true,
+                  phone_verified_at: true,
+                  ui_language: true,
+                  theme: true,
+                  created_at: true,
+                },
+              }),
+            ),
+          clientProfile: () =>
+            value(p.clientProfile.findUnique({ where: { user_id: userId } })),
+          attorneyProfile: () =>
+            value(
+              p.attorneyProfile.findUnique({
+                where: { user_id: userId },
+                include: { licenses: true, practice_areas: true },
+              }),
+            ),
+        }),
+      'consents.json': () =>
+        array(
+          fetchById((a) =>
+            p.userConsent.findMany({
+              where: { user_id: userId },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
       // Owner 2026-10-22 (CCPA): the audience settings and the current
       // «Do not sell or share» answer (the history is in consents.json).
-      'privacy.json': {
-        settings: privacySettings,
-        doNotSell:
-          [...consents]
-            .filter((c) => c.consent_type === 'do_not_sell')
-            .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())[0]
-            ?.granted ?? false,
-      },
-      'devices.json': sessions,
-      // S3-5: the private details are stored sealed; the owner gets plain text.
-      'cases.json': cases.map((c) => ({
-        ...c,
-        private_details:
-          c.private_details === null
-            ? null
-            : (this.cipher?.openField(
-                c.private_details,
-                privateDetailsAad(c.id),
-              ) ?? c.private_details),
-      })),
-      'bids.json': bids,
-      'posts.json': posts,
-      'comments.json': { posts: comments, cases: caseComments },
-      'likes.json': {
-        posts: postLikes,
-        comments: commentLikes,
-        caseComments: caseCommentLikes,
-      },
-      'messages.json': messages.map((m) => ({
-        ...m,
-        body_original:
-          this.cipher?.open(m.body_original, m.id) ?? m.body_original,
-      })),
+      'privacy.json': () =>
+        value(
+          (async () => {
+            const [settings, latest] = await Promise.all([
+              p.userPrivacySettings.findUnique({ where: { user_id: userId } }),
+              p.userConsent.findFirst({
+                where: { user_id: userId, consent_type: 'do_not_sell' },
+                orderBy: { created_at: 'desc' },
+              }),
+            ]);
+            return { settings, doNotSell: latest?.granted ?? false };
+          })(),
+        ),
+      'devices.json': () =>
+        array(
+          fetchById((a) =>
+            p.session.findMany({
+              where: { user_id: userId },
+              select: {
+                id: true,
+                device_id: true,
+                device_name: true,
+                platform: true,
+                app_version: true,
+                ip: true,
+                created_at: true,
+                last_used_at: true,
+                revoked_at: true,
+              },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'cases.json': () =>
+        array(
+          fetchById(
+            (a) =>
+              p.case.findMany({
+                where: { client_id: userId },
+                orderBy: { id: 'asc' },
+                ...a,
+              }),
+            // S3-5: the private details are stored sealed; the owner gets plain text.
+            (c) => ({
+              ...c,
+              private_details:
+                c.private_details === null
+                  ? null
+                  : (cipher?.openField(
+                      c.private_details,
+                      privateDetailsAad(c.id),
+                    ) ?? c.private_details),
+            }),
+          )(),
+        ),
+      'bids.json': () =>
+        array(
+          fetchById((a) =>
+            p.bid.findMany({
+              where: { attorney_id: userId },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'posts.json': () =>
+        array(
+          fetchById((a) =>
+            p.post.findMany({
+              where: { author_id: userId },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'comments.json': () =>
+        object({
+          posts: () =>
+            array(
+              fetchById((a) =>
+                p.comment.findMany({
+                  where: { author_id: userId },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          // OQ-034: comments under cases.
+          cases: () =>
+            array(
+              fetchById((a) =>
+                p.caseComment.findMany({
+                  where: { author_id: userId },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'likes.json': () =>
+        object({
+          posts: () =>
+            array(
+              fetchByOffset((a) =>
+                p.postLike.findMany({
+                  where: { user_id: userId },
+                  orderBy: [{ created_at: 'asc' }, { post_id: 'asc' }],
+                  ...a,
+                }),
+              )(),
+            ),
+          comments: () =>
+            array(
+              fetchByOffset((a) =>
+                p.commentLike.findMany({
+                  where: { user_id: userId },
+                  orderBy: [{ created_at: 'asc' }, { comment_id: 'asc' }],
+                  ...a,
+                }),
+              )(),
+            ),
+          caseComments: () =>
+            array(
+              fetchByOffset((a) =>
+                p.caseCommentLike.findMany({
+                  where: { user_id: userId },
+                  orderBy: [{ created_at: 'asc' }, { comment_id: 'asc' }],
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'messages.json': () =>
+        array(
+          byId(
+            (a) =>
+              p.message.findMany({
+                where: { sender_id: userId },
+                select: {
+                  id: true,
+                  conversation_id: true,
+                  type: true,
+                  body_original: true,
+                  // OQ-040: voice notes (the file id; audio stays in storage).
+                  file_id: true,
+                  duration_ms: true,
+                  created_at: true,
+                },
+                orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+                ...a,
+              }),
+            (m) => ({
+              ...m,
+              body_original:
+                cipher?.open(m.body_original, m.id) ?? m.body_original,
+            }),
+          ),
+        ),
+      // ---- round 13 (S13-8): the product areas that were missing ----
+      'group-messages.json': () =>
+        array(
+          fetchById((a) =>
+            p.chatGroupMessage.findMany({
+              where: { sender_id: userId },
+              orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+              ...a,
+            }),
+          )(),
+        ),
+      'reviews.json': () =>
+        object({
+          ofAttorneys: () =>
+            array(
+              fetchById((a) =>
+                p.review.findMany({
+                  where: mine,
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          ofClients: () =>
+            array(
+              fetchById((a) =>
+                p.clientReview.findMany({
+                  where: mine,
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'consultations.json': () =>
+        array(
+          fetchById((a) =>
+            p.consultation.findMany({
+              where: mine,
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'payments.json': () =>
+        object({
+          subscription: () =>
+            value(p.subscription.findUnique({ where: { user_id: userId } })),
+          casePayments: () =>
+            array(
+              fetchById((a) =>
+                p.casePayment.findMany({
+                  where: mine,
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'notifications.json': () =>
+        array(
+          fetchById((a) =>
+            p.notification.findMany({
+              where: { user_id: userId },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'follows.json': () =>
+        object({
+          following: () =>
+            array(
+              fetchByOffset((a) =>
+                p.follow.findMany({
+                  where: { follower_id: userId },
+                  orderBy: [{ created_at: 'asc' }, { followee_id: 'asc' }],
+                  ...a,
+                }),
+              )(),
+            ),
+          followers: () =>
+            array(
+              fetchByOffset((a) =>
+                p.follow.findMany({
+                  where: { followee_id: userId },
+                  orderBy: [{ created_at: 'asc' }, { follower_id: 'asc' }],
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'push-tokens.json': () =>
+        array(
+          fetchById((a) =>
+            p.pushToken.findMany({
+              where: { user_id: userId },
+              select: {
+                id: true,
+                platform: true,
+                created_at: true,
+              },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'contact-sync.json': () =>
+        value(
+          (async () => ({
+            settings: await p.contactSyncSetting.findUnique({
+              where: { user_id: userId },
+            }),
+            // The uploaded phone book is one-way hashes of other people's
+            // numbers: the count is exported, not the hashes.
+            storedNumbers: await p.contactBookHash.count({
+              where: { owner_id: userId },
+            }),
+          }))(),
+        ),
+      'stories.json': () =>
+        array(
+          fetchById((a) =>
+            p.story.findMany({
+              where: { author_id: userId },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'search-history.json': () =>
+        array(
+          byOffset((a) =>
+            p.searchQueryLog.findMany({
+              where: { user_id: userId },
+              select: { q: true, scope: true, lang: true, created_at: true },
+              orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+              ...a,
+            }),
+          ),
+        ),
+      'calls.json': () =>
+        object({
+          started: () =>
+            array(
+              fetchById((a) =>
+                p.call.findMany({
+                  where: { caller_id: userId },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          joined: () =>
+            array(
+              fetchById((a) =>
+                p.callParticipant.findMany({
+                  where: { user_id: userId },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'support.json': () =>
+        object({
+          tickets: () =>
+            array(
+              fetchById((a) =>
+                p.supportTicket.findMany({
+                  where: { user_id: userId },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          // Admin-only notes are not the person's data to receive.
+          messages: () =>
+            array(
+              (async function* () {
+                const tickets = await p.supportTicket.findMany({
+                  where: { user_id: userId },
+                  select: { id: true },
+                  take: 5000,
+                });
+                const ids = tickets.map((t) => t.id);
+                yield* byId((a) =>
+                  p.supportMessage.findMany({
+                    where: { internal: false, ticket_id: { in: ids } },
+                    orderBy: { id: 'asc' },
+                    ...a,
+                  }),
+                );
+              })(),
+            ),
+        }),
+      'journal.json': () =>
+        array(
+          fetchById((a) =>
+            p.caseJournal.findMany({
+              where: mine,
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'contact-disclosures.json': () =>
+        array(
+          fetchById((a) =>
+            p.contactDisclosure.findMany({
+              where: mine,
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
     };
   }
 
-  async zip(
-    files: Record<string, unknown>,
-    generatedAt: Date,
-  ): Promise<Buffer> {
+  /** All files as plain values (tests and small tools; the worker streams). */
+  async collect(userId: string): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    for (const [name, make] of Object.entries(this.sources(userId))) {
+      let text = '';
+      for await (const chunk of make()) text += chunk;
+      out[name] = JSON.parse(text) as unknown;
+    }
+    return out;
+  }
+
+  /** The ZIP as a stream: README first, then every source as its own entry.
+   * archiver reads the entries one after the other, so only the page being
+   * written is in memory. */
+  archive(userId: string, generatedAt: Date): archiver.Archiver {
     const archive = archiver('zip', { zlib: { level: 9 } });
-    const chunks: Buffer[] = [];
-    const finished = new Promise<void>((resolve, reject) => {
-      archive.on('end', resolve);
-      archive.on('error', reject);
-    });
-    archive.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const sources = this.sources(userId);
     archive.append(
       toJson({
         generatedAt: generatedAt.toISOString(),
-        files: Object.keys(files),
+        files: Object.keys(sources),
         note: 'LawBid data export (docs/06 §5.2).',
       }),
       { name: 'README.json' },
     );
-    for (const [name, value] of Object.entries(files)) {
-      archive.append(toJson(value), { name });
+    for (const [name, make] of Object.entries(sources)) {
+      archive.append(Readable.from(make(), { objectMode: false }), { name });
     }
-    await archive.finalize();
-    await finished;
-    return Buffer.concat(chunks);
+    void archive.finalize();
+    return archive;
   }
 
   /** The worker body: builds, stores, records and notifies. */
@@ -222,10 +626,16 @@ export class DataExportService {
     });
     if (count === 0) return { bytes: 0 };
     const now = new Date();
-    const zip = await this.zip(await this.collect(job.user_id), now);
     const bucket = this.storage.bucket('documents');
     const key = `exports/user-data/${job.user_id}/${exportId}.zip`;
-    await this.storage.put(bucket, key, zip, 'application/zip');
+    // S13-8: streamed — rows are read in pages and the ZIP goes to storage
+    // as a multipart upload; nothing holds the whole archive.
+    const stored = await this.storage.putStream(
+      bucket,
+      key,
+      this.archive(job.user_id, now),
+      'application/zip',
+    );
     const expiresAt = new Date(now.getTime() + DATA_EXPORT_LINK_TTL_SEC * 1000);
     const file = await this.prisma.file.create({
       data: {
@@ -234,8 +644,8 @@ export class DataExportService {
         s3_bucket: bucket,
         s3_key: key,
         mime: 'application/zip',
-        size_bytes: BigInt(zip.length),
-        sha256: createHash('sha256').update(zip).digest('hex'),
+        size_bytes: BigInt(stored.bytes),
+        sha256: stored.sha256,
         scan_status: 'clean',
       },
     });
@@ -281,6 +691,6 @@ export class DataExportService {
         );
       }
     }
-    return { bytes: zip.length };
+    return { bytes: stored.bytes };
   }
 }

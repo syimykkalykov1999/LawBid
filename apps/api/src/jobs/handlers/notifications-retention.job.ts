@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { Prisma } from '@prisma/client';
 import { heldSql } from '../../common/privacy/legal-hold';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Rows per DELETE: small transactions, no long locks. */

@@ -67,8 +67,6 @@ export class SessionsCleanupJob {
     const revokedBefore = new Date(
       now.getTime() - REVOKED_SESSION_RETENTION_DAYS * 24 * 60 * 60 * 1000,
     );
-    // Owner 2026-10-28: a legal hold on a person keeps their sessions (login
-    // evidence) even when expired.
     let cursor = ZERO_UUID;
     let scanned = 0;
     let deleted = 0;
@@ -89,7 +87,7 @@ export class SessionsCleanupJob {
             WHERE (expires_at < ${now}
                OR (revoked_at < ${revokedBefore}
                    AND revoked_reason IS DISTINCT FROM 'rotated'))
-              AND NOT ${heldSql('user', Prisma.sql`user_id`)}
+              AND NOT ${heldSql('user', Prisma.sql`batch.user_id`)}
           )
           RETURNING id
         )

@@ -8,11 +8,16 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
+import {
+  ACCOUNT_ERASER,
+  type AccountEraser,
+} from '../../common/privacy/privacy.ports';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -43,6 +48,7 @@ import type {
   AdminUsersQueryDto,
   SanctionResultDto,
   PhoneChangedDto,
+  MinorConfirmedDto,
 } from './admin-users.dto';
 
 export const USERS_AUDIT = {
@@ -52,6 +58,7 @@ export const USERS_AUDIT = {
   restore: 'users.restore',
   phoneChanged: 'users.phone_changed',
   passwordReset: 'users.password_reset',
+  minorConfirmed: 'users.minor_confirmed',
 } as const;
 
 const LIST_DEFAULT = 20;
@@ -132,6 +139,11 @@ export class AdminUsersService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a block re-scores the
     // accounts that share a phone, e-mail, card or device with this one.
     @Optional() private readonly fraud?: ClientFraudService,
+    // Privacy round 13 (S13-7): «minor confirmed» erases without the grace
+    // period (PrivacyModule provides it).
+    @Optional()
+    @Inject(ACCOUNT_ERASER)
+    private readonly eraser?: AccountEraser,
   ) {}
 
   async search(
@@ -771,6 +783,41 @@ export class AdminUsersService {
 
   /** Sanctions apply to clients and attorneys; admins are managed in
    * /admin/admins; deleted accounts are out of reach. */
+  /**
+   * Privacy round 13 (S13-7): the person is confirmed to be under 18. The
+   * account is anonymized NOW (no 14-day grace period) and its fraud hashes
+   * (phone, e-mail, device) keep blocking a new sign-up; a legal hold still
+   * defers the erasure. 2FA step-up is checked by the controller; the audit
+   * row carries the reason. No second admin is involved.
+   */
+  async confirmMinor(
+    admin: AdminActor,
+    id: string,
+    reason: string,
+  ): Promise<MinorConfirmedDto> {
+    const u = await this.target(id);
+    if (!this.eraser) {
+      throw new HttpException(
+        {
+          code: ErrorCode.INTERNAL_ERROR,
+          message: 'Erasure is not available.',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    const outcome = await this.eraser.eraseNow(id, 'minor_confirmed');
+    await this.audit.record({
+      adminId: admin.id,
+      action: USERS_AUDIT.minorConfirmed,
+      targetType: 'user',
+      targetId: id,
+      before: { status: u.status },
+      after: { outcome, reason },
+      ip: admin.ip,
+    });
+    return { userId: id, outcome };
+  }
+
   private async target(id: string) {
     const u = await this.prisma.user.findUnique({
       where: { id },

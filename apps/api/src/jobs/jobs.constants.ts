@@ -45,6 +45,14 @@ export const CRON_JOBS = {
   searchIndex: 'search.index',
   /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
   ledgerReconcile: 'ledger.reconcile',
+  /** Privacy round 13 (S13-5): audit_log / data_access_log past their
+   * policy period, IP of old sessions and contact disclosures. Holds skip. */
+  privacyRetention: 'privacy.retention',
+  /** Privacy round 13 (S13-1/S13-10): ledger copies to the bucket, erased
+   * people out of the search index again, failed deletion steps counted. */
+  privacyReconcile: 'privacy.reconcile',
+  /** Privacy round 13 (S13-14): "will be deleted tomorrow" at day 13. */
+  privacyDeletionNotices: 'privacy.deletion-notices',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -253,6 +261,11 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
   // Nightly, after Stripe has settled the previous day (UTC).
   { name: CRON_JOBS.ledgerReconcile, pattern: '15 5 * * *' },
+  // Privacy round 13: retention after the storage one, reconcile after the
+  // daily anonymization (02:10), the day-13 notice in the US morning.
+  { name: CRON_JOBS.privacyRetention, pattern: '45 3 * * *' },
+  { name: CRON_JOBS.privacyReconcile, pattern: '30 5 * * *' },
+  { name: CRON_JOBS.privacyDeletionNotices, pattern: '20 15 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
   // Every minute: applies cross-family events a request could not (retries

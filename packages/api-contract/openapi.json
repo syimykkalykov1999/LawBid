@@ -8815,6 +8815,123 @@
         ]
       }
     },
+    "/admin/users/{id}/minor-confirmed": {
+      "post": {
+        "operationId": "confirmMinor",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmMinorDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinorConfirmedEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Privacy round 13: the person is a minor — erase the account now (no 14-day grace) and keep the fraud hashes blocking",
+        "tags": [
+          "admin-users"
+        ]
+      }
+    },
     "/admin/users/{id}/warn": {
       "post": {
         "operationId": "warnUser",
@@ -30769,6 +30886,73 @@
             "bearer": []
           }
         ],
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/me/deletion/cancel": {
+      "post": {
+        "operationId": "cancelDeletion",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionCancelledEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cancel a pending account deletion (privacy round 13): a sign-in does not do it by itself any more",
         "tags": [
           "users"
         ]
@@ -57283,7 +57467,8 @@
                 "new_device",
                 "sign_in_changed",
                 "data_export",
-                "notification"
+                "notification",
+                "account_deletion"
               ]
             }
           },
@@ -57408,7 +57593,8 @@
                 "new_device",
                 "sign_in_changed",
                 "data_export",
-                "notification"
+                "notification",
+                "account_deletion"
               ]
             }
           },
@@ -57543,7 +57729,8 @@
                 "new_device",
                 "sign_in_changed",
                 "data_export",
-                "notification"
+                "notification",
+                "account_deletion"
               ]
             }
           },
@@ -57663,7 +57850,8 @@
                 "new_device",
                 "sign_in_changed",
                 "data_export",
-                "notification"
+                "notification",
+                "account_deletion"
               ]
             }
           },
@@ -57800,7 +57988,8 @@
                 "new_device",
                 "sign_in_changed",
                 "data_export",
-                "notification"
+                "notification",
+                "account_deletion"
               ]
             }
           },
@@ -118529,6 +118718,65 @@
           "data"
         ]
       },
+      "MinorConfirmedOutcome": {
+        "type": "string",
+        "enum": [
+          "erased",
+          "held",
+          "already",
+          "missing"
+        ],
+        "description": "erased: anonymized now; held: a legal hold defers it (the daily job retries); already: nothing left to do."
+      },
+      "MinorConfirmedDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "description": "erased: anonymized now; held: a legal hold defers it (the daily job retries); already: nothing left to do.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MinorConfirmedOutcome"
+              }
+            ]
+          }
+        },
+        "required": [
+          "userId",
+          "outcome"
+        ]
+      },
+      "ConfirmMinorDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 500,
+            "description": "How the age was confirmed (audited, mandatory)."
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "MinorConfirmedEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MinorConfirmedDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "WarnUserDto": {
         "type": "object",
         "properties": {
@@ -131803,6 +132051,32 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/DeletionPendingDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "DeletionCancelledDto": {
+        "type": "object",
+        "properties": {
+          "cancelled": {
+            "type": "boolean",
+            "description": "True when a pending deletion was cancelled; false when there was none."
+          }
+        },
+        "required": [
+          "cancelled"
+        ]
+      },
+      "DeletionCancelledEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeletionCancelledDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -145669,7 +145943,8 @@
               "new_device",
               "sign_in_changed",
               "data_export",
-              "notification"
+              "notification",
+              "account_deletion"
             ],
             "type": "string"
           },
@@ -145781,7 +146056,8 @@
               "new_device",
               "sign_in_changed",
               "data_export",
-              "notification"
+              "notification",
+              "account_deletion"
             ],
             "type": "string"
           },

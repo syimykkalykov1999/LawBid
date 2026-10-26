@@ -390,6 +390,9 @@ export class AuthService {
     // by the Lua verify script above, so a failure here can't be silently
     // retried with the same code either way — a bigger transaction
     // wouldn't change that failure mode, only delay it).
+    // Privacy round 13 (S13-14): a sign-in does not cancel an erasure
+    // request unless the owner switched the old behaviour back on.
+    const cancelsOnLogin = await this.loginCancelsDeletion();
     const { user, isNewUser, deletionCancelled } = await withTxRetry(
       this.prisma,
       async (tx) => {
@@ -398,7 +401,7 @@ export class AuthService {
           identifier,
           tx,
         );
-        if (found.user.status === 'deletion_pending') {
+        if (found.user.status === 'deletion_pending' && cancelsOnLogin) {
           const updated = await tx.user.update({
             where: { id: found.user.id },
             data: { status: 'active', deletion_requested_at: null },
@@ -424,6 +427,13 @@ export class AuthService {
       identifier,
       deviceInfo,
       meta,
+    );
+  }
+
+  /** Setting `privacy.login_cancels_deletion` (default off). */
+  async loginCancelsDeletion(): Promise<boolean> {
+    return (
+      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? false
     );
   }
 
