@@ -18,7 +18,10 @@ import { bullOptions } from '../../redis/redis-connection';
 export type MediaCheckJobData =
   | { kind: 'file'; fileId: string }
   | { kind: 'video'; videoAssetId: string }
-  | { kind: 'rehide'; checkId: string };
+  | { kind: 'rehide'; checkId: string }
+  /** S10-6: hourly sweep that re-applies hidden verdicts whose delayed
+   * rehide job Redis lost. */
+  | { kind: 'rehide_sweep' };
 
 const JOB_OPTS = {
   attempts: 4,

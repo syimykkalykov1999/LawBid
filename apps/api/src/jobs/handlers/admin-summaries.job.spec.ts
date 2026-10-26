@@ -4,6 +4,9 @@ function make(peek: unknown) {
   const dashboard = { refresh: jest.fn().mockResolvedValue(undefined) };
   const billing = { refreshOverview: jest.fn().mockResolvedValue(undefined) };
   const trust = { refreshScan: jest.fn().mockResolvedValue(undefined) };
+  const analytics = {
+    refreshSnapshots: jest.fn().mockResolvedValue(undefined),
+  };
   const summary = { peek: jest.fn().mockResolvedValue(peek) };
   const logger = { setContext: jest.fn(), warn: jest.fn() };
   const job = new AdminSummariesJob(
@@ -11,6 +14,7 @@ function make(peek: unknown) {
     billing as never,
     trust as never,
     summary as never,
+    analytics as never,
     logger as never,
   );
   return { job, dashboard, billing, trust, logger };
@@ -20,7 +24,7 @@ describe('AdminSummariesJob', () => {
   it('recounts the dashboard, billing and (when stale) the trust scan', async () => {
     const { job, dashboard, billing, trust } = make(null);
     await expect(job.run()).resolves.toEqual({
-      refreshed: ['dashboard', 'billing-overview', 'trust-scan'],
+      refreshed: ['dashboard', 'analytics', 'billing-overview', 'trust-scan'],
       failed: [],
     });
     expect(dashboard.refresh).toHaveBeenCalledTimes(1);
@@ -42,7 +46,11 @@ describe('AdminSummariesJob', () => {
     dashboard.refresh.mockRejectedValue(new Error('db down'));
     const out = await job.run();
     expect(out.failed).toEqual(['dashboard']);
-    expect(out.refreshed).toEqual(['billing-overview', 'trust-scan']);
+    expect(out.refreshed).toEqual([
+      'analytics',
+      'billing-overview',
+      'trust-scan',
+    ]);
     expect(billing.refreshOverview).toHaveBeenCalled();
     expect(trust.refreshScan).toHaveBeenCalled();
     expect(logger.warn).toHaveBeenCalled();
