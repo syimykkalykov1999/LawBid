@@ -25,6 +25,7 @@ class TemplatesRepository {
   Future<CursorPage<DocTemplate>> list(
     TemplatesQuery q, {
     String? cursor,
+    bool fresh = false,
   }) async {
     final env = await guardApiCall(
       () => _api.listDocumentTemplates(
@@ -32,7 +33,11 @@ class TemplatesRepository {
         state: q.state,
         sort: q.newest ? api.TemplateSort.valueNew : api.TemplateSort.popular,
         cursor: cursor,
-        extras: cursor == null ? cacheFor(const Duration(hours: 24)) : null,
+        // Pull-to-refresh (fresh) skips the 24 h local copy; the server is
+        // still asked with If-None-Match, so an unchanged list costs a 304.
+        extras: cursor == null
+            ? cacheFor(fresh ? Duration.zero : const Duration(hours: 24))
+            : null,
       ),
     );
     return CursorPage(
