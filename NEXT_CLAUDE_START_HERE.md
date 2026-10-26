@@ -1223,3 +1223,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 16:26 merged #255 (dependabot nestjs-pino).
 - NEXT after helpers report: 16:38 merged #253 (dependabot twilio 6.2.0).
 - NEXT after helpers report: 16:57 merged #426 (SWITCH_INVENTORY sorted → fewer conflicts). Train re-merging main into open PRs.
+- NEXT after helpers report: 17:39 merged #386 (bid best_match ranking).
