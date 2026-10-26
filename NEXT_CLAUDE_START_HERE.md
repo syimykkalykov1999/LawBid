@@ -1220,3 +1220,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 15:51 merged #405 (demo reauth skip).
 - NEXT after helpers report: 16:03 merged #252 (dependabot libphonenumber).
 - NEXT after helpers report: 16:05 train opened #426 (sort SWITCH_INVENTORY rows by key → stops ~20 PRs conflicting on that file after every merge); merge it first when green.
+- NEXT after helpers report: 16:26 merged #255 (dependabot nestjs-pino).
