@@ -92,6 +92,20 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'How many reels ahead the app warms (playlist + first segment, up to 1 MB each) while someone swipes. Video traffic is the biggest cost: lower it to save money, 0 = no warm-up.',
   },
+  'client.video_cache_mb': {
+    default: 100,
+    min: 0,
+    max: 1000,
+    description:
+      'Disk ceiling of the phone’s video chunk cache, megabytes (the first seconds of each video are kept so replays and scroll-back start at once and cost no CDN traffic). 0 = cache off.',
+  },
+  'client.video_cache_chunk_s': {
+    default: 4,
+    min: 1,
+    max: 15,
+    description:
+      'How many seconds from the start of each video the phone keeps in the video cache. More = more disk and a little more traffic per video.',
+  },
   'client.resume_refresh_min_away_s': {
     default: 30,
     min: 5,

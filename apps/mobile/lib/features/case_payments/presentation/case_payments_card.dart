@@ -58,25 +58,39 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
     }
   }
 
-  void _refresh() => ref.invalidate(casePaymentsStateProvider(widget.caseId));
+  /// Silent in-flight guard for the card's actions: a second tap while one
+  /// is running is ignored (no visual change).
+  bool _busy = false;
+
+  void _refresh() {
+    if (!mounted) return;
+    ref.invalidate(casePaymentsStateProvider(widget.caseId));
+  }
 
   /// Two taps: «Оплатить» on the invoice, then Stripe's page.
   Future<void> _payRequest(PaymentRequest r) async {
+    if (_busy) return;
+    _busy = true;
     expectExternalReturn();
     final t = ref.read(translatorProvider);
     try {
       final start =
           await ref.read(casePaymentsRepositoryProvider).payRequest(r);
+      if (!mounted) return;
       _refresh();
       if (!await openCheckout(start.checkoutUrl) && mounted) {
         showAppSnackBar(context, t.t('plans.cantOpen'));
       }
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      _busy = false;
     }
   }
 
   Future<void> _acceptFee(PaymentRequest r) async {
+    if (_busy) return;
+    _busy = true;
     final t = ref.read(translatorProvider);
     try {
       await ref
@@ -86,6 +100,8 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
       if (mounted) showAppSnackBar(context, t.t('cpay.fee.accepted'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      _busy = false;
     }
   }
 
@@ -167,6 +183,8 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
   }
 
   Future<void> _cancelRequest(PaymentRequest r) async {
+    if (_busy) return;
+    _busy = true;
     final t = ref.read(translatorProvider);
     try {
       await ref.read(casePaymentsRepositoryProvider).cancelRequest(r.id);
@@ -174,10 +192,14 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
       if (mounted) showAppSnackBar(context, t.t('cpay.req.canceled'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      _busy = false;
     }
   }
 
   Future<void> _receipt(CasePayment p) async {
+    if (_busy) return;
+    _busy = true;
     final t = ref.read(translatorProvider);
     try {
       final bytes =
@@ -189,16 +211,22 @@ class _CasePaymentsCardState extends ConsumerState<CasePaymentsCard>
       );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      _busy = false;
     }
   }
 
   Future<void> _cancelPending(CasePayment p) async {
+    if (_busy) return;
+    _busy = true;
     final t = ref.read(translatorProvider);
     try {
       await ref.read(casePaymentsRepositoryProvider).cancel(p.id);
       _refresh();
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      _busy = false;
     }
   }
 
@@ -513,6 +541,7 @@ class _PaySheetState extends ConsumerState<PaySheet> {
   Future<void> _refreshQuote() async {
     final a = _amountCents;
     if (a == null || !_amountOk) {
+      _quoteSeq++; // drop any in-flight quote for the old amount
       setState(() => _quote = null);
       return;
     }
