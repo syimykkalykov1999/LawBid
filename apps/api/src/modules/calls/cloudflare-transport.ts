@@ -52,6 +52,7 @@ const reportKey = (p: CfPart) => `calls:cf:report:${p}`;
 const reporterKey = (p: CfPart, u: string) => `calls:cf:reporter:${p}:${u}`;
 const relayFailKey = (p: CfPart) => `calls:cf:relayfail:${p}`;
 const verifyKey = (p: CfPart) => `calls:cf:verify:${p}`;
+const okProbeKey = (p: CfPart) => `calls:cf:okprobe:${p}`;
 
 /** Owner 2026-10-26 (failover): phones report a dead Cloudflare relay; the
  * reports open the breaker when enough phones say so AND they are a real
@@ -76,6 +77,12 @@ export const CF_RELAY_PROBE_FAIL_OPEN = 2;
 /** A phone's relay report is verified from the API with one real Allocate
  * at most this often fleet-wide (CF-6). */
 export const CF_VERIFY_EVERY_MS = 10_000;
+/** FO-6 (switch-back hysteresis): while open, this many good probes IN A
+ * ROW close the breaker — a flapping Cloudflare must not bounce fresh group
+ * calls between the SFU and the mesh once a minute. */
+export const CF_BREAKER_CLOSE_OK_PROBES = 3;
+/** A good-probe streak nobody extended for this long is forgotten. */
+const CF_OK_PROBE_FORGET_MS = 10 * CF_BREAKER_PROBE_MS;
 
 /** How many phone reports count right now: the admin minimum, shrunk at
  * small scale to at least [CF_CLIENT_REPORT_FLOOR] phones and half of the
@@ -108,6 +115,9 @@ export interface CfBreakerState {
   since: number | null;
   /** Failures counted in the current window. */
   failures: number;
+  /** While open: good probes in a row so far (closes at
+   * [CF_BREAKER_CLOSE_OK_PROBES]); 0 when closed. */
+  probeOkStreak: number;
 }
 
 /** The last breaker probe (shown in Admin -> Integrations -> «Связь для
@@ -135,6 +145,7 @@ export class CloudflareTransport {
     reporter: new Map<string, number>(),
     relayFail: new Map<CfPart, { count: number; until: number }>(),
     verify: new Map<CfPart, number>(),
+    okProbe: new Map<CfPart, { count: number; until: number }>(),
   };
   /** Called once when THIS instance opened the breaker (the running SFU
    * calls are moved to our own path then; owner 2026-10-26 failover). */
@@ -212,27 +223,32 @@ export class CloudflareTransport {
       try {
         // Two plain GETs, not one MGET: the keys may live on different
         // slots of a Redis cluster (redis-cluster-scan.spec.ts).
-        const [open, fails] = await Promise.all([
+        const [open, fails, oks] = await Promise.all([
           r.get(openKey(part)),
           r.get(failKey(part)),
+          r.get(okProbeKey(part)),
         ]);
         const since = open ? Number(open) : NaN;
         return {
           open: Boolean(open),
           since: Number.isFinite(since) ? since : null,
           failures: Number(fails ?? 0) || 0,
+          probeOkStreak: open ? Number(oks ?? 0) || 0 : 0,
         };
       } catch {
         // Redis hiccup: read as closed (Cloudflare stays primary).
-        return { open: false, since: null, failures: 0 };
+        return { open: false, since: null, failures: 0, probeOkStreak: 0 };
       }
     }
     const f = this.mem.fail.get(part);
     const since = this.mem.open.get(part) ?? null;
+    const ok = this.mem.okProbe.get(part);
     return {
       open: since !== null,
       since,
       failures: f && f.until > this.now() ? f.count : 0,
+      probeOkStreak:
+        since !== null && ok && ok.until > this.now() ? ok.count : 0,
     };
   }
 
@@ -316,6 +332,21 @@ export class CloudflareTransport {
   /** Runs [fn] whenever THIS instance opens the breaker of a part. */
   onOpen(fn: (part: CfPart) => void): void {
     this.openListeners.push(fn);
+  }
+
+  /**
+   * CF-1: a configuration failure (refused key, unknown App ID) opens the
+   * breaker at once — every call would fail the same way, so N in M would
+   * only cost N broken call starts. The minute probe with the CURRENT keys
+   * brings Cloudflare back (after [CF_BREAKER_CLOSE_OK_PROBES] good ones).
+   * Returns true when this call opened it. Never throws.
+   */
+  async trip(part: CfPart, what: string, why: string): Promise<boolean> {
+    try {
+      return await this.open(part, what, why);
+    } catch {
+      return false;
+    }
   }
 
   /** A windowed counter (Redis INCR + PEXPIRE, or in memory). */
@@ -490,12 +521,17 @@ export class CloudflareTransport {
     this.mem.last.set(part, p);
   }
 
-  /** Back to Cloudflare: the open mark and the failure count are dropped. */
+  /** Back to Cloudflare: the open mark, the failure count and the good-probe
+   * streak are dropped. */
   async close(part: CfPart): Promise<void> {
     const r = this.live;
     if (r) {
       try {
-        await Promise.all([r.del(openKey(part)), r.del(failKey(part))]);
+        await Promise.all([
+          r.del(openKey(part)),
+          r.del(failKey(part)),
+          r.del(okProbeKey(part)),
+        ]);
       } catch {
         // The next probe tries again.
       }
@@ -503,6 +539,30 @@ export class CloudflareTransport {
     }
     this.mem.open.delete(part);
     this.mem.fail.delete(part);
+    this.mem.okProbe.delete(part);
+  }
+
+  /** FO-6: one more good probe while open; the streak so far. */
+  private bumpOkProbe(part: CfPart): Promise<number> {
+    return this.bump(
+      okProbeKey(part),
+      this.mem.okProbe,
+      part,
+      CF_OK_PROBE_FORGET_MS,
+    );
+  }
+
+  private async clearOkProbe(part: CfPart): Promise<void> {
+    const r = this.live;
+    if (r) {
+      try {
+        await r.del(okProbeKey(part));
+      } catch {
+        // The next failed probe clears it.
+      }
+      return;
+    }
+    this.mem.okProbe.delete(part);
   }
 
   /** One slot per [everyMs] fleet-wide (SET NX PX), or in memory. */
@@ -565,8 +625,9 @@ export class CloudflareTransport {
 
   /**
    * While open: asks Cloudflare once (at most every 60 s across all API
-   * instances). Success closes the breaker, so the next NEW call is on
-   * Cloudflare again. Resolves true when it closed. Never throws.
+   * instances). [CF_BREAKER_CLOSE_OK_PROBES] successes in a row close the
+   * breaker (FO-6), so the next NEW call is on Cloudflare again. Resolves
+   * true when it closed. Never throws.
    */
   async maybeProbe(
     part: CfPart,
@@ -585,7 +646,10 @@ export class CloudflareTransport {
    * API is seen. While open: success closes the breaker. While closed: a
    * failure counts as a Cloudflare failure (N in M) and
    * [CF_RELAY_PROBE_FAIL_OPEN] failures in a row open the breaker by
-   * themselves. Resolves true when this probe closed the breaker. Never
+   * themselves. FO-6: while open, one good probe is not enough — the
+   * breaker closes after [CF_BREAKER_CLOSE_OK_PROBES] good probes in a row
+   * (a failed one resets the run), so a flapping Cloudflare stays on the
+   * backup path. Resolves true when this probe closed the breaker. Never
    * throws.
    */
   async probe(
@@ -609,7 +673,9 @@ export class CloudflareTransport {
       } catch {
         // Counting only.
       }
-      if (!wasOpen) {
+      if (wasOpen) {
+        await this.clearOkProbe(part);
+      } else {
         const why = `relay probe: ${(e as Error)?.message ?? 'failed'}`;
         const inARow = await this.bumpRelayFail(part);
         const opened = await this.recordFailure(part, why);
@@ -630,9 +696,16 @@ export class CloudflareTransport {
     });
     await this.clearRelayFail(part);
     if (!wasOpen) return false;
+    const streak = await this.bumpOkProbe(part);
+    if (streak < CF_BREAKER_CLOSE_OK_PROBES) {
+      this.logger.log(
+        `Cloudflare ${part.toUpperCase()} answered the probe (${streak} of ${CF_BREAKER_CLOSE_OK_PROBES} in a row needed): calls stay on our own path for now`,
+      );
+      return false;
+    }
     await this.close(part);
     this.logger.log(
-      `Cloudflare ${part.toUpperCase()} answers again: new calls use Cloudflare`,
+      `Cloudflare ${part.toUpperCase()} answers again (${streak} good probes in a row): new calls use Cloudflare`,
     );
     return true;
   }

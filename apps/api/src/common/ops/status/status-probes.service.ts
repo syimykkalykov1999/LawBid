@@ -15,6 +15,10 @@ import {
 } from '../../../modules/calls/cloudflare-relay-probe';
 import { CloudflareSfuProvider } from '../../../modules/calls/cloudflare-sfu.provider';
 import {
+  CLOUDFLARE_SFU_APP_NOT_FOUND_HINT,
+  CloudflareSfuError,
+} from '../../../modules/calls/cloudflare-sfu.client';
+import {
   CloudflareTransport,
   type CfPart,
 } from '../../../modules/calls/cloudflare-transport';
@@ -68,6 +72,21 @@ export const WATCHED = [
 /** Outside services are asked at most this often (Cloudflare has no status
  * endpoint of its own: each probe is a real, tiny request). */
 export const OUTSIDE_PROBE_CACHE_MS = 120_000;
+
+/** CF-1 / TS-6: the red dot of the SFU names the cause — a wrong or
+ * not-yet-live App ID is not «did not open a session». */
+export function sfuProbeErrorText(e: unknown): string {
+  if (e instanceof CloudflareSfuError) {
+    if (e.isConfigFailure && e.status === 404) {
+      return CLOUDFLARE_SFU_APP_NOT_FOUND_HINT;
+    }
+    if (e.isConfigFailure) {
+      return `Cloudflare rejected the App ID / App Secret (HTTP ${e.status})`;
+    }
+    return e.message;
+  }
+  return 'Cloudflare SFU did not open a session';
+}
 /** The probe credential lives only this long. */
 const PROBE_TURN_TTL_SEC = 300;
 /** Owner 2026-10-26 (failover): the last «Проверить» of the calls card. */
@@ -452,6 +471,9 @@ export class StatusProbesService implements OnModuleDestroy {
       breaker: st.open ? 'open' : 'closed',
       breakerSince: st.since ? new Date(st.since).toISOString() : null,
       failures: st.failures,
+      // FO-6: good probes in a row so far (the breaker closes at
+      // CF_BREAKER_CLOSE_OK_PROBES).
+      probeOkStreak: st.probeOkStreak,
     };
   }
 
@@ -531,26 +553,28 @@ export class StatusProbesService implements OnModuleDestroy {
     const path = await this.callPath('sfu', () => sfu.probe());
     const probe = await this.cached('cloudflare_sfu', async () => {
       const started = Date.now();
-      const ok = await sfu.healthy();
-      return ok
-        ? {
-            status: 'green' as const,
-            detail: {
-              configured: true,
-              inUse: true,
-              ok: true,
-              answerMs: Date.now() - started,
-            },
-          }
-        : {
-            status: 'red' as const,
-            detail: {
-              configured: true,
-              inUse: true,
-              ok: false,
-              error: 'Cloudflare SFU did not open a session',
-            },
-          };
+      try {
+        await sfu.probe();
+        return {
+          status: 'green' as const,
+          detail: {
+            configured: true,
+            inUse: true,
+            ok: true,
+            answerMs: Date.now() - started,
+          },
+        };
+      } catch (e) {
+        return {
+          status: 'red' as const,
+          detail: {
+            configured: true,
+            inUse: true,
+            ok: false,
+            error: sfuProbeErrorText(e),
+          },
+        };
+      }
     });
     return this.withPath(probe, path);
   }

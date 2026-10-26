@@ -138,6 +138,20 @@ SFU group   any /calls/:id/sfu/* answers 503 CALL_MEDIA_UNAVAILABLE (5xx, timeou
             phone is kept and makes it ask the server
             never moves back mid-call (per-call stickiness); new calls return by themselves
 
+SFU errors (audit 2026-10-26, group A2): the API client retries ONE transient failure
+            (5xx / timeout / 429 / Cloudflare's in-body transient codes) after 200–400 ms inside
+            the per-session queue; only what still fails reaches the broker:
+              5xx / timeout / backend_error …  one failure of N in M, 503 → the call moves
+              404 on the App (wrong / fresh App ID), 401/403   breaker opens at once, 503 →
+                     moves; admin status + «Проверить»: «App ID не найден … до 60 с»
+              429 (50 req/s per session)       429 RATE_LIMITED to that phone, never counted
+              session gone (404 / session_error) 409 reason session_gone → open a new session
+              tracks/update (layer)             counts, but 409: never moves the call
+            sessions/new of a NEW call: 2 s attempt, ≤ 2.5 s budget (one retry) — a dead SFU
+            means mesh within 3 s; while the breaker is open sessions/new answers 503 at once.
+            Switch-back: the breaker closes only after 3 good probes in a row (one a minute):
+            a flapping Cloudflare keeps fresh group calls on the mesh.
+
 «Reconnecting…»  CallSession.reconnecting becomes true only after the drop lasted
                  kCallReconnectingDelay (3 s) — a relay switch or the swap is not seen.
 ```

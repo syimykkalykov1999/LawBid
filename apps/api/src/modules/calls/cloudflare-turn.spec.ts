@@ -1,6 +1,10 @@
 import { CallsService, DEFAULT_STUN_URLS } from './calls.service';
 import type { RelayCheck } from './cloudflare-relay-probe';
-import { CloudflareTransport } from './cloudflare-transport';
+import {
+  CF_BREAKER_CLOSE_OK_PROBES,
+  CF_BREAKER_PROBE_MS,
+  CloudflareTransport,
+} from './cloudflare-transport';
 import { clearCloudflareTurnCache } from './cloudflare-turn';
 
 /** The relay answers STUN and allocates (unit tests never touch UDP). */
@@ -329,21 +333,29 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     const still = await svc.iceServers(u(3));
     expect(isOwn(still)).toBe(true);
     expect(isCf(still)).toBe(false);
-    // The relay answers again: the next probe closes it.
+    // The relay answers again: FO-6 — three good probes in a row close it.
     (svc as unknown as { relayCheck: RelayCheck }).relayCheck = relayAlive;
-    now += 60_000;
+    for (let k = 1; k < CF_BREAKER_CLOSE_OK_PROBES; k++) {
+      now += CF_BREAKER_PROBE_MS;
+      await svc.iceServers(u(10 + k));
+      await flush();
+      expect(isCf(await svc.iceServers(u(20 + k)))).toBe(false); // not yet
+    }
+    now += CF_BREAKER_PROBE_MS;
     await svc.iceServers(u(4));
     await flush();
     expect(isCf(await svc.iceServers(u(5)))).toBe(true);
   });
 
-  it('probe success closes the breaker: the next new call is on Cloudflare again', async () => {
+  it('probe success closes the breaker (after three good minutes, FO-6): the next new call is on Cloudflare again', async () => {
+    let now = 20_000_000;
     const fetchMock = jest.fn(fail);
     global.fetch = fetchMock as never;
     const svc = make({
       cf,
       turn: ownTurn,
       settings: { 'calls.transport_fail_limit': 2 },
+      now: () => now,
     });
     await svc.iceServers(u(1));
     await svc.iceServers(u(2));
@@ -351,6 +363,13 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     const during = await svc.iceServers(u(3)); // never waits for the probe
     expect(isOwn(during)).toBe(true);
     await flush();
+    // One good probe: still own-first (a flapping Cloudflare must not bounce calls).
+    expect(isCf(await svc.iceServers(u(30)))).toBe(false);
+    for (let k = 2; k <= CF_BREAKER_CLOSE_OK_PROBES; k++) {
+      now += CF_BREAKER_PROBE_MS;
+      await svc.iceServers(u(30 + k));
+      await flush();
+    }
     const after = await svc.iceServers(u(4));
     expect(isCf(after)).toBe(true);
     // Own TURN stays offered, after Cloudflare again.
@@ -436,16 +455,21 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
         : ok(),
     );
     global.fetch = fetchMock as never;
+    let now = 30_000_000;
     const svc = make({
       turn: ownTurn,
       keys: () => keys,
       settings: { 'calls.transport_fail_limit': 2 },
+      now: () => now,
     });
     expect(isOwn(await svc.iceServers(u(1)))).toBe(true); // still connects
     await svc.iceServers(u(2)); // opens
     keys = { keyId: 'goodkey123', apiToken: TOKEN }; // owner fixes the key
-    await svc.iceServers(u(3)); // probe with the NEW key
-    await flush();
+    for (let k = 1; k <= CF_BREAKER_CLOSE_OK_PROBES; k++) {
+      await svc.iceServers(u(40 + k)); // probe with the NEW key (3 in a row, FO-6)
+      await flush();
+      now += CF_BREAKER_PROBE_MS;
+    }
     expect(isCf(await svc.iceServers(u(4)))).toBe(true);
   });
 });

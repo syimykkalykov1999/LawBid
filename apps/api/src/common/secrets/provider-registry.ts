@@ -87,7 +87,16 @@ export interface ProviderDefinition {
 
 const TIMEOUT_MS = 8_000;
 
-async function probe(url: string, init: RequestInit): Promise<void> {
+/** TS-6: a Cloudflare App / TURN key created a moment ago answers 404 for
+ * up to 60 s; «Проверить» must say so instead of a bare «HTTP 404». */
+export const CLOUDFLARE_FRESH_KEY_404 =
+  'Cloudflare ещё не раздал новый App / ключ (ID не найден, до 60 с после создания). Подождите минуту и нажмите «Проверить» снова; если не помогает — проверьте ID.';
+
+async function probe(
+  url: string,
+  init: RequestInit,
+  opts: { notFound?: string } = {},
+): Promise<void> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
@@ -97,6 +106,7 @@ async function probe(url: string, init: RequestInit): Promise<void> {
         `Rejected by the provider (HTTP ${res.status}): wrong key?`,
       );
     }
+    if (res.status === 404 && opts.notFound) throw new Error(opts.notFound);
     if (!res.ok) throw new Error(`Provider answered HTTP ${res.status}`);
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
@@ -552,6 +562,7 @@ export const PROVIDERS: ProviderDefinition[] = [
           },
           body: JSON.stringify({ ttl: 60 }),
         },
+        { notFound: CLOUDFLARE_FRESH_KEY_404 },
       ),
   },
   {
@@ -589,6 +600,7 @@ export const PROVIDERS: ProviderDefinition[] = [
             'content-type': 'application/json',
           },
         },
+        { notFound: CLOUDFLARE_FRESH_KEY_404 },
       ),
   },
   {

@@ -1,9 +1,11 @@
 import { StatusProbesService, WATCHED } from './status-probes.service';
 import type { RelayCheck } from '../../../modules/calls/cloudflare-relay-probe';
 import {
+  CF_BREAKER_CLOSE_OK_PROBES,
   CF_BREAKER_PROBE_MS,
   CloudflareTransport,
 } from '../../../modules/calls/cloudflare-transport';
+import { CLOUDFLARE_SFU_APP_NOT_FOUND_HINT } from '../../../modules/calls/cloudflare-sfu.client';
 
 /** The relay answers STUN and allocates (unit tests never touch UDP). */
 const relayAlive: RelayCheck = (target) =>
@@ -116,13 +118,23 @@ describe('StatusProbesService outside probes', () => {
     now += CF_BREAKER_PROBE_MS;
     const two = await p.cloudflareTurn();
     expect(two.detail).toMatchObject({ breaker: 'open', path: 'own' });
-    // The relay allocates again: the next minute closes it.
+    // The relay allocates again: FO-6 — three good minutes in a row close it.
     (p as unknown as { relayCheck: RelayCheck }).relayCheck = relayAlive;
+    for (let k = 1; k < CF_BREAKER_CLOSE_OK_PROBES; k++) {
+      now += CF_BREAKER_PROBE_MS;
+      const notYet = await p.cloudflareTurn();
+      expect(notYet.detail).toMatchObject({
+        breaker: 'open',
+        path: 'own',
+        probeOkStreak: k,
+      });
+    }
     now += CF_BREAKER_PROBE_MS;
     const three = await p.cloudflareTurn();
     expect(three.detail).toMatchObject({
       breaker: 'closed',
       path: 'cloudflare',
+      probeOkStreak: 0,
     });
   });
 
@@ -195,6 +207,21 @@ describe('StatusProbesService outside probes', () => {
       Promise.resolve(new Response('x', { status: 500 })),
     ) as never;
     expect((await make(sfu, settings).cloudflareSfu()).status).toBe('red');
+  });
+
+  it('CF-1 / TS-6: cloudflare_sfu is red with the App ID hint when Cloudflare answers 404 for the App', async () => {
+    const sfu = { cloudflare_sfu: { appId: 'a', appToken: 't' } };
+    global.fetch = jest.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ errorCode: 'not_found' }), {
+          status: 404,
+        }),
+      ),
+    ) as never;
+    const r = await make(sfu, {}).cloudflareSfu();
+    expect(r.status).toBe('red');
+    expect(r.detail.error).toBe(CLOUDFLARE_SFU_APP_NOT_FOUND_HINT);
+    expect(String(r.detail.error)).toContain('App ID не найден');
   });
 
   it('the dot says which path NEW calls take: cloudflare, or own while the breaker is open', async () => {

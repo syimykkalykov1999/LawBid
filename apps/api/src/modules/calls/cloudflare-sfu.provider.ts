@@ -2,6 +2,7 @@ import type { ConfigService } from '@nestjs/config';
 import type { SecretsService } from '../../common/secrets/secrets.service';
 import {
   CloudflareSfuClient,
+  type CloudflareSfuClientOptions,
   type CloudflareSfuCreds,
 } from './cloudflare-sfu.client';
 import type { VideoCallProvider } from './video-call-provider';
@@ -20,6 +21,8 @@ export class CloudflareSfuProvider implements VideoCallProvider {
     private readonly secrets: Pick<SecretsService, 'get'> | undefined,
     private readonly config: Pick<ConfigService, 'get'> | undefined,
     private readonly fetchImpl: typeof fetch = fetch,
+    /** Timeouts / backoff of the client (tests pass a no-op sleep). */
+    private readonly clientOpts: CloudflareSfuClientOptions = {},
   ) {}
 
   async creds(): Promise<CloudflareSfuCreds | null> {
@@ -43,7 +46,9 @@ export class CloudflareSfuProvider implements VideoCallProvider {
 
   async client(): Promise<CloudflareSfuClient | null> {
     const c = await this.creds();
-    return c ? new CloudflareSfuClient(c, this.fetchImpl) : null;
+    return c
+      ? new CloudflareSfuClient(c, this.fetchImpl, this.clientOpts)
+      : null;
   }
 
   /** One real `sessions/new` with the CURRENT keys (a restored key counts at

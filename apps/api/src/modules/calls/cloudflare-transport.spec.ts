@@ -1,4 +1,5 @@
 import {
+  CF_BREAKER_CLOSE_OK_PROBES,
   CF_BREAKER_PROBE_MS,
   CF_VERIFY_EVERY_MS,
   CloudflareTransport,
@@ -116,11 +117,19 @@ describe('CloudflareTransport (shared breaker, owner 2026-10-26)', () => {
     expect(await a.maybeProbe('turn', probe)).toBe(false);
     expect(await b.maybeProbe('turn', probe)).toBe(false);
     expect(probe).toHaveBeenCalledTimes(1);
-    now += CF_BREAKER_PROBE_MS;
     probe.mockResolvedValue(undefined);
+    // FO-6: three good probes in a row (one a minute, fleet-wide) close it.
+    for (let k = 1; k < CF_BREAKER_CLOSE_OK_PROBES; k++) {
+      now += CF_BREAKER_PROBE_MS;
+      expect(await (k % 2 ? b : a).maybeProbe('turn', probe)).toBe(false);
+      expect(await a.isOpen('turn')).toBe(true);
+      expect((await b.state('turn')).probeOkStreak).toBe(k);
+    }
+    now += CF_BREAKER_PROBE_MS;
     expect(await b.maybeProbe('turn', probe)).toBe(true);
-    expect(probe).toHaveBeenCalledTimes(2);
+    expect(probe).toHaveBeenCalledTimes(1 + CF_BREAKER_CLOSE_OK_PROBES);
     expect(await a.isOpen('turn')).toBe(false);
+    expect((await a.state('turn')).probeOkStreak).toBe(0);
     expect(await a.decide('turn', true)).toMatchObject({ use: true });
   });
 
@@ -303,12 +312,15 @@ describe('relay probe while the breaker is CLOSED (FO-2, audit 2026-10-26)', () 
     const probe = dead(); // login OK, Allocate fails
     expect(await t.maybeProbe('turn', probe)).toBe(false);
     expect(await t.isOpen('turn')).toBe(true);
-    now += CF_BREAKER_PROBE_MS;
     probe.mockResolvedValue(undefined);
+    for (let k = 1; k < CF_BREAKER_CLOSE_OK_PROBES; k++) {
+      now += CF_BREAKER_PROBE_MS;
+      expect(await t.probe('turn', probe)).toBe(false); // FO-6: not yet
+    }
+    now += CF_BREAKER_PROBE_MS;
     expect(await t.probe('turn', probe)).toBe(true);
     expect(await t.isOpen('turn')).toBe(false);
   });
-
   it('verify: a phone report checked from the API counts a real failure, at most once per 10 s, never while open', async () => {
     let now = 5_000_000;
     const t = new CloudflareTransport(
@@ -333,5 +345,77 @@ describe('relay probe while the breaker is CLOSED (FO-2, audit 2026-10-26)', () 
       false,
     );
     expect((await alive.state('turn')).failures).toBe(0);
+  });
+});
+
+describe('switch-back hysteresis (FO-6, audit 2026-10-26)', () => {
+  const opened = async (now: () => number, redis?: FakeRedis) => {
+    const t = new CloudflareTransport(
+      redis as never,
+      settings({ 'calls.transport_fail_limit': 1 }),
+      now,
+    );
+    await t.recordFailure('sfu', 'down');
+    expect(await t.isOpen('sfu')).toBe(true);
+    return t;
+  };
+
+  it('ok, fail, ok -> still open (the run restarts); ok, ok, ok -> closed', async () => {
+    let now = 7_000_000;
+    const t = await opened(() => now);
+    const good = jest.fn().mockResolvedValue(undefined);
+    const bad = jest.fn().mockRejectedValue(new Error('flap'));
+    now += CF_BREAKER_PROBE_MS;
+    expect(await t.probe('sfu', good)).toBe(false);
+    expect((await t.state('sfu')).probeOkStreak).toBe(1);
+    now += CF_BREAKER_PROBE_MS;
+    expect(await t.probe('sfu', bad)).toBe(false);
+    expect((await t.state('sfu')).probeOkStreak).toBe(0); // reset
+    expect(await t.isOpen('sfu')).toBe(true);
+    now += CF_BREAKER_PROBE_MS;
+    expect(await t.probe('sfu', good)).toBe(false);
+    expect(await t.isOpen('sfu')).toBe(true); // a flapping Cloudflare stays on the backup
+    now += CF_BREAKER_PROBE_MS;
+    expect(await t.probe('sfu', good)).toBe(false);
+    now += CF_BREAKER_PROBE_MS;
+    expect(await t.probe('sfu', good)).toBe(true);
+    expect(await t.isOpen('sfu')).toBe(false);
+    expect(await t.decide('sfu', true)).toEqual({
+      use: true,
+      reason: 'cloudflare',
+    });
+  });
+
+  it('the good-probe streak is shared through Redis (any instance may close it)', async () => {
+    let now = 8_000_000;
+    const redis = new FakeRedis(() => now);
+    const a = await opened(() => now, redis);
+    const b = new CloudflareTransport(
+      redis as never,
+      settings({ 'calls.transport_fail_limit': 1 }),
+      () => now,
+    );
+    const good = jest.fn().mockResolvedValue(undefined);
+    now += CF_BREAKER_PROBE_MS;
+    await a.probe('sfu', good);
+    now += CF_BREAKER_PROBE_MS;
+    await b.probe('sfu', good);
+    expect((await a.state('sfu')).probeOkStreak).toBe(2);
+    now += CF_BREAKER_PROBE_MS;
+    expect(await a.probe('sfu', good)).toBe(true);
+    expect(await b.isOpen('sfu')).toBe(false);
+    expect((await b.state('sfu')).probeOkStreak).toBe(0);
+  });
+
+  it('CF-1: trip() opens the breaker at once (a wrong App ID needs no N in M)', async () => {
+    const t = new CloudflareTransport(undefined, settings({}));
+    const seen: string[] = [];
+    t.onOpen((p) => seen.push(p));
+    expect(await t.trip('sfu', 'refuses the App ID', 'HTTP 404')).toBe(true);
+    expect(await t.isOpen('sfu')).toBe(true);
+    expect(seen).toEqual(['sfu']);
+    // A second trip changes nothing (SET NX).
+    expect(await t.trip('sfu', 'again', 'HTTP 404')).toBe(false);
+    expect(seen).toEqual(['sfu']);
   });
 });
