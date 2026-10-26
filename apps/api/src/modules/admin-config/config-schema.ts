@@ -368,7 +368,30 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['files.access_log_enabled'] = {
     ...out['files.access_log_enabled'],
     description:
-      'On (default): remember who other than the owner opened a confidential file and from which device; the owner can see it. Off: nothing is recorded.',
+      'off | on | auto (default). Who other than the owner opened a confidential file: off = nothing recorded, on = every view, auto = the share set in files.access_log_sample_percent.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['files.access_log_sample_percent'] = {
+    ...out['files.access_log_sample_percent'],
+    min: 0,
+    max: 100,
+  };
+  out['moderation.image.enabled'] = {
+    ...out['moderation.image.enabled'],
+    description:
+      'off | on | auto (default). Image moderation (paid): auto = on inside the daily cost-guard cap.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['chat.link_preview_enabled'] = {
+    ...out['chat.link_preview_enabled'],
+    description:
+      'off | on | auto (default). Link cards in chat; the per-person daily cap is chat.link_preview_per_user_per_day.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['chat.link_preview_per_user_per_day'] = {
+    ...out['chat.link_preview_per_user_per_day'],
+    min: 1,
+    max: 100000,
   };
   out['security.seal_case_metadata'] = {
     ...out['security.seal_case_metadata'],
@@ -531,6 +554,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1000000,
   };
+  out['scale.capacity_ceiling.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Biggest database / Redis size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
+    pattern: /^(off|auto)$/,
+  };
+  out['scale.bunny_hardstop.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'New video uploads (Bunny): auto = pause when this month’s Bunny traffic or storage reaches the urgent threshold, on = paused now, off = never paused. Playback of existing videos is never touched. Changed on the «Расходы» page.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['scale.cloudflare_hardstop.mode'] = {
+    type: 'string',
+    defaultValue: 'auto',
+    description:
+      'Group video calls on Cloudflare SFU: auto = fall back to device-to-device when this month’s Cloudflare traffic reaches the urgent threshold, on = fallen back now, off = never. Calls are never refused. Changed on the «Расходы» page.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['usage.bunny_bandwidth_crit_gb'] = {
     ...out['usage.bunny_bandwidth_crit_gb'],
     description:
@@ -558,11 +602,37 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  out['chat.search.backfill_mode'] = {
+    ...out['chat.search.backfill_mode'],
+    description:
+      'Chat search index of old messages: off | on (every 5 minutes) | auto (default: at night until done, then idle).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['chat.search.backfill_rows_per_run'] = {
+    ...out['chat.search.backfill_rows_per_run'],
+    min: 100,
+    max: 100000,
+  };
   out['economy.ceiling_mode'] = {
     ...out['economy.ceiling_mode'],
     description:
       'Autoscaling ceiling: auto (follows the economy rule) or manual.',
     pattern: /^(auto|manual)$/,
+  };
+  // Queues hardening 2026-10-25: three-state switches (off | on | auto).
+  for (const key of ['queues.scale_signal_mode', 'queues.push_rate_mode']) {
+    out[key] = {
+      ...out[key],
+      description: 'off, on or auto (default auto).',
+      pattern: /^(off|on|auto)$/,
+    };
+  }
+  out['queues.push_rate_per_sec'] = {
+    ...out['queues.push_rate_per_sec'],
+    description:
+      'Push sends per second for the whole system (FCM project quota is 10 000/s).',
+    min: 50,
+    max: 10_000,
   };
   for (const key of ['economy.manual_api_max', 'economy.manual_worker_max']) {
     out[key] = { ...out[key], min: 1, max: 1000 };
