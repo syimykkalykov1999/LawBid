@@ -175,8 +175,13 @@ describe('Report abuse defenses (e2e, owner 2026-10-27)', () => {
       (await prisma.post.findUniqueOrThrow({ where: { id: target.id } }))
         .status,
     ).toBe('published');
+    // Accounts made months apart: four sign-ups within one day would be a
+    // sign-up burst and weigh little.
     for (let i = 0; i < 4; i++) {
-      await report(await person('client'), target.id).expect(204);
+      await report(
+        await person('client', { ageDays: 90 + i * 30 }),
+        target.id,
+      ).expect(204);
     }
     expect(
       (await prisma.post.findUniqueOrThrow({ where: { id: target.id } }))
