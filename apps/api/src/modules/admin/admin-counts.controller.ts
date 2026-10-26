@@ -6,8 +6,6 @@ import { notModified } from '../../common/sync/cheap-etag';
 import {
   ALL_ADMIN_ROLES,
   AdminEndpoint,
-  CurrentAdmin,
-  type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminCountsDto } from './admin.dto';
 import { AdminCountsService } from './admin-counts.service';
@@ -25,15 +23,14 @@ export class AdminCountsController {
   @Header('Cache-Control', 'private, max-age=30')
   @ApiOperation({
     summary:
-      'Sidebar badges: verification queue, open reports, support unread, trust queue, approvals (ETag → 304)',
+      'Sidebar badges: verification queue, open reports, support unread, trust queue (ETag → 304)',
   })
   @ApiEnvelopeResponse(AdminCountsDto)
   async getCounts(
-    @CurrentAdmin() admin: AdminActor,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AdminCountsDto | undefined> {
-    const counts = await this.counts.get(admin);
+    const counts = await this.counts.get();
     if (notModified(req, res, this.counts.etagOf(counts))) return undefined;
     return counts;
   }

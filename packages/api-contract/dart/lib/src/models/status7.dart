@@ -6,10 +6,18 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Status7 {
+  @JsonValue('incomplete')
+  incomplete('incomplete'),
+  @JsonValue('trialing')
+  trialing('trialing'),
   @JsonValue('active')
   active('active'),
-  @JsonValue('hidden')
-  hidden('hidden'),
+  @JsonValue('past_due')
+  pastDue('past_due'),
+  @JsonValue('canceled')
+  canceled('canceled'),
+  @JsonValue('expired')
+  expired('expired'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
