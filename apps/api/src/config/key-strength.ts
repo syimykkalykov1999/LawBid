@@ -30,10 +30,14 @@ export function keyStrengthProblem(secret: string): string | null {
   if (HEX.test(secret)) {
     // Hex carries 4 bits per character: 64 characters = 32 bytes.
     if (secret.length < 64) return 'hex keys need 64+ characters (32 bytes)';
-    return distinct >= 12 && bits >= 3.5 ? null : 'low entropy';
+    // 64 random hex characters measure 3.4-4.0 bits/char (sample entropy
+    // of 64 draws); 3.5 rejected about 1 in 6000 real keys.
+    return distinct >= 12 && bits >= 3.3 ? null : 'low entropy';
   }
   const need = secret.length >= 48 ? 24 : 16;
-  if (distinct < need || bits < 4.2) return 'low entropy (not random)';
+  // 43 random base64url characters measure from about 4.2 bits/char; a
+  // dictionary phrase stays near 3.4-3.9.
+  if (distinct < need || bits < 4.0) return 'low entropy (not random)';
   return null;
 }
 
