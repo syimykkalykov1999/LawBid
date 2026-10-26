@@ -864,7 +864,10 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     }),
     states: ['off', 'on'],
     defaultState: 'on',
-    ceiling: null,
+    ceiling: tfCeil(
+      'media_replication_max_gb_per_day',
+      'ГБ новых фото и видео в сутки, больше которых приходит тревога (по умолчанию 50; 0 = без тревоги)',
+    ),
     price: price(
       'unit',
       '$0,023 за ГБ в месяц + копия в другом регионе ещё столько же и $0,02 за ГБ пересылки',
@@ -873,9 +876,9 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(2), k100: R(40), m1: R(400) },
     needed: 'yes',
     neededNote:
-      'Нужны. Копия фото (replicate_media, по умолчанию Вкл) растёт ровно вместе с оригиналом, поэтому отдельная тревога на размер копии не нужна: следите за тревогой роста хранилища.',
+      'Нужны. Копия фото (replicate_media, по умолчанию Вкл) растёт ровно вместе с оригиналом (копируется всё, включая миниатюры и AVIF-версии). Потолок: media_replication_max_gb_per_day, тревога, если за сутки прибавилось больше; жёсткого предела в S3 нет, при тревоге поставьте replicate_media = false.',
     alarm:
-      'тревога роста хранилища за сутки (storage-growth); копия растёт один к одному с оригиналом (V12)',
+      'тревога роста хранилища за сутки (storage-growth) и тревога «больше N ГБ в сутки уходит в копию» (media-replication-gb-per-day); копия растёт один к одному с оригиналом (V12)',
     ceService: 'Amazon Simple Storage Service',
     awsTypes: [
       'aws_s3_bucket',

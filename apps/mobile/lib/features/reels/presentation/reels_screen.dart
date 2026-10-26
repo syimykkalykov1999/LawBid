@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueListenable, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +11,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
@@ -80,14 +81,17 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   bool _more = true;
   bool _loading = false;
   Object? _error;
-  int _index = 0;
+
+  /// Owner 2026-10-26 (smoothness): the reel on screen. A swipe only
+  /// rebuilds the pages whose "playing" / "neighbour" flag changes, not the
+  /// whole player screen.
+  late final _index = ValueNotifier<int>(widget.initialIndex);
   late final ReelPlayersOpen _open = ref.read(reelPlayersOpenProvider.notifier);
   bool _counted = false;
 
   @override
   void initState() {
     super.initState();
-    _index = widget.initialIndex;
     _load();
     if (!widget.embedded) {
       _counted = true;
@@ -109,6 +113,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   @override
   void dispose() {
     _pages.dispose();
+    _index.dispose();
     if (_counted) Future.microtask(_open.closed);
     super.dispose();
   }
@@ -145,7 +150,8 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         for (final p in _items)
           if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
       ];
-      final current = _index < shown.length ? shown[_index] : null;
+      final i = _index.value;
+      final current = i < shown.length ? shown[i] : null;
       final at = current == null
           ? _items.length
           : (_items.indexOf(current) + 2).clamp(0, _items.length);
@@ -199,7 +205,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         _cursor = page.nextCursor;
         _more = page.hasMore;
         _error = null;
-        _index = 0;
+        _index.value = 0;
         _freshAt = DateTime.now();
       });
       if (_pages.hasClients) _pages.jumpToPage(0);
@@ -219,12 +225,13 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    BuildCounter.hit('reels.screen');
     // Owner 2026-10-19: the reel I just published comes right after the one
     // on screen (and stays in the list), once its video is ready.
     ref.listen(freshOwnReelProvider, (_, post) {
       if (post == null || _items.any((p) => p.id == post.id)) return;
       setState(() {
-        final at = (_index + 1).clamp(0, _items.length);
+        final at = (_index.value + 1).clamp(0, _items.length);
         _items.insert(at, post);
       });
     });
@@ -265,19 +272,24 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     // Owner 2026-10-15: the neighbours are built (and warmed).
                     allowImplicitScrolling: true,
                     onPageChanged: (i) {
-                      setState(() => _index = i);
+                      _index.value = i;
                       if (i >= items.length - 3) _load();
                       _warmAhead(items, i);
                     },
                     itemBuilder: (_, i) => WebReelFrame(
-                      child: _ReelPage(
-                        key: ValueKey(items[i].id),
-                        post: items[i],
-                        active: i == _index,
-                        warm: (i - _index).abs() == 1,
-                        muted: muted,
-                        embedded: true,
-                        soundButton: true,
+                      child: _ReelSlot(
+                        index: _index,
+                        page: i,
+                        builder: ({required active, required warm}) =>
+                            _ReelPage(
+                          key: ValueKey(items[i].id),
+                          post: items[i],
+                          active: active,
+                          warm: warm,
+                          muted: muted,
+                          embedded: true,
+                          soundButton: true,
+                        ),
                       ),
                     ),
                   ),
@@ -332,18 +344,23 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                     // Owner 2026-10-15: the neighbours are built (and warmed).
                     allowImplicitScrolling: true,
                     onPageChanged: (i) {
-                      setState(() => _index = i);
+                      _index.value = i;
                       if (i >= items.length - 3) _load();
                       _warmAhead(items, i);
                     },
                     itemBuilder: (_, i) => WebReelFrame(
-                      child: _ReelPage(
-                        key: ValueKey(items[i].id),
-                        post: items[i],
-                        active: i == _index,
-                        warm: (i - _index).abs() == 1,
-                        muted: muted,
-                        embedded: _underNavBar,
+                      child: _ReelSlot(
+                        index: _index,
+                        page: i,
+                        builder: ({required active, required warm}) =>
+                            _ReelPage(
+                          key: ValueKey(items[i].id),
+                          post: items[i],
+                          active: active,
+                          warm: warm,
+                          muted: muted,
+                          embedded: _underNavBar,
+                        ),
                       ),
                     ),
                   ),
@@ -397,6 +414,62 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   }
 }
 
+/// Owner 2026-10-26 (smoothness): one page of the reels pager. It
+/// rebuilds only when it becomes, or stops being, the reel on screen or
+/// its neighbour (the players to play and to warm).
+class _ReelSlot extends StatefulWidget {
+  const _ReelSlot({
+    required this.index,
+    required this.page,
+    required this.builder,
+  });
+
+  final ValueListenable<int> index;
+  final int page;
+  final Widget Function({required bool active, required bool warm}) builder;
+
+  @override
+  State<_ReelSlot> createState() => _ReelSlotState();
+}
+
+class _ReelSlotState extends State<_ReelSlot> {
+  late (bool, bool) _flags = _at(widget.index.value);
+
+  (bool, bool) _at(int index) =>
+      (widget.page == index, (widget.page - index).abs() == 1);
+
+  void _changed() {
+    final f = _at(widget.index.value);
+    if (f != _flags) setState(() => _flags = f);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.index.addListener(_changed);
+  }
+
+  @override
+  void didUpdateWidget(_ReelSlot old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.index, widget.index)) {
+      old.index.removeListener(_changed);
+      widget.index.addListener(_changed);
+    }
+    _flags = _at(widget.index.value);
+  }
+
+  @override
+  void dispose() {
+    widget.index.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      widget.builder(active: _flags.$1, warm: _flags.$2);
+}
+
 class _ReelPage extends ConsumerStatefulWidget {
   const _ReelPage({
     required this.post,
@@ -427,11 +500,15 @@ class _ReelPage extends ConsumerStatefulWidget {
 }
 
 class _ReelPageState extends ConsumerState<_ReelPage> {
+  // Owner 2026-10-26 (smoothness): a tap or a hold only rebuilds the
+  // player and the play button that listen to these, not the whole reel
+  // page (rail, caption, author).
+
   /// The viewer paused it (tap on the reel).
-  bool _paused = false;
+  final _paused = ValueNotifier<bool>(false);
 
   /// Owner 2026-10-19 (Instagram): paused while the finger is held down.
-  bool _held = false;
+  final _held = ValueNotifier<bool>(false);
   final _progress = ValueNotifier<double>(0);
 
   /// Owner 2026-10-20 (Instagram): a view is 3 s of real playback
@@ -444,11 +521,13 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
   void didUpdateWidget(_ReelPage old) {
     super.didUpdateWidget(old);
     // Coming back to a reel resumes it.
-    if (widget.active && !old.active) _paused = false;
+    if (widget.active && !old.active) _paused.value = false;
   }
 
   @override
   void dispose() {
+    _paused.dispose();
+    _held.dispose();
     _progress.dispose();
     super.dispose();
   }
@@ -463,6 +542,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
 
   @override
   Widget build(BuildContext context) {
+    BuildCounter.hit('reels.page');
     final p = ref.watch(
           postOverridesProvider.select((m) => m[widget.post.id]),
         ) ??
@@ -563,23 +643,26 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
           // Owner 2026-10-19: tap = pause / play (the sound is the speaker
           // button); hold = pause, let go = plays on.
           child: GestureDetector(
-            onTap: () => setState(() => _paused = !_paused),
-            onLongPressStart: (_) => setState(() => _held = true),
-            onLongPressEnd: (_) => setState(() => _held = false),
-            onLongPressCancel: () => setState(() => _held = false),
+            onTap: () => _paused.value = !_paused.value,
+            onLongPressStart: (_) => _held.value = true,
+            onLongPressEnd: (_) => _held.value = false,
+            onLongPressCancel: () => _held.value = false,
             child: Stack(
               fit: StackFit.expand,
               children: [
                 if (video != null)
-                  ReelVideo(
-                    video: video,
-                    active: widget.active && video.ready,
-                    warm: widget.warm && video.ready,
-                    muted: widget.muted,
-                    paused: _paused || _held || covered,
-                    zoomable: true,
-                    onProgress: (v) => _progress.value = v,
-                    onViewed: _viewed,
+                  ListenableBuilder(
+                    listenable: Listenable.merge([_paused, _held]),
+                    builder: (context, _) => ReelVideo(
+                      video: video,
+                      active: widget.active && video.ready,
+                      warm: widget.warm && video.ready,
+                      muted: widget.muted,
+                      paused: _paused.value || _held.value || covered,
+                      zoomable: true,
+                      onProgress: (v) => _progress.value = v,
+                      onViewed: _viewed,
+                    ),
                   ),
                 if (video != null && !video.ready)
                   Center(
@@ -600,39 +683,39 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                 // play button plays (the reel's own tap); the speaker only
                 // switches the sound.
                 Center(
-                  child: AnimatedOpacity(
-                    opacity: _paused ? 1 : 0,
-                    duration: context.reduceMotion
-                        ? Duration.zero
-                        : const Duration(milliseconds: 160),
-                    child: IgnorePointer(
-                      ignoring: !_paused,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (widget.soundButton && video != null) ...[
-                            PlayerRoundButton(
-                              icon: widget.muted
-                                  ? AppIcons.speakerSlash
-                                  : AppIcons.speakerHigh,
-                              size: 34,
-                              semanticLabel: t.t(
-                                widget.muted ? 'reels.unmute' : 'reels.mute',
-                              ),
-                              onTap: () => ref
-                                  .read(reelsMutedProvider.notifier)
-                                  .toggle(),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: _paused,
+                    builder: (context, paused, child) => AnimatedOpacity(
+                      opacity: paused ? 1 : 0,
+                      duration: context.reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 160),
+                      child: IgnorePointer(ignoring: !paused, child: child),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.soundButton && video != null) ...[
+                          PlayerRoundButton(
+                            icon: widget.muted
+                                ? AppIcons.speakerSlash
+                                : AppIcons.speakerHigh,
+                            size: 34,
+                            semanticLabel: t.t(
+                              widget.muted ? 'reels.unmute' : 'reels.mute',
                             ),
-                            const SizedBox(height: AppSpacing.sm),
-                          ],
-                          const IgnorePointer(
-                            child: PlayerRoundButton(
-                              icon: AppIcons.playArrowRounded,
-                              size: 64,
-                            ),
+                            onTap: () =>
+                                ref.read(reelsMutedProvider.notifier).toggle(),
                           ),
+                          const SizedBox(height: AppSpacing.sm),
                         ],
-                      ),
+                        const IgnorePointer(
+                          child: PlayerRoundButton(
+                            icon: AppIcons.playArrowRounded,
+                            size: 64,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

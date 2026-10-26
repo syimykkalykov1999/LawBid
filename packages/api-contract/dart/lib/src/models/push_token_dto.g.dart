@@ -11,6 +11,7 @@ PushTokenDto _$PushTokenDtoFromJson(Map<String, dynamic> json) => PushTokenDto(
   platform: PushTokenDtoPlatform.fromJson(json['platform'] as String),
   localReminders: json['localReminders'] as bool?,
   chatStyle: json['chatStyle'] as bool?,
+  actorStyle: json['actorStyle'] as bool?,
 );
 
 Map<String, dynamic> _$PushTokenDtoToJson(PushTokenDto instance) =>
@@ -19,4 +20,5 @@ Map<String, dynamic> _$PushTokenDtoToJson(PushTokenDto instance) =>
       'platform': instance.platform.toJson(),
       'localReminders': ?instance.localReminders,
       'chatStyle': ?instance.chatStyle,
+      'actorStyle': ?instance.actorStyle,
     };

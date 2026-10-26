@@ -208,7 +208,7 @@ class _FormState extends ConsumerState<_Form> {
       final repo = ref.read(channelsRepositoryProvider);
       if (editing == null) {
         final created = await repo.create(draft);
-        ref.invalidate(channelListProvider);
+        ref.read(channelListHubProvider).apply(created);
         if (mounted) {
           context.pushReplacement(ChannelsRoutes.channel(created.id));
         }
@@ -221,9 +221,8 @@ class _FormState extends ConsumerState<_Form> {
         draft,
         username: renamed ? _username.text : null,
       );
-      ref
-        ..invalidate(channelProvider)
-        ..invalidate(channelListProvider);
+      ref.invalidate(channelProvider);
+      ref.read(channelListHubProvider).apply(saved);
       if (!mounted) return;
       if (saved.username != editing.username) {
         context.go(ChannelsRoutes.channel(saved.id));
@@ -257,7 +256,7 @@ class _FormState extends ConsumerState<_Form> {
     setState(() => _saving = true);
     try {
       await ref.read(channelsRepositoryProvider).delete(channel.id);
-      ref.invalidate(channelListProvider);
+      ref.read(channelListHubProvider).drop(channel.id);
       if (mounted) context.go(ChannelsRoutes.list);
     } on Object catch (e) {
       if (mounted) {

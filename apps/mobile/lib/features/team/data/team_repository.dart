@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -118,7 +119,20 @@ abstract interface class TeamRepository {
   Future<void> deleteBidDraft(String caseId);
 }
 
-class ApiTeamRepository implements TeamRepository {
+/// Owner 2026-10-22 (delta audit D-P3): the `?updatedSince` side of the
+/// planner list — only the tasks changed since, plus the ids that left the
+/// view. Kept apart from [TeamRepository] so the test fakes need not know
+/// it (a list without it reloads whole).
+// ignore: one_member_abstracts
+abstract interface class TeamTasksSync {
+  Future<SyncedPage<TaskItem>> tasksChangedSince(
+    DateTime since, {
+    bool done = false,
+    bool mine = false,
+  });
+}
+
+class ApiTeamRepository implements TeamRepository, TeamTasksSync {
   ApiTeamRepository(Dio dio, {Dio? storageDio})
       : _api = api.AssistantsClient(dio),
         _bids = api.BidsClient(dio),
@@ -520,6 +534,26 @@ class ApiTeamRepository implements TeamRepository {
       ),
     );
     return [for (final t in env.data) _task(t)];
+  }
+
+  @override
+  Future<SyncedPage<TaskItem>> tasksChangedSince(
+    DateTime since, {
+    bool done = false,
+    bool mine = false,
+  }) async {
+    final env = await guardApiCall(
+      () => _api.listTasks(
+        view: done ? api.TasksView.archive : api.TasksView.active,
+        mine: mine ? true : null,
+        updatedSince: since.toUtc(),
+      ),
+    );
+    return SyncedPage(
+      items: [for (final t in env.data) _task(t)],
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
+    );
   }
 
   @override

@@ -148,6 +148,11 @@
                 <action android:name="com.google.android.c2dm.intent.RECEIVE" />
             </intent-filter>
         </receiver>
+        <!-- Owner 2026-10-26: «Ответить» / «Прочитано» on a chat
+             notification (only the app's own notifications send it). -->
+        <receiver
+            android:name=".PushActionReceiver"
+            android:exported="false" />
         <service
             android:name=".CallForegroundService"
             android:exported="false"
