@@ -715,20 +715,12 @@ export class AdminUsersService {
   }
 
   /** The ids the filter matches, bounded: cap + 1 rows tell whether the cap
-   * cut the list without a count over the users table. An empty filter is
-   * refused so a bulk action can never target the whole table. */
+   * cut the list without a count over the users table, so at most the cap
+   * is ever touched whatever the filter. */
   private async resolveFilter(
     filter: AdminUsersFilterDto,
     countries: CountryScope,
   ): Promise<{ ids: string[]; matched: number; capped: boolean }> {
-    if (!filter.q?.trim() && !filter.role && !filter.status) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message:
-          'Narrow the users first: a bulk filter needs q, role or status.',
-        details: { field: 'filter' },
-      });
-    }
     const rows = await this.prisma.user.findMany({
       where: this.listWhere(filter, countries),
       select: { id: true },

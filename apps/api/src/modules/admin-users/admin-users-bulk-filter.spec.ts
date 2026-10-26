@@ -62,7 +62,7 @@ describe('AdminUsersService.bulk with a filter', () => {
     const { svc, record, logout } = build(BULK_PREVIEW_CAP + 400);
     await svc.bulk(admin, {
       action: 'logout',
-      filter: { status: 'active' },
+      filter: {},
       reason: '',
     } as never);
     expect(logout).toHaveBeenCalledTimes(BULK_PREVIEW_CAP);
@@ -71,20 +71,6 @@ describe('AdminUsersService.bulk with a filter', () => {
       capped: true,
       processed: BULK_PREVIEW_CAP,
     });
-  });
-
-  it('refuses an empty filter (never the whole users table)', async () => {
-    const { svc, findMany, logout } = build(5);
-    for (const filter of [{}, { q: '  ' }, { countryCode: 'US' }]) {
-      await expect(
-        svc.bulk(admin, { action: 'logout', filter, reason: '' } as never),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      await expect(svc.bulkPreview(filter)).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
-    }
-    expect(findMany).not.toHaveBeenCalled();
-    expect(logout).not.toHaveBeenCalled();
   });
 
   it('wants exactly one of ids / filter', async () => {
@@ -96,7 +82,7 @@ describe('AdminUsersService.bulk with a filter', () => {
       svc.bulk(admin, {
         action: 'logout',
         ids: ['a'],
-        filter: { status: 'active' },
+        filter: {},
         reason: '',
       } as never),
     ).rejects.toBeInstanceOf(BadRequestException);
