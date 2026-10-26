@@ -118,13 +118,13 @@ describe('Economy (e2e)', () => {
     expect(r.guard).toBe('ok');
     expect(r.settings).toMatchObject({
       percent: 50,
-      thresholdUsd: 150,
+      thresholdUsd: 350,
       ceilingMode: 'auto',
     });
     // Other suites share this database and may have paid rows, so the
-    // allowance is the larger of the $150 floor and 50% of what is earned.
+    // allowance is the larger of the $350 floor and 50% of what is earned.
     expect(r.figures.allowedUsd).toBeCloseTo(
-      Math.max(150, r.figures.revenue30dUsd * 0.5),
+      Math.max(350, r.figures.revenue30dUsd * 0.5),
       1,
     );
     expect(r.figures.lines).toHaveLength(4);

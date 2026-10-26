@@ -12,10 +12,12 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 
 import 'package:lawbid/core/network/app_check_interceptor.dart';
 import 'package:lawbid/core/network/auth_interceptor.dart';
+import 'package:lawbid/core/network/captive_portal_interceptor.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/http_transport.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
+import 'package:lawbid/core/network/timeout_budget_interceptor.dart';
 import 'package:lawbid/core/network/turnstile_interceptor.dart';
 import 'package:lawbid/core/security/app_check.dart';
 import 'package:lawbid/core/security/turnstile.dart';
@@ -45,6 +47,7 @@ final dioProvider = Provider<Dio>((ref) {
   // S8-1/S8-2: native stack (URLSession / Cronet) with a tuned dart:io fallback.
   HttpTransport.apply(dio);
   dio.interceptors.add(HeadersInterceptor(ref));
+  dio.interceptors.add(TimeoutBudgetInterceptor());
   // Security research #5 (2026-10-22), B1: `X-Firebase-AppCheck` on the
   // costly anonymous auth routes only (docs/runbooks/APP_CHECK.md).
   dio.interceptors.add(
@@ -66,6 +69,10 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(AccountSuspendedInterceptor(ref));
   dio.interceptors.add(AccountRestrictedInterceptor(ref));
   dio.interceptors.add(LegalReacceptInterceptor(ref));
+  // S15-13: HTML from a JSON route = captive portal. Early on purpose: the
+  // response path runs in this order, so the HTTP cache never stores the
+  // sign-in page and Retry sees a non-retryable 2xx failure.
+  dio.interceptors.add(CaptivePortalInterceptor());
   dio.interceptors.add(IdempotencyInterceptor());
   dio.interceptors.add(AuthInterceptor(ref, dio));
   // After Auth (it needs the bearer to key the cache per user), before Retry

@@ -2110,7 +2110,7 @@ class VerifiedCheck extends StatelessWidget {
       child: AppIcon(
         AppIcons.verifiedUserOutlined,
         size: size,
-        color: colors.goldAccent,
+        color: colors.verifiedGold,
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/realtime/realtime_timings.dart';
 import 'package:lawbid/core/realtime/reconnect_controller.dart';
 
@@ -30,8 +31,9 @@ class ReachabilitySignal {
   final DateTime Function() _now;
   final TimerFactory _timer;
 
-  final StreamController<bool> _controller =
-      StreamController<bool>.broadcast(sync: true);
+  final StreamController<bool> _controller = StreamController<bool>.broadcast(
+    sync: true,
+  );
 
   bool? _last;
   int _failures = 0;
@@ -140,7 +142,10 @@ class ReachabilityInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (err.response != null) {
+    if (isCaptivePortalResponse(err.response)) {
+      // S15-13: a Wi-Fi sign-in page is not our server.
+      _signal().markUnreachable();
+    } else if (err.response != null) {
       _signal().markReachable();
     } else if (isConnectivityFailure(err)) {
       _signal().markUnreachable();

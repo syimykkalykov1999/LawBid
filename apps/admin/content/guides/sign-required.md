@@ -1,7 +1,7 @@
 ---
 id: sign-required
 title: Включить обязательную подпись образов (SIGN_REQUIRED)
-category: security
+category: system
 cost: Бесплатно
 time: 5 минут (после первой успешной выкладки)
 launch: sign_required
