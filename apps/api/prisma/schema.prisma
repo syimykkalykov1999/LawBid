@@ -2804,7 +2804,7 @@ model CallVote {
 }
 
 /// Owner 2026-10-26: PARTITION BY HASH (conversation_id), 16 partitions (raw
-/// SQL, migration 20261106240000_partition_messages_notifications). The key
+/// SQL, migration 20261107114400_partition_messages_notifications). The key
 /// is (id, conversation_id); everything that points at a message carries the
 /// conversation_id too (composite foreign keys). See
 /// docs/architecture/TABLE_PARTITIONING_READY.md.
@@ -3305,7 +3305,7 @@ model ChatGroupPollVote {
 }
 
 /// Owner 2026-10-26: PARTITION BY HASH (user_id), 16 partitions, key
-/// (id, user_id) (raw SQL, migration 20261106240000_partition_messages_notifications).
+/// (id, user_id) (raw SQL, migration 20261107114400_partition_messages_notifications).
 model Notification {
   id              String               @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id         String               @db.Uuid

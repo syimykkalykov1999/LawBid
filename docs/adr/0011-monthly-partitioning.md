@@ -28,7 +28,7 @@ says partitioning these first buys the most headroom.
 ## Decision outcome
 
 Accepted and built (PR #334, 2026-10-25; made expand-only 2026-10-26, perf review R-20):
-migration `20261106200000_partition_audit_auth` converts nothing, it only adds the month
+migration `20261107114000_partition_audit_auth` converts nothing, it only adds the month
 upkeep functions, so a deploy never locks or copies a table. `audit_log` and `auth_events`
 are converted by the same opt-in online runner as every other table. The daily job
 `partition.maintain` pre-creates two future months. Other tables are converted later
