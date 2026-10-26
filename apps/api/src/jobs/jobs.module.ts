@@ -53,6 +53,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { DbHealthJob } from './handlers/db-health.job';
 import { LedgerModule } from '../modules/ledger/ledger.public';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
@@ -180,6 +181,8 @@ export class JobsModule {
         // Owner 2026-10-24: `search.index` (search-engine outbox).
         SearchIndexJob,
         LedgerReconcileJob,
+        // DB-ops hardening: `db.health` (daily).
+        DbHealthJob,
         SearchIndexerService,
         SearchReindexService,
         SearchDocsLoader,
