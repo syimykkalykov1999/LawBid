@@ -1,3 +1,5 @@
+import { imageFormatContext } from './processing/image-format-context';
+import { avifSince } from './processing/image-processor';
 import {
   BLOCKING_STATUSES,
   isModeratedPurpose,
@@ -45,7 +47,10 @@ import {
   PRESIGN_TTL_SEC,
   PURPOSE_RULES,
   UPLOAD_INTENT_TTL_SEC,
+  newFileKey,
   variantKey,
+  avifKey,
+  AVIF_PURPOSES,
   type FileMime,
   isImageMime,
 } from './files.policy';
@@ -210,7 +215,9 @@ export class FilesService {
     await this.assertDemoQuota(userId, dto.sizeBytes);
 
     const fileId = randomUUID();
-    const key = `${demoKeyPrefix()}${dto.purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() +
+      newFileKey({ purpose: dto.purpose, ownerId: userId, fileId });
     const target = {
       bucket,
       key,
@@ -444,10 +451,7 @@ export class FilesService {
     if ((await this.photoHiddenFrom([file.id])).has(file.id)) return none;
     const url = await this.mediaUrlOf(file);
     if (!url) return none;
-    const url256 =
-      file.width !== null
-        ? await this.mediaLink(file.s3_bucket, variantKey(file.s3_key, 256))
-        : null;
+    const url256 = file.width !== null ? await this.imageLink(file, 256) : null;
     return { url, url256 };
   }
 
@@ -497,9 +501,7 @@ export class FilesService {
         const url = await this.mediaUrlOf(file);
         if (!url) return;
         const url256 =
-          file.width !== null
-            ? await this.mediaLink(file.s3_bucket, variantKey(file.s3_key, 256))
-            : null;
+          file.width !== null ? await this.imageLink(file, 256) : null;
         out.set(file.id, { url, url256 });
       }),
     );
@@ -560,8 +562,7 @@ export class FilesService {
     for (const file of files) {
       const url = await this.mediaUrlOf(file);
       if (!url) continue;
-      const sign = (px: number) =>
-        this.mediaLink(file.s3_bucket, variantKey(file.s3_key, px));
+      const sign = (px: number) => this.imageLink(file, px);
       out.set(file.id, {
         url,
         previewUrl: await sign(320),
@@ -982,7 +983,8 @@ export class FilesService {
     }
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);
-    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, src.mime);
     const sha256 = createHash('sha256').update(data).digest('hex');
     await this.prisma.file.create({
@@ -1019,7 +1021,8 @@ export class FilesService {
     const fileId = randomUUID();
     const bucket = this.storage.bucket(rule.bucket);
     await this.costGuard.consume('storage');
-    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, mime);
     const sha256 = createHash('sha256').update(data).digest('hex');
     return this.prisma.file.create({
@@ -1097,6 +1100,25 @@ export class FilesService {
     return this.storage.signedGetUrl(bucket, key, MEDIA_SIGNED_URL_TTL_SEC);
   }
 
+  /** Link of an image of [file] (px = a variant, none = the main
+   * object). Owner 2026-10-25: the AVIF twin only when the switch is on,
+   * the client sent `X-Image-Formats: avif` and the file was uploaded
+   * after `images.avif_since` (older files have no twin). */
+  private async imageLink(file: File, px?: number): Promise<string> {
+    const key = px === undefined ? file.s3_key : variantKey(file.s3_key, px);
+    if (
+      AVIF_PURPOSES.has(file.purpose) &&
+      isImageMime(file.mime) &&
+      imageFormatContext.wantsAvif()
+    ) {
+      const since = await avifSince(this.settings);
+      if (since && file.created_at >= since) {
+        return this.mediaLink(file.s3_bucket, avifKey(key));
+      }
+    }
+    return this.mediaLink(file.s3_bucket, key);
+  }
+
   private async mediaUrlOf(file: File): Promise<string | null> {
     if (
       file.deleted_at !== null ||
@@ -1106,7 +1128,7 @@ export class FilesService {
     ) {
       return null;
     }
-    return this.mediaLink(file.s3_bucket, file.s3_key);
+    return this.imageLink(file);
   }
 
   private async toDto(file: File): Promise<FileDto> {

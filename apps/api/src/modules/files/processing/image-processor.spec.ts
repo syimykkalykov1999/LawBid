@@ -173,4 +173,69 @@ describe('ImageProcessor', () => {
       ).rejects.toThrow(/pixel/i);
     }
   });
+
+  describe('AVIF twins and quality (owner 2026-10-25)', () => {
+    const photo = async () => {
+      // Noisy gradient: compresses like a photo, not like a flat colour.
+      const w = 1600;
+      const h = 1200;
+      const buf = Buffer.alloc(w * h * 3);
+      for (let i = 0; i < buf.length; i++) {
+        buf[i] = ((i / 3) % w) / 8 + Math.random() * 40;
+      }
+      return sharp(buf, { raw: { width: w, height: h, channels: 3 } })
+        .jpeg({ quality: 92 })
+        .toBuffer();
+    };
+
+    it('makes no AVIF by default (nothing changes while the switch is off)', async () => {
+      const out = await processor.process({
+        data: await photo(),
+        mime: 'image/jpeg',
+        avatar: false,
+        postImage: true,
+        format: 'webp',
+      });
+      expect(out.main?.avif).toBeUndefined();
+      expect(out.variants.get(320)?.avif).toBeUndefined();
+    });
+
+    it('adds a smaller AVIF twin of every size, same pixels and no metadata', async () => {
+      const out = await processor.process({
+        data: await photo(),
+        mime: 'image/jpeg',
+        avatar: false,
+        postImage: true,
+        format: 'webp',
+        quality: { jpeg: 90, webp: 88, avif: { quality: 60, effort: 2 } },
+      });
+      for (const img of [
+        out.main!,
+        out.variants.get(320)!,
+        out.variants.get(1080)!,
+      ]) {
+        expect(img.mime).toBe('image/webp');
+        expect(img.avif).toBeDefined();
+        expect(img.avif!.data.length).toBeLessThan(img.data.length);
+        expect([img.avif!.width, img.avif!.height]).toEqual([
+          img.width,
+          img.height,
+        ]);
+        const meta = await sharp(img.avif!.data).metadata();
+        expect(meta.format).toBe('heif');
+        expect(meta.exif).toBeUndefined();
+      }
+    });
+
+    it('avatar twins are square like the originals', async () => {
+      const out = await processor.process({
+        data: await photo(),
+        mime: 'image/jpeg',
+        avatar: true,
+        quality: { jpeg: 90, webp: 88, avif: { quality: 60, effort: 2 } },
+      });
+      expect(out.variants.get(256)?.avif?.width).toBe(256);
+      expect(out.variants.get(256)?.avif?.height).toBe(256);
+    });
+  });
 });

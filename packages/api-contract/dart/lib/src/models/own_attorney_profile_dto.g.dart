@@ -10,6 +10,7 @@ OwnAttorneyProfileDto _$OwnAttorneyProfileDtoFromJson(
   Map<String, dynamic> json,
 ) => OwnAttorneyProfileDto(
   id: json['id'] as String,
+  version: (json['version'] as num).toInt(),
   username: json['username'] as String,
   firstName: json['firstName'] as String?,
   lastName: json['lastName'] as String?,
@@ -46,6 +47,7 @@ Map<String, dynamic> _$OwnAttorneyProfileDtoToJson(
   OwnAttorneyProfileDto instance,
 ) => <String, dynamic>{
   'id': instance.id,
+  'version': instance.version,
   'username': instance.username,
   'firstName': ?instance.firstName,
   'lastName': ?instance.lastName,

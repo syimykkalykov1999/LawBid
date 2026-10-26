@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
-import { activeHeldIds, notHeldSql } from '../../common/legal-hold/legal-holds';
+import { heldSql } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Terminally revoked rows (logout, logout_all, reuse_detected, admin
@@ -69,7 +69,6 @@ export class SessionsCleanupJob {
     );
     // Owner 2026-10-28: a legal hold on a person keeps their sessions (login
     // evidence) even when expired.
-    const held = await activeHeldIds(this.prisma, 'user', now);
     let cursor = ZERO_UUID;
     let scanned = 0;
     let deleted = 0;
@@ -90,7 +89,7 @@ export class SessionsCleanupJob {
             WHERE (expires_at < ${now}
                OR (revoked_at < ${revokedBefore}
                    AND revoked_reason IS DISTINCT FROM 'rotated'))
-              AND ${notHeldSql(Prisma.sql`user_id`, held)}
+              AND NOT ${heldSql('user', Prisma.sql`user_id`)}
           )
           RETURNING id
         )

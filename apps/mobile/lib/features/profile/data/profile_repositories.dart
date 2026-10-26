@@ -214,7 +214,13 @@ class ApiPracticesRepository implements PracticesRepository {
 
   @override
   Future<List<PracticeCategory>> fetchTree() async =>
-      (await guardApiCall(_tree.listPracticeAreas))
+      (await guardApiCall(
+        // Delta audit P7: the tree changes a few times a year; the server
+        // ETag still revalidates it after the hour.
+        () => _tree.listPracticeAreas(
+          extras: cacheFor(const Duration(hours: 1)),
+        ),
+      ))
           .data
           .map(ProfileMappers.category)
           .toList(growable: false);

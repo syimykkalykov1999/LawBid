@@ -311,6 +311,9 @@ export const LEGAL_DOC_TYPE: Record<string, string> = {
   partner_terms: 'Условия для партнёров',
   dmca_policy: 'Политика DMCA',
   accessibility: 'Заявление о доступности',
+  community_guidelines: 'Правила сообщества',
+  advertising_disclosure: 'Раскрытие рекламы и ранжирования',
+  sms_terms: 'Условия SMS',
 };
 
 export const DATA_REQUEST_TYPE: Record<string, string> = {

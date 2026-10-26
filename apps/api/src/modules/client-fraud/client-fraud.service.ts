@@ -34,7 +34,7 @@ import {
   type MatchAction,
   type SignalCode,
 } from './client-fraud.constants';
-import { activeHeldIds } from '../../common/legal-hold/legal-holds';
+import { heldTargets } from '../../common/privacy/legal-hold';
 import { fingerprintHash, isComparableText } from './fingerprint.util';
 import {
   decideStatus,
@@ -870,7 +870,7 @@ export class ClientFraudService {
     const blockedStale = new Date(
       now.getTime() - cfg.blockedRetentionDays * DAY_MS,
     );
-    const heldUsers = await activeHeldIds(this.prisma, 'user', now);
+    const heldUsers = await heldTargets(this.prisma, 'user', now);
     const suspended = await this.prisma.user.findMany({
       where: { status: 'suspended' },
       select: { id: true },

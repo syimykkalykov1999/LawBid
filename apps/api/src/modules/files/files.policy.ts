@@ -1,4 +1,5 @@
 import { FilePurpose } from '@prisma/client';
+import { shardOf } from '../../sharding/shard-id';
 
 /** MIME types the upload pipeline understands (docs/03 §2.2, §4.1;
  * docs/05 §3.2). HEIC is converted to JPEG by the scan worker. */
@@ -231,10 +232,58 @@ export const POST_IMAGE_VARIANT_PX: readonly number[] = [320, 1080];
  * phone photo or document scan (≈160 MB as raw RGBA). */
 export const MAX_INPUT_PIXELS = 40_000_000;
 
+/**
+ * Object key of a NEW upload (day-one foundations, 2026-10-24):
+ * `<purpose>/s<shard>/<yyyy>/<mm>/<fileId>`. The owner's user id is NOT in
+ * the key: who owns an object is the File row (owner_user_id), so a file
+ * can change hands or an account be merged without rewriting object names,
+ * and the key leaks nothing about the user. The logical shard of the owner
+ * (SHARDING_READY.md) is a coarse prefix so per-shard tools (inventory,
+ * lifecycle, a future per-shard bucket) can address a shard; the date makes
+ * lifecycle/inventory by age cheap. Old rows keep their stored
+ * `<purpose>/<userId>/<fileId>` key: every reader uses File.s3_key, none
+ * parses it. S3 needs no hash-randomised prefix since 2018 (per-prefix
+ * request rates scale automatically), so a readable layout is fine.
+ */
+export function newFileKey(input: {
+  purpose: string;
+  ownerId: string;
+  fileId: string;
+  now?: Date;
+}): string {
+  const now = input.now ?? new Date();
+  let shard = 0;
+  try {
+    shard = shardOf(input.ownerId);
+  } catch {
+    // not a uuid (tests, tools): shard 0
+  }
+  const yyyy = String(now.getUTCFullYear());
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${input.purpose}/s${shard}/${yyyy}/${mm}/${input.fileId}`;
+}
+
 /** `<key>_w256` — never `<key>/256`: MinIO forbids an object whose name
  * is a "directory" prefix of another object. */
 export function variantKey(key: string, px: number): string {
   return `${key}_w${px}`;
+}
+
+/** Owner 2026-10-25: the AVIF twin of an object (`<key>.avif`,
+ * `<key>_w1080.avif`) written next to the WebP/JPEG one when
+ * `images.avif_enabled` is on. Served only to clients that ask for it. */
+export const AVIF_PURPOSES: ReadonlySet<string> = new Set([
+  'avatar',
+  'post_image',
+  'review_photo',
+  'case_photo',
+  'case_attachment',
+  'chat_attachment',
+  'support_attachment',
+]);
+
+export function avifKey(key: string): string {
+  return `${key}.avif`;
 }
 
 export function isImageMime(mime: string): boolean {
@@ -255,6 +304,13 @@ export const IMAGE_MIMES: ReadonlySet<string> = new Set([
 export const ALL_VARIANT_PX: readonly number[] = [
   ...new Set([...AVATAR_VARIANT_PX, ...POST_IMAGE_VARIANT_PX]),
 ];
+
+/** Every object that may sit next to [key] (variants and AVIF twins) —
+ * removing a file removes all of them (missing keys are not an error). */
+export function derivedKeys(key: string): string[] {
+  const variants = ALL_VARIANT_PX.map((px) => variantKey(key, px));
+  return [...variants, avifKey(key), ...variants.map(avifKey)];
+}
 
 /**
  * Owner 2026-10-05 (storage like Telegram): files that end up as the same

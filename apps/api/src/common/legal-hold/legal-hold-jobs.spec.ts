@@ -10,7 +10,7 @@ import { ExportsCleanupService } from '../../modules/privacy/exports-cleanup.ser
 import { JournalRetentionService } from '../../modules/privacy/journal-retention.service';
 import { DataRetentionService } from '../../modules/storage/data-retention.service';
 import type { AppSettingsService } from '../app-settings/app-settings.service';
-import { activeHeldIds, notHeldSql, notInHeld } from './legal-holds';
+import { heldSql, heldTargets } from '../privacy/legal-hold';
 
 /**
  * Owner 2026-10-28 (legal requests): a hold must stop EVERY automatic job
@@ -30,15 +30,25 @@ const logger = {
   error: jest.fn(),
 } as unknown as PinoLogger;
 
-/** True if [HELD] appears anywhere in the arguments (Sql objects included). */
-function mentions(value: unknown, needle = HELD, depth = 0): boolean {
+/** True if [needle] appears anywhere in the arguments (Sql objects included).
+ * `exact` compares whole values (ids, target types); otherwise substring
+ * (the SQL text of the shared hold check mentions `legal_holds`). */
+function mentions(
+  value: unknown,
+  needle = HELD,
+  exact = true,
+  depth = 0,
+): boolean {
   if (depth > 6 || value === null || value === undefined) return false;
-  if (typeof value === 'string') return value === needle;
+  if (typeof value === 'string')
+    return exact ? value === needle : value.includes(needle);
   if (Array.isArray(value))
-    return value.some((v) => mentions(v, needle, depth + 1));
+    return value.some((v) => mentions(v, needle, exact, depth + 1));
   if (typeof value === 'object') {
     if (value instanceof Date) return false;
-    return Object.values(value).some((v) => mentions(v, needle, depth + 1));
+    return Object.values(value).some((v) =>
+      mentions(v, needle, exact, depth + 1),
+    );
   }
   return false;
 }
@@ -47,9 +57,9 @@ function prismaWith(extra: Record<string, unknown>) {
   const legalHold = {
     findMany: jest.fn(({ where }: any) =>
       Promise.resolve(
-        where.target_type === 'user'
+        (where.AND?.[1]?.target_type ?? where.target_type) === 'user'
           ? [{ target_id: HELD }]
-          : where.target_type === 'case'
+          : (where.AND?.[1]?.target_type ?? where.target_type) === 'case'
             ? [{ target_id: CASE }]
             : [],
       ),
@@ -65,22 +75,25 @@ const settings = (values: Record<string, number | boolean>) =>
     boolean: jest.fn((k: string) => Promise.resolve(values[k] ?? true)),
   }) as unknown as AppSettingsService;
 
-describe('legal hold helpers', () => {
+/** The statement carries the shared SQL hold check. */
+const heldInSql = (call: unknown) => mentions(call, 'legal_holds', false);
+
+describe('shared legal hold helper (common/privacy/legal-hold)', () => {
   it('reads only active holds of one kind', async () => {
     const prisma = prismaWith({});
     const now = new Date('2026-10-28T00:00:00Z');
-    expect(await activeHeldIds(prisma, 'user', now)).toEqual([HELD]);
-    const where = prisma.legalHold.findMany.mock.calls[0][0].where;
-    expect(where.released_at).toBeNull();
-    expect(where.OR).toEqual([
+    expect(await heldTargets(prisma, 'user', now)).toEqual([HELD]);
+    const and = prisma.legalHold.findMany.mock.calls[0][0].where.AND;
+    expect(and[0].released_at).toBeNull();
+    expect(and[0].OR).toEqual([
       { expires_at: null },
       { expires_at: { gt: now } },
     ]);
   });
-  it('builds no-op filters when nothing is held', () => {
-    expect(notInHeld([])).toBeUndefined();
-    expect(notHeldSql(Prisma.sql`x`, []).sql).toBe('TRUE');
-    expect(notHeldSql(Prisma.sql`x`, [HELD]).sql).toContain('ANY');
+  it('builds an EXISTS check on active holds for set-based SQL', () => {
+    const q = heldSql('user', Prisma.sql`x`);
+    expect(q.sql).toContain('legal_holds');
+    expect(q.sql).toContain('released_at IS NULL');
   });
 });
 
@@ -93,7 +106,7 @@ describe('every deletion job respects a legal hold', () => {
       ]);
     const job = new SessionsCleanupJob(prismaWith({ $queryRaw }), logger);
     await job.run();
-    expect(mentions($queryRaw.mock.calls[0])).toBe(true);
+    expect(heldInSql($queryRaw.mock.calls[0])).toBe(true);
   });
 
   it('notifications.retention', async () => {
@@ -103,7 +116,7 @@ describe('every deletion job respects a legal hold', () => {
       settings({ 'notifications.retention_days': 180 }),
     );
     await job.run();
-    expect(mentions($executeRaw.mock.calls[0])).toBe(true);
+    expect(heldInSql($executeRaw.mock.calls[0])).toBe(true);
   });
 
   it('journal.retention (held case and held people)', async () => {
@@ -115,8 +128,9 @@ describe('every deletion job respects a legal hold', () => {
       logger,
     );
     await svc.run();
-    expect(mentions($executeRaw.mock.calls[0], HELD)).toBe(true);
-    expect(mentions($executeRaw.mock.calls[0], CASE)).toBe(true);
+    expect(heldInSql($executeRaw.mock.calls[0])).toBe(true);
+    expect(mentions($executeRaw.mock.calls[0], 'case')).toBe(true);
+    expect(mentions($executeRaw.mock.calls[0], 'user')).toBe(true);
   });
 
   it('exports.cleanup (the person’s own data-export files)', async () => {
@@ -160,7 +174,7 @@ describe('every deletion job respects a legal hold', () => {
     // post_view_events, user_activity_days: every statement excludes HELD.
     expect($executeRaw.mock.calls.length).toBeGreaterThanOrEqual(20);
     for (const call of $executeRaw.mock.calls) {
-      expect(mentions(call)).toBe(true);
+      expect(heldInSql(call)).toBe(true);
     }
   });
 
@@ -178,7 +192,7 @@ describe('every deletion job respects a legal hold', () => {
     );
     await job.run().catch(() => undefined);
     const purgeCall = findMany.mock.calls.find(
-      (c) => c[0]?.where?.keep_forever === false,
+      (c) => c[0]?.where?.keep_forever === false && !c[0].where.OR,
     );
     expect(purgeCall?.[0].where.attorney_id).toEqual({ notIn: [HELD] });
   });
