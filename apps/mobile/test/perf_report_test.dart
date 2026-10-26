@@ -64,4 +64,32 @@ void main() {
     );
     expect(r.evaluate().any((c) => !c.ok), isTrue);
   });
+
+  PerfResult rounds(List<double> ends) => PerfResult(
+        device: const {'refresh_rate_hz': 60},
+        coldStart: const {},
+        scenarios: const {},
+        latency: const {},
+        memory: [
+          {'at': 'feed idle (baseline)', 'round': 1, 'rss_mb': 200.0},
+          for (var i = 0; i < ends.length; i++)
+            {'at': 'after cases list', 'round': i + 1, 'rss_mb': ends[i]},
+          {'at': 'end of run (settled)', 'round': ends.length, 'rss_mb': 1.0},
+        ],
+        video: const {},
+      );
+
+  test('growth that stops after round 1 is warm-up', () {
+    final r = rounds([260, 280, 283]);
+    expect(r.leakVerdict(), startsWith('WARM-UP'));
+    expect(r.toMarkdown(), contains('Memory per round'));
+  });
+
+  test('growth in every round is a leak', () {
+    expect(rounds([260, 300, 340]).leakVerdict(), startsWith('LEAK'));
+  });
+
+  test('two rounds are not enough to tell', () {
+    expect(rounds([260, 280]).leakVerdict(), contains('not enough'));
+  });
 }

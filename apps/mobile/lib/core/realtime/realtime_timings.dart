@@ -93,10 +93,13 @@ class RealtimeTimings {
   }
 
   /// From the bootstrap's `app_config` (object values arrive JSON-encoded).
-  /// Order: the admin panel's flat knobs `client.realtime_reconnect_min_ms` /
-  /// `client.realtime_reconnect_max_ms` (shared with `ClientTuning`), then
-  /// the `client.timings` object (or a `client` object holding `timings`)
-  /// which may carry every key and wins where it speaks.
+  /// Order: the old flat knobs `client.realtime_reconnect_min_ms` /
+  /// `client.realtime_reconnect_max_ms` (read-only fallback for servers that
+  /// still send them; the admin knob is now `realtime.reconnect_*`, which
+  /// arrives inside `client.timings`; remove the fallback one release after
+  /// the server stopped sending them), then the `client.timings` object (or a
+  /// `client` object holding `timings`) which may carry every key and wins
+  /// where it speaks.
   factory RealtimeTimings.fromAppConfig(Map<String, String> config) {
     Object? decode(String? raw) {
       if (raw == null) return null;
