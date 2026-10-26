@@ -78,6 +78,8 @@ export const CRON_JOBS = {
   adminAuditExport: 'admin.audit-export',
   /** Owner 2026-10-28: monthly e-mail of admin access to private content. */
   adminAccessReport: 'admin.access-report',
+  /** Owner 2026-10-25: experiment reports, guardrails, ranking_events partitions. */
+  experimentsMetrics: 'experiments.metrics',
   /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
   ledgerReconcile: 'ledger.reconcile',
   /** DB-ops hardening: daily table size / dead-tuple ratio / txid age → log metrics. */
@@ -235,6 +237,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
   { name: CRON_JOBS.adminAuditExport, pattern: '30 1 * * *' },
   { name: CRON_JOBS.adminAccessReport, pattern: '15 7 1 * *' },
+  // 02:20 UTC: after a full UTC day of events, before the US morning.
+  { name: CRON_JOBS.experimentsMetrics, pattern: '20 2 * * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },

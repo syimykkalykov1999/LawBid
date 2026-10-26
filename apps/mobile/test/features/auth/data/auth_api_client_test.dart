@@ -94,6 +94,26 @@ void main() {
     );
   });
 
+  test('reauthDemo posts no body to /auth/reauth/demo', () async {
+    adapter.handler = (o) async => ok({'reauthToken': 'rt-demo'});
+    expect(await client.reauthDemo(), 'rt-demo');
+    final req = adapter.requests.single;
+    expect(req.method, 'POST');
+    expect(req.uri.toString(), 'http://test/api/v1/auth/reauth/demo');
+    expect(req.data, isNull);
+  });
+
+  test('reauthDemo: a real session gets FORBIDDEN', () async {
+    adapter.handler = (o) async => apiError(403, ApiErrorCodes.forbidden);
+    await expectLater(
+      client.reauthDemo(),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.code, 'code', ApiErrorCodes.forbidden),
+      ),
+    );
+  });
+
   test('deleteAccount sends X-Reauth-Token', () async {
     adapter.handler = (o) async => ok({'deletionPending': true});
     await client.deleteAccount(reauthToken: 'rt-2');

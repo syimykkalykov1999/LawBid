@@ -271,6 +271,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/config', label: 'Настройки', icon: 'sliders-horizontal', area: 'config', ownerOnly: true, hint: 'лимиты, версии приложения' },
       { href: '/flags', label: 'Функции', icon: 'toggle-right', area: 'settings', ownerOnly: true, hint: 'флаги, скрытые функции' },
       { href: '/analytics', label: 'Аналитика', icon: 'chart-line', area: 'moneyOwner', ownerOnly: true, hint: 'кто заходит, воронка, отток, покупки' },
+      // Owner 2026-10-25: A/B tests of ranking formulas on 5-10% of people (owner only, 2FA).
+      { href: '/experiments', label: 'Эксперименты', icon: 'sliders-horizontal', area: 'super', ownerOnly: true, hint: 'проверка новых формул на малой части людей' },
       { href: '/search', label: 'Поиск', icon: 'magnifying-glass', area: 'content', hint: 'синонимы, что не нашлось, чему научился' },
       { href: '/storage', label: 'Хранилище', icon: 'hard-drives', area: 'settings', hint: 'место, очистка, лимиты' },
       // Owner 2026-10-07 (bug 17): every upload limit and file format.

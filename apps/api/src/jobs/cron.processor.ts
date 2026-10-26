@@ -43,6 +43,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { ExperimentsNightlyJob } from '../modules/experiments/experiments-nightly.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -167,6 +168,8 @@ export class CronProcessor {
     // Owner 2026-10-28: `admin.audit-export`, `admin.access-report`.
     @Optional() private readonly auditExport?: AuditExportService,
     @Optional() private readonly accessReport?: AdminAccessReportService,
+    // Owner 2026-10-25: `experiments.metrics`.
+    @Optional() private readonly experimentsNightly?: ExperimentsNightlyJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
     // DB-ops hardening: `db.health`.
@@ -275,6 +278,8 @@ export class CronProcessor {
         return this.auditExport?.run() ?? null;
       case CRON_JOBS.adminAccessReport:
         return this.accessReport?.sendMonthly() ?? null;
+      case CRON_JOBS.experimentsMetrics:
+        return this.experimentsNightly?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:
         return this.ledgerReconcile?.run() ?? null;
       case CRON_JOBS.dbHealth:

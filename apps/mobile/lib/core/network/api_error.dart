@@ -28,6 +28,10 @@ abstract final class ApiErrorCodes {
   /// older than the server keeps — reload the list from the first page.
   static const syncTooOld = 'SYNC_TOO_OLD';
 
+  /// Owner 2026-10-25 (experiments, 409): the action does not fit the
+  /// experiment's state (start a running one, ramp up a stopped one ...).
+  static const experimentStateInvalid = 'EXPERIMENT_STATE_INVALID';
+
   /// A write sent an old `version` (409): somebody else saved first.
   static const staleVersion = 'STALE_VERSION';
 
@@ -339,6 +343,7 @@ abstract final class ApiErrorCodes {
     idempotencyKeyConflict,
     appUpdateRequired,
     syncTooOld,
+    experimentStateInvalid,
     staleVersion,
     tokenExpired,
     authOtpInvalid,
