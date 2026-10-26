@@ -217,8 +217,20 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     );
   }
 
+  /// Reels asked for while another one publishes: they go one after the
+  /// other (audit C4) instead of being dropped.
+  final _queued = <ReelPublishRequest>[];
+
+  void _startNext() {
+    if (!ref.mounted || state.busy || _queued.isEmpty) return;
+    unawaited(start(_queued.removeAt(0)));
+  }
+
   Future<void> start(ReelPublishRequest r) async {
-    if (state.busy) return;
+    if (state.busy) {
+      _queued.add(r);
+      return;
+    }
     final queue = ref.read(uploadQueueProvider);
     _last = r;
     _cover = r.cover;
@@ -252,6 +264,7 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
       if (ready == null) return; // cancelled / replaced
       _announce(ready);
       state = const ReelPublishState(phase: ReelPublishPhase.done, progress: 1);
+      _startNext();
     } on Object catch (e) {
       state = ReelPublishState(phase: ReelPublishPhase.failed, error: e);
     }
@@ -289,7 +302,11 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
       // The feed is not loaded: it reads the reel when it opens.
     }
     final me = ref.read(currentUserIdProvider);
-    if (me != null) ref.invalidate(attorneyReelsProvider(me));
+    if (me != null) {
+      // The own profile's grids and post counter follow (audit C6).
+      ref.invalidate(attorneyReelsProvider(me));
+      refreshProfileCounters(ref);
+    }
     ref.read(freshOwnReelProvider.notifier).announce(post);
   }
 
@@ -301,6 +318,7 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
     _jobId = null;
     if (id != null) unawaited(ref.read(uploadQueueProvider).discard(id));
     state = const ReelPublishState();
+    _startNext();
   }
 
   /// Try again after a failure.
@@ -325,6 +343,7 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
       unawaited(ref.read(uploadQueueProvider).discard(id));
     }
     state = const ReelPublishState();
+    _startNext();
   }
 }
 
