@@ -113,5 +113,10 @@
     "file": "throttler/redis-throttler-storage.service.ts",
     "kind": "lua-multi-key",
     "reason": "hits and block keys share the tag of the throttled subject (ck(tag, ...))."
+  },
+  {
+    "file": "modules/realtime/realtime-event-log.ts",
+    "kind": "lua-multi-key",
+    "reason": "NEXT_SEQ_LUA keys rt:seq and rt:epoch both go through ck('rtseq', ...): one slot in cluster mode."
   }
 ]

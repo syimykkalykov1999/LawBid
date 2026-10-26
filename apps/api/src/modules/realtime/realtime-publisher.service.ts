@@ -219,6 +219,18 @@ export class RealtimePublisher {
   toRoom(room: string, event: RealtimeEvent, data: unknown): void {
     if (this.redis.status !== 'ready') return;
     try {
+      // S1-1: the gateway listens with SSUBSCRIBE in sharded mode; a classic
+      // PUBLISH from the emitter would never reach it.
+      if (this.sharded) {
+        const { channel, message } = shardedBroadcast(
+          REALTIME_NAMESPACE,
+          [room],
+          event,
+          data,
+        );
+        void this.redis.spublish(channel, message).catch(() => undefined);
+        return;
+      }
       this.emitter.to(room).emit(event, data);
     } catch {
       // best-effort (see class doc)

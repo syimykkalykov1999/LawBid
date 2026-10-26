@@ -1,7 +1,7 @@
 ---
 id: stripe-live-keys
 title: Платежи - боевые ключи Stripe и вебхуки
-category: keys
+category: money
 cost: Аккаунт бесплатный. Комиссия Stripe берётся с каждого платежа (актуальные ставки на stripe.com/pricing). Для выплат адвокатам включается Stripe Connect, у него свои тарифы.
 time: 1-2 часа, проверка бизнеса Stripe может занять от часа до нескольких дней
 launch: stripe

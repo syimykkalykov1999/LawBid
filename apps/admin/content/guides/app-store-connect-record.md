@@ -1,7 +1,7 @@
 ---
 id: app-store-connect-record
 title: Запись приложения LawBid в App Store Connect
-category: stores
+category: launch
 cost: бесплатно (нужен активный аккаунт за $99 в год)
 time: 1-2 часа на заполнение; срок проверки Apple (не удалось проверить: Apple точный срок не называет, обычно 1-3 дня)
 verified: 2026-10-25
