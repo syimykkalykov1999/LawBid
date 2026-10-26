@@ -371,7 +371,30 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['files.access_log_enabled'] = {
     ...out['files.access_log_enabled'],
     description:
-      'On (default): remember who other than the owner opened a confidential file and from which device; the owner can see it. Off: nothing is recorded.',
+      'off | on | auto (default). Who other than the owner opened a confidential file: off = nothing recorded, on = every view, auto = the share set in files.access_log_sample_percent.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['files.access_log_sample_percent'] = {
+    ...out['files.access_log_sample_percent'],
+    min: 0,
+    max: 100,
+  };
+  out['moderation.image.enabled'] = {
+    ...out['moderation.image.enabled'],
+    description:
+      'off | on | auto (default). Image moderation (paid): auto = on inside the daily cost-guard cap.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['chat.link_preview_enabled'] = {
+    ...out['chat.link_preview_enabled'],
+    description:
+      'off | on | auto (default). Link cards in chat; the per-person daily cap is chat.link_preview_per_user_per_day.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['chat.link_preview_per_user_per_day'] = {
+    ...out['chat.link_preview_per_user_per_day'],
+    min: 1,
+    max: 100000,
   };
   out['security.seal_case_metadata'] = {
     ...out['security.seal_case_metadata'],

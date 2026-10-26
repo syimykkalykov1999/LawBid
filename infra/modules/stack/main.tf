@@ -70,6 +70,25 @@ variable "database_multi_az" {
   default     = false
   description = "RDS Multi-AZ (standby in the second AZ, automatic failover). ≈ ×2 the instance price. Prod: true."
 }
+variable "database_engine_version" {
+  type        = string
+  default     = "16"
+  description = "PostgreSQL version of the created database (\"16\" = latest minor; pin e.g. \"16.6\" with database_auto_minor_upgrade = false). docs/runbooks/db-ops.md."
+}
+variable "database_auto_minor_upgrade" {
+  type    = bool
+  default = true
+}
+variable "database_logical_replication" {
+  type        = bool
+  default     = false
+  description = "rds.logical_replication = 1 (static: needs a reboot). Needed for shard moves and Blue/Green upgrades."
+}
+variable "database_monitoring_interval" {
+  type        = number
+  default     = 0
+  description = "RDS Enhanced Monitoring interval in seconds (0 = off, 60 = cheapest on)."
+}
 variable "existing_database_identifier" {
   type        = string
   default     = ""
@@ -945,6 +964,10 @@ module "postgres" {
   instance_class             = var.database_instance_class
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
+  engine_version             = var.database_engine_version
+  auto_minor_version_upgrade = var.database_auto_minor_upgrade
+  rds_logical_replication    = var.database_logical_replication
+  monitoring_interval        = var.database_monitoring_interval
   tags                       = local.tags
 
   deletion_protection     = !var.ephemeral
@@ -1259,7 +1282,7 @@ variable "db_pooler_max_client_conn" {
 }
 variable "pgbouncer_query_wait_timeout" {
   type    = number
-  default = 30
+  default = 10
 }
 # Security pass 2026-10-25 (S3-7). Both default to today's behaviour.
 variable "pgbouncer_db_tls_mode" {
