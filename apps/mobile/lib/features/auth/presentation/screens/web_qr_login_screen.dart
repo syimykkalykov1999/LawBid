@@ -111,7 +111,9 @@ class _WebQrLoginScreenState extends ConsumerState<WebQrLoginScreen> {
       if (!mounted) return;
       _age = Stopwatch()..start();
       setState(() => _code = code);
+      _timer?.cancel();
       _timer = Timer.periodic(ClientTuning.qrPoll, (_) => unawaited(_tick()));
+      _closeSocket();
       _listen(code);
     } on Object catch (e) {
       if (!mounted) return;
