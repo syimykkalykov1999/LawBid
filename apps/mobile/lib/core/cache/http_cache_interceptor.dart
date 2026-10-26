@@ -57,9 +57,10 @@ abstract interface class HttpCacheStore {
   Future<void> clear();
 }
 
-/// Owner 2026-10-22 (client economy plan, package D): the successor of the
-/// in-memory `EtagCacheInterceptor` — the same ETag / `If-None-Match` /
-/// 304 scheme, now with a copy on disk, so a cold start gets a 304 on
+/// Owner 2026-10-22 (client economy plan, package D): the ETag /
+/// `If-None-Match` / 304 cache (it replaced the old in-memory-only
+/// interceptor, deleted in the dedup cleanup), with a copy on disk, so a
+/// cold start gets a 304 on
 /// bootstrap, the session, pricing, legal texts, stickers and the own
 /// profile instead of downloading them again. Memory stays the first
 /// level (least-recently-used out first); the disk is the second.

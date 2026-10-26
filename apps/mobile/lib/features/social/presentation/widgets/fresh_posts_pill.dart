@@ -54,8 +54,15 @@ class _FreshPostsOverlayState extends ConsumerState<FreshPostsOverlay> {
         reduceMotion: context.reduceMotion,
       );
     }
-    notifier.clear();
-    await ref.read(feedProvider.notifier).refresh();
+    if (!mounted) return;
+    final feed = ref.read(feedProvider.notifier);
+    try {
+      await feed.refresh();
+      // Audit C10: the pill goes only once the new posts really came in.
+      notifier.clear();
+    } on Object {
+      // Quiet: the pill stays and can be tapped again.
+    }
   }
 
   @override

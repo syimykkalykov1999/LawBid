@@ -51,7 +51,7 @@ import '../models/seat_limit_request_envelope.dart';
 import '../models/seat_limit_request_status.dart';
 import '../models/seats.dart';
 import '../models/set_plan_price_dto.dart';
-import '../models/status8.dart';
+import '../models/status7.dart';
 import '../models/update_promo_code_dto.dart';
 
 part 'admin_billing_client.g.dart';
@@ -86,7 +86,7 @@ abstract class AdminBillingClient {
   @GET('/admin/billing/subscriptions')
   Future<AdminBillingSubscriptionRowListEnvelope> listBillingSubscriptions({
     @Query('cursor') String? cursor,
-    @Query('status') Status8? status,
+    @Query('status') Status7? status,
     @Query('plan') Plan? plan,
     @Query('q') String? q,
     @Query('hasContractGrant') bool? hasContractGrant,

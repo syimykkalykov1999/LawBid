@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/text/search_fold.dart';
@@ -46,6 +47,7 @@ class StickerImage extends StatelessWidget {
             )
           : CachedNetworkImage(
               imageUrl: url,
+              cacheManager: AppImageCaches.feed,
               memCacheWidth: decodeWidthFor(size),
               fit: BoxFit.contain,
               fadeInDuration: const Duration(milliseconds: 120),

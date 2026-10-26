@@ -67,6 +67,8 @@ class AttorneyProfileEditScreen extends ConsumerWidget {
         ),
       ),
       body: own.when(
+        // Audit C7: a re-read after saving keeps the form (and its pop).
+        skipLoadingOnReload: true,
         loading: () => const _EditSkeleton(),
         error: (error, _) => isOfflineError(error)
             ? AppOfflineState(
@@ -127,6 +129,41 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
   bool _attempted = false;
 
   OwnAttorneyProfile get p => widget.profile;
+
+  static List<String> _firmsOf(OwnAttorneyProfile p) => p.firms.isNotEmpty
+      ? p.firms
+      : [if ((p.firmName ?? '').trim().isNotEmpty) p.firmName!];
+
+  /// Audit C8: the live profile arrives after the saved copy; while the
+  /// person has not touched the form it takes the new values.
+  @override
+  void didUpdateWidget(_AttorneyEditForm old) {
+    super.didUpdateWidget(old);
+    final a = old.profile;
+    final b = widget.profile;
+    if (identical(a, b)) return;
+    final oldFirms = _firmsOf(a);
+    final untouched = _first.text == (a.firstName ?? '') &&
+        _last.text == (a.lastName ?? '') &&
+        _username.text == a.username &&
+        _bio.text == (a.bio ?? '') &&
+        _firm.text.isEmpty &&
+        _firms.length == oldFirms.length &&
+        _firms.asMap().entries.every((e) => oldFirms[e.key] == e.value) &&
+        _languages.length == a.languages.length &&
+        _languages.containsAll(a.languages);
+    if (!untouched) return;
+    setState(() {
+      _first.text = b.firstName ?? '';
+      _last.text = b.lastName ?? '';
+      _username.text = b.username;
+      _bio.text = b.bio ?? '';
+      _firms = [..._firmsOf(b)];
+      _languages = b.languages.toSet();
+      _usernameStatus = UsernameStatus.unchanged;
+      _suggestions = const [];
+    });
+  }
 
   @override
   void dispose() {

@@ -36,6 +36,17 @@ describe('demo world: migration replay', () => {
     ]);
   });
 
+  it('keeps tagged dollar-quoted bodies ($fn$ … $fn$) whole', () => {
+    expect(
+      splitSqlStatements(
+        'CREATE FUNCTION f() RETURNS int AS $fn$\nDECLARE\n  i integer := 0;\nBEGIN RETURN $1; END;\n$fn$ LANGUAGE plpgsql;\nSELECT 1;',
+      ),
+    ).toEqual([
+      'CREATE FUNCTION f() RETURNS int AS $fn$\nDECLARE\n  i integer := 0;\nBEGIN RETURN $1; END;\n$fn$ LANGUAGE plpgsql',
+      'SELECT 1',
+    ]);
+  });
+
   it('derives the demo database url from the real one', () => {
     expect(
       deriveDemoDatabaseUrl(

@@ -60,7 +60,8 @@ class _CaseCommentsScreenState extends ConsumerState<CaseCommentsScreen> {
           Expanded(
             child: RefreshIndicator(
               color: colors.gold,
-              onRefresh: () async => ref.invalidate(commentsProvider(_thread)),
+              onRefresh: () =>
+                  ref.read(commentsProvider(_thread).notifier).refresh(),
               child: CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(
