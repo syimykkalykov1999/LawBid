@@ -1218,3 +1218,5 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: 14:49 #419 MERGED (main contract-export OOM fixed). Train told to re-merge main into OOM-failed PRs so CI reruns. Open 30, mobile queue 6.
 - NEXT after helpers report: 15:45 merged #392 (experiments/A-B framework). Open 29; reruns of ~25 PRs on CI after #419.
 - NEXT after helpers report: 15:51 merged #405 (demo reauth skip).
+- NEXT after helpers report: 16:03 merged #252 (dependabot libphonenumber).
+- NEXT after helpers report: 16:05 train opened #426 (sort SWITCH_INVENTORY rows by key → stops ~20 PRs conflicting on that file after every merge); merge it first when green.
