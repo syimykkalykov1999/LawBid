@@ -169,6 +169,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     });
   }
 
+  final _listKey = GlobalKey<_MessageListState>();
+
   Future<void> _send() async {
     final text = _text.text;
     if (text.trim().isEmpty) return;
@@ -183,6 +185,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       // accepts it (the window may have closed meanwhile).
       try {
         await _thread.edit(editing, text);
+        if (!mounted) return;
         _text.clear();
         composeN.clear();
       } on Object catch (e) {
@@ -201,6 +204,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     composeN.clear();
     _thread.typing(false);
     await _thread.send(text, replyToId: compose.replyTo?.id);
+    // Like the groups: sending while scrolled up brings the list down.
+    unawaited(_listKey.currentState?.toBottom() ?? Future<void>.value());
   }
 
   /// OQ-041: calls open once the bid is accepted (contacts unlocked).
@@ -504,7 +509,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       conversationId: widget.conversationId,
                     ),
                     Expanded(
-                      child: _MessageList(state: s, onMore: _thread.loadMore),
+                      child: _MessageList(
+                        key: _listKey,
+                        state: s,
+                        onMore: _thread.loadMore,
+                      ),
                     ),
                     AnimatedSwitcher(
                       duration: context.reduceMotion
@@ -732,7 +741,7 @@ class _Header extends ConsumerWidget {
 }
 
 class _MessageList extends ConsumerStatefulWidget {
-  const _MessageList({required this.state, required this.onMore});
+  const _MessageList({required this.state, required this.onMore, super.key});
 
   final ChatThreadState state;
   final Future<void> Function() onMore;
@@ -863,6 +872,8 @@ class _MessageListState extends ConsumerState<_MessageList> {
     );
     _c.scroll.addListener(_onScroll);
   }
+
+  Future<void> toBottom() => _c.toBottom();
 
   @override
   void dispose() {
@@ -2341,7 +2352,11 @@ class _ComposerState extends ConsumerState<_Composer> {
     await Future<void>.delayed(const Duration(milliseconds: 130));
     if (!mounted) return;
     final ok = await _rec.start(onCap: () => _finish(send: true));
-    if (!mounted) return;
+    if (!mounted) {
+      // Left the chat while the recorder started: close the microphone.
+      if (ok) unawaited(_rec.cancel());
+      return;
+    }
     if (!ok) {
       showAppSnackBar(context, t.t('chat.voice.noMic'));
       return;
@@ -2387,6 +2402,8 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (!_recording) return;
     _tick?.cancel();
     await _player.stop();
+    // Leaving the chat saves the note as a draft (dispose); nothing to do.
+    if (!mounted) return;
     final held = _held;
     setState(_reset);
     if (!send) {

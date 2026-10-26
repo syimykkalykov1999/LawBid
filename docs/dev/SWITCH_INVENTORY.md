@@ -43,6 +43,7 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 | `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `client.video_prefetch_mode` | Подгрузка рилсов заранее | auto | 3 (off/on/auto) | reel warm-up in the app (video traffic is the biggest cost): auto = Wi-Fi/mobile numbers, 0 while Bunny video traffic is over its warning level | `apps/mobile/lib/core/config/client_tuning.dart:110` (served via bootstrap; defined `common/app-settings/client-tuning.ts:98`) | `client.video_prefetch_ahead` (max 6) | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
