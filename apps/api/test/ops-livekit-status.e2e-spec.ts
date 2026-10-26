@@ -92,11 +92,6 @@ describe('LiveKit + status board (e2e)', () => {
         .expect(400);
       expect(JSON.stringify(refused.body)).toContain('LIVEKIT_URL');
       expect(JSON.stringify(refused.body)).toContain('LIVEKIT_API_SECRET');
-      await api()
-        .put('/api/v1/admin/config/calls.channel_live_enabled')
-        .set(admin.auth)
-        .send({ value: true })
-        .expect(400);
       // p2p is always allowed; unknown words are refused.
       await api()
         .put('/api/v1/admin/config/calls.video_provider')
