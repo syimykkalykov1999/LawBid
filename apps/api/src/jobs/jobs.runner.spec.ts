@@ -47,7 +47,9 @@ import type { ClientFraudService } from '../modules/client-fraud/client-fraud.se
 // bullOptions would open a real shared Redis producer; keep the unit test
 // socket-free and assert on the plain option objects instead.
 jest.mock('../redis/redis-connection', () => ({
-  ...jest.requireActual<Record<string, unknown>>('../redis/redis-connection'),
+  ...jest.requireActual<typeof import('../redis/redis-connection')>(
+    '../redis/redis-connection',
+  ),
   bullOptions: (_q: string, url: string, o?: { worker?: boolean }) => ({
     connection: o?.worker ? { url, maxRetriesPerRequest: null } : { url },
   }),
@@ -258,7 +260,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-24: + search.index (every minute).
     // Day-one foundations: + ledger.reconcile (nightly).
     // S1-3: + chat.redeliver (every minute).
-    expect(upserts).toHaveLength(68);
+    // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
+    expect(upserts).toHaveLength(69);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

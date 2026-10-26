@@ -5,6 +5,8 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Param,
+  Patch,
   Post,
   Put,
 } from '@nestjs/common';
@@ -32,10 +34,17 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
+  CostModeResultDto,
+  CostRegistryReportDto,
+  SetCostModeDto,
   SpendReportDto,
   UpdateFixedCostsDto,
   UpdatePricesDto,
 } from './admin-launch.dto';
+import {
+  CostRegistryService,
+  RegistryModeError,
+} from './cost-registry.service';
 
 const E = ErrorCode;
 
@@ -57,7 +66,67 @@ export class AdminSpendController {
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
     private readonly rateLimit: RateLimitService,
+    private readonly registry: CostRegistryService,
   ) {}
+
+  /**
+   * Cost registry (owner 2026-10-25): every billable thing with this
+   * month's real number and the live position of its switch.
+   */
+  @Get('registry')
+  @ApiOperation({
+    summary:
+      'Every billable item: real month cost, forecast, live Выкл/Вкл/Авто state, steps',
+  })
+  @ApiEnvelopeResponse(CostRegistryReportDto)
+  registryReport(): Promise<CostRegistryReportDto> {
+    return this.registry.report();
+  }
+
+  @Patch('registry/:id/mode')
+  @ApiOperation({
+    summary:
+      'Put one item in Выкл / Вкл / Авто (app settings and autoscale switches; needs step-up)',
+  })
+  @ApiEnvelopeResponse(CostModeResultDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.FEATURE_DISABLED],
+  })
+  async setRegistryMode(
+    @CurrentAdmin() admin: AdminActor,
+    @Param('id') id: string,
+    @Body() dto: SetCostModeDto,
+  ): Promise<CostModeResultDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    try {
+      return await this.registry.setMode(admin.id, admin.ip, id, dto.state);
+    } catch (e) {
+      if (e instanceof RegistryModeError) {
+        const status =
+          e.code === 'unknown_item'
+            ? HttpStatus.NOT_FOUND
+            : e.code === 'bad_state'
+              ? HttpStatus.BAD_REQUEST
+              : HttpStatus.CONFLICT;
+        throw new HttpException(
+          {
+            code:
+              e.code === 'unknown_item'
+                ? E.NOT_FOUND
+                : e.code === 'bad_state'
+                  ? E.VALIDATION_ERROR
+                  : E.FEATURE_DISABLED,
+            message: e.message,
+          },
+          status,
+        );
+      }
+      throw e;
+    }
+  }
 
   @Get()
   @ApiOperation({
