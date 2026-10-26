@@ -8,12 +8,14 @@ function build(chatRows: unknown[][]) {
   for (const rows of chatRows) queryRaw.mockResolvedValueOnce(rows);
   queryRaw.mockResolvedValue([]);
   const executeRaw = jest.fn().mockResolvedValue(1);
+  const tokenDelete = jest.fn();
   const prisma = {
     $queryRaw: queryRaw,
     $executeRaw: executeRaw,
     $transaction: jest.fn().mockResolvedValue([]),
     messagePin: { deleteMany: jest.fn() },
     messageReaction: { deleteMany: jest.fn() },
+    messageSearchToken: { deleteMany: tokenDelete },
   } as unknown as PrismaService;
   const release = jest.fn().mockResolvedValue({ released: 2 });
   const releases = { release } as unknown as FileReleaseService;
@@ -23,6 +25,7 @@ function build(chatRows: unknown[][]) {
   } as unknown as PinoLogger;
   return {
     svc: new DisappearingSweepService(prisma, releases, logger),
+    tokenDelete,
     executeRaw,
     queryRaw,
     release,
@@ -44,7 +47,7 @@ describe('DisappearingSweepService', () => {
   });
 
   it('marks expired messages deleted, repoints previews and frees their files', async () => {
-    const { svc, release, executeRaw, queryRaw } = build([
+    const { svc, release, executeRaw, queryRaw, tokenDelete } = build([
       [
         { id: 'm1', chat_id: 'c1', file_id: 'f1' },
         { id: 'm2', chat_id: 'c1', file_id: null },
@@ -63,6 +66,10 @@ describe('DisappearingSweepService', () => {
     expect(release).toHaveBeenCalledWith(['f1', 'f2'], 'disappeared', now);
     // chat preview, then group preview/pin and topic preview
     expect(executeRaw).toHaveBeenCalledTimes(3);
+    // BUG-1: the vanished messages leave the search index too.
+    expect(tokenDelete).toHaveBeenCalledWith({
+      where: { message_id: { in: ['m1', 'm2'] } },
+    });
   });
 
   it('keeps going while batches come back full', async () => {
