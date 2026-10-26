@@ -565,7 +565,8 @@ class _InlineReelState extends State<InlineReel> {
   int _flash = 0;
 
   /// Owner 2026-10-19 (Instagram): held down = paused, let go = plays on.
-  bool _held = false;
+  /// Owner 2026-10-26 (smoothness): only the player listens to it.
+  final _held = ValueNotifier<bool>(false);
 
   /// Owner 2026-10-19 (smooth scroll): a reel the finger flings past opens
   /// no player — it opens once the card stays on screen a moment.
@@ -592,6 +593,7 @@ class _InlineReelState extends State<InlineReel> {
   @override
   void dispose() {
     _settle?.cancel();
+    _held.dispose();
     super.dispose();
   }
 
@@ -619,23 +621,26 @@ class _InlineReelState extends State<InlineReel> {
         // Owner 2026-10-13: in the feed a tap on the playing video opens the
         // full-screen player; pause / resume live in the player.
         onTap: widget.onOpen,
-        onLongPressStart: (_) => setState(() => _held = true),
-        onLongPressEnd: (_) => setState(() => _held = false),
-        onLongPressCancel: () => setState(() => _held = false),
+        onLongPressStart: (_) => _held.value = true,
+        onLongPressEnd: (_) => _held.value = false,
+        onLongPressCancel: () => _held.value = false,
         child: Stack(
           fit: StackFit.expand,
           children: [
             Consumer(
-              builder: (context, ref, _) => ReelVideo(
-                video: video,
-                active: _visible && video.ready,
-                // Owner 2026-10-18: the stream opens as soon as the card
-                // peeks in, so its first frame is there when it plays.
-                warm: _near && video.ready,
-                muted: ref.watch(reelsMutedProvider),
-                paused: _held,
-                zoomable: true,
-                onViewed: _viewed,
+              builder: (context, ref, _) => ValueListenableBuilder<bool>(
+                valueListenable: _held,
+                builder: (context, held, _) => ReelVideo(
+                  video: video,
+                  active: _visible && video.ready,
+                  // Owner 2026-10-18: the stream opens as soon as the card
+                  // peeks in, so its first frame is there when it plays.
+                  warm: _near && video.ready,
+                  muted: ref.watch(reelsMutedProvider),
+                  paused: held,
+                  zoomable: true,
+                  onViewed: _viewed,
+                ),
               ),
             ),
             if (!video.ready)
