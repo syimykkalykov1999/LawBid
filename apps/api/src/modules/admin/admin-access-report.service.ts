@@ -1,9 +1,21 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { dailyDue } from '../../common/admin-summary/snapshot-gate';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PRIVATE_READ_ACTION_PREFIX } from '../admin-auth/admin-private-content';
 import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
 import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
+import {
+  type AccessReadGroup,
+  countAccessReads,
+  TOTALS_BUTTON_COOLDOWN_MS,
+} from './dashboard.service';
+
+/** Stored groups of one month: `access-report:YYYY-MM` (AdminSummaryService). */
+export const ACCESS_REPORT_SUMMARY_KEY = 'access-report';
+export const accessReportKey = (month: string) =>
+  `${ACCESS_REPORT_SUMMARY_KEY}:${month}`;
 
 export interface AccessReportRow {
   adminId: string;
@@ -45,6 +57,11 @@ export function previousMonth(now: Date): string {
  * content (chats, call metadata, case files, documents), how many times and
  * why. Built from the audit rows `admin.private_read.*`; shown in the audit
  * log page and e-mailed to the owner on the 1st (`admin.access-report`).
+ * Snapshot rule 2026-10-25: the groups are not counted on request — the
+ * compute is countAccessReads (dashboard.service.ts); a closed month is
+ * counted once and kept, the running month is recounted once a day
+ * (`admin.summaries`, or the first read of the day) and by the admin
+ * button «Обновить» at most once per 10 minutes.
  */
 @Injectable()
 export class AdminAccessReportService {
@@ -56,40 +73,18 @@ export class AdminAccessReportService {
     @Optional()
     @Inject(EMAIL_PROVIDER)
     private readonly email?: EmailProvider,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
-  async build(month: string): Promise<AccessReport | null> {
+  /** [fresh]: recount now (the monthly e-mail job, the day the month closes). */
+  async build(
+    month: string,
+    opts: { fresh?: boolean } = {},
+  ): Promise<AccessReport | null> {
     const range = monthRange(month);
     if (!range) return null;
-    const where = {
-      action: { startsWith: PRIVATE_READ_ACTION_PREFIX },
-      created_at: { gte: range.from, lt: range.to },
-    };
-    const by = ['admin_id', 'action', 'reason_code'] as const;
-    const all = await this.prisma.auditLog.groupBy({
-      by: [...by],
-      where,
-      _count: { _all: true },
-    });
-    // A refused attempt (outcome: failed) is logged too, but is not a read.
-    const failed = await this.prisma.auditLog.groupBy({
-      by: [...by],
-      where: { ...where, after: { path: ['outcome'], equals: 'failed' } },
-      _count: { _all: true },
-    });
-    const keyOf = (g: {
-      admin_id: string;
-      action: string;
-      reason_code: string | null;
-    }) => `${g.admin_id}|${g.action}|${g.reason_code ?? ''}`;
-    const failedBy = new Map(failed.map((g) => [keyOf(g), g._count._all]));
-    const groups = all
-      .map((g) => ({
-        ...g,
-        _count: { _all: g._count._all - (failedBy.get(keyOf(g)) ?? 0) },
-      }))
-      .filter((g) => g._count._all > 0);
-    const ids = [...new Set(groups.map((g) => g.admin_id))];
+    const groups = await this.groups(month, range, opts);
+    const ids = [...new Set(groups.map((g) => g.adminId))];
     const users = ids.length
       ? await this.prisma.user.findMany({
           where: { id: { in: ids } },
@@ -99,11 +94,11 @@ export class AdminAccessReportService {
     const email = new Map(users.map((u) => [u.id, u.email]));
     const rows = groups
       .map((g) => ({
-        adminId: g.admin_id,
-        adminEmail: email.get(g.admin_id) ?? null,
+        adminId: g.adminId,
+        adminEmail: email.get(g.adminId) ?? null,
         kind: g.action.slice(PRIVATE_READ_ACTION_PREFIX.length),
-        reasonCode: g.reason_code,
-        count: g._count._all,
+        reasonCode: g.reasonCode,
+        count: g.count,
       }))
       .sort((a, b) => b.count - a.count);
     return {
@@ -113,6 +108,46 @@ export class AdminAccessReportService {
       total: rows.reduce((n, r) => n + r.count, 0),
       rows,
     };
+  }
+
+  /** The stored groups of the month; counted when nothing usable is stored. */
+  private async groups(
+    month: string,
+    range: { from: Date; to: Date },
+    opts: { fresh?: boolean },
+  ): Promise<AccessReadGroup[]> {
+    const compute = () => countAccessReads(this.prisma, range.from, range.to);
+    if (!this.summary) return compute();
+    const key = accessReportKey(month);
+    if (!opts.fresh) {
+      const hit = await this.summary.peek<AccessReadGroup[]>(key);
+      // A month counted after its end cannot change; a running month is
+      // recounted once a day (the quiet hour, see dailyDue).
+      const closed = hit && Date.parse(hit.computedAt) >= range.to.getTime();
+      if (hit && (closed || !dailyDue(hit.computedAt))) return hit.data;
+    }
+    return (await this.summary.refresh(key, compute, !opts.fresh)).data;
+  }
+
+  /** `admin.summaries`: the running month, when the daily recount is due. */
+  async refreshDaily(now = new Date()): Promise<void> {
+    if (this.summary) await this.build(now.toISOString().slice(0, 7));
+  }
+
+  /** The admin button «Обновить»: recount the running month, at most once per 10 min. */
+  async refresh(now = new Date()): Promise<void> {
+    const month = now.toISOString().slice(0, 7);
+    const range = monthRange(month);
+    if (!range || !this.summary) return;
+    const hit = await this.summary.peek(accessReportKey(month));
+    if (
+      hit &&
+      now.getTime() - Date.parse(hit.computedAt) < TOTALS_BUTTON_COOLDOWN_MS
+    )
+      return;
+    await this.summary.refresh(accessReportKey(month), () =>
+      countAccessReads(this.prisma, range.from, range.to),
+    );
   }
 
   /** `admin.access-report`: e-mail last month's report to the owners. */
@@ -128,7 +163,7 @@ export class AdminAccessReportService {
       return { skipped: 'switched off' };
     }
     const month = previousMonth(now);
-    const report = await this.build(month);
+    const report = await this.build(month, { fresh: true });
     if (!report) return { skipped: 'bad month' };
     if (!this.email) return { skipped: 'no e-mail provider' };
     const owners = await this.prisma.user.findMany({

@@ -1,6 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  checkAuditChain,
+  TOTALS_BUTTON_COOLDOWN_MS,
+} from '../admin/dashboard.service';
+
+/** The stored result of the last chain check (AdminSummaryService). */
+export const AUDIT_CHAIN_SUMMARY_KEY = 'audit-chain';
 
 export interface AuditEntry {
   adminId: string;
@@ -34,7 +42,10 @@ export interface ChainCheck {
  */
 @Injectable()
 export class AuditLogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly summary?: AdminSummaryService,
+  ) {}
 
   async record(
     entry: AuditEntry,
@@ -57,36 +68,26 @@ export class AuditLogService {
   }
 
   /**
-   * Owner 2026-10-28: re-computes the hash chain (the audit_log_chain
-   * trigger writes it, see the migration). A row that was edited, removed
-   * or inserted out of order breaks the link at its `seq`. Cutting rows off
-   * the END is caught by comparing the head with the daily S3 export.
+   * Owner 2026-10-28: the audit_log hash chain check (a row that was
+   * edited, removed or inserted out of order breaks the link at its `seq`).
+   * Snapshot rule 2026-10-25: the scan itself is the snapshot compute
+   * (checkAuditChain in dashboard.service.ts). The nightly export recounts
+   * it (`fresh`) and stores the result; the admin endpoint reads the stored
+   * result and recounts at most once per 10 minutes.
    */
-  async verifyChain(fromSeq = 0): Promise<ChainCheck> {
-    const broken = await this.prisma.$queryRaw<{ seq: bigint }[]>`
-      SELECT seq FROM (
-        SELECT a.seq, a.prev_hash, a.row_hash,
-               lag(a.row_hash) OVER (ORDER BY a.seq) AS expected_prev,
-               audit_log_row_hash(a.prev_hash, a) AS recomputed,
-               row_number() OVER (ORDER BY a.seq) AS rn
-          FROM audit_log a WHERE a.seq IS NOT NULL AND a.seq >= ${fromSeq}
-      ) t
-      WHERE (t.rn > 1 AND t.prev_hash IS DISTINCT FROM t.expected_prev)
-         OR t.row_hash IS DISTINCT FROM t.recomputed
-      ORDER BY seq LIMIT 1`;
-    const head = await this.prisma.auditLog.findFirst({
-      where: { seq: { not: null } },
-      orderBy: { seq: 'desc' },
-      select: { seq: true, row_hash: true },
-    });
-    const checked = await this.prisma.auditLog.count({
-      where: { seq: { gte: fromSeq } },
-    });
-    return {
-      checked,
-      brokenAtSeq: broken[0] ? Number(broken[0].seq) : null,
-      headHash: head?.row_hash ?? null,
-      headSeq: head?.seq != null ? Number(head.seq) : null,
-    };
+  async verifyChain(opts: { fresh?: boolean } = {}): Promise<ChainCheck> {
+    const compute = () => checkAuditChain(this.prisma);
+    if (!this.summary) return compute();
+    if (!opts.fresh) {
+      const hit = await this.summary.peek<ChainCheck>(AUDIT_CHAIN_SUMMARY_KEY);
+      if (
+        hit &&
+        Date.now() - Date.parse(hit.computedAt) < TOTALS_BUTTON_COOLDOWN_MS
+      )
+        return hit.data;
+    }
+    return (
+      await this.summary.refresh(AUDIT_CHAIN_SUMMARY_KEY, compute, !opts.fresh)
+    ).data;
   }
 }

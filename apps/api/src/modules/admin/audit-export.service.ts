@@ -96,7 +96,8 @@ export class AuditExportService {
     ) {
       return { ...empty, skipped: 'switched off' };
     }
-    const chain = await this.audit.verifyChain();
+    // The nightly recount: the stored result is what the admin endpoint shows.
+    const chain = await this.audit.verifyChain({ fresh: true });
     if (chain.brokenAtSeq !== null) {
       // Loud on purpose: the status watchdog and log alarms pick it up.
       this.logger.error(
