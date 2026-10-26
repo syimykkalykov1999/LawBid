@@ -114,6 +114,10 @@ module "stack" {
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_threshold_usd        = var.anomaly_threshold_usd
   backup_age_missing_data      = var.backup_age_missing_data
+  service_budgets              = var.service_budgets
+  guardduty_enabled            = var.guardduty_enabled
+  guardduty_s3_events          = var.guardduty_s3_events
+  guardduty_rds_login          = var.guardduty_rds_login
   guardduty_ebs_malware        = var.guardduty_ebs_malware
   guardduty_runtime_monitoring = var.guardduty_runtime_monitoring
   create_anomaly_monitor       = var.create_anomaly_monitor
@@ -126,18 +130,16 @@ module "stack" {
   db_autoscale_min_class                 = var.db_autoscale_min_class
   db_autoscale_max_class                 = var.db_autoscale_max_class
   db_autoscale_mode                      = var.db_autoscale_mode
+  db_autoscale_initial_ceiling_class     = var.db_autoscale_initial_ceiling_class
+  redis_autoscale_initial_ceiling_class  = var.redis_autoscale_initial_ceiling_class
   db_autoscale_tuning                    = var.db_autoscale_tuning
   redis_autoscale_enabled                = var.redis_autoscale_enabled
+  secret_rotation                        = var.secret_rotation
   redis_autoscale_min_class              = var.redis_autoscale_min_class
   redis_autoscale_max_class              = var.redis_autoscale_max_class
   redis_autoscale_mode                   = var.redis_autoscale_mode
   redis_autoscale_tuning                 = var.redis_autoscale_tuning
   existing_database_identifier           = var.existing_database_identifier
-  adopt_existing_database                = var.adopt_existing_database
-  replicate_media                        = var.replicate_media
-  database_deletion_protection           = var.database_deletion_protection
-  rds_cross_region_backups               = var.rds_cross_region_backups
-  rds_cross_region_backup_retention_days = var.rds_cross_region_backup_retention_days
   backup_enabled                         = var.backup_enabled
   backup_retention_days                  = var.backup_retention_days
   backup_copy_account_id                 = var.backup_copy_account_id
@@ -147,8 +149,18 @@ module "stack" {
   redis_cache_node                       = var.redis_cache_node
   redis_cache_node_type                  = var.redis_cache_node_type
   worker_jobs_per_task                   = var.worker_jobs_per_task
+  adopt_existing_database                = var.adopt_existing_database
+  replicate_media                        = var.replicate_media
+  database_deletion_protection           = var.database_deletion_protection
+  rds_cross_region_backups               = var.rds_cross_region_backups
+  rds_cross_region_backup_retention_days = var.rds_cross_region_backup_retention_days
 
   # Security research #5 (2026-10-22): WAF, cloud detector, container.
+  waf_enabled                    = var.waf_enabled
+  cdn_waf_enabled                = var.cdn_waf_enabled
+  waf_requests_alarm_per_day     = var.waf_requests_alarm_per_day
+  cdn_waf_requests_alarm_per_day = var.cdn_waf_requests_alarm_per_day
+  cloudfront_gb_alarm_per_day    = var.cloudfront_gb_alarm_per_day
   waf_otp_rate_limit_per_5m      = var.waf_otp_rate_limit_per_5m
   waf_device_header              = var.waf_device_header
   waf_auth_rate_action           = var.waf_auth_rate_action

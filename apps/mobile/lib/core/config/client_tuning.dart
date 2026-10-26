@@ -10,6 +10,7 @@
 /// (api/src/common/app-settings/client-tuning.ts): a wrong number can
 /// neither silence the app nor make it hammer the server.
 abstract final class ClientTuning {
+  static int _fastTimeoutS = 8;
   static int _retryMax = 2;
   static int _retryBaseMs = 1000;
   static int _retryAfterMaxS = 10;
@@ -26,6 +27,12 @@ abstract final class ClientTuning {
   static int _chatPhotoQuality = 82;
   static int _sentryTracesPercent = 5;
   static int _traceparentPercent = 5;
+
+  /// S15-12: receive timeout of the latency-critical reads (the start's
+  /// `GET /me/session` and `/config/bootstrap`) instead of the 15 s every
+  /// other call gets: a bad network or a captive portal gives its verdict
+  /// sooner (`client.fast_timeout_s`). Never used for writes.
+  static Duration get fastTimeout => Duration(seconds: _fastTimeoutS);
 
   /// Repeats of a failed safe request (RetryInterceptor).
   static int get retryMax => _retryMax;
@@ -83,6 +90,7 @@ abstract final class ClientTuning {
       return (v ?? fallback).clamp(min, max);
     }
 
+    _fastTimeoutS = pick('client.fast_timeout_s', 8, 3, 30);
     _retryMax = pick('client.retry_max', 2, 0, 4);
     _retryBaseMs = pick('client.retry_base_ms', 1000, 200, 30000);
     _retryAfterMaxS = pick('client.retry_after_max_s', 10, 1, 120);

@@ -48,6 +48,38 @@ variable "nat_traffic_alarm_gb_per_day" {
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $0.9/day (S4-13: was 100 GB = $4.5/day = $135/month before any alarm). See docs/runbooks/nat-endpoints.md."
 }
 variable "alb_arn_suffix" { type = string }
+
+# --- spend alarms on pay-per-use edge services (cost registry, V2 / V6) ------
+variable "waf_alb_acl_name" {
+  type        = string
+  default     = ""
+  description = "Name of the ALB web ACL (modules/alb output waf_acl_name); empty = no request-count alarm for it."
+}
+variable "waf_alb_requests_per_day" {
+  type        = number
+  default     = 3000000
+  description = "Alarm when the ALB web ACL inspects more than this many requests in 24 h (AWS WAF bills $0.60 per million, so 3 M = $1.80/day); 0 = off."
+}
+variable "waf_cdn_acl_name" {
+  type        = string
+  default     = ""
+  description = "Name of the CloudFront web ACL (modules/cdn-waf output web_acl_name); empty = no alarm."
+}
+variable "waf_cdn_requests_per_day" {
+  type        = number
+  default     = 10000000
+  description = "Alarm when the CloudFront web ACL inspects more than this many requests in 24 h ($0.60 per million, so 10 M = $6/day); 0 = off."
+}
+variable "cloudfront_distribution_ids" {
+  type        = map(string)
+  default     = {}
+  description = "CloudFront distributions to watch, label => distribution id (web, media, documents)."
+}
+variable "cloudfront_gb_per_day_alarm" {
+  type        = number
+  default     = 60
+  description = "Alarm when one distribution serves more than this many GB in 24 h. The free tier is 1 TB/month (about 33 GB/day); after it CloudFront bills about $0.085/GB. 0 = off. Hard cap option: modules/cdn-waf rate rule or signed URLs (docs/runbooks/COST_LADDER.md)."
+}
 variable "api_target_group_arn_suffix" { type = string }
 variable "cluster_name" { type = string }
 variable "api_service_name" { type = string }
@@ -1462,4 +1494,106 @@ resource "aws_cloudwatch_metric_alarm" "usage_alert" {
   tags                = var.tags
 
   depends_on = [aws_cloudwatch_log_metric_filter.usage_alert]
+}
+
+# --- WAF request counts: AWS WAF is billed per inspected request, so a flood
+# costs money even when every request is blocked. One alarm per web ACL on
+# the day's total (allowed + blocked). Cents, listed in the cost registry.
+resource "aws_cloudwatch_metric_alarm" "waf_alb_requests" {
+  count               = var.waf_alb_acl_name != "" && var.waf_alb_requests_per_day > 0 ? 1 : 0
+  alarm_name          = "${var.name}-waf-alb-requests"
+  alarm_description   = "LawBid: Фильтр атак перед сервером (WAF) за сутки проверил больше ${var.waf_alb_requests_per_day} запросов — каждый миллион стоит 0,60 $, в том числе заблокированные. Что делать: ничего срочного; посмотрите в админке «Расходы» и в AWS WAF → Web ACLs, не наплыв ли ботов; при атаке правила уже режут лишнее. Инструкция: ${var.runbook_base_url}/COST_LADDER.md (EN: ALB web ACL inspected over ${var.waf_alb_requests_per_day} requests in 24 h.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.waf_alb_requests_per_day
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+
+  metric_query {
+    id = "allowed"
+    metric {
+      metric_name = "AllowedRequests"
+      namespace   = "AWS/WAFV2"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { WebACL = var.waf_alb_acl_name, Region = data.aws_region.current.name, Rule = "ALL" }
+    }
+  }
+  metric_query {
+    id = "blocked"
+    metric {
+      metric_name = "BlockedRequests"
+      namespace   = "AWS/WAFV2"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { WebACL = var.waf_alb_acl_name, Region = data.aws_region.current.name, Rule = "ALL" }
+    }
+  }
+  metric_query {
+    id          = "total"
+    expression  = "FILL(allowed, 0) + FILL(blocked, 0)"
+    label       = "WAF requests (ALB)"
+    return_data = true
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "waf_cdn_requests" {
+  count               = var.waf_cdn_acl_name != "" && var.waf_cdn_requests_per_day > 0 ? 1 : 0
+  alarm_name          = "${var.name}-waf-cdn-requests"
+  alarm_description   = "LawBid: Фильтр атак на раздаче файлов (WAF CloudFront) за сутки проверил больше ${var.waf_cdn_requests_per_day} запросов — каждый миллион стоит 0,60 $. Что делать: ничего срочного; посмотрите в админке «Расходы», не качает ли кто-то файлы массово. Инструкция: ${var.runbook_base_url}/COST_LADDER.md (EN: CloudFront web ACL inspected over ${var.waf_cdn_requests_per_day} requests in 24 h.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.waf_cdn_requests_per_day
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+
+  metric_query {
+    id = "allowed"
+    metric {
+      metric_name = "AllowedRequests"
+      namespace   = "AWS/WAFV2"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { WebACL = var.waf_cdn_acl_name, Region = "Global", Rule = "ALL" }
+    }
+  }
+  metric_query {
+    id = "blocked"
+    metric {
+      metric_name = "BlockedRequests"
+      namespace   = "AWS/WAFV2"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { WebACL = var.waf_cdn_acl_name, Region = "Global", Rule = "ALL" }
+    }
+  }
+  metric_query {
+    id          = "total"
+    expression  = "FILL(allowed, 0) + FILL(blocked, 0)"
+    label       = "WAF requests (CloudFront)"
+    return_data = true
+  }
+}
+
+# --- CloudFront bytes downloaded per distribution (V6): the biggest variable
+# bill after the free 1 TB. The alarm is the early warning; the hard stop is
+# a WAF rate rule or signed URLs (docs/runbooks/COST_LADDER.md, "Раздача
+# файлов"). CloudFront metrics live in us-east-1, the stack's region.
+resource "aws_cloudwatch_metric_alarm" "cloudfront_bytes" {
+  for_each            = var.cloudfront_gb_per_day_alarm > 0 ? var.cloudfront_distribution_ids : {}
+  alarm_name          = "${var.name}-cloudfront-bytes-${each.key}"
+  alarm_description   = "LawBid: Раздача файлов (CloudFront «${each.key}») за сутки отдала больше ${var.cloudfront_gb_per_day_alarm} ГБ. Бесплатно 1 ТБ в месяц, дальше около 0,085 $ за ГБ. Что делать: ничего срочного; админка → «Расходы» → «Раздача файлов»; если это наплыв, снизьте cdn_waf_rate_limit_per_5m или переведите фото на Bunny/R2 (growth.cdn_images_provider, media.public_store). Инструкция: ${var.runbook_base_url}/COST_LADDER.md (EN: distribution ${each.value} served over ${var.cloudfront_gb_per_day_alarm} GB in 24 h.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 86400
+  threshold           = var.cloudfront_gb_per_day_alarm * 1073741824
+  statistic           = "Sum"
+  metric_name         = "BytesDownloaded"
+  namespace           = "AWS/CloudFront"
+  dimensions          = { DistributionId = each.value, Region = "Global" }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
 }

@@ -3,6 +3,7 @@ import { HttpException, type INestApplicationContext } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { ErrorEvent } from '@sentry/nestjs';
 import { SecretsService } from '../common/secrets/secrets.service';
+import { throttledBeforeSend } from './sentry-throttle';
 
 /**
  * docs/06 §4.3 — Sentry for the API and the worker. Audit 2026-10-02: the
@@ -44,6 +45,7 @@ export async function startSentry(
   const saved = await secrets?.field('sentry', 'dsn').catch(() => undefined);
   const dsn = saved || config.get<string>('SENTRY_DSN');
   if (!dsn) return false;
+  const throttled = throttledBeforeSend(beforeSend);
   Sentry.init({
     dsn,
     environment: config.get<string>('NODE_ENV') ?? 'development',
@@ -51,8 +53,9 @@ export async function startSentry(
     release: process.env.APP_VERSION,
     ...sentryRates(),
     maxBreadcrumbs: 50,
+    // Cost registry V9: a crash loop cannot eat the monthly quota in an hour.
     beforeSend: (event, hint) =>
-      isClientError(hint) ? null : beforeSend(event),
+      isClientError(hint) ? null : throttled(event),
   });
   return true;
 }

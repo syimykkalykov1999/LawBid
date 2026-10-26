@@ -32,6 +32,19 @@ class SentryNative {
 
   static const _dsnKey = 'sentry.native_dsn.v1';
 
+  /// S15-11: the prod DSN compiled into the build (`SENTRY_DSN` in
+  /// config/prod.json; a DSN is public by design). The native SDK starts
+  /// with it from the very first launch and in a crash loop; the admin's
+  /// value (bootstrap `sentry.mobile_dsn`, saved on the phone) overrides it.
+  static const String compiledDsnDefine = String.fromEnvironment('SENTRY_DSN');
+  static String _compiledDsn = compiledDsnDefine;
+
+  /// The DSN compiled into this build, or null.
+  static String? get compiledDsn {
+    final v = _compiledDsn.trim();
+    return v.isEmpty ? null : v;
+  }
+
   static SentryNativeSdk _sdk = const _FlutterSdk();
   static SharedPreferences? _prefs;
   static String? _dsn;
@@ -108,7 +121,9 @@ class SentryNative {
     SentryNativeSdk? sdk,
     bool? release,
     bool? supported,
+    String? compiledDsn,
   }) {
+    _compiledDsn = compiledDsn ?? compiledDsnDefine;
     _sdk = sdk ?? const _FlutterSdk();
     _prefs = null;
     _dsn = null;
@@ -134,7 +149,8 @@ class SentryNative {
   static Future<void> start(SharedPreferences prefs, AppFlavor flavor) {
     _prefs = prefs;
     if (!_allowed(flavor)) return Future<void>.value();
-    return _apply(prefs.getString(_dsnKey));
+    final saved = prefs.getString(_dsnKey);
+    return _apply(saved == null || saved.trim().isEmpty ? compiledDsn : saved);
   }
 
   /// With each bootstrap answer (via [SentryReporter.configure]): a new
@@ -148,7 +164,8 @@ class SentryNative {
         value.isEmpty ? prefs.remove(_dsnKey) : prefs.setString(_dsnKey, value),
       );
     }
-    return _apply(value.isEmpty ? null : value);
+    // No admin value: the compiled-in DSN stays (S15-11).
+    return _apply(value.isEmpty ? compiledDsn : value);
   }
 
   static Future<void> _apply(String? dsn) => _chain = _chain.then((_) async {

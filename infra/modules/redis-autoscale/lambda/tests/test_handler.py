@@ -166,6 +166,22 @@ class HandlerTests(unittest.TestCase):
         f = Fake(status="modifying")
         self.assertEqual(self.run_with(f, {"action": "force", "class": "cache.t4g.medium"})["result"], "refused")
 
+    def test_ceiling_param_can_only_lower_the_ceiling(self):
+        os.environ["MAX_CLASS_PARAM"] = "/x/max-class"
+        self.addCleanup(os.environ.pop, "MAX_CLASS_PARAM", None)
+        f = Fake()
+        f.param["/x/max-class"] = "cache.t4g.micro"  # money allows only the smallest node
+        self.run_with(f)
+        self.assertEqual([c for c in f.calls if c[0] == "modify"], [])
+
+    def test_ceiling_param_never_raises_and_ignores_garbage(self):
+        os.environ["MAX_CLASS_PARAM"] = "/x/max-class"
+        self.addCleanup(os.environ.pop, "MAX_CLASS_PARAM", None)
+        for value in ("cache.r7g.2xlarge", "nonsense", ""):
+            f = Fake()
+            f.param["/x/max-class"] = value
+            self.assertEqual(self.run_with(f)["to"], "cache.t4g.small")
+
 
 if __name__ == "__main__":
     unittest.main()
