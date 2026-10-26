@@ -1,6 +1,12 @@
 import { eventOf, publishCaseEvent } from './case-events';
 import { NotificationsService } from './notifications.service';
 
+/** The bid patch of a case:update event (narrows the event union). */
+function bidOf(e: ReturnType<typeof eventOf>) {
+  if (e?.event !== 'case:update') throw new Error('expected case:update');
+  return e.data.bid;
+}
+
 /** Owner 2026-10-22 (client economy plan, package E): case / bid /
  * consultation notifications imply a realtime event on the same seam. */
 describe('case events from notifications', () => {
@@ -35,36 +41,42 @@ describe('case events from notifications', () => {
 
   it('a bid event carries the one-bid patch (status, amount) for the app', () => {
     expect(
-      eventOf('offer_countered', {
-        caseId: 'c',
-        bidId: 'b',
-        amountCents: 9000,
-      })?.data.bid,
+      bidOf(
+        eventOf('offer_countered', {
+          caseId: 'c',
+          bidId: 'b',
+          amountCents: 9000,
+        }),
+      ),
     ).toEqual({ bidId: 'b', status: 'active', amountCents: 9000 });
     expect(
-      eventOf('offer_accepted', { caseId: 'c', bidId: 'b' })?.data.bid,
+      bidOf(eventOf('offer_accepted', { caseId: 'c', bidId: 'b' })),
     ).toEqual({ bidId: 'b', status: 'accepted' });
     expect(
-      eventOf('bid_rejected', { caseId: 'c', bidId: 'b', reason: 'withdrawn' })
-        ?.data.bid,
+      bidOf(
+        eventOf('bid_rejected', {
+          caseId: 'c',
+          bidId: 'b',
+          reason: 'withdrawn',
+        }),
+      ),
     ).toEqual({ bidId: 'b', status: 'withdrawn' });
     expect(
-      eventOf('bid_rejected', {
-        caseId: 'c',
-        bidId: 'b',
-        reason: 'another_bid_accepted',
-      })?.data.bid,
+      bidOf(
+        eventOf('bid_rejected', {
+          caseId: 'c',
+          bidId: 'b',
+          reason: 'another_bid_accepted',
+        }),
+      ),
     ).toEqual({ bidId: 'b', status: 'rejected_auto' });
     expect(
-      eventOf('negotiation_failed', { caseId: 'c', bidId: 'b' })?.data.bid,
+      bidOf(eventOf('negotiation_failed', { caseId: 'c', bidId: 'b' })),
     ).toEqual({ bidId: 'b', status: 'failed_negotiation' });
     // No bid id, or a reason the patch cannot say for certain: no patch.
+    expect(bidOf(eventOf('offer_countered', { caseId: 'c' }))).toBeUndefined();
     expect(
-      eventOf('offer_countered', { caseId: 'c' })?.data.bid,
-    ).toBeUndefined();
-    expect(
-      eventOf('bid_rejected', { caseId: 'c', bidId: 'b', reason: 'x' })?.data
-        .bid,
+      bidOf(eventOf('bid_rejected', { caseId: 'c', bidId: 'b', reason: 'x' })),
     ).toBeUndefined();
   });
 
