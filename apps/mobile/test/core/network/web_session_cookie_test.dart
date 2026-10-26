@@ -69,4 +69,19 @@ void main() {
       );
     });
   });
+
+  group('HeadersInterceptor.applyImageFormats', () {
+    test('the web asks for AVIF twins, a phone does not', () {
+      final web = RequestOptions(path: '/files/1');
+      HeadersInterceptor.applyImageFormats(web, isWeb: true);
+      expect(web.headers[HeadersInterceptor.imageFormatsHeader], 'avif');
+
+      final phone = RequestOptions(path: '/files/1');
+      HeadersInterceptor.applyImageFormats(phone, isWeb: false);
+      expect(
+        phone.headers.containsKey(HeadersInterceptor.imageFormatsHeader),
+        isFalse,
+      );
+    });
+  });
 }

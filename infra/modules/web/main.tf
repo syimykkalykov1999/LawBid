@@ -110,10 +110,24 @@ variable "stripe_frame_src" {
   description = "Stripe card fields and 3-D Secure frames on the card page."
 }
 
+# Owner 2026-10-25 (S17-1, web package). Instagram / WhatsApp Web call their
+# own origin, so the browser never sends a CORS preflight. Ours calls
+# api.<domain> from <domain>: the app's custom headers make every call
+# "non-simple", and the preflight answer is cached per URL. With a value here
+# the web distribution gets a `/api/*` behavior that forwards to the ALB
+# (no cache, every header / cookie / query), so the web build can use
+# API_BASE_URL=https://<web host>/api/v1 (repository secret WEB_API_BASE_URL)
+# and every call is same-origin. Empty = off (nothing changes).
+variable "api_proxy_host" {
+  type        = string
+  default     = ""
+  description = "API host (e.g. api.<domain>) behind a same-origin /api/* behavior of the web distribution; empty = no such behavior (the web calls the API cross-origin, with preflights)."
+}
+
 variable "cross_origin_isolation" {
   type        = bool
   default     = false
-  description = "Send COOP/COEP headers so the engine can render on a worker thread (faster, Chrome and Firefox). Off by default: turn on after checking images and video still load."
+  description = "Send COOP/COEP headers on the app pages (not on /pay.html, Stripe frames break under COEP) so the engine can render on a worker thread (faster, Chrome and Firefox). Off by default: test on a staging stack first (docs/perf/WEB_PERF_2026-10-25.md), then turn on."
 }
 
 data "aws_region" "current" {}
@@ -242,6 +256,11 @@ locals {
     app  = join("; ", concat(["default-src 'self'", "script-src ${join(" ", local.script_src)}"], local.csp_rest))
     site = join("; ", concat(["default-src 'self'", "script-src ${join(" ", concat(local.script_src, ["'unsafe-inline'"]))}"], local.csp_rest))
   }
+  # S17-5: the card page (/pay.html + pay.js) embeds Stripe frames that do not
+  # send COEP, so it keeps the app's CSP but never gets the isolation headers.
+  csp_all = merge(local.csp, { pay = local.csp["app"] })
+  # Files of the card page (top-level, no extension logic needed).
+  pay_paths = ["/pay.html", "/pay.js"]
 }
 
 moved {
@@ -250,12 +269,14 @@ moved {
 }
 
 resource "aws_cloudfront_response_headers_policy" "web" {
-  for_each = local.csp
-  name     = each.key == "app" ? "${var.name}-web-security" : "${var.name}-site-security"
-  comment  = each.key == "app" ? "Security headers for the web app" : "Security headers for the company site pages"
+  for_each = local.csp_all
+  name     = each.key == "app" ? "${var.name}-web-security" : "${var.name}-${each.key}-security"
+  comment  = each.key == "app" ? "Security headers for the web app" : (each.key == "pay" ? "Security headers for the card page (no cross-origin isolation: Stripe frames)" : "Security headers for the company site pages")
 
+  # Only the app pages are cross-origin isolated (S17-5): the company site
+  # (Next.js, third-party embeds) and the card page are not.
   dynamic "custom_headers_config" {
-    for_each = var.cross_origin_isolation ? [1] : []
+    for_each = var.cross_origin_isolation && each.key == "app" ? [1] : []
     content {
       items {
         header   = "Cross-Origin-Opener-Policy"
@@ -367,6 +388,20 @@ resource "aws_cloudfront_function" "seo_index" {
         }
         return request;
       }
+      // S17-9: /v/<sha>/... names its own release, so the live-release and
+      // app-path lookups are not needed (2 of the 3 store reads per file;
+      // ~30 files per cold page load). Only the brotli marker is read.
+      if (uri.indexOf('/v/') === 0) {
+        var vp = uri.split('/');
+        if (SHA.test(vp[2] || '')) {
+          request.uri = '/releases/' + vp[2] + uri;
+          var vae = request.headers['accept-encoding'];
+          if (BR.test(uri) && vae && vae.value.indexOf('br') !== -1 && (await get('br_' + vp[2])) === '1') {
+            request.uri += '.br';
+          }
+          return request;
+        }
+      }
       var first = uri.split('/')[1] || '';
       var release = await get('web_release');
       if (!release) {
@@ -452,6 +487,23 @@ resource "aws_cloudfront_distribution" "web" {
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
   }
 
+  # S17-1: the API behind the same host (see `api_proxy_host`).
+  dynamic "origin" {
+    for_each = var.api_proxy_host == "" ? [] : [var.api_proxy_host]
+    content {
+      domain_name = origin.value
+      origin_id   = "api"
+      custom_origin_config {
+        http_port                = 80
+        https_port               = 443
+        origin_protocol_policy   = "https-only"
+        origin_ssl_protocols     = ["TLSv1.2"]
+        origin_read_timeout      = 60 # CloudFront's default max; slow reports / uploads keep working
+        origin_keepalive_timeout = 60
+      }
+    }
+  }
+
   default_cache_behavior {
     target_origin_id       = "web"
     viewer_protocol_policy = "redirect-to-https"
@@ -469,6 +521,50 @@ resource "aws_cloudfront_distribution" "web" {
     function_association {
       event_type   = "viewer-response"
       function_arn = aws_cloudfront_function.app_noindex.arn
+    }
+  }
+
+  # S17-1: /api/* goes to the ALB: never cached, every method, all viewer
+  # headers (except Host: the origin's own host name routes on the ALB),
+  # cookies (the refresh cookie lives on /api/v1/auth) and query strings.
+  # No viewer functions (they are for files) and no response headers policy
+  # (the API sets its own). CloudFront-Managed policies: CachingDisabled and
+  # AllViewerExceptHostHeader.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.api_proxy_host == "" ? [] : [1]
+    content {
+      path_pattern             = "/api/*"
+      target_origin_id         = "api"
+      viewer_protocol_policy   = "https-only"
+      allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+      cached_methods           = ["GET", "HEAD"]
+      compress                 = false
+      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+      origin_request_policy_id = "b689b0a8-53d0-40ab-baf2-68738e2966ac"
+    }
+  }
+
+  # S17-5: the card page without the isolation headers.
+  dynamic "ordered_cache_behavior" {
+    for_each = local.pay_paths
+    content {
+      path_pattern               = ordered_cache_behavior.value
+      target_origin_id           = "web"
+      viewer_protocol_policy     = "redirect-to-https"
+      allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+      cached_methods             = ["GET", "HEAD"]
+      compress                   = true
+      cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.web["pay"].id
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.seo_index.arn
+      }
+      function_association {
+        event_type   = "viewer-response"
+        function_arn = aws_cloudfront_function.app_noindex.arn
+      }
     }
   }
 
