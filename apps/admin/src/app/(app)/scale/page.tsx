@@ -1,8 +1,9 @@
 'use client';
 
-import { ArrowClockwise, ArrowDown, ArrowUp, Pause, Play, TrendDown, TrendUp } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, TrendDown, TrendUp } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { SearchIndexCard } from '@/components/search-index-card';
@@ -47,6 +48,7 @@ type Action = AlarmAction | { kind: 'decrease'; target: Target };
  */
 export default function ScalePage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const toast = useToast();
   const economy = useQuery({
     queryKey: ['economy'],
@@ -79,7 +81,7 @@ export default function ScalePage() {
   const x = extras.data;
 
   // Owner 2026-10-24: the AWS budgets. A change needs the 2FA code (the API
-  // client asks for it); a second admin only if admin.dual_control is on.
+  // client asks for it); no second admin (the owner works alone).
   const [limitFor, setLimitFor] = useState<AwsBudget | null>(null);
   const [limitText, setLimitText] = useState('');
   const [deleteFor, setDeleteFor] = useState<AwsBudget | null>(null);
@@ -98,10 +100,7 @@ export default function ScalePage() {
       toast.success('Месячный потолок расходов изменён');
       afterBudgetChange();
     },
-    onError: (err) => {
-      toast.error(err);
-      if (err instanceof ApiError && err.code === 'ADMIN_APPROVAL_PENDING') setLimitFor(null);
-    },
+    onError: (err) => toast.error(err),
   });
   const removeBudget = useMutation({
     mutationFn: async (name: string) =>
@@ -127,10 +126,6 @@ export default function ScalePage() {
   const run = useMutation({
     mutationFn: async (a: Action) => {
       switch (a.kind) {
-        case 'restart':
-          return { h: (await api.POST('/admin/system-health/restart-worker')).data!.data as Health };
-        case 'pause':
-          return { h: (await api.POST('/admin/system-health/heavy-jobs', { body: { paused: a.paused } })).data!.data as Health };
         case 'scale':
           return { h: (await api.POST('/admin/system-health/scale', { body: { mode: a.mode } })).data!.data as Health };
         case 'increase':
@@ -176,6 +171,9 @@ export default function ScalePage() {
   const press = (a: AlarmAction) => {
     if (a.kind === 'ceiling') {
       document.getElementById('scale-ceilings')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (a.kind === 'restart' || a.kind === 'pause') {
+      // Dedup D-14: restart and the heavy-jobs pause live in one place, «Здоровье системы».
+      router.push('/system-health');
     } else if (a.kind === 'increase') setConfirm(a);
     else run.mutate(a);
   };
@@ -488,28 +486,6 @@ export default function ScalePage() {
           <SectionTitle>Кнопки на крайний случай</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-3">
             <Card className="flex flex-col gap-3 p-4">
-              <div className="text-sm font-medium text-heading">Перезапустить фоновые задачи</div>
-              <p className="flex-1 text-sm text-muted">Если «Фоновые задачи» красные больше 10 минут. Текущая задача доделается.</p>
-              <Button variant="outline" disabled={!h.actions.onAws} loading={busy({ kind: 'restart' })} onClick={() => run.mutate({ kind: 'restart' })}>
-                <ArrowClockwise size={16} /> Перезапустить
-              </Button>
-            </Card>
-            <Card className="flex flex-col gap-3 p-4">
-              <div className="text-sm font-medium text-heading">{h.heavyPause ? 'Тяжёлые задачи на паузе' : 'Пауза тяжёлых задач'}</div>
-              <p className="flex-1 text-sm text-muted">
-                {h.heavyPause?.by === 'auto'
-                  ? 'Поставлено системой: база была медленной. Снимется само.'
-                  : 'Останавливает пересчёты и выгрузки, чтобы разгрузить базу. Приложение работает как обычно.'}
-              </p>
-              <Button
-                variant="outline"
-                loading={busy({ kind: 'pause', paused: !h.heavyPause })}
-                onClick={() => run.mutate({ kind: 'pause', paused: !h.heavyPause })}
-              >
-                {h.heavyPause ? <Play size={16} /> : <Pause size={16} />} {h.heavyPause ? 'Снять паузу' : 'Поставить на паузу'}
-              </Button>
-            </Card>
-            <Card className="flex flex-col gap-3 p-4">
               <div className="text-sm font-medium text-heading">{h.scaleMode?.mode === 'min' ? 'Сервер на минимуме' : 'Режим сервера: обычный'}</div>
               <p className="flex-1 text-sm text-muted">
                 {h.scaleMode?.mode === 'min'
@@ -534,7 +510,7 @@ export default function ScalePage() {
             <Badge tone={LIGHT_TONE[h.overall]} dot>
               {h.overall === 'green' ? 'всё в порядке' : h.overall === 'yellow' ? 'есть на что посмотреть' : 'есть проблема'}
             </Badge>{' '}
-            Подробности по каждой части — в{' '}
+            Подробности по каждой части, перезапуск фоновых задач и пауза тяжёлых задач — в{' '}
             <Link href="/system-health" className="text-gold-600 underline-offset-2 hover:underline">
               «Здоровье системы»
             </Link>
@@ -654,10 +630,6 @@ function pct(v: number | null | undefined): string {
 
 function doneText(a: Action): string {
   switch (a.kind) {
-    case 'restart':
-      return 'Фоновые задачи перезапускаются (1–2 минуты)';
-    case 'pause':
-      return a.paused ? 'Тяжёлые задачи на паузе' : 'Тяжёлые задачи снова работают';
     case 'scale':
       return a.mode === 'min' ? 'Сервер держится на минимуме' : 'Обычный режим: сервер снова растёт с нагрузкой';
     case 'increase':

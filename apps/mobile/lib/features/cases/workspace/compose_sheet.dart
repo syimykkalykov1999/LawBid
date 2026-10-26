@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -965,8 +966,8 @@ class _KeptTile extends StatelessWidget {
             child: SizedBox.square(
               dimension: 44,
               child: file.isImage && url != null
-                  ? Image.network(
-                      url,
+                  ? Image(
+                      image: appNetworkImage(url, decodeWidthFor(44)),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => ColoredBox(
                         color: colors.surface,

@@ -13,14 +13,6 @@ const admin: AdminActor = {
 };
 
 function make(stepUpOk = true) {
-  const kinds = new Map<
-    string,
-    { execute: (a: AdminActor, p: unknown) => Promise<unknown> }
-  >();
-  const approvals = {
-    register: jest.fn((spec) => kinds.set(spec.kind, spec)),
-    gate: jest.fn().mockResolvedValue(undefined),
-  };
   const budgets = {
     available: true,
     prodName: 'lawbid-prod-monthly',
@@ -57,33 +49,16 @@ function make(stepUpOk = true) {
     checks as never,
     paging as never,
     budgets as never,
-    approvals as never,
     audit as never,
     auth as never,
     rate as never,
   );
-  c.onModuleInit();
-  return { c, approvals, budgets, audit, auth, paging, checks, kinds };
+  return { c, budgets, audit, auth, paging, checks };
 }
 
-describe('AdminLaunchController budgets (four-eyes kinds + 2FA)', () => {
-  it('registers both kinds as super_admin-only routes', () => {
-    const { approvals } = make();
-    expect(
-      approvals.register.mock.calls
-        .map((x: [{ kind: string }]) => x[0].kind)
-        .sort(),
-    ).toEqual(['aws_budget_delete', 'aws_budget_limit']);
-    for (const [spec] of approvals.register.mock.calls) {
-      expect(spec.route.roles).toEqual(['super_admin']);
-    }
-  });
-
-  it('with the second-admin rule on, gate() throws and nothing runs yet', async () => {
-    const { c, approvals, budgets } = make();
-    approvals.gate.mockRejectedValue(
-      new ForbiddenException({ code: 'ADMIN_APPROVAL_PENDING' }),
-    );
+describe('AdminLaunchController budgets (2FA only, no second admin)', () => {
+  it('needs a fresh 2FA code before anything else', async () => {
+    const { c, budgets } = make(false);
     await expect(
       c.setAwsBudgetLimit(admin, {
         name: 'lawbid-prod-monthly',
@@ -93,64 +68,31 @@ describe('AdminLaunchController budgets (four-eyes kinds + 2FA)', () => {
     expect(budgets.setLimit).not.toHaveBeenCalled();
   });
 
-  it('needs a fresh 2FA code before anything else', async () => {
-    const { c, approvals } = make(false);
-    await expect(
-      c.setAwsBudgetLimit(admin, {
-        name: 'lawbid-prod-monthly',
-        limitUsd: 300,
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(approvals.gate).not.toHaveBeenCalled();
-  });
-
-  it('goes through the approval gate (always) for the prod budget only', async () => {
-    const { c, approvals, budgets } = make();
+  it('changes the limit of the prod budget at once and audits it; no other budget', async () => {
+    const { c, budgets, audit } = make();
     await c.setAwsBudgetLimit(admin, {
       name: 'lawbid-prod-monthly',
       limitUsd: 300,
     });
-    // gate() returned (second-admin rule off): the change runs at once.
     expect(budgets.setLimit).toHaveBeenCalledWith('lawbid-prod-monthly', 300);
-    expect(approvals.gate).toHaveBeenCalledWith(
-      admin,
-      expect.objectContaining({
-        kind: 'aws_budget_limit',
-        always: true,
-        payload: { name: 'lawbid-prod-monthly', limitUsd: 300 },
-      }),
-    );
     await expect(
       c.setAwsBudgetLimit(admin, { name: 'LawBid Monthly', limitUsd: 10 }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(
+      audit.record.mock.calls.map((x: [{ action: string }]) => x[0].action),
+    ).toEqual(['ops.budget_limit']);
   });
 
-  it('delete is only for the obsolete budget', async () => {
-    const { c, approvals, budgets } = make();
+  it('delete is only for the obsolete budget, runs at once and is audited', async () => {
+    const { c, budgets, audit } = make();
     await c.deleteAwsBudget(admin, { name: 'LawBid Monthly' });
     expect(budgets.remove).toHaveBeenCalledWith('LawBid Monthly');
-    expect(approvals.gate).toHaveBeenCalledWith(
-      admin,
-      expect.objectContaining({ kind: 'aws_budget_delete', always: true }),
-    );
     await expect(
       c.deleteAwsBudget(admin, { name: 'lawbid-prod-monthly' }),
     ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('an approved request runs the AWS call as the requester and is audited', async () => {
-    const { kinds, budgets, audit } = make();
-    await kinds
-      .get('aws_budget_limit')!
-      .execute(admin, { name: 'lawbid-prod-monthly', limitUsd: 300 });
-    expect(budgets.setLimit).toHaveBeenCalledWith('lawbid-prod-monthly', 300);
-    await kinds
-      .get('aws_budget_delete')!
-      .execute(admin, { name: 'LawBid Monthly' });
-    expect(budgets.remove).toHaveBeenCalledWith('LawBid Monthly');
     expect(
       audit.record.mock.calls.map((x: [{ action: string }]) => x[0].action),
-    ).toEqual(['ops.budget_limit', 'ops.budget_delete']);
+    ).toEqual(['ops.budget_delete']);
   });
 });
 
