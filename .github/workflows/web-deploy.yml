@@ -129,7 +129,9 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT_WEB: ${{ secrets.SENTRY_PROJECT_WEB }}
         run: |
-          VERSION=$(sed -n 's/^version: *\([^+ ]*\).*/\1/p' apps/mobile/pubspec.yaml | head -1)
+          # version WITH the build number (1.2.3+45): SentryReporter sends
+          # release lawbid@<version>+<build>.
+          VERSION=$(sed -n 's/^version: *\([^ ]*\).*/\1/p' apps/mobile/pubspec.yaml | head -1)
           scripts/deploy/web-sourcemaps.sh apps/mobile/build/web "${{ github.sha }}" "$VERSION" "$RUNNER_TEMP/web-maps"
 
       # S17-3: boot_head.js pre-downloads the build the loader will choose;

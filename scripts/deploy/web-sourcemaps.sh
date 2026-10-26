@@ -7,7 +7,7 @@
 # Usage (before web-immutable.py):
 #   scripts/deploy/web-sourcemaps.sh apps/mobile/build/web <sha> <app version> <maps dir>
 #
-# Sentry: release `lawbid@<app version>` (what SentryReporter sends), dist
+# Sentry: release `lawbid@<version>+<build>` (what SentryReporter sends), dist
 # `<sha>` (the reporter adds it from the BUILD_SHA define), url prefix
 # `~/v/<sha>` (where web-immutable.py puts the files). Org / project / token
 # come from SENTRY_ORG, SENTRY_PROJECT_WEB, SENTRY_AUTH_TOKEN (repository

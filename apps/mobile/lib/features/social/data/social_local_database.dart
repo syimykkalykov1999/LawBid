@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:lawbid/core/persistence/drift_recovery.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
 import 'package:lawbid/core/persistence/saved_json.dart';
 
@@ -59,7 +60,11 @@ class SocialLocalDatabase extends _$SocialLocalDatabase
     implements SavedPageStore {
   SocialLocalDatabase([QueryExecutor? executor])
       : super(
-          executor ?? appDriftDatabase('lawbid_social'),
+          executor ??
+              appDriftDatabase(
+                'lawbid_social',
+                recovery: DriftRecovery.quarantine,
+              ),
         );
 
   @override
