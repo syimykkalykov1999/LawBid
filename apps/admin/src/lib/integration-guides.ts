@@ -294,6 +294,33 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  github_infra: {
+    steps: [
+      'GitHub → Settings → Developer settings → GitHub Apps → New GitHub App. Имя: lawbid-infra. Webhook: выключить.',
+      'Repository permissions: Actions — Read and write, Contents — Read-only. Больше ничего.',
+      'Create → на странице приложения запишите App ID → Generate a private key (скачается файл .pem).',
+      'Install App → только репозиторий LawBid. Число в адресе страницы установки — это Installation ID.',
+      'Остальные шаги (роль AWS, окружение infra-apply) — в инструкции «Как включить что-то в облаке одной кнопкой».',
+    ],
+    links: [
+      { label: 'Создать GitHub App', url: 'https://github.com/settings/apps/new' },
+      {
+        label: 'Токен приложения',
+        url: 'https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app',
+      },
+    ],
+    enable: [
+      'Заполните четыре поля → «Сохранить» (код 2FA) → «Включить».',
+      'Сначала включён пробный режим (Настройки → infra.dry_run): облако только планируется. Выключите его, когда посмотрели первый план.',
+    ],
+    fields: {
+      repo: { how: 'Адрес репозитория на GitHub без https://github.com/', example: 'syimykkalykov1999/LawBid' },
+      appId: { how: 'Число «App ID» со страницы GitHub-приложения (General).', example: '1234567' },
+      installationId: { how: 'Число в конце адреса страницы установки приложения (…/installations/55555555).', example: '55555555' },
+      privateKey: { how: 'Всё содержимое скачанного файла .pem, включая строки BEGIN и END.' },
+    },
+  },
+
   turnstile: {
     steps: [
       'Cloudflare → Turnstile → Add widget. Имя: lawbid-web. Домены: lawbid.dev, www.lawbid.dev. Тип: Managed.',

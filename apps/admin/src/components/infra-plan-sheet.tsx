@@ -35,15 +35,9 @@ export function useInfra() {
     queryKey: INFRA_KEY,
     queryFn: async () =>
       (await api.GET("/admin/infra")).data!.data as InfraOverview,
-    refetchInterval: (query) => {
-      const d = query.state.data as InfraOverview | undefined;
-      if (d?.requests?.some((r) => isActive(r))) return 5000;
-      // livePoll() is the page-wide timer (a function; tests stub it).
-      const slow: unknown = livePoll();
-      return typeof slow === "function"
-        ? (slow as (q: typeof query) => number)(query)
-        : (slow as number | false);
-    },
+    // Owner rule: every timer is ≥ 1 minute with the 429 back-off; the
+    // sheet has an «Обновить» button for a faster look.
+    refetchInterval: livePoll(),
   });
   const after = () => {
     void qc.invalidateQueries({ queryKey: INFRA_KEY });
@@ -122,6 +116,7 @@ export function InfraPlanSheet({
   onCancel,
   onRollback,
   busy,
+  onRefresh,
 }: {
   request: InfraRequest | null;
   dryRunMode: boolean;
@@ -130,6 +125,7 @@ export function InfraPlanSheet({
   onCancel: (id: string) => void;
   onRollback: (id: string) => void;
   busy: boolean;
+  onRefresh?: () => void;
 }) {
   const r = request;
   const left = r ? minutesLeft(r) : null;
@@ -144,7 +140,11 @@ export function InfraPlanSheet({
       {r ? (
         <div className="flex flex-col gap-3" data-testid="infra-sheet">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={infraTone(r.status)} dot data-testid="infra-sheet-status">
+            <Badge
+              tone={infraTone(r.status)}
+              dot
+              data-testid="infra-sheet-status"
+            >
               {INFRA_STATUS_WORD[r.status] ?? r.status}
             </Badge>
             {r.runUrl ? (
@@ -232,6 +232,15 @@ export function InfraPlanSheet({
                 Откатить
               </Button>
             ) : null}
+            {onRefresh && isActive(r) ? (
+              <Button
+                variant="ghost"
+                data-testid="infra-refresh"
+                onClick={onRefresh}
+              >
+                Обновить
+              </Button>
+            ) : null}
             <Button variant="ghost" onClick={onClose}>
               Закрыть
             </Button>
@@ -254,14 +263,23 @@ export function InfraSuggestionCards({
 }) {
   if (items.length === 0) return null;
   return (
-    <div className="mb-3 grid gap-3 md:grid-cols-2" data-testid="infra-suggestions">
+    <div
+      className="mb-3 grid gap-3 md:grid-cols-2"
+      data-testid="infra-suggestions"
+    >
       {items.map((s) => (
-        <Card key={s.id} className="flex flex-col gap-2 p-4" data-testid={`infra-suggest-${s.id}`}>
+        <Card
+          key={s.id}
+          className="flex flex-col gap-2 p-4"
+          data-testid={`infra-suggest-${s.id}`}
+        >
           <div className="text-sm font-medium text-heading">
             {s.to === "on" ? "Пора включить" : "Можно выключить"}: {s.name}
           </div>
           <p className="text-sm text-muted">{s.reason}</p>
-          <p className="text-sm text-ink">Стоимость: {costLine(s.costDeltaUsd)}</p>
+          <p className="text-sm text-ink">
+            Стоимость: {costLine(s.costDeltaUsd)}
+          </p>
           <Button
             variant="outline"
             size="sm"

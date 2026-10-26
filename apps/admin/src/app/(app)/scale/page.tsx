@@ -656,6 +656,7 @@ export default function ScalePage() {
       <InfraPlanSheet
         request={infraSheet ? latestFor(infra.data?.requests, infraSheet) : null}
         dryRunMode={infra.data?.guards?.dryRun ?? false}
+        onRefresh={() => void infra.q.refetch()}
         onClose={() => setInfraSheet(null)}
         onConfirm={(id) => infra.confirm.mutate(id)}
         onCancel={(id) => infra.cancel.mutate(id)}

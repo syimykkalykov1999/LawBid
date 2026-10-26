@@ -38,7 +38,12 @@ import {
   InfraPlanSheet,
   useInfra,
 } from "@/components/infra-plan-sheet";
-import { isActive, latestFor, requestDot, type InfraRequest } from "@/lib/infra";
+import {
+  isActive,
+  latestFor,
+  requestDot,
+  type InfraRequest,
+} from "@/lib/infra";
 
 const KEY = ["spend-registry"];
 const STATES: CostState[] = ["off", "on", "auto"];
@@ -139,6 +144,7 @@ export function CostRegistry() {
           <InfraPlanSheet
             request={sheet}
             dryRunMode={infra.data?.guards?.dryRun ?? false}
+            onRefresh={() => void infra.q.refetch()}
             onClose={() => setSheetFor(null)}
             onConfirm={(id) => infra.confirm.mutate(id)}
             onCancel={(id) => infra.cancel.mutate(id)}
@@ -520,9 +526,12 @@ function Row({
             <p className="mt-1 text-xs text-muted">{row.lockedReason}</p>
           ) : null}
           {row.infraSwitch ? (
-            <p className="mt-1 text-xs text-muted" data-testid={`infra-note-${row.id}`}>
-              Облако: Выкл / Вкл сначала покажут план и цену, применится
-              только после вашего кода 2FA.{" "}
+            <p
+              className="mt-1 text-xs text-muted"
+              data-testid={`infra-note-${row.id}`}
+            >
+              Облако: Выкл / Вкл сначала покажут план и цену, применится только
+              после вашего кода 2FA.{" "}
               {request ? (
                 <button
                   type="button"
