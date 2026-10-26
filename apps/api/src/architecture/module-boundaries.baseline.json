@@ -237,6 +237,7 @@
  ],
  "fanOut": {
   "admin": 4,
+  "admin-access": 1,
   "admin-auth": 2,
   "admin-billing": 9,
   "admin-cases": 9,

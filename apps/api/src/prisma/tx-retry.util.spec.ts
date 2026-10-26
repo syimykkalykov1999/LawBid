@@ -64,3 +64,50 @@ describe('withTxRetry', () => {
     expect($transaction).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('withTxRetry isolation option (DB-ops S5-7)', () => {
+  const deadlock = () =>
+    new PrismaClientKnownRequestError('deadlock detected', {
+      code: 'P2010',
+      clientVersion: 'test',
+      meta: { code: '40P01' },
+    });
+
+  it('defaults to Serializable', async () => {
+    const $transaction = jest.fn().mockResolvedValue('ok');
+    await withTxRetry({ $transaction } as unknown as PrismaService, () =>
+      Promise.resolve('ok'),
+    );
+    expect(($transaction.mock.calls[0] as unknown[])[1]).toMatchObject({
+      isolationLevel: 'Serializable',
+    });
+  });
+
+  it('readCommitted uses ReadCommitted and retries a deadlock', async () => {
+    const $transaction = jest
+      .fn()
+      .mockRejectedValueOnce(deadlock())
+      .mockResolvedValueOnce('ok');
+    const out = await withTxRetry(
+      { $transaction } as unknown as PrismaService,
+      () => Promise.resolve('ok'),
+      { isolation: 'readCommitted', baseDelayMs: 1, op: 'test.op' },
+    );
+    expect(out).toBe('ok');
+    expect(($transaction.mock.calls[0] as unknown[])[1]).toMatchObject({
+      isolationLevel: 'ReadCommitted',
+    });
+  });
+
+  it('Serializable does not retry a deadlock (unchanged behaviour)', async () => {
+    const $transaction = jest.fn().mockRejectedValue(deadlock());
+    await expect(
+      withTxRetry(
+        { $transaction } as unknown as PrismaService,
+        () => Promise.resolve('x'),
+        { baseDelayMs: 1 },
+      ),
+    ).rejects.toBeInstanceOf(PrismaClientKnownRequestError);
+    expect($transaction).toHaveBeenCalledTimes(1);
+  });
+});
