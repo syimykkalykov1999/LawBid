@@ -1048,6 +1048,7 @@ erDiagram
     String platform
     Boolean local_reminders
     Boolean chat_style
+    Boolean actor_style
     DateTime last_seen_at
     DateTime created_at
     Int shard_id

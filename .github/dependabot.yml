@@ -15,9 +15,22 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 14
+    # S11-11: fewer, bigger PRs. Groups take minor + patch only (a major comes as
+    # its own PR and is never auto-merged); .github/workflows/dependabot-automerge.yml
+    # merges a green minor/patch group through the merge queue.
     groups:
       nestjs:
         patterns: ["@nestjs/*"]
+        update-types: ["minor", "patch"]
+      aws-sdk:
+        patterns: ["@aws-sdk/*", "@smithy/*"]
+        update-types: ["minor", "patch"]
+      dev-tooling:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      prod-minor-patch:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
   - package-ecosystem: pub
     directory: "/apps/mobile"
     schedule:
@@ -25,14 +38,31 @@ updates:
     cooldown:
       default-days: 7
       semver-major-days: 14
+    groups:
+      pub-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+    # One PR for all action bumps (Node 20 actions are removed from the runners:
+    # keeping them current is a security and a build-health matter).
+    groups:
+      actions:
+        patterns: ["*"]
+  # The node base image is pinned by digest in both Dockerfiles; dependabot
+  # bumps the tag and the digest together.
   - package-ecosystem: docker
     directory: "/apps/api"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: docker
+    directory: "/apps/admin"
     schedule:
       interval: weekly
     cooldown:

@@ -295,6 +295,10 @@ abstract interface class NotificationsRepository {
     /// Owner 2026-10-22: this app draws chat notifications itself
     /// (WhatsApp-style, Android) from a data-only push.
     bool chatStyle = false,
+
+    /// Owner 2026-10-26: this app also draws notifications with a person
+    /// (bid, comment, like, missed call …) with their round photo.
+    bool actorStyle = false,
   });
   Future<void> deletePushToken(String token);
 
@@ -559,6 +563,7 @@ class ApiNotificationsRepository
     bool web = false,
     bool localReminders = false,
     bool chatStyle = false,
+    bool actorStyle = false,
   }) =>
       guardApiCall(
         () => _api.registerPushToken(
@@ -571,6 +576,7 @@ class ApiNotificationsRepository
                     : api.PushTokenDtoPlatform.android,
             localReminders: localReminders,
             chatStyle: chatStyle,
+            actorStyle: actorStyle,
           ),
         ),
       );

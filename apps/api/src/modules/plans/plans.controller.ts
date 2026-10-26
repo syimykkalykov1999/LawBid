@@ -36,8 +36,10 @@ import {
 } from './plans.dto';
 import { highlights, PlansService, text } from './plans.service';
 
-/** A new process (deploy) changes the plans ETag. */
-const BOOT_ID = Date.now();
+/** A new BUILD (not a new process) changes the plans ETag: the deploy tag is
+ * the same on every task, so a phone landing on another task still gets a
+ * 304 (review R-17). `Date.now()` per process made the 304 rate about 1/N. */
+export const PLANS_BUILD_ID = process.env.APP_VERSION ?? 'dev';
 const PLANS_ETAG_BUCKET_MS = 300_000;
 
 /** Owner 2026-10-05: the plan list the app's "choose a plan" screen shows
@@ -70,7 +72,7 @@ export class PlansController {
     const tag = weakEtag(
       'plans',
       audience,
-      BOOT_ID,
+      PLANS_BUILD_ID,
       timeBucket(PLANS_ETAG_BUCKET_MS),
       ...(await this.plans.etagStamp()),
     );

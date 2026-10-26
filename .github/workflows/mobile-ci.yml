@@ -19,6 +19,8 @@
 name: Mobile CI
 
 on:
+  merge_group:
+    types: [checks_requested]
   pull_request:
     branches: [main, master]
     paths:
@@ -40,9 +42,11 @@ on:
       - "scripts/ci/pub-*.mjs"
       - "scripts/ci/check-web-*.sh"
 
+# S11-1: only a superseded PR run is cancelled; a push to main must always finish
+# (its result is what the deploy gate reads) and a merge-queue run is never cancelled.
 concurrency:
   group: mobile-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Security research #5 (2026-10-22), A2: least privilege — the job only reads
 # the repository (no GITHUB_TOKEN writes anywhere in this workflow).
@@ -72,8 +76,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Flutter version (apps/mobile/.fvmrc is the single pin)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
+          flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
 
       - name: flutter pub get
@@ -113,8 +121,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Flutter version (apps/mobile/.fvmrc is the single pin)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
+          flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -163,8 +175,12 @@ jobs:
           distribution: "temurin"
           java-version: "17"
 
+      - name: Flutter version (apps/mobile/.fvmrc is the single pin)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
+          flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
 
       - name: flutter pub get
@@ -187,8 +203,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Flutter version (apps/mobile/.fvmrc is the single pin)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
+          flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
 
       - name: flutter pub get
@@ -228,8 +248,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      - name: Flutter version (apps/mobile/.fvmrc is the single pin)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
+          flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
 
       - name: flutter pub get
@@ -243,3 +267,19 @@ jobs:
       - name: Build debug iOS app (build-check only — no codesign, no publish)
         working-directory: apps/mobile
         run: flutter build ios --debug --no-codesign
+
+  # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [analyze-and-test, dependency-audit, build-android, build-web, build-ios]
+    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Mobile CI is red on main"
+      kind: ci-mobile
+      remind_after_minutes: 360
+    secrets: inherit

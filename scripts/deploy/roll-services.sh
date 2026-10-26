@@ -11,14 +11,23 @@
 # shorter than rollout + alarm bake time. This script polls the rolloutState
 # of OUR revision instead and fails on FAILED (= rolled back) or on timeout.
 #   ROLL_TIMEOUT_SECONDS  total wait (default 1800 = 30 min)
-#   ROLL_POLL_SECONDS     poll interval (default 20)
+#   ROLL_POLL_SECONDS     poll interval (default 10)
+#
+# S11-14 / S11-9: which services to roll is the third argument (or SERVICES),
+# a space-separated subset of "api worker admin" (default: all three). The
+# deploy rolls api first, smokes it, then worker and admin; a rollback of one
+# failing service passes only that one.
+#   roll-services.sh <cluster> <tag> [services]
 set -eu
-CLUSTER="$1"; TAG="$2"
+CLUSTER="$1"; TAG="$2"; SERVICES="${3:-${SERVICES:-api worker admin}}"
+for S in $SERVICES; do
+  case "$S" in api|worker|admin) ;; *) echo "unknown service '$S' (api, worker, admin)" >&2; exit 2 ;; esac
+done
 ROLL_TIMEOUT_SECONDS="${ROLL_TIMEOUT_SECONDS:-1800}"
-ROLL_POLL_SECONDS="${ROLL_POLL_SECONDS:-20}"
+ROLL_POLL_SECONDS="${ROLL_POLL_SECONDS:-10}"
 REVS=""
 REGISTRY="${ECR_REGISTRY:?ECR_REGISTRY is required}"
-for SVC in api worker admin; do
+for SVC in $SERVICES; do
   FAMILY="${CLUSTER}-${SVC}"
   IMAGE="${REGISTRY}/lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}"
   aws ecs describe-task-definition --task-definition "$FAMILY" --query 'taskDefinition' > td.json
@@ -74,4 +83,4 @@ for pair in $REVS; do
     sleep "$ROLL_POLL_SECONDS"
   done
 done
-echo "all services rolled out to $TAG"
+echo "services ($SERVICES) rolled out to $TAG"
