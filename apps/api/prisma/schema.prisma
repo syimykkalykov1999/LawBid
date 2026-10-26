@@ -7579,3 +7579,101 @@ model SearchIndexState {
 
   @@map("search_index_state")
 }
+
+// Experiments (owner 2026-10-25, docs/architecture/EXPERIMENTS.md): A/B tests
+// for ranking formulas and other server-side behaviour. The admin creates one,
+// starts it at 5-10% of users, reads the result in plain Russian and stops it.
+// Assignment is a pure hash of unit id + key (no table read per request); only
+// the first exposure of a unit is stored.
+model Experiment {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key               String    @unique @db.VarChar(64)
+  name              String    @db.VarChar(120)
+  hypothesis        String?   @db.VarChar(500)
+  /// Where it applies: case_feed, people, search, ... (free label, used in reports).
+  surface           String    @db.VarChar(40)
+  /// draft | running | stopped
+  status            String    @default("draft") @db.VarChar(12)
+  /// [{ "key": "control", "weight": 50 }, { "key": "new_formula", "weight": 50 }]
+  variants          Json
+  /// Share of units that enter the experiment at all (0-100).
+  traffic_percent   Int       @default(0)
+  /// { reportsRelIncreasePct, errorsRelIncreasePct, minImpressions }
+  guardrails        Json
+  start_at          DateTime? @db.Timestamptz
+  end_at            DateTime? @db.Timestamptz
+  started_at        DateTime? @db.Timestamptz
+  stopped_at        DateTime? @db.Timestamptz
+  stop_reason       String?   @db.VarChar(300)
+  stopped_by_system Boolean   @default(false)
+  created_by        String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  exposures ExperimentExposure[]
+  results   ExperimentResult[]
+
+  @@index([status])
+  @@map("experiments")
+}
+
+/// First time a unit (user or case id) saw a variant. One row per unit.
+model ExperimentExposure {
+  experiment_id String     @db.Uuid
+  experiment    Experiment @relation(fields: [experiment_id], references: [id], onDelete: Cascade)
+  unit_id       String     @db.VarChar(64)
+  variant       String     @db.VarChar(32)
+  first_at      DateTime   @default(now()) @db.Timestamptz
+
+  @@id([experiment_id, unit_id])
+  @@index([experiment_id, variant])
+  @@map("experiment_exposures")
+}
+
+/// One nightly computation: per-variant metrics with intervals, the SRM check
+/// and the guardrail verdict (payload), newest first.
+model ExperimentResult {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  experiment_id     String     @db.Uuid
+  experiment        Experiment @relation(fields: [experiment_id], references: [id], onDelete: Cascade)
+  computed_at       DateTime   @default(now()) @db.Timestamptz
+  srm_p             Float?
+  srm_flag          Boolean    @default(false)
+  guardrail_tripped Boolean    @default(false)
+  payload           Json
+
+  @@index([experiment_id, computed_at(sort: Desc)])
+  @@map("experiment_results")
+}
+
+/// Append-only log of what people were shown and did (impressions, clicks,
+/// bids, accepts, replies, reports, errors, searches). Partitioned weekly by
+/// created_at (migration 20261027500000_experiments_ranking_events), kept 90
+/// days. Impressions and clicks are sampled by user (setting
+/// `ranking.impression_sample_percent`); everything else is always stored.
+model RankingEvent {
+  id              BigInt   @default(autoincrement())
+  created_at      DateTime @default(now()) @db.Timestamptz
+  /// impression | click | bid | accept | reply | report | error | search | case_posted
+  kind            String   @db.VarChar(16)
+  user_id         String?  @db.Uuid
+  surface         String   @db.VarChar(40)
+  item_id         String?  @db.VarChar(64)
+  /// One rendered list (groups impressions for the offline replay).
+  list_id         String?  @db.VarChar(32)
+  /// 1-based place in the list.
+  position        Int?     @db.SmallInt
+  formula_version String?  @db.VarChar(32)
+  experiment_key  String?  @db.VarChar(64)
+  variant         String?  @db.VarChar(32)
+  /// search: number of results.
+  value           Int?
+  /// Impressions: the 0..1 features the formula saw, for the offline replay.
+  features        Json?
+
+  @@id([id, created_at])
+  @@index([experiment_key, created_at])
+  @@index([kind, created_at])
+  @@index([user_id, created_at])
+  @@map("ranking_events")
+}
