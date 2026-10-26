@@ -1,0 +1,42 @@
+export const meta = {
+  name: 'smoothness-audit',
+  description: 'Research-first audit of app + web animation/scroll smoothness (Instagram/Telegram/WhatsApp feel), read-only, two lanes to spare RAM, skeptic per finding, fix order',
+  phases: [
+    { title: 'Research', detail: 'Flutter/web performance practice 2025-2026 + giants’ motion specs' },
+    { title: 'Audit', detail: 'six dimensions, two sequential lanes' },
+    { title: 'Verify', detail: 'one perf-lens skeptic per finding' },
+    { title: 'Synthesize', detail: 'fix order + owner report' },
+  ],
+}
+const RESEARCH = { type: 'object', properties: { notes: { type: 'string' } }, required: ['notes'] }
+const FINDINGS = { type: 'object', properties: { dimension: { type: 'string' }, summary: { type: 'string' }, findings: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, severity: { type: 'string', enum: ['P0', 'P1', 'P2'] }, title: { type: 'string' }, file: { type: 'string' }, line: { type: 'number' }, evidence: { type: 'string' }, expected: { type: 'string' }, fix: { type: 'string' }, measurable: { type: 'string', description: 'how to measure before/after (perf suite test, trace, frame stats)' } }, required: ['id', 'severity', 'title', 'file', 'line', 'evidence', 'expected', 'fix', 'measurable'] } } }, required: ['dimension', 'summary', 'findings'] }
+const VERDICT = { type: 'object', properties: { id: { type: 'string' }, real: { type: 'boolean' }, reason: { type: 'string' } }, required: ['id', 'real', 'reason'] }
+const SYNTH = { type: 'object', properties: { fix_order: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, severity: { type: 'string' }, title: { type: 'string' }, fix: { type: 'string' }, files: { type: 'string' }, measurable: { type: 'string' } }, required: ['id', 'severity', 'title', 'fix', 'files', 'measurable'] } }, report_ru: { type: 'string' } }, required: ['fix_order', 'report_ru'] }
+const CTX = `Code: ${args.repo} at ${args.base} (read with git show ${args.base}:<path> / git grep against ${args.base}; the main checkout may be dirty — never edit, never build, never run tests; memory is shared with other work). graphify-out/graph.json exists in ${args.repo}: run \`graphify query "<question>"\` / \`graphify explain "<symbol>"\` (PATH=$HOME/.local/bin:$PATH) before grepping. Flutter app: apps/mobile (Riverpod, go_router, Impeller?), web build of the same app (wasm/CanvasKit?), admin Next.js is out of scope. Owner rule: look stays frozen — only smoothness (frame pacing, transitions, scroll, image decode, rebuild hygiene, haptics, no flicker). Cite file:line for every finding and say how to measure it (apps/mobile perf suite from PR #295 if present: grep 'perf' under apps/mobile/integration_test or test/perf).`
+phase('Research')
+const research = await parallel([
+  () => agent(`Research (web, 2025-2026 sources, cite URL+date): Flutter smoothness practice — Impeller status on iOS/Android, shader jank, 120 Hz support, RepaintBoundary/const/rebuild scoping with Riverpod, ListView.builder + itemExtent/prototypeItem, image decode (cacheWidth/height, precache, cached_network_image settings, ResizeImage), Hero/shared-element and page transition patterns (iOS Cupertino back-swipe, 300-350 ms curves), AnimatedSwitcher/Implicit animations, haptics API (HapticFeedback vs vibration patterns), reduced-motion, DevTools frame stats and how to assert jank in integration tests (frame timings, 'average_frame_build_time_millis' budgets). Also Flutter Web: wasm vs CanvasKit vs HTML renderer, scroll smoothness on web, font loading, deferred loading, splash/startup.`, { label: 'research:flutter', phase: 'Research', schema: RESEARCH, effort: 'high' }),
+  () => agent(`Research (web, cite URL+date) the motion specs people feel in Instagram, Telegram and WhatsApp: page push/pop timing and curves, tab switch, bottom sheet spring, list scrolling physics, pull-to-refresh, image/video appearance (blur-up, fade-in 150-250 ms), chat bubble send animation, reactions, haptics on key actions, and what makes them feel 'smooth' (no layout jumps, skeletons that match, optimistic UI). Produce a compact spec table (action → duration → curve → haptic).`, { label: 'research:giants', phase: 'Research', schema: RESEARCH, effort: 'high' }),
+])
+const notes = research.filter(Boolean).map(r => r.notes).join('\n\n')
+phase('Audit')
+const DIMS = [
+  { key: 'navigation-transitions', p: 'Page transitions, go_router routes, back-swipe on iOS, tab switches, bottom sheets, dialogs: durations/curves, missing Hero/shared element where giants use one, transitions that rebuild heavy trees, flicker on route change, double transitions.' },
+  { key: 'lists-scrolling', p: 'Feed, reels, chats list, chat thread, profiles grid, search results: builders vs eager lists, itemExtent, keys, scroll physics, pagination jank (skeleton flash, jump on load-more), sticky headers, nested scroll conflicts, rebuild of whole list per item change.' },
+  { key: 'images-media', p: 'Avatars, post photos, reels video, attachments: decode size (cacheWidth), memory cache limits, fade-in/blur-up, placeholder consistency, video decoder lifecycle when off-screen, AVIF/preview usage, flicker when a new link arrives.' },
+  { key: 'rebuild-hygiene', p: 'Riverpod/provider scoping, setState on big screens, timers rebuilding screens every second, listeners not disposed, AnimationControllers running while invisible, missing RepaintBoundary, const widgets, expensive build() work, text layout thrash.' },
+  { key: 'web-specific', p: 'Flutter web: renderer choice (wasm/CanvasKit), startup/splash, deferred screens, fonts, scroll wheel/trackpad smoothness, hover states, resize jank, image handling on web, service-worker caching, bundle size.' },
+  { key: 'motion-haptics', p: 'Consistency of durations/curves across the app vs the giants’ spec, haptics on key actions (send, like, long-press, snap), reduced-motion support, press feedback, skeleton→content matching, empty/error states without layout jumps.' },
+]
+const lanes = [DIMS.slice(0, 3), DIMS.slice(3)]
+const auditLanes = await parallel(lanes.map((lane, li) => async () => { const out = []; for (const d of lane) { const r = await agent(`${CTX}\n\nDimension: ${d.key}. ${d.p}\n\nResearch notes:\n${notes.slice(0, 12000)}\n\nReturn findings (P0 = visible jank/flicker on main flows, P1 = measurable slowness or missing giant-standard motion, P2 = polish). Be honest about what is already good.`, { label: `audit:${d.key}`, phase: 'Audit', schema: FINDINGS, effort: 'high' }); out.push(r); log(`lane ${li + 1}: ${d.key} ${r ? r.findings.length + ' findings' : 'failed'}`) } return out }))
+const all = auditLanes.filter(Boolean).flat().filter(Boolean)
+const flat = all.flatMap(a => a.findings.map(f => ({ ...f, dimension: a.dimension })))
+log(`${flat.length} raw findings`)
+phase('Verify')
+const verified = await pipeline(flat, (f) => agent(`${CTX}\nSkeptic (performance lens): try to REFUTE this smoothness finding by reading the code at ${args.base}: ${JSON.stringify(f)}. real=false if the evidence does not match the file, if Flutter already handles it, if the fix would change the look, or if the effect is not perceivable. Explain briefly.`, { label: `verify:${f.id}`, phase: 'Verify', schema: VERDICT, effort: 'medium' }).then(v => ({ ...f, real: !!(v && v.real), reason: v && v.reason })))
+const confirmed = verified.filter(Boolean).filter(f => f.real)
+log(`${confirmed.length} confirmed`)
+phase('Synthesize')
+const synth = await agent(`Synthesize a fix order for app+web smoothness (look frozen). Summaries: ${JSON.stringify(all.map(a => ({ d: a.dimension, s: a.summary })))}\nConfirmed findings: ${JSON.stringify(confirmed.map(f => ({ id: f.id, sev: f.severity, title: f.title, file: f.file, line: f.line, fix: f.fix, measurable: f.measurable, dimension: f.dimension })), null, 1)}\nOrder by perceived impact on main flows (feed, chats, reels, profiles, calls excluded — separate branch). report_ru: plain Russian for the owner, max 10 lines, no code, honest about what is already smooth.`, { label: 'synthesize', phase: 'Synthesize', schema: SYNTH, effort: 'high' })
+return { research: notes.slice(0, 15000), summaries: all.map(a => ({ d: a.dimension, s: a.summary })), confirmed, synth }
