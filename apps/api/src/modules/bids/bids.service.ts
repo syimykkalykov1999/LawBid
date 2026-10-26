@@ -391,7 +391,18 @@ export class BidsService {
           {
             type: 'bid_received',
             recipientId: kase.client_id,
-            payload: { caseId, bidId: created.id, attorneyId: user.sub },
+            payload: {
+              caseId,
+              bidId: created.id,
+              attorneyId: user.sub,
+              // Delta audit D-P4: the realtime event patches the bid row.
+              ...(created.amount_cents !== null
+                ? { amountCents: created.amount_cents }
+                : {}),
+              ...(created.percent_bps !== null
+                ? { percentBps: created.percent_bps }
+                : {}),
+            },
           },
           tx,
         );
@@ -622,6 +633,8 @@ export class BidsService {
         action,
         by,
         plan,
+        amountCents: extra.amountCents,
+        percentBps: extra.percentBps,
         tx,
       });
       if (action !== 'counter') {
@@ -656,6 +669,8 @@ export class BidsService {
     action: 'withdraw' | 'decline' | 'counter';
     by: PartyRole;
     plan: { to: string; event: string };
+    amountCents?: number;
+    percentBps?: number;
     tx: Prisma.TransactionClient;
   }): Promise<void> {
     const { caseId, attorneyId, clientId, bidId, action, by, plan, tx } = input;
@@ -706,7 +721,17 @@ export class BidsService {
         {
           type: 'offer_countered',
           recipientId,
-          payload: { caseId, bidId, byRole: by },
+          payload: {
+            caseId,
+            bidId,
+            byRole: by,
+            ...(input.amountCents !== undefined
+              ? { amountCents: input.amountCents }
+              : {}),
+            ...(input.percentBps !== undefined
+              ? { percentBps: input.percentBps }
+              : {}),
+          },
         },
         tx,
       );

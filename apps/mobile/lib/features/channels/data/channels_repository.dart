@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart' show SyncedPage;
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
@@ -97,6 +98,30 @@ class ChannelsRepository {
       }
       rethrow;
     }
+  }
+
+  /// Owner 2026-10-22 (delta audit D-P2): only the channels of mine that
+  /// changed since [since] (server time) plus the ids that left the list.
+  /// [scope] is subscribed or managed.
+  Future<SyncedPage<Channel>> listChangedSince(
+    ChannelScope scope,
+    DateTime since, {
+    bool archived = false,
+  }) async {
+    final env = await guardApiCall(
+      () => _channels.channelList(
+        scope: scope == ChannelScope.managed
+            ? api.Scope2.managed
+            : api.Scope2.subscribed,
+        archived: archived ? true : null,
+        updatedSince: since.toUtc(),
+      ),
+    );
+    return SyncedPage(
+      items: env.data.map(channelOf).toList(),
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
+    );
   }
 
   Future<Channel> get(String ref) async => channelOf(
