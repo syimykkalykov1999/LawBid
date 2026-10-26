@@ -74,6 +74,7 @@ function setup() {
     tokens,
     fakeRedis() as never,
     config as never,
+    {} as never, // prisma (not used by the demo path)
   );
   return { demoReauth, verifier, record };
 }
