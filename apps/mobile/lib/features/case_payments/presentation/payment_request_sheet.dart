@@ -124,6 +124,7 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
   Future<void> _refreshPreview() async {
     final total = _totalCents;
     if (total == null || total < s.minAmountCents || total > s.maxAmountCents) {
+      _previewSeq++; // drop any in-flight preview for the old amount
       setState(() => _preview = null);
       return;
     }
