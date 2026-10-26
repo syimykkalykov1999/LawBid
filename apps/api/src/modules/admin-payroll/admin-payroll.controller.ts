@@ -22,7 +22,6 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
-import { AdminApprovalsService } from '../admin-auth/admin-approvals.service';
 import { AdminIdParamDto } from '../admin-cases/admin-cases.dto';
 import {
   CreatePayrollAccrualDto,
@@ -45,12 +44,6 @@ import { AdminPayrollService } from './admin-payroll.service';
 
 const E = ErrorCode;
 
-/** What a stored payroll-bonus approval runs with. */
-interface BonusPayload {
-  employeeId: string;
-  accrual: CreatePayrollAccrualDto;
-}
-
 /**
  * Owner 2026-10-05 — Деньги → Зарплаты. Area `payroll`: the super admin,
  * the deputy (the admin who manages admins) and admins given the area
@@ -64,36 +57,7 @@ export class AdminPayrollController {
   constructor(
     private readonly payroll: AdminPayrollService,
     private readonly auth: AdminAuthService,
-    private readonly approvals: AdminApprovalsService,
   ) {}
-
-  /** Owner 2026-10-22 (maker-checker): how an approved bulk payout runs. */
-  onModuleInit(): void {
-    this.approvals.register({
-      kind: 'payroll_bulk_payout',
-      label: 'Зарплаты: выплата нескольким людям',
-      route: {
-        path: '/api/v1/admin/payroll/payouts/bulk',
-        method: 'POST',
-        roles: ['super_admin', 'finance', 'moderator', 'support', 'verifier'],
-      },
-      execute: (requester, payload) =>
-        this.payroll.payBulk(requester, payload as PayrollBulkPayDto),
-    });
-    this.approvals.register({
-      kind: 'payroll_bonus',
-      label: 'Зарплаты: бонус сотруднику',
-      route: {
-        path: '/api/v1/admin/payroll/employees/x/accruals',
-        method: 'POST',
-        roles: ['super_admin', 'finance', 'moderator', 'support', 'verifier'],
-      },
-      execute: (requester, payload) => {
-        const p = payload as BonusPayload;
-        return this.payroll.addAccrual(requester, p.employeeId, p.accrual);
-      },
-    });
-  }
 
   @Get('employees')
   @ApiOperation({ summary: 'People on payroll with their fixed amount' })
@@ -177,7 +141,7 @@ export class AdminPayrollController {
     400: [E.VALIDATION_ERROR],
     403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
-    409: [E.VALIDATION_ERROR, E.ADMIN_APPROVAL_PENDING],
+    409: [E.VALIDATION_ERROR],
   })
   async payPayrollBulk(
     @CurrentAdmin() admin: AdminActor,
@@ -185,14 +149,6 @@ export class AdminPayrollController {
   ): Promise<PayrollBulkResultDto> {
     // System audit #2, item 2: real Stripe transfers — fresh 2FA code.
     await this.auth.assertStepUp(admin.sessionId);
-    // Item 11: from billing.dual_approval_min_cents on, a second admin
-    // approves it first (409 ADMIN_APPROVAL_PENDING; nothing is paid now).
-    await this.approvals.gate(admin, {
-      kind: 'payroll_bulk_payout',
-      payload: dto,
-      amountCents: await this.payroll.estimateBulkCents(dto),
-      summary: `${new Set(dto.employeeIds).size} чел., период ${dto.period}, ${dto.method ?? 'manual'}`,
-    });
     return this.payroll.payBulk(admin, dto);
   }
 
@@ -229,7 +185,6 @@ export class AdminPayrollController {
     400: [E.VALIDATION_ERROR],
     403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
-    409: [E.ADMIN_APPROVAL_PENDING],
   })
   async addPayrollAccrual(
     @CurrentAdmin() admin: AdminActor,
@@ -237,17 +192,8 @@ export class AdminPayrollController {
     @Body() dto: CreatePayrollAccrualDto,
   ): Promise<PayrollAccrualDto> {
     // Owner 2026-10-22: a bonus is money out with the next payout — a
-    // fresh 2FA code, and a second admin from the dual-approval limit on
-    // (a deduction, <= 0, moves no money out).
+    // fresh 2FA code (no second admin: the owner works alone).
     await this.auth.assertStepUp(admin.sessionId);
-    if (dto.amountCents > 0) {
-      await this.approvals.gate(admin, {
-        kind: 'payroll_bonus',
-        payload: { employeeId: p.id, accrual: dto } satisfies BonusPayload,
-        amountCents: dto.amountCents,
-        summary: `${dto.kind === 'bonus' ? 'Бонус' : 'Корректировка'} ${(dto.amountCents / 100).toFixed(2)}, период ${dto.period}: ${dto.note}`,
-      });
-    }
     return this.payroll.addAccrual(admin, p.id, dto);
   }
 
