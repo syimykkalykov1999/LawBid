@@ -10,9 +10,11 @@ import {
  * (`scrypt$N$r$p$salt$hash`, memory-hard, random salt per value). No
  * dependency: node:crypto is enough and keeps the supply chain short.
  */
-const N = 1 << 15;
-const R = 8;
-const P = 1;
+// S3-6 (2026-10-25): OWASP scrypt floor N=2^16, r=8, p=2; older hashes
+// verify and are rewritten on the next successful sign-in.
+export const N = 1 << 16;
+export const R = 8;
+export const P = 2;
 const KEY_LEN = 64;
 const MAX_MEM = 128 * N * R * 2;
 
@@ -35,6 +37,14 @@ export async function hashSecret(value: string): Promise<string> {
   const salt = randomBytes(16);
   const key = await scrypt(value, salt, N, R, P);
   return `scrypt$${N}$${R}$${P}$${salt.toString('base64')}$${key.toString('base64')}`;
+}
+
+/** True when [stored] was made with weaker scrypt parameters than today's. */
+export function secretNeedsRehash(stored: string | null | undefined): boolean {
+  if (!stored) return false;
+  const [kind, n, r, p] = stored.split('$');
+  if (kind !== 'scrypt') return false;
+  return Number(n) < N || Number(r) < R || Number(p) < P;
 }
 
 export async function verifySecret(

@@ -14,6 +14,7 @@ import {
   DATA_EXPORT_LINK_TTL_SEC,
   DATA_EXPORT_STALE_PROCESSING_MS,
 } from './privacy.constants';
+import { privateDetailsAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../feature-flags/email-flows';
@@ -146,7 +147,17 @@ export class DataExportService {
             ?.granted ?? false,
       },
       'devices.json': sessions,
-      'cases.json': cases,
+      // S3-5: the private details are stored sealed; the owner gets plain text.
+      'cases.json': cases.map((c) => ({
+        ...c,
+        private_details:
+          c.private_details === null
+            ? null
+            : (this.cipher?.openField(
+                c.private_details,
+                privateDetailsAad(c.id),
+              ) ?? c.private_details),
+      })),
       'bids.json': bids,
       'posts.json': posts,
       'comments.json': { posts: comments, cases: caseComments },

@@ -320,8 +320,15 @@ export class AdminIntegrationsController {
     @CurrentAdmin() admin: AdminActor,
   ): Promise<{ reencrypted: number }> {
     await this.guard(admin);
-    const n = await this.secrets.reencrypt();
-    await this.log(admin, 'integration.reencrypt', 'all', { reencrypted: n });
+    const keys = await this.secrets.reencrypt();
+    // S3-4: join codes, bar-registry keys and authenticator secrets too.
+    const stores = await this.secrets.reencryptStores();
+    const n = keys + stores.joinCodes + stores.registries + stores.adminTotp;
+    await this.log(admin, 'integration.reencrypt', 'all', {
+      reencrypted: n,
+      integrationKeys: keys,
+      ...stores,
+    });
     return { reencrypted: n };
   }
 

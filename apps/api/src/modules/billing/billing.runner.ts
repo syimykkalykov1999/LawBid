@@ -94,7 +94,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         STRIPE_WEBHOOKS_QUEUE,
         (job) => this.processWebhook(job),
         {
-          ...bullOptions(STRIPE_WEBHOOKS_QUEUE, url),
+          ...bullOptions(STRIPE_WEBHOOKS_QUEUE, url, { worker: true }),
           ...workerTuning(STRIPE_WEBHOOKS_QUEUE),
           concurrency: 4,
         },
@@ -103,7 +103,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         SUBSCRIPTION_JOBS_QUEUE,
         (job) => this.processSubscriptionJob(job),
         {
-          ...bullOptions(SUBSCRIPTION_JOBS_QUEUE, url),
+          ...bullOptions(SUBSCRIPTION_JOBS_QUEUE, url, { worker: true }),
           ...workerTuning(SUBSCRIPTION_JOBS_QUEUE),
           concurrency: 2,
         },
