@@ -27,7 +27,6 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import { AdminPartnersService } from './admin-partners.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
-import { AdminApprovalsService } from '../admin-auth/admin-approvals.service';
 import {
   AdminPartnerAdjustmentDto,
   AdminPartnerCommissionRowDto,
@@ -49,11 +48,6 @@ import type { PartnerProgramSettings } from './partners.settings';
 
 const E = ErrorCode;
 
-/** What a stored partner-payout approval runs with. */
-interface PartnerPayPayload {
-  id: string;
-  dto: AdminPartnerPayDto;
-}
 type Page<T> = { items: T[]; nextCursor: string | null };
 const MUTATION_ERRORS = {
   400: [E.VALIDATION_ERROR],
@@ -70,35 +64,7 @@ export class AdminPartnersController {
   constructor(
     private readonly partners: AdminPartnersService,
     private readonly auth: AdminAuthService,
-    private readonly approvals: AdminApprovalsService,
   ) {}
-
-  /** Owner 2026-10-22 (maker-checker): how approved partner payouts run. */
-  onModuleInit(): void {
-    const route = {
-      path: '/api/v1/admin/partners/x/pay',
-      method: 'POST' as const,
-      roles: ['super_admin', 'finance'] as const,
-    };
-    this.approvals.register({
-      kind: 'partner_payout',
-      label: 'Партнёры: выплата всего одобренного',
-      route,
-      execute: (requester, payload) => {
-        const p = payload as PartnerPayPayload;
-        return this.partners.pay(requester, p.id, p.dto);
-      },
-    });
-    this.approvals.register({
-      kind: 'partner_commission_paid',
-      label: 'Партнёры: комиссия отмечена выплаченной',
-      route,
-      execute: (requester, payload) => {
-        const p = payload as PartnerPayPayload;
-        return this.partners.markPaid(requester, p.id, p.dto);
-      },
-    });
-  }
 
   @Get()
   @ApiOperation({ summary: 'Partners, newest first' })
@@ -233,15 +199,8 @@ export class AdminPartnersController {
     @Param() p: AdminPartnerIdParamDto,
     @Body() dto: AdminPartnerPayDto,
   ): Promise<AdminPartnerCommissionRowDto> {
-    // Owner 2026-10-22: money out — fresh 2FA code; from the dual-approval
-    // limit on, a second admin first.
+    // Owner 2026-10-22: money out — fresh 2FA code (no second admin).
     await this.auth.assertStepUp(admin.sessionId);
-    await this.approvals.gate(admin, {
-      kind: 'partner_commission_paid',
-      payload: { id: p.id, dto } satisfies PartnerPayPayload,
-      amountCents: await this.partners.commissionCents(p.id),
-      summary: `Комиссия ${p.id}${dto.payoutRef ? `, ${dto.payoutRef}` : ''}`,
-    });
     return this.partners.markPaid(admin, p.id, dto);
   }
 
@@ -330,15 +289,8 @@ export class AdminPartnersController {
     @Param() p: AdminPartnerIdParamDto,
     @Body() dto: AdminPartnerPayDto,
   ): Promise<AdminPartnerPayResultDto> {
-    // Owner 2026-10-22: money out — fresh 2FA code; from the dual-approval
-    // limit on, a second admin first.
+    // Owner 2026-10-22: money out — fresh 2FA code (no second admin).
     await this.auth.assertStepUp(admin.sessionId);
-    await this.approvals.gate(admin, {
-      kind: 'partner_payout',
-      payload: { id: p.id, dto } satisfies PartnerPayPayload,
-      amountCents: await this.partners.payableCents(p.id, dto.period),
-      summary: `Партнёр ${p.id}${dto.period ? `, период ${dto.period}` : ''}${dto.payoutRef ? `, ${dto.payoutRef}` : ''}`,
-    });
     return this.partners.pay(admin, p.id, dto);
   }
 }

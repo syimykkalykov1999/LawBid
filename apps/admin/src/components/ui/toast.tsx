@@ -3,7 +3,7 @@
 import { CheckCircle, Info, WarningCircle, X } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
 import { createContext, useCallback, useContext, useState } from 'react';
-import { ApiError, errorText } from '@/lib/api/client';
+import { errorText } from '@/lib/api/client';
 
 type Kind = 'success' | 'error' | 'info';
 interface Toast {
@@ -72,12 +72,6 @@ export function useToast() {
   return {
     success: (text: string) => v.push('success', text),
     info: (text: string) => v.push('info', text),
-    // Owner 2026-10-22 (maker-checker): «sent to a second admin» is news,
-    // not a failure.
-    error: (e: unknown) =>
-      v.push(
-        e instanceof ApiError && e.code === 'ADMIN_APPROVAL_PENDING' ? 'info' : 'error',
-        typeof e === 'string' ? e : errorText(e),
-      ),
+    error: (e: unknown) => v.push('error', typeof e === 'string' ? e : errorText(e)),
   };
 }
