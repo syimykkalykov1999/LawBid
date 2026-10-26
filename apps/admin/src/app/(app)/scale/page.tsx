@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
+import { SearchIndexCard } from '@/components/search-index-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
@@ -465,6 +466,9 @@ export default function ScalePage() {
               );
             })}
           </div>
+
+          <SectionTitle>Индекс поиска</SectionTitle>
+          <SearchIndexCard />
 
           <SectionTitle>Кнопки на крайний случай</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-3">

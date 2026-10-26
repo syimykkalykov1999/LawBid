@@ -172,6 +172,69 @@ export const REALTIME_SETTING_DEFS: readonly RealtimeSettingDef[] = [
     labelRu:
       'Сервер: при стольких одновременных запросах на одном экземпляре новые получают 503 «подождите»; 0 = защита выключена',
   },
+  {
+    key: 'realtime.server.presence_offline_grace_seconds',
+    field: null,
+    default: 10,
+    min: 0,
+    max: 120,
+    labelRu:
+      'Сервер: сколько секунд ждать, прежде чем показать собеседникам «был(а) в сети» (телефон с плохой сетью не мигает); 0 = сразу',
+  },
+  {
+    key: 'realtime.server.presence_permission_cache_seconds',
+    field: null,
+    default: 30,
+    min: 0,
+    max: 600,
+    labelRu:
+      'Сервер: на сколько секунд запоминать, кому можно видеть «онлайн» человека (меньше запросов к базе при каждом входе); 0 = не запоминать',
+  },
+  {
+    key: 'realtime.server.calls_request_sweep_seconds',
+    field: null,
+    default: 0,
+    min: 0,
+    max: 60,
+    labelRu:
+      'Сервер: как часто (секунд) запросы звонков сами проверяют просроченные звонки; 0 = при каждом запросе, как раньше. Больше 0 разгружает базу (проверка по расписанию раз в минуту остаётся)',
+  },
+  {
+    key: 'realtime.server.max_sockets_per_user_global',
+    field: null,
+    default: 0,
+    min: 0,
+    max: 1000,
+    labelRu:
+      'Сервер: сколько живых соединений может держать один человек на ВСЕХ серверах вместе (лишние новые закрываются); 0 = без общего предела (остаётся предел на один сервер)',
+  },
+  {
+    key: 'realtime.server.max_write_buffer_packets',
+    field: null,
+    default: 0,
+    min: 0,
+    max: 100_000,
+    labelRu:
+      'Сервер: если у одного соединения накопилось больше столько неотправленных пакетов (зависший телефон), оно закрывается и приложение подключается заново; 0 = не закрывать',
+  },
+  {
+    key: 'realtime.server.typing_big_room_sockets',
+    field: null,
+    default: 0,
+    min: 0,
+    max: 100_000,
+    labelRu:
+      'Сервер: в открытом чате, где на этом сервере столько соединений и больше, «печатает…» показывается не всем сразу (см. следующую настройку); 0 = показывать всех',
+  },
+  {
+    key: 'realtime.server.typing_big_room_max_typers',
+    field: null,
+    default: 3,
+    min: 1,
+    max: 100,
+    labelRu:
+      'Сервер: в большом открытом чате — сколько разных людей одновременно (за 5 секунд) показываются как «печатает…»',
+  },
 ];
 
 /** Literal (not derived from the list) so `AppSettingKey` stays a union of
@@ -194,6 +257,13 @@ export const OWNER_REALTIME_SETTINGS = {
   'realtime.server.going_away_spread_ms': 20_000,
   'realtime.server.shed_event_loop_lag_ms': 500,
   'realtime.server.shed_max_in_flight': 0,
+  'realtime.server.presence_offline_grace_seconds': 10,
+  'realtime.server.presence_permission_cache_seconds': 30,
+  'realtime.server.calls_request_sweep_seconds': 0,
+  'realtime.server.max_sockets_per_user_global': 0,
+  'realtime.server.max_write_buffer_packets': 0,
+  'realtime.server.typing_big_room_sockets': 0,
+  'realtime.server.typing_big_room_max_typers': 3,
 } as const;
 
 /**

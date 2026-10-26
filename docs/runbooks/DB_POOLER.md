@@ -138,3 +138,12 @@
 `MIGRATOR_DATABASE_URL` (миграции), `RETENTION_DATABASE_URL` (очистка по срокам
 хранения), `DEMO_DATABASE_URL` (демо-мир, CREATE DATABASE). Им нельзя
 transaction-режим. Под них зарезервировано 30 соединений из 99.
+
+## 8. Проверенный TLS (S3-7, 2026-10-25)
+
+Раньше соединения шифровались, но не проверялись: «чужой» хост внутри сети мог выдать себя за пул или за базу. Теперь есть два переключателя (по умолчанию всё как раньше):
+
+- `pgbouncer_db_tls_mode = "verify-full"`: PgBouncer проверяет сертификат RDS по встроенному в образ пакету AWS (`/etc/ssl/rds-global-bundle.pem`, закреплён хэшем в `infra/pgbouncer/Dockerfile`). Сначала пересоберите образ (Actions → Build PgBouncer) и выкатите, потом переключайте. Для `verify-full` адрес базы в секрете `DATABASE_URL` должен быть адресом RDS (`*.rds.amazonaws.com`), а не псевдонимом.
+- `pgbouncer_client_tls_private_ca = true`: Terraform создаёт частный центр сертификации и сертификат пула (`tls`-провайдер, секрет `<имя>/pgbouncer-tls` в Secrets Manager, KMS). API и worker получают открытую часть в `DB_POOLER_CA_PEM` и подключаются с `sslaccept=strict` (`src/prisma/pooler-url.ts`). Ключи лежат также в состоянии Terraform (оно шифруется в S3). Сертификат живёт 2 года, Terraform перевыпустит его за 60 дней до конца; задания пула подхватят новый при перезапуске.
+
+Откат: вернуть `"require"` / `false` и применить. Миграции и прямые подключения к базе (мимо пула) по-прежнему идут с `sslmode` из `DATABASE_URL`.

@@ -1,7 +1,7 @@
 ---
 id: admin-tabs
 title: Вкладки админки и кто что видит
-category: security
+category: people
 cost: Бесплатно
 time: 3 минуты
 launch:

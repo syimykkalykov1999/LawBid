@@ -1,7 +1,7 @@
 ---
 id: aws-delete-old-budget
 title: Удалить старый бюджет AWS «LawBid Monthly» ($50)
-category: aws
+category: money
 cost: Бесплатно
 time: 5 минут
 launch: old_budget
