@@ -78,7 +78,7 @@ export class StripeWebhookIntakeService
         e.code === 'P2002'
       ) {
         // A retry of an event stored earlier whose queue.add failed (Redis
-        // down): re-queue it unless a live job exists.
+        // down): re-queue it unless a job exists.
         const stored = await this.prisma.stripeWebhookEvent.findUnique({
           where: { stripe_event_id: event.id },
           select: { processed_at: true },

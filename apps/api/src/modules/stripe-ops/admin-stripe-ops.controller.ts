@@ -63,7 +63,7 @@ export class AdminStripeOpsController {
   @ApiOperation({ summary: 'The review queue, most urgent deadline first' })
   @ApiEnvelopeResponse(StripeReviewItemDto, { isArray: true })
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  list(
+  listOpen(
     @Query() q: StripeReviewQueryDto,
   ): Promise<{ items: StripeReviewItemDto[]; nextCursor: string | null }> {
     return this.review.list({ status: 'open', ...q });
@@ -72,7 +72,7 @@ export class AdminStripeOpsController {
   @Get('summary')
   @ApiOperation({ summary: 'Open / overdue counts and the dispute rate' })
   @ApiEnvelopeResponse(StripeReviewSummaryDto)
-  async summary(): Promise<StripeReviewSummaryDto> {
+  async reviewSummary(): Promise<StripeReviewSummaryDto> {
     const [c, r] = await Promise.all([
       this.review.counts(),
       this.disputes.rate(),
@@ -95,7 +95,7 @@ export class AdminStripeOpsController {
     403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
   })
-  resolve(
+  resolveReview(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: StripeReviewIdParamDto,
     @Body() dto: StripeReviewResolveDto,
@@ -114,7 +114,7 @@ export class AdminStripeOpsController {
     403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
   })
-  dismiss(
+  dismissReview(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: StripeReviewIdParamDto,
     @Body() dto: StripeReviewResolveDto,
@@ -126,7 +126,7 @@ export class AdminStripeOpsController {
   @ApiOperation({ summary: 'The evidence packet we would send for a dispute' })
   @ApiEnvelopeResponse(StripeDisputeEvidenceDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async evidence(
+  async disputeEvidence(
     @Param() p: StripeDisputePaymentParamDto,
   ): Promise<StripeDisputeEvidenceDto> {
     const row = await this.prisma.casePayment.findUnique({
@@ -149,11 +149,11 @@ export class AdminStripeOpsController {
   })
   @ApiEnvelopeResponse(StripeDisputeEvidenceDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  async draft(
+  async disputeDraft(
     @Param() p: StripeDisputePaymentParamDto,
   ): Promise<StripeDisputeEvidenceDto> {
     await this.disputes.buildDraft(p.paymentId);
-    return this.evidence(p);
+    return this.disputeEvidence(p);
   }
 
   @Post('disputes/:paymentId/submit')
@@ -168,7 +168,7 @@ export class AdminStripeOpsController {
     404: [E.NOT_FOUND],
     409: [E.PAYMENT_INVALID_STATE],
   })
-  async submit(
+  async disputeSubmit(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: StripeDisputePaymentParamDto,
   ): Promise<StripeDisputeSubmitResultDto> {

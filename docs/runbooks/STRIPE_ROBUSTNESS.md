@@ -37,8 +37,8 @@ Platform-level (not Connect) events: a failed refund of a platform charge, an ea
 
 Redis (BullMQ) is only a delivery channel; the truth is Stripe plus our database. Three layers, none needs Redis state:
 
-1. **Stored first.** The webhook intake saves the event row, then queues the job (`jobId` = event id). If Redis is down, Stripe gets a 500 and retries; on the retry the duplicate row is detected and, if it is still unprocessed and no live job exists (`queue.getJob`), the job is queued again (a replay used to be answered 200 and lost).
-2. **`stripe-webhooks.requeue` (every minute).** Queues every stored, handled event with `processed_at` null older than 2 minutes (idempotent, jobId = event id; a live job is never doubled). A Redis failover that loses the queue is repaired within minutes.
+1. **Stored first.** The webhook intake saves the event row, then queues the job (`jobId` = event id). If Redis is down, Stripe gets a 500 and retries; on the retry the duplicate row is detected and, if it is still unprocessed and no job exists (`queue.getJob`), the job is queued again (a replay used to be answered 200 and lost).
+2. **`stripe-webhooks.requeue` (every minute).** Queues every stored, handled event with `processed_at` null older than 2 minutes whose job is MISSING from Redis (jobId = event id; any existing job, including a failed one owned by the DLQ, is left alone). A Redis failover that loses the queue is repaired within minutes.
 3. **Pull reconcile** (`case-payments.expire` every 10 min, `stripe-ops.sweep` nightly): re-reads pending payments and subscriptions from Stripe, so even an event Stripe never delivered is recovered from Stripe truth.
 
 ## Disputes

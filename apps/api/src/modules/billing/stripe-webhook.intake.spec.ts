@@ -19,7 +19,7 @@ function make(opts: {
   duplicate?: boolean;
   badSig?: boolean;
   stored?: { processed_at: Date | null } | null;
-  liveJob?: 'active' | 'completed';
+  liveJob?: 'active' | 'completed' | 'failed';
 }) {
   const event = {
     id: 'evt_1',
@@ -121,15 +121,18 @@ describe('StripeWebhookIntakeService.receive', () => {
     expect(h.queue.add).not.toHaveBeenCalled();
   });
 
-  it('a replay whose finished job left the row unprocessed replaces the job', async () => {
-    const h = make({
-      duplicate: true,
-      stored: { processed_at: null },
-      liveJob: 'completed',
-    });
-    expect(await h.svc.receive(Buffer.from('{}'), 'sig')).toBe(true);
-    expect(h.queue.add).toHaveBeenCalledTimes(1);
-  });
+  it.each(['completed', 'failed'] as const)(
+    'a replay with a %s job present is not re-added (the DLQ owns it)',
+    async (liveJob) => {
+      const h = make({
+        duplicate: true,
+        stored: { processed_at: null },
+        liveJob,
+      });
+      expect(await h.svc.receive(Buffer.from('{}'), 'sig')).toBe(false);
+      expect(h.queue.add).not.toHaveBeenCalled();
+    },
+  );
 
   it('other database errors are not swallowed (Stripe retries)', async () => {
     const h = make({});

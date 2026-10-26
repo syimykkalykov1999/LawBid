@@ -102,6 +102,7 @@ import 'clients/stars_client.dart';
 import 'clients/admin_stars_client.dart';
 import 'clients/case_payments_client.dart';
 import 'clients/admin_case_payments_client.dart';
+import 'clients/admin_stripe_review_client.dart';
 import 'clients/client_badge_client.dart';
 import 'clients/admin_client_badge_client.dart';
 import 'clients/realtime_client.dart';
@@ -239,6 +240,7 @@ class LawbidApi {
   AdminStarsClient? _adminStars;
   CasePaymentsClient? _casePayments;
   AdminCasePaymentsClient? _adminCasePayments;
+  AdminStripeReviewClient? _adminStripeReview;
   ClientBadgeClient? _clientBadge;
   AdminClientBadgeClient? _adminClientBadge;
   RealtimeClient? _realtime;
@@ -548,6 +550,9 @@ class LawbidApi {
 
   AdminCasePaymentsClient get adminCasePayments =>
       _adminCasePayments ??= AdminCasePaymentsClient(_dio, baseUrl: _baseUrl);
+
+  AdminStripeReviewClient get adminStripeReview =>
+      _adminStripeReview ??= AdminStripeReviewClient(_dio, baseUrl: _baseUrl);
 
   ClientBadgeClient get clientBadge =>
       _clientBadge ??= ClientBadgeClient(_dio, baseUrl: _baseUrl);

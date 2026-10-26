@@ -1,7 +1,10 @@
 import { STRIPE_WEBHOOK_JOB } from '../billing/billing.constants';
 import { StripeWebhookRequeueService } from './stripe-webhook-requeue.service';
 
-function make(rows: string[], live: Record<string, 'active' | undefined> = {}) {
+function make(
+  rows: string[],
+  live: Record<string, 'active' | 'failed' | undefined> = {},
+) {
   const prisma = {
     stripeWebhookEvent: {
       findMany: jest.fn(() =>
@@ -53,6 +56,12 @@ describe('StripeWebhookRequeueService.sweep', () => {
     const h = make(['evt_a', 'evt_b'], { evt_a: 'active' });
     expect(await h.svc.sweep()).toEqual({ found: 2, requeued: 1 });
     expect(h.queue.add).toHaveBeenCalledTimes(1);
+  });
+
+  it('never touches a failed job (the DLQ owns it)', async () => {
+    const h = make(['evt_f'], { evt_f: 'failed' });
+    expect(await h.svc.sweep()).toEqual({ found: 1, requeued: 0 });
+    expect(h.queue.add).not.toHaveBeenCalled();
   });
 
   it('does nothing without Redis', async () => {

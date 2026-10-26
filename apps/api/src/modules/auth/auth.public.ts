@@ -24,3 +24,6 @@ export {
 } from './passkeys/passkey.dto';
 export { RateLimitService } from './services/rate-limit.service';
 export { QR_LOGIN_TTL_SEC } from './services/qr-login.service';
+// Stripe robustness: staff e-mails (review queue, dispute reminders).
+export { EMAIL_PROVIDER } from './providers/provider.tokens';
+export type { EmailProvider } from './providers/email/email-provider.interface';

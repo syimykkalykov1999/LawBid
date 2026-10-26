@@ -4,8 +4,7 @@ import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import type { EmailProvider } from '../auth/providers/email/email-provider.interface';
-import { EMAIL_PROVIDER } from '../auth/providers/provider.tokens';
+import { EMAIL_PROVIDER, type EmailProvider } from '../auth/auth.public';
 import {
   slaDueAt,
   slaState,

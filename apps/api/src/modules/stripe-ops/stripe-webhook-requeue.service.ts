@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
+import { bullOptions } from '../../redis/redis-connection';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STRIPE_WEBHOOKS_QUEUE } from '../billing/billing.constants';
 import { HANDLED_STRIPE_EVENTS } from '../billing/billing.constants';
@@ -37,7 +38,10 @@ export class StripeWebhookRequeueService
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (url)
-      this.queue = new Queue(STRIPE_WEBHOOKS_QUEUE, { connection: { url } });
+      this.queue = new Queue(
+        STRIPE_WEBHOOKS_QUEUE,
+        bullOptions(STRIPE_WEBHOOKS_QUEUE, url),
+      );
   }
 
   async onModuleDestroy(): Promise<void> {
