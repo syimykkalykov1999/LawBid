@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/heavy_jobs_dto.dart';
+import '../models/queue_retry_result_envelope.dart';
 import '../models/scale_dto.dart';
 import '../models/scale_extras_envelope.dart';
 import '../models/search_index_status_envelope.dart';
@@ -47,6 +48,12 @@ abstract class AdminOpsClient {
   /// Start a new message re-encryption pass (needs step-up)
   @POST('/admin/system-health/message-reencrypt/restart')
   Future<SystemHealthEnvelope> restartMessageReencrypt({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Retry failed background jobs and replay Stripe dead letters (needs step-up)
+  @POST('/admin/system-health/queues/retry-failed')
+  Future<QueueRetryResultEnvelope> retryFailedJobs({
     @Extras() Map<String, dynamic>? extras,
   });
 
