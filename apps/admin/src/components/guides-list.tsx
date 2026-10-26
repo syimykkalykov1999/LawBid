@@ -6,7 +6,7 @@ import { GuideDone } from '@/components/guide-done';
 import { SectionTitle } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { groupGuides, isStale, searchGuides, verifiedWord, type GuideMeta } from '@/lib/guides';
+import { groupGuides, isStale, latestVerified, searchGuides, verifiedWord, type GuideMeta } from '@/lib/guides';
 
 export type GuideListItem = GuideMeta & { body: string };
 
@@ -17,6 +17,9 @@ export function GuidesList({ guides }: { guides: GuideListItem[] }) {
   const groups = groupGuides(found);
   return (
     <>
+      <p className="mb-3 text-xs text-faint">
+        Инструкций: {guides.length}. Последнее обновление: {verifiedWord(latestVerified(guides)).replace('проверено ', '')}.
+      </p>
       <div className="mb-6 max-w-md">
         <Input
           type="search"
@@ -42,7 +45,7 @@ export function GuidesList({ guides }: { guides: GuideListItem[] }) {
                   <span className="break-words">{x.cost.length > 70 ? `${x.cost.slice(0, 67)}…` : x.cost}</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-faint">
-                  {verifiedWord(x.verified)}
+                  {verifiedWord(x.verified).replace('проверено', 'обновлено')}
                   {isStale(x.verified) ? <Badge tone="warning">пора перепроверить</Badge> : null}
                 </div>
                 <div className="mt-auto pt-1">

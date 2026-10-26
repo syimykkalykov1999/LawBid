@@ -1,7 +1,7 @@
 ---
 id: aws-cost-tags
 title: Включить теги расходов AWS (видно, на что уходят деньги)
-category: aws
+category: money
 cost: Бесплатно
 time: 5 минут и ожидание до 48 часов
 launch: cost_tags
