@@ -85,13 +85,17 @@ class _EditFormState extends ConsumerState<_EditForm> {
       });
 
   Future<void> _save() async {
+    if (_saving) return;
     setState(() => _saving = true);
     final t = ref.read(translatorProvider);
+    // Held before the await: the lists must refresh even if this screen
+    // was closed meanwhile.
+    final container = ProviderScope.containerOf(context);
     try {
       await ref
           .read(casesRepositoryProvider)
           .updateCase(widget.original, _draft);
-      ref
+      container
         ..invalidate(ownerCaseProvider(widget.original.id))
         ..invalidate(myCasesProvider)
         ..invalidate(mineCasesProvider);
@@ -107,6 +111,11 @@ class _EditFormState extends ConsumerState<_EditForm> {
           _index = _steps.indexOf(1);
         }
       });
+    } on Object catch (e) {
+      // Any other failure must not leave the button stuck on «saving».
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showAppSnackBar(context, errorText(t, e));
     }
   }
 
