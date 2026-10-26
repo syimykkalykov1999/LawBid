@@ -68,6 +68,7 @@ function harness(opts: {
         return Promise.resolve(row);
       }),
       findFirst: jest.fn(() => Promise.resolve(opts.twin ?? null)),
+      findMany: jest.fn(() => Promise.resolve([...checks.values()])),
       findUnique: jest.fn(() => Promise.resolve(checks.get('c1'))),
       findUniqueOrThrow: jest.fn(() => Promise.resolve(checks.get('c1'))),
       update: jest.fn(
@@ -112,6 +113,7 @@ function harness(opts: {
   };
   const settings = {
     boolean: jest.fn((k: string) => Promise.resolve(SETTINGS[k])),
+    raw: jest.fn((k: string) => Promise.resolve(SETTINGS[k])),
     number: jest.fn((k: string) => Promise.resolve(SETTINGS[k])),
   };
   const costGuard = {
@@ -254,6 +256,29 @@ describe('MediaModerationService.checkFile', () => {
     });
     expect(await h.svc.checkFile('f1')).toBe('hidden');
     expect(h.queue.enqueueRehide).toHaveBeenCalledWith('c1');
+  });
+
+  it('S10-6: the sweep hides what a lost delayed rehide job would have', async () => {
+    const h = harness({ postIds: ['p1'] });
+    h.checks.set('c1', {
+      id: 'c1',
+      file_id: 'f1',
+      video_asset_id: null,
+      owner_user_id: 'u1',
+      purpose: 'post_image',
+      status: 'hidden',
+      decision: null,
+      hidden_targets: [],
+      checked_at: new Date(Date.now() - 3 * 3_600_000),
+    });
+    const out = await h.svc.rehideSweep(new Date());
+    expect(out.reapplied).toBe(1);
+    expect(h.moderation.setContentStatus).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ type: 'post', id: 'p1' }),
+      'hide',
+      expect.any(Array),
+    );
   });
 
   it('over the money cap the check is skipped, not paid', async () => {
