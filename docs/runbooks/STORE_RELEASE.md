@@ -39,6 +39,9 @@ dart run build_runner build --delete-conflicting-outputs
 
 1. `config/prod.json`: copy `config/prod.example.json`; set
    `STRIPE_PUBLISHABLE_KEY=pk_live_…`. `APP_STORE_ID` stays empty until step 5 gives the Apple ID.
+   `SENTRY_DSN`: the public DSN of the Sentry project `lawbid-mobile` (Sentry →
+   Settings → Client Keys). It is compiled in so native crashes are captured from the very first launch
+   (before any server answer); the value in the admin (Ключи и сервисы → Sentry) still overrides it.
 2. Firebase project `lawbid-6e5ff`: Firebase console → Project settings →
    add Android app `com.lawbid.lawbid` and iOS app `com.lawbid.lawbid`;
    download and save as

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { AnalyticsService } from '../../modules/analytics/analytics.service';
 import { BillingOverviewService } from '../../modules/admin-billing/billing-overview.service';
 import { DashboardService } from '../../modules/admin/dashboard.service';
 import {
@@ -27,6 +28,7 @@ export class AdminSummariesJob {
     private readonly billing: BillingOverviewService,
     private readonly trust: AttorneyTrustService,
     private readonly summary: AdminSummaryService,
+    private readonly analytics: AnalyticsService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(AdminSummariesJob.name);
@@ -35,6 +37,8 @@ export class AdminSummariesJob {
   async run(): Promise<{ refreshed: string[]; failed: string[] }> {
     const steps: [string, () => Promise<void>][] = [
       ['dashboard', () => this.dashboard.refresh()],
+      // Owner 2026-10-25: the heavy analytics SQL runs once a day (04 UTC).
+      ['analytics', () => this.analytics.refreshSnapshots()],
       ['billing-overview', () => this.billing.refreshOverview()],
       [
         'trust-scan',
