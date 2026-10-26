@@ -105,14 +105,15 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     }
     expect(all.sort()).toEqual(CRON_SCHEDULES.map((s) => s.name).sort());
     // One pending run per scheduler, not one per instance.
-    for (const { queue } of lanes) await expectOnePendingRunPerScheduler(queue);
+    for (const { lane, queue } of lanes)
+      await expectOnePendingRunPerScheduler(queue, lane);
 
     // A third boot (rolling deploy) is still idempotent.
     await boot();
     let total = 0;
-    for (const { queue } of lanes) {
+    for (const { lane, queue } of lanes) {
       total += (await queue.getJobSchedulers()).length;
-      await expectOnePendingRunPerScheduler(queue);
+      await expectOnePendingRunPerScheduler(queue, lane);
     }
     expect(total).toBe(CRON_SCHEDULES.length);
   });
@@ -291,7 +292,10 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
  * queues the following one), so counting only delayed jobs is flaky near a
  * minute boundary.
  */
-async function expectOnePendingRunPerScheduler(queue: Queue): Promise<void> {
+async function expectOnePendingRunPerScheduler(
+  queue: Queue,
+  lane: CronLane,
+): Promise<void> {
   // A scheduler hands its next run over a moment after the current one is
   // promoted, so two future runs of one scheduler can coexist for a few
   // hundred ms around a minute boundary. A real duplicate registration
@@ -334,5 +338,7 @@ async function expectOnePendingRunPerScheduler(queue: Queue): Promise<void> {
     'prioritized',
   ]);
   const covered = new Set(pending.map((j) => j.repeatJobKey ?? j.name));
-  for (const c of CRON_SCHEDULES) expect(covered.has(c.name)).toBe(true);
+  // Only this lane's schedules run on this queue (S10-2).
+  for (const c of CRON_SCHEDULES.filter((x) => cronLaneOf(x.name) === lane))
+    expect(covered.has(c.name)).toBe(true);
 }
