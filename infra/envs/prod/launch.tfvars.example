@@ -1,5 +1,7 @@
-# Launch size for prod, ≈ $150/month (≈ $140 + the antivirus memory)
-# of AWS at us-east-1 prices (2026-10) plus the managed PostgreSQL host billed separately.
+# Launch size for prod: the real day-1 bill is ≈ $277–287/month (AWS ≈ $265 + vendors and
+# accounts ≈ $12-22; us-east-1 list prices, 2026-10-25). The old "≈ $150" forgot the public
+# IPv4 addresses ($11), both WAFs ($19), alarms and logs ($18), the Multi-AZ database copy and
+# the SMS number. Every line with price, switch and alarm: docs/runbooks/COST_LADDER.md.
 # Copy to terraform.tfvars and fill the REPLACE values. To grow, raise the
 # numbers below (or delete a line to fall back to the full-size default in
 # variables.tf) and run `terraform apply`; no code change is needed.
