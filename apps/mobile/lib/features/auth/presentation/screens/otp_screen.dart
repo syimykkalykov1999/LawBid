@@ -93,9 +93,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     await ref.read(onboardingFlowProvider.notifier).verifyOtp(code);
   }
 
-  Future<void> _resend() async {
+  /// True when the code was re-sent (the countdown restarts only then).
+  Future<bool> _resend() async {
     final message = await ref.read(onboardingFlowProvider.notifier).resendOtp();
     if (message != null && mounted) showAppSnackBar(context, message);
+    return message == null;
   }
 
   @override
@@ -273,7 +275,7 @@ class _ResendCountdown extends StatefulWidget {
   const _ResendCountdown({required this.t, required this.onResend});
 
   final Translator t;
-  final VoidCallback onResend;
+  final Future<bool> Function() onResend;
 
   @override
   State<_ResendCountdown> createState() => _ResendCountdownState();
@@ -286,6 +288,7 @@ class _ResendCountdownState extends State<_ResendCountdown> {
   static const _totalSeconds = 60;
   Timer? _timer;
   int _remaining = _totalSeconds;
+  bool _resending = false;
 
   @override
   void initState() {
@@ -335,9 +338,12 @@ class _ResendCountdownState extends State<_ResendCountdown> {
     }
 
     return GestureDetector(
-      onTap: () {
-        widget.onResend();
-        _startTimer();
+      onTap: () async {
+        if (_resending) return;
+        _resending = true;
+        final sent = await widget.onResend();
+        _resending = false;
+        if (sent && mounted) _startTimer();
       },
       child: Semantics(
         button: true,
