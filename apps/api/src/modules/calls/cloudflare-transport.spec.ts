@@ -251,6 +251,72 @@ describe('phones report a dead relay at launch scale (TS-2 / CF-6, audit 2026-10
   });
 });
 
+/** T2 (audit 2026-10-26): the phone-report ratio on the Redis path
+ * production runs (not only in memory). */
+describe('phone reports through Redis (T2)', () => {
+  const fleet = (now: () => number) => {
+    const redis = new FakeRedis(now);
+    return {
+      redis,
+      t: new CloudflareTransport(redis as never, settings({}), now),
+    };
+  };
+
+  it('one looping phone never opens it: 30 calls, 20 reports from one user', async () => {
+    const now = 3_000_000;
+    const { t } = fleet(() => now);
+    for (let i = 0; i < 30; i++) await t.noteUse('turn');
+    for (let i = 0; i < 20; i++) {
+      expect(await t.recordClientFailure('turn', 'same', 'x')).toBe(false);
+    }
+    expect(await t.isOpen('turn')).toBe(false);
+  });
+
+  it('a few reports among many healthy calls do not count: 1000 calls, 50 phones', async () => {
+    const now = 4_000_000;
+    const { t } = fleet(() => now);
+    for (let i = 0; i < 1000; i++) await t.noteUse('turn');
+    for (let i = 0; i < 50; i++) {
+      expect(await t.recordClientFailure('turn', `p${i}`, 'x')).toBe(false);
+    }
+    expect(await t.isOpen('turn')).toBe(false);
+  });
+
+  it('15 distinct phones out of 30 calls open it for the fleet', async () => {
+    const now = 5_000_000;
+    const { t } = fleet(() => now);
+    for (let i = 0; i < 30; i++) await t.noteUse('turn');
+    let opened = false;
+    for (let i = 0; i < 15 && !opened; i++) {
+      opened = await t.recordClientFailure('turn', `p${i}`, 'x');
+    }
+    expect(opened).toBe(true);
+    expect(await t.isOpen('turn')).toBe(true);
+  });
+
+  it('the use counter expires with the window: later reports judge a fresh window', async () => {
+    let now = 6_000_000;
+    const { t } = fleet(() => now);
+    for (let i = 0; i < 1000; i++) await t.noteUse('turn');
+    expect(await t.recordClientFailure('turn', 'p0', 'x')).toBe(false);
+    now += 121_000; // past calls.transport_fail_window_sec (120 s)
+    // Few calls now: two phones are enough again.
+    expect(await t.recordClientFailure('turn', 'p1', 'x')).toBe(false);
+    expect(await t.recordClientFailure('turn', 'p2', 'x')).toBe(true);
+  });
+
+  it('the same phone counts once a minute (calls:cf:reporter)', async () => {
+    let now = 7_000_000;
+    const { t } = fleet(() => now);
+    expect(await t.recordClientFailure('turn', 'a', 'x')).toBe(false);
+    expect(await t.recordClientFailure('turn', 'a', 'x')).toBe(false);
+    expect(await t.isOpen('turn')).toBe(false);
+    now += 61_000;
+    // A minute later the same phone counts again: two reports → open.
+    expect(await t.recordClientFailure('turn', 'a', 'x')).toBe(true);
+  });
+});
+
 describe('relay probe while the breaker is CLOSED (FO-2, audit 2026-10-26)', () => {
   const dead = () =>
     jest

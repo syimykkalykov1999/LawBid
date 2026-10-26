@@ -96,6 +96,9 @@ export interface CallEndJobData {
   /** The ANSWERED call is over (not just the ringing): its own job and
    * dedupe key, so the answer's "stop ringing" push does not swallow it. */
   ended?: boolean;
+  /** LC-1: the sign-in chain of the phone that answered — it keeps its
+   * CallKit call (no VoIP «stop ringing» to it). */
+  exceptChainId?: string;
   deferred?: boolean;
 }
 

@@ -16,6 +16,7 @@ subscriber to the CallKit event channel stealing the first one's events.
 | FCM foreground `onMessage` (`incoming_call`, `call_ended`, `group_call`) | `PushService.start` | 1 | `_startedFor` guard |
 | FCM background (Android, app minimised / killed) | `lawbidBackgroundMessage` (top level) → `showLawbidIncoming` | 1 | `onBackgroundMessage` set once |
 | PushKit VoIP (iOS) | `AppDelegate.pushRegistry(didReceiveIncomingPushWith:)` → `showCallkitIncoming` (= `reportNewIncomingCall`) | 1 | the only report; a call the socket already reported keeps its one CXCall (same id) |
+| PushKit VoIP «call_ended» (iOS, LC-1 2026-10-26) | `AppDelegate.handleCallEndedPush` | 1 | ends the RINGING CallKit call via `CXEndCallAction` (the plugin's one provider performs it); never a call answered on this phone; nothing shown → report-then-end (iOS requires a report for every VoIP push); a ring that arrives after its stop is reported and ended at once. Server: `ApnsVoipSender.endCall` only to iPhones the call rang by VoIP, only within the phone's own 45 s ring, never the phone that answered / declined (`exceptChainId` = its sign-in chain). The silent FCM stop still goes out too |
 | iOS CallKit plugin instance | `SwiftFlutterCallkitIncomingPlugin.sharedInstance` (one CXProvider) | 1 | 2026-10-26: a VoIP push that wakes a CLOSED app (UIScene: no window, no plugins yet) brings up a stand-in headless engine that registers the SAME shared instance (`sharePluginWithRegister`); it has no Dart listener and is destroyed when the app's engine registers |
 
 ## Incoming call

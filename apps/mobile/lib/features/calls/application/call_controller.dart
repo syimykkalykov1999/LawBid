@@ -428,6 +428,10 @@ class CallController extends Notifier<CallSession> {
   /// When this phone last told the server its SFU link is dead (LC-5).
   DateTime? _sfuReportedAt;
 
+  /// FO-1: links that already had their one second chance while the call
+  /// was still connecting.
+  final Set<String> _connectRetried = {};
+
   /// Mesh signals that came while this phone still had the SFU media (the
   /// others swapped first); replayed after the swap.
   final _meshSignals = <({String? from, Map<String, Object?> data})>[];
@@ -2030,6 +2034,14 @@ class CallController extends Notifier<CallSession> {
         if (peer == kSfuLinkId) unawaited(_reportSfuFailed());
         if (state.phase == CallPhase.active) {
           _startReconnect(peer);
+        } else if (state.phase == CallPhase.connecting &&
+            _connectRetried.add(peer)) {
+          // FO-1 (audit 2026-10-26): the relay may be dead while its API is
+          // alive (Cloudflare data-plane outage) — one second chance on a
+          // FRESH list (the server hears relayFailed and puts our own TURN
+          // first) and one ICE restart, before the call is given up. The
+          // connect timeout still bounds the whole attempt.
+          unawaited(_freshIceThenRetryConnect(peer));
         } else if (state.busy) {
           _linkLost(peer);
         }
@@ -2097,6 +2109,15 @@ class CallController extends Notifier<CallSession> {
   /// Both sides take a fresh relay list (each gathers its own relay
   /// candidates); then the side that offered restarts ICE, the other asks
   /// it to. A link that healed meanwhile is left alone.
+  Future<void> _freshIceThenRetryConnect(String peer) async {
+    callTrace('link to $peer failed while connecting: one retry, fresh relays');
+    await _freshIce(relayFailed: _onCloudflareRelay, force: true);
+    if (!ref.mounted || !state.busy || state.phase != CallPhase.connecting) {
+      return;
+    }
+    await _restartOrAsk(peer);
+  }
+
   Future<void> _freshIceThenRestart(String peer) async {
     await _freshIce(relayFailed: _onCloudflareRelay);
     if (!ref.mounted || !state.busy || !_reconnect.containsKey(peer)) return;
@@ -2638,6 +2659,7 @@ class CallController extends Notifier<CallSession> {
     _ice = null;
     _iceAt = null;
     _sfuReportedAt = null;
+    _connectRetried.clear();
   }
 
   void _clearTimers() {

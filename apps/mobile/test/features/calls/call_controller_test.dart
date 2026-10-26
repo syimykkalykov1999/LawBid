@@ -718,6 +718,77 @@ void main() {
     },
   );
 
+  test(
+    'FO-1: the link fails while still connecting (dead Cloudflare relay, '
+    'live API) — one retry on a fresh list (relayFailed), not a hang-up; '
+    'a second failure gives up',
+    () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.repo.servers = const [
+          IceServer(
+            urls: ['turn:turn.cloudflare.com:3478?transport=udp'],
+            username: 'cf',
+            credential: 'x',
+          ),
+        ];
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.connecting);
+        final asksBefore = h.repo.iceAsks.length;
+        h.repo.servers = const [
+          IceServer(
+            urls: ['turn:own.example:3478'],
+            username: 'o',
+            credential: 'y',
+          ),
+        ];
+
+        h.media.onState!(CallMediaState.failed);
+        async.flushMicrotasks();
+        expect(h.repo.iceAsks.sublist(asksBefore), [true]);
+        expect(h.media.iceUpdates.last.single.urls, ['turn:own.example:3478']);
+        expect(h.media.iceRestarts, 1);
+        expect(h.repo.ends, isEmpty);
+        expect(h.s.phase, CallPhase.connecting);
+
+        // The second chance works: the call comes up on our own relay.
+        h.media.onState!(CallMediaState.connected);
+        expect(h.s.phase, CallPhase.active);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    },
+  );
+
+  test('FO-1: a second failure while connecting ends the call (no loop)', () {
+    fakeAsync((async) {
+      final h = _Harness()..fakeClock(async);
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      async.flushMicrotasks();
+      h.media.onState!(CallMediaState.failed);
+      async.flushMicrotasks();
+      expect(h.media.iceRestarts, 1);
+      expect(h.repo.ends, isEmpty);
+      h.media.onState!(CallMediaState.failed);
+      async.flushMicrotasks();
+      expect(h.repo.ends, [CallEndReason.failed]);
+      expect(h.s.phase, CallPhase.ended);
+      h.close();
+    });
+  });
+
   test('an offer that nobody heard is renewed until an answer comes', () {
     fakeAsync((async) {
       final h = _Harness();

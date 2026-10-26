@@ -826,20 +826,28 @@ export class CallsService {
         await this.withSeq(call.id, { call: await this.toDto(fresh, uid) }),
       );
     }
-    await this.stopRingingPush(call);
+    // LC-1: the answering phone keeps its CallKit call.
+    await this.stopRingingPush(call, user.sid);
     return this.toDto(fresh, user.sub);
   }
 
   /** Push 2026-10-19: phones asleep or closed show the system ringing
    * screen with no socket to hear `call:ended` / `call:accepted` — a
    * silent push takes it down (the answering phone keeps its call). */
-  private async stopRingingPush(call: Call): Promise<void> {
+  private async stopRingingPush(
+    call: Call,
+    answeredOnChain?: string,
+  ): Promise<void> {
     const ringing = [
       call.callee_id,
       ...(await this.callAssistants(call.callee_id)),
     ];
     for (const recipientId of ringing) {
-      await this.push.enqueueCallEnded({ recipientId, callId: call.id });
+      await this.push.enqueueCallEnded({
+        recipientId,
+        callId: call.id,
+        ...(answeredOnChain ? { exceptChainId: answeredOnChain } : {}),
+      });
     }
   }
 
@@ -879,7 +887,14 @@ export class CallsService {
     }
     if (call.callee_id !== user.sub) throw notFound();
     if (call.status !== 'ringing') return this.toDto(call, user.sub);
-    return this.finish(call, 'declined', user.sub);
+    return this.finish(
+      call,
+      'declined',
+      user.sub,
+      undefined,
+      undefined,
+      user.sid,
+    );
   }
 
   /** POST /calls/:id/end — hang up (either side), idempotent. */
@@ -908,7 +923,13 @@ export class CallsService {
     }
     const reason = dto.reason ?? 'hangup';
     let outcome: Outcome;
-    if (reason === 'failed') {
+    // LC-2 (audit 2026-10-26): a call that WAS connected and then lost its
+    // link (30 s «Reconnecting…» ran out, the other phone died) is a call
+    // that took place — «ended» with its real length in the history, the
+    // cause kept in end_reason. Only media that never came up is «failed».
+    const dropped =
+      reason === 'failed' && call.status === 'active' && !!call.answered_at;
+    if (reason === 'failed' && !dropped) {
       outcome = 'failed';
     } else if (call.status === 'active') {
       outcome = 'ended';
@@ -921,7 +942,14 @@ export class CallsService {
     // app saying the media never came up (ICE / TURN).
     if (outcome === 'ended') this.slo?.count('callConnected');
     if (outcome === 'failed') this.slo?.count('callFailed');
-    return this.finish(call, outcome, user.sub);
+    return this.finish(
+      call,
+      outcome,
+      user.sub,
+      undefined,
+      dropped ? 'link_lost' : undefined,
+      user.sid,
+    );
   }
 
   async get(user: RequestUser, id: string): Promise<CallDto> {
@@ -1227,6 +1255,9 @@ export class CallsService {
     outcome: Outcome,
     viewerId: string | null,
     at?: Date,
+    endReason?: string,
+    /** LC-1: the phone that declined keeps quiet (no VoIP stop to it). */
+    byChainId?: string,
   ): Promise<CallDto> {
     const now = at ?? new Date();
     const durationSec =
@@ -1242,7 +1273,7 @@ export class CallsService {
         status: outcome,
         ended_at: now,
         duration_sec: durationSec,
-        end_reason: outcome,
+        end_reason: endReason ?? outcome,
       },
     });
     const fresh = await this.prisma.call.findUniqueOrThrow({
@@ -1258,7 +1289,7 @@ export class CallsService {
         });
       }
       if (call.status === 'ringing') {
-        await this.stopRingingPush(call);
+        await this.stopRingingPush(call, byChainId);
       } else {
         await this.endedActivePush(call);
       }
@@ -1819,6 +1850,7 @@ export class CallsService {
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
       callId: fresh.id,
+      exceptChainId: user.sid,
     });
     // Fallback only: too many people for video device to device = audio.
     const after = await this.downgradeFallbackVideo(fresh, inCall + 1);
@@ -2150,6 +2182,7 @@ export class CallsService {
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
       callId: call.id,
+      exceptChainId: user.sid,
     });
     const joined = (await this.rowsOf(call.id)).filter(
       (r) => r.status === 'joined',
@@ -2172,6 +2205,7 @@ export class CallsService {
     await this.push.enqueueCallEnded({
       recipientId: user.sub,
       callId: call.id,
+      exceptChainId: user.sid,
     });
     await this.broadcastParticipants(call.id, [user.sub]);
     return this.toDto(call, user.sub);

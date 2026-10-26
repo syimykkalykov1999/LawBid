@@ -13,6 +13,12 @@ import flutter_callkit_incoming
   /// Owner 2026-10-17: incoming calls arrive as VoIP (PushKit) pushes so
   /// iOS shows the call screen and rings even when the app is closed.
   private var voipRegistry: PKPushRegistry?
+  /// LC-1: reads which CallKit calls exist (ringing / answered). Only
+  /// observes — the ONE CallKit provider stays the plugin's.
+  private let callObserver = CXCallObserver()
+  /// LC-1: asks iOS to end a CallKit call; the plugin's provider performs
+  /// it exactly like an end from the Dart side (one handler).
+  private let callController = CXCallController()
 
   override func application(
     _ application: UIApplication,
@@ -260,6 +266,13 @@ import flutter_callkit_incoming
       return
     }
     let p = payload.dictionaryPayload
+    // LC-1 (audit 2026-10-26): «stop ringing» comes as a VoIP push too —
+    // the silent push did not reach a locked / closed iPhone in time and
+    // CallKit rang on for 45 s.
+    if (p["type"] as? String) == "call_ended" {
+      handleCallEndedPush(callkit, p, completion: completion)
+      return
+    }
     let callId = (p["callId"] as? String) ?? UUID().uuidString
     // Owner 2026-10-21: the open app's socket may have reported this very
     // call a moment ago — a second report of the same id would end the one
@@ -272,6 +285,12 @@ import flutter_callkit_incoming
       return
     }
     let name = (p["callerName"] as? String) ?? "LawBid"
+    // LC-1: the stop came before the ring (Apple may reorder): iOS still
+    // wants a reported call for this push — report it and end it at once.
+    if wasEndedByPush(callId) {
+      reportThenEnd(callkit, callId: callId, name: name, completion: completion)
+      return
+    }
     let video = (p["video"] as? String) == "1"
     let data = flutter_callkit_incoming.Data(
       id: callId,
@@ -307,6 +326,91 @@ import flutter_callkit_incoming
     ) {
       completion()
     }
+  }
+
+  // MARK: - Stop ringing (LC-1)
+
+  /// The VoIP «call_ended» push (server: ApnsVoipSender.endCall; only to
+  /// iPhones the call rang, never to the one that answered). Ends the
+  /// ringing CallKit call through iOS (CXEndCallAction — the plugin's one
+  /// provider handles it as it does an end from Dart). A call answered on
+  /// THIS phone is never touched. Nothing on screen: iOS requires every
+  /// VoIP push to report a call, so one is reported and ended at once.
+  private func handleCallEndedPush(
+    _ callkit: SwiftFlutterCallkitIncomingPlugin,
+    _ p: [AnyHashable: Any],
+    completion: @escaping () -> Void
+  ) {
+    let callId = (p["callId"] as? String) ?? ""
+    rememberEndedByPush(callId)
+    let uuid = UUID(uuidString: callId)
+    let live = callObserver.calls.filter { !$0.hasEnded }
+    if let uuid = uuid, let ringing = live.first(where: { $0.uuid == uuid }) {
+      if !ringing.hasConnected && !ringing.isOutgoing {
+        callController.request(CXTransaction(action: CXEndCallAction(call: uuid))) { _ in }
+      }
+      completion()
+      return
+    }
+    // Another call is on (answered here): leave it alone — the app holds a
+    // call, nothing new is shown over it.
+    if !live.isEmpty || uuid == nil {
+      completion()
+      return
+    }
+    reportThenEnd(callkit, callId: callId, name: "LawBid", completion: completion)
+  }
+
+  /// Report a call (silent) and end it straight away — what iOS accepts
+  /// for a VoIP push that has nothing left to ring.
+  private func reportThenEnd(
+    _ callkit: SwiftFlutterCallkitIncomingPlugin,
+    callId: String,
+    name: String,
+    completion: @escaping () -> Void
+  ) {
+    let data = flutter_callkit_incoming.Data(
+      id: callId,
+      nameCaller: name,
+      handle: "LawBid",
+      type: 0
+    )
+    data.appName = "LawBid"
+    data.duration = 1000
+    data.handleType = "generic"
+    data.maximumCallGroups = 1
+    data.maximumCallsPerCallGroup = 1
+    data.isShowMissedCallNotification = false
+    data.ringtonePath = "silence"
+    callkit.showCallkitIncoming(data, fromPushKit: true) { [weak self] in
+      if let uuid = UUID(uuidString: callId) {
+        self?.callController.request(
+          CXTransaction(action: CXEndCallAction(call: uuid))
+        ) { _ in }
+      }
+      completion()
+    }
+  }
+
+  private static let endedKey = "lawbid.voip.endedCalls"
+
+  /// Call ids stopped by a VoIP push in the last 10 minutes (survives the
+  /// app being relaunched by the next push).
+  private func rememberEndedByPush(_ callId: String) {
+    guard !callId.isEmpty else { return }
+    let now = Date().timeIntervalSince1970
+    var all = (UserDefaults.standard.dictionary(forKey: Self.endedKey)
+      as? [String: Double]) ?? [:]
+    all = all.filter { now - $0.value < 600 }
+    all[callId.lowercased()] = now
+    UserDefaults.standard.set(all, forKey: Self.endedKey)
+  }
+
+  private func wasEndedByPush(_ callId: String) -> Bool {
+    let all = (UserDefaults.standard.dictionary(forKey: Self.endedKey)
+      as? [String: Double]) ?? [:]
+    guard let at = all[callId.lowercased()] else { return false }
+    return Date().timeIntervalSince1970 - at < 600
   }
 
   // MARK: - CallKit (CallkitIncomingAppDelegate)

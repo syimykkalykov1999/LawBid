@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { createPrivateKey, sign, type KeyObject } from 'node:crypto';
 import { connect, type ClientHttp2Session } from 'node:http2';
 import { PinoLogger } from 'nestjs-pino';
 import { SecretsService } from '../../../common/secrets/secrets.service';
+import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import {
   type ApnsEnvironment,
   type VoipDevice,
@@ -16,6 +18,15 @@ const HOSTS: Record<ApnsEnvironment, string> = {
 /** Apple accepts a provider token for up to an hour; renew before. */
 const JWT_TTL_MS = 40 * 60 * 1000;
 const APNS_TIMEOUT_MS = 8000;
+/** LC-1: which iPhones a call rang by VoIP, kept a little longer than any
+ * ring (CallKit 45 s, server 65 s) so «stop ringing» reaches exactly them. */
+const RANG_TTL_SEC = 180;
+/** The iPhone's own CallKit ring ends itself after 45 s (AppDelegate
+ * data.duration): a later stop (missed at the server's 65 s) would only
+ * make a phone that is quiet already flash a call to end it. */
+const PHONE_RING_MS = 44_000;
+const rangKey = (callId: string, userId: string) =>
+  `push:voip:rang:${callId}:${userId}`;
 
 /** What the iPhone needs to show the call screen (AppDelegate.swift). */
 export interface VoipCallPayload {
@@ -65,6 +76,38 @@ export function voipRequest(
   };
 }
 
+/**
+ * LC-1 (audit 2026-10-26): «stop ringing» as a VoIP push. A locked or
+ * closed iPhone does not get the silent FCM/background push in time (Apple
+ * delays priority-5 pushes and never wakes a force-quit app with them), so
+ * CallKit rang on until its 45 s timeout. Same topic / priority / collapse
+ * id as the ring: if the ring is still waiting at Apple (phone offline),
+ * this one replaces it. AppDelegate.swift ends the CallKit call (or, when
+ * none is shown, reports and ends one at once, as iOS requires).
+ */
+export function voipEndRequest(
+  device: { token: string; topic: string },
+  callId: string,
+  auth: string,
+): { headers: Record<string, string>; body: string } {
+  return {
+    headers: {
+      ':method': 'POST',
+      ':path': `/3/device/${device.token}`,
+      authorization: `bearer ${auth}`,
+      'apns-topic': device.topic,
+      'apns-push-type': 'voip',
+      'apns-priority': '10',
+      'apns-expiration': '0',
+      'apns-collapse-id': callId.slice(0, 64),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ aps: {}, type: 'call_ended', callId }),
+  };
+}
+
+type RangDevice = Omit<VoipDevice, 'sessionId'>;
+
 type SendOutcome = 'ok' | 'gone' | 'wrong_env' | 'failed';
 
 /**
@@ -84,6 +127,7 @@ export class ApnsVoipSender {
     private readonly secrets: SecretsService,
     private readonly tokens: VoipTokensService,
     private readonly logger: PinoLogger,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
   /** Rings [userId]'s iPhones; returns the sessions that got the push
@@ -97,11 +141,19 @@ export class ApnsVoipSender {
       }
       const devices = await this.tokens.activeDevices(userId);
       const rang: string[] = [];
+      const rangDevices: RangDevice[] = [];
       for (const device of devices) {
         if ((await this.sendWithFallback(device, call, auth)) === 'ok') {
           rang.push(device.sessionId);
+          rangDevices.push({
+            token: device.token,
+            topic: device.topic,
+            environment: device.environment,
+            chainId: device.chainId,
+          });
         }
       }
+      await this.rememberRang(call.callId, userId, rangDevices);
       this.logger.info(
         { callId: call.callId, devices: devices.length, rang: rang.length },
         'apns voip ring done',
@@ -110,6 +162,71 @@ export class ApnsVoipSender {
     } catch (err) {
       this.logger.warn({ err }, 'apns voip push failed');
       return [];
+    }
+  }
+
+  /**
+   * LC-1: the call stopped ringing (caller hung up, missed, declined or
+   * answered on another device) — the iPhones it rang by VoIP get a VoIP
+   * «call_ended» at once. Only those phones (a phone never rung would have
+   * to flash a CallKit call just to end it), only while the phone's own
+   * 45 s ring is still on, and never the phone that answered or declined
+   * ([exceptChainId], its sign-in chain). Returns how many got it.
+   * Never throws.
+   */
+  async endCall(
+    userId: string,
+    callId: string,
+    exceptChainId?: string,
+  ): Promise<number> {
+    try {
+      if (!this.redis) return 0;
+      const key = rangKey(callId, userId);
+      const raw = await this.redis.get(key);
+      if (!raw) return 0;
+      await this.redis.del(key);
+      const note = JSON.parse(raw) as { at: number; devices: RangDevice[] };
+      if (Date.now() - note.at > PHONE_RING_MS) return 0;
+      const devices = note.devices.filter(
+        (d) => !exceptChainId || d.chainId !== exceptChainId,
+      );
+      if (devices.length === 0) return 0;
+      const auth = await this.providerToken();
+      if (!auth) return 0;
+      let sent = 0;
+      for (const d of devices) {
+        const out = await this.post(
+          d.environment,
+          voipEndRequest(d, callId, auth),
+        );
+        if (out === 'ok') sent += 1;
+      }
+      this.logger.info(
+        { callId, devices: devices.length, sent },
+        'apns voip stop-ringing done',
+      );
+      return sent;
+    } catch (err) {
+      this.logger.warn({ err }, 'apns voip stop-ringing failed');
+      return 0;
+    }
+  }
+
+  private async rememberRang(
+    callId: string,
+    userId: string,
+    devices: RangDevice[],
+  ): Promise<void> {
+    if (!this.redis || devices.length === 0) return;
+    try {
+      await this.redis.set(
+        rangKey(callId, userId),
+        JSON.stringify({ at: Date.now(), devices }),
+        'EX',
+        RANG_TTL_SEC,
+      );
+    } catch {
+      // Without the note the silent FCM stop still goes out.
     }
   }
 
@@ -128,7 +245,11 @@ export class ApnsVoipSender {
     const other: ApnsEnvironment =
       device.environment === 'sandbox' ? 'production' : 'sandbox';
     const second = await this.send(device, other, call, auth);
-    if (second === 'ok') await this.tokens.setEnvironment(device.token, other);
+    if (second === 'ok') {
+      await this.tokens.setEnvironment(device.token, other);
+      // The stop-ringing push goes where the ring got through.
+      device.environment = other;
+    }
     if (second === 'gone' || second === 'wrong_env') {
       await this.tokens.remove(device.token);
     }
@@ -141,6 +262,13 @@ export class ApnsVoipSender {
     call: VoipCallPayload,
     auth: string,
   ): Promise<SendOutcome> {
+    return this.post(env, voipRequest(device, call, auth));
+  }
+
+  private post(
+    env: ApnsEnvironment,
+    request: { headers: Record<string, string>; body: string },
+  ): Promise<SendOutcome> {
     return new Promise((resolve) => {
       let session: ClientHttp2Session;
       try {
@@ -149,7 +277,7 @@ export class ApnsVoipSender {
         resolve('failed');
         return;
       }
-      const { headers, body } = voipRequest(device, call, auth);
+      const { headers, body } = request;
       const req = session.request(headers);
       req.setTimeout(APNS_TIMEOUT_MS, () => {
         req.close();
