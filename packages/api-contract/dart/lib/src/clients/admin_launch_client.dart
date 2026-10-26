@@ -70,14 +70,14 @@ abstract class AdminLaunchClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Change the monthly limit of the prod budget (step-up; second admin only if admin.dual_control is on)
+  /// Change the monthly limit of the prod budget (fresh 2FA step-up)
   @POST('/admin/launch/budgets/limit')
   Future<AwsBudgetsEnvelope> setAwsBudgetLimit({
     @Body() required BudgetLimitRequestDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Delete the obsolete «LawBid Monthly» budget (step-up; second admin only if admin.dual_control is on)
+  /// Delete the obsolete «LawBid Monthly» budget (fresh 2FA step-up)
   @POST('/admin/launch/budgets/delete')
   Future<AwsBudgetsEnvelope> deleteAwsBudget({
     @Body() required BudgetDeleteRequestDto body,

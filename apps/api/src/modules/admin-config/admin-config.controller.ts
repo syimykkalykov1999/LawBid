@@ -44,11 +44,10 @@ import { AdminConfigService } from './admin-config.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 
 /** Settings whose change weakens a money control: a fresh 2FA code first
- * (owner 2026-10-22, system audit #2 item 11). */
-export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set([
-  'billing.dual_approval_min_cents',
-  'admin.dual_control',
-]);
+ * (owner 2026-10-22, system audit #2 item 11). Empty now: the second-admin
+ * keys were removed (owner: no four-eyes approvals); add a key here when a
+ * new money control gets a setting. */
+export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set<string>();
 
 const E = ErrorCode;
 

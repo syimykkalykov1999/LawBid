@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -10,7 +11,26 @@ import {
 } from 'class-validator';
 import { ConsentType } from '@prisma/client';
 
+/** The schema order, spelled out: the swagger plugin's enum read from the
+ * Prisma client came out in a different order on different machines, so
+ * the generated contract flapped in CI. */
+const CONSENT_TYPES: ConsentType[] = [
+  'terms',
+  'privacy',
+  'disclaimer',
+  'client_contact_sharing',
+  'age_18',
+  'marketing_email',
+  'marketing_push',
+  'analytics',
+  'attorney_agreement',
+  'client_agreement',
+  'eula',
+  'do_not_sell',
+];
+
 export class ConsentItemDto {
+  @ApiProperty({ enum: CONSENT_TYPES })
   @IsEnum(ConsentType)
   type!: ConsentType;
 

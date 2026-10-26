@@ -589,9 +589,26 @@ class GroupThread extends Notifier<GroupThreadState> {
     }
   }
 
-  Future<void> loadMore() async {
+  /// After a failed older page the footer (which asks again on every
+  /// build) must not hammer the server: the next try waits a few seconds.
+  DateTime? _loadMoreRetryAt;
+
+  Future<void>? _loadMoreRunning;
+
+  /// One older page; a second caller waits for the one already running.
+  Future<void> loadMore() {
+    final running = _loadMoreRunning;
+    if (running != null) return running;
+    final f = _loadMore().whenComplete(() => _loadMoreRunning = null);
+    _loadMoreRunning = f;
+    return f;
+  }
+
+  Future<void> _loadMore() async {
     final cursor = state.nextCursor;
     if (cursor == null || state.loadingMore) return;
+    final retryAt = _loadMoreRetryAt;
+    if (retryAt != null && DateTime.now().isBefore(retryAt)) return;
     state = state.copyWith(loadingMore: true);
     try {
       final page = await _repo.messages(
@@ -609,7 +626,9 @@ class GroupThread extends Notifier<GroupThreadState> {
         nextCursor: page.nextCursor,
         loadingMore: false,
       );
-    } on ApiException {
+      _loadMoreRetryAt = null;
+    } on Object {
+      _loadMoreRetryAt = DateTime.now().add(const Duration(seconds: 5));
       if (ref.mounted) state = state.copyWith(loadingMore: false);
     }
   }
@@ -850,8 +869,13 @@ class GroupThread extends Notifier<GroupThreadState> {
   Future<void> deleteForEveryone(String messageId) async {
     await _repo.deleteMessage(key.groupId, messageId);
     if (!ref.mounted) return;
-    // The server also sends the tombstone over realtime; show it at once.
-    await load();
+    // The server also sends the tombstone over realtime; show it at once
+    // without dropping the older pages that were already loaded.
+    final at = state.messages.indexWhere((x) => x.id == messageId);
+    if (at < 0) return;
+    final list = [...state.messages];
+    list[at] = list[at].asTombstone();
+    state = state.copyWith(messages: list);
   }
 
   Future<void> pin(String? messageId) async {

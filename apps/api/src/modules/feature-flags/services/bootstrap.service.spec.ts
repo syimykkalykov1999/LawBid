@@ -47,6 +47,7 @@ function build(
   opts: {
     bundleVersions?: { lang: string; version: number }[];
     redis?: MemoryRedis;
+    config?: Record<string, unknown>;
   } = {},
 ) {
   const flags = {
@@ -55,7 +56,9 @@ function build(
       .mockResolvedValue({ apple_login: true, video_posts: false }),
   } as unknown as FeatureFlagsService;
   const appConfig = {
-    getConfig: jest.fn().mockResolvedValue({ min_app_version_ios: '0.1.0' }),
+    getConfig: jest
+      .fn()
+      .mockResolvedValue(opts.config ?? { min_app_version_ios: '0.1.0' }),
   } as unknown as AppConfigService;
   const prisma = {
     i18nLanguage: { findMany: jest.fn().mockResolvedValue([EN]) },
@@ -78,6 +81,36 @@ function build(
   );
   return { service, prisma, redis };
 }
+
+describe('BootstrapService.build guest browsing (dedup D-12)', () => {
+  const guest = async (config: Record<string, unknown>) => {
+    const r = await build({ config }).service.build();
+    return [
+      r.app_config['client.guest_browse_app_enabled'],
+      r.app_config['client.guest_browse_web_enabled'],
+    ];
+  };
+
+  it('guest.browsing_enabled off: the apps and the website do not offer it, whatever the client keys say', async () => {
+    expect(
+      await guest({
+        'guest.browsing_enabled': false,
+        'client.guest_browse_app_enabled': true,
+        'client.guest_browse_web_enabled': true,
+      }),
+    ).toEqual([false, false]);
+  });
+
+  it('guest.browsing_enabled on (default): the client keys decide', async () => {
+    expect(await guest({})).toEqual([false, true]);
+    expect(
+      await guest({
+        'client.guest_browse_app_enabled': true,
+        'client.guest_browse_web_enabled': false,
+      }),
+    ).toEqual([true, false]);
+  });
+});
 
 describe('BootstrapService.build', () => {
   it('aggregates flags, app_config, active languages, translation versions, and current legal documents', async () => {
