@@ -1,12 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AwsCapacityService } from '../../common/ops/aws-capacity.service';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
-import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
-
-const BACKUP_TIMEOUT_MS = 10_000;
 
 /**
  * Owner 2026-10-05 «я не понимаю серверы и базы — пусть система сама»:
@@ -20,8 +18,8 @@ const BACKUP_TIMEOUT_MS = 10_000;
  *   budget; at 100 % caps autoscaling at the minimum until the next month
  *   (ops.auto_scale_down_on_budget, default on) and gives it back when the
  *   new month starts.
- * - `ops.backup-check` (hourly): asks the database provider's backup API for the newest
- *   backup; older than ops.backup_max_age_hours → alert.
+ * - `ops.backup-check` (daily): reads the newest restorable time of the RDS
+ *   database; older than ops.backup_max_age_hours → alert.
  *
  * Alerts are log lines with an `alert` field; infra/modules/monitoring
  * turns them into e-mails with a plain «что делать».
@@ -33,7 +31,7 @@ export class OpsGuardJob {
     private readonly state: OpsStateService,
     private readonly aws: AwsOpsService,
     private readonly settings: AppSettingsService,
-    private readonly secrets: SecretsService,
+    private readonly capacity: AwsCapacityService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext(OpsGuardJob.name);
@@ -139,15 +137,18 @@ export class OpsGuardJob {
     return cost;
   }
 
+  /**
+   * Daily (S20-5, 2026-10-25): the newest point the RDS database can be
+   * restored to (automated backups + WAL, a free DescribeDBInstances call).
+   * Replaces the old CockroachDB Cloud poll: the database is RDS, so that
+   * call was skipped every hour and the health page never showed a backup.
+   */
   async backupCheck(now: Date = new Date()): Promise<unknown> {
-    const creds = await this.secrets.get('cockroach_cloud');
-    const apiKey = creds?.fields.apiKey;
-    const clusterId = creds?.fields.clusterId;
-    if (!apiKey || !clusterId) return { skipped: 'no database provider key' };
+    if (!this.capacity.dbInstance) return { skipped: 'database not on AWS' };
     const maxAgeH = await this.settings.number('ops.backup_max_age_hours');
     let newest: Date | null = null;
     try {
-      newest = await this.newestBackup(apiKey, clusterId);
+      newest = await this.capacity.latestRestorableTime();
     } catch (e) {
       this.logger.warn(
         { alert: 'backup_stale', err: (e as Error).message },
@@ -159,7 +160,7 @@ export class OpsGuardJob {
       await this.state.setLastBackup({
         at: newest.toISOString(),
         checkedAt: now.toISOString(),
-        source: 'cockroach_cloud',
+        source: 'rds',
       });
     }
     const ageH = newest
@@ -178,47 +179,4 @@ export class OpsGuardJob {
     }
     return { ok: true, newest };
   }
-
-  /** GET /api/v1/clusters/{id}/backups — newest first; the newest
-   * `as_of_time` of the page is taken whatever the order. */
-  private async newestBackup(
-    apiKey: string,
-    clusterId: string,
-  ): Promise<Date | null> {
-    const url =
-      `https://cockroachlabs.cloud/api/v1/clusters/${encodeURIComponent(clusterId)}/backups` +
-      '?pagination.sort_order=DESC&pagination.limit=5';
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), BACKUP_TIMEOUT_MS);
-    try {
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: ctrl.signal,
-      });
-      if (!res.ok)
-        throw new Error(`Database provider answered HTTP ${res.status}`);
-      const body = (await res.json()) as { backups?: BackupRow[] };
-      return newestOf(body.backups ?? []);
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-}
-
-type BackupRow = {
-  as_of_time?: string;
-  completed_at?: string;
-  created_at?: string;
-};
-
-/** The newest backup time of a page; the API has named it as_of_time,
- * completed_at or created_at depending on the backup kind. */
-export function newestOf(backups: BackupRow[]): Date | null {
-  let best: Date | null = null;
-  for (const b of backups) {
-    const raw = b.as_of_time ?? b.completed_at ?? b.created_at;
-    const t = raw ? new Date(raw) : null;
-    if (t && !Number.isNaN(t.getTime()) && (!best || t > best)) best = t;
-  }
-  return best;
 }

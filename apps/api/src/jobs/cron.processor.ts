@@ -40,6 +40,7 @@ import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
 import { OpsStateService } from '../common/ops/ops-state.service';
+import { CronIdleBackoffService } from '../common/ops/cron-idle-backoff.service';
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
@@ -151,6 +152,8 @@ export class CronProcessor {
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
+    // S20-6: idle back-off of the every-minute sweeps.
+    @Optional() private readonly idleBackoff?: CronIdleBackoffService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -162,6 +165,25 @@ export class CronProcessor {
     ) {
       return { skipped: 'heavy jobs paused' };
     }
+    // S20-6: an every-minute sweep that found nothing for a while runs at
+    // the slow pace until work appears (ops.cron_idle_backoff).
+    if (this.idleBackoff && (await this.idleBackoff.shouldSkip(name))) {
+      return { skipped: 'idle back-off' };
+    }
+    if (!this.idleBackoff || !CronIdleBackoffService.eligible(name)) {
+      return this.dispatch(name);
+    }
+    try {
+      const result = await this.dispatch(name);
+      await this.idleBackoff.record(name, result);
+      return result;
+    } catch (error) {
+      await this.idleBackoff.record(name, null, true);
+      throw error;
+    }
+  }
+
+  private async dispatch(name: string): Promise<unknown> {
     switch (name) {
       case CRON_JOBS.sessionsCleanup:
         return this.sessionsCleanup.run();

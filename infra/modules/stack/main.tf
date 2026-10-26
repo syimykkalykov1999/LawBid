@@ -398,10 +398,10 @@ variable "api_spot" {
   default     = false
   description = "Extra API tasks (above the first) on Fargate Spot, up to 70 % cheaper."
 }
-variable "night_scale_down" {
-  type        = bool
-  default     = false
-  description = "Lower the minimum task count at night (07:00-12:00 UTC)."
+variable "night_scale_mode" {
+  type        = string
+  default     = "auto"
+  description = "Quiet hours 07:00-12:00 UTC: off | on (minimum drops to night_min_tasks) | auto (default: minimum halved, traffic policies still add tasks). Cost registry: scale.night.mode."
 }
 variable "night_min_tasks" {
   type    = number
@@ -1434,7 +1434,7 @@ module "ecs" {
   container_insights               = var.container_insights
   worker_spot                      = var.worker_spot
   api_spot                         = var.api_spot
-  night_scale_down                 = var.night_scale_down
+  night_scale_mode                 = var.night_scale_mode
   night_min_tasks                  = var.night_min_tasks
   tags                             = local.tags
 

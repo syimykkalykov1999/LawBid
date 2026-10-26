@@ -1,5 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { adminSummariesDue } from '../../common/admin-summary/summary-cadence';
+import { ADMIN_ACTIVE_KEY } from '../../common/ops/admin-activity';
+import { OPS_KEYS } from '../../common/ops/ops.constants';
+import { triMode } from '../../common/ops/tri-mode';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { BillingOverviewService } from '../../modules/admin-billing/billing-overview.service';
 import { DashboardService } from '../../modules/admin/dashboard.service';
@@ -28,11 +35,47 @@ export class AdminSummariesJob {
     private readonly trust: AttorneyTrustService,
     private readonly summary: AdminSummaryService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.logger.setContext(AdminSummariesJob.name);
   }
 
-  async run(): Promise<{ refreshed: string[]; failed: string[] }> {
+  /**
+   * S20-1: `ops.admin_summaries_mode` Выкл/Вкл/Авто. Авто recounts every
+   * 2 minutes only while an admin request was seen in the last 10 minutes,
+   * else hourly (see summary-cadence.ts). Without Redis/settings (tests,
+   * local) it behaves as Вкл, as before.
+   */
+  private async due(): Promise<boolean> {
+    if (!this.settings || !this.redis) return true;
+    try {
+      const [mode, active, last] = await Promise.all([
+        this.settings.string('ops.admin_summaries_mode'),
+        this.redis.exists(ADMIN_ACTIVE_KEY),
+        this.redis.get(OPS_KEYS.adminSummariesLast),
+      ]);
+      return adminSummariesDue({
+        mode: triMode(mode),
+        adminActive: active === 1,
+        lastRunAt: last,
+      });
+    } catch {
+      return true;
+    }
+  }
+
+  async run(): Promise<{
+    refreshed: string[];
+    failed: string[];
+    skipped?: string;
+  }> {
+    if (!(await this.due())) {
+      return { refreshed: [], failed: [], skipped: 'nobody is looking' };
+    }
+    await this.redis
+      ?.set(OPS_KEYS.adminSummariesLast, new Date().toISOString())
+      .catch(() => undefined);
     const steps: [string, () => Promise<void>][] = [
       ['dashboard', () => this.dashboard.refresh()],
       ['billing-overview', () => this.billing.refreshOverview()],

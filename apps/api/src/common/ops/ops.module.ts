@@ -10,6 +10,7 @@ import { SpendService } from './spend/spend.service';
 import { AwsOpsService } from './aws-ops.service';
 import { HttpStatsService } from './http-stats.service';
 import { RealtimeStatsService } from './realtime-stats.service';
+import { CronIdleBackoffService } from './cron-idle-backoff.service';
 import { OpsStateService } from './ops-state.service';
 import { IncidentsService } from './status/incidents.service';
 import { StatusProbesService } from './status/status-probes.service';
@@ -22,6 +23,7 @@ import { StatusProbesService } from './status/status-probes.service';
     AwsOpsService,
     AwsCapacityService,
     OpsStateService,
+    CronIdleBackoffService,
     HttpStatsService,
     RealtimeStatsService,
     StatusProbesService,
@@ -36,6 +38,7 @@ import { StatusProbesService } from './status/status-probes.service';
     AwsOpsService,
     AwsCapacityService,
     OpsStateService,
+    CronIdleBackoffService,
     HttpStatsService,
     RealtimeStatsService,
     StatusProbesService,

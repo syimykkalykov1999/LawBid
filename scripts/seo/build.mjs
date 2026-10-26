@@ -57,20 +57,33 @@ export const slugify = (s) =>
 const stateList = Object.entries(STATES).map(([code, name]) => ({ code, name, slug: slugify(name) }));
 const stateBy = Object.fromEntries(stateList.map((s) => [s.code, s]));
 
-async function loadAttorneys() {
-  if (OFFLINE) return JSON.parse(await readFile(OFFLINE, 'utf8')).attorneys;
-  if (!API) throw new Error('--api or --offline is required');
+// S20-2 (2026-10-25): 100 attorneys per page. The old fixed cap of 500 pages
+// (50 000 attorneys) cut the list off without a word; now the cap is a
+// setting (--max-pages / repository variable SEO_MAX_PAGES) and reaching it
+// with more data still waiting FAILS the build loudly instead of publishing
+// a truncated directory.
+const MAX_PAGES = Math.max(1, Number(arg('max-pages', '2000')) || 2000);
+
+export async function fetchAllAttorneys({ api, fetchFn = fetch, maxPages = MAX_PAGES }) {
   const all = [];
   let cursor = '';
-  for (let page = 0; page < 500; page++) {
-    const res = await fetch(`${API}/public/directory/attorneys?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+  for (let page = 0; page < maxPages; page++) {
+    const res = await fetchFn(`${api}/public/directory/attorneys?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
     if (!res.ok) throw new Error(`directory ${res.status}`);
     const body = await res.json();
     all.push(...body.data);
     cursor = body.meta?.nextCursor ?? '';
-    if (!cursor) break;
+    if (!cursor) return all;
   }
-  return all;
+  throw new Error(
+    `directory has more than ${maxPages * 100} attorneys: raise SEO_MAX_PAGES (now ${maxPages}); nothing was published`,
+  );
+}
+
+async function loadAttorneys() {
+  if (OFFLINE) return JSON.parse(await readFile(OFFLINE, 'utf8')).attorneys;
+  if (!API) throw new Error('--api or --offline is required');
+  return fetchAllAttorneys({ api: API });
 }
 
 const matches = (a, practice) =>

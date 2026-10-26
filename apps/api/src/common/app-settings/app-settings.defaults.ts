@@ -804,6 +804,24 @@ export const OWNER_OPS_SETTINGS = {
   'ops.auto_scale_down_on_budget': true,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
+  /** Hidden-cost switches (Round 20, 2026-10-25). Each is off | on | auto;
+   * auto (default) follows a real signal and has a ceiling. */
+  // S20-1: heavy admin counts. auto = every 2 min only while an admin
+  // request was seen in the last 10 min, else hourly; off = every 6 h.
+  'ops.admin_summaries_mode': 'auto',
+  // S20-6: every-minute sweeps that found nothing back off to
+  // `ops.cron_idle_every_min` after `ops.cron_idle_after_runs` empty runs.
+  'ops.cron_idle_backoff': 'auto',
+  'ops.cron_idle_after_runs': 10,
+  'ops.cron_idle_every_min': 5,
+  // S20-8: ceiling of the message re-encryption pass, rows per minute
+  // (0 = paused; the pass keeps its place).
+  'ops.reencrypt_rows_per_min': 800,
+  // S20-4: WebSocket connect / disconnect log lines. off and auto write a
+  // weighted sample (log.ws_sample_percent); auto writes every line for 30
+  // minutes while reconnects spike; on writes every line.
+  'log.ws_events': 'auto',
+  'log.ws_sample_percent': 1,
   /** Batch C item 14 (2026-10-24): how long a ranked search result list
    * (people, attorneys, cases, posts) is shared by everyone asking the same
    * query. Short = fresher, 0 would be uncached; keep 30–60. */

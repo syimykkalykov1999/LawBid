@@ -16,6 +16,22 @@
 #   WEB_SEO_API_URL    https://api.<domain>/api/v1
 # Repository variable ANDROID_APP_SHA256: SHA-256 of the app-signing
 # certificate (Play Console → App integrity), comma-separated if several.
+#
+# S20-2 (2026-10-25), hidden-cost switches (repository variables):
+#   SEO_REBUILD_MODE     off | on | auto (default auto).
+#                        auto = build every night, upload ONLY files whose
+#                        content hash changed and invalidate ONLY those
+#                        addresses (never "/*"); nothing changed = nothing
+#                        uploaded, nothing invalidated.
+#                        on   = same, but upload every file and invalidate
+#                        the first-level folders again (after a template change).
+#                        off  = the nightly schedule does nothing (a push to
+#                        scripts/seo or a manual run still publishes).
+#   SEO_MAX_PAGES        directory pages of 100 attorneys the build may read
+#                        (default 2000 = 200 000 attorneys); more data than
+#                        that FAILS the build instead of truncating.
+#   SEO_INVALIDATE_MAX   most single page addresses invalidated per run
+#                        (default 50); above it, one wildcard per folder.
 name: SEO pages
 
 on:
@@ -57,7 +73,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && !(github.event_name == 'schedule' && vars.SEO_REBUILD_MODE == 'off') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -70,6 +86,7 @@ jobs:
           --api "${{ secrets.WEB_SEO_API_URL }}"
           --site "${{ secrets.WEB_SITE_URL }}"
           --out dist-seo
+          --max-pages "${{ vars.SEO_MAX_PAGES || '2000' }}"
           ${{ inputs.index_empty && '--index-empty' || '' }}
 
       - name: Check out the company site
@@ -112,21 +129,45 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # Each first-level folder is replaced as a whole; the app's own files
-      # (index.html, main.dart.*, canvaskit, assets...) are never touched.
-      # public-paths.txt tells web-deploy.yml which names to keep.
-      - name: Publish (each prefix is replaced as a whole)
-        working-directory: dist-seo
+      # S20-2: only files whose content hash changed are uploaded. The
+      # previous run's manifest lives in the bucket (seo-manifest.json, named
+      # in public-paths.txt so web-deploy.yml keeps it); a missing manifest
+      # (first run) means everything is new.
+      - name: Work out what changed
+        env:
+          BUCKET: ${{ secrets.WEB_BUCKET }}
+          MODE: ${{ vars.SEO_REBUILD_MODE || 'auto' }}
+          INVALIDATE_MAX: ${{ vars.SEO_INVALIDATE_MAX || '50' }}
         run: |
-          B="s3://${{ secrets.WEB_BUCKET }}"
+          aws s3 cp "s3://$BUCKET/seo-manifest.json" prev-manifest.json 2>/dev/null || echo '{}' > prev-manifest.json
+          FORCE=""
+          [ "$MODE" = "on" ] && FORCE="--force"
+          node scripts/seo/publish-diff.mjs --dir dist-seo --prev prev-manifest.json \
+            --max-paths "$INVALIDATE_MAX" $FORCE
+          mkdir -p changed-out
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            mkdir -p "changed-out/$(dirname "$f")"
+            cp "dist-seo/$f" "changed-out/$f"
+          done < changed.txt
+
+      # Each first-level folder is synced from the changed files only (no
+      # --delete: removed files are listed in deleted.txt); the app's own
+      # files (index.html, main.dart.*, canvaskit, assets...) are never touched.
+      - name: Publish the changed files
+        working-directory: changed-out
+        env:
+          BUCKET: ${{ secrets.WEB_BUCKET }}
+        run: |
+          B="s3://$BUCKET"
           for d in */ .well-known/; do
             [ -d "$d" ] || continue
             d="${d%/}"
             if [ "$d" = "_next" ]; then
-              aws s3 sync "_next" "$B/_next" --delete \
+              aws s3 sync "_next" "$B/_next" \
                 --cache-control "public,max-age=31536000,immutable"
             else
-              aws s3 sync "$d" "$B/$d" --delete --cache-control "public,max-age=3600"
+              aws s3 sync "$d" "$B/$d" --cache-control "public,max-age=3600"
             fi
           done
           # App links for the phone apps (iOS needs it served as JSON).
@@ -147,9 +188,28 @@ jobs:
             aws s3 cp "$f" "$B/$f" --cache-control "public,max-age=3600" ${t:+--content-type "$t"}
           done
 
-      # One wildcard is one invalidation path (the free tier counts paths).
-      - name: Reset the CDN cache for the pages
-        run: >-
-          aws cloudfront create-invalidation
-          --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
-          --paths "/*"
+      - name: Remove pages that no longer exist, record the manifest
+        env:
+          BUCKET: ${{ secrets.WEB_BUCKET }}
+        run: |
+          B="s3://$BUCKET"
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            aws s3 rm "$B/$f"
+          done < deleted.txt
+          # Written last: a failed run is not recorded, the next run retries.
+          aws s3 cp dist-seo/seo-manifest.json "$B/seo-manifest.json" \
+            --content-type application/json --cache-control "no-cache"
+
+      # Only the changed addresses (publish-diff.mjs), never "/*": a wildcard
+      # over the whole distribution also evicted the Flutter app files.
+      - name: Reset the CDN cache for the changed pages only
+        env:
+          DISTRIBUTION: ${{ secrets.WEB_DISTRIBUTION_ID }}
+        run: |
+          if [ ! -s invalidate.txt ]; then
+            echo "nothing changed: no invalidation"
+            exit 0
+          fi
+          mapfile -t PATHS < invalidate.txt
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION" --paths "${PATHS[@]}"
