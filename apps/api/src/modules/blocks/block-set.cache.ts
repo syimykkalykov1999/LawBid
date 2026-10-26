@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import type Redis from 'ioredis';
+import { delSafe } from '../../redis/redis-cluster-safe';
 
 /**
  * Owner 2026-10-18 (speed): every feed page, reels page and People search
@@ -51,5 +52,5 @@ export async function dropBlockSets(
   redis: Redis,
   ...userIds: string[]
 ): Promise<void> {
-  await redis.del(...userIds.map(blockSetKey));
+  await delSafe(redis, userIds.map(blockSetKey));
 }

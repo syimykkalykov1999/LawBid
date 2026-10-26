@@ -24,6 +24,20 @@ import { formatDateTime } from '@/lib/utils';
 
 type LegalSettings = components['schemas']['LegalSettingsDto'];
 type LegalTexts = components['schemas']['LegalTextsDto'];
+type LegalLang = 'en' | 'ru' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'nl' | 'pl' | 'uk';
+/** The ten legal languages (same order as the legal documents). */
+const LANGS: { value: LegalLang; label: string }[] = [
+  { value: 'ru', label: 'RU · русский' },
+  { value: 'en', label: 'EN · English' },
+  { value: 'es', label: 'ES · español' },
+  { value: 'fr', label: 'FR · français' },
+  { value: 'de', label: 'DE · Deutsch' },
+  { value: 'it', label: 'IT · italiano' },
+  { value: 'pt', label: 'PT · português' },
+  { value: 'nl', label: 'NL · Nederlands' },
+  { value: 'pl', label: 'PL · polski' },
+  { value: 'uk', label: 'UK · українська' },
+];
 type DmcaStatus = components['schemas']['DmcaStatus'];
 type DmcaDecision = components['schemas']['DmcaDecision'];
 type Tab = 'dmca' | 'texts';
@@ -52,6 +66,13 @@ const TEXT_FIELDS: { key: keyof LegalTexts; label: string; hint: string; max: nu
   { key: 'supportNote', label: 'Поддержка', hint: 'на экране нового обращения: поддержка не даёт юридических советов', max: 300, rows: 2 },
   { key: 'partnerDisclosure', label: 'Партнёр: раскрытие', hint: 'на экране партнёра и перед подключением: «#ad» / «партнёрская ссылка» (FTC)', max: 600, rows: 3 },
   { key: 'partnerTerms', label: 'Партнёр: правила', hint: 'обычный текст без markdown, нумерованные правила; партнёр принимает их при подключении', max: 6000, rows: 12 },
+  { key: 'attorneyAdvertisingLabel', label: 'Метка «Реклама адвоката»', hint: 'рядом с материалами адвоката: профиль, пост, ставка, ответ (Rule 7.1)', max: 120, rows: 1 },
+  { key: 'priorResultsDisclaimer', label: 'Прежние результаты', hint: '«Prior results do not guarantee a similar outcome» рядом с результатами и отзывами', max: 300, rows: 2 },
+  { key: 'badgeExplainer', label: 'Что значат значки', hint: 'значок = проверка по реестру на дату, не рекомендация и не рейтинг', max: 500, rows: 3 },
+  { key: 'bestAnswerNote', label: 'Вопросы и ответы: лучший ответ', hint: 'лучший ответ выбирает автор вопроса; это не юридическая консультация', max: 300, rows: 2 },
+  { key: 'translationNote', label: 'Машинный перевод', hint: 'предупреждение рядом с переведённым текстом', max: 300, rows: 2 },
+  { key: 'reviewReplyWarning', label: 'Ответ адвоката на отзыв', hint: 'не раскрывать конфиденциальное, отвечать коротко и по фактам', max: 400, rows: 2 },
+  { key: 'sponsoredLabel', label: 'Метка платного размещения', hint: '«Sponsored» на бустах и продвигаемых профилях', max: 60, rows: 1 },
 ];
 
 /**
@@ -392,7 +413,11 @@ function TextsForm({ initial, canEdit }: { initial: LegalSettings; canEdit: bool
   const [incident, setIncident] = useState(initial.incidentContact);
   const [strikes, setStrikes] = useState(String(initial.dmcaStrikesToSuspend));
   const [texts, setTexts] = useState(initial.texts);
-  const valid = TEXT_FIELDS.every((f) => texts.en[f.key].length <= f.max && texts.ru[f.key].length <= f.max);
+  const [review, setReview] = useState<Record<string, boolean>>({ ...(initial.textsNeedReview ?? {}) });
+  const [lang, setLang] = useState<LegalLang>('ru');
+  const val = (l: LegalLang, k: keyof LegalTexts): string => (texts[l]?.[k] as string | undefined) ?? '';
+  const valid = LANGS.every((l) => TEXT_FIELDS.every((f) => val(l.value, f.key).length <= f.max));
+  const pending = LANGS.filter((l) => review[l.value]).map((l) => l.value.toUpperCase());
   const save = useMutation({
     mutationFn: async () =>
       (
@@ -402,6 +427,7 @@ function TextsForm({ initial, canEdit }: { initial: LegalSettings; canEdit: bool
             incidentContact: { email: incident.email.trim(), phone: incident.phone.trim() },
             dmcaStrikesToSuspend: Number(strikes),
             texts,
+            textsNeedReview: review,
           },
         })
       ).data!.data,
@@ -411,7 +437,8 @@ function TextsForm({ initial, canEdit }: { initial: LegalSettings; canEdit: bool
     },
     onError: (e) => toast.error(e),
   });
-  const setText = (lang: 'en' | 'ru', key: keyof LegalTexts, value: string) => setTexts((t) => ({ ...t, [lang]: { ...t[lang], [key]: value } }));
+  const setText = (l: LegalLang, key: keyof LegalTexts, value: string) =>
+    setTexts((t) => ({ ...t, [l]: { ...(t[l] as LegalTexts), [key]: value } }));
 
   return (
     <>
@@ -452,19 +479,40 @@ function TextsForm({ initial, canEdit }: { initial: LegalSettings; canEdit: bool
 
       <SectionTitle>Тексты в приложении</SectionTitle>
       <Card className="p-5">
-        <p className="text-sm text-muted">Пользователь видит текст на своём языке интерфейса: русский — RU, остальные — EN. Пустой текст не показывается.</p>
+        <p className="text-sm text-muted">
+          Пользователь видит текст на языке своего интерфейса (10 языков); если языка нет в списке — английский. Пустой текст не показывается (берётся текст по умолчанию).
+          Переводы на ES, FR, DE, IT, PT, NL, PL, UK сделаны машиной: пока у языка стоит отметка «требует проверки», текст нужно прочитать (лучше — носителю языка и юристу США).
+        </p>
+        {pending.length > 0 ? <p className="mt-2 text-sm text-warning">Требуют проверки: {pending.join(', ')}</p> : null}
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <Field label="Язык" htmlFor="lt-lang">
+            <Select id="lt-lang" value={lang} onChange={(e) => setLang(e.target.value as LegalLang)}>
+              {LANGS.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                  {review[l.value] ? ' · требует проверки' : ''}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <label className="flex items-center gap-2 self-end pb-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={Boolean(review[lang])}
+              disabled={!canEdit}
+              onChange={(e) => setReview((r) => ({ ...r, [lang]: e.target.checked }))}
+            />
+            Текст на этом языке требует проверки
+          </label>
+        </div>
         <div className="mt-4 space-y-6">
           {TEXT_FIELDS.map((f) => (
             <div key={f.key}>
               <h4 className="text-sm font-medium text-heading">{f.label}</h4>
               <p className="mb-2 text-xs text-muted">{f.hint}</p>
-              <div className="grid gap-4 md:grid-cols-2">
-                {(['ru', 'en'] as const).map((lang) => (
-                  <Field key={lang} label={lang.toUpperCase()} htmlFor={`lt-${lang}-${f.key}`} hint={`${texts[lang][f.key].length} / ${f.max}`}>
-                    <Textarea id={`lt-${lang}-${f.key}`} rows={f.rows} value={texts[lang][f.key]} disabled={!canEdit} maxLength={f.max} onChange={(e) => setText(lang, f.key, e.target.value)} />
-                  </Field>
-                ))}
-              </div>
+              <Field label={lang.toUpperCase()} htmlFor={`lt-${lang}-${f.key}`} hint={`${val(lang, f.key).length} / ${f.max}`}>
+                <Textarea id={`lt-${lang}-${f.key}`} rows={f.rows} value={val(lang, f.key)} disabled={!canEdit} maxLength={f.max} onChange={(e) => setText(lang, f.key, e.target.value)} />
+              </Field>
             </div>
           ))}
         </div>

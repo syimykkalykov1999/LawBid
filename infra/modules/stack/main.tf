@@ -331,6 +331,34 @@ variable "redis_replicas" {
   type    = number
   default = 1
 }
+variable "redis_cluster_mode" {
+  type        = string
+  default     = "off"
+  description = <<-EOT
+    Redis cluster mode (sharded), docs/runbooks/redis-cluster.md. One line to switch:
+      off      today: one standalone group.
+      standby  a second group (cluster mode enabled) is BUILT and idle; the app still uses the standalone one. Cost: the new nodes.
+      on       the app uses the cluster: REDIS_URL = cluster configuration endpoint, REDIS_CLUSTER=true (same line, one deploy).
+    Cutover steps and rollback (back to "standby"/"off" while the old group lives) are in the runbook.
+  EOT
+  validation {
+    condition     = contains(["off", "standby", "on"], var.redis_cluster_mode)
+    error_message = "redis_cluster_mode: off, standby or on."
+  }
+}
+variable "redis_cluster_shards" {
+  type    = number
+  default = 2
+}
+variable "redis_cluster_replicas_per_shard" {
+  type    = number
+  default = 1
+}
+variable "redis_cluster_node_type" {
+  type        = string
+  default     = ""
+  description = "Empty = redis_node_type."
+}
 variable "api_max_tasks" {
   type    = number
   default = 20
@@ -343,6 +371,11 @@ variable "min_tasks" {
   type        = number
   default     = 2
   description = "Minimum api and worker tasks (autoscaling floor). 1 = launch size, 2+ = survives a lost AZ."
+}
+variable "api_min_tasks" {
+  type        = number
+  default     = null
+  description = "Separate api floor (null = min_tasks). 2 = one api task per AZ (S4-11); the worker can stay at 1."
 }
 variable "cpu_architecture" {
   type        = string
@@ -407,7 +440,37 @@ variable "waf_rate_limit_per_5m" {
 variable "waf_otp_rate_limit_per_5m" {
   type        = number
   default     = 20
-  description = "Requests to the OTP / password-reset / phone-status paths from one IP in 5 minutes before the ALB WAF blocks it."
+  description = "Requests to the OTP / password-reset / phone-status paths from one IP in 5 minutes before the ALB WAF blocks it (backstop for callers without a device header; S4-8: one CGNAT address carries many people)."
+}
+variable "waf_device_header" {
+  type        = string
+  default     = ""
+  description = "S4-8: second WAF rate-limit key next to the IP (per-device rules, 2 WAF rules = +$2/month). Empty = off (default); set x-device-id to turn on."
+}
+variable "waf_auth_rules_enabled" {
+  type        = bool
+  default     = false
+  description = "S4-8: add the login-path rate rule (and the refresh rule when waf_device_header is set); each is a WAF rule at $1/month. Off by default."
+}
+variable "waf_auth_rate_action" {
+  type        = string
+  default     = "count"
+  description = "S4-8: login / refresh rate rules: count (measure) or block."
+}
+variable "alb_deletion_protection" {
+  type        = bool
+  default     = false
+  description = "S4-10: ALB deletion protection. Prod: true (never on load-test stacks)."
+}
+variable "alb_least_outstanding_requests" {
+  type        = bool
+  default     = false
+  description = "S4-7: least_outstanding_requests instead of round_robin for the API target group (has no effect while stickiness is on for it; see alb_websocket_target_group)."
+}
+variable "alb_websocket_target_group" {
+  type        = bool
+  default     = false
+  description = "S4-7: separate sticky target group for /socket.io only; the API group loses stickiness and uses least_outstanding_requests. Replaces the ECS api service in the AWS provider (short blip): apply in a quiet window."
 }
 # AWS Bot Control (paid: ~$10/month + $1 per million requests). Off by
 # default; on, it only COUNTS (labels in the WAF metrics) until
@@ -469,7 +532,7 @@ variable "redis_memory_alarm_percent" {
 }
 variable "nat_traffic_alarm_gb_per_day" {
   type        = number
-  default     = 100
+  default     = 20
   description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h (0 = off). docs/runbooks/nat-endpoints.md."
 }
 variable "budget_forecast_thresholds" {
@@ -544,6 +607,8 @@ variable "runbook_base_url" {
 # extra hosts, admin) plus whatever s3_cors_allowed_origins adds (previews,
 # http://localhost:<port> for development).
 locals {
+  # redis_cluster_mode = "on": the app talks to the cluster-mode-enabled group.
+  redis_cluster_on = var.redis_cluster_mode == "on"
   web_cors_origins = distinct(concat(
     var.s3_cors_allowed_origins,
     [for h in concat([var.web_host, var.admin_host], var.web_extra_hosts) : "https://${h}" if h != ""],
@@ -682,6 +747,13 @@ module "s3" {
   documents_cdn_public_key_pem = var.documents_cdn_public_key_pem
   force_destroy                = var.ephemeral
   access_log_bucket            = try(module.audit_logs[0].bucket, "")
+  replicate_media              = var.replicate_media && !var.ephemeral
+}
+
+variable "replicate_media" {
+  type        = bool
+  default     = false
+  description = "S4-5: replicate the media bucket to the replica Region (no delete markers). Prod: true. Never on load-test stacks."
 }
 
 # Security & legal pass 2026-10-24: the access logs that prove who touched
@@ -758,6 +830,12 @@ module "alb" {
   tags                  = local.tags
 
   waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
+  waf_device_header         = var.waf_device_header
+  waf_auth_rate_action      = var.waf_auth_rate_action
+  waf_auth_rules_enabled    = var.waf_auth_rules_enabled
+  deletion_protection       = var.alb_deletion_protection && !var.ephemeral
+  load_balancing_algorithm  = var.alb_least_outstanding_requests ? "least_outstanding_requests" : "round_robin"
+  ws_target_group_enabled   = var.alb_websocket_target_group
   waf_bot_control_enabled   = var.waf_bot_control_enabled
   waf_bot_control_block     = var.waf_bot_control_block
 
@@ -794,6 +872,11 @@ module "redis" {
   replicas                   = var.redis_replicas
   kms_key_arn                = module.kms.key_arn
   tags                       = local.tags
+
+  cluster_mode            = var.redis_cluster_mode != "off"
+  num_node_groups         = var.redis_cluster_shards
+  replicas_per_node_group = var.redis_cluster_replicas_per_shard
+  cluster_node_type       = var.redis_cluster_node_type
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
@@ -866,6 +949,86 @@ check "existing_database_settings" {
     condition     = alltrue([for d in data.aws_db_instance.existing : d.storage_encrypted])
     error_message = "Production database storage is not encrypted."
   }
+}
+
+# --- adopt the prod database into Terraform (audit S4-3, 2026-10-25) -------
+# The instance was created in the console. With adopt_existing_database =
+# true (and the import block in envs/prod/imports.tf) it becomes a Terraform
+# resource, so the daily drift check sees Multi-AZ off, short backup
+# retention, deletion protection off, Performance Insights off. Everything
+# the platform changes at run time or that would force a REPLACEMENT is in
+# ignore_changes: class (db-autoscale / admin), storage (RDS autoscaling),
+# engine version, credentials, network, KMS key, parameter group, windows.
+# prevent_destroy: a plan that would delete the database fails instead.
+# First plan: review it; only the declared attributes below may show a diff.
+variable "adopt_existing_database" {
+  type        = bool
+  default     = false
+  description = "Manage the database named in existing_database_identifier as aws_db_instance.existing (imported by envs/prod/imports.tf). Needs create_database = false. Never replaces or deletes it."
+}
+variable "database_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Deletion protection of the adopted database (drift shows when it is off)."
+}
+
+resource "aws_db_instance" "existing" {
+  count      = var.adopt_existing_database && !var.create_database && var.existing_database_identifier != "" ? 1 : 0
+  identifier = var.existing_database_identifier
+
+  # Required by the provider; the real values are kept (ignore_changes).
+  engine         = "postgres"
+  instance_class = var.database_instance_class
+
+  # Declared, drift-checked attributes.
+  multi_az                              = var.database_multi_az
+  backup_retention_period               = var.database_backup_retention_days
+  deletion_protection                   = var.database_deletion_protection
+  storage_encrypted                     = true
+  publicly_accessible                   = false
+  copy_tags_to_snapshot                 = true
+  auto_minor_version_upgrade            = true
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7
+  skip_final_snapshot                   = false
+  final_snapshot_identifier             = "${local.name}-postgres-final"
+
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [
+      instance_class, allocated_storage, max_allocated_storage, storage_type, iops, storage_throughput,
+      engine, engine_version, db_name, username, password, manage_master_user_password, kms_key_id,
+      performance_insights_kms_key_id, db_subnet_group_name, vpc_security_group_ids, parameter_group_name,
+      option_group_name, backup_window, maintenance_window, enabled_cloudwatch_logs_exports,
+      delete_automated_backups, apply_immediately, tags, tags_all, snapshot_identifier,
+      replicate_source_db, character_set_name, license_model, ca_cert_identifier, network_type,
+      monitoring_interval, monitoring_role_arn, iam_database_authentication_enabled, port, availability_zone,
+    ]
+  }
+}
+
+# --- RDS cross-Region automated backups (audit S4-6) -------------------------
+# Snapshots + transaction logs shipped to the replica Region: point-in-time
+# restore there, RPO of minutes instead of 24 h. Costs the stored backup size
+# (about the size of the database) in us-west-2. Works on any instance, so it
+# does not need S4-3. Off by default.
+variable "rds_cross_region_backups" {
+  type        = bool
+  default     = false
+  description = "Replicate RDS automated backups (snapshots and WAL) to the replica Region with PITR there (aws_db_instance_automated_backups_replication). Needs create_database or existing_database_identifier, and the instance's backup_retention_period > 0."
+}
+variable "rds_cross_region_backup_retention_days" {
+  type        = number
+  default     = 14
+  description = "Retention of the replicated automated backups (1-35)."
+}
+
+resource "aws_db_instance_automated_backups_replication" "this" {
+  provider               = aws.replica
+  count                  = var.rds_cross_region_backups && local.database_arn != "" ? 1 : 0
+  source_db_instance_arn = local.database_arn
+  kms_key_id             = module.kms_replica.key_arn
+  retention_period       = var.rds_cross_region_backup_retention_days
 }
 
 module "backup" {
@@ -1124,15 +1287,17 @@ locals {
     OPS_API_TASK_USD    = tostring(local.api_task_usd)
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
     OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
-    OPS_REDIS_GROUP     = "${local.name}-redis"
+    OPS_REDIS_GROUP     = local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
     # Batch D (2026-10-24): the admin «Масштаб» page says whether the size
     # changes by itself (the Lambda's own on / dry-run / off switch is in SSM).
     OPS_DB_AUTOSCALE    = local.db_autoscale_on ? "on" : "off"
-    OPS_REDIS_AUTOSCALE = var.redis_autoscale_enabled && var.redis_replicas > 0 ? "on" : "off"
-    OPS_POOLER_MIN      = tostring(var.pgbouncer_min_tasks)
-    OPS_POOLER_MAX      = tostring(var.pgbouncer_max_tasks)
-    OPS_BUDGET_NAME     = "${local.name}-monthly"
-    OPS_AWS_ACCOUNT_ID  = data.aws_caller_identity.current.account_id
+    OPS_REDIS_AUTOSCALE = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on ? "on" : "off"
+    # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
+    REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
+    OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
+    OPS_POOLER_MAX     = tostring(var.pgbouncer_max_tasks)
+    OPS_BUDGET_NAME    = "${local.name}-monthly"
+    OPS_AWS_ACCOUNT_ID = data.aws_caller_identity.current.account_id
     # Owner 2026-10-24 (admin «Запуск», «Масштаб», «Расходы»): the critical
     # SNS topic the admin subscribes PagerDuty to (built from the name so the
     # app env does not depend on the monitoring module), the obsolete budget
@@ -1143,6 +1308,9 @@ locals {
     OPS_API_SPOT             = var.api_spot ? "on" : "off"
     OPS_WORKER_SPOT          = var.worker_spot ? "on" : "off"
     AWS_REGION               = data.aws_region.current.name
+    # S4-1: set only after ops_role_split (the app then assumes this role for
+    # every admin AWS call; the ExternalId arrives as a secret).
+    OPS_ROLE_ARN = var.ops_role_split ? aws_iam_role.ops[0].arn : ""
     # Search engine (growth.opensearch_enabled, modules/stack/growth.tf):
     # empty while off. The app uses it only when the admin sets
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
@@ -1155,10 +1323,11 @@ locals {
   worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * local.arm_factor * 100) / 100
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
-    { REDIS_URL = module.redis.redis_url_secret_arn },
+    { REDIS_URL = local.redis_cluster_on ? module.redis.cluster_url_secret_arn : module.redis.redis_url_secret_arn },
     var.redis_cache_node ? { REDIS_CACHE_URL = module.redis_cache[0].redis_url_secret_arn } : {},
     # LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET (values generated by modules/livekit).
     var.livekit_enabled ? module.livekit[0].secret_arns : {},
+    var.ops_role_split ? { OPS_ROLE_EXTERNAL_ID = aws_secretsmanager_secret.ops_external_id[0].arn } : {},
   )
 }
 
@@ -1209,6 +1378,7 @@ module "ecs" {
   private_subnet_ids       = module.network.private_subnet_ids
   tasks_security_group_id  = aws_security_group.tasks.id
   api_target_group_arn     = module.alb.api_target_group_arn
+  api_ws_target_group_arn  = module.alb.api_ws_target_group_arn
   admin_target_group_arn   = module.alb.admin_target_group_arn
   api_image                = var.api_image
   admin_image              = var.admin_image
@@ -1235,6 +1405,7 @@ module "ecs" {
   api_max_tasks                    = var.api_max_tasks
   worker_max_tasks                 = var.worker_max_tasks
   min_tasks                        = var.min_tasks
+  api_min_tasks                    = var.api_min_tasks
   admin_tasks                      = var.admin_tasks
   api_cpu                          = var.api_cpu
   api_memory                       = var.api_memory
@@ -1262,6 +1433,19 @@ module "ecs" {
 
 # Task role: the app's own permissions (buckets, SES, KMS for SSE-KMS).
 data "aws_iam_policy_document" "task" {
+  # S4-1 (audit 2026-10-25): the admin scale / launch / cost calls live in
+  # data.aws_iam_policy_document.ops. With ops_role_split = false (default)
+  # they are merged back into this role, exactly as before; with true the
+  # request-serving role keeps only buckets, KMS and SES, plus the right to
+  # assume the separate ops role (below).
+  source_policy_documents = var.ops_role_split ? [] : [data.aws_iam_policy_document.ops.json]
+  dynamic "statement" {
+    for_each = var.ops_role_split ? [1] : []
+    content {
+      actions   = ["sts:AssumeRole"]
+      resources = [aws_iam_role.ops[0].arn]
+    }
+  }
   statement {
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"]
     resources = ["${module.s3.documents_bucket_arn}/*", "${module.s3.media_bucket_arn}/*"]
@@ -1294,6 +1478,13 @@ data "aws_iam_policy_document" "task" {
       values   = [var.ses_from_address]
     }
   }
+}
+
+# S4-1: the infrastructure-changing calls of the admin «Масштаб / Запуск /
+# Расходы» screens. rds:ModifyDBInstance alone can reset the master password
+# and set backup retention to 0, so this must not sit on the role of the
+# process that serves the internet.
+data "aws_iam_policy_document" "ops" {
   # Zero maintenance: restart the worker, cap / restore autoscaling, read
   # this month's spend. Only these two services and this one budget.
   statement {
@@ -1369,6 +1560,73 @@ data "aws_iam_policy_document" "task" {
   }
 }
 
+variable "ops_role_split" {
+  type        = bool
+  default     = false
+  description = "S4-1: move the admin scale / launch / cost permissions off the api+worker task role into a separate role `<name>-ops` that the app assumes through STS (needs ops_role_external_id). DEPLOY THE API CODE WITH OPS_ROLE_ARN SUPPORT FIRST, then turn this on (docs/runbooks/aws-guardrails.md)."
+}
+variable "ops_role_external_id" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "Shared secret the app must present when assuming the ops role (sts:ExternalId). 32+ random characters, kept in the Secrets Manager tfvars. It lives only in a Secrets Manager secret injected into the task as OPS_ROLE_EXTERNAL_ID, so stolen task credentials alone cannot assume the ops role."
+  validation {
+    condition     = var.ops_role_external_id == "" || length(var.ops_role_external_id) >= 32
+    error_message = "ops_role_external_id must be empty (split off) or at least 32 characters."
+  }
+}
+
+data "aws_iam_policy_document" "ops_trust" {
+  count = var.ops_role_split ? 1 : 0
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = [module.ecs.task_role_arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "sts:ExternalId"
+      values   = [var.ops_role_external_id]
+    }
+  }
+}
+
+resource "aws_iam_role" "ops" {
+  count                = var.ops_role_split ? 1 : 0
+  name                 = "${local.name}-ops"
+  assume_role_policy   = data.aws_iam_policy_document.ops_trust[0].json
+  max_session_duration = 3600
+  tags                 = local.tags
+
+  lifecycle {
+    precondition {
+      condition     = var.ops_role_external_id != ""
+      error_message = "ops_role_split = true needs ops_role_external_id (32+ random characters)."
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "ops" {
+  count  = var.ops_role_split ? 1 : 0
+  role   = aws_iam_role.ops[0].id
+  policy = data.aws_iam_policy_document.ops.json
+}
+
+resource "aws_secretsmanager_secret" "ops_external_id" {
+  count                   = var.ops_role_split ? 1 : 0
+  name                    = "${local.name}/OPS_ROLE_EXTERNAL_ID"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "ops_external_id" {
+  count         = var.ops_role_split ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.ops_external_id[0].id
+  secret_string = var.ops_role_external_id
+}
+
 resource "aws_iam_role_policy" "task" {
   role   = module.ecs.task_role_name
   policy = data.aws_iam_policy_document.task.json
@@ -1412,6 +1670,7 @@ module "monitoring" {
   redis_replicas                = var.redis_replicas
   db_instance_id                = var.create_database ? "${local.name}-postgres" : ""
   db_max_connections            = local.db_max_connections
+  acm_certificate_arns          = [var.certificate_arn]
   api_log_group                 = module.ecs.log_group_names["api"]
   worker_log_group              = module.ecs.log_group_names["worker"]
   p95_target_ms                 = var.p95_target_ms
@@ -1445,7 +1704,8 @@ module "db_autoscale" {
 # Owner 2026-10-24: Redis size follows the load too (modules/redis ignores
 # node_type changes, so terraform apply never undoes it).
 module "redis_autoscale" {
-  count                = var.redis_autoscale_enabled && var.redis_replicas > 0 ? 1 : 0
+  # Not for a cluster-mode group (the Lambda would skip it anyway: cluster_mode).
+  count                = var.redis_autoscale_enabled && var.redis_replicas > 0 && !local.redis_cluster_on ? 1 : 0
   source               = "../redis-autoscale"
   name                 = local.name
   replication_group_id = "${local.name}-redis"

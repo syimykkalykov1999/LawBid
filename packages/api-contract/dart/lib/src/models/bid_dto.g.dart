@@ -22,6 +22,7 @@ BidDto _$BidDtoFromJson(Map<String, dynamic> json) => BidDto(
       : DateTime.parse(json['startDate'] as String),
   estimatedDurationDays: (json['estimatedDurationDays'] as num?)?.toInt(),
   roundCount: (json['roundCount'] as num).toInt(),
+  version: (json['version'] as num).toInt(),
   turn: PartyRole.fromJson(json['turn'] as String),
   decidedAt: json['decidedAt'] == null
       ? null
@@ -53,6 +54,7 @@ Map<String, dynamic> _$BidDtoToJson(BidDto instance) => <String, dynamic>{
   'startDate': ?instance.startDate?.toIso8601String(),
   'estimatedDurationDays': ?instance.estimatedDurationDays,
   'roundCount': instance.roundCount,
+  'version': instance.version,
   'turn': instance.turn.toJson(),
   'decidedAt': ?instance.decidedAt?.toIso8601String(),
   'outsidePractice': instance.outsidePractice,

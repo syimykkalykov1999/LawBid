@@ -36,7 +36,13 @@ export type LimitedAction =
   | 'consultation_book'
   | 'question_create'
   | 'answer_create'
-  | 'answer_create_daily';
+  | 'answer_create_daily'
+  // Owner 2026-10-25 (abuse hardening): offers, counters, cases, saved, forward.
+  | 'bid_create'
+  | 'bid_counter'
+  | 'case_create'
+  | 'chat_save'
+  | 'forward';
 
 const HOUR = 3600;
 const DAY = 24 * HOUR;
@@ -100,6 +106,11 @@ export const USAGE_LIMITS: Record<
     setting: 'rate_limit.answer_per_day',
     windowSec: DAY,
   },
+  bid_create: { setting: 'rate_limit.bid_create_per_day', windowSec: DAY },
+  bid_counter: { setting: 'rate_limit.bid_counter_per_hour', windowSec: HOUR },
+  case_create: { setting: 'rate_limit.case_create_per_day', windowSec: DAY },
+  chat_save: { setting: 'rate_limit.chat_save_per_minute', windowSec: 60 },
+  forward: { setting: 'rate_limit.forward_per_minute', windowSec: 60 },
 };
 
 /**

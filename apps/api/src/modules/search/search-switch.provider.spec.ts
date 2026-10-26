@@ -182,3 +182,23 @@ describe('SwitchingSearchProvider', () => {
     expect(pg.practiceMatches).toHaveBeenCalled();
   });
 });
+
+describe('search latency metric line', () => {
+  it('logs one {metric: search_latency} line per Postgres-answered search', async () => {
+    const lines: unknown[] = [];
+    const spy = jest
+      .spyOn(Logger.prototype, 'log')
+      .mockImplementation((m: unknown) => void lines.push(m));
+    const { sw } = make('postgres');
+    let t = 1000;
+    sw.now = () => (t += 40);
+    await sw.searchPosts('law', 5, {});
+    spy.mockRestore();
+    expect(lines).toContainEqual({
+      metric: 'search_latency',
+      op: 'posts',
+      engine: 'postgres',
+      ms: 40,
+    });
+  });
+});
