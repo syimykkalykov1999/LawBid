@@ -494,3 +494,10 @@ GET /admin/approvals/count api path removed without deprecation
 POST /admin/approvals/{id}/approve api path removed without deprecation
 POST /admin/approvals/{id}/reject api path removed without deprecation
 GET /admin/counts removed the required property `data/approvalsPending` from the response with the `200` status
+# PR #366 (monthly restore test): the admin health card list gains restore_drill; the admin reads keys as strings
+GET /admin/system-health added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `restore_drill` enum value to the `data/items/items/key` response property for the response status `200`
