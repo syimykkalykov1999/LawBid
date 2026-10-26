@@ -153,27 +153,29 @@ export class PushTokensService {
   async deviceSession(
     token: string,
   ): Promise<{ userId: string; sessionChainId: string } | null> {
+    // Two queries by id, no join (shard-ready step 0: PushToken and Session
+    // are different families).
     const row = await this.prisma.pushToken.findUnique({
       where: { fcm_token: token },
-      select: {
-        user_id: true,
-        session: {
-          select: { session_chain_id: true },
-        },
-      },
+      select: { user_id: true, session_id: true },
     });
     if (!row) return null;
+    const own = await this.prisma.session.findUnique({
+      where: { id: row.session_id },
+      select: { session_chain_id: true },
+    });
+    if (!own) return null;
     const live = await this.prisma.session.findFirst({
       where: {
         user_id: row.user_id,
-        session_chain_id: row.session.session_chain_id,
+        session_chain_id: own.session_chain_id,
         revoked_at: null,
         expires_at: { gt: new Date() },
       },
       select: { id: true },
     });
     return live
-      ? { userId: row.user_id, sessionChainId: row.session.session_chain_id }
+      ? { userId: row.user_id, sessionChainId: own.session_chain_id }
       : null;
   }
 
