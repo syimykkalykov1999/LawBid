@@ -3,8 +3,12 @@
 #
 #   apps/mobile/tool/perf/run_device_perf.sh <device-id> [label]
 #
-# 1. checks the local API answers (the suite signs in with the dev seed's
-#    test attorney, or a demo invite: PERF_DEMO_CODE) - never a real account;
+# 1. checks the local API answers (the suite signs in with the perf attorney
+#    from `npm run seed:perf --workspace apps/api`, +12125550190, or a demo
+#    invite: PERF_DEMO_CODE) - never a real account. Run the seed first (it
+#    also clears that account's old sessions, one device at a time);
+#    reels play only with the fake Bunny running (apps/api/tools/fake-bunny.mjs
+#    with FAKE_BUNNY_DIR=apps/api/.fake-bunny);
 # 2. cold start of the real process, COLD_RUNS times, with
 #    `flutter run --profile --trace-startup` (engine start -> first frame);
 # 3. builds PROFILE and runs integration_test/perf/perf_suite_test.dart with
@@ -19,7 +23,27 @@
 #                  http://<this Mac's LAN address>:3000/api/v1
 #   PERF_DEMO_CODE demo invite code instead of the seed attorney
 #   PERF_PHONE / PERF_PASSWORD   other seed login
+#   PERF_ONLY      run only some scenarios: feed,reels,search,chats,cases,taps
 #   COLD_RUNS      cold starts to take the median of (default 3, 0 = skip)
+#   PERF_ROUNDS    run the scroll scenarios N times in a row (default 1); the
+#                  report gives the RSS at the end of each round and a
+#                  warm-up / leak verdict (needs 3)
+#   PERF_MEDIA_HOST  address of the Mac the PHONE can reach MinIO (:9000) and
+#                  the fake Bunny (:4010) at. Default for a physical iPhone:
+#                  the Mac's LAN address (the API's media links point at
+#                  127.0.0.1 otherwise and no photo or video loads). The
+#                  script then starts a SECOND copy of the built API on port
+#                  3001 with S3_ENDPOINT / DEV_FAKE_BUNNY_HOST set to that
+#                  address (the API on :3000 is not touched) and stops it
+#                  at the end. Android with adb reverse needs none of this.
+#   PERF_VIA_USB=1 physical iPhone only: reach the Mac through the USB cable
+#                  (the Mac's address on the CoreDevice tunnel, fd..::2)
+#                  instead of Wi-Fi. iOS blocks Wi-Fi/LAN addresses for an app
+#                  until someone taps "Allow" on its Local Network prompt, and
+#                  `flutter drive` uninstalls the app every run, which wipes
+#                  that permission; the cable tunnel is not "local network",
+#                  so no tap is needed. A second fake Bunny (IPv6, :4011) is
+#                  started next to the second API for the videos.
 #   PERF_NO_FAIL=1 exit 0 even when a budget failed
 set -euo pipefail
 
@@ -58,16 +82,59 @@ if [ -z "${API_BASE_URL:-}" ]; then
   elif [ "$PLATFORM" = android ]; then
     [ -n "$ADB" ] && "$ADB" -s "$DEVICE" reverse tcp:3000 tcp:3000 >/dev/null
     API_BASE_URL="http://127.0.0.1:3000/api/v1"
+    # The dev fake Bunny (reels): localhost:4010 on the phone = the Mac's.
+    [ -n "$ADB" ] && "$ADB" -s "$DEVICE" reverse tcp:4010 tcp:4010 >/dev/null
   elif [ "$EMU" = True ]; then
     API_BASE_URL="http://127.0.0.1:3000/api/v1"
   else
-    LAN="$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)"
-    [ -n "$LAN" ] || { echo "no LAN address; set API_BASE_URL"; exit 2; }
+    if [ -n "${PERF_VIA_USB:-}" ]; then
+      USB6="$(ifconfig | awk '/inet6 fd/ {print $2; exit}')"
+      [ -n "$USB6" ] || { echo "no USB tunnel address (is the phone unlocked and trusted?)"; exit 2; }
+      LAN="[$USB6]"
+      BUNNY_PORT=4011
+      FAKE_BUNNY_V6=1
+    else
+      LAN="$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || true)"
+      [ -n "$LAN" ] || { echo "no LAN address; set API_BASE_URL"; exit 2; }
+    fi
     API_BASE_URL="http://$LAN:3000/api/v1"
+    PERF_MEDIA_HOST="${PERF_MEDIA_HOST:-$LAN}"
+  fi
+fi
+
+# --- media the phone can reach: a second API copy with LAN media links ------
+SIDE_API_PID=""
+BUNNY_PID=""
+BUNNY_PORT="${BUNNY_PORT:-4010}"
+if [ -n "${PERF_MEDIA_HOST:-}" ]; then
+  API_DIR="$PWD/../api"
+  SIDE_PORT=3001
+  if [ -f "$API_DIR/dist/src/main.js" ]; then
+    echo "perf: media host $PERF_MEDIA_HOST: starting a second API on :$SIDE_PORT"
+    (cd "$API_DIR" && PORT=$SIDE_PORT S3_ENDPOINT="http://$PERF_MEDIA_HOST:9000" \
+      DEV_FAKE_BUNNY_HOST="$PERF_MEDIA_HOST:$BUNNY_PORT" \
+      exec node dist/src/main.js) >"$OUT/side_api.log" 2>&1 &
+    SIDE_API_PID=$!
+    if [ -n "${FAKE_BUNNY_V6:-}" ]; then
+      # The cable tunnel is IPv6; the dev fake Bunny on :4010 is IPv4 only.
+      (cd "$API_DIR" && FAKE_BUNNY_PORT=$BUNNY_PORT FAKE_BUNNY_HOST=:: \
+        FAKE_BUNNY_DIR="${FAKE_BUNNY_DIR:-$API_DIR/.fake-bunny}" \
+        exec node tools/fake-bunny.mjs) >"$OUT/side_bunny.log" 2>&1 &
+      BUNNY_PID=$!
+    fi
+    trap '[ -n "$SIDE_API_PID" ] && kill "$SIDE_API_PID" 2>/dev/null; [ -n "$BUNNY_PID" ] && kill "$BUNNY_PID" 2>/dev/null; true' EXIT
+    API_BASE_URL="http://$PERF_MEDIA_HOST:$SIDE_PORT/api/v1"
+    for _ in $(seq 1 60); do
+      [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' \
+        "http://127.0.0.1:$SIDE_PORT/api/v1/config/bootstrap")" = 200 ] && break
+      sleep 1
+    done
+  else
+    echo "perf: apps/api/dist is not built (npm run build --workspace apps/api); media links stay on 127.0.0.1"
   fi
 fi
 echo "perf: API as the phone sees it: $API_BASE_URL"
-HOST_URL="$(echo "$API_BASE_URL" | sed -E 's#//[^:/]+#//127.0.0.1#')"
+HOST_URL="$(echo "$API_BASE_URL" | sed -E 's#//(\[[^]]*\]|[^:/]+)#//127.0.0.1#')"
 CODE="$(curl -s -o /dev/null -m 5 -w '%{http_code}' "$HOST_URL/config/bootstrap" || true)"
 if [ "$CODE" = "000" ] || [ -z "$CODE" ]; then
   echo "perf: the API does not answer at $HOST_URL - start it first (apps/api)."
@@ -91,6 +158,8 @@ DEFS=(
 )
 [ -n "${PERF_DEMO_CODE:-}" ] && DEFS+=("--dart-define=PERF_DEMO_CODE=$PERF_DEMO_CODE")
 [ -n "${PERF_PHONE:-}" ] && DEFS+=("--dart-define=PERF_PHONE=$PERF_PHONE")
+[ -n "${PERF_ROUNDS:-}" ] && DEFS+=("--dart-define=PERF_ROUNDS=$PERF_ROUNDS")
+[ -n "${PERF_ONLY:-}" ] && DEFS+=("--dart-define=PERF_ONLY=$PERF_ONLY")
 [ -n "${PERF_PASSWORD:-}" ] && DEFS+=("--dart-define=PERF_PASSWORD=$PERF_PASSWORD")
 
 # --- 1. cold starts of the real process --------------------------------------
@@ -139,7 +208,12 @@ if [ "$PLATFORM" = ios ] && [ "$EMU" = False ]; then
 fi
 
 if [ ! -f "$OUT/perf_result.json" ]; then
+  # Never "no result": leave a stub that says why.
   echo "perf: no result was produced (drive exit $DRIVE); see $OUT/drive.log"
+  printf '{"passed": false, "error": "no result (flutter drive exit %s)"}\n' \
+    "$DRIVE" >"$OUT/perf_result.json"
+  printf '# LawBid on-device performance\n\nNo result: flutter drive exited with %s. See drive.log.\n' \
+    "$DRIVE" >"$OUT/perf_result.md"
   exit 1
 fi
 echo

@@ -42,13 +42,18 @@ class _ConsultationDetailScreenState
   }) async {
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
+    final container = ProviderScope.containerOf(context);
     try {
-      await action();
-      refreshConsultations(ref, id: widget.id);
-      if (mounted && done != null) showAppSnackBar(context, t.t(done));
-    } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-      refreshConsultations(ref, id: widget.id);
+      var ok = false;
+      try {
+        await action();
+        ok = true;
+      } on Object catch (e) {
+        if (mounted) showAppSnackBar(context, errorText(t, e));
+      }
+      // Success or failure, the booking is re-read once.
+      refreshConsultationsIn(container, id: widget.id);
+      if (ok && mounted && done != null) showAppSnackBar(context, t.t(done));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

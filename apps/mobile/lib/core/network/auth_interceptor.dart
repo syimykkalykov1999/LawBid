@@ -25,6 +25,9 @@ class AuthInterceptor extends Interceptor {
   final Ref _ref;
   final Dio _dio;
 
+  /// A burst of revoked-session errors signs out and tells the user once.
+  bool _signingOut = false;
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final session = _ref.read(sessionControllerProvider);
@@ -63,8 +66,13 @@ class AuthInterceptor extends Interceptor {
     // out here, saying why.
     if (apiError.code == ApiErrorCodes.authSignedInElsewhere ||
         apiError.code == ApiErrorCodes.authSessionRevoked) {
-      if (_ref.read(sessionControllerProvider) != null) {
-        await _ref.read(sessionControllerProvider.notifier).clear();
+      if (_ref.read(sessionControllerProvider) != null && !_signingOut) {
+        _signingOut = true;
+        try {
+          await _ref.read(sessionControllerProvider.notifier).clear();
+        } finally {
+          _signingOut = false;
+        }
         rootMessengerKey.currentState?.showSnackBar(
           SnackBar(
             duration: const Duration(seconds: 6),
@@ -84,9 +92,16 @@ class AuthInterceptor extends Interceptor {
     }
 
     try {
-      final newAccessToken = await _ref
-          .read(sessionControllerProvider.notifier)
-          .refreshAccessToken();
+      // A late TOKEN_EXPIRED for a request sent with an OLD token (another
+      // call already refreshed): just retry with the current token.
+      final current = _ref.read(sessionControllerProvider)?.accessToken;
+      final sentWith = err.requestOptions.headers['Authorization'];
+      final newAccessToken =
+          current != null && sentWith != 'Bearer $current'
+              ? current
+              : await _ref
+                  .read(sessionControllerProvider.notifier)
+                  .refreshAccessToken();
       final retryOptions = err.requestOptions
         ..headers['Authorization'] = 'Bearer $newAccessToken'
         ..extra = {...err.requestOptions.extra, 'retriedAfterRefresh': true};

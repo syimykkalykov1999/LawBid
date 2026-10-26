@@ -196,7 +196,7 @@ class _QaTabPage extends StatelessWidget {
       );
 }
 
-class _ClientCasesGrid extends ConsumerWidget {
+class _ClientCasesGrid extends ConsumerStatefulWidget {
   const _ClientCasesGrid({
     required this.filter,
     required this.search,
@@ -215,13 +215,28 @@ class _ClientCasesGrid extends ConsumerWidget {
   final bool scale;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ClientCasesGrid> createState() => _ClientCasesGridState();
+}
+
+class _ClientCasesGridState extends ConsumerState<_ClientCasesGrid> {
+  /// The last loaded seen-counts: while the next key loads the old map
+  /// stays, so the «new bids» badges do not flash full counts.
+  Map<String, int> _seen = const {};
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = widget.filter;
+    final search = widget.search;
+    final cards = widget.cards;
+    final scale = widget.scale;
     final t = ref.watch(translatorProvider);
     final key = (filter: filter, search: search);
     final value = ref.watch(mineCasesProvider(key));
     final n = ref.read(mineCasesProvider(key).notifier);
     final ids = value.value?.items.map((c) => c.id).join(',') ?? '';
-    final seen = ref.watch(seenBidCountsProvider(ids)).value ?? const {};
+    final loadedSeen = ref.watch(seenBidCountsProvider(ids));
+    if (loadedSeen.hasValue) _seen = loadedSeen.requireValue;
+    final seen = _seen;
     final firstOpen = filter == MyCasesFilter.active && search.isEmpty;
     return MinePagedGrid<CaseSummary>(
       value: value,

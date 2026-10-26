@@ -120,3 +120,11 @@ void refreshConsultations(WidgetRef ref, {String? id}) {
   ref.invalidate(consultationSlotsProvider);
   if (id != null) ref.invalidate(consultationProvider(id));
 }
+
+/// Same as [refreshConsultations] for a container held before an `await`
+/// (a screen may be gone when the call returns; its `ref` is then dead).
+void refreshConsultationsIn(ProviderContainer container, {String? id}) {
+  container.read(consultationsTouchedProvider.notifier).bump();
+  container.invalidate(consultationSlotsProvider);
+  if (id != null) container.invalidate(consultationProvider(id));
+}
