@@ -30,6 +30,7 @@ import { AppCheckGuard } from './app-check/app-check.guard';
 import { AppCheckService } from './app-check/app-check.service';
 import { TurnstileService } from './turnstile/turnstile.service';
 import { ReauthVerifier } from './services/reauth-verifier.service';
+import { DemoReauthService } from './services/demo-reauth.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
 import type { SmsProvider } from './providers/sms/sms-provider.interface';
 import { MockSmsProvider } from './providers/sms/mock-sms.provider';
@@ -121,6 +122,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
     AppCheckService,
     TurnstileService,
     AppCheckGuard,
+    DemoReauthService,
     LoginMethodPolicy,
     AssistantCodeService,
     QrLoginService,

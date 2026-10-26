@@ -130,6 +130,14 @@ abstract class AuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Owner 2026-10-08: a DEMO session gets its reauth token without the.
+  /// one-time code (the demo world cannot deliver one). Decided on the.
+  /// server from the signed demo claim — see DemoReauthService.
+  @POST('/auth/reauth/demo')
+  Future<ReauthTokenEnvelope> reauthDemo({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// [xReauthToken] - Required: single-use token from POST /auth/reauth (a new sign-in method).
   @POST('/auth/identifiers')
   Future<IdentifierLinkedEnvelope> linkIdentifier({
