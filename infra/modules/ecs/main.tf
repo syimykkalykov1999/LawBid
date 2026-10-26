@@ -20,6 +20,11 @@ variable "tasks_security_group_id" {
 }
 variable "api_target_group_arn" { type = string }
 variable "admin_target_group_arn" { type = string }
+variable "api_ws_target_group_arn" {
+  type        = string
+  default     = ""
+  description = "S4-7: second target group (sticky, /socket.io only) the api service also registers in. Empty = none."
+}
 variable "api_image" { type = string }
 variable "admin_image" { type = string }
 variable "kms_key_arn" { type = string }
@@ -76,6 +81,11 @@ variable "admin_memory" {
 variable "min_tasks" {
   type    = number
   default = 2
+}
+variable "api_min_tasks" {
+  type        = number
+  default     = null
+  description = "S4-11: separate floor for the api service (null = min_tasks). 2 puts one api task in each AZ (Fargate spreads only when count >= 2) so a lost AZ, Spot stop or deploy leaves one running."
 }
 variable "admin_tasks" {
   type    = number
@@ -523,7 +533,7 @@ resource "aws_ecs_service" "api" {
   name            = "api"
   cluster         = aws_ecs_cluster.this.id
   task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = var.min_tasks
+  desired_count   = coalesce(var.api_min_tasks, var.min_tasks)
   launch_type     = var.api_spot ? null : "FARGATE"
   # Needed for api_spot / worker_spot: adding or removing a capacity provider
   # strategy on a running service makes the AWS provider REPLACE the service
@@ -553,6 +563,14 @@ resource "aws_ecs_service" "api" {
     target_group_arn = var.api_target_group_arn
     container_name   = "api"
     container_port   = 3000
+  }
+  dynamic "load_balancer" {
+    for_each = var.api_ws_target_group_arn == "" ? [] : [var.api_ws_target_group_arn]
+    content {
+      target_group_arn = load_balancer.value
+      container_name   = "api"
+      container_port   = 3000
+    }
   }
   # Rolling, zero-downtime; automatic rollback on a failed deployment
   # (docs/06 §7.3 "автоматический откат при провале health-check").
@@ -667,7 +685,7 @@ resource "aws_appautoscaling_target" "svc" {
   service_namespace  = "ecs"
   scalable_dimension = "ecs:service:DesiredCount"
   resource_id        = "service/${aws_ecs_cluster.this.name}/${each.value.service}"
-  min_capacity       = var.min_tasks
+  min_capacity       = each.key == "api" ? coalesce(var.api_min_tasks, var.min_tasks) : var.min_tasks
   max_capacity       = each.value.max
 
   # Owner 2026-10-16: var.*_max_tasks is the hard cap. The running ceiling
@@ -685,7 +703,7 @@ resource "aws_appautoscaling_target" "svc" {
 # is active `terraform plan` shows the target's min_capacity as drift; it is
 # restored by the morning action.
 resource "aws_appautoscaling_scheduled_action" "night_down" {
-  for_each           = var.night_scale_down && var.min_tasks > var.night_min_tasks ? aws_appautoscaling_target.svc : {}
+  for_each           = var.night_scale_down ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > var.night_min_tasks } : {}
   name               = "${var.name}-${each.key}-night-down"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension
@@ -698,7 +716,7 @@ resource "aws_appautoscaling_scheduled_action" "night_down" {
 }
 
 resource "aws_appautoscaling_scheduled_action" "morning_up" {
-  for_each           = var.night_scale_down && var.min_tasks > var.night_min_tasks ? aws_appautoscaling_target.svc : {}
+  for_each           = var.night_scale_down ? { for k, t in aws_appautoscaling_target.svc : k => t if t.min_capacity > var.night_min_tasks } : {}
   name               = "${var.name}-${each.key}-morning-up"
   service_namespace  = each.value.service_namespace
   scalable_dimension = each.value.scalable_dimension
@@ -706,7 +724,7 @@ resource "aws_appautoscaling_scheduled_action" "morning_up" {
   schedule           = var.night_end_cron
   timezone           = "UTC"
   scalable_target_action {
-    min_capacity = var.min_tasks
+    min_capacity = each.value.min_capacity
   }
 }
 

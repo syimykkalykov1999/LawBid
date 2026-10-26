@@ -8,6 +8,42 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { S3StorageService } from '../files/files.public';
 import type { PublicAttorneyDto } from './public-directory.dto';
 
+/**
+ * Keyset position of the directory sort (trust_level DESC, rating_avg DESC,
+ * username_lower ASC), carried as an opaque base64url string.
+ */
+interface DirectoryCursor {
+  t: number;
+  r: string;
+  u: string;
+}
+
+export function encodeDirectoryCursor(c: DirectoryCursor): string {
+  return Buffer.from(JSON.stringify(c)).toString('base64url');
+}
+
+export function decodeDirectoryCursor(raw: string): DirectoryCursor | null {
+  try {
+    const o = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    ) as Partial<DirectoryCursor> | null;
+    if (
+      o &&
+      typeof o.t === 'number' &&
+      Number.isInteger(o.t) &&
+      typeof o.r === 'string' &&
+      /^-?\d+(\.\d+)?$/.test(o.r) &&
+      typeof o.u === 'string' &&
+      o.u.length > 0
+    ) {
+      return { t: o.t, r: o.r, u: o.u };
+    }
+  } catch {
+    // not a composite cursor: a plain username from an older page
+  }
+  return null;
+}
+
 export interface PublicAttorneysPage {
   items: PublicAttorneyDto[];
   nextCursor: string | null;
@@ -51,8 +87,40 @@ export class PublicDirectoryService {
     cursor?: string;
   }): Promise<PublicAttorneysPage> {
     const limit = Math.min(Math.max(q.limit ?? 50, 1), 100);
+    // Keyset on the full sort key. A plain username (cursor of an older
+    // page) is resolved to its sort key once, so such a link keeps working.
+    let pos: DirectoryCursor | null = null;
+    if (q.cursor) {
+      pos = decodeDirectoryCursor(q.cursor);
+      if (!pos) {
+        const at = await this.prisma.attorneyProfile.findUnique({
+          where: { username_lower: q.cursor.toLowerCase() },
+          select: { trust_level: true, rating_avg: true, username_lower: true },
+        });
+        if (at) {
+          pos = {
+            t: at.trust_level,
+            r: at.rating_avg.toString(),
+            u: at.username_lower,
+          };
+        }
+      }
+    }
     const where: Prisma.AttorneyProfileWhereInput = {
       verification_status: 'verified',
+      ...(pos
+        ? {
+            OR: [
+              { trust_level: { lt: pos.t } },
+              { trust_level: pos.t, rating_avg: { lt: pos.r } },
+              {
+                trust_level: pos.t,
+                rating_avg: pos.r,
+                username_lower: { gt: pos.u },
+              },
+            ],
+          }
+        : {}),
       user: { status: 'active', deleted_at: null },
       ...(q.state
         ? {
@@ -88,10 +156,8 @@ export class PublicDirectoryService {
         { username_lower: 'asc' },
       ],
       take: limit + 1,
-      ...(q.cursor
-        ? { cursor: { username_lower: q.cursor.toLowerCase() }, skip: 0 }
-        : {}),
       select: {
+        trust_level: true,
         username: true,
         username_lower: true,
         bio: true,
@@ -119,7 +185,15 @@ export class PublicDirectoryService {
       },
     });
     const page = rows.slice(0, limit);
-    const next = rows.length > limit ? rows[limit].username_lower : null;
+    const last = page[page.length - 1];
+    const next =
+      rows.length > limit && last
+        ? encodeDirectoryCursor({
+            t: last.trust_level,
+            r: last.rating_avg.toString(),
+            u: last.username_lower,
+          })
+        : null;
     // Owner 2026-10-22 (audit #4 §9): a stable public photo for og:image —
     // a clean avatar of someone who shows it to everyone, on a public CDN
     // link (R2 domain for R2 objects, the media CDN for AWS ones).
