@@ -46,6 +46,7 @@ function setup(maxSockets?: number) {
   const revocation = { isBlacklisted: jest.fn().mockResolvedValue(false) };
   const presence = {
     touch: jest.fn().mockResolvedValue(false),
+    touchCount: jest.fn().mockResolvedValue(1),
     leave: jest.fn().mockResolvedValue(false),
     visible: jest.fn().mockResolvedValue(false),
   };

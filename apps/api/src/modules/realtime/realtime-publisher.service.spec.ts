@@ -137,3 +137,47 @@ describe('RealtimePublisher.toUsers', () => {
     expect(r.publish).not.toHaveBeenCalled();
   });
 });
+
+describe('RealtimePublisher.toRoom', () => {
+  const prev = process.env.SOCKET_IO_ADAPTER;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.SOCKET_IO_ADAPTER;
+    else process.env.SOCKET_IO_ADAPTER = prev;
+  });
+  const redis = () => ({
+    status: 'ready',
+    spublish: jest.fn().mockResolvedValue(1),
+    publish: jest.fn().mockResolvedValue(1),
+  });
+
+  it("sharded: SPUBLISH on the room's own channel (S1-1), never PUBLISH", () => {
+    delete process.env.SOCKET_IO_ADAPTER;
+    const r = redis();
+    new RealtimePublisher(r as unknown as Redis).toRoom(
+      'post:p1',
+      'comment:new',
+      { id: 'c1' },
+    );
+    expect(r.publish).not.toHaveBeenCalled();
+    expect(r.spublish).toHaveBeenCalledTimes(1);
+    const [channel, message] = r.spublish.mock.calls[0] as [string, string];
+    expect(channel).toBe('socket.io#/realtime#post:p1#');
+    const parsed = JSON.parse(message) as {
+      data: { opts: { rooms: string[] }; packet: { data: unknown[] } };
+    };
+    expect(parsed.data.opts.rooms).toEqual(['post:p1']);
+    expect(parsed.data.packet.data).toEqual(['comment:new', { id: 'c1' }]);
+  });
+
+  it('classic: the redis-emitter format (PUBLISH)', () => {
+    process.env.SOCKET_IO_ADAPTER = 'classic';
+    const r = redis();
+    new RealtimePublisher(r as unknown as Redis).toRoom(
+      'post:p1',
+      'comment:new',
+      {},
+    );
+    expect(r.spublish).not.toHaveBeenCalled();
+    expect(r.publish).toHaveBeenCalledTimes(1);
+  });
+});

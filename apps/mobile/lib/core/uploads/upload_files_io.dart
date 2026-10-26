@@ -62,7 +62,13 @@ class IoUploadFiles implements UploadFiles {
   @override
   Future<Uint8List?> read(String name) async {
     final p = await pathOf(name);
-    return p == null ? null : File(p).readAsBytes();
+    if (p == null) return null;
+    try {
+      return await File(p).readAsBytes();
+    } on FileSystemException {
+      // Removed between the check and the read (job finished, folder cleaned).
+      return null;
+    }
   }
 
   @override
