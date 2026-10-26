@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:lawbid/core/persistence/drift_recovery.dart';
 import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'upload_queue_database.g.dart';
@@ -53,7 +54,13 @@ class UploadJobs extends Table {
 @DriftDatabase(tables: [UploadJobs])
 class UploadQueueDatabase extends _$UploadQueueDatabase {
   UploadQueueDatabase([QueryExecutor? executor])
-      : super(executor ?? appDriftDatabase('lawbid_uploads'));
+      : super(
+          executor ??
+              appDriftDatabase(
+                'lawbid_uploads',
+                recovery: DriftRecovery.quarantine,
+              ),
+        );
 
   @override
   int get schemaVersion => 1;
