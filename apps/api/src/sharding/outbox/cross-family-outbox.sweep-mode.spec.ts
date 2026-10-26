@@ -53,7 +53,8 @@ describe('CrossFamilyOutbox sweep modes', () => {
       applied: 1,
       failed: 0,
     });
-    expect(queryRaw).toHaveBeenCalledTimes(2);
+    // look + claim + the oldest-pending metric (DB-ops S5-3)
+    expect(queryRaw).toHaveBeenCalledTimes(3);
   });
 
   it('on sweeps every tick without the look', async () => {
@@ -62,7 +63,8 @@ describe('CrossFamilyOutbox sweep modes', () => {
       applied: 0,
       failed: 0,
     });
-    expect(queryRaw).toHaveBeenCalledTimes(1);
+    // claim + the oldest-pending metric (DB-ops S5-3), no look
+    expect(queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('auto treats an unreachable database as «maybe waiting»', async () => {

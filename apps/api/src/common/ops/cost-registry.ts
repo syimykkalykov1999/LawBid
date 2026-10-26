@@ -827,6 +827,32 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.status-page',
+    name: 'Публичная страница статуса (S3 + CloudFront)',
+    purpose:
+      'Страница «всё работает / сбой» для пользователей; воркер раз в минуту кладёт status.json.',
+    kind: 'aws',
+    control: tf(['status_page_enabled'], {
+      on: 'status_page_enabled = true',
+      off: 'status_page_enabled = false',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      'S3 около $0,01 + запись раз в минуту около $0,22 в месяц; CloudFront в бесплатном 1 ТБ',
+      U.s3,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0.25, 5),
+    needed: 'later',
+    neededNote: 'Полезна после запуска, когда есть кому сообщать о сбоях.',
+    alarm: 'общие бюджетные тревоги AWS',
+    ceService: 'Amazon Simple Storage Service',
+    awsTypes: ['aws_s3_object'],
+  },
+  {
     id: 'aws.s3',
     name: 'Файлы (S3): фото, документы, журналы, копия фото в другом регионе',
     purpose:

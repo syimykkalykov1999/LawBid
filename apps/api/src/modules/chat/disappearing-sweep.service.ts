@@ -111,6 +111,10 @@ export class DisappearingSweepService {
       this.prisma.messageReaction.deleteMany({
         where: { message_id: { in: ids } },
       }),
+      // BUG-1 (package N-12b): a vanished message is no longer searchable.
+      this.prisma.messageSearchToken.deleteMany({
+        where: { message_id: { in: ids } },
+      }),
     ]);
     await this.prisma.$executeRaw`
       UPDATE conversations c SET last_message_id = (

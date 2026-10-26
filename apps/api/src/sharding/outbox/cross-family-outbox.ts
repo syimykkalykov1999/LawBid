@@ -189,6 +189,7 @@ export class CrossFamilyOutbox {
         if (await this.apply(key, row)) applied += 1;
         else failed += 1;
       }
+      await this.reportOldestPending(key, client);
     }
     return { applied, failed };
   }
@@ -207,6 +208,36 @@ export class CrossFamilyOutbox {
       }
     }
     return false;
+  }
+
+  /**
+   * DB-ops S5-3: one log line per minute and database while something is
+   * pending: `{metric: "cross_family_outbox_oldest_pending", ageSeconds}`.
+   * CloudWatch alarms when the relay is stuck (infra/modules/monitoring/
+   * db-health.tf). Nothing is logged for an empty queue (the usual case with
+   * one database). Never throws.
+   */
+  private async reportOldestPending(
+    database: string,
+    client: Prisma.TransactionClient,
+  ): Promise<void> {
+    try {
+      const rows = await (client as unknown as PrismaService).$queryRaw<
+        { age: number | null }[]
+      >`
+        SELECT EXTRACT(EPOCH FROM (now() - min(created_at)))::FLOAT8 AS age
+        FROM cross_family_outbox WHERE status = 'pending'`;
+      const age = rows[0]?.age;
+      if (age === null || age === undefined) return;
+      this.logger.log({
+        metric: 'cross_family_outbox_oldest_pending',
+        database,
+        ageSeconds: Math.max(0, Math.round(Number(age))),
+        msg: 'oldest pending cross-family event',
+      });
+    } catch (e) {
+      this.logger.warn(`oldest pending age ${database}: ${String(e)}`);
+    }
   }
 
   /** Admin: puts dead events back in the queue. */

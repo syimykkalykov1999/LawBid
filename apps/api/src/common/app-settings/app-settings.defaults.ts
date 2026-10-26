@@ -121,7 +121,9 @@ export const FILE_06_SETTINGS = {
   // Owner 2026-10-22 (audit #4 §5): image moderation (AWS Rekognition).
   // Confidence 0–100: at `hide` the photo / reel is hidden at once and
   // queued; at `review` it stays up and is queued; below that it is clean.
-  'moderation.image.enabled': true,
+  /** off | on | auto (default). auto = on inside the daily cost-guard cap
+   * (`image_moderation`, over the cap checks are skipped as `budget`). */
+  'moderation.image.enabled': 'auto',
   'moderation.image.hide_confidence': 90,
   'moderation.image.review_confidence': 60,
   /** The lowest label confidence the provider reports (Rekognition
@@ -736,9 +738,20 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * (4) stay device-to-device with their video; with more, everyone is
    * audio-only (a call is never refused, seats stay as in the SFU limit). */
   'calls.sfu_fallback_mesh_max': 4,
-  'calls.channel_live_enabled': false,
-  'chat.link_preview_enabled': true,
+  /** off | on | auto (default). Ceiling: per person per day below. */
+  'chat.link_preview_enabled': 'auto',
+  'chat.link_preview_per_user_per_day': 1000,
   'chat.link_preview_denylist': [] as string[],
+  /** BUG-1 (package N-12b): chat text search through the blind index.
+   * prefix_tokens: also index 3..12-letter word beginnings («докум» finds
+   * «документ»); ~4× the index rows, so off by default; only new / edited
+   * / re-indexed messages get them. backfill_mode: the job that indexes
+   * old messages — off | on (every 5 minutes) | auto (default: at night,
+   * UTC 06–12, until done, then idles); rows_per_run is its ceiling per
+   * 5-minute tick. The «Пауза тяжёлых задач» switch also stops it. */
+  'chat.search.prefix_tokens': false,
+  'chat.search.backfill_mode': 'auto',
+  'chat.search.backfill_rows_per_run': 5000,
 };
 
 export const OWNER_STORAGE_SETTINGS = {
@@ -765,6 +778,13 @@ export const OWNER_STORAGE_SETTINGS = {
   'images.avif_effort': 2,
   'images.webp_quality': 88,
   'images.jpeg_quality': 90,
+  /** Owner 2026-10-26: nightly sweep that recounts profile counters
+   * (posts / followers / following) from the source tables and fixes the
+   * ones that drifted. off = never; on = 10x the batch per night; auto
+   * (default) = `counters.drift_sweep_batch` rows per profile table per
+   * night, walking all profiles in turn. */
+  'counters.drift_sweep': 'auto',
+  'counters.drift_sweep_batch': 5000,
   'storage.user_quota_mb': 10240,
   'storage.chat_quota_mb': 5120,
   /** 2026-10-24 (abuse batch B, item 5): most MB one person may upload in
@@ -781,6 +801,23 @@ export const OWNER_STORAGE_SETTINGS = {
   // Scale audit 2026-10-23: the two fastest-growing statistics tables.
   'storage.retention_post_view_events_days': 730,
   'storage.retention_user_activity_days': 400,
+  // DB-ops hardening 2026-10-25: the cross-family event queue (outbox) and its
+  // dedupe table (inbox) are cleaned like any log. 0 = keep for ever.
+  'storage.retention_outbox_done_days': 7,
+  'storage.retention_inbox_days': 30,
+  // DB-ops hardening: the daily db.health report goes yellow at this table
+  // size (GB) / share of dead rows (%). 0 = no signal.
+  // Three-state controls «Выкл / Вкл / Авто» (owner rule 2026-10-25).
+  // db.health_mode: off = never; on = daily; auto = daily, but skipped while
+  // heavy jobs are paused (the database is already slow).
+  'db.health_mode': 'auto',
+  // db.replica_reads: off = every read on the primary; on = replica always
+  // (lag ignored); auto = replica only while its lag is under the ceiling.
+  'db.replica_reads': 'auto',
+  // The ceiling of «auto»: max replica lag in ms (also per call via readDb).
+  'db.replica_max_lag_ms': 5000,
+  'db.health_table_size_gb': 20,
+  'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,
   // Owner 2026-10-20 (government requests): evidence archives are built one at
   // a time by the worker; the file is removed after `export_ttl_days` (the
@@ -839,6 +876,19 @@ export const OWNER_OPS_SETTINGS = {
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
+  /** Queues hardening 2026-10-25 (S10): the number the worker autoscales
+   * on. off = flat count of waiting jobs (the old way); on = jobs weighted
+   * by how heavy they are; auto = weighted + extra pressure while the
+   * oldest waiting job is older than 2 minutes. Costs nothing: it only
+   * changes WHEN the existing autoscaling adds a worker (still capped by
+   * the economy ceiling). */
+  'queues.scale_signal_mode': 'auto',
+  /** Push sending speed limit to FCM/APNs, per second for the whole
+   * system (FCM allows 10 000/s per project). off = no limit; on = always
+   * the number below; auto = the number below, and it also slows down by
+   * itself for a minute when FCM answers «слишком часто» (429). */
+  'queues.push_rate_mode': 'auto',
+  'queues.push_rate_per_sec': 8000,
 };
 
 /** Owner 2026-10-05 «Прибыль и резерв» (Деньги): the monthly split of the
@@ -943,7 +993,9 @@ import {
 export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'security.attorney_strong_auth': true,
   'files.confidential_url_ttl_sec': 900,
-  'files.access_log_enabled': true,
+  /** off | on (every view) | auto (default: a sample, below). */
+  'files.access_log_enabled': 'auto',
+  'files.access_log_sample_percent': 100,
   /** Security pass 2026-10-25 (S3-5): file names of chat attachments and
    * the case's «Личные данные» are stored sealed (AES-256-GCM, bound to the
    * row), and the key job seals the old rows too. Reads accept both forms;

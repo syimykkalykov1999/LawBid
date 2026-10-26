@@ -19,6 +19,10 @@ import {
   type CaseFanoutJob,
   type WaveOutcome,
 } from './case-fanout.service';
+import {
+  closeWorker,
+  workerTuning,
+} from '../../../common/queues/queue-hardening';
 
 export const CASE_FANOUT_OPTIONS = Symbol('CASE_FANOUT_OPTIONS');
 
@@ -61,6 +65,7 @@ export class CaseFanoutWorker
       (job: Job<CaseFanoutJob>) => this.process(job.data),
       {
         ...bullOptions(CASE_FANOUT_QUEUE, url, { worker: true }),
+        ...workerTuning(CASE_FANOUT_QUEUE),
         concurrency: 4,
       },
     );
@@ -81,7 +86,7 @@ export class CaseFanoutWorker
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.worker?.close();
+    await closeWorker(this.worker);
   }
 }
 
