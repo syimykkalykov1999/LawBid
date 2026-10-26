@@ -90,9 +90,18 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
       });
       return;
     }
-    await ref
-        .read(authRepositoryProvider)
-        .requestOtp(target.identifier, channel: target.channel);
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(target.identifier, channel: target.channel);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = t.t('error.api.REAUTH_REQUIRED');
+      });
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _busy = false;

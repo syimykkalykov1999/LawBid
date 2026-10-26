@@ -5321,419 +5321,6 @@
         ]
       }
     },
-    "/admin/approvals": {
-      "get": {
-        "operationId": "listAdminApprovals",
-        "parameters": [
-          {
-            "name": "status",
-            "required": false,
-            "in": "query",
-            "description": "pending = waiting for a second admin; done = decided.",
-            "schema": {
-              "default": "pending",
-              "type": "string",
-              "enum": [
-                "pending",
-                "done"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalListEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Requests waiting for a second admin (or decided ones), newest first",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
-    "/admin/approvals/count": {
-      "get": {
-        "operationId": "countAdminApprovals",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalsCountEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "How many this admin could approve now (badge)",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
-    "/admin/approvals/{id}/approve": {
-      "post": {
-        "operationId": "approveAdminApproval",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED, ADMIN_APPROVAL_SELF",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_NOT_PENDING",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Approve as the second admin (fresh step-up; never your own request) — the action runs now, once",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
-    "/admin/approvals/{id}/reject": {
-      "post": {
-        "operationId": "rejectAdminApproval",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminApprovalRejectDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminApprovalEnvelope"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request: VALIDATION_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_NOT_PENDING",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Turn it down (or withdraw your own request); nothing runs",
-        "tags": [
-          "admin-approvals"
-        ]
-      }
-    },
     "/admin/dashboard": {
       "get": {
         "operationId": "getDashboard",
@@ -5959,7 +5546,7 @@
             "admin": []
           }
         ],
-        "summary": "Sidebar badges: verification queue, open reports, support unread, trust queue, approvals (ETag → 304)",
+        "summary": "Sidebar badges: verification queue, open reports, support unread, trust queue (ETag → 304)",
         "tags": [
           "admin-dashboard"
         ]
@@ -48935,7 +48522,7 @@
             }
           },
           "409": {
-            "description": "Conflict: REFUND_AMOUNT_EXCEEDED, ADMIN_APPROVAL_PENDING, REFUND_NOT_ALLOWED, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: REFUND_AMOUNT_EXCEEDED, REFUND_NOT_ALLOWED, IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -51854,7 +51441,7 @@
             }
           },
           "409": {
-            "description": "Conflict: VALIDATION_ERROR, ADMIN_APPROVAL_PENDING",
+            "description": "Conflict: VALIDATION_ERROR",
             "content": {
               "application/json": {
                 "schema": {
@@ -52189,16 +51776,6 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING",
             "content": {
               "application/json": {
                 "schema": {
@@ -70753,7 +70330,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING, FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -70798,7 +70375,7 @@
             "admin": []
           }
         ],
-        "summary": "Change the monthly limit of the prod budget (step-up; second admin only if admin.dual_control is on)",
+        "summary": "Change the monthly limit of the prod budget (fresh 2FA step-up)",
         "tags": [
           "admin-launch"
         ]
@@ -70860,7 +70437,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING, FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -70905,7 +70482,7 @@
             "admin": []
           }
         ],
-        "summary": "Delete the obsolete «LawBid Monthly» budget (step-up; second admin only if admin.dual_control is on)",
+        "summary": "Delete the obsolete «LawBid Monthly» budget (fresh 2FA step-up)",
         "tags": [
           "admin-launch"
         ]
@@ -115116,9 +114693,6 @@
           "ADMIN_LOGIN_TAKEN",
           "ADMIN_RECOVERY_FAILED",
           "ADMIN_TOTP_SETUP_REQUIRED",
-          "ADMIN_APPROVAL_PENDING",
-          "ADMIN_APPROVAL_SELF",
-          "ADMIN_APPROVAL_NOT_PENDING",
           "CONTENT_BLOCKED",
           "MODERATION_ACTION_NOT_APPLICABLE",
           "FLAG_PROVIDER_KEYS_MISSING",
@@ -117337,220 +116911,6 @@
           "answer"
         ]
       },
-      "AdminApprovalPersonDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "email": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "required": [
-          "id",
-          "email"
-        ]
-      },
-      "AdminApprovalDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "payroll_bulk_payout",
-              "billing_refund",
-              "payroll_bonus",
-              "partner_payout",
-              "partner_commission_paid"
-            ]
-          },
-          "label": {
-            "type": "string",
-            "description": "Russian label of the kind."
-          },
-          "summary": {
-            "type": "string"
-          },
-          "amountCents": {
-            "type": "integer",
-            "description": "Compared with the limit (cents)."
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "approved",
-              "rejected",
-              "failed",
-              "expired"
-            ]
-          },
-          "payload": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "The request body the action runs with."
-          },
-          "requestedBy": {
-            "$ref": "#/components/schemas/AdminApprovalPersonDto"
-          },
-          "approvedBy": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AdminApprovalPersonDto"
-              }
-            ]
-          },
-          "rejectedBy": {
-            "nullable": true,
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AdminApprovalPersonDto"
-              }
-            ]
-          },
-          "decisionNote": {
-            "type": "string",
-            "nullable": true
-          },
-          "error": {
-            "type": "string",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "decidedAt": {
-            "type": "string",
-            "nullable": true,
-            "format": "date-time"
-          },
-          "executedAt": {
-            "type": "string",
-            "nullable": true,
-            "format": "date-time"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "canDecide": {
-            "type": "boolean",
-            "description": "The viewer may approve or reject it now."
-          },
-          "mine": {
-            "type": "boolean",
-            "description": "The viewer asked for it."
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "label",
-          "summary",
-          "amountCents",
-          "status",
-          "payload",
-          "requestedBy",
-          "approvedBy",
-          "rejectedBy",
-          "decisionNote",
-          "error",
-          "createdAt",
-          "decidedAt",
-          "executedAt",
-          "expiresAt",
-          "canDecide",
-          "mine"
-        ]
-      },
-      "AdminApprovalListEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminApprovalDto"
-            }
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminApprovalsCountDto": {
-        "type": "object",
-        "properties": {
-          "pending": {
-            "type": "integer",
-            "description": "Requests this admin could approve now."
-          },
-          "limitCents": {
-            "type": "integer",
-            "description": "billing.dual_approval_min_cents: from this amount on."
-          },
-          "dualControl": {
-            "type": "boolean",
-            "description": "admin.dual_control: the second-admin rule is on (default off)."
-          }
-        },
-        "required": [
-          "pending",
-          "limitCents",
-          "dualControl"
-        ]
-      },
-      "AdminApprovalsCountEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminApprovalsCountDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminApprovalEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminApprovalDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminApprovalRejectDto": {
-        "type": "object",
-        "properties": {
-          "note": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "Why (optional)."
-          }
-        }
-      },
       "DashboardNewUsersDto": {
         "type": "object",
         "properties": {
@@ -117795,18 +117155,13 @@
           "trustQueue": {
             "type": "integer",
             "description": "Attorneys in the trust queue."
-          },
-          "approvalsPending": {
-            "type": "integer",
-            "description": "Approvals this admin could decide."
           }
         },
         "required": [
           "verificationQueue",
           "openReports",
           "supportUnread",
-          "trustQueue",
-          "approvalsPending"
+          "trustQueue"
         ]
       },
       "AdminCountsEnvelope": {
@@ -132078,7 +131433,6 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string",
             "enum": [
               "terms",
               "privacy",
@@ -132092,7 +131446,8 @@
               "client_agreement",
               "eula",
               "do_not_sell"
-            ]
+            ],
+            "type": "string"
           },
           "granted": {
             "type": "boolean"
