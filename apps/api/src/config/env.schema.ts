@@ -126,7 +126,7 @@ export const envSchema = z
     // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
     // the load test; false = old behaviour) and an optional single BullMQ
     // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
-    REDIS_AUTOPIPELINE: envBoolean(true),
+    REDIS_AUTOPIPELINE: envBoolean(false),
     REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
     // Local docker cluster only: JSON natMap for announced addresses.
     REDIS_CLUSTER_NAT_MAP: z.string().optional(),

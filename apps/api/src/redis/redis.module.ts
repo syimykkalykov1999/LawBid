@@ -25,7 +25,7 @@ const cacheOwn = new Set<Redis>();
           // Same-tick commands share one round trip (REDIS_AUTOPIPELINE,
           // default on; verify in the load test, turn off to roll back).
           enableAutoPipelining:
-            config.get<boolean>('REDIS_AUTOPIPELINE') ?? true,
+            config.get<boolean>('REDIS_AUTOPIPELINE') ?? false,
         });
       },
     },
