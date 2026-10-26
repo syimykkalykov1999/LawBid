@@ -20,8 +20,8 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/team/application/team_providers.dart'
     show
-        invalidateAllTasks,
         isAssistantProvider,
+        syncAllTasks,
         taskPeopleProvider,
         teamRepositoryProvider;
 import 'package:lawbid/features/team/domain/team_models.dart'
@@ -1204,7 +1204,7 @@ Future<void> createPlannerTaskFrom(
       conversationId: conversationId,
     ),
   );
-  invalidateAllTasks(ref);
+  syncAllTasks(ref);
 }
 
 /// Owner 2026-10-19: saves the sheet's edit of [task]. What the sheet does
@@ -1284,5 +1284,5 @@ Future<void> updatePlannerTaskFrom(
   for (final s in task.steps) {
     if (!kept.contains(s.id)) await repo.removeTaskStep(task.id, s.id);
   }
-  invalidateAllTasks(ref);
+  syncAllTasks(ref);
 }
