@@ -71,7 +71,20 @@ vi.mock('@/lib/api/client', () => ({
   errorText: (e: unknown) => String(e),
   errorDetail: (t: string) => t,
   api: {
-    GET: vi.fn(async () => ({ data: { data: report } })),
+    GET: vi.fn(async (path: string) => ({
+      data: {
+        data:
+          path === '/admin/spend/registry'
+            ? {
+                generatedAt: '2026-10-25T10:00:00Z',
+                spendRefreshedAt: null,
+                rows: [],
+                unclaimed: [],
+                ladder: { dayOne: { aws: [263, 263], vendors: [12, 22], all: [275, 285] }, scenarios: [], monthToDateUsd: null, projectedUsd: null },
+              }
+            : report,
+      },
+    })),
     POST: vi.fn(async () => ({ data: { data: report } })),
     PUT: vi.fn(async () => ({ data: { data: report } })),
   },

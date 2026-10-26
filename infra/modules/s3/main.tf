@@ -637,6 +637,8 @@ output "documents_bucket_arn" { value = aws_s3_bucket.documents.arn }
 output "media_bucket" { value = aws_s3_bucket.media.bucket }
 output "media_bucket_arn" { value = aws_s3_bucket.media.arn }
 output "media_cdn_domain" { value = aws_cloudfront_distribution.media.domain_name }
+output "media_distribution_id" { value = aws_cloudfront_distribution.media.id }
+output "documents_distribution_id" { value = one(aws_cloudfront_distribution.documents[*].id) }
 output "documents_cdn_domain" { value = one(aws_cloudfront_distribution.documents[*].domain_name) }
 output "documents_cdn_key_pair_id" { value = one(aws_cloudfront_public_key.documents[*].id) }
 

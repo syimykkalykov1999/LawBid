@@ -86,6 +86,21 @@ variable "documents_bucket_arn" {
   default     = ""
   description = "ARN of the documents bucket (for documents_data_events)."
 }
+variable "guardduty_enabled" {
+  type        = bool
+  default     = true
+  description = "GuardDuty detector (CloudTrail, VPC flow and DNS analysis). ON by default: owner security decision 2026-10-22. Cost: about $4/month on a quiet account, grows with log volume (docs/runbooks/COST_LADDER.md). false = detector and all its features switched off."
+}
+variable "guardduty_s3_events" {
+  type        = bool
+  default     = true
+  description = "GuardDuty S3 data-event protection. Billed per million S3 object events ($0.80/M after the first 30 days, us-east-1, 2026-10), so it grows with traffic: the one GuardDuty line that scales with users. Needs guardduty_enabled."
+}
+variable "guardduty_rds_login" {
+  type        = bool
+  default     = true
+  description = "GuardDuty RDS login-event protection (anomalous database sign-ins). Billed per vCPU-month of the database, small at launch. Needs guardduty_enabled."
+}
 variable "guardduty_ebs_malware" {
   type        = bool
   default     = false
@@ -338,7 +353,7 @@ resource "aws_cloudtrail" "this" {
 
 # --- GuardDuty --------------------------------------------------------------
 resource "aws_guardduty_detector" "this" {
-  enable                       = true
+  enable                       = var.guardduty_enabled
   finding_publishing_frequency = "SIX_HOURS"
   tags                         = var.tags
 }
@@ -348,29 +363,29 @@ resource "aws_guardduty_detector" "this" {
 resource "aws_guardduty_detector_feature" "s3" {
   detector_id = aws_guardduty_detector.this.id
   name        = "S3_DATA_EVENTS"
-  status      = "ENABLED"
+  status      = var.guardduty_enabled && var.guardduty_s3_events ? "ENABLED" : "DISABLED"
 }
 
 resource "aws_guardduty_detector_feature" "rds_login" {
   detector_id = aws_guardduty_detector.this.id
   name        = "RDS_LOGIN_EVENTS"
-  status      = "ENABLED"
+  status      = var.guardduty_enabled && var.guardduty_rds_login ? "ENABLED" : "DISABLED"
   depends_on  = [aws_guardduty_detector_feature.s3]
 }
 
 resource "aws_guardduty_detector_feature" "malware" {
   detector_id = aws_guardduty_detector.this.id
   name        = "EBS_MALWARE_PROTECTION"
-  status      = var.guardduty_ebs_malware ? "ENABLED" : "DISABLED"
+  status      = var.guardduty_enabled && var.guardduty_ebs_malware ? "ENABLED" : "DISABLED"
   depends_on  = [aws_guardduty_detector_feature.rds_login]
 }
 
 resource "aws_guardduty_detector_feature" "runtime" {
   detector_id = aws_guardduty_detector.this.id
   name        = "RUNTIME_MONITORING"
-  status      = var.guardduty_runtime_monitoring ? "ENABLED" : "DISABLED"
+  status      = var.guardduty_enabled && var.guardduty_runtime_monitoring ? "ENABLED" : "DISABLED"
   dynamic "additional_configuration" {
-    for_each = var.guardduty_runtime_monitoring ? ["ECS_FARGATE_AGENT_MANAGEMENT"] : []
+    for_each = var.guardduty_enabled && var.guardduty_runtime_monitoring ? ["ECS_FARGATE_AGENT_MANAGEMENT"] : []
     content {
       name   = additional_configuration.value
       status = "ENABLED"
