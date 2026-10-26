@@ -141,3 +141,6 @@ Required checks for merge (as I apply them): API CI "Lint, typecheck, unit + e2e
 07:17 pushed #417 (ERD/contract), #405 (spec ctor args + contract), #413 (migration → 20261105400000; ERD/contract), #388 (migration → 20261105300000), #403 (registry row OpenSearch Serverless).
 07:20 pushed #370 (e2e: 7 cost lines; analytics snapshot dropped before assert — order-dependent flake from #377 also fixed there).
 07:21 #419 also raises mobile analyze/test job limit 40→70 min (it was cancelled at 40 on busy macOS runners). #399 MERGED 07:08.
+07:22 #390: worktree agent-speed has 8 uncommitted dart files (modified 05:54, not mine) — not touching; needs its owner (re-merge main: CONFLICTING + Mobile analyze red). #371 run-migrations.sh merged: 371's guarded run as run_once + main's 55P03 retry.
+07:27 MAIN RED: switch-inventory.spec (db.health_mode row missing; #399 + #363 crossed). Fix PR #421 opened — every PR re-merged with main after 07:08 fails this test until #421 lands (no code fault of theirs).
+07:29 pushed #352 #396 #371 #386 (re-merged with main).
