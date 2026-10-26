@@ -1137,7 +1137,7 @@ model Session {
 }
 
 model AuthEvent {
-  id              String   @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id         String?  @db.Uuid
   user            User?    @relation(fields: [user_id], references: [id], onDelete: Restrict)
   event_type      String
@@ -1156,8 +1156,6 @@ model AuthEvent {
   // Append-only (docs/02_DATABASE.md §6.2) — no updated_at, and the
   // lawbid_app DB role gets INSERT/SELECT only (raw SQL grant, stage 2.6).
   // Hash-sharded (created_at) index is also raw SQL, stage 2.6 (§5.2).
-  // Partitioned by month (migration 20261031600000): key (id, created_at).
-  @@id([id, created_at])
   @@index([user_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "auth_events_created_at_idx")
   @@map("auth_events")
@@ -3753,7 +3751,7 @@ model AccountBan {
 
 // Append-only (§6.2).
 model AuditLog {
-  id            String   @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   admin_id      String   @db.Uuid
   admin         User     @relation("AuditAdmin", fields: [admin_id], references: [id], onDelete: Restrict)
   action        String
@@ -3770,9 +3768,6 @@ model AuditLog {
   // USING HASH index, which crashes Prisma's introspection. Read-only.
   created_shard Int      @default(0) @db.SmallInt
 
-  // Owner 2026-10-24: partitioned by month (migration 20261031600000), so the
-  // database key is (id, created_at); nothing reads a row by id alone.
-  @@id([id, created_at])
   @@index([admin_id, created_at(sort: Desc)])
   @@index([created_shard, created_at], map: "audit_log_created_at_idx")
   // Owner 2026-10-23 (admin economy pass): the audit log pages newest-first, filtered by target or action prefix.

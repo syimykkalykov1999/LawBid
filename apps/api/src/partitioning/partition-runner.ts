@@ -39,12 +39,16 @@ export interface PartitionSpec {
 }
 
 /**
- * Tables the online runner may convert later by MONTH (whitelist: no free SQL
- * names). audit_log, auth_events are ALREADY partitioned by month (migration
- * 20261031600000). messages, chat_group_messages and notifications are
- * converted by HASH only when the admin turns it on (HASH_PARTITIONED).
+ * Tables the online runner may convert by MONTH (whitelist: no free SQL
+ * names), only when an admin starts it: no migration converts a table
+ * (expand-only, perf review 2026-10-26 R-20). audit_log and auth_events are
+ * append-only and nothing points at them. messages, chat_group_messages and
+ * notifications are converted by HASH only when the admin turns it on
+ * (HASH_PARTITIONED).
  */
 export const PARTITION_TABLES: readonly PartitionSpec[] = [
+  { table: 'audit_log', key: 'created_at', label: 'Журнал действий админов' },
+  { table: 'auth_events', key: 'created_at', label: 'События входа' },
   {
     table: 'data_access_log',
     key: 'accessed_at',
@@ -58,7 +62,8 @@ export const PARTITION_TABLES: readonly PartitionSpec[] = [
  * threshold, default «Выкл»): at small sizes the plain tables are faster.
  * No monthly job, nothing to keep up. The label says the key (the admin card
  * reads «хеш»). `key` is the hash column; their composite key (id, key)
- * already exists (migration 20261029300000, the expand step).
+ * comes from the expand migration 20261031700000 (skipped with a NOTICE
+ * when a table was already big; then the card says so and stays blocked).
  */
 export const HASH_PARTITIONED: readonly PartitionSpec[] = [
   {
@@ -81,10 +86,20 @@ export const HASH_PARTITIONED: readonly PartitionSpec[] = [
   },
 ];
 
-/** Partitioned by the migration; the daily job keeps their future months. */
-export const MIGRATED_PARTITIONED: readonly PartitionSpec[] = [
-  { table: 'audit_log', key: 'created_at', label: 'Журнал действий админов' },
-  { table: 'auth_events', key: 'created_at', label: 'События входа' },
+/**
+ * Partitioned by a migration: none. Kept as an (empty) list so the admin
+ * card and the daily job stay one code path if that ever changes.
+ */
+export const MIGRATED_PARTITIONED: readonly PartitionSpec[] = [];
+
+/**
+ * Tables whose future months the daily job keeps (the whitelist of the SQL
+ * function lawbid_ensure_month_partitions; it returns 0 for a plain table).
+ */
+export const MONTH_MAINTAINED: readonly string[] = [
+  'audit_log',
+  'auth_events',
+  'data_access_log',
 ];
 
 export function specOf(table: string): PartitionSpec | undefined {
@@ -280,7 +295,7 @@ export class PartitionRunner {
     const pk = await this.pkCols(t);
     if (pk.length !== 2 || pk[0] !== 'id' || pk[1] !== spec.key) {
       reasons.push(
-        `первичный ключ должен быть (id, ${spec.key}): сначала выкатить миграцию 20261029300000`,
+        `первичный ключ должен быть (id, ${spec.key}): миграция 20261031700000 пропустила перестройку ключа (таблица была больше 2 млн строк): перестроить вручную, docs/runbooks/table-partitioning.md`,
       );
     }
     const uniq = await this.db.rows<{ name: string }>(

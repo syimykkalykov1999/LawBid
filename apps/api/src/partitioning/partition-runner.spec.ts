@@ -1,6 +1,7 @@
 import {
   HASH_PARTITIONED,
   MIGRATED_PARTITIONED,
+  MONTH_MAINTAINED,
   PARTITION_TABLES,
   addMonths,
   monthStart,
@@ -43,11 +44,17 @@ describe('partition helpers', () => {
     expect(() =>
       partitionDdl('x"; drop table users; --', new Date(), new Date()),
     ).toThrow();
-    expect(MIGRATED_PARTITIONED.map((s) => s.table)).toEqual([
+    // Expand-only (R-20): no migration converts a table; the opt-in online
+    // runner is the only path, audit_log / auth_events included.
+    expect(MIGRATED_PARTITIONED).toEqual([]);
+    expect(PARTITION_TABLES.map((s) => s.table)).toEqual(
+      expect.arrayContaining(['audit_log', 'auth_events', 'data_access_log']),
+    );
+    expect(MONTH_MAINTAINED).toEqual([
       'audit_log',
       'auth_events',
+      'data_access_log',
     ]);
-    expect(PARTITION_TABLES.map((s) => s.table)).not.toContain('audit_log');
   });
 
   it('gives the helper objects stable names', () => {

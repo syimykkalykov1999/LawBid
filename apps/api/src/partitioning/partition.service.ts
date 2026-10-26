@@ -8,6 +8,7 @@ import {
   GROWTH_ALARM_ROWS,
   HASH_PARTITIONED,
   MIGRATED_PARTITIONED,
+  MONTH_MAINTAINED,
   PARTITION_TABLES,
   PartitionRunner,
   type JobRow,
@@ -68,10 +69,10 @@ export type PartitionMode = 'off' | 'on' | 'auto';
 export const PARTITION_MODES: readonly PartitionMode[] = ['off', 'on', 'auto'];
 
 /**
- * Owner 2026-10-24: partitioning by month. The migration partitioned the
- * small append-only tables already; this service (1) keeps their future
- * months created (daily job), (2) advances an admin-started online
- * conversion of another table (every-minute job), (3) feeds the admin card
+ * Owner 2026-10-24: partitioning by month. No migration converts a table
+ * (expand-only); this service (1) keeps the future months of partitioned
+ * tables created (daily job), (2) advances an admin-started online
+ * conversion of a table (every-minute job; the only path that converts), (3) feeds the admin card
  * and the «table grew past 50 million rows» health signal.
  * The online conversion needs its own database role that OWNS the table
  * (`PARTITION_DATABASE_URL`); without it the card is read-only.
@@ -207,7 +208,8 @@ export class PartitionService implements OnModuleDestroy {
   }> {
     const created: Record<string, number> = {};
     const detached: Record<string, number> = {};
-    for (const s of MIGRATED_PARTITIONED) {
+    for (const table of MONTH_MAINTAINED) {
+      const s = { table };
       try {
         const r = await this.prisma.$queryRawUnsafe<{ n: number }[]>(
           `SELECT lawbid_ensure_month_partitions($1, $2)::int AS n`,
