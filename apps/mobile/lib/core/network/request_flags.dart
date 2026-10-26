@@ -35,6 +35,9 @@ abstract final class RequestFlags {
   /// 429 on it is a «sign in» / «try later» note, never «session expired».
   static const guest = 'guest';
 
+  /// A route that legitimately answers HTML: the captive-portal check skips it.
+  static const expectsHtml = 'expectsHtml';
+
   /// Internal: attempt counter RetryInterceptor keeps across re-fetches.
   static const retryAttempt = 'retryAttempt';
 

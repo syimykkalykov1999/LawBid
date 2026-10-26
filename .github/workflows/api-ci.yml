@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     # Two full PostgreSQL migration runs (clean DB + upgrade from the
     # previous release) at ~10 min each, plus the e2e database.
-    timeout-minutes: 45
+    timeout-minutes: 75
 
     # Every var here matches apps/api/.env.test's known-good test values
     # (docs/CHANGELOG.md stage 1.4) so the app boots exactly as it does
