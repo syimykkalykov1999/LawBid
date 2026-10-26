@@ -2,7 +2,7 @@
   "name": "lawbid",
   "version": "0.1.0",
   "private": true,
-  "description": "LawBid monorepo root — see .cursorrules and docs/ for the spec.",
+  "description": "LawBid monorepo root — see docs/ for the spec.",
   "workspaces": [
     "apps/api",
     "apps/admin",
