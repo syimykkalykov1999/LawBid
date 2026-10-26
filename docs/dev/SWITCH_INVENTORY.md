@@ -43,6 +43,8 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 | `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `ops.admin_summaries_mode` | Тяжёлые цифры админки | auto | 3 (off/on/auto) | admin summaries recount (DB load): auto = every 2 min only while an admin was active in the last 10 min, else hourly | `jobs/handlers/admin-summaries.job.ts:56` (cadence `summary-cadence.ts`) | none (fixed 2 min / 1 h cadence) | listed | |
+| `client.video_prefetch_mode` | Подгрузка рилсов заранее | auto | 3 (off/on/auto) | reel warm-up in the app (video traffic is the biggest cost): auto = Wi-Fi/mobile numbers, 0 while Bunny video traffic is over its warning level | `modules/feature-flags/services/bootstrap.service.ts:179` (turned into Wi-Fi/mobile numbers for the app) | `client.video_prefetch_ahead`, `client.video_prefetch_cellular` | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
