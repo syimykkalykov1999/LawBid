@@ -1,7 +1,7 @@
 ---
 id: apple-phased-release
 title: Постепенный выпуск в App Store (за 7 дней)
-category: stores
+category: launch
 cost: бесплатно
 time: 2 минуты на включение, сам выпуск идёт 7 дней
 verified: 2026-10-25
