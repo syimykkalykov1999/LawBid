@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
@@ -93,7 +94,7 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
     // Only the first frame is wanted, never the sound: mixWithOthers keeps
     // the tile from taking the audio session from a call or music.
     final c = VideoPlayerController.networkUrl(
-      Uri.parse(url),
+      Uri.parse(VideoCache.resolve(url)),
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
     _c = c;
@@ -366,7 +367,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
     _muted = _inCall;
     _vol = _inCall ? 0 : 1;
     _c = VideoPlayerController.networkUrl(
-      Uri.parse(widget.url),
+      Uri.parse(VideoCache.resolve(widget.url)),
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: _inCall),
     );
     if (_inCall) unawaited(_c.setVolume(0));
