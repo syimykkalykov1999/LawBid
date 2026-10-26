@@ -1,0 +1,19 @@
+- [Owner working rules](owner-working-rules.md) — whole system, all languages, ask on big systems, push+self-merge when working, devices allowed
+- [Local dev environment](local-dev-environment.md) — API watch+log, DB, devices↔users, web logins, worktree base
+- [Research-first workflow](research-first-workflow.md) — research others → Q&A → architecture → code; find+install needed skills/agents/tools yourself
+- [Owner language](owner-language.md) — always Russian, plain words, he is not a programmer
+- [Cosmetics backlog 2026-10-22](cosmetics-backlog-2026-10-22.md) — owner's list: calls like WhatsApp/Zoom, chats swipe, media bubbles, banners, push with avatar
+- [Prod state 2026-10-24](prod-state-2026-10-24.md) — applies done, RDS Multi-AZ pending Sunday, 2 TURN IPs, load tests next
+- [Short answers](owner-short-answers.md) — 2-4 lines, plain, no books/tables
+- [UI frozen](ui-frozen.md) — never change app look/layout/buttons without his explicit ask
+- [Release checklist 2026-10-24](release-checklist-2026-10-24.md) — 11 items owner will verify at the end
+- [Scaling principle](scaling-principle.md) — cheapest start, auto up/down, admin ceilings, split/upgrade ready now
+- [Fresh research](fresh-research.md) — live web search, 2025-2026 sources, cite dates
+- [No second admin](no-second-admin.md) — owner forbids four-eyes approvals; 2FA code only
+- [Model policy](model-policy.md) — foreman on Fable; helpers haiku/sonnet/strong by task difficulty
+- [Working, not just code](working-not-just-code.md) — functional smoke per package, remove duplicates, load tests 1M/10M/1B last
+- [Admin stats snapshot](admin-stats-snapshot.md) — admin numbers only from a nightly snapshot, never live heavy queries, $0
+- [Mac safety limits](mac-safety-limits.md) — max 6 helpers, lane 2 only at ≥60 % RAM, no launches below 40 %, pause on owner's word
+- [Calls like WhatsApp](calls-like-whatsapp.md) — final 2026-10-26: copy WhatsApp call screens exactly, no custom variants until after release
+- [Smoothness standard](smoothness-standard.md) — app+web must feel like Instagram/Telegram/WhatsApp; smoothness always in scope, look frozen
+- [Security principle](security-principle.md) — withstand automated AI attackers, zero friction for legit users; attack-and-fix loop LAST, local only

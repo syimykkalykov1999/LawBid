@@ -1,0 +1,12 @@
+# Infra switches from the admin (owner said YES on 2026-10-26)
+
+Goal: the owner never edits tfvars/strings. Every Terraform-level growth feature (read replica, OpenSearch domain/serverless, GuardDuty/Config, NAT interface endpoints, night scale-down, media replica, ADOT tracing, status page, canary, ...) gets the same Выкл/Вкл/Авто control in the admin as app-level features.
+
+Design (research first: GitOps "ops from UI" patterns — Spacelift/Terraform Cloud run triggers, Atlantis; GitHub `workflow_dispatch` + OIDC; AWS Well-Architected change management; cite):
+1. Source of truth = `infra/envs/prod/growth.auto.tfvars.json` (one JSON file, whitelisted keys only: booleans and sizes from a registry; never secrets, never deletions of databases/keys/buckets).
+2. Admin «Масштаб» / «Расходы» row → "Включить/Выключить" → API writes a desired-state row (`infra_change_requests`: key, from, to, requested_by, cost_estimate from the cost registry) → dispatches GitHub workflow `infra-apply.yml` (workflow_dispatch via the API's GitHub App token, scoped to that workflow) with the key/value.
+3. Workflow: `terraform plan` on prod with the override → posts the plan summary (resources +/-, monthly cost from registry) back to the API → admin shows «План: …» → owner confirms with a 2FA code (no second admin) → workflow applies → status + logs link in the admin, audit row, rollback button = inverse request.
+4. Авто: growth signals already computed (table_growth, NAT traffic, search latency, cost guard) produce a "suggestion" card in the admin («пора включить X, стоимость Y/мес»); Авто never applies infra by itself — it proposes; one tap + 2FA applies. (Runtime switches stay fully automatic.)
+5. Guards: whitelist, daily cap of changes, quiet-hours window for apply (setting), concurrency = 1, plan older than 30 min expires, dry-run mode, ceilings from the cost registry, OFF→ON requires a registry row with a price.
+6. Owner steps once: GitHub App/PAT with workflow:dispatch on this repo stored in Secrets Manager; OIDC deploy role already exists (bootstrap) — extend with the apply permissions; GitHub environment "prod" with required reviewer = owner is optional (he said no second admin; the 2FA in the admin is the gate).
+7. «Стоимость»: $0 (Actions minutes only). Tests: request → plan → confirm → apply state machine (unit), workflow actionlint, Terraform validate. Guide in admin «Инструкции»: «Как включить что-то в облаке одной кнопкой».
