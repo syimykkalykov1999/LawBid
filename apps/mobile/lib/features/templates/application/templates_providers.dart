@@ -28,8 +28,9 @@ class TemplatesNotifier extends PagedNotifier<DocTemplate> {
   final TemplatesQuery query;
 
   @override
-  Future<CursorPage<DocTemplate>> fetch(String? cursor) =>
-      ref.read(templatesRepositoryProvider).list(query, cursor: cursor);
+  Future<CursorPage<DocTemplate>> fetch(String? cursor) => ref
+      .read(templatesRepositoryProvider)
+      .list(query, cursor: cursor, fresh: refreshing);
 
   @override
   Object idOf(DocTemplate item) => item.id;

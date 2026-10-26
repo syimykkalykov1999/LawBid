@@ -169,6 +169,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     });
   }
 
+  final _listKey = GlobalKey<_MessageListState>();
+
   Future<void> _send() async {
     final text = _text.text;
     if (text.trim().isEmpty) return;
@@ -183,6 +185,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       // accepts it (the window may have closed meanwhile).
       try {
         await _thread.edit(editing, text);
+        if (!mounted) return;
         _text.clear();
         composeN.clear();
       } on Object catch (e) {
@@ -201,6 +204,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     composeN.clear();
     _thread.typing(false);
     await _thread.send(text, replyToId: compose.replyTo?.id);
+    // Like the groups: sending while scrolled up brings the list down.
+    unawaited(_listKey.currentState?.toBottom() ?? Future<void>.value());
   }
 
   /// OQ-041: calls open once the bid is accepted (contacts unlocked).
@@ -504,7 +509,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       conversationId: widget.conversationId,
                     ),
                     Expanded(
-                      child: _MessageList(state: s, onMore: _thread.loadMore),
+                      child: _MessageList(
+                        key: _listKey,
+                        state: s,
+                        onMore: _thread.loadMore,
+                      ),
                     ),
                     AnimatedSwitcher(
                       duration: context.reduceMotion
@@ -732,7 +741,7 @@ class _Header extends ConsumerWidget {
 }
 
 class _MessageList extends ConsumerStatefulWidget {
-  const _MessageList({required this.state, required this.onMore});
+  const _MessageList({required this.state, required this.onMore, super.key});
 
   final ChatThreadState state;
   final Future<void> Function() onMore;
@@ -765,6 +774,37 @@ class _MessageListState extends ConsumerState<_MessageList> {
     );
     _c.scroll.addListener(_onScroll);
   }
+
+  Future<void> toBottom() => _c.toBottom();
+
+  // Memo of the merged list and its grouping: they are rebuilt only when the
+  // messages / outbox lists change (not on typing or upload-progress ticks
+  // that touch other fields). Disappearing messages must still leave by the
+  // clock, so such a thread is never memoised.
+  Object? _mMessages;
+  Object? _mOutbox;
+  Object? _mVoice;
+  List<ChatMessage>? _mItems;
+  List<ChatListEntry>? _mEntries;
+
+  List<ChatMessage> _itemsOf(ChatThreadState s) {
+    final cached = _mItems;
+    if (cached != null &&
+        identical(s.messages, _mMessages) &&
+        identical(s.outbox, _mOutbox) &&
+        identical(s.voiceOutbox, _mVoice) &&
+        !s.messages.any((m) => m.expiresAt != null)) {
+      return cached;
+    }
+    _mMessages = s.messages;
+    _mOutbox = s.outbox;
+    _mVoice = s.voiceOutbox;
+    _mEntries = null;
+    return _mItems = s.all;
+  }
+
+  List<ChatListEntry> _entriesOf(List<ChatMessage> items) =>
+      _mEntries ??= groupChatMessages(items);
 
   @override
   void dispose() {
@@ -806,7 +846,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
   @override
   void didUpdateWidget(_MessageList old) {
     super.didUpdateWidget(old);
-    final newest = widget.state.all.firstOrNull;
+    final newest = _itemsOf(widget.state).firstOrNull;
     if (newest != null && _newestId != null && newest.id != _newestId) {
       final me = ref.read(currentUserIdProvider);
       if (_c.away && newest.senderId != me) _fresh++;
@@ -821,7 +861,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final me = ref.watch(currentUserIdProvider);
-    final items = state.all;
+    final items = _itemsOf(state);
     if (items.isEmpty) {
       return AppEmptyState(
         icon: AppIcons.chatBubbleOutlineRounded,
@@ -836,7 +876,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
         ? null
         : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
     // Owner 2026-10-19: photos / files sent together share one bubble.
-    final entries = groupChatMessages(items);
+    final entries = _entriesOf(items);
     _entries = entries;
     _newestId ??= items.first.id;
     final seenIds = seenIndex < 0
@@ -2248,7 +2288,11 @@ class _ComposerState extends ConsumerState<_Composer> {
     await Future<void>.delayed(const Duration(milliseconds: 130));
     if (!mounted) return;
     final ok = await _rec.start(onCap: () => _finish(send: true));
-    if (!mounted) return;
+    if (!mounted) {
+      // Left the chat while the recorder started: close the microphone.
+      if (ok) unawaited(_rec.cancel());
+      return;
+    }
     if (!ok) {
       showAppSnackBar(context, t.t('chat.voice.noMic'));
       return;
@@ -2294,6 +2338,8 @@ class _ComposerState extends ConsumerState<_Composer> {
     if (!_recording) return;
     _tick?.cancel();
     await _player.stop();
+    // Leaving the chat saves the note as a draft (dispose); nothing to do.
+    if (!mounted) return;
     final held = _held;
     setState(_reset);
     if (!send) {
