@@ -17,6 +17,14 @@ CreateDataRequestDto _$CreateDataRequestDtoFromJson(
   receivedAt: DateTime.parse(json['receivedAt'] as String),
   scope: json['scope'] as String,
   notes: json['notes'] as String?,
+  legalBasis: json['legalBasis'] as String?,
+  country: json['country'] as String?,
+  subjectUserId: json['subjectUserId'] as String?,
+  dueAt: json['dueAt'] == null ? null : DateTime.parse(json['dueAt'] as String),
+  doNotNotify: json['doNotNotify'] as bool?,
+  nondisclosureUntil: json['nondisclosureUntil'] == null
+      ? null
+      : DateTime.parse(json['nondisclosureUntil'] as String),
 );
 
 Map<String, dynamic> _$CreateDataRequestDtoToJson(
@@ -28,4 +36,10 @@ Map<String, dynamic> _$CreateDataRequestDtoToJson(
   'receivedAt': instance.receivedAt.toIso8601String(),
   'scope': instance.scope,
   'notes': ?instance.notes,
+  'legalBasis': ?instance.legalBasis,
+  'country': ?instance.country,
+  'subjectUserId': ?instance.subjectUserId,
+  'dueAt': ?instance.dueAt?.toIso8601String(),
+  'doNotNotify': ?instance.doNotNotify,
+  'nondisclosureUntil': ?instance.nondisclosureUntil?.toIso8601String(),
 };
