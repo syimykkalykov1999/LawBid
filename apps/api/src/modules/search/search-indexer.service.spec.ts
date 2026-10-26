@@ -3,6 +3,8 @@ import {
   MAX_ATTEMPTS,
   SearchIndexerService,
 } from './search-indexer.service';
+import { ROUTING } from '../../prisma/prisma.service';
+import { shardContext } from '../../sharding/shard-context';
 import { MAPPING_VERSION } from './engine/search-engine.mappings';
 
 function make(opts: { mode?: string; configured?: boolean } = {}) {
@@ -25,7 +27,7 @@ function make(opts: { mode?: string; configured?: boolean } = {}) {
   };
   const client = {
     isConfigured: jest.fn().mockResolvedValue(opts.configured ?? true),
-    ensureIndex: jest.fn().mockResolvedValue(true),
+    bootstrap: jest.fn().mockResolvedValue(true),
     bulk: jest.fn().mockResolvedValue({ failed: [] }),
   };
   const data: Record<string, string[]> = {
@@ -77,7 +79,7 @@ describe('SearchIndexerService.tick', () => {
   it('engine on but no address: does nothing (the events wait)', async () => {
     const { svc, client } = make({ configured: false });
     expect(await svc.tick()).toEqual({ on: true });
-    expect(client.ensureIndex).not.toHaveBeenCalled();
+    expect(client.bootstrap).not.toHaveBeenCalled();
   });
 
   it('engine on: fills the index once, then only drains', async () => {
@@ -124,7 +126,7 @@ describe('SearchIndexerService.reindex', () => {
     expect(st.done).toBe(true);
     expect(st.indexed).toBe(4); // 2 before + c3 + p1
     expect(loader.idsAfter).toHaveBeenCalledWith('case', 'c2', 2);
-    expect(client.ensureIndex).not.toHaveBeenCalled(); // not a fresh start
+    expect(client.bootstrap).not.toHaveBeenCalled(); // not a fresh start
   });
 
   it('a finished reindex of this mapping version does nothing; a new version starts over', async () => {
@@ -178,5 +180,67 @@ describe('SearchIndexerService.reindex', () => {
     b.loader.load.mockResolvedValue(new Map([['c1', { entity: 'case' }]]));
     await b.svc.reindex({ batch: 3, entity: 'case', deleteMissing: true });
     expect(b.client.bulk.mock.calls[0][0]).toHaveLength(3);
+  });
+});
+
+describe('SearchIndexerService across physical databases', () => {
+  /** Two databases: each holds its own outbox rows (written by triggers). */
+  function twoDatabases() {
+    const seen: string[] = [];
+    const rows: Record<string, string[]> = { primary: ['p-1'], db1: ['d-1'] };
+    const here = () => shardContext.current()?.physical ?? 'primary';
+    const prisma = {
+      [ROUTING]: { router: { physicalKeys: () => ['primary', 'db1'] } },
+      $queryRaw: jest.fn(() => {
+        const db = here();
+        seen.push(`claim:${db}`);
+        return Promise.resolve(
+          rows[db].map((id, i) => ({
+            id: `${db}-${i}`,
+            entity: 'post',
+            entity_id: id,
+            attempts: 1,
+          })),
+        );
+      }),
+      $executeRaw: jest.fn(() => {
+        seen.push(`write:${here()}`);
+        return Promise.resolve(2);
+      }),
+    };
+    const client = { bulk: jest.fn().mockResolvedValue({ failed: [] }) };
+    const loader = {
+      load: jest.fn((_e: string, ids: string[]) =>
+        Promise.resolve(new Map(ids.map((id) => [id, { id }]))),
+      ),
+    };
+    const svc = new SearchIndexerService(
+      prisma as never,
+      client as never,
+      loader as never,
+    );
+    return { svc, seen, client };
+  }
+
+  it('drain visits every database and sums the answers', async () => {
+    const t = twoDatabases();
+    const res = await t.svc.drain();
+    expect(res).toEqual({ done: 2, failed: 0 });
+    expect(t.seen).toEqual([
+      'claim:primary',
+      'write:primary',
+      'claim:db1',
+      'write:db1',
+    ]);
+    const ids = t.client.bulk.mock.calls.flatMap((c) =>
+      (c[0] as { id: string }[]).map((o) => o.id),
+    );
+    expect(ids.sort()).toEqual(['d-1', 'p-1']);
+  });
+
+  it('prune empties the outbox of every database', async () => {
+    const t = twoDatabases();
+    expect(await t.svc.prune(false)).toBe(4);
+    expect(t.seen).toEqual(['write:primary', 'write:db1']);
   });
 });
