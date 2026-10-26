@@ -2,8 +2,9 @@
 # commands). Multi-stage: build with dev deps, run with prod deps only.
 FROM node:22-alpine AS build
 # `nest build` type-checks the whole API and needs more than Node's default
-# ~2 GB heap (out of memory on the owner's Mac, 2026-10-07). Build stage only.
-ENV NODE_OPTIONS=--max-old-space-size=4096
+# ~2 GB heap (out of memory on the owner's Mac, 2026-10-07); 4 GB ran out
+# on the CI image build too (#364, 2026-10-26). Build stage only.
+ENV NODE_OPTIONS=--max-old-space-size=6144
 WORKDIR /repo
 # .npmrc: ignore-scripts (security research #5, A1) — the build runs the
 # scripts it needs by hand (prisma generate / next build).
