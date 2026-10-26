@@ -41,7 +41,7 @@
 
 ## Данные
 
-Новые таблицы (семейство `global`): `reporter_standings`, `user_strikes`, `moderation_auto_actions`, `moderation_detections`; колонки `reports.priority_review`, `reports.target_author_id`. Миграция `20261106150000_report_abuse_strikes`. Новая задача: `moderation.appeal-sla` (всего 68).
+Новые таблицы (семейство `global`): `reporter_standings`, `user_strikes`, `moderation_auto_actions`, `moderation_detections`; колонки `reports.priority_review`, `reports.target_author_id`. Миграция `20261107111000_report_abuse_strikes`. Новая задача: `moderation.appeal-sla` (всего 68).
 
 ## Ограничения
 
