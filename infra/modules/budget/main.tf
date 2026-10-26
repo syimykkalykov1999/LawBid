@@ -1,6 +1,7 @@
 # Zero maintenance (owner 2026-10-05): no surprise AWS bills.
-# - A monthly cost budget that e-mails the owner at 50 %, 80 % and 100 % of
-#   the real spend and when the month's forecast passes 100 %.
+# - A monthly cost budget that notifies the owner at 50 % and 80 % of the real
+#   spend and when the month's forecast passes 100 % (the 100 % of the real
+#   spend is the `cost_ceiling` alarm in modules/monitoring).
 # - The worker reads this budget every hour (src/jobs/handlers/
 #   ops-guard.job.ts): at 100 % it caps api/worker autoscaling at the
 #   minimum until the next month (switch in admin Система → Здоровье
@@ -61,6 +62,15 @@ variable "tags" {
 
 locals {
   anomaly_monitor_arn = var.create_anomaly_monitor ? one(aws_ce_anomaly_monitor.services[*].arn) : var.anomaly_existing_monitor_arn
+
+  # Dedup D-22: the SNS topic (alerts) e-mails the same addresses (and
+  # reaches Slack), so a budget notification goes to the e-mails directly only
+  # when no SNS topic is given; otherwise the owner got every mail twice.
+  budget_emails = length(var.subscriber_sns_topic_arns) > 0 ? [] : var.alert_emails
+
+  # Dedup D-23: with the IMMEDIATE SNS subscription on, the DAILY e-mail
+  # digests of the same anomalies are not created.
+  anomaly_via_sns = var.anomaly_sns_topic_arn != ""
 }
 
 resource "aws_budgets_budget" "monthly" {
@@ -77,14 +87,17 @@ resource "aws_budgets_budget" "monthly" {
     ignore_changes = [limit_amount]
   }
 
+  # Dedup D-24: 100 % of the real spend is announced by the `cost_ceiling`
+  # alarm (modules/monitoring: «Бюджет AWS на месяц исчерпан», it also says the
+  # autoscaling is capped), so Budgets itself only warns at 50 % and 80 %.
   dynamic "notification" {
-    for_each = [50, 80, 100]
+    for_each = [50, 80]
     content {
       comparison_operator        = "GREATER_THAN"
       threshold                  = notification.value
       threshold_type             = "PERCENTAGE"
       notification_type          = "ACTUAL"
-      subscriber_email_addresses = var.alert_emails
+      subscriber_email_addresses = local.budget_emails
       subscriber_sns_topic_arns  = var.subscriber_sns_topic_arns
     }
   }
@@ -99,7 +112,7 @@ resource "aws_budgets_budget" "monthly" {
       threshold                  = notification.value
       threshold_type             = "PERCENTAGE"
       notification_type          = "FORECASTED"
-      subscriber_email_addresses = var.alert_emails
+      subscriber_email_addresses = local.budget_emails
       subscriber_sns_topic_arns  = var.subscriber_sns_topic_arns
     }
   }
@@ -114,7 +127,7 @@ resource "aws_ce_anomaly_monitor" "services" {
 }
 
 resource "aws_ce_anomaly_subscription" "daily" {
-  count            = var.create_anomaly_monitor ? 1 : 0
+  count            = var.create_anomaly_monitor && !local.anomaly_via_sns ? 1 : 0
   name             = "${var.name}-cost-anomalies"
   frequency        = "DAILY"
   monitor_arn_list = [aws_ce_anomaly_monitor.services[0].arn]
@@ -141,7 +154,7 @@ resource "aws_ce_anomaly_subscription" "daily" {
 # on the default monitor. A second subscription on the same monitor gives the
 # owner's own threshold (anomaly_threshold_usd) without importing anything.
 resource "aws_ce_anomaly_subscription" "extra" {
-  count            = !var.create_anomaly_monitor && var.anomaly_existing_monitor_arn != "" && length(var.anomaly_extra_emails) > 0 ? 1 : 0
+  count            = !var.create_anomaly_monitor && var.anomaly_existing_monitor_arn != "" && length(var.anomaly_extra_emails) > 0 && !local.anomaly_via_sns ? 1 : 0
   name             = "${var.name}-cost-anomalies-extra"
   frequency        = "DAILY"
   monitor_arn_list = [var.anomaly_existing_monitor_arn]
