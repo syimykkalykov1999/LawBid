@@ -227,6 +227,50 @@ export class DashboardNewUsersDto {
   @ApiProperty({ type: 'integer' }) attorneys7d!: number;
 }
 
+export class DashboardRoleTotalsDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Accounts of this role, not deleted.',
+  })
+  total!: number;
+  @ApiProperty({ type: 'integer', description: 'Not suspended, not deleted.' })
+  active!: number;
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Attorneys: verified licence. Clients: approved verification. null where it does not apply.',
+  })
+  verified!: number | null;
+}
+
+/** Counted once a day (not per page open); see DashboardService. */
+export class DashboardTotalsDto {
+  @ApiProperty({ type: DashboardRoleTotalsDto })
+  clients!: DashboardRoleTotalsDto;
+  @ApiProperty({ type: DashboardRoleTotalsDto })
+  attorneys!: DashboardRoleTotalsDto;
+  @ApiProperty({
+    type: DashboardRoleTotalsDto,
+    description:
+      'Assistant seats (assistant_memberships): total = invited + active, active = joined.',
+  })
+  assistants!: DashboardRoleTotalsDto;
+  @ApiProperty({ type: DashboardRoleTotalsDto })
+  admins!: DashboardRoleTotalsDto;
+  @ApiProperty({
+    type: DashboardRoleTotalsDto,
+    description: 'Clients + attorneys + admins + assistants.',
+  })
+  all!: DashboardRoleTotalsDto;
+  @ApiProperty({
+    format: 'date-time',
+    description:
+      'When these totals were counted (daily or by the admin button).',
+  })
+  computedAt!: string;
+}
+
 export class DashboardVerificationDto {
   @ApiProperty({ type: 'integer', description: 'submitted + in_review' })
   queueSize!: number;
@@ -297,6 +341,9 @@ export class AdminCountsDto {
 export class DashboardDto {
   @ApiProperty({ type: DashboardNewUsersDto })
   newUsers!: DashboardNewUsersDto;
+
+  @ApiProperty({ type: DashboardTotalsDto })
+  totals!: DashboardTotalsDto;
 
   @ApiProperty({ type: DashboardVerificationDto })
   verification!: DashboardVerificationDto;
