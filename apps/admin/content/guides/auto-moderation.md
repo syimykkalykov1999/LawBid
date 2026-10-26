@@ -1,7 +1,7 @@
 ---
 id: auto-moderation
 title: Автомодерация: как включить и чем управлять
-category: security
+category: content
 cost: Бесплатно. Проверка текста через OpenAI omni-moderation стоит около нуля, есть суточный потолок запросов.
 time: 15 минут
 verified: 2026-10-25
