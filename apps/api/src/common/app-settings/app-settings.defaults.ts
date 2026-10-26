@@ -739,6 +739,16 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'calls.channel_live_enabled': false,
   'chat.link_preview_enabled': true,
   'chat.link_preview_denylist': [] as string[],
+  /** BUG-1 (package N-12b): chat text search through the blind index.
+   * prefix_tokens: also index 3..12-letter word beginnings («докум» finds
+   * «документ»); ~4× the index rows, so off by default; only new / edited
+   * / re-indexed messages get them. backfill_mode: the job that indexes
+   * old messages — off | on (every 5 minutes) | auto (default: at night,
+   * UTC 06–12, until done, then idles); rows_per_run is its ceiling per
+   * 5-minute tick. The «Пауза тяжёлых задач» switch also stops it. */
+  'chat.search.prefix_tokens': false,
+  'chat.search.backfill_mode': 'auto',
+  'chat.search.backfill_rows_per_run': 5000,
 };
 
 export const OWNER_STORAGE_SETTINGS = {
