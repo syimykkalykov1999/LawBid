@@ -330,7 +330,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                   if (p.verified) ...[
                     AppIcon(
                       AppIcons.verifiedRounded,
-                      color: colors.goldAccent,
+                      color: colors.verifiedGold,
                       size: 16,
                     ),
                     const SizedBox(width: AppSpacing.xs),
