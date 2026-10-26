@@ -65,6 +65,10 @@ const demoRu = <String, String>{
       'Достигнут лимит демо-аккаунтов. Удалите один, чтобы создать новый.',
   'error.api.DEMO_UNAVAILABLE': 'Демо временно недоступно. Попробуйте позже.',
   'error.api.DEMO_CODE_INVALID': 'Демо-код не найден или истёк.',
+  // Owner 2026-10-08: re-auth gate in a demo session (no code is sent).
+  'demo.reauth.message':
+      'Демо-режим: код подтверждения не нужен. Нажмите «Продолжить».',
+  'demo.reauth.continue': 'Продолжить',
 };
 
 const demoEn = <String, String>{
@@ -122,4 +126,7 @@ const demoEn = <String, String>{
   'error.api.DEMO_UNAVAILABLE':
       'Demo is temporarily unavailable. Try again later.',
   'error.api.DEMO_CODE_INVALID': 'This demo code is unknown or has expired.',
+  'demo.reauth.message':
+      'Demo mode: no confirmation code is needed. Tap Continue.',
+  'demo.reauth.continue': 'Continue',
 };
