@@ -31,7 +31,6 @@ import { checkSmsDestination } from '../dto/validators';
 import { CountriesService } from '../../countries/countries.service';
 import { OpsStateService } from '../../../common/ops/ops-state.service';
 import {
-  buildAdminLoginCodeEmail,
   buildContactOtpEmail,
   buildLoginOtpEmail,
 } from '../notifications/email-templates';
@@ -42,9 +41,10 @@ const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 export type OtpChannel = 'phone' | 'email';
 /** Keeps a login OTP's Redis keys from colliding with a "verify new
  * contact" OTP for the same phone/email requested concurrently. */
-// OQ-048: 'assistant' — the code a joining assistant gets from the attorney.
 // Owner 2026-10-13: 'reset' — the code of a forgotten-password reset.
-export type OtpPurpose = 'login' | 'contact' | 'admin' | 'assistant' | 'reset';
+// Admins use TOTP and joining assistants use assistant-code.service.ts, so
+// neither is an OTP purpose (audit X-9, 2026-10-26).
+export type OtpPurpose = 'login' | 'contact' | 'reset';
 
 export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 
@@ -229,9 +229,7 @@ export class OtpService {
               linkToken,
               appLinkBaseUrl: this.appLinkBaseUrl,
             })
-          : purpose === 'admin'
-            ? buildAdminLoginCodeEmail({ email, code, ttlMinutes })
-            : buildContactOtpEmail({ email, code, ttlMinutes }),
+          : buildContactOtpEmail({ email, code, ttlMinutes }),
       );
     }
   }
