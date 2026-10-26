@@ -31,6 +31,7 @@ put_new AUTH_EVENT_PEPPER "$(gen)"
 put_new ADMIN_TOTP_ENC_KEY "$(gen)"
 put_new SECRETS_MASTER_KEYS "k1:$(gen)"
 put_new MESSAGE_ENC_KEYS "m1:$(gen)"
+put_new SEARCH_INDEX_KEY "$(gen)"
 
 if command -v security >/dev/null 2>&1; then
   for NAME in MESSAGE_ENC_KEYS SECRETS_MASTER_KEYS ADMIN_TOTP_ENC_KEY; do

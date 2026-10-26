@@ -528,6 +528,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 100,
   };
+  out['chat.search.backfill_mode'] = {
+    ...out['chat.search.backfill_mode'],
+    description:
+      'Chat search index of old messages: off | on (every 5 minutes) | auto (default: at night until done, then idle).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['chat.search.backfill_rows_per_run'] = {
+    ...out['chat.search.backfill_rows_per_run'],
+    min: 100,
+    max: 100000,
+  };
   out['economy.ceiling_mode'] = {
     ...out['economy.ceiling_mode'],
     description:

@@ -638,6 +638,7 @@ locals {
     "ADMIN_TOTP_ENC_KEY",
     "SECRETS_MASTER_KEYS", # admin key store ("k1:<secret>")
     "MESSAGE_ENC_KEYS",    # chat texts at rest ("m1:<secret>"), scaling TZ point 11
+    "SEARCH_INDEX_KEY",    # chat search blind index (HMAC key, BUG-1 / N-12b); fill it right after the secret exists (DEPLOY_PROD.md)
   ], var.extra_secrets)
 }
 
