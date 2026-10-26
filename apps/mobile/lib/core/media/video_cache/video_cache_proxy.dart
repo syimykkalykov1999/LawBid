@@ -65,9 +65,37 @@ class VideoCacheProxy {
     return 'http://127.0.0.1:${_server!.port}/$_secret/$kind/$u';
   }
 
-  /// The key of a cached object (SHA-1 of the URL, hex).
-  static String keyOf(String url, [String suffix = '']) =>
-      '${sha1.convert(utf8.encode(url))}$suffix';
+  /// Query parameters that only prove access (expire on every API answer);
+  /// they never change the bytes, so they stay out of the cache identity.
+  static bool _isSignatureParam(String name) {
+    final n = name.toLowerCase();
+    return n == 'expires' ||
+        n == 'signature' ||
+        n == 'key-pair-id' ||
+        n == 'token' ||
+        n == 'policy' ||
+        n == 'hdnts' ||
+        n.startsWith('x-amz-') ||
+        n.startsWith('x-goog-');
+  }
+
+  /// The stable identity of an object: scheme + host + path + the query
+  /// parameters that are not signatures (sorted). A signed chat video gets a
+  /// new signature on every API answer, the identity stays the same.
+  static String identityOf(Uri u) {
+    final keep = u.queryParametersAll.entries
+        .where((e) => !_isSignatureParam(e.key))
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final q = keep.expand((e) => e.value.map((v) => '${e.key}=$v')).join('&');
+    return '${u.scheme}://${u.host}${u.hasPort ? ':${u.port}' : ''}${u.path}'
+        '${q.isEmpty ? '' : '?$q'}';
+  }
+
+  /// The key of a cached object (SHA-1 of the [identity], hex). Pass
+  /// `identityOf(uri)`, never a signed URL.
+  static String keyOf(String identity, [String suffix = '']) =>
+      '${sha1.convert(utf8.encode(identity))}$suffix';
 
   Future<void> _handle(HttpRequest req) async {
     try {
@@ -148,7 +176,6 @@ class VideoCacheProxy {
   /// A cached object. HLS segments are small: stored whole. An MP4 is
   /// served block by block for its head, piped for the tail.
   Future<void> _cached(HttpRequest req, Uri upstream) async {
-    final url = upstream.toString();
     if (!upstream.path.endsWith('.mp4') && !upstream.path.endsWith('.mov')) {
       return _cachedSegment(req, upstream);
     }
@@ -176,7 +203,7 @@ class VideoCacheProxy {
     }
     var pos = start;
     for (final b in blocks) {
-      final data = await _block(url, b, total);
+      final data = await _block(upstream, b, total);
       if (data == null) break;
       final from = pos - b.start;
       final to = (end - b.start + 1).clamp(0, data.length);
@@ -190,25 +217,40 @@ class VideoCacheProxy {
     await res.close();
   }
 
+  /// The object's size. Looked up by identity (memory, then a tiny disk
+  /// entry), so a re-signed URL of a video we already hold costs no probe;
+  /// only a never-seen object sends `Range: bytes=0-0`.
   Future<int?> _total(Uri upstream) async {
-    final key = upstream.toString();
-    final known = _totals[key];
+    final id = identityOf(upstream);
+    final known = _totals[id];
     if (known != null) return known;
+    final tkey = keyOf(id, '_total');
+    final onDisk = await cache.get(tkey);
+    if (onDisk != null && onDisk.length == 8) {
+      final t = ByteData.sublistView(onDisk).getUint64(0);
+      _totals[id] = t;
+      return t;
+    }
     final up = await _open(upstream, range: 'bytes=0-0');
     final total = totalFromContentRange(
       up.headers.value(HttpHeaders.contentRangeHeader),
     );
     await up.drain<void>();
-    if (total != null) _totals[key] = total;
+    if (total != null) {
+      _totals[id] = total;
+      final bd = ByteData(8)..setUint64(0, total);
+      await cache.put(tkey, bd.buffer.asUint8List());
+    }
     return total;
   }
 
-  Future<Uint8List?> _block(String url, BlockRange b, int total) async {
-    final key = keyOf(url, '_${b.index}');
+  /// Fetches with the signed [upstream] URL, stores under its identity.
+  Future<Uint8List?> _block(Uri upstream, BlockRange b, int total) async {
+    final key = keyOf(identityOf(upstream), '_${b.index}');
     final hit = await cache.get(key);
     if (hit != null) return hit;
     final end = b.endInclusive >= total ? total - 1 : b.endInclusive;
-    final up = await _open(Uri.parse(url), range: 'bytes=${b.start}-$end');
+    final up = await _open(upstream, range: 'bytes=${b.start}-$end');
     if (up.statusCode != HttpStatus.partialContent) {
       await up.drain<void>();
       return null;
@@ -223,7 +265,7 @@ class VideoCacheProxy {
   }
 
   Future<void> _cachedSegment(HttpRequest req, Uri upstream) async {
-    final key = keyOf(upstream.toString(), '_seg');
+    final key = keyOf(identityOf(upstream), '_seg');
     var bytes = await cache.get(key);
     if (bytes == null) {
       final up = await _open(upstream);
