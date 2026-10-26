@@ -455,8 +455,7 @@ export class FilesService {
     if ((await this.photoHiddenFrom([file.id])).has(file.id)) return none;
     const url = await this.mediaUrlOf(file);
     if (!url) return none;
-    const url256 = file.width !== null ? await this.imageLink(file, 256) : null;
-    return { url, url256 };
+    return { url, url256: await this.avatarPreviewLink(file, url) };
   }
 
   /**
@@ -504,9 +503,10 @@ export class FilesService {
       files.map(async (file) => {
         const url = await this.mediaUrlOf(file);
         if (!url) return;
-        const url256 =
-          file.width !== null ? await this.imageLink(file, 256) : null;
-        out.set(file.id, { url, url256 });
+        out.set(file.id, {
+          url,
+          url256: await this.avatarPreviewLink(file, url),
+        });
       }),
     );
     return out;
@@ -1121,6 +1121,18 @@ export class FilesService {
       }
     }
     return this.mediaLink(file.s3_bucket, key);
+  }
+
+  /**
+   * Owner 2026-10-26 («аватарки иногда не показываются»): the 256 px
+   * preview of a clean avatar, or the full picture when the file has no
+   * preview. Every list (chats, groups, comments, notifications, pushes)
+   * shows `url256 ?? null`; a file without a width (no processed
+   * variants) used to give null there — the avatar vanished from every
+   * list while the profile, which uses `url`, still showed it.
+   */
+  private async avatarPreviewLink(file: File, url: string): Promise<string> {
+    return file.width !== null ? this.imageLink(file, 256) : url;
   }
 
   private async mediaUrlOf(file: File): Promise<string | null> {

@@ -10,7 +10,7 @@
 
 ## Как это устроено
 
-- `SubscriptionAlertsService.attorneysForCase` → `CaseFanoutService.start(caseId)` ставит задачу BullMQ в очередь `case-fanout` (волна 1; для «малой» волны подозрительного клиента — с задержкой).
+- `SubscriptionAlertsService.attorneysForCase` → `CaseFanoutService.start(caseId)`. При выключенном переключателе `enabled` (по умолчанию) или без Redis волна 1 выполняется сразу в самом запросе API (inline, без очереди). Только при `enabled=true` задача BullMQ ставится в очередь `case-fanout` и выполняется воркером (волна 1; для «малой» волны подозрительного клиента — с задержкой).
 - Каждая волна — отдельная задача `casefanout-<caseId>-w<N>` (идемпотентно по id). Воркер (API при `JOBS_ENABLED` и процесс worker) запускает её в шард-контексте кейса (`shardKeyOf.case`, то есть `forCase`).
 - Волна: кейс ещё открыт и не на паузе → проверка антифрода клиента → стоп, если предложений уже `stop_at_bids` → аудитория (`CaseAudienceService`: тот же отбор, что был: выбранные практики, проверенная лицензия в штате кейса, «Новые кейсы» включены, не заблокированные, «только срочные») → убрать уже оповещённых (строка уведомления с ключом `case_fanout:<caseId>`) → оценка → выбор волны с квотой для новых → `emitMany` пачками по 500 → следующая волна через `wave_interval_minutes`.
 - Повтор задачи ничего не шлёт дважды: у строки уведомления уникальный ключ (user, `case_fanout:<caseId>`), уже оповещённые отфильтровываются.
@@ -45,7 +45,7 @@
 
 ## Настройки (`case_fanout.*`, по умолчанию охват как сегодня)
 
-`enabled` false (выключено по умолчанию: пуш всем сразу и синхронно, как раньше); `first_wave_size` 5000; `wave_size` 5000; `wave_interval_minutes` 10; `max_waves` 20; `stop_at_bids` 0 (выкл.); `new_quota_percent` 20; `new_max_alerts` 20; `new_max_bids` 3; `daily_cap` 0 (выкл.); `fraud_review_action` normal; `fraud_restricted_action` none; `fraud_small_wave_size` 10; `fraud_delay_minutes` 60. `enabled=false` возвращает старое поведение (всем сразу, без лимитов и антифрода).
+`enabled` false (выключено по умолчанию: пуш всем сразу и синхронно, как раньше); `first_wave_size` 5000; `wave_size` 5000; `wave_interval_minutes` 10; `max_waves` 20; `stop_at_bids` 0 (выкл.); `new_quota_percent` 20; `new_max_alerts` 20; `new_max_bids` 3; `daily_cap` 0 (выкл.); `fraud_review_action` normal; `fraud_restricted_action` none; `fraud_small_wave_size` 10; `fraud_delay_minutes` 60. `enabled=false` возвращает старое поведение (всем сразу, без лимитов и антифрода). Волна 1 при этом идёт сразу в самом запросе API (не через очередь `case-fanout`), только без ранжирования и запросов статистики (проверка 2026-10-26, R-32); без Redis (тесты, разработка) — так же сразу в запросе. Очередь используется только при `enabled=true`.
 
 ## Исследование (источники)
 
