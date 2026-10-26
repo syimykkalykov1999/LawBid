@@ -1,7 +1,7 @@
 ---
 id: restore-drill
 title: Учебное восстановление базы (раз в 90 дней)
-category: security
+category: system
 cost: Около $0.10 за запуск
 time: 30-60 минут (в основном ожидание)
 launch: restore_drill

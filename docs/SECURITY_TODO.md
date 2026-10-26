@@ -16,7 +16,9 @@ Part 2 is done (2026-10-22):
 Still to do:
 
 1. **Data-only pushes (later).** Push bodies still carry the masked text to FCM/APNs (`notifications/push/push-dispatcher.ts`). The goal is for the device to fetch or decrypt the text itself.
-2. **Key store re-encryption covers `integration_credentials` only.** `assistant_memberships.join_code_enc` and `state_bar_registries.secret_enc` have no kid column and are not rewritten by «Перешифровать»; keep the old `SECRETS_MASTER_KEYS` kid until those rows are rewritten.
+2. ~~Key store re-encryption covers `integration_credentials` only.~~ Done 2026-10-25: «Перешифровать» and the message re-encryption job also rewrite `assistant_memberships.join_code_enc`, `state_bar_registries.secret_enc` and the admins' authenticator secrets (kid parsed from the stored `v2.<kid>.…` string, no new column).
+3. **Per-conversation data keys (later, 16 h).** Today one key per kid seals every message; the health tile counts sealed bodies per kid and turns red at 1 000 000 000 (mint a new kid yearly, `docs/runbooks/KEY_ROTATION.md`). A per-conversation key wrapped by KMS in a `conversation_keys` table would also allow crypto-shredding on delete.
+4. **Journal free text cannot be re-keyed.** `security.seal_journal_text` (off by default) seals titles/description changes of new journal rows; the journal is append-only and hash-chained, so every kid used while it is on must stay in `MESSAGE_ENC_KEYS` for the 5-year retention.
 
 ## Image moderation and CSAM reporting (audit #4 §5, owner steps)
 

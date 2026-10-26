@@ -84,7 +84,7 @@ class _AdminShardsClient implements AdminShardsClient {
   }
 
   @override
-  Future<ShardActionEnvelope> start({
+  Future<ShardActionEnvelope> startSplit({
     required SplitStartDto body,
     Map<String, dynamic>? extras,
   }) async {
@@ -149,7 +149,7 @@ class _AdminShardsClient implements AdminShardsClient {
   }
 
   @override
-  Future<ShardActionEnvelope> rollback({
+  Future<ShardActionEnvelope> rollbackMove({
     required String id,
     Map<String, dynamic>? extras,
   }) async {
@@ -181,7 +181,7 @@ class _AdminShardsClient implements AdminShardsClient {
   }
 
   @override
-  Future<ShardActionEnvelope> resume({
+  Future<ShardActionEnvelope> resumeMove({
     required String id,
     Map<String, dynamic>? extras,
   }) async {

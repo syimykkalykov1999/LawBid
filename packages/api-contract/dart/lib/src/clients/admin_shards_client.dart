@@ -30,9 +30,9 @@ abstract class AdminShardsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Start the split (step-up + a second admin must approve)
+  /// Start the split (2FA step-up; runs at once while admin.dual_control is off)
   @POST('/admin/shards/split')
-  Future<ShardActionEnvelope> start({
+  Future<ShardActionEnvelope> startSplit({
     @Body() required SplitStartDto body,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -46,14 +46,14 @@ abstract class AdminShardsClient {
 
   /// Roll a move back (step-up)
   @POST('/admin/shards/moves/{id}/rollback')
-  Future<ShardActionEnvelope> rollback({
+  Future<ShardActionEnvelope> rollbackMove({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Retry a stopped move from its saved step (step-up)
   @POST('/admin/shards/moves/{id}/resume')
-  Future<ShardActionEnvelope> resume({
+  Future<ShardActionEnvelope> resumeMove({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

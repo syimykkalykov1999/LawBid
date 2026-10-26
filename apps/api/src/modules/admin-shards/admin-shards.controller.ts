@@ -116,14 +116,15 @@ export class AdminShardsController {
   @Post('split')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Start the split (step-up + a second admin must approve)',
+    summary:
+      'Start the split (2FA step-up; runs at once while admin.dual_control is off)',
   })
   @ApiEnvelopeResponse(ShardActionDto)
   @ApiErrors({
     403: [E.ADMIN_STEP_UP_REQUIRED],
     409: [E.ADMIN_APPROVAL_PENDING],
   })
-  async start(
+  async startSplit(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: SplitStartDto,
   ): Promise<ShardActionDto> {
@@ -174,7 +175,7 @@ export class AdminShardsController {
   @ApiOperation({ summary: 'Roll a move back (step-up)' })
   @ApiEnvelopeResponse(ShardActionDto)
   @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
-  async rollback(
+  async rollbackMove(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ShardActionDto> {
@@ -191,7 +192,7 @@ export class AdminShardsController {
   })
   @ApiEnvelopeResponse(ShardActionDto)
   @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
-  async resume(
+  async resumeMove(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ShardActionDto> {
