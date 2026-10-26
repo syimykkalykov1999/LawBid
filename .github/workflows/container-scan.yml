@@ -11,8 +11,17 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/container-scan.yml"
+  # Dedup D-27: deploy.yml already builds the API image on every push to main,
+  # so a push builds it a second time here only when API-related files
+  # changed (same paths as the PR trigger above).
   push:
     branches: [main, master]
+    paths:
+      - "apps/api/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/container-scan.yml"
 
 permissions:
   contents: read
