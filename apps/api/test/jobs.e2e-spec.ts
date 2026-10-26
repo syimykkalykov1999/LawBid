@@ -8,9 +8,11 @@ import { WorkerModule } from '../src/jobs/worker.module';
 import { JobsRunner } from '../src/jobs/jobs.runner';
 import {
   CRON_JOBS,
-  CRON_QUEUE,
+  CRON_LANES,
   CRON_SCHEDULES,
+  cronLaneOf,
   DISPOSABLE_DOMAINS_FETCHER,
+  type CronLane,
 } from '../src/jobs/jobs.constants';
 import { DISPOSABLE_MIN_DOMAINS } from '../src/jobs/disposable-domains/disposable-domains-refresh.job';
 
@@ -39,7 +41,8 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
   };
   const apps: INestApplicationContext[] = [];
   let runner: JobsRunner;
-  let events: QueueEvents;
+  // S10-2: one QueueEvents per cron lane (a job finishes on its own lane).
+  const events = new Map<CronLane, QueueEvents>();
 
   async function boot(): Promise<INestApplicationContext> {
     const moduleRef = await Test.createTestingModule({
@@ -55,7 +58,10 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
 
   async function runJob(name: (typeof CRON_JOBS)[keyof typeof CRON_JOBS]) {
     const job: Job = await runner.runNow(name);
-    return (await job.waitUntilFinished(events, 60_000)) as unknown;
+    return (await job.waitUntilFinished(
+      events.get(cronLaneOf(name))!,
+      60_000,
+    )) as unknown;
   }
 
   beforeAll(async () => {
@@ -64,38 +70,51 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     await boot();
     runner = first.get(JobsRunner);
     prisma = first.get(PrismaService);
-    events = new QueueEvents(CRON_QUEUE, {
-      connection: { url: process.env.REDIS_URL, maxRetriesPerRequest: null },
-    });
-    await events.waitUntilReady();
+    for (const lane of CRON_LANES) {
+      const ev = new QueueEvents(lane, {
+        connection: { url: process.env.REDIS_URL, maxRetriesPerRequest: null },
+      });
+      await ev.waitUntilReady();
+      events.set(lane, ev);
+    }
   });
 
   afterAll(async () => {
-    await events.close();
+    for (const ev of events.values()) await ev.close();
     for (const app of apps) await app.close();
     await redis.quit();
   });
 
   it('registers each repeatable job exactly once across instances', async () => {
-    const queue = runner.cronQueue;
-    expect(queue).toBeDefined();
-    if (!queue) return;
-    const schedulers = await queue.getJobSchedulers();
-    expect(schedulers.map((s) => s.key).sort()).toEqual(
-      CRON_SCHEDULES.map((s) => s.name).sort(),
-    );
-    for (const s of schedulers) {
-      const want = CRON_SCHEDULES.find((c) => c.name === s.key)!;
-      expect(s.pattern).toBe(want.pattern);
-      expect(s.tz).toBe('UTC');
+    // S10-2: the schedules are spread over three lanes; each one sits on
+    // its own lane only.
+    const lanes = CRON_LANES.map((lane) => {
+      const queue = runner.laneQueue(lane);
+      expect(queue).toBeDefined();
+      return { lane, queue: queue! };
+    });
+    const all: string[] = [];
+    for (const { lane, queue } of lanes) {
+      for (const s of await queue.getJobSchedulers()) {
+        all.push(s.key);
+        expect(cronLaneOf(s.key)).toBe(lane);
+        const want = CRON_SCHEDULES.find((c) => c.name === s.key)!;
+        expect(s.pattern).toBe(want.pattern);
+        expect(s.tz).toBe('UTC');
+      }
     }
+    expect(all.sort()).toEqual(CRON_SCHEDULES.map((s) => s.name).sort());
     // One pending run per scheduler, not one per instance.
-    await expectOnePendingRunPerScheduler(queue);
+    for (const { queue } of lanes) await expectOnePendingRunPerScheduler(queue);
 
     // A third boot (rolling deploy) is still idempotent.
     await boot();
-    expect((await queue.getJobSchedulers()).length).toBe(CRON_SCHEDULES.length);
-    await expectOnePendingRunPerScheduler(queue);
+    let total = 0;
+    for (const { queue } of lanes) {
+      total += (await queue.getJobSchedulers()).length;
+      await expectOnePendingRunPerScheduler(queue);
+    }
+    expect(total).toBe(CRON_SCHEDULES.length);
   });
 
   it('sessions.cleanup removes expired and long-revoked sessions, keeps live and rotated ones', async () => {

@@ -240,6 +240,11 @@ export class JobsRunner
     return this.queues.get(CRON_QUEUE);
   }
 
+  /** One lane's queue (ops / tests); undefined while jobs are disabled. */
+  laneQueue(lane: CronLane): Queue | undefined {
+    return this.queues.get(lane);
+  }
+
   async onApplicationShutdown(): Promise<void> {
     this.stopping = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
