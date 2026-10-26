@@ -215,9 +215,14 @@ describe('ChatSearchBackfillJob', () => {
   it('counts a body that does not open, without indexing it', async () => {
     const seed = build({});
     const bad = msg(1, 'hello', seed.cipher);
-    bad.body_display = bad.body_display.replace(/.$/, (c) =>
-      c === 'A' ? 'B' : 'A',
-    );
+    // Flip a character in the middle: the last base64 character may carry
+    // only padding bits, so changing it sometimes left the bytes intact.
+    const mid = Math.floor(bad.body_display.length / 2);
+    const c = bad.body_display[mid];
+    bad.body_display =
+      bad.body_display.slice(0, mid) +
+      (c === 'A' ? 'B' : 'A') +
+      bad.body_display.slice(mid + 1);
     const r = await build({ messages: [bad] }).job.run(NIGHT, noSleep);
     expect(r).toMatchObject({ indexed: 0, failed: 1 });
   });
