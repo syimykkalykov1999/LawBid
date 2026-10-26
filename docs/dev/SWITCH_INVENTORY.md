@@ -43,6 +43,11 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 | `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `moderation.auto_hide_mode` | Как скрывать пост по жалобам | weighted | 2 (count/weighted) | report abuse (#364): count = N distinct reporters; weighted = sum of reporter weights passes `moderation.auto_hide_score` | `modules/moderation/moderation.service.ts:753` | `moderation.auto_hide_score` | listed | |
+| `moderation.report_abuse.enabled` | Наказывать за ложные жалобы | on | 2 | report abuse (#364): unfounded reporters get a warning, then a pause | `modules/moderation/reporter-reputation.service.ts:277` | `moderation.report_abuse.suspend_days` | listed | |
+| `moderation.strikes.enabled` | Лестница предупреждений для авторов | on | 2 | report abuse (#364): strike ladder for content owners | `modules/moderation/strikes.service.ts:93` | `moderation.strikes.suspend_days` | listed | |
+| `moderation.auto.account_mode` | Автомодерация аккаунтов | shadow | 3 (off/shadow/enforce) | report abuse (#364): accounts moderated automatically, shadow = log only | `modules/moderation/auto-moderation.service.ts:193` | see the setting | listed | |
+| `moderation.detect.mode` | Проверка текста до жалоб | off | 3 (off/shadow/enforce) | report abuse (#364): text detection before any report | `modules/moderation/text-detector.service.ts:132` | cost registry | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
