@@ -119,7 +119,7 @@ export class AdminStatusPageController {
   @Get()
   @ApiOperation({ summary: 'Incidents shown on the public status page' })
   @ApiEnvelopeResponse(StatusPageDto)
-  async get(): Promise<StatusPageDto> {
+  async getStatusPage(): Promise<StatusPageDto> {
     return this.view();
   }
 
@@ -128,7 +128,7 @@ export class AdminStatusPageController {
   @ApiOperation({ summary: 'Post an incident on the public status page' })
   @ApiEnvelopeResponse(StatusPageDto)
   @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
-  async post(
+  async createIncident(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: PostStatusIncidentDto,
   ): Promise<StatusPageDto> {
@@ -146,7 +146,7 @@ export class AdminStatusPageController {
   @ApiOperation({ summary: 'Mark a posted incident as resolved' })
   @ApiEnvelopeResponse(StatusPageDto)
   @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
-  async resolve(
+  async resolveIncident(
     @CurrentAdmin() admin: AdminActor,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<StatusPageDto> {
