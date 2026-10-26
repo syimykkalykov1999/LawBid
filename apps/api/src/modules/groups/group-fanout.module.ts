@@ -19,6 +19,7 @@ import {
 import { GroupsModule } from './groups.module';
 import { GroupsService } from './groups.service';
 import { bullOptions } from '../../redis/redis-connection';
+import { closeWorker } from '../../common/queues/queue-hardening';
 
 export const GROUP_FANOUT_OPTIONS = Symbol('GROUP_FANOUT_OPTIONS');
 
@@ -91,7 +92,7 @@ export class GroupFanoutWorker
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await Promise.all(this.workers.map((w) => w.close()));
+    await Promise.all(this.workers.map((w) => closeWorker(w)));
   }
 }
 

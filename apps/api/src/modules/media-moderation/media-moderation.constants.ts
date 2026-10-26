@@ -8,6 +8,7 @@ export const MEDIA_MODERATION_QUEUE = 'media-moderation';
 export const MEDIA_CHECK_JOB = 'media.check';
 /** A hidden verdict whose content was not posted yet is applied again. */
 export const MEDIA_REHIDE_JOB = 'media.rehide';
+export const MEDIA_REHIDE_SWEEP_JOB = 'media.rehide-sweep';
 export const MEDIA_MODERATION_OPTIONS = Symbol('MEDIA_MODERATION_OPTIONS');
 
 export interface MediaModerationModuleOptions {

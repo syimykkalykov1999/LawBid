@@ -303,12 +303,58 @@ resource "aws_cloudwatch_log_metric_filter" "queue_waiting_total" {
 resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_all" {
   name           = "${var.name}-queue-oldest-age-all"
   log_group_name = var.worker_log_group
-  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" }"
+  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" && $.queue != \"cron-heavy\" && $.queue != \"account-deletion\" && $.queue != \"channel-fanout\" && $.queue != \"admin-broadcast\" }"
   metric_transformation {
     name      = "QueueOldestAgeSecondsAll"
     namespace = local.ns
     value     = "$.oldestAgeSeconds"
     unit      = "Seconds"
+  }
+}
+
+# S10-2 / S10-7 (queues hardening 2026-10-25): lanes where a long wait is
+# normal (heavy cron jobs run one at a time, daily deletions, fan-outs) are
+# left out of the 5-minute alarm above and watched by their own, lenient
+# 1-hour alarm below. Pure log metric filter + one alarm: cents per month.
+resource "aws_cloudwatch_log_metric_filter" "queue_oldest_age_slow" {
+  name           = "${var.name}-queue-oldest-age-slow"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"cron-heavy\" || $.queue = \"account-deletion\" || $.queue = \"channel-fanout\" || $.queue = \"admin-broadcast\") }"
+  metric_transformation {
+    name      = "QueueOldestAgeSecondsSlow"
+    namespace = local.ns
+    value     = "$.oldestAgeSeconds"
+    unit      = "Seconds"
+  }
+}
+
+# Jobs that ended in `failed` (retries used up) during the last 5 minutes,
+# from BullMQ's own metrics (apps/api ops-metrics.job.ts `failed5m`). The
+# dead-letter queue has no consumer and is left out.
+resource "aws_cloudwatch_log_metric_filter" "queue_failed_all" {
+  name           = "${var.name}-queue-failed-all"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_depth\" && $.queue != \"stripe-webhooks-dlq\" }"
+  metric_transformation {
+    name      = "QueueFailed5mAll"
+    namespace = local.ns
+    value     = "$.failed5m"
+    unit      = "Count"
+  }
+}
+
+# Queues whose single failed job is a person's problem: a data export, an
+# account deletion, a payment event, a subscription reminder, an upload scan,
+# an image check.
+resource "aws_cloudwatch_log_metric_filter" "queue_failed_critical" {
+  name           = "${var.name}-queue-failed-critical"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"queue_depth\" && ($.queue = \"data-export\" || $.queue = \"case-history-export\" || $.queue = \"account-deletion\" || $.queue = \"stripe-webhooks\" || $.queue = \"subscriptions\" || $.queue = \"files\" || $.queue = \"media-moderation\") }"
+  metric_transformation {
+    name      = "QueueFailed5mCritical"
+    namespace = local.ns
+    value     = "$.failed5m"
+    unit      = "Count"
   }
 }
 
@@ -490,6 +536,56 @@ resource "aws_cloudwatch_metric_alarm" "queue_backlog" {
   metric_name         = "QueueOldestAgeSecondsAll"
   namespace           = local.ns
   treat_missing_data  = "breaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "queue_backlog_slow" {
+  alarm_name          = "${var.name}-queue-backlog-slow"
+  alarm_description   = "LawBid: Длинная фоновая очередь (тяжёлые пересчёты, удаление аккаунтов, рассылки) стоит больше часа. Что делать: админка → Здоровье системы → «Перезапустить фоновые задачи»; не помогло — напишите Claude. Инструкция: ${var.runbook_base_url}/queues.md (EN: oldest job of a slow lane waited over 1 hour.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 1800
+  threshold           = 3600
+  statistic           = "Maximum"
+  metric_name         = "QueueOldestAgeSecondsSlow"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# One failed job in a queue that touches a person's data or money.
+resource "aws_cloudwatch_metric_alarm" "queue_failed_critical" {
+  alarm_name          = "${var.name}-queue-failed-critical"
+  alarm_description   = "LawBid: Фоновая задача упала окончательно (выгрузка данных, удаление аккаунта, оплата, проверка файла или картинки). Что делать: админка → Здоровье системы → «Повторить упавшие задачи»; упало снова — напишите Claude. Инструкция: ${var.runbook_base_url}/queues.md (EN: a job in a critical queue exhausted its retries in the last 5 minutes.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 1
+  statistic           = "Maximum"
+  metric_name         = "QueueFailed5mCritical"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# Many failures in any one queue: a handler is broken, not unlucky.
+resource "aws_cloudwatch_metric_alarm" "queue_failed_many" {
+  alarm_name          = "${var.name}-queue-failed-many"
+  alarm_description   = "LawBid: Много фоновых задач падает подряд (10 и больше за 5 минут в одной очереди). Что делать: подождите 15 минут — если не прекратилось, напишите Claude. Инструкция: ${var.runbook_base_url}/queues.md (EN: 10 or more failed jobs in 5 minutes in one queue.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = 10
+  statistic           = "Maximum"
+  metric_name         = "QueueFailed5mAll"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
   alarm_actions       = local.ops
   ok_actions          = local.ops
   tags                = var.tags
