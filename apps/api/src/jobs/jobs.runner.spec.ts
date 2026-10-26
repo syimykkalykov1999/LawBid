@@ -246,8 +246,9 @@ describe('JobsRunner', () => {
     // Shard-ready step 7: + outbox.sweep (every minute).
     // Owner 2026-10-24: + search.index (every minute).
     // Day-one foundations: + ledger.reconcile (nightly).
+    // S1-3: + chat.redeliver (every minute).
     // Stripe robustness: + stripe-ops.sweep (nightly), stripe-ops.dispute-reminders (hourly), stripe-webhooks.requeue (every minute).
-    expect(upserts).toHaveLength(70);
+    expect(upserts).toHaveLength(71);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

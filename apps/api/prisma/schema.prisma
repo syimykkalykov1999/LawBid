@@ -120,6 +120,11 @@ enum LegalDocType {
   dmca_policy
   // Owner 2026-10-22 (systems checklist §26): accessibility statement.
   accessibility
+  // Owner 2026-10-25 (legal texts): community rules, advertising /
+  // ranking disclosure and the SMS program terms.
+  community_guidelines
+  advertising_disclosure
+  sms_terms
 
   @@map("legal_doc_type")
 }
@@ -1600,6 +1605,7 @@ model AttorneyProfile {
   // GIN/inverted (trigram gin_trgm_ops or full-text), created by the stage 2.6
   // migration; declared so Prisma's diff matches the DB.
   @@index([languages], map: "attorney_profiles_languages_idx", type: Gin)
+  @@index([trust_level(sort: Desc), rating_avg(sort: Desc), username_lower], map: "attorney_profiles_directory_idx")
   @@map("attorney_profiles")
 }
 
@@ -1985,6 +1991,7 @@ model CaseJournal {
   @@index([retain_until])
   // docs/06 §5.3: the daily chain check picks the last 24 h of rows.
   @@index([created_at])
+  @@index([actor_user_id], map: "case_journal_actor_user_id_idx")
   @@map("case_journal")
 }
 
@@ -2007,6 +2014,9 @@ model ContactDisclosure {
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@index([client_id], map: "contact_disclosures_client_id_idx")
+  @@index([attorney_id], map: "contact_disclosures_attorney_id_idx")
+  @@index([case_id], map: "contact_disclosures_case_id_idx")
   @@map("contact_disclosures")
 }
 
@@ -2419,6 +2429,8 @@ model Comment {
 
   @@index([post_id, created_at])
   @@index([parent_comment_id, created_at])
+  @@index([post_id, created_at(sort: Desc), id(sort: Desc)], map: "comments_post_created_id_idx")
+  @@index([author_id], map: "comments_author_id_idx")
   @@map("comments")
 }
 
@@ -2467,6 +2479,7 @@ model CommentLike {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([comment_id, user_id])
+  @@index([user_id], map: "comment_likes_user_id_idx")
   @@map("comment_likes")
 }
 
@@ -2484,6 +2497,8 @@ model Follow {
 
   @@id([follower_id, followee_id])
   @@index([followee_id, follower_id])
+  @@index([followee_id, created_at(sort: Desc), follower_id(sort: Desc)], map: "follows_followee_created_follower_idx")
+  @@index([follower_id, created_at(sort: Desc), followee_id(sort: Desc)], map: "follows_follower_created_followee_idx")
   @@map("follows")
 }
 
@@ -2752,6 +2767,7 @@ model CallParticipant {
 
   @@unique([call_id, user_id])
   @@index([user_id, status])
+  @@index([invited_by_id], map: "call_participants_invited_by_id_idx")
   @@map("call_participants")
 }
 
@@ -2845,7 +2861,7 @@ model Message {
   @@index([sticker_id])
   @@index([gift_send_id])
   @@index([reply_to_id])
-  @@index([conversation_id, created_at(sort: Desc)])
+  @@index([conversation_id, created_at(sort: Desc), id(sort: Desc)], map: "messages_conv_created_id_idx")
   // docs/06 §5.1: anonymization scrubs a user's messages by sender.
   @@index([sender_id])
   @@map("messages")
@@ -3958,6 +3974,7 @@ model CaseComment {
 
   @@index([case_id, created_at])
   @@index([parent_comment_id, created_at])
+  @@index([author_id], map: "case_comments_author_id_idx")
   @@map("case_comments")
 }
 
@@ -3972,6 +3989,7 @@ model CaseCommentLike {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([comment_id, user_id])
+  @@index([user_id], map: "case_comment_likes_user_id_idx")
   @@map("case_comment_likes")
 }
 
@@ -3989,6 +4007,7 @@ model PostShare {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([post_id])
+  @@index([user_id], map: "post_shares_user_id_idx")
   @@map("post_shares")
 }
 
@@ -4032,6 +4051,7 @@ model PostViewEvent {
 
   @@index([post_id, viewer_id, kind, created_at(sort: Desc)])
   @@index([post_id, kind, created_at(sort: Desc)])
+  @@index([viewer_id], map: "post_view_events_viewer_id_idx")
   @@map("post_view_events")
 }
 
@@ -4087,6 +4107,7 @@ model ClientReview {
   @@index([client_id, created_at(sort: Desc)])
   @@index([client_id, attorney_id])
   @@index([photo_ids], map: "client_reviews_photo_ids_idx", type: Gin)
+  @@index([attorney_id], map: "client_reviews_attorney_id_idx")
   @@map("client_reviews")
 }
 
@@ -4104,6 +4125,7 @@ model ReviewHelpfulVote {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([review_id, user_id])
+  @@index([user_id], map: "review_helpful_votes_user_id_idx")
   @@map("review_helpful_votes")
 }
 
@@ -4118,6 +4140,7 @@ model ClientReviewHelpfulVote {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([review_id, user_id])
+  @@index([user_id], map: "client_review_helpful_votes_user_id_idx")
   @@map("client_review_helpful_votes")
 }
 
@@ -4383,6 +4406,7 @@ model AttorneyTask {
   @@index([remind_at], map: "attorney_tasks_remind_idx")
   @@index([archived_at], map: "attorney_tasks_archived_idx")
   @@index([file_ids], map: "attorney_tasks_file_ids_idx", type: Gin)
+  @@index([case_id], map: "attorney_tasks_case_id_idx")
   @@map("attorney_tasks")
 }
 
@@ -4473,6 +4497,7 @@ model BidDraft {
   shard_id Int @default(0) @db.SmallInt
 
   @@unique([attorney_id, case_id], map: "bid_drafts_attorney_case_key")
+  @@index([case_id], map: "bid_drafts_case_id_idx")
   @@map("bid_drafts")
 }
 
@@ -6662,6 +6687,7 @@ model Story {
 
   @@index([author_id, created_at(sort: Desc)], map: "stories_author_created_idx")
   @@index([expires_at], map: "stories_expires_idx")
+  @@index([file_id], map: "stories_file_id_idx")
   @@map("stories")
 }
 
@@ -6825,6 +6851,7 @@ model ChannelPost {
 
   @@unique([channel_id, author_id, forward_key], map: "channel_posts_forward_key_key")
   @@index([channel_id, created_at(sort: Desc)], map: "channel_posts_channel_created_idx")
+  @@index([author_id], map: "channel_posts_author_id_idx")
   @@map("channel_posts")
 }
 
@@ -6871,6 +6898,7 @@ model ChannelReaction {
 
   @@id([post_id, user_id])
   @@index([post_id, emoji], map: "channel_reactions_post_emoji_idx")
+  @@index([user_id], map: "channel_reactions_user_id_idx")
   @@map("channel_reactions")
 }
 
@@ -6888,6 +6916,7 @@ model ChannelComment {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([post_id, created_at], map: "channel_comments_post_created_idx")
+  @@index([author_id], map: "channel_comments_author_id_idx")
   @@map("channel_comments")
 }
 
@@ -7281,6 +7310,7 @@ model LegalAnswerLike {
   shard_id Int @default(0) @db.SmallInt
 
   @@id([answer_id, user_id])
+  @@index([user_id], map: "legal_answer_likes_user_id_idx")
   @@map("legal_answer_likes")
 }
 
