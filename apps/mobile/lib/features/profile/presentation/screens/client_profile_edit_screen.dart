@@ -56,6 +56,8 @@ class ClientProfileEditScreen extends ConsumerWidget {
         ),
       ),
       body: profile.when(
+        // Audit C7: a re-read after saving keeps the form (and its pop).
+        skipLoadingOnReload: true,
         loading: () => const ProfileEditSkeleton(),
         error: (error, _) => isOfflineError(error)
             ? AppOfflineState(
@@ -108,6 +110,36 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
   late ContactPreference? _method = widget.profile.contactMethod;
   bool _saving = false;
   bool _attempted = false;
+
+  /// Audit C8: the live profile arrives after the saved copy; while the
+  /// person has not touched the form it takes the new values.
+  @override
+  void didUpdateWidget(_ClientEditForm old) {
+    super.didUpdateWidget(old);
+    final a = old.profile;
+    final b = widget.profile;
+    if (identical(a, b)) return;
+    final untouched = _first.text == (a.firstName ?? '') &&
+        _last.text == (a.lastName ?? '') &&
+        _note.text == (a.contactNote ?? '') &&
+        _username.text == a.username &&
+        _state == a.state.code &&
+        _method == a.contactMethod &&
+        _languages.length == a.languages.length &&
+        _languages.containsAll(a.languages);
+    if (!untouched) return;
+    setState(() {
+      _first.text = b.firstName ?? '';
+      _last.text = b.lastName ?? '';
+      _note.text = b.contactNote ?? '';
+      _username.text = b.username;
+      _state = b.state.code;
+      _method = b.contactMethod;
+      _languages = b.languages.toSet();
+      _usernameStatus = UsernameStatus.unchanged;
+      _suggestions = const [];
+    });
+  }
 
   @override
   void dispose() {
@@ -177,6 +209,10 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
       return;
     }
     setState(() => _saving = true);
+    // Audit C17: the providers are refreshed from here even when the screen
+    // is gone or only the first of the two writes went through.
+    final container = ProviderScope.containerOf(context, listen: false);
+    var wrote = false;
     try {
       final repo = ref.read(clientProfileRepositoryProvider);
       await repo.update(
@@ -191,12 +227,10 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
           contactNote: _note.text,
         ),
       );
+      wrote = true;
       // The method goes through contact-preferences so "none" can clear it.
       await repo.updateContactPreferences(method: _method, note: _note.text);
       if (!mounted) return;
-      ref
-        ..invalidate(clientProfileProvider)
-        ..invalidate(publicClientProfileProvider);
       await ref.read(currentUserControllerProvider.notifier).load();
       if (!mounted) return;
       showAppSnackBar(context, t.t('profile.edit.saved'));
@@ -204,6 +238,11 @@ class _ClientEditFormState extends ConsumerState<_ClientEditForm> {
     } catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {
+      if (wrote) {
+        container
+          ..invalidate(clientProfileProvider)
+          ..invalidate(publicClientProfileProvider);
+      }
       if (mounted) setState(() => _saving = false);
     }
   }

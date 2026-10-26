@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/payments/pay_page_look.dart';
@@ -85,8 +86,20 @@ final clientCheckoutControllerProvider =
 );
 
 class ClientCheckoutController extends Notifier<ClientCheckoutState> {
+  /// Back from the payment page the answer is known within moments (paid or
+  /// not): after a short grace the wait stops instead of spinning 15 min.
+  DateTime? _stopWaitingAfter;
+  late final _ResumeWatcher _resumeWatcher;
+
   @override
-  ClientCheckoutState build() => const ClientCheckoutState.idle();
+  ClientCheckoutState build() {
+    _resumeWatcher = _ResumeWatcher(
+      () => _stopWaitingAfter = DateTime.now().add(const Duration(seconds: 8)),
+    );
+    WidgetsBinding.instance.addObserver(_resumeWatcher);
+    ref.onDispose(() => WidgetsBinding.instance.removeObserver(_resumeWatcher));
+    return const ClientCheckoutState.idle();
+  }
 
   String? _sessionId;
   bool _stopWaiting = false;
@@ -103,6 +116,7 @@ class ClientCheckoutController extends Notifier<ClientCheckoutState> {
       final checkout = await repo.checkout(planCode: planCode);
       _sessionId = checkout.sessionId;
       _stopWaiting = false;
+      _stopWaitingAfter = null;
       // Only https in production; the dev payment page is http://localhost.
       final okScheme = checkout.url.scheme == 'https' ||
           (kDebugMode && checkout.url.scheme == 'http');
@@ -116,8 +130,10 @@ class ClientCheckoutController extends Notifier<ClientCheckoutState> {
       _phase(ClientCheckoutPhase.awaitingPayment);
       final interval = ref.read(checkoutPollIntervalProvider);
       final deadline = DateTime.now().add(const Duration(minutes: 15));
-      while (
-          ref.mounted && !_stopWaiting && DateTime.now().isBefore(deadline)) {
+      while (ref.mounted &&
+          !_stopWaiting &&
+          DateTime.now().isBefore(deadline) &&
+          !(_stopWaitingAfter?.isBefore(DateTime.now()) ?? false)) {
         final overview = await _check(repo);
         if (overview != null && overview.isActive) {
           if (!ref.mounted) return ClientCheckoutOutcome.activated;
@@ -157,5 +173,17 @@ class ClientCheckoutController extends Notifier<ClientCheckoutState> {
     } on Object {
       return null; // offline for a moment: keep waiting
     }
+  }
+}
+
+/// Tells the checkout controller the app is in front again.
+class _ResumeWatcher with WidgetsBindingObserver {
+  _ResumeWatcher(this._onResumed);
+
+  final VoidCallback _onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _onResumed();
   }
 }
