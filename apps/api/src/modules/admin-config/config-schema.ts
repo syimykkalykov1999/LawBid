@@ -62,6 +62,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
     pattern: /^(postgres|shadow|engine)$/,
   };
+  out['search.engine_kind'] = {
+    type: 'string',
+    defaultValue: 'domain',
+    description:
+      'Which search engine the app talks to: domain (OpenSearch domain, about $25 a month for the smallest) or serverless (Amazon OpenSearch Serverless, from about $350 a month, no servers to size). Serverless needs growth.opensearch_serverless_enabled in Terraform. Changing it needs a reindex.',
+    pattern: /^(domain|serverless)$/,
+  };
   out['search.engine_timeout_ms'] = {
     type: 'integer',
     defaultValue: 800,
