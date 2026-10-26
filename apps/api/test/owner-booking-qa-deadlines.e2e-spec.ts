@@ -553,8 +553,14 @@ describe('Booking, Q&A, deadlines (e2e)', () => {
           .set(cl.auth)
           .set('Idempotency-Key', randomUUID())
           .send({
-            title: 'Admin browse: who keeps the deposit?',
-            body: 'Moved out last month and the landlord has not answered.',
+            // #378 rejects a repeat of the same question: the named one is
+            // worded differently from the anonymous one.
+            title: anonymous
+              ? 'Admin browse: who keeps the deposit?'
+              : 'Admin browse: can the landlord keep my security deposit?',
+            body: anonymous
+              ? 'Moved out last month and the landlord has not answered.'
+              : 'I left the flat in June, cleaned it, and still have no refund or list of damages.',
             practiceAreaId: area.id,
             stateCode: 'NY',
             anonymous,
