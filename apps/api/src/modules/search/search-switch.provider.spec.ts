@@ -184,7 +184,7 @@ describe('SwitchingSearchProvider', () => {
 });
 
 describe('search latency metric line', () => {
-  it('logs one {metric: search_latency} line per Postgres-answered search', async () => {
+  it('logs ONE aggregated {metric: search_latency} line per minute, not one per search (review R-56)', async () => {
     const lines: unknown[] = [];
     const spy = jest
       .spyOn(Logger.prototype, 'log')
@@ -192,13 +192,20 @@ describe('search latency metric line', () => {
     const { sw } = make('postgres');
     let t = 1000;
     sw.now = () => (t += 40);
-    await sw.searchPosts('law', 5, {});
+    for (let i = 0; i < 25; i += 1) await sw.searchPosts('law', 5, {});
+    const during = lines.filter(
+      (l) => (l as { metric?: string }).metric === 'search_latency',
+    );
+    expect(during).toHaveLength(0); // still inside the one-minute window
+    await sw.idle(); // flush
     spy.mockRestore();
     expect(lines).toContainEqual({
       metric: 'search_latency',
       op: 'posts',
       engine: 'postgres',
       ms: 40,
+      n: 25,
+      max: 40,
     });
   });
 });
