@@ -56,6 +56,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     try {
       final next =
           await ref.read(subscriptionRepositoryProvider).switchToYearly();
+      if (!mounted) return;
       ref.read(subscriptionOverviewProvider.notifier).apply(next);
       if (mounted) showAppSnackBar(context, _t.t('prime.done'));
     } on Object catch (e) {

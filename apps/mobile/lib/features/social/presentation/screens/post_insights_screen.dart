@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/promotions/application/promotions_providers.dart';
@@ -337,6 +338,7 @@ class _Header extends ConsumerWidget {
                 ? placeholder
                 : CachedNetworkImage(
                     imageUrl: thumb,
+                    cacheManager: AppImageCaches.feed,
                     fit: BoxFit.cover,
                     memCacheWidth: 200,
                     placeholder: (_, __) =>
