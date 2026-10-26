@@ -1,7 +1,7 @@
 ---
 id: cloudflare-r2
 title: Cloudflare: фото и медиа (R2)
-category: keys
+category: content
 cost: 10 ГБ хранения, 1 млн записей и 10 млн чтений в месяц бесплатно. Дальше $0,015 за ГБ в месяц. Скачивание из R2 бесплатно.
 time: 30 минут (плюс ожидание, если домен ещё не в Cloudflare)
 launch: cloudflare_r2, r2_on

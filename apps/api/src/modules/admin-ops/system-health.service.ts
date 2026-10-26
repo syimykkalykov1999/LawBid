@@ -7,10 +7,17 @@ import { StatusProbesService } from '../../common/ops/status/status-probes.servi
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
+import { SecretRotationService } from '../../common/ops/secret-rotation.service';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { SecretsService } from '../../common/secrets/secrets.service';
-import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
-import { OBSERVED_QUEUES } from '../../jobs/handlers/ops-metrics.job';
+import {
+  MESSAGE_KID_ROW_ALARM,
+  MessageReencryptJob,
+} from '../../jobs/handlers/message-reencrypt.job';
+import {
+  OBSERVED_QUEUES,
+  SLOW_LANE_QUEUES,
+} from '../../jobs/handlers/ops-metrics.job';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -67,6 +74,8 @@ export class SystemHealthService implements OnModuleDestroy {
     // Owner 2026-10-22: the status board's extra probes and incident list.
     @Optional() private readonly probes?: StatusProbesService,
     @Optional() private readonly incidents?: IncidentsService,
+    // Owner 2026-10-25: last / next rotation per rotated secret.
+    @Optional() private readonly rotation?: SecretRotationService,
   ) {}
 
   async report(now: Date = new Date()): Promise<SystemHealthDto> {
@@ -82,6 +91,11 @@ export class SystemHealthService implements OnModuleDestroy {
       this.safe('cost', () => this.cost()),
       this.safe('message_keys', () => this.messageKeys()),
     ]);
+    if (this.rotation?.enabled) {
+      items.push(
+        await this.safe('secret_rotation', () => this.secretRotation(now)),
+      );
+    }
     const extra = this.probes ? await this.probes.extra() : [];
     items.push(...extra.filter((e) => !items.some((i) => i.key === e.key)));
     const incidents = this.incidents
@@ -162,15 +176,25 @@ export class SystemHealthService implements OnModuleDestroy {
     const stuck = current
       ? Object.values(current.byKid).reduce((n, k) => n + k.failed, 0)
       : 0;
-    const status: HealthStatus = !current
-      ? retiredKids.length > 0
-        ? 'yellow'
-        : 'green'
-      : stuck > 0
-        ? 'red'
-        : current.phase === 'done'
-          ? 'green'
-          : 'yellow';
+    // S3-2: one random-IV AES-GCM key must not seal without limit.
+    const kidRows = current?.kidRows ?? {};
+    const overKid = Object.entries(kidRows).find(
+      ([, n]) => n >= MESSAGE_KID_ROW_ALARM,
+    );
+    const alarm = overKid
+      ? `Под ключом «${overKid[0]}» уже ${overKid[1].toLocaleString('ru-RU')} сообщений (предел 1 млрд). Выпустите новый ключ (kid) и сделайте его активным; ключи меняют раз в год.`
+      : null;
+    const status: HealthStatus = alarm
+      ? 'red'
+      : !current
+        ? retiredKids.length > 0
+          ? 'yellow'
+          : 'green'
+        : stuck > 0
+          ? 'red'
+          : current.phase === 'done'
+            ? 'green'
+            : 'yellow';
     return {
       status,
       detail: {
@@ -182,6 +206,11 @@ export class SystemHealthService implements OnModuleDestroy {
         rewritten: current?.rewritten ?? 0,
         failed: current?.failed ?? 0,
         byKid: current?.byKid ?? {},
+        /** Sealed message bodies per key id (exact after a finished pass). */
+        kidRows,
+        kidRowAlarmAt: MESSAGE_KID_ROW_ALARM,
+        alarm,
+        stores: current?.stores ?? null,
         startedAt: current?.startedAt ?? null,
         updatedAt: current?.updatedAt ?? null,
         finishedAt: current?.finishedAt ?? null,
@@ -193,6 +222,22 @@ export class SystemHealthService implements OnModuleDestroy {
             : [],
       },
     };
+  }
+
+  /**
+   * Owner 2026-10-25 (docs/runbooks/secrets-rotation.md): when each
+   * automatically rotated secret was last rotated and when the next one is
+   * due. Red = a rotation failed, yellow = overdue or the hourly check is
+   * silent. Only present while rotation is switched on.
+   */
+  private async secretRotation(now: Date): Promise<Omit<HealthItemDto, 'key'>> {
+    const rows = await this.rotation!.rows(now);
+    const status: HealthStatus = rows.some((r) => r.state === 'failed')
+      ? 'red'
+      : rows.some((r) => r.state === 'overdue' || r.state === 'unknown')
+        ? 'yellow'
+        : 'green';
+    return { status, detail: { secrets: rows } };
   }
 
   private api(): HealthItemDto {
@@ -321,6 +366,7 @@ export class SystemHealthService implements OnModuleDestroy {
     let waiting = 0;
     let failed = 0;
     let oldestSec = 0;
+    let slowOldestSec = 0;
     let dlq = 0;
     const paused: string[] = [];
     for (const q of this.open()) {
@@ -333,20 +379,26 @@ export class SystemHealthService implements OnModuleDestroy {
       failed += c.failed ?? 0;
       const [oldest] = await withTimeout(q.getWaiting(0, 0));
       if (oldest) {
-        oldestSec = Math.max(
-          oldestSec,
-          Math.floor((now.getTime() - oldest.timestamp) / 1000),
-        );
+        const age = Math.floor((now.getTime() - oldest.timestamp) / 1000);
+        // Long lanes (heavy cron, deletions, fan-outs) may wait for a while.
+        if (SLOW_LANE_QUEUES.includes(q.name)) {
+          slowOldestSec = Math.max(slowOldestSec, age);
+        } else {
+          oldestSec = Math.max(oldestSec, age);
+        }
       }
       if (await q.isPaused()) paused.push(q.name);
     }
     const status: HealthStatus =
       oldestSec > 300
         ? 'red'
-        : oldestSec > 60 || dlq > 0 || waiting > 1000
+        : oldestSec > 60 || dlq > 0 || waiting > 1000 || slowOldestSec > 3600
           ? 'yellow'
           : 'green';
-    return { status, detail: { waiting, failed, oldestSec, dlq, paused } };
+    return {
+      status,
+      detail: { waiting, failed, oldestSec, slowOldestSec, dlq, paused },
+    };
   }
 
   private async backup(now: Date): Promise<Omit<HealthItemDto, 'key'>> {

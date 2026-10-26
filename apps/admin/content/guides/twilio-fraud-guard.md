@@ -1,7 +1,7 @@
 ---
 id: twilio-fraud-guard
 title: Twilio - защита от накрутки SMS
-category: security
+category: people
 cost: Бесплатно в США и Канаде. Для Verify защита Fraud Guard включена без доплаты.
 time: 10 минут
 verified: 2026-10-25
