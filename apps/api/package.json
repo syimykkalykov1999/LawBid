@@ -156,9 +156,13 @@
     "testEnvironment": "node",
     "transformIgnorePatterns": [
       "node_modules/(?!(@nestjs/jwt|jose)/)"
-    ]
+    ],
+    "workerIdleMemoryLimit": "1GB"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=22.23.4 <23"
   }
 }
