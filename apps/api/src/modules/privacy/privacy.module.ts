@@ -20,6 +20,7 @@ import { PersonalDataErasureService } from './personal-data-erasure.service';
 import { AccountDeletionRunner } from './account-deletion.runner';
 import {
   ACCOUNT_ERASER,
+  ERASURE_RECORDS,
   DELETION_NOTICES,
 } from '../../common/privacy/privacy.ports';
 import { DataExportController } from './data-export.controller';
@@ -94,10 +95,12 @@ export class PrivacyModule {
         DeletionNoticesService,
         PrivacyRetentionService,
         { provide: ACCOUNT_ERASER, useExisting: AccountAnonymizationService },
+        { provide: ERASURE_RECORDS, useExisting: PersonalDataErasureService },
         { provide: DELETION_NOTICES, useExisting: DeletionNoticesService },
       ],
       exports: [
         ACCOUNT_ERASER,
+        ERASURE_RECORDS,
         DELETION_NOTICES,
         ErasureLedgerService,
         DeletionStepsService,

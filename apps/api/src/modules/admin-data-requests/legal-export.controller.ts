@@ -6,6 +6,7 @@ import {
   HttpCode,
   NotFoundException,
   HttpStatus,
+  Inject,
   Param,
   Post,
   Query,
@@ -24,7 +25,10 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AuditLogService } from '../admin-access/audit-log.service';
-import { PersonalDataErasureService } from '../privacy/personal-data-erasure.service';
+import {
+  ERASURE_RECORDS,
+  type ErasureRecords,
+} from '../../common/privacy/privacy.ports';
 import {
   CreateLegalExportDto,
   ErasureRecordDto,
@@ -60,7 +64,8 @@ export class AdminLegalExportController {
     private readonly lookup: LegalLookupService,
     private readonly exports: LegalExportService,
     private readonly audit: AuditLogService,
-    private readonly erasure: PersonalDataErasureService,
+    // Via a port, not an import of the privacy module (module-boundaries).
+    @Inject(ERASURE_RECORDS) private readonly erasure: ErasureRecords,
   ) {}
 
   @Get('lookup')
@@ -139,11 +144,8 @@ export class AdminLegalExportController {
     });
     return {
       status: record.status,
-      stores: record.stores as unknown as Record<string, unknown>,
-      certificate: record.certificate as unknown as Record<
-        string,
-        unknown
-      > | null,
+      stores: record.stores,
+      certificate: record.certificate as Record<string, unknown> | null,
     };
   }
 

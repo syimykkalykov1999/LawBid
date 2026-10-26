@@ -4,8 +4,11 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { delSafe } from '../../redis/redis-cluster-safe';
+import { isRedisClusterMode } from '../../redis/redis-connection';
 import { ALL_VARIANT_PX, variantKey } from '../files/files.policy';
-import { FileReleaseService } from '../files/storage/file-release.service';
+import { FileReleaseService } from '../files/files.public';
+import type { ErasureRecords } from '../../common/privacy/privacy.ports';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { familyOf } from '../../sharding/shard-manifest';
 import { shardContext } from '../../sharding/shard-context';
@@ -127,7 +130,7 @@ export async function activeLegalHold(
  * touched here. The finished run becomes the erasure certificate.
  */
 @Injectable()
-export class PersonalDataErasureService {
+export class PersonalDataErasureService implements ErasureRecords {
   constructor(
     private readonly prisma: PrismaService,
     private readonly release: FileReleaseService,
@@ -499,24 +502,31 @@ export class PersonalDataErasureService {
   }
 
   private async redisKeys(userId: string): Promise<StoreOutcome> {
-    let removed = 0;
-    removed += await this.redis.del(
+    // The per-user keys sit in different slots: delSafe (one DEL per key
+    // in cluster mode, one DEL standalone).
+    let removed = await delSafe(this.redis, [
       `presence:${userId}`,
       `blocks:${userId}`,
       `badge:${userId}`,
-    );
-    let cursor = '0';
-    do {
-      const [next, keys] = await this.redis.scan(
-        cursor,
-        'MATCH',
-        `idempotency:${userId}:*`,
-        'COUNT',
-        200,
-      );
-      cursor = next;
-      if (keys.length > 0) removed += await this.redis.del(...keys);
-    } while (cursor !== '0');
+    ]);
+    // Cluster: SCAN sees one node only, so sweep every master.
+    const nodes: Redis[] = isRedisClusterMode()
+      ? (this.redis as unknown as { nodes(r: string): Redis[] }).nodes('master')
+      : [this.redis];
+    for (const node of nodes) {
+      let cursor = '0';
+      do {
+        const [next, keys] = await node.scan(
+          cursor,
+          'MATCH',
+          `idempotency:${userId}:*`,
+          'COUNT',
+          200,
+        );
+        cursor = next;
+        if (keys.length > 0) removed += await delSafe(this.redis, keys);
+      } while (cursor !== '0');
+    }
     return { status: 'done', count: removed };
   }
 
