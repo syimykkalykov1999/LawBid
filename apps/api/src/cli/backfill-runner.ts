@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import Redis from 'ioredis';
+import { createRedisClient } from '../redis/redis-connection';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
 import {
   OPS_KEYS,
@@ -40,10 +40,7 @@ async function main(): Promise<number> {
   const db = new PrismaClient();
   const store = new PgBackfillStore(db);
   const redis = process.env.REDIS_URL
-    ? new Redis(process.env.REDIS_URL, {
-        lazyConnect: true,
-        maxRetriesPerRequest: 1,
-      })
+    ? createRedisClient(process.env.REDIS_URL, { maxRetriesPerRequest: 1 })
     : null;
   try {
     if (cmd === 'list') {
