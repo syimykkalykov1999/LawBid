@@ -1,7 +1,7 @@
 ---
 id: bunny-stream
 title: Bunny Stream: хранение и показ видео
-category: keys
+category: content
 cost: Хранение от $0,01 за ГБ, показ от $0,005 за ГБ, перекодирование бесплатно. Минимум $1 в месяц.
 time: 20 минут
 verified: 2026-10-25

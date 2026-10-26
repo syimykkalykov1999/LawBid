@@ -1,7 +1,7 @@
 ---
 id: cloudflare-turnstile
 title: Cloudflare: защита сайта от ботов (Turnstile)
-category: security
+category: system
 cost: Бесплатно (тариф Free: до 20 виджетов, по 10 доменов в каждом).
 time: 15 минут
 launch: turnstile
