@@ -12,6 +12,7 @@ import { HttpStatsService } from './http-stats.service';
 import { RealtimeStatsService } from './realtime-stats.service';
 import { OpsStateService } from './ops-state.service';
 import { IncidentsService } from './status/incidents.service';
+import { PublicStatusService } from './status/public-status.service';
 import { StatusProbesService } from './status/status-probes.service';
 
 /** Owner 2026-10-05: zero-maintenance operations, shared by the API and
@@ -31,6 +32,7 @@ import { StatusProbesService } from './status/status-probes.service';
     PagerDutySnsService,
     LaunchChecksService,
     SpendService,
+    PublicStatusService,
   ],
   exports: [
     AwsOpsService,
@@ -45,6 +47,7 @@ import { StatusProbesService } from './status/status-probes.service';
     PagerDutySnsService,
     LaunchChecksService,
     SpendService,
+    PublicStatusService,
   ],
 })
 export class OpsModule {}

@@ -373,6 +373,12 @@ export const envSchema = z
       s3BucketPattern,
       'S3_BUCKET_DOCUMENTS must be a valid S3 bucket name',
     ),
+    // Owner 2026-10-25: bucket of the public status page (status.json is
+    // pushed there every minute); empty = nothing is published.
+    STATUS_PAGE_BUCKET: optionalMatching(
+      s3BucketPattern,
+      'STATUS_PAGE_BUCKET must be a valid S3 bucket name',
+    ),
     S3_BUCKET_MEDIA: optionalMatching(
       s3BucketPattern,
       'S3_BUCKET_MEDIA must be a valid S3 bucket name',

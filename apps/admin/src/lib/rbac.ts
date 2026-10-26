@@ -276,6 +276,8 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/launch', label: 'Запуск', icon: 'rocket-launch', area: 'super', hint: 'ваши шаги перед запуском: что готово, что осталось' },
       { href: '/spend', label: 'Расходы', icon: 'chart-line', area: 'super', hint: 'сколько денег уходит каждому сервису и сколько держать на счету' },
       { href: '/system-health', label: 'Здоровье системы', icon: 'heartbeat', area: 'super', hint: 'серверы, база, бэкапы, расходы — всё ли в порядке' },
+      // Owner 2026-10-25: what users see on status.lawbid.dev; post / close an incident.
+      { href: '/status-page', label: 'Страница статуса', icon: 'megaphone', area: 'super', hint: 'сообщить пользователям о сбое или работах' },
       // Owner 2026-10-23: the manual for what to switch on as the platform grows (owner only).
       { href: '/growth-plan', label: 'План роста', icon: 'rocket-launch', area: 'super', hint: 'что включать, когда людей становится больше: по шагам' },
       { href: '/crashes', label: 'Вылеты', icon: 'bug', area: 'settings', hint: 'ошибки приложения: где, на каких телефонах' },
