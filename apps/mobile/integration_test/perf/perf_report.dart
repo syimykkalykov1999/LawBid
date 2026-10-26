@@ -115,6 +115,9 @@ abstract final class PerfBudgets {
   /// Growth of the app's memory across the scroll run.
   static const memoryGrowthMaxPct = 20.0;
 
+  /// Round 2 to round 3 growth below this share = warm-up is over.
+  static const warmupSettledPct = 5.0;
+
   /// The biggest the app may get (iPhone jetsam / Android low-memory killer).
   static const rssPeakMaxMb = 1200.0;
 
@@ -133,6 +136,7 @@ class PerfResult {
     required this.memory,
     required this.video,
     this.nativeStart,
+    this.notes = const [],
   });
 
   /// `{platform, model, refresh_rate_hz, mode, ...}`.
@@ -155,6 +159,9 @@ class PerfResult {
 
   /// Name -> start times in ms.
   final Map<String, List<double>> video;
+
+  /// Failed or skipped steps, in words (shown first in the report).
+  final List<String> notes;
 
   double get refreshHz => (device['refresh_rate_hz'] as num?)?.toDouble() ?? 60;
 
@@ -214,12 +221,20 @@ class PerfResult {
       double rss(Map<String, Object?> m) => (m['rss_mb']! as num).toDouble();
       // The first sample is after the feed settled (the warm-up), the last
       // is after the whole run and a settle pause.
-      final base = rss(memory.first);
+      // With PERF_ROUNDS >= 2 the first pass is the warm-up (caches fill once:
+      // image decode, fonts, shaders, sockets), so growth is judged from the
+      // end of round 1 to the end of the run: a leak keeps growing, a
+      // warm-up does not. One round has nothing else to compare to.
+      final perRound = roundSummary();
+      final fromRound1 = perRound.length >= 2;
+      final base = fromRound1 ? perRound.first.rss : rss(memory.first);
       final end = rss(memory.last);
       final peak = memory.map(rss).reduce((a, b) => a > b ? a : b);
       if (base > 0) {
         add(
-          'memory: RSS growth over the run',
+          fromRound1
+              ? 'memory: RSS growth, end of round 1 to end of run'
+              : 'memory: RSS growth over the run',
           100 * (end - base) / base,
           PerfBudgets.memoryGrowthMaxPct,
           '%',
@@ -253,6 +268,56 @@ class PerfResult {
     return checks;
   }
 
+  static String _signed(double v) =>
+      '${v >= 0 ? '+' : ''}${v.toStringAsFixed(1)}';
+
+  /// The last scenario sample of every round (the final settle sample is not
+  /// part of a round), in round order.
+  List<({int round, double rss, double? heap, int cacheItems})> roundSummary() {
+    final last = <int, Map<String, Object?>>{};
+    for (final m in memory) {
+      if ('${m['at']}'.startsWith('end of run')) continue;
+      last[(m['round'] as num?)?.toInt() ?? 1] = m;
+    }
+    final keys = last.keys.toList()..sort();
+    return [
+      for (final k in keys)
+        (
+          round: k,
+          rss: (last[k]!['rss_mb']! as num).toDouble(),
+          heap: (last[k]!['heap_mb'] as num?)?.toDouble(),
+          cacheItems: (last[k]!['image_cache_count'] as num?)?.toInt() ?? 0,
+        ),
+    ];
+  }
+
+  /// Warm-up or leak. Warm-up: growth sits in round 1 and the step from round
+  /// 2 to round 3 is under 5 %. Leak: the app keeps growing about as much in
+  /// every round (the round 2 to 3 step is at least 5 % and at least 60 % of
+  /// the round 1 to 2 step).
+  String leakVerdict() {
+    final r = roundSummary();
+    if (r.length < 3) {
+      return 'not enough rounds to tell (run with PERF_ROUNDS=3 or more).';
+    }
+    final g12 = r[1].rss - r[0].rss;
+    final g23 = r[2].rss - r[1].rss;
+    final pct23 = 100 * g23 / r[1].rss;
+    final line = 'round 2 to 3 grew ${_signed(g23)} MB '
+        '(${_signed(pct23)} %), round 1 to 2 ${_signed(g12)} MB';
+    if (pct23 < PerfBudgets.warmupSettledPct) {
+      return 'WARM-UP, not a leak: $line. The growth is a one-time fill of '
+          'caches, it stops.';
+    }
+    if (g12 > 0 && g23 >= 0.6 * g12) {
+      return 'LEAK suspected: $line. Memory keeps rising about the same in '
+          'every round.';
+    }
+    return 'STILL SETTLING: $line. Growth is slowing but not under '
+        '${PerfBudgets.warmupSettledPct.toStringAsFixed(0)} % yet; run more '
+        'rounds.';
+  }
+
   Map<String, Object?> toJson() {
     final checks = evaluate();
     return {
@@ -270,6 +335,7 @@ class PerfResult {
           },
       },
       'memory': memory,
+      if (roundSummary().length >= 2) 'leak_verdict': leakVerdict(),
       'video_start_ms': {
         for (final e in video.entries)
           e.key: {
@@ -278,6 +344,7 @@ class PerfResult {
             'p90': FrameStats.percentile(e.value, 0.9),
           },
       },
+      'notes': notes,
       'checks': [for (final c in checks) c.toJson()],
     };
   }
@@ -293,7 +360,15 @@ class PerfResult {
           '(${checks.where((c) => c.ok).length}/${checks.length} checks)')
       ..writeln()
       ..writeln('Device: `${jsonEncode(device)}`')
-      ..writeln()
+      ..writeln();
+    if (notes.isNotEmpty) {
+      b.writeln('## Notes (failed or skipped)\n');
+      for (final n in notes) {
+        b.writeln('- $n');
+      }
+      b.writeln();
+    }
+    b
       ..writeln('## Budgets')
       ..writeln()
       ..writeln('| Check | Value | Limit | |')
@@ -362,13 +437,38 @@ class PerfResult {
       ..writeln()
       ..writeln('## Memory')
       ..writeln()
-      ..writeln('| After | RSS MB | Dart heap MB | Image cache MB (items) |')
-      ..writeln('| --- | ---: | ---: | ---: |');
+      ..writeln('| Round | After | RSS MB | Dart heap MB '
+          '| Image cache MB (items) |')
+      ..writeln('| ---: | --- | ---: | ---: | ---: |');
     for (final m in memory) {
       b.writeln(
-        '| ${m['at']} | ${m['rss_mb']} | ${m['heap_mb'] ?? '-'} '
+        '| ${m['round'] ?? 1} | ${m['at']} | ${m['rss_mb']} '
+        '| ${m['heap_mb'] ?? '-'} '
         '| ${m['image_cache_mb']} (${m['image_cache_count']}) |',
       );
+    }
+    final rounds = roundSummary();
+    if (rounds.length >= 2) {
+      b
+        ..writeln()
+        ..writeln('## Memory per round (end of each round)')
+        ..writeln()
+        ..writeln('| Round | RSS MB | Growth vs previous | Dart heap MB '
+            '| Image cache items |')
+        ..writeln('| ---: | ---: | ---: | ---: | ---: |');
+      for (var i = 0; i < rounds.length; i++) {
+        final r = rounds[i];
+        final prev = i == 0 ? null : rounds[i - 1].rss;
+        b.writeln(
+          '| ${r.round} | ${r.rss} '
+          '| ${prev == null ? '-' : '${_signed(r.rss - prev)} MB '
+              '(${_signed(100 * (r.rss - prev) / prev)} %)'} '
+          '| ${r.heap ?? '-'} | ${r.cacheItems} |',
+        );
+      }
+      b
+        ..writeln()
+        ..writeln('**Verdict:** ${leakVerdict()}');
     }
     return b.toString();
   }
