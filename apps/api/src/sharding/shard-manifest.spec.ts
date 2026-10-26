@@ -33,7 +33,7 @@ describe('shard family manifest (shard-ready step 0)', () => {
       counts[s.family] = (counts[s.family] ?? 0) + 1;
     }
     counts.global = GLOBAL_MODELS.length;
-    expect(counts).toEqual({ case: 46, user: 26, content: 32, global: 145 });
+    expect(counts).toEqual({ case: 46, user: 26, content: 32, global: 149 });
   });
 
   describe.each(Object.entries(SHARDED_MODELS))('%s', (name, spec) => {
