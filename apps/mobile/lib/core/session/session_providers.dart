@@ -349,8 +349,8 @@ class SessionController extends _$SessionController {
       sub: payload['sub'] as String,
       role: payload['role'] as String?,
       sid: payload['sid'] as String,
-      verified: payload['verified'] as bool,
-      subscriptionStatus: payload['subscriptionStatus'] as String,
+      verified: payload['verified'] == true,
+      subscriptionStatus: (payload['subscriptionStatus'] as String?) ?? 'none',
       accessTokenExpiresAt: DateTime.now().add(
         Duration(seconds: tokens.accessTokenExpiresIn),
       ),

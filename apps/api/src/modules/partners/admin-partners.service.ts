@@ -681,17 +681,6 @@ export class AdminPartnersService {
 
   // ---- helpers ------------------------------------------------------------
 
-  /** Owner 2026-10-22 (maker-checker): what «Выплатить» would mark paid. */
-  async payableCents(id: string, period?: string): Promise<number> {
-    const rows = await this.partners.listPayable(id, period);
-    return rows.reduce((s, c) => s + c.amount_cents, 0);
-  }
-
-  /** …and one commission's amount. */
-  async commissionCents(id: string): Promise<number> {
-    return (await this.mustFindCommission(id)).amount_cents;
-  }
-
   private async mustFind(id: string): Promise<Partner> {
     const p = await this.prisma.partner.findUnique({ where: { id } });
     if (!p) throw notFound();

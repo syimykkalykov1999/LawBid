@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -204,7 +206,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
     try {
       await ref.read(chatRepositoryProvider).organize(c.id, pinned: !c.pinned);
       refreshChatFolders(ref);
-      ref.invalidate(chatThreadProvider(widget.conversationId));
+      unawaited(_thread.refreshConversation());
       if (mounted) {
         showAppSnackBar(
           context,
@@ -457,7 +459,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                     : t.t('contact.noteEmpty'),
                 onTap: () async {
                   await showChatOrganizeSheet(context, ref, c);
-                  ref.invalidate(chatThreadProvider(widget.conversationId));
+                  unawaited(_thread.refreshConversation());
                 },
               ),
             ],
@@ -486,9 +488,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                         currentlyBlocked: blocked,
                       );
                       if (changed) {
-                        ref.invalidate(
-                          chatThreadProvider(widget.conversationId),
-                        );
+                        unawaited(_thread.refreshConversation());
                       }
                     },
                   ),

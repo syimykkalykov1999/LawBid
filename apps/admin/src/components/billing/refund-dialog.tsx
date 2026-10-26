@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { ApiError, api } from '@/lib/api/client';
+import { api } from '@/lib/api/client';
 import { usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 import { type AdminPayment, dollarsToCents, userName } from './shared';
@@ -45,14 +45,7 @@ function RefundForm({ payment, onClose }: { payment: AdminPayment; onClose: () =
       void qc.invalidateQueries({ queryKey: ['admin-subscription', payment.userId] });
       onClose();
     },
-    onError: (e) => {
-      toast.error(e);
-      // Owner 2026-10-22: from the limit on it waits for a second admin.
-      if (e instanceof ApiError && e.code === 'ADMIN_APPROVAL_PENDING') {
-        void qc.invalidateQueries({ queryKey: ['approvals-count'] });
-        onClose();
-      }
-    },
+    onError: (e) => toast.error(e),
   });
 
   return (
