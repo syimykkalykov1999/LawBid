@@ -1328,6 +1328,8 @@ locals {
     # «search.engine» to shadow / engine (docs/architecture/SEARCH_READY.md).
     OPENSEARCH_URL      = var.growth.opensearch_enabled ? "https://${module.growth.opensearch_endpoint}" : ""
     OPENSEARCH_REPLICAS = tostring(module.growth.opensearch_replicas)
+    # Events pipeline (growth.events_stream_enabled): empty while off.
+    EVENTS_STREAM_NAME = var.growth.events_stream_enabled ? aws_kinesis_stream.events[0].name : ""
   }
   critical_topic_arn = "arn:aws:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name}-critical"
   arm_factor         = var.cpu_architecture == "ARM64" ? 0.8 : 1

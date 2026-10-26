@@ -1,4 +1,8 @@
 import { forEachDatabase } from '../../sharding/for-each-database';
+import {
+  DomainEvents,
+  type DomainEventTicket,
+} from '../events/domain-events.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { BidPacksService } from '../bid-packs/bid-packs.service';
 import {
@@ -107,6 +111,8 @@ export class BidsService {
     @Optional() private readonly conflicts?: ConflictCheckService,
     // Owner 2026-10-25: per-day / per-hour caps against scripts.
     @Optional() private readonly limits?: UsageLimitsService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   /** Codes of the case's topics (the first and the extras). */
@@ -290,7 +296,9 @@ export class BidsService {
     }
 
     try {
+      const eventTickets: Array<DomainEventTicket | null | undefined> = [];
       const bid = await withTxRetry(this.prisma, async (tx) => {
+        eventTickets.length = 0;
         const kase = await tx.case.findUnique({
           where: { id: caseId },
           select: { client_id: true, status: true, deleted_at: true },
@@ -395,8 +403,25 @@ export class BidsService {
           },
           tx,
         );
+        eventTickets.push(
+          await this.events?.emit(
+            tx,
+            'bid.placed',
+            {
+              bidId: created.id,
+              caseId,
+              attorneyId: user.sub,
+              feeType: created.fee_type,
+            },
+            {
+              actorId: user.sub,
+              key: `bid.placed:${created.id}:${now.getTime()}`,
+            },
+          ),
+        );
         return { ...created, offers: [offer] };
       });
+      await this.events?.flush(eventTickets);
       // OQ-048: the assistant's draft for this case is used up.
       await this.prisma.bidDraft
         .deleteMany({ where: { attorney_id: user.sub, case_id: caseId } })
