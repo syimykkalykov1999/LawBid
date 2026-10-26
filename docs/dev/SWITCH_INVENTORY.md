@@ -43,6 +43,7 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 | `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `privacy.twilio_purge_enabled` | Удалять журнал SMS в Twilio при удалении аккаунта | on | 2 | privacy hardening (#360): purge Twilio message logs on account deletion, capped by `privacy.twilio_purge_max_messages` | `modules/privacy/vendor-deletion.service.ts:59` | `privacy.twilio_purge_max_messages` | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).

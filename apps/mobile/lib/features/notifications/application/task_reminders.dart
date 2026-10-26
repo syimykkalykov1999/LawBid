@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -37,6 +38,23 @@ void openReminderRoute(GoRouter router, String route) {
   final here = router.routerDelegate.currentConfiguration.uri;
   if (here.path == Uri.parse(route).path) return;
   router.go(route);
+}
+
+/// Opens the screen a tapped notification names: a tab root (feed, search,
+/// mine, profile) replaces the stack ([openReminderRoute]), anything else is
+/// pushed on top.
+void openNotificationRoute(GoRouter router, String route) {
+  const tabRoots = {
+    AppRoutes.feed,
+    AppRoutes.search,
+    AppRoutes.mine,
+    AppRoutes.profile,
+  };
+  if (tabRoots.contains(Uri.parse(route).path)) {
+    openReminderRoute(router, route);
+  } else {
+    unawaited(router.push<Object?>(route));
+  }
 }
 
 /// A tapped reminder opens the planner.

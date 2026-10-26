@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -188,7 +189,7 @@ class ContactCardBody extends ConsumerWidget {
                 initials: avatarInitials(card.displayName),
                 imageProvider: card.avatarUrl == null
                     ? null
-                    : NetworkImage(card.avatarUrl!),
+                    : appNetworkImage(card.avatarUrl!, decodeWidthFor(44)),
                 semanticLabel: card.displayName,
               ),
               const SizedBox(width: AppSpacing.sm),
