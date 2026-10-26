@@ -26,7 +26,125 @@ import flutter_callkit_incoming
     // Planner reminders armed by flutter_local_notifications show while the
     // app is open too.
     UNUserNotificationCenter.current().delegate = self
+    registerChatCategory()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // MARK: - Chat notification buttons
+
+  /// Owner 2026-10-26 (WhatsApp): «Ответить» (type a reply on the banner /
+  /// lock screen) and «Прочитано» under a chat push (`aps.category =
+  /// chat_message`, api notifications/push/actor-push.ts). They work with
+  /// the app closed: iOS wakes the app in the background for the button,
+  /// which posts the push's signed ticket + this device's push token to
+  /// `POST /push-actions` (the server accepts it only while this device is
+  /// signed in to that account).
+  static let chatCategory = "chat_message"
+  static let replyAction = "chat_reply"
+  static let readAction = "chat_read"
+  private static let apiKey = "lawbid.pushActions.api"
+  private static let deviceKey = "lawbid.pushActions.device"
+
+  private func registerChatCategory() {
+    let ru = (Locale.preferredLanguages.first ?? "").hasPrefix("ru")
+    let reply = UNTextInputNotificationAction(
+      identifier: AppDelegate.replyAction,
+      title: ru ? "Ответить" : "Reply",
+      options: [],
+      textInputButtonTitle: ru ? "Отправить" : "Send",
+      textInputPlaceholder: ru ? "Сообщение" : "Message")
+    let read = UNNotificationAction(
+      identifier: AppDelegate.readAction,
+      title: ru ? "Прочитано" : "Mark as read",
+      options: [])
+    let chat = UNNotificationCategory(
+      identifier: AppDelegate.chatCategory,
+      actions: [reply, read],
+      intentIdentifiers: [],
+      options: [])
+    let center = UNUserNotificationCenter.current()
+    center.getNotificationCategories { existing in
+      // Keep categories registered by plugins (flutter_local_notifications).
+      var all = existing.filter { $0.identifier != AppDelegate.chatCategory }
+      all.insert(chat)
+      center.setNotificationCategories(all)
+    }
+  }
+
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let action = response.actionIdentifier
+    guard action == AppDelegate.replyAction || action == AppDelegate.readAction else {
+      super.userNotificationCenter(
+        center, didReceive: response, withCompletionHandler: completionHandler)
+      return
+    }
+    let info = response.notification.request.content.userInfo
+    let defaults = UserDefaults.standard
+    guard let token = info["actionToken"] as? String,
+      let api = defaults.string(forKey: AppDelegate.apiKey),
+      let device = defaults.string(forKey: AppDelegate.deviceKey),
+      let url = URL(string: api + "/push-actions")
+    else {
+      completionHandler()
+      return
+    }
+    var body: [String: Any] = ["token": token, "fcmToken": device]
+    if let messageId = info["messageId"] as? String, !messageId.isEmpty {
+      body["messageId"] = messageId
+    }
+    let thread = response.notification.request.content.threadIdentifier
+    if action == AppDelegate.readAction {
+      body["action"] = "read"
+      // WhatsApp: the chat's notifications go at once.
+      center.getDeliveredNotifications { delivered in
+        let ids = delivered
+          .filter { $0.request.content.threadIdentifier == thread }
+          .map { $0.request.identifier }
+        if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+      }
+    } else {
+      let text = (response as? UNTextInputNotificationResponse)?.userText
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      if text.isEmpty {
+        completionHandler()
+        return
+      }
+      body["action"] = "reply"
+      body["text"] = text
+      body["clientMessageId"] = UUID().uuidString
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 15
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    // iOS gives a background button a few seconds; keep the app alive
+    // until the request is done.
+    var task: UIBackgroundTaskIdentifier = .invalid
+    task = UIApplication.shared.beginBackgroundTask {
+      UIApplication.shared.endBackgroundTask(task)
+    }
+    URLSession.shared.dataTask(with: request) { _, _, _ in
+      DispatchQueue.main.async {
+        completionHandler()
+        UIApplication.shared.endBackgroundTask(task)
+      }
+    }.resume()
+  }
+
+  private static func setPushActions(url: String?, token: String?) {
+    let d = UserDefaults.standard
+    if let url = url, !url.isEmpty, let token = token, !token.isEmpty {
+      d.set(url.hasSuffix("/") ? String(url.dropLast()) : url, forKey: apiKey)
+      d.set(token, forKey: deviceKey)
+    } else {
+      d.removeObject(forKey: apiKey)
+      d.removeObject(forKey: deviceKey)
+    }
   }
 
   /// Owner 2026-10-19 (the click when a video starts / stops): the audio
@@ -166,6 +284,12 @@ import flutter_callkit_incoming
         }
         let app = Bundle.main.bundleIdentifier ?? "com.lawbid.lawbid"
         UserDefaults(suiteName: "group.\(app)")?.removeObject(forKey: "chatContactNames")
+        // Signed out: the notification buttons stop working on this phone.
+        AppDelegate.setPushActions(url: nil, token: nil)
+        result(nil)
+      case "setPushActions":
+        AppDelegate.setPushActions(
+          url: args?["url"] as? String, token: args?["token"] as? String)
         result(nil)
       case "pendingOpen":
         result(nil)

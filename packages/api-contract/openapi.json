@@ -99974,6 +99974,61 @@
         ]
       }
     },
+    "/push-actions": {
+      "post": {
+        "operationId": "pushAction",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Reply / mark read from a chat notification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/me/session": {
       "get": {
         "operationId": "getSession",
@@ -170135,6 +170190,10 @@
           "chatStyle": {
             "type": "boolean",
             "description": "Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android)."
+          },
+          "actorStyle": {
+            "type": "boolean",
+            "description": "Owner 2026-10-26: this app draws notifications with a person (bid, comment, like, missed call …) itself, with the person's round photo, from a data-only push (Android)."
           }
         },
         "required": [
@@ -170204,6 +170263,51 @@
         },
         "required": [
           "token"
+        ]
+      },
+      "PushActionDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 600,
+            "description": "The signed ticket the chat push carried (data.actionToken)."
+          },
+          "fcmToken": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 4096,
+            "description": "FCM registration token of this device (still signed in)."
+          },
+          "action": {
+            "enum": [
+              "read",
+              "reply"
+            ],
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "«Прочитано»: read up to this message."
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 4000,
+            "description": "«Ответить»: the text."
+          },
+          "clientMessageId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64,
+            "description": "App-generated id of the reply (a retry never sends twice)."
+          }
+        },
+        "required": [
+          "token",
+          "fcmToken",
+          "action"
         ]
       },
       "AppSessionDto": {

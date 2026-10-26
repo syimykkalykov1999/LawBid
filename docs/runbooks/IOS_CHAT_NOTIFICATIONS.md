@@ -1,80 +1,78 @@
-# iPhone chat pushes with the sender's photo (Communication Notifications)
+# Pushes like WhatsApp: sender photos, buttons, people on every notification
 
-**Владельцу, коротко.** С 2026-10-22 пуш о сообщении на обоих телефонах
-приходит как в WhatsApp: сверху — кто написал (имя из записной книжки, если
-человек сохранён в контактах, иначе имя в LawBid или @username), ниже —
-текст или «📷 Фото» / «🎥 Видео» / «📎 Файл» / «🎤 Голосовое сообщение»; в
-группе сверху название группы, ниже «Имя: текст». На Android фото
-отправителя и имя из записной книжки уже показываются. **На iPhone фото
-вместо иконки LawBid и имя из записной книжки появятся только после шагов
-ниже** — их делают один раз в Xcode и в Apple
-Developer (робот не может нажать эти кнопки). Пока шаги не сделаны, iPhone
-показывает имя и текст, но с иконкой приложения — ничего не ломается.
+**Владельцу, коротко.** С 2026-10-26 уведомления приходят «как в WhatsApp»:
 
-## What is already in the repo
+- **Сообщение** — сверху кто написал (имя из записной книжки, если человек
+  сохранён в контактах, иначе имя в LawBid или @username), его круглое фото,
+  ниже текст или «📷 Фото» / «🎥 Видео» / «📎 Файл» / «🎤 Голосовое сообщение»;
+  в группе — название группы и «Имя: текст». Сообщения одного чата
+  складываются в одну стопку. Если в админке выключен показ текста
+  (`push.chat_preview`), приходит только «Новое сообщение».
+- **Кнопки «Ответить» и «Прочитано»** прямо на уведомлении — ответ уходит,
+  не открывая приложение (Android и iPhone, на Android и с часов).
+- **Ставки, кейсы, комментарии, лайки, подписки, пропущенные звонки** —
+  с именем и фото адвоката, который это сделал (клиент остаётся анонимным,
+  как в списке уведомлений). Нет фото — красивые буквы на синем круге, как
+  в приложении.
+- Тихие часы, переключатели по видам и счётчик на иконке работают как раньше.
+
+**Что сделать один раз (iPhone):** открыть `apps/mobile/ios/Runner.xcworkspace`
+в Xcode, выбрать команду (Team) у цели **NotificationService** (она уже есть в
+проекте) и собрать на телефон — Xcode сам создаст App ID расширения и включит
+«Communication Notifications». Если Xcode пишет про профиль — нажать
+«Try Again» / включить «Automatically manage signing». Без этого шага
+приложение собирается как раньше: уведомления приходят с текстом и кнопками,
+но с иконкой LawBid вместо фото.
+
+## What is in the repo
 
 | Piece | Where |
 |---|---|
-| Server: title = sender, body = text / media label, group «Имя: текст», `data` with `senderId`, `senderName`, `senderAvatar` (+ `senderAvatarKey`), `text`, `kind`, `isGroup`, `chatTitle`, `chatAvatar`; `mutable-content: 1`; `thread-id` = chat id (one stack per chat) | `apps/api/src/modules/notifications/push/chat-push.ts`, `push-dispatcher.ts`, `fcm-push.sender.ts` |
-| Extension code (downloads the photo, donates an `INSendMessageIntent`, swaps in the phone-book name) | `apps/mobile/ios/NotificationService/NotificationService.swift` |
-| Extension `Info.plist` and entitlements (App Group + Communication Notifications) | `apps/mobile/ios/NotificationService/` |
-| `NSUserActivityTypes = [INSendMessageIntent]` | `apps/mobile/ios/Runner/Info.plist` |
-| App writes phone-book names to `UserDefaults(suiteName: "group.<bundle id>")`, clears a chat's notifications when it is opened | `apps/mobile/ios/Runner/AppDelegate.swift` (`lawbid/chat_notifications`) |
+| Server: title = sender, body = text / media label, group «Имя: текст», `data` with `senderId`, `senderName`, `senderAvatar` (+ `senderAvatarKey`), `text`, `kind`, `isGroup`, `chatTitle`, `chatAvatar`; `mutable-content: 1`; `thread-id` = chat id; `aps.category = chat_message`; `data.actionToken` (signed ticket for the buttons) | `apps/api/src/modules/notifications/push/chat-push.ts`, `push-dispatcher.ts`, `fcm-push.sender.ts`, `push-action-token.ts` |
+| Server: other notifications carry the attorney behind them (`style: actor`, `actorName`, `actorAvatar`, `actorAvatarKey`); Android apps that registered `actorStyle` get them data-only | `actor-push.ts`, `push-dispatcher.ts`, `push_tokens.actor_style` |
+| Server: `POST /api/v1/push-actions` — «Ответить» / «Прочитано» without a session: the ticket (HMAC, 48 h, user + chat) + the device's FCM token, accepted only while that device is still signed in to that account; then the normal chat / group code | `notifications/push-actions.*` |
+| Android: MessagingStyle per chat, photos or letters avatar, direct reply + mark read, conversation shortcuts; notifications with a person (large round photo) | `android/.../ChatNotifications.kt`, `PushActionReceiver.kt`, `ActorNotifications.kt`, `ChatPushReceiver.kt` |
+| iPhone: Notification Service Extension target `NotificationService` (embedded in Runner, before «Thin Binary»): Communication Notification with the sender photo (`INSendMessageIntent`), photo attachment for notifications with a person | `ios/NotificationService/*`, `Runner.xcodeproj` |
+| iPhone: «Ответить» / «Прочитано» category, handled in the background | `ios/Runner/AppDelegate.swift` |
 
-**Not done on purpose:** the extension target is not in
-`Runner.xcodeproj`, and `Runner.entitlements` does not list the new
-capabilities. Adding them without the matching App IDs / provisioning
-profiles would break every iOS build (CI and TestFlight) until Apple's side
-is set up, so both happen together, below.
+## Apple side (owner's Mac, once)
 
-## Steps (owner's Mac, once)
+1. **Automatic signing (default):** select the Team on the `NotificationService`
+   target (Signing & Capabilities) and build to a phone. Xcode registers
+   `<app bundle id>.NotificationService` (`com.lawbid.lawbid.NotificationService`,
+   `.dev.NotificationService`, `.staging.NotificationService`) and turns on
+   **Communication Notifications** for the app and the extension (both
+   entitlements files already list it).
+2. **If you switch to `fastlane match`:** add the three extension ids to
+   `app_identifier` and enable Communication Notifications on all six App IDs
+   in Apple Developer → Identifiers, then regenerate the profiles.
+3. **Optional — phone-book names on the iPhone banner:** create App Groups
+   `group.com.lawbid.lawbid` (+ `.dev`, `.staging`), add the App Groups
+   capability with that group to both targets. Until then the banner shows
+   the LawBid name / @username (Android already shows the saved name).
 
-1. **Apple Developer → Identifiers**
-   - App Groups: create `group.com.lawbid.lawbid` (and
-     `group.com.lawbid.lawbid.dev`, `group.com.lawbid.lawbid.staging` if
-     those flavors are installed on phones).
-   - For each app App ID (`com.lawbid.lawbid`, `.dev`, `.staging`): enable
-     **App Groups** (pick its group) and **Communication Notifications**.
-   - Create App IDs for the extension: `com.lawbid.lawbid.NotificationService`
-     (and `.dev.NotificationService`, `.staging.NotificationService`) with the
-     same two capabilities.
-2. **Profiles**: regenerate the app profiles and create ones for the
-   extension IDs (`fastlane match appstore` / `development` with the new
-   `app_identifier` list, or Xcode automatic signing).
-3. **Xcode** (`apps/mobile/ios/Runner.xcworkspace`):
-   - File → New → Target → *Notification Service Extension*, product name
-     `NotificationService`, Swift, iOS 15.5. Delete the generated
-     `NotificationService.swift` / `Info.plist` and add the files from
-     `ios/NotificationService/` instead (target membership: the extension
-     only). Build Settings → *Info.plist File* =
-     `NotificationService/Info.plist`, *Code Signing Entitlements* =
-     `NotificationService/NotificationService.entitlements`.
-   - Extension bundle id per configuration:
-     `$(app bundle id).NotificationService` (Debug-dev →
-     `com.lawbid.lawbid.dev.NotificationService`, and so on).
-   - Base the extension's configurations on `Flutter/Debug.xcconfig` /
-     `Flutter/Release.xcconfig` so `FLUTTER_BUILD_NAME` / `FLUTTER_BUILD_NUMBER`
-     match the app (App Store rejects a mismatched extension version).
-   - Add a build setting `APP_GROUP_ID` = `group.$(app bundle id)` on both
-     the Runner and the extension target, per configuration.
-   - Runner target → Signing & Capabilities → **+ App Groups**
-     (`$(APP_GROUP_ID)`) and **+ Communication Notifications**. Xcode writes
-     both into `Runner/Runner.entitlements`.
-   - Check that Runner → Build Phases → *Embed Foundation Extensions*
-     contains `NotificationService.appex` and that it runs **before**
-     "Thin Binary" (Flutter's known cycle error otherwise).
-4. Build and run on a phone, send yourself a message from another account
-   with a photo: the banner shows the sender's round photo, the name you
-   saved for them, and the chat's messages stack together.
+Build numbers: the extension's «Auto build number» phase writes the number,
+the app's phase reuses it, so both always match (App Store requires that).
 
-## Why an extension (trade-off)
+## Как проверить
+
+1. Два телефона, два аккаунта. Со второго написать первому, когда приложение
+   на первом закрыто: уведомление с фото и именем отправителя.
+2. Нажать «Ответить», написать «ок» — сообщение появилось в чате у второго,
+   приложение на первом не открывалось. «Прочитано» — у второго две синие
+   галочки, уведомление исчезло.
+3. Адвокат ставит лайк / комментарий / ставку — уведомление с его фото.
+4. Включить тихие часы — пушей нет; выключить «Сообщения» — нет пушей чатов.
+5. Админка → `push.chat_preview` выкл — вместо текста «Новое сообщение».
+
+## Why this way (trade-off)
 
 iOS draws a push alone; the app is not running. A sender photo instead of
 the app icon is only possible through a Notification Service Extension that
 downloads the picture and donates an `INSendMessageIntent` (Communication
-Notifications, iOS 15+) — the way WhatsApp and Telegram do it. A plain image
-attachment (`mutable-content` + attachment) would show the photo as a
-thumbnail on the right, not as the sender's avatar, and still needs the
-same extension target, so it buys nothing. Everything that needs no
-extension (title = sender, body = text, one stack per chat) already works
-on iPhones today.
+Notifications, iOS 15+) — the way WhatsApp and Telegram do it (Apple:
+«Implementing communication notifications», developer.apple.com, 2021–2025).
+The buttons cannot use the app's session from outside the app (a refresh
+from a notification button would rotate the session under the running app),
+so each push carries a short-lived signed ticket bound to the account and
+chat, and the server also checks that the device is still signed in.
