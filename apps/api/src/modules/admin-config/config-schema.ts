@@ -273,6 +273,28 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
     pattern: /^(off|monitor|enforce)$/,
   };
+  // Legal register 2026-10-25: 18+ gate, text messages, e-mail footers.
+  out['compliance.age_gate.mode'] = {
+    ...out['compliance.age_gate.mode'],
+    description:
+      'Возрастной барьер 18+: off (по умолчанию) | record (записывать подтверждение, если приложение его прислало) | enforce (новый аккаунт без подтверждения 18+ получает 403 AGE_ATTESTATION_REQUIRED). enforce включать только после того, как приложение покажет галочку и начнёт слать ageAttestation.',
+    pattern: /^(off|record|enforce)$/,
+  };
+  out['compliance.age_gate.min_age'] = {
+    ...out['compliance.age_gate.min_age'],
+    min: 13,
+    max: 21,
+  };
+  out['compliance.sms.quiet_start_hour'] = {
+    ...out['compliance.sms.quiet_start_hour'],
+    min: 0,
+    max: 23,
+  };
+  out['compliance.sms.quiet_end_hour'] = {
+    ...out['compliance.sms.quiet_end_hour'],
+    min: 0,
+    max: 23,
+  };
   // Legal-grade protection of client documents (2026-10-24).
   out['security.attorney_strong_auth'] = {
     ...out['security.attorney_strong_auth'],

@@ -903,7 +903,39 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'files.access_log_enabled': true,
 };
 
+/** 2026-10-25 (legal register): 18+ gate, text messages (TCPA), e-mail
+ * footers. Everything is OFF by default, so today's behaviour is kept.
+ * - `compliance.age_gate.mode`: off | record (store the attestation when the
+ *   app sends it) | enforce (a NEW account without a valid 18+ attestation
+ *   is refused with 403 AGE_ATTESTATION_REQUIRED; turn on only after the app
+ *   shows the checkbox and sends `ageAttestation`).
+ * - `compliance.sms.marketing_enabled`: master switch for any text that is
+ *   not a sign-in code. A code is always allowed.
+ * - quiet hours: no non-code text before `quiet_end_hour` or from
+ *   `quiet_start_hour` in the person's local time (TCPA 8:00-21:00); unknown
+ *   time zone = the strictest US-wide window.
+ * - `compliance.email.footer_address`: the postal address printed in the
+ *   footer of notification mail; empty = the outreach address. */
+export const OWNER_COMPLIANCE_SETTINGS = {
+  'compliance.age_gate.mode': 'off',
+  'compliance.age_gate.min_age': 18,
+  'compliance.age_gate.text_version': 'age-18-v1',
+  'compliance.age_gate.require_birth_date': false,
+  'compliance.sms.marketing_enabled': false,
+  'compliance.sms.quiet_start_hour': 21,
+  'compliance.sms.quiet_end_hour': 8,
+  'compliance.sms.disclosure_version': 'sms-v1',
+  'compliance.sms.disclosure_text':
+    'By tapping Agree you consent to receive recurring text messages from LawBid at this number. Consent is not a condition of any purchase. Message and data rates may apply. Reply STOP to cancel, HELP for help.',
+  'compliance.sms.help_text':
+    'LawBid: for help email support or visit lawbid.com/support. Reply STOP to cancel. Msg&data rates may apply.',
+  'compliance.sms.reply_to_help': false,
+  'compliance.sns.topic_arns': '',
+  'compliance.email.footer_address': '',
+};
+
 export const APP_SETTINGS = {
+  ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
   ...FILE_05_SETTINGS,

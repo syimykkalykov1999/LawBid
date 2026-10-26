@@ -91,6 +91,21 @@ export class TwilioSmsProvider implements SmsProvider {
     );
     this.logger.info({ toE164Suffix: toE164.slice(-4) }, 'Twilio SMS OTP sent');
   }
+
+  /** 2026-10-25: a non-code text (consent checked by the caller). */
+  async sendText(toE164: string, body: string): Promise<void> {
+    await twilioBreaker.run(
+      () =>
+        withTimeout('twilio', SEND_TIMEOUT_MS, () =>
+          this.client.messages.create({ to: toE164, ...this.sender, body }),
+        ),
+      isTwilioServiceFault,
+    );
+    this.logger.info(
+      { toE164Suffix: toE164.slice(-4) },
+      'Twilio SMS text sent',
+    );
+  }
 }
 
 /**
@@ -114,8 +129,21 @@ export class DynamicSmsProvider implements SmsProvider {
   }
 
   async send(toE164: string, code: string): Promise<void> {
+    const target = await this.resolve();
+    return target.send(toE164, code);
+  }
+
+  /** 2026-10-25: a non-code text, same keys and mock rules as `send`. */
+  async sendText(toE164: string, body: string): Promise<void> {
+    const target = await this.resolve();
+    if (!target.sendText)
+      throw new Error('This SMS provider cannot send texts');
+    return target.sendText(toE164, body);
+  }
+
+  private async resolve(): Promise<SmsProvider> {
     if (this.config.get<string>('SMS_PROVIDER') === 'mock') {
-      return this.mock.send(toE164, code);
+      return this.mock;
     }
     const c = await this.secrets.get('twilio');
     const f = c?.fields ?? {};
@@ -132,7 +160,7 @@ export class DynamicSmsProvider implements SmsProvider {
         );
         throw new Error('SMS is not configured');
       }
-      return this.mock.send(toE164, code);
+      return this.mock;
     }
     if (this.cached?.fingerprint !== c.fingerprint) {
       // (the Android hash is part of the bundle fingerprint)
@@ -150,6 +178,6 @@ export class DynamicSmsProvider implements SmsProvider {
         ),
       };
     }
-    return this.cached.provider.send(toE164, code);
+    return this.cached.provider;
   }
 }

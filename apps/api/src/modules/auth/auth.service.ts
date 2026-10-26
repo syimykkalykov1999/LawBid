@@ -53,6 +53,8 @@ import type { AuthTokensResult } from './social/auth-result.types';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
 import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
+import type { AgeAttestationInput } from '../compliance/age-gate.logic';
+import { AgeGateService, type AgeSource } from '../compliance/age-gate.service';
 import { AssistantCodeService } from './assistant/assistant-code.service';
 import type { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
 
@@ -116,6 +118,8 @@ export class AuthService {
     @Optional() private readonly settings?: AppSettingsService,
     // Owner 2026-10-22 (security audit #3): "a sign-in method was added".
     @Optional() private readonly signInChange?: SignInChangeNotifier,
+    // 2026-10-25 (COPPA): the 18+ gate for new accounts.
+    @Optional() private readonly ageGate?: AgeGateService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -281,6 +285,14 @@ export class AuthService {
       );
     }
 
+    // 2026-10-25 (COPPA): refuse a new account without the 18+ attestation
+    // BEFORE the one-time code is spent, so the person can tick and retry.
+    await this.ageGate?.precheckOtp(
+      dto.channel,
+      identifier,
+      dto.ageAttestation,
+    );
+
     const result = await this.otp.verifyOtp(
       dto.channel,
       identifier,
@@ -323,7 +335,14 @@ export class AuthService {
       });
     }
 
-    return this.completeOtpLogin(dto.channel, identifier, deviceInfo, meta);
+    return this.completeOtpLogin(
+      dto.channel,
+      identifier,
+      deviceInfo,
+      meta,
+      dto.ageAttestation,
+      'otp',
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -368,7 +387,14 @@ export class AuthService {
         message: 'This sign-in link is invalid or has expired.',
       });
     }
-    return this.completeOtpLogin('email', redeemed.email, deviceInfo, meta);
+    return this.completeOtpLogin(
+      'email',
+      redeemed.email,
+      deviceInfo,
+      meta,
+      dto.ageAttestation,
+      'link',
+    );
   }
 
   /** Shared tail of a successful OTP (typed code or magic link): identity,
@@ -378,6 +404,8 @@ export class AuthService {
     identifier: string,
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
+    ageAttestation?: AgeAttestationInput | null,
+    ageSource: AgeSource = 'otp',
   ): Promise<AuthTokensResult> {
     await this.bans.assertAllowed({
       phone: channel === 'phone' ? identifier : null,
@@ -397,6 +425,8 @@ export class AuthService {
           channel,
           identifier,
           tx,
+          ageAttestation,
+          ageSource,
         );
         if (found.user.status === 'deletion_pending') {
           const updated = await tx.user.update({

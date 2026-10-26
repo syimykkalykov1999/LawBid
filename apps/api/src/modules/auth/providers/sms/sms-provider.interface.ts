@@ -15,4 +15,10 @@
  */
 export interface SmsProvider {
   send(toE164: string, code: string): Promise<void>;
+  /**
+   * 2026-10-25 (TCPA): a plain text that is NOT a sign-in code. Never call
+   * it directly: go through SmsComplianceService.sendNonOtp (separate
+   * consent, STOP list, quiet hours).
+   */
+  sendText?(toE164: string, body: string): Promise<void>;
 }

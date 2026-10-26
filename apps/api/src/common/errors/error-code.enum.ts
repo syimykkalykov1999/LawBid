@@ -65,6 +65,11 @@ export enum ErrorCode {
   // 2026-10-24 (abuse batch B): 403 — the web page's Cloudflare Turnstile
   // token was rejected (security.turnstile.mode = enforce).
   TURNSTILE_FAILED = 'TURNSTILE_FAILED',
+  // 2026-10-25 (legal register, 18+ / COPPA): a new account needs the "I am
+  // 18 or older" attestation (compliance.age_gate.mode = enforce); the
+  // second code is a birth date under the minimum age.
+  AGE_ATTESTATION_REQUIRED = 'AGE_ATTESTATION_REQUIRED',
+  AGE_UNDER_MINIMUM = 'AGE_UNDER_MINIMUM',
   ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
   ACCOUNT_DELETED = 'ACCOUNT_DELETED',
 

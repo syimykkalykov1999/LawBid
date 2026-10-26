@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-244 tables.
+248 tables.
 
 ```mermaid
 erDiagram
@@ -1898,6 +1898,51 @@ erDiagram
     String note "nullable"
     String created_by
     DateTime created_at
+  }
+  age_attestations {
+    String id PK
+    String user_id UK
+    DateTime attested_at
+    String text_version
+    Int min_age
+    DateTime birth_date "nullable"
+    String source
+    String status
+    DateTime flagged_at "nullable"
+    String flagged_by "nullable"
+    String flag_reason "nullable"
+    DateTime deleted_at "nullable"
+  }
+  sms_consents {
+    String id PK
+    String user_id "nullable"
+    String phone_e164
+    String purpose
+    String disclosure_version
+    String disclosure_hash
+    String source
+    DateTime granted_at
+    DateTime revoked_at "nullable"
+    String revoked_via "nullable"
+  }
+  sms_suppressions {
+    String id PK
+    String phone_e164 UK
+    String reason
+    String last_keyword "nullable"
+    String last_message_sid "nullable"
+    DateTime created_at
+    DateTime updated_at
+    DateTime cleared_at "nullable"
+  }
+  email_suppressions {
+    String id PK
+    String email UK
+    String reason
+    String detail "nullable"
+    String message_id "nullable"
+    DateTime created_at
+    DateTime updated_at
   }
   case_promotions {
     String id PK

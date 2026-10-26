@@ -84,6 +84,12 @@ export function useBodyParsers(
       },
     }),
   );
+  // 2026-10-25: Amazon SNS (SES bounce / complaint events) posts its JSON
+  // as `text/plain`; the controller verifies the signature on the string.
+  app.use(
+    `/${GLOBAL_PREFIX}/webhooks/ses`,
+    express.text({ type: () => true, limit: '256kb' }),
+  );
   app.use(CONTACTS_SYNC_PATH, express.json({ limit: CONTACTS_BODY_LIMIT }));
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: false }));

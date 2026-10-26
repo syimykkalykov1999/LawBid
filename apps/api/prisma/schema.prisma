@@ -5091,6 +5091,86 @@ model OutreachSuppression {
   @@map("outreach_suppressions")
 }
 
+/// 2026-10-25 (legal register, COPPA / 18+): one row per account that
+/// attested to be of age at sign-up: when, which wording (text_version),
+/// optionally the birth date. `flagged` = an admin found the account to be
+/// a minor (sessions revoked, account suspended, then deleted).
+model AgeAttestation {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String    @unique @db.Uuid
+  attested_at  DateTime  @default(now()) @db.Timestamptz
+  text_version String    @db.VarChar(40)
+  min_age      Int       @db.SmallInt
+  birth_date   DateTime? @db.Date
+  // otp | link | social | admin
+  source       String    @db.VarChar(16)
+  // attested | flagged | deleted
+  status       String    @default("attested") @db.VarChar(12)
+  flagged_at   DateTime? @db.Timestamptz
+  flagged_by   String?   @db.Uuid
+  flag_reason  String?   @db.VarChar(200)
+  deleted_at   DateTime? @db.Timestamptz
+
+  @@index([status, flagged_at])
+  @@map("age_attestations")
+}
+
+/// 2026-10-25 (TCPA): the separate, recorded consent a person gave to get
+/// non-code text messages (never needed for a sign-in code). Keeps the
+/// exact disclosure wording version and a hash of its text.
+model SmsConsent {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id            String?   @db.Uuid
+  phone_e164         String    @db.VarChar(20)
+  // marketing | notifications
+  purpose            String    @db.VarChar(16)
+  disclosure_version String    @db.VarChar(40)
+  disclosure_hash    String    @db.VarChar(64)
+  // app | web | admin | inbound_start
+  source             String    @db.VarChar(16)
+  granted_at         DateTime  @default(now()) @db.Timestamptz
+  revoked_at         DateTime? @db.Timestamptz
+  // stop_reply | app | admin | twilio_sync
+  revoked_via        String?   @db.VarChar(16)
+
+  @@index([phone_e164, purpose])
+  @@index([user_id])
+  @@map("sms_consents")
+}
+
+/// 2026-10-25 (TCPA): numbers that must get no non-code text (STOP etc.),
+/// fed by Twilio's inbound webhook, send errors 21610 and the admin.
+/// `cleared_at` set = the person opted in again (START).
+model SmsSuppression {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone_e164       String    @unique @db.VarChar(20)
+  // stop | twilio | admin
+  reason           String    @db.VarChar(16)
+  last_keyword     String?   @db.VarChar(24)
+  last_message_sid String?   @db.VarChar(40)
+  created_at       DateTime  @default(now()) @db.Timestamptz
+  updated_at       DateTime  @default(now()) @updatedAt @db.Timestamptz
+  cleared_at       DateTime? @db.Timestamptz
+
+  @@map("sms_suppressions")
+}
+
+/// 2026-10-25 (CAN-SPAM, Gmail/Yahoo): e-mail addresses that must get no
+/// notification / marketing mail, fed by SES bounce + complaint events.
+/// Each event also lands in outreach_suppressions.
+model EmailSuppression {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String   @unique @db.VarChar(254)
+  // bounce | complaint | manual
+  reason     String   @db.VarChar(16)
+  detail     String?  @db.VarChar(80)
+  message_id String?  @db.VarChar(80)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@map("email_suppressions")
+}
+
 // Paid case promotion (~$10/day): the case is boosted in attorneys' feeds.
 // Owner 2026-10-05: also posts (Instagram-style boost, no subscription):
 // target_type = case | post; the owner picks a daily budget and days, the
