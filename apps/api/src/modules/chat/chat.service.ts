@@ -2265,6 +2265,7 @@ export class ChatService {
                     WHERE m.conversation_id = cp.conversation_id
                       AND m.deleted_at IS NULL
                       AND (m.sender_id IS NULL OR m.sender_id <> ${viewerId}::UUID)
+                      AND (lr.id IS NULL OR m.created_at >= lr.created_at)
                       AND (lr.id IS NULL
                            OR (m.created_at, m.id) > (lr.created_at, lr.id))
                     ORDER BY m.created_at DESC

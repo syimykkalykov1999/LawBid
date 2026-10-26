@@ -16,6 +16,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { EntitlementsService } from '../plans/entitlements.service';
@@ -158,7 +159,27 @@ export class PromotionsService {
     @Optional() private readonly payLink?: PayLinkService,
     // Day-one foundations: the double-entry money ledger (same transaction).
     @Optional() private readonly ledger?: LedgerPostingService,
+    // Owner 2026-10-25: impressions / reach / clicks wait in the counter
+    // aggregator until the next flush; stats add them so the answer is exact.
+    @Optional() private readonly counters?: CounterAggregator,
   ) {}
+
+  /** Rows with the not yet flushed impressions / reach / clicks added. */
+  private async withPending<T extends CasePromotion>(rows: T[]): Promise<T[]> {
+    if (!this.counters || rows.length === 0) return rows;
+    const ids = rows.map((r) => r.id);
+    const [imp, reach, clicks] = await Promise.all([
+      this.counters.pending('case_promotion', 'impressions', ids),
+      this.counters.pending('case_promotion', 'reach', ids),
+      this.counters.pending('case_promotion', 'clicks', ids),
+    ]);
+    return rows.map((r) => ({
+      ...r,
+      impressions: r.impressions + (imp.get(r.id) ?? 0),
+      reach: r.reach + (reach.get(r.id) ?? 0),
+      clicks: r.clicks + (clicks.get(r.id) ?? 0),
+    }));
+  }
 
   /** Owner 2026-10-16: an attorney who is not verified cannot buy Boost
    * (clients are not affected; rollback `billing.require_verified_for_purchases`). */
@@ -662,7 +683,7 @@ export class PromotionsService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
     });
-    const page = rows.slice(0, PAGE);
+    const page = await this.withPending(rows.slice(0, PAGE));
     const titles = await this.titles(page);
     const last = page[page.length - 1];
     return {
@@ -679,13 +700,14 @@ export class PromotionsService {
 
   /** GET /promotions/:id/stats — the numbers by day (owner only). */
   async stats(userId: string, id: string): Promise<PromotionStatsDto> {
-    const p = await this.prisma.casePromotion.findUnique({ where: { id } });
-    if (!p || p.user_id !== userId) {
+    const row = await this.prisma.casePromotion.findUnique({ where: { id } });
+    if (!row || row.user_id !== userId) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,
         message: 'Promotion not found.',
       });
     }
+    const [p] = await this.withPending([row]);
     const [rows, titles] = await Promise.all([
       this.prisma.promotionDaily.findMany({
         where: { promotion_id: id },
