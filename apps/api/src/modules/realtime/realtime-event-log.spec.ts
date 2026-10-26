@@ -11,6 +11,7 @@ import {
 function fakeRedis(clock: () => number) {
   const zsets = new Map<string, { score: number; member: string }[]>();
   let last = 0;
+  let epoch: string | null = null;
   const z = (k: string) => {
     let v = zsets.get(k);
     if (!v) zsets.set(k, (v = []));
@@ -46,6 +47,21 @@ function fakeRedis(clock: () => number) {
       return 1;
     },
     expire: () => 1,
+    // the per-person append script (S1-5): [script, 1, key, seq, member, floor, max, ttl]
+    eval: (
+      _script: string,
+      _n: number,
+      key: string,
+      seq: number,
+      member: string,
+      floor: number,
+      max: number,
+    ) => {
+      ops.zadd(key, seq, member);
+      ops.zremrangebyscore(key, '-inf', `(${floor}`);
+      ops.zremrangebyrank(key, 0, -(max + 1));
+      return 1;
+    },
     zcard: (k: string) => z(k).length,
     zrangebyscore: (
       k: string,
@@ -69,9 +85,20 @@ function fakeRedis(clock: () => number) {
     eval: jest.fn(async () => {
       const now = clock() * 1000;
       last = last >= now ? last + 1 : now;
+      epoch ??= String(now - 1);
       return last;
     }),
-    get: jest.fn(async () => String(last)),
+    get: jest.fn(async (k: string) =>
+      k === 'rt:epoch' ? epoch : String(last),
+    ),
+    set: jest.fn(async (_k: string, v: number) => {
+      epoch ??= String(v);
+      return 'OK';
+    }),
+    time: jest.fn(async () => [Math.floor(clock() / 1000), 0]),
+    flushEpoch: () => {
+      epoch = null;
+    },
     pipeline: () => {
       const queue: (() => unknown)[] = [];
       const p: Record<string, unknown> = {};
@@ -152,6 +179,22 @@ describe('RealtimeEventLog (owner 2026-10-23)', () => {
     expect((await log.since(['u1'], first, now)).complete).toBe(false);
     const recent = await log.nextSeq();
     expect((await log.since(['u1'], recent - 1, now)).complete).toBe(true);
+  });
+
+  it('Redis lost its data: an older cursor is incomplete (S1-2)', async () => {
+    const redis = fakeRedis(clock);
+    const l = new RealtimeEventLog(redis);
+    const s1 = await l.nextSeq();
+    await l.append(['u1'], s1, 'message:new', {});
+    // healthy: a cursor from this life is complete
+    expect((await l.since(['u1'], s1 - 1, now)).complete).toBe(true);
+    // failover to an empty node: the canary is gone, the log restarts
+    now += 60_000;
+    (redis as unknown as { flushEpoch: () => void }).flushEpoch();
+    const lost = await l.since(['u1'], s1, now);
+    expect(lost.complete).toBe(false);
+    // the client continues from the new cursor and is complete again
+    expect((await l.since(['u1'], lost.seq, now)).complete).toBe(true);
   });
 
   it('an oversized payload is logged as a marker only', async () => {

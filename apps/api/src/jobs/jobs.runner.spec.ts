@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import type { VerificationLossBillingJob } from './handlers/verification-loss-billing.job';
 import type { PostVideosService } from '../modules/posts/post-videos.service';
 import type { ConfigService } from '@nestjs/config';
@@ -43,6 +44,17 @@ import type { PartnersService } from '../modules/partners/partners.service';
 import type { AttorneyTrustService } from '../modules/attorney-trust/attorney-trust.service';
 import type { ClientFraudService } from '../modules/client-fraud/client-fraud.service';
 
+// bullOptions would open a real shared Redis producer; keep the unit test
+// socket-free and assert on the plain option objects instead.
+jest.mock('../redis/redis-connection', () => ({
+  ...jest.requireActual<typeof import('../redis/redis-connection')>(
+    '../redis/redis-connection',
+  ),
+  bullOptions: (_q: string, url: string, o?: { worker?: boolean }) => ({
+    connection: o?.worker ? { url, maxRetriesPerRequest: null } : { url },
+  }),
+}));
+
 jest.mock('bullmq', () => {
   const queue = {
     upsertJobScheduler: jest.fn(() => Promise.resolve({})),
@@ -74,6 +86,7 @@ const mocked = require('bullmq') as {
 const logger = {
   setContext: jest.fn(),
   info: jest.fn(),
+  warn: jest.fn(),
   error: jest.fn(),
 } as unknown as PinoLogger;
 
@@ -247,7 +260,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-24: + search.index (every minute).
     // Owner 2026-10-25: + case-tools.sweep (daily).
     // Day-one foundations: + ledger.reconcile (nightly).
-    expect(upserts).toHaveLength(68);
+    // S1-3: + chat.redeliver (every minute).
+    expect(upserts).toHaveLength(69);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
@@ -369,6 +383,58 @@ describe('JobsRunner', () => {
     await runner.onApplicationBootstrap();
     expect(Worker).toHaveBeenCalledTimes(1);
     await runner.onApplicationShutdown();
+  });
+
+  describe('reconcileSchedules (S6-1: Redis lost the schedulers)', () => {
+    async function started() {
+      const runner = new JobsRunner(
+        { mode: 'worker' },
+        config({ REDIS_URL: 'redis://x' }),
+        processor().processor,
+        logger,
+      );
+      await runner.onApplicationBootstrap();
+      jest.clearAllMocks();
+      return runner;
+    }
+
+    it('re-registers every schedule when some are missing and logs the metric', async () => {
+      const runner = await started();
+      // the mock queue holds only sessions.cleanup + a legacy one
+      const count = await runner.reconcileSchedules();
+      expect(count).toBe(CRON_SCHEDULES.length);
+      expect(mocked.__queue.upsertJobScheduler).toHaveBeenCalledTimes(
+        CRON_SCHEDULES.length,
+      );
+      expect(logger.warn).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metric: 'cron_schedulers',
+          count: CRON_SCHEDULES.length,
+          expected: CRON_SCHEDULES.length,
+          missing: 0,
+        }),
+        'cron schedulers',
+      );
+      await runner.onApplicationShutdown();
+    });
+
+    it('does nothing (one cheap read) when all schedules are present', async () => {
+      const runner = await started();
+      mocked.__queue.getJobSchedulers.mockResolvedValueOnce(
+        CRON_SCHEDULES.map((x) => ({ key: x.name })),
+      );
+      expect(await runner.reconcileSchedules()).toBe(CRON_SCHEDULES.length);
+      expect(mocked.__queue.upsertJobScheduler).not.toHaveBeenCalled();
+      await runner.onApplicationShutdown();
+    });
+
+    it('never throws when Redis is down', async () => {
+      const runner = await started();
+      mocked.__queue.getJobSchedulers.mockRejectedValueOnce(new Error('down'));
+      expect(await runner.reconcileSchedules()).toBe(-1);
+      await runner.onApplicationShutdown();
+    });
   });
 
   it('has one schedule per job name', () => {
