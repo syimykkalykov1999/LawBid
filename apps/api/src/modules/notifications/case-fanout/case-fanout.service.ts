@@ -148,16 +148,16 @@ export class CaseFanoutService
       if (g === 'small') delayMs = s.fraudDelayMinutes * 60_000;
     }
     const job: CaseFanoutJob = { caseId, wave: 1 };
-    if (!this.queue) {
-      // No Redis (tests, dev): there is no queue for waves, so wave 1 runs
-      // right here and reaches everybody.
+    if (!this.queue || !s.enabled) {
+      // Switch off (default) = today's behaviour: everybody right here,
+      // in this call, so the alerts are delivered at once (no ranking, no
+      // stats queries, review R-32). No Redis: the same, there is no queue
+      // for waves.
       const out = await this.runWave(job);
       return 'sent' in out ? out.sent : 0;
     }
-    // Review R-32: the work (audience query, de-dupe lookups, the sends) runs
-    // in the worker, never in the API request, with the switch off too (off =
-    // «everybody in one wave», no ranking, no stats). The count of alerts is
-    // a metric of the wave.
+    // Switch on: the work (audience query, de-dupe lookups, the sends) runs
+    // in the worker, never in the API request.
     await this.enqueue(job, delayMs);
     return 0;
   }
