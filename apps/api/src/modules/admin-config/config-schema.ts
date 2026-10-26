@@ -90,7 +90,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'string',
     defaultValue: 'p2p',
     description:
-      'Our OWN (backup) path for group calls: p2p (device to device, up to 9 people) or livekit (media server; needs the LiveKit keys in Integrations). Cloudflare is chosen by calls.transport, not here; the old value cloudflare reads like p2p.',
+      'Media server for group calls on our own path: p2p (device to device, up to 9 people) or livekit (needs the LiveKit keys in Integrations). The AUTOMATIC backup when Cloudflare fails is always device to device (+ own coturn) — LiveKit is not part of it (TS-3). Cloudflare is chosen by calls.transport, not here; the old value cloudflare reads like p2p.',
     pattern: /^(p2p|livekit|cloudflare)$/,
   };
   out['calls.sfu_max_participants'] = {

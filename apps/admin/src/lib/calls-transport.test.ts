@@ -6,6 +6,7 @@ import {
   isCallProvider,
   ownStatus,
   stateOfTransport,
+  TRANSPORT_HINT,
   TRANSPORT_OF_STATE,
   type CallsPath,
 } from './calls-transport';
@@ -100,5 +101,13 @@ describe('«Связь для звонков»: the dots and the plain line', ()
         error: null,
       }),
     ).toBe('✗ TURN refused the login (401)');
+  });
+});
+
+/** TS-3 (audit 2026-10-26): the automatic backup is coturn + device to
+ * device; LiveKit has no app client, so the card never promises it. */
+describe('backup wording', () => {
+  it('no hint promises LiveKit as the automatic backup', () => {
+    for (const h of Object.values(TRANSPORT_HINT)) expect(h).not.toMatch(/LiveKit/);
   });
 });

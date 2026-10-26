@@ -401,7 +401,11 @@ export class IceServersQueryDto {
       'The relay of my running call died (ICE failed): a fresh login, our own TURN first, and a report for the Cloudflare health breaker.',
   })
   @IsOptional()
-  @Transform(({ value }) => value === true || value === 'true')
+  // T1 (audit 2026-10-26): only true / false; anything else stays as sent
+  // and is refused (400) instead of silently reading as false.
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
   @IsBoolean()
   relayFailed?: boolean;
 }

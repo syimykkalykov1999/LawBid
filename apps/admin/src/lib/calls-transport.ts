@@ -37,7 +37,7 @@ export function stateOfTransport(t: string | null | undefined): CostState {
 }
 
 export const TRANSPORT_HINT: Record<CostState, string> = {
-  off: 'Cloudflare не используется: все звонки идут через свою связь (coturn и LiveKit или напрямую между телефонами).',
+  off: 'Cloudflare не используется: все звонки идут через свою связь (свой TURN-сервер coturn и напрямую между телефонами).',
   on: 'Только Cloudflare, без автоматического перехода на свою связь (нужны ключи Cloudflare).',
   auto: 'Cloudflare основной; если он сбоит, звонки сами переходят на свою связь и сами возвращаются. По умолчанию.',
 };
@@ -81,7 +81,8 @@ export function cloudflareStatus(r: CallsPath): CostRowStatus {
   return status(r, 'idle', 'в запасе', at);
 }
 
-/** Own row (coturn + LiveKit): green carries calls now, grey standby or not
+/** Own row (coturn + device to device; TS-3: LiveKit is not part of the
+ * automatic backup — no app client for it): green carries calls now, grey standby or not
  * set up, amber its last check failed. */
 export function ownStatus(r: CallsPath): CostRowStatus {
   const side = r.own;

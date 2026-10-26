@@ -59,7 +59,7 @@ function Row({
 
 /**
  * Owner 2026-10-26 (calls failover): ONE card for everything that carries
- * calls — Cloudflare (TURN + SFU) and our own relays (coturn + LiveKit). The
+ * calls — Cloudflare (TURN + SFU) and our own path (coturn + device to device). The
  * key cards of those four services sit inside as collapsible sections.
  */
 export function CallsTransportCard({
@@ -144,7 +144,7 @@ export function CallsTransportCard({
               check={r.cloudflare.check}
             />
             <Row
-              name="Своя связь (coturn + LiveKit)"
+              name="Своя связь (coturn, напрямую между телефонами)"
               testId="own"
               status={ownStatus(r)}
               lastAt={r.own.lastProbeAt}
