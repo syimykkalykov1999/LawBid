@@ -60,6 +60,9 @@ Future<void> showAddToCallPanel(BuildContext context) {
 /// The panel's widest size on a tablet / the web; a phone gets all of it.
 const double _panelMaxWidth = 420;
 
+/// Below this logical width the device is a phone and the panel is full-width.
+const double _tabletBreakpoint = 600;
+
 class CallAddPanel extends ConsumerStatefulWidget {
   const CallAddPanel({super.key});
 
@@ -139,10 +142,16 @@ class _CallAddPanelState extends ConsumerState<CallAddPanel> {
     final people = ref.watch(myPeopleProvider);
     final width = MediaQuery.sizeOf(context).width;
 
+    // Owner 2026-10-26 (iPhone 17 Pro Max): a phone takes the whole width —
+    // the 420 cap is for tablets and the web only, otherwise a strip of the
+    // call shows on the left.
+    final panelWidth = width < _tabletBreakpoint
+        ? width
+        : math.min(width, _panelMaxWidth);
     return Align(
       alignment: AlignmentDirectional.centerEnd,
       child: SizedBox(
-        width: math.min(width, _panelMaxWidth),
+        width: panelWidth,
         height: double.infinity,
         child: Scaffold(
           backgroundColor: colors.bg,
