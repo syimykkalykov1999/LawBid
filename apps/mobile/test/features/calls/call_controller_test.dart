@@ -841,14 +841,15 @@ void main() {
 
       for (var minute = 0; minute < 60; minute++) {
         if (minute % 10 == 5) {
-          // Wi-Fi → LTE: the link drops, the requests fail for 40 s.
+          // Wi-Fi → LTE: the link drops, the requests fail for 25 s (owner
+          // 2026-10-26: a link back within 30 s carries on).
           h.repo.getThrows = true;
           h.media.onState!(CallMediaState.disconnected);
-          async.elapse(const Duration(seconds: 40));
+          async.elapse(const Duration(seconds: 25));
           expect(h.s.phase, CallPhase.active);
           h.repo.getThrows = false;
           h.media.onState!(CallMediaState.connected);
-          async.elapse(const Duration(seconds: 20));
+          async.elapse(const Duration(seconds: 35));
         } else {
           async.elapse(const Duration(minutes: 1));
         }
@@ -2101,6 +2102,62 @@ void main() {
         });
         async.flushMicrotasks();
         expect(h.s.phase, CallPhase.ended);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+  });
+
+  group('a dropped link (owner 2026-10-26)', () {
+    _Harness talking(FakeAsync async) {
+      final h = _Harness();
+      h.c.call('conv', peer: _peer);
+      async.flushMicrotasks();
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      async.flushMicrotasks();
+      h.media.onState!(CallMediaState.connected);
+      // The server still holds the call (a network drop, not a hang-up).
+      h.repo.getStatus = CallStatus.active;
+      return h;
+    }
+
+    test('no link for 30 s: «Call ended» by itself, the server is told', () {
+      fakeAsync((async) {
+        final h = talking(async);
+        h.media.onState!(CallMediaState.disconnected);
+        async.elapse(const Duration(seconds: 29));
+        expect(h.s.phase, CallPhase.active);
+        expect(h.s.reconnecting, isTrue);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.outcome, CallStatus.ended);
+        // A call that was up ended — not «media never came up».
+        expect(h.repo.ends, [CallEndReason.hangup]);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('the link comes back within 30 s: the call goes on by itself', () {
+      fakeAsync((async) {
+        final h = talking(async);
+        h.media.onState!(CallMediaState.disconnected);
+        async.elapse(const Duration(seconds: 12));
+        expect(h.s.reconnecting, isTrue);
+        expect(h.media.iceRestarts, greaterThan(0));
+        h.media.onState!(CallMediaState.connected);
+        async.flushMicrotasks();
+        expect(h.s.reconnecting, isFalse);
+        async.elapse(const Duration(seconds: 60));
+        expect(h.s.phase, CallPhase.active);
+        expect(h.repo.ends, isEmpty);
+        h.c.hangUp();
+        async.flushMicrotasks();
         h
           ..sub.close()
           ..container.dispose();

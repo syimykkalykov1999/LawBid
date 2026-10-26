@@ -322,8 +322,11 @@ const kCallRingGrace = Duration(seconds: 10);
 
 /// A dropped link gets this long to come back (new Wi-Fi / 4G network, a
 /// tunnel, a lift) before the call ends; the caller restarts ICE every few
-/// seconds. Owner 2026-10-21: the worst internet must not end a call.
-const kCallReconnectGrace = Duration(seconds: 150);
+/// seconds, and a link that comes back carries on by itself. Owner
+/// 2026-10-26 (WhatsApp): «Reconnecting…» for at most 30 s, then the call
+/// ends by itself with «Call ended» — on both phones, no question (it was
+/// 150 s).
+const kCallReconnectGrace = Duration(seconds: 30);
 const kCallReconnectRetry = Duration(seconds: 6);
 
 /// The TURN login lives 24 h on the server; a running call takes a fresh one
@@ -808,12 +811,21 @@ class CallController extends Notifier<CallSession> {
             .then<void>((_) {}, onError: (Object _) {}),
       );
     }
+    // Owner 2026-10-26: a call that was up and lost its link ended — the
+    // server logs it as a normal end (`failed` means the media never came
+    // up), so both phones read «Call ended».
+    final told = reason == CallEndReason.failed && wasActive
+        ? CallEndReason.hangup
+        : reason;
     final ending =
-        call == null ? null : _endQuietly(call.id, reason, forAll: forAll);
+        call == null ? null : _endQuietly(call.id, told, forAll: forAll);
     _finish(
       switch (reason) {
         CallEndReason.noAnswer => CallStatus.missed,
-        CallEndReason.failed => CallStatus.failed,
+        // A call that was up and lost its link: «Call ended», not «Couldn't
+        // connect» (owner 2026-10-26).
+        CallEndReason.failed =>
+          wasActive ? CallStatus.ended : CallStatus.failed,
         CallEndReason.hangup =>
           wasActive ? CallStatus.ended : CallStatus.canceled,
       },
@@ -1858,6 +1870,8 @@ class CallController extends Notifier<CallSession> {
     if (_reconnect.containsKey(peer)) return;
     _reconnect[peer] = (
       grace: Timer(kCallReconnectGrace, () {
+        callTrace('reconnect to $peer: no link for '
+            '${kCallReconnectGrace.inSeconds} s, giving up');
         _reconnect.remove(peer)?.retry.cancel();
         _syncReconnecting();
         if (state.busy) _linkLost(peer);

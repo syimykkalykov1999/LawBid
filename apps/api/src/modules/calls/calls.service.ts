@@ -87,8 +87,9 @@ export const CALL_RING_TIMEOUT_MS = 65_000;
 /** A running call nobody has asked about for this long is over: the apps
  * read it every ~8 s (heartbeat), so silence means both are gone. Owner
  * 2026-10-21: no cap on how long people talk (days are fine) — only
- * silence ends a call — and a dead-zone gap of a few minutes must not
- * (the app waits 150 s for the network before it gives up). Lives in
+ * silence ends a call. The app itself gives a dropped link 30 s and then
+ * ends the call (owner 2026-10-26); this is the backstop when neither
+ * phone can reach us. Lives in
  * common/calls (the group / channel lists read it too). */
 export { CALL_SILENT_MS };
 const LIVE: CallStatus[] = ['ringing', 'active'];
