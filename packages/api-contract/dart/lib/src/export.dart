@@ -1329,6 +1329,8 @@ export 'models/heavy_entry_dto.dart';
 export 'models/heavy_metric_dto.dart';
 export 'models/heavy_hitters_dto.dart';
 export 'models/heavy_hitters_envelope.dart';
+export 'models/queue_retry_result_dto.dart';
+export 'models/queue_retry_result_envelope.dart';
 export 'models/heavy_jobs_dto.dart';
 export 'models/scale_dto.dart';
 export 'models/update_ops_settings_dto.dart';

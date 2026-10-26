@@ -64,7 +64,11 @@ function build() {
     commentLike: { findMany: empty },
     caseCommentLike: { findMany: empty },
     message: { findMany: jest.fn(messagePage) },
-    file: { create: jest.fn().mockResolvedValue({ id: 'f1' }) },
+    file: {
+      create: jest.fn().mockResolvedValue({ id: 'f1' }),
+      // S10-3 (#380): a takeover reuses the first run's file row.
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
   };
   let streamed = 0;
   const storage = {

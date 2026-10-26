@@ -20,11 +20,17 @@ import { DataExportService } from './data-export.service';
 import {
   DATA_EXPORT_JOB,
   DATA_EXPORT_QUEUE,
+  DATA_EXPORT_STALE_PROCESSING_MS,
   PRIVACY_OPTIONS,
   type PrivacyModuleOptions,
 } from './privacy.constants';
 import type { DataExportJobDto } from './privacy.dto';
 import { bullOptions } from '../../redis/redis-connection';
+import {
+  closeWorker,
+  isStalledFailure,
+  workerTuning,
+} from '../../common/queues/queue-hardening';
 
 /** `{export}` hash tag: cluster-safe if more keys of this family appear. */
 const progressKey = (id: string) => `{export}:progress:${id}`;
@@ -79,9 +85,12 @@ export class DataExportRunner
       (job: Job<ExportJobData>) =>
         this.exports.process(job.data.exportId, {
           onProgress: (p) => void this.saveProgress(job.data.exportId, p),
+          // BullMQ gave this job out before (a crash or a stall): resume it.
+          retry: (job.attemptsStarted ?? 0) > 1 || job.attemptsMade > 0,
         }),
       {
         ...bullOptions(DATA_EXPORT_QUEUE, url, { worker: true }),
+        ...workerTuning(DATA_EXPORT_QUEUE),
         concurrency: 2,
       },
     );
@@ -91,14 +100,21 @@ export class DataExportRunner
         { exportId: job.data.exportId, err: error.message },
         'data export failed',
       );
-      if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
-        void this.prisma.dataExportJob.updateMany({
-          where: {
-            id: job.data.exportId,
-            status: { in: ['queued', 'processing'] },
-          },
-          data: { status: 'failed', error: error.message.slice(0, 500) },
-        });
+      // A job that stalled more often than allowed fails WITHOUT using up
+      // its attempts (S10-3): the row must still leave `processing`.
+      if (
+        job.attemptsMade >= (job.opts.attempts ?? 1) ||
+        isStalledFailure(error)
+      ) {
+        void this.prisma.dataExportJob
+          .updateMany({
+            where: {
+              id: job.data.exportId,
+              status: { in: ['queued', 'processing'] },
+            },
+            data: { status: 'failed', error: error.message.slice(0, 500) },
+          })
+          .catch(() => undefined);
       }
     });
   }
@@ -115,23 +131,80 @@ export class DataExportRunner
       },
       orderBy: { created_at: 'desc' },
     });
-    if (inFlight) return this.status(user, inFlight.id);
+    if (inFlight && (await this.stillAlive(inFlight))) {
+      return this.status(user, inFlight.id);
+    }
     const row = await this.prisma.dataExportJob.create({
       data: { user_id: user.sub, type: 'user_data', status: 'queued' },
     });
+    try {
+      await this.addJob(row.id);
+    } catch (error) {
+      // S10-4: the row must never outlive a failed enqueue — it used to sit
+      // `queued` and lock the user out of their data for 24 hours.
+      await this.prisma.dataExportJob
+        .updateMany({
+          where: { id: row.id, status: 'queued' },
+          data: { status: 'failed', error: 'could not be queued' },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
+    return this.present(row, null);
+  }
+
+  private async addJob(exportId: string): Promise<void> {
     if (!this.queue) throw new Error('data export queue not started');
     await this.queue.add(
       DATA_EXPORT_JOB,
-      { exportId: row.id },
+      { exportId },
       {
-        jobId: row.id,
+        jobId: exportId,
         attempts: 3,
         backoff: { type: 'exponential', delay: 5_000 },
         removeOnComplete: { count: 200 },
         removeOnFail: { count: 500 },
       },
     );
-    return this.present(row, null);
+  }
+
+  /**
+   * Is the in-flight row really being worked on? `ready` yes. `queued`
+   * without a BullMQ job (Redis lost it, or the enqueue failed after the
+   * insert) is queued again under the same id (S10-4). `processing` with no
+   * live job and untouched for a long time is dead: it is marked failed so
+   * the user can ask again instead of waiting out the 24-hour window.
+   */
+  private async stillAlive(row: DataExportJob): Promise<boolean> {
+    if (row.status === 'ready' || !this.queue) return true;
+    let job: Job | undefined;
+    try {
+      job = await this.queue.getJob(row.id);
+    } catch {
+      return true; // Redis unreachable: do not make things worse
+    }
+    if (job) return true;
+    if (row.status === 'queued') {
+      try {
+        await this.addJob(row.id);
+        return true;
+      } catch {
+        return true; // the next request tries again
+      }
+    }
+    if (
+      Date.now() - row.updated_at.getTime() <
+      DATA_EXPORT_STALE_PROCESSING_MS
+    ) {
+      return true;
+    }
+    await this.prisma.dataExportJob
+      .updateMany({
+        where: { id: row.id, status: 'processing' },
+        data: { status: 'failed', error: 'worker lost' },
+      })
+      .catch(() => undefined);
+    return false;
   }
 
   /** Status for the owner; a fresh signed link while the export is ready. */
@@ -211,7 +284,7 @@ export class DataExportRunner
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.worker?.close();
+    await closeWorker(this.worker);
     await this.queue?.close();
   }
 }

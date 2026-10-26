@@ -344,7 +344,7 @@ export class FilesService {
       PENDING_UPLOADS_KEY,
       pendingUploadMember(fileId, intent.bucket, intent.key),
     );
-    await this.scans.enqueueScan(fileId);
+    await this.scans.enqueueScan(fileId, userId);
     return this.get(userId, fileId);
   }
 

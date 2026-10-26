@@ -18,7 +18,10 @@ import type { EmailProvider } from '../auth/providers/email/email-provider.inter
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
-import { DATA_EXPORT_LINK_TTL_SEC } from './privacy.constants';
+import {
+  DATA_EXPORT_LINK_TTL_SEC,
+  DATA_EXPORT_STALE_PROCESSING_MS,
+} from './privacy.constants';
 import { privateDetailsAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
@@ -267,10 +270,26 @@ export class DataExportService {
     return out;
   }
 
-  /** The worker body: builds, stores, records and notifies. */
+  /**
+   * The worker body: builds, stores, records and notifies.
+   *
+   * S10-3 (crash safety): the claim is `queued -> processing`, but a job
+   * that BullMQ hands out AGAIN (the worker was Spot-killed or stalled
+   * mid-build: `retry`) may take over a `processing` row, and so may any
+   * call that finds the row untouched for DATA_EXPORT_STALE_PROCESSING_MS.
+   * Before, a retry saw `processing`, "succeeded" with 0 bytes and the
+   * export stayed `processing` for good. Research: Temporal/Cadence
+   * activity heartbeat-timeout + retry and the SQS visibility-timeout
+   * redelivery — a redelivery must resume the work, not no-op. `ready`
+   * and `failed` rows are still left alone (the job already finished).
+   */
   async process(
     exportId: string,
-    hooks: { onProgress?: (p: ExportProgress) => void } = {},
+    opts: {
+      retry?: boolean;
+      // WP-G: streamed exports report their progress.
+      onProgress?: (p: ExportProgress) => void;
+    } = {},
   ): Promise<{ bytes: number }> {
     const job = await this.prisma.dataExportJob.findUnique({
       where: { id: exportId },
@@ -289,15 +308,20 @@ export class DataExportService {
     // Atomic claim: the BullMQ worker and a manual/retry call never build
     // the same export twice (unique s3_key). A `processing` row left by a
     // dead worker (older than the time limit) can be taken over.
+    // A streamed export may legitimately run up to its time limit: never
+    // take over a row younger than that (WP-G), nor than the S10-3 floor.
+    const stale = new Date(
+      Date.now() -
+        Math.max(DATA_EXPORT_STALE_PROCESSING_MS, STALE_PROCESSING_MS),
+    );
     const { count } = await this.prisma.dataExportJob.updateMany({
       where: {
         id: exportId,
         OR: [
           { status: 'queued' },
-          {
-            status: 'processing',
-            updated_at: { lt: new Date(Date.now() - STALE_PROCESSING_MS) },
-          },
+          opts.retry
+            ? { status: 'processing' }
+            : { status: 'processing', updated_at: { lt: stale } },
         ],
       },
       data: { status: 'processing' },
@@ -315,7 +339,7 @@ export class DataExportService {
         const t = Date.now();
         if (t - lastTick < 2000) return;
         lastTick = t;
-        hooks.onProgress?.({ ...progress });
+        opts.onProgress?.({ ...progress });
       };
       const small = await this.small(job.user_id);
       const big = this.big(job.user_id);
@@ -362,7 +386,7 @@ export class DataExportService {
       await this.storage.putStream(bucket, key, zip.body, 'application/zip');
       bytes = zip.body.bytes;
       sha256 = zip.body.digest();
-      hooks.onProgress?.({ rows: progress.rows, bytes });
+      opts.onProgress?.({ rows: progress.rows, bytes });
     } catch (error) {
       // Restartable: the multipart upload was aborted by putStream; the
       // row goes back to `queued` so the BullMQ retry (same key, same
@@ -374,18 +398,34 @@ export class DataExportService {
       throw error;
     }
     const expiresAt = new Date(now.getTime() + DATA_EXPORT_LINK_TTL_SEC * 1000);
-    const file = await this.prisma.file.create({
-      data: {
+    const fileData = {
+      owner_user_id: job.user_id,
+      purpose: 'data_export' as const,
+      s3_bucket: bucket,
+      s3_key: key,
+      mime: 'application/zip',
+      // WP-G: streamed — size and hash come from the stream.
+      size_bytes: BigInt(bytes),
+      sha256,
+      scan_status: 'clean' as const,
+    };
+    // A takeover after a crash may find the row of the first run (same
+    // key): reuse it instead of leaving a second row for one object.
+    const earlier = await this.prisma.file.findFirst({
+      where: {
         owner_user_id: job.user_id,
         purpose: 'data_export',
         s3_bucket: bucket,
         s3_key: key,
-        mime: 'application/zip',
-        size_bytes: BigInt(bytes),
-        sha256,
-        scan_status: 'clean',
       },
+      select: { id: true },
     });
+    const file = earlier
+      ? await this.prisma.file.update({
+          where: { id: earlier.id },
+          data: fileData,
+        })
+      : await this.prisma.file.create({ data: fileData });
     await this.prisma.dataExportJob.update({
       where: { id: exportId },
       data: { status: 'ready', file_id: file.id, expires_at: expiresAt },

@@ -67,6 +67,7 @@ function fakeRedis() {
       '0',
       [...(hashes.get(k)?.entries() ?? [])].flatMap(([a, b]) => [a, String(b)]),
     ],
+    exists: async (k: string) => (strings.has(k) ? 1 : 0),
     hdel: async (k: string, ...ids: string[]) => {
       ids.forEach((i) => hashes.get(k)?.delete(i));
       return 1;
@@ -74,7 +75,7 @@ function fakeRedis() {
     spop: async () => [],
     multi: () => ({ hincrby: () => undefined, exec: async () => [] }),
   };
-  return { redis: redis as unknown as Redis, hashes, sets, evalCalls };
+  return { redis: redis as unknown as Redis, hashes, sets, evalCalls, strings };
 }
 
 function aggregator(r: Redis) {
@@ -167,6 +168,22 @@ describe('CounterAggregator (S6-6)', () => {
     expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(
       undefined,
     );
+  });
+
+  it('an explicit flush waits for a flush already running elsewhere, then lands its deltas', async () => {
+    const { redis, strings } = fakeRedis();
+    const { agg, executed } = aggregator(redis);
+    const id = ID('6');
+    await agg.bump('post', id, 'like_count', 3);
+    // Another pod (or the 10-second timer) holds the flush lock.
+    strings.set('lock:job:counters.flush', 'other');
+    setTimeout(() => strings.delete('lock:job:counters.flush'), 250);
+    await agg.flush();
+    expect(executed.flatMap((e) => e.keep)).toContain(id);
+    // The timer does not wait: with the lock held it does nothing.
+    strings.set('lock:job:counters.flush', 'other');
+    await agg.bump('post', id, 'like_count', 1);
+    expect((await agg.flush({ waitForRunning: false })).rows).toBe(0);
   });
 
   it('ids of different shards go to different hash keys, in one EVAL each', async () => {
