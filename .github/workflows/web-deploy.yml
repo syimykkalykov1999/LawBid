@@ -61,11 +61,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # S11-1: this workflow publishes the app straight from main, so it first waits
+  # for every CI check of the commit (mobile analyze/test/builds, scans) to be green.
+  gate:
+    name: Wait for green CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Every CI check of this commit is green
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/ci/require-green.sh "$GITHUB_SHA" \
+            '^(Analyze, lint|Build check|gitleaks|CodeQL)' \
+            '^(Wait for green CI|Build and publish|Build & push|Deploy|Notify)'
+
   deploy:
     name: Build and publish the web app
+    needs: [gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' && needs.gate.result == 'success' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -306,3 +327,17 @@ jobs:
           aws cloudfront create-invalidation
           --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
           --paths "/index.html" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/boot_head.js" "/boot_end.js" "/version.json" "/manifest.json"
+
+  notify:
+    name: Tell the owner
+    needs: [gate, deploy]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Web app deploy failed (red CI gate or build/upload)"
+      kind: web-deploy
+    secrets: inherit

@@ -195,6 +195,11 @@ export const OWNER_MEDIA_SETTINGS = {
   // differences; engine = the search engine, Postgres on error / timeout.
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
+  /** Review R-26: the nightly ledger check. off | on (whole ledger every
+   * night) | auto (last N days nightly, whole ledger weekly). */
+  'ledger.reconcile_mode': 'auto',
+  /** Days the nightly ledger check covers in auto mode. */
+  'ledger.reconcile_window_days': 7,
   // Engine answers slower than this fall back to Postgres, ms.
   // Which kind of engine 'search.engine' talks to: domain (provisioned
   // OpenSearch, default) or serverless (Amazon OpenSearch Serverless, SigV4).
@@ -240,6 +245,25 @@ export const OWNER_MEDIA_SETTINGS = {
   'reco.post.authorQuality': 0.06,
   'reco.post.state': 0.06,
   'reco.post.affinity': 0.06,
+  // Owner 2026-10-25: ranking of the bids a client sees on a case.
+  // bids.default_sort is what the list uses when the app sends no sort
+  // (newest = today; best_match = the weighted score below).
+  'bids.default_sort': 'newest',
+  'bids.best_match.rating': 0.35,
+  'bids.best_match.trust': 0.2,
+  'bids.best_match.speed': 0.15,
+  'bids.best_match.price': 0.2,
+  'bids.best_match.completed': 0.1,
+  // Bayesian rating: the average every attorney starts from and how many
+  // "virtual reviews" of it are mixed in.
+  'bids.bayes_prior': 4,
+  'bids.bayes_weight': 5,
+  // A price below this share of the median is suspiciously low.
+  'bids.low_ratio': 0.4,
+  // Bids needed in one fee type before a median / "best price" exists.
+  'bids.min_bids_for_price': 3,
+  // Flag suspiciously low bids (field lowOffer) and log them for review.
+  'bids.dumping_guard': false,
   // Owner 2026-10-15: topics a case can name (the first + the rest).
   'case.max_practices': 3,
   'post.max_chars_media': 2200,
@@ -362,6 +386,14 @@ export const OWNER_SMS_SETTINGS = {
    * and e-mail codes keep working. Unlike «Лимиты расходов» it is never
    * changed by the auto mode. 0 = off. */
   'sms.signup_daily_cap': 300,
+  /** Review R-75: how the SMS caps behave. auto (default) = every cap above
+   * is a FLOOR: the allowed number grows to the highest value of the
+   * previous 7 UTC days x `sms.burst_multiplier`, never above
+   * `sms.burst_ceiling_multiplier` x the typed cap; an alert is logged when
+   * the allowance is used. fixed = exactly the typed numbers. */
+  'sms.cap_mode': 'auto',
+  'sms.burst_multiplier': 3,
+  'sms.burst_ceiling_multiplier': 10,
 } as const;
 
 // Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
@@ -675,8 +707,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
   /** Password hashes (scrypt) running at once on one server; the rest wait,
-   * so a sign-in flood cannot starve the server's file / DNS work. */
-  'security.password_hash_concurrency': 4,
+   * so a sign-in flood cannot starve the server's file / DNS work. 2 (not 4):
+   * each scrypt is 64 MiB and about 100-200 ms of CPU, and the launch task
+   * is 0.5 vCPU / 1 GiB (review R-59); raise it with the task size. */
+  'security.password_hash_concurrency': 2,
   /** Hashes allowed to wait; beyond it the request gets RATE_LIMITED. */
   'security.password_hash_max_queue': 200,
   /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
