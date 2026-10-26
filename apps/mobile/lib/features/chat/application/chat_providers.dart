@@ -18,6 +18,7 @@ import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/chat_counts_refresh.dart';
 import 'package:lawbid/features/chat/application/chat_list_delta.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -362,18 +363,35 @@ final searchConversationsProvider = AsyncNotifierProvider.autoDispose.family<
   retry: _noRetry,
 );
 
+/// One gate per badge, kept across the provider's own re-reads (a gate built
+/// inside the provider would forget the chats seen and ask again each time).
+final _waitingGateProvider = Provider.autoDispose<ChatCountsGate>(
+  (ref) => ChatCountsGate(me: () => ref.read(currentUserIdProvider)),
+);
+final _requestsGateProvider = Provider.autoDispose<ChatCountsGate>(
+  (ref) => ChatCountsGate(me: () => ref.read(currentUserIdProvider)),
+);
+
 /// Waiting / Requests badges; re-read on chat events.
 final chatFolderCountsProvider = FutureProvider.autoDispose<
     ({int waiting, int requests, int cases, int archived})>(
   (ref) {
+    // Debounced; a message only asks when it flips a chat's side (see
+    // chat_counts_refresh.dart).
+    final debounce = CountsDebouncer(ref.invalidateSelf);
+    final gate = ref.watch(_waitingGateProvider);
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
-      if (e.name == 'message:new' ||
-          e.name == 'conversation:update' ||
+      if (e.name == 'message:new') {
+        if (gate.onMessage(e).waiting) debounce.poke();
+      } else if (e.name == 'conversation:update' ||
           e.name == 'group:invite') {
-        ref.invalidateSelf();
+        debounce.poke();
       }
     });
-    ref.onDispose(sub.cancel);
+    ref.onDispose(() {
+      sub.cancel();
+      debounce.dispose();
+    });
     return ref.watch(chatRepositoryProvider).folderCounts();
   },
   retry: _noRetry,
@@ -391,14 +409,20 @@ void refreshChatFolders(WidgetRef ref) {
 /// messages and chat updates.
 final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
   (ref) {
+    final debounce = CountsDebouncer(ref.invalidateSelf);
+    final gate = ref.watch(_requestsGateProvider);
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
-      if (e.name == 'message:new' ||
-          e.name == 'conversation:update' ||
+      if (e.name == 'message:new') {
+        if (gate.onMessage(e).requests) debounce.poke();
+      } else if (e.name == 'conversation:update' ||
           e.name == 'group:invite') {
-        ref.invalidateSelf();
+        debounce.poke();
       }
     });
-    ref.onDispose(sub.cancel);
+    ref.onDispose(() {
+      sub.cancel();
+      debounce.dispose();
+    });
     return ref.watch(chatRepositoryProvider).requestsCount();
   },
   retry: _noRetry,

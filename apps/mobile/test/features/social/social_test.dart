@@ -69,7 +69,8 @@ void main() {
     });
   });
 
-  test("deleting a post reloads the author's profile grid", () async {
+  test("deleting a post hides it without refetching the author's grid",
+      () async {
     final repo = FakeSocialRepository(posts: [fakePost('p1')]);
     final c = ProviderContainer(overrides: socialOverrides(repo));
     addTearDown(c.dispose);
@@ -78,8 +79,9 @@ void main() {
     await c.read(attorneyPostsProvider('att-1').future);
     expect(repo.attorneyPostsCalls, 1);
     await c.read(socialActionsProvider).deletePost(fakePost('p1'));
-    await c.read(attorneyPostsProvider('att-1').future);
-    expect(repo.attorneyPostsCalls, 2);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    // Delta audit P6: no refetch; the post is hidden by the local override.
+    expect(repo.attorneyPostsCalls, 1);
     expect(c.read(deletedPostsProvider), contains('p1'));
   });
 

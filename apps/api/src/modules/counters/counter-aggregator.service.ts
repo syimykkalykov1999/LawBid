@@ -49,6 +49,27 @@ export const COUNTERS = {
     key: 'id',
     fields: ['like_count', 'reply_count'],
   },
+  // Owner 2026-10-25 (DB audit finding 8): hot rows that every viewer
+  // touched with its own UPDATE. A story's views are recounted from
+  // story_views; the others have several direct writers or no source table
+  // to recount from, so the nightly job leaves them alone (`recount: false`).
+  story: {
+    table: 'stories',
+    key: 'id',
+    fields: ['view_count'],
+  },
+  case_promotion: {
+    table: 'case_promotions',
+    key: 'id',
+    fields: ['impressions', 'reach', 'clicks'],
+    recount: false,
+  },
+  channel: {
+    table: 'channels',
+    key: 'id',
+    fields: ['post_count'],
+    recount: false,
+  },
   attorney: {
     table: 'attorney_profiles',
     key: 'user_id',
@@ -65,7 +86,13 @@ export const COUNTERS = {
 const GLOBAL_COUNTER_TABLES: ReadonlySet<string> = new Set([
   'attorney_profiles',
   'client_profiles',
+  'case_promotions',
 ]);
+
+/** Entities whose nightly reconcile recounts from source tables. */
+function hasRecount(entity: CounterEntity): boolean {
+  return (COUNTERS[entity] as { recount?: boolean }).recount !== false;
+}
 
 export type CounterEntity = keyof typeof COUNTERS;
 
@@ -251,6 +278,7 @@ export class CounterAggregator
       async () => {
         let rows = 0;
         for (const entity of Object.keys(COUNTERS) as CounterEntity[]) {
+          if (!hasRecount(entity)) continue;
           for (;;) {
             const ids = await this.redis.spop(touchedKey(entity), BATCH);
             if (!ids || ids.length === 0) break;
@@ -353,7 +381,8 @@ export class CounterAggregator
         WHERE a.user_id = v.id`);
       return;
     }
-    // comment / case / case_comment: every source table sits with the row.
+    // comment / case / case_comment / story: every source table sits with
+    // the row.
     await forEachDatabase(this.prisma, () => this.recountLocal(entity, ids));
   }
 
@@ -404,6 +433,11 @@ export class CounterAggregator
                          WHERE r.parent_comment_id = c.id AND r.deleted_at IS NULL
                            AND r.status = 'published')
         WHERE c.id = ANY(${ids}::UUID[])`;
+    } else if (entity === 'story') {
+      await this.prisma.$executeRaw`
+        UPDATE stories AS s SET
+          view_count = (SELECT count(*) FROM story_views v WHERE v.story_id = s.id)
+        WHERE s.id = ANY(${ids}::UUID[])`;
     } else if (entity === 'client') {
       await this.prisma.$executeRaw`
         UPDATE client_profiles AS a SET
