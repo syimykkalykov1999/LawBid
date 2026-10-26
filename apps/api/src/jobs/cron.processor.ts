@@ -1,5 +1,14 @@
-import { Injectable, Optional } from '@nestjs/common';
-import { CRON_JOBS } from './jobs.constants';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type Redis from 'ioredis';
+import {
+  CRON_JOBS,
+  CRON_HEAVY_QUEUE,
+  CRON_SCHEDULES,
+  cronLaneOf,
+  isSubHourly,
+} from './jobs.constants';
+import { withJobLock } from './handlers/job-lock';
+import { REDIS_CLIENT } from '../redis/redis.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
 import { PromotionsService } from '../modules/promotions/promotions.service';
 import { StarsService } from '../modules/stars/stars.service';
@@ -35,6 +44,7 @@ import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
+import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
@@ -154,9 +164,41 @@ export class CronProcessor {
     @Optional() private readonly searchIndex?: SearchIndexJob,
     // Day-one foundations: `ledger.reconcile`.
     @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
+    // DB-ops hardening: `db.health`.
+    @Optional() private readonly dbHealth?: DbHealthJob,
+    // S10-13: one lock per job name for every schedule.
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
+  /**
+   * S10-13: the single place that keeps a job from overlapping itself
+   * (Kubernetes CronJob `concurrencyPolicy: Forbid`): a tick, a BullMQ
+   * retry or `runNow` that finds the previous run of the SAME job still
+   * going is skipped, never queued behind it. The TTL bounds a crashed
+   * holder: a sub-hourly job is blocked for at most 3 minutes after a kill,
+   * a heavy one for 60.
+   */
   async process(name: string): Promise<unknown> {
+    if (!this.redis) return this.dispatch(name);
+    const pattern = CRON_SCHEDULES.find((s) => s.name === name)?.pattern ?? '';
+    const ttlMs =
+      cronLaneOf(name) === CRON_HEAVY_QUEUE
+        ? 60 * 60_000
+        : isSubHourly(pattern)
+          ? 3 * 60_000
+          : 30 * 60_000;
+    const ran = await withJobLock(
+      this.redis,
+      `cron:${name}`,
+      ttlMs,
+      async () => ({
+        value: await this.dispatch(name),
+      }),
+    );
+    return ran ? ran.value : { skipped: 'previous run still active' };
+  }
+
+  private async dispatch(name: string): Promise<unknown> {
     // Owner 2026-10-05: «Пауза тяжёлых задач» (owner button or automatic
     // while the database is slow) — skip this tick, the next one runs.
     if (
@@ -226,6 +268,8 @@ export class CronProcessor {
         return this.searchIndex?.run() ?? null;
       case CRON_JOBS.ledgerReconcile:
         return this.ledgerReconcile?.run() ?? null;
+      case CRON_JOBS.dbHealth:
+        return this.dbHealth?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:
