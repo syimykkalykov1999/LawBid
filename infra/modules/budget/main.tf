@@ -55,6 +55,11 @@ variable "anomaly_sns_topic_arn" {
   default     = ""
   description = "SNS topic (the alerts topic) that also gets each cost anomaly at once (IMMEDIATE subscription, free). Its policy and key must allow costalerts.amazonaws.com (modules/monitoring, modules/kms). Empty = e-mail only."
 }
+variable "service_budgets" {
+  type        = map(number)
+  default     = {}
+  description = "Per-service monthly budgets, Cost Explorer SERVICE name => USD (e.g. \"Amazon GuardDuty\" = 25). Each one e-mails at 100 % actual and 100 % forecast: a spend alarm for lines that grow with traffic (GuardDuty S3 events, WAF requests, CloudFront). AWS gives two budgets free, each further one costs about $0.60/month."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -115,6 +120,40 @@ resource "aws_budgets_budget" "monthly" {
       subscriber_email_addresses = local.budget_emails
       subscriber_sns_topic_arns  = var.subscriber_sns_topic_arns
     }
+  }
+}
+
+# Cost registry V1 / V2 / V6: the lines that grow with traffic get their own
+# ceiling and e-mail, so one runaway service cannot hide inside the account
+# total. The filter is the Cost Explorer service name.
+resource "aws_budgets_budget" "service" {
+  for_each     = var.service_budgets
+  name         = "${var.name}-svc-${replace(lower(each.key), " ", "-")}"
+  budget_type  = "COST"
+  limit_amount = tostring(each.value)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  cost_filter {
+    name   = "Service"
+    values = [each.key]
+  }
+
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "ACTUAL"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.subscriber_sns_topic_arns
+  }
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = var.alert_emails
+    subscriber_sns_topic_arns  = var.subscriber_sns_topic_arns
   }
 }
 

@@ -611,7 +611,12 @@ class ApiException implements Exception {
       }
     }
     return ApiException(
-      code: networkErrorCode,
+      // S15-13: a Wi-Fi sign-in page answering instead of the API is still a
+      // network failure for every caller (`isNetworkError`), but screens
+      // that want to can tell it apart.
+      code: isCaptivePortalResponse(e.response)
+          ? captivePortalCode
+          : networkErrorCode,
       message: e.message ?? 'Network error',
       statusCode: e.response?.statusCode,
       guest: guest,
@@ -625,6 +630,11 @@ class ApiException implements Exception {
   /// "the request never got a real answer".
   static const networkErrorCode = 'NETWORK_ERROR';
 
+  /// S15-13: an HTML page (2xx/3xx or 511) came back from a JSON route: a
+  /// captive portal (Wi-Fi sign-in) sits in front of the API. Counts as a
+  /// network failure ([isNetworkError]); never retried.
+  static const captivePortalCode = 'CAPTIVE_PORTAL';
+
   final String code;
   final String message;
   final Map<String, dynamic>? details;
@@ -635,7 +645,10 @@ class ApiException implements Exception {
   /// token. A 401 on it means «sign in to see this», a 429 «try later».
   final bool guest;
 
-  bool get isNetworkError => code == networkErrorCode;
+  bool get isNetworkError =>
+      code == networkErrorCode || code == captivePortalCode;
+
+  bool get isCaptivePortal => code == captivePortalCode;
 
   @override
   String toString() => 'ApiException($code: $message)';
@@ -662,4 +675,15 @@ Future<T> guardApiCall<T>(Future<T> Function() call) async {
       message: 'Unexpected response shape from the server.',
     );
   }
+}
+
+/// S15-13: true when [response] is an HTML page where the API speaks JSON and
+/// the status is one a Wi-Fi sign-in page uses (200-399, or 511 "network
+/// authentication required"). A bare ALB 502/503 HTML page is NOT captive.
+bool isCaptivePortalResponse(Response<dynamic>? response) {
+  if (response == null) return false;
+  final status = response.statusCode ?? 0;
+  if (!((status >= 200 && status < 400) || status == 511)) return false;
+  final type = response.headers.value(Headers.contentTypeHeader) ?? '';
+  return type.toLowerCase().contains('text/html');
 }

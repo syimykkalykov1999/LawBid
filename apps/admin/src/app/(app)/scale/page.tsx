@@ -10,6 +10,7 @@ import { SearchIndexCard } from '@/components/search-index-card';
 import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
+import { StatusDot } from '@/components/status-dot';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input } from '@/components/ui/input';
@@ -31,7 +32,7 @@ import {
   type ScaleExtras,
 } from '@/lib/scale';
 import { usd } from '@/lib/economy';
-import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets } from '@/lib/launch';
+import { budgetPercent, budgetTone, parseLimit, type AwsBudget, type AwsBudgets, type CostRegistryReport } from '@/lib/launch';
 import { LIGHT_TONE } from '@/lib/system-health';
 
 type Target = 'db' | 'redis';
@@ -62,6 +63,12 @@ export default function ScalePage() {
     queryKey: ['scale-extras'],
     queryFn: async () => (await api.GET('/admin/system-health/scale')).data!.data as ScaleExtras,
     refetchOnWindowFocus: true,
+  });
+  // Quiet status dots on the autoscale cards come from the cost registry.
+  const registry = useQuery({
+    queryKey: ['spend-registry'],
+    queryFn: async () => (await api.GET('/admin/spend/registry')).data!.data as CostRegistryReport,
+    refetchInterval: livePoll(),
   });
   const budgets = useQuery({
     queryKey: ['aws-budgets'],
@@ -327,6 +334,10 @@ export default function ScalePage() {
                 <Card key={target} className="flex flex-col gap-2 p-4">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1 text-sm font-medium text-heading">{title}</div>
+                    <StatusDot
+                      status={registry.data?.rows.find((r) => r.id === (target === 'db' ? 'aws.db_autoscale' : 'aws.redis_autoscale'))?.status}
+                      testId={`scale-dot-${target}`}
+                    />
                     <Badge tone={auto.tone} dot className="shrink-0">
                       {mode === 'on' ? 'Автомасштаб' : mode === 'off' ? 'Вручную' : '—'}
                     </Badge>

@@ -26,6 +26,7 @@ import {
   type VendorSpend,
 } from '@/lib/launch';
 import { livePoll } from '@/lib/live';
+import { CostRegistry } from './registry';
 
 const KEY = ['spend'];
 
@@ -88,6 +89,8 @@ export default function SpendPage() {
               Комиссию Stripe не нужно держать на счету: он сам вычитает её из платежей клиентов.
             </p>
           </Card>
+
+          <CostRegistry />
 
           <SectionTitle>По сервисам</SectionTitle>
           <div className="mb-6 grid gap-3 lg:grid-cols-2">

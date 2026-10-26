@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { UsageHardStopService } from '../../common/ops/usage/usage-hard-stop.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import {
@@ -165,6 +166,8 @@ export class SfuBrokerService {
     @Optional() config?: ConfigService,
     @Optional() @Inject(REDIS_CLIENT) redis?: Redis,
     @Optional() private readonly settings?: AppSettingsService,
+    // Cost registry V7: fall back to device-to-device at the urgent traffic level.
+    @Optional() private readonly hardStop?: UsageHardStopService,
   ) {
     this.provider = new CloudflareSfuProvider(secrets, config);
     this.store = new SfuStateStore(redis);
@@ -172,15 +175,34 @@ export class SfuBrokerService {
 
   // --- Start of a call: health and the fallback ---------------------------
 
+  /**
+   * `calls.video_provider` as the app should read it NOW: a `cloudflare`
+   * choice becomes `p2p` while the Cloudflare hard stop is on (cost registry
+   * V7, `scale.cloudflare_hardstop.mode`): this month's Realtime traffic
+   * reached the urgent level, so group calls leave the paid pool. Calls are
+   * never refused.
+   */
+  async effectiveChoice(choice: string): Promise<string> {
+    if (
+      choice === 'cloudflare' &&
+      (await this.hardStop?.stopped('cloudflare'))
+    ) {
+      return 'p2p';
+    }
+    return choice;
+  }
+
   /** Decides (and returns) how a new group call carries its media. */
   async decide(input: {
     isGroup: boolean;
     video: boolean;
     headcount: number;
   }): Promise<MediaDecision> {
-    const choice = this.settings
-      ? await this.settings.string('calls.video_provider')
-      : 'p2p';
+    const choice = await this.effectiveChoice(
+      this.settings
+        ? await this.settings.string('calls.video_provider')
+        : 'p2p',
+    );
     const wantsSfu = input.isGroup && choice === 'cloudflare';
     // Only ask Cloudflare when the admin chose it.
     const sfuHealthy = wantsSfu ? await this.provider.healthy() : false;

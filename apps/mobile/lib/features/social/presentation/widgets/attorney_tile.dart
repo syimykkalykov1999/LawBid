@@ -224,7 +224,7 @@ class TrustAvatarBadge extends ConsumerWidget {
                   height: badge,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: gold != null ? colors.goldAccent : c.fg,
+                    color: gold != null ? colors.verifiedGold : c.fg,
                     border: Border.all(color: colors.bg, width: 2),
                   ),
                   child: Center(
