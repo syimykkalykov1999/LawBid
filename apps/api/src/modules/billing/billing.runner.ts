@@ -15,12 +15,17 @@ import {
   STRIPE_WEBHOOKS_DLQ,
   STRIPE_WEBHOOKS_QUEUE,
   SUBSCRIPTION_JOBS_QUEUE,
+  TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
+  TRIAL_REMINDER_MISSED_AFTER_MS,
+  TRIAL_REMINDER_RECONCILE_JOB,
 } from './billing.constants';
+import { trialReminderJob } from './trial-reminder';
 import type { ProviderEvent } from './payment-provider';
 import type { StripeWebhookJobData } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { bullOptions } from '../../redis/redis-connection';
+import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
 
 /**
  * BullMQ workers of the billing queues — in the `worker` process always,
@@ -35,6 +40,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(BillingRunner.name);
   private workers: Worker[] = [];
   private dlq?: Queue;
+  private subscriptionsQueue?: Queue;
 
   constructor(
     @Inject(BILLING_OPTIONS) private readonly options: BillingModuleOptions,
@@ -58,12 +64,38 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
       STRIPE_WEBHOOKS_DLQ,
       bullOptions(STRIPE_WEBHOOKS_DLQ, url),
     );
+    this.subscriptionsQueue = new Queue(
+      SUBSCRIPTION_JOBS_QUEUE,
+      bullOptions(SUBSCRIPTION_JOBS_QUEUE, url),
+    );
+    // S10-6: durable truth is the subscription row, the delayed job only a
+    // trigger — an hourly scheduler (one per id, however many processes)
+    // puts back what Redis lost. Stripe/Netflix pattern "DB truth, queue
+    // trigger, periodic reconcile".
+    void this.subscriptionsQueue
+      .upsertJobScheduler(
+        TRIAL_REMINDER_RECONCILE_JOB,
+        { every: 60 * 60_000 },
+        {
+          name: TRIAL_REMINDER_RECONCILE_JOB,
+          opts: {
+            removeOnComplete: { count: 24 },
+            removeOnFail: { count: 50 },
+          },
+        },
+      )
+      .catch((e: unknown) =>
+        this.logger.warn(
+          `trial reminder reconcile not scheduled: ${String(e)}`,
+        ),
+      );
     this.workers.push(
       new Worker<StripeWebhookJobData>(
         STRIPE_WEBHOOKS_QUEUE,
         (job) => this.processWebhook(job),
         {
           ...bullOptions(STRIPE_WEBHOOKS_QUEUE, url),
+          ...workerTuning(STRIPE_WEBHOOKS_QUEUE),
           concurrency: 4,
         },
       ),
@@ -72,6 +104,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         (job) => this.processSubscriptionJob(job),
         {
           ...bullOptions(SUBSCRIPTION_JOBS_QUEUE, url),
+          ...workerTuning(SUBSCRIPTION_JOBS_QUEUE),
           concurrency: 2,
         },
       ),
@@ -87,8 +120,9 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     await Promise.all([
-      ...this.workers.map((w) => w.close()),
+      ...this.workers.map((w) => closeWorker(w)),
       this.dlq?.close(),
+      this.subscriptionsQueue?.close(),
     ]).catch(() => undefined);
   }
 
@@ -139,6 +173,10 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
   private async processSubscriptionJob(
     job: Job<{ subscriptionId: string }>,
   ): Promise<void> {
+    if (job.name === TRIAL_REMINDER_RECONCILE_JOB) {
+      await this.reconcileTrialReminders();
+      return;
+    }
     if (job.name !== TRIAL_REMINDER_JOB) return;
     const row = await this.prisma.subscription.findUnique({
       where: { id: job.data.subscriptionId },
@@ -159,6 +197,97 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         amountCents: row.price_cents,
       },
     });
+  }
+
+  /**
+   * S10-6: for every trialing, not-canceled subscription —
+   *  - reminder still in the future: add the delayed job again (same job id,
+   *    so BullMQ ignores it while the job exists and re-creates it when
+   *    Redis lost it);
+   *  - reminder time passed more than 30 min ago but no
+   *    `subscription_trial_ending` notification exists since the trial
+   *    started: send it now (late beats never).
+   * Pages by id; bounded per run (hourly, so the rest follows).
+   */
+  async reconcileTrialReminders(
+    now: Date = new Date(),
+  ): Promise<{ scheduled: number; late: number }> {
+    if (!this.subscriptionsQueue) return { scheduled: 0, late: 0 };
+    let scheduled = 0;
+    let late = 0;
+    let after: string | undefined;
+    for (let page = 0; page < 20; page++) {
+      const rows = await this.prisma.subscription.findMany({
+        where: {
+          status: 'trialing',
+          cancel_at_period_end: false,
+          trial_ends_at: { gt: now },
+        },
+        select: {
+          id: true,
+          user_id: true,
+          trial_started_at: true,
+          trial_ends_at: true,
+          price_cents: true,
+        },
+        orderBy: { id: 'asc' },
+        take: 500,
+        ...(after ? { cursor: { id: after }, skip: 1 } : {}),
+      });
+      if (rows.length === 0) break;
+      const jobs = [];
+      for (const row of rows) {
+        const spec = trialReminderJob(row, now.getTime());
+        if (spec) {
+          jobs.push({
+            name: TRIAL_REMINDER_JOB,
+            data: { subscriptionId: row.id },
+            opts: {
+              jobId: spec.jobId,
+              delay: spec.delay,
+              removeOnComplete: true,
+              removeOnFail: 100,
+            },
+          });
+          continue;
+        }
+        const reminderAt =
+          (row.trial_ends_at as Date).getTime() -
+          TRIAL_REMINDER_DAYS_BEFORE * 86_400_000;
+        if (now.getTime() - reminderAt < TRIAL_REMINDER_MISSED_AFTER_MS)
+          continue;
+        const sent = await this.prisma.notification.findFirst({
+          where: {
+            user_id: row.user_id,
+            type: 'subscription_trial_ending',
+            created_at: {
+              gte: row.trial_started_at ?? new Date(reminderAt - 86_400_000),
+            },
+          },
+          select: { id: true },
+        });
+        if (sent) continue;
+        await this.notifications.emit({
+          type: 'subscription_trial_ending',
+          recipientId: row.user_id,
+          payload: {
+            trialEndsAt: (row.trial_ends_at as Date).toISOString(),
+            amountCents: row.price_cents,
+          },
+        });
+        late++;
+      }
+      if (jobs.length > 0) {
+        await this.subscriptionsQueue.addBulk(jobs);
+        scheduled += jobs.length;
+      }
+      after = rows[rows.length - 1].id;
+      if (rows.length < 500) break;
+    }
+    if (late > 0) {
+      this.logger.warn(`trial reminders sent late by the sweep: ${late}`);
+    }
+    return { scheduled, late };
   }
 
   /** Test seam: run the reminder logic for one subscription now. */

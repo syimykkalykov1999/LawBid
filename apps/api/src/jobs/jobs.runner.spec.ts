@@ -3,13 +3,21 @@ import type { PostVideosService } from '../modules/posts/post-videos.service';
 import type { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 import { Queue, Worker } from 'bullmq';
-import { JobsRunner, CRON_JOB_TEMPLATE_OPTS } from './jobs.runner';
+import { JobsRunner, CRON_JOB_TEMPLATE_OPTS, cronJobOpts } from './jobs.runner';
 import { CronProcessor } from './cron.processor';
 import type {
   TaskArchivePurgeJob,
   TaskRemindersJob,
 } from './handlers/tasks-planner.jobs';
-import { CRON_JOBS, CRON_QUEUE, CRON_SCHEDULES } from './jobs.constants';
+import {
+  CRON_FAST_QUEUE,
+  CRON_HEAVY_QUEUE,
+  CRON_JOBS,
+  CRON_QUEUE,
+  CRON_SCHEDULES,
+  cronLaneOf,
+  isSubHourly,
+} from './jobs.constants';
 import type { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
 import type { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import type { CallsService } from '../modules/calls/calls.service';
@@ -290,12 +298,30 @@ describe('JobsRunner', () => {
       tz: 'UTC',
     });
     for (const call of upserts) {
-      expect(call[2]).toEqual({ name: call[0], opts: CRON_JOB_TEMPLATE_OPTS });
+      const pattern = (call[1] as { pattern: string }).pattern;
+      expect(call[2]).toEqual({ name: call[0], opts: cronJobOpts(pattern) });
     }
-    // Stale scheduler from an older release is removed, current ones kept.
-    expect(mocked.__queue.removeJobScheduler).toHaveBeenCalledTimes(1);
+    // Stale scheduler from an older release is removed on every lane (the
+    // shared mock answers the same list for each lane's queue).
     expect(mocked.__queue.removeJobScheduler).toHaveBeenCalledWith(
       'legacy.job.removed-in-this-release',
+    );
+    expect(
+      mocked.__queue.removeJobScheduler.mock.calls.filter(
+        ([k]) => k === 'legacy.job.removed-in-this-release',
+      ),
+    ).toHaveLength(3);
+    // S10-2: one worker per lane; the signal lane runs three at a time.
+    expect(Worker).toHaveBeenCalledTimes(3);
+    expect(Worker).toHaveBeenCalledWith(
+      CRON_FAST_QUEUE,
+      expect.any(Function),
+      expect.objectContaining({ concurrency: 3 }),
+    );
+    expect(Worker).toHaveBeenCalledWith(
+      CRON_HEAVY_QUEUE,
+      expect.any(Function),
+      expect.objectContaining({ concurrency: 1, lockDuration: 300_000 }),
     );
     expect(Worker).toHaveBeenCalledWith(
       CRON_QUEUE,
@@ -366,14 +392,76 @@ describe('JobsRunner', () => {
       logger,
     );
     await runner.onApplicationBootstrap();
-    expect(Worker).toHaveBeenCalledTimes(1);
+    expect(Worker).toHaveBeenCalledTimes(3);
     await runner.onApplicationShutdown();
+  });
+
+  it('puts the autoscaling/alarm signal on its own fast lane, away from the heavy jobs (S10-2)', () => {
+    expect(cronLaneOf(CRON_JOBS.opsQueueMetrics)).toBe(CRON_FAST_QUEUE);
+    expect(cronLaneOf(CRON_JOBS.callsSweep)).toBe(CRON_FAST_QUEUE);
+    expect(cronLaneOf(CRON_JOBS.feedReco)).toBe(CRON_HEAVY_QUEUE);
+    expect(cronLaneOf(CRON_JOBS.messagesReencrypt)).toBe(CRON_HEAVY_QUEUE);
+    expect(cronLaneOf(CRON_JOBS.privacyAnonymize)).toBe(CRON_HEAVY_QUEUE);
+    expect(cronLaneOf(CRON_JOBS.sessionsCleanup)).toBe(CRON_QUEUE);
+    // every minute-job that is not a quick sweep must not sit with the signal
+    const fast = CRON_SCHEDULES.filter(
+      (s) => cronLaneOf(s.name) === CRON_FAST_QUEUE,
+    );
+    expect(fast.length).toBeGreaterThan(0);
+    for (const s of fast) expect(isSubHourly(s.pattern)).toBe(true);
+  });
+
+  it('a sub-hourly schedule is its own retry; hourly and slower keep 3 attempts (S10-13)', () => {
+    expect(isSubHourly('* * * * *')).toBe(true);
+    expect(isSubHourly('*/10 * * * *')).toBe(true);
+    expect(isSubHourly('3-58/5 * * * *')).toBe(true);
+    expect(isSubHourly('20 * * * *')).toBe(false);
+    expect(isSubHourly('15 3 * * *')).toBe(false);
+    expect(cronJobOpts('* * * * *').attempts).toBe(1);
+    expect(cronJobOpts('15 3 * * *')).toBe(CRON_JOB_TEMPLATE_OPTS);
   });
 
   it('has one schedule per job name', () => {
     const names = CRON_SCHEDULES.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
     expect(new Set(names)).toEqual(new Set(Object.values(CRON_JOBS)));
+  });
+});
+
+describe('CronProcessor lock (S10-13)', () => {
+  function withRedis(held: boolean) {
+    const redis = {
+      set: jest.fn(() => Promise.resolve(held ? null : 'OK')),
+      eval: jest.fn(() => Promise.resolve(1)),
+    };
+    const p = processor();
+    const proc = p.processor;
+    (proc as unknown as { redis: unknown }).redis = redis;
+    return { redis, p, proc };
+  }
+
+  it('skips a tick whose previous run is still active, never queues behind it', async () => {
+    const { proc, p, redis } = withRedis(true);
+    await expect(proc.process(CRON_JOBS.sessionsCleanup)).resolves.toEqual({
+      skipped: 'previous run still active',
+    });
+    expect(p.sessions.run).not.toHaveBeenCalled();
+    expect(redis.set).toHaveBeenCalledWith(
+      `lock:job:cron:${CRON_JOBS.sessionsCleanup}`,
+      expect.any(String),
+      'PX',
+      expect.any(Number),
+      'NX',
+    );
+  });
+
+  it('runs and releases when the lock is free', async () => {
+    const { proc, p, redis } = withRedis(false);
+    await expect(proc.process(CRON_JOBS.sessionsCleanup)).resolves.toEqual({
+      deleted: 1,
+    });
+    expect(p.sessions.run).toHaveBeenCalledTimes(1);
+    expect(redis.eval).toHaveBeenCalled();
   });
 });
 
