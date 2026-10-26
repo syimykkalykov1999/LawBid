@@ -78,6 +78,18 @@ class _CommentTileState extends ConsumerState<CommentTile> {
       await ref
           .read(socialRepositoryProvider)
           .setCommentLiked(before.id, liked: liked);
+      // Audit C12: the list keeps the new state (a rebuilt tile would
+      // otherwise show the old one).
+      if (mounted) {
+        final parent = _c.parentId;
+        if (parent != null) {
+          if (ref.exists(repliesProvider(parent))) {
+            ref.read(repliesProvider(parent).notifier).replace(_c);
+          }
+        } else if (ref.exists(commentsProvider(_c.postId))) {
+          ref.read(commentsProvider(_c.postId).notifier).replace(_c);
+        }
+      }
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _c = before);

@@ -8,11 +8,27 @@ import 'package:integration_test/integration_test_driver.dart';
 
 Future<void> main() => integrationDriver(
       responseDataCallback: (data) async {
-        if (data == null) return;
         final out = Directory(
           Platform.environment['PERF_OUT'] ?? 'build/perf/latest',
         )..createSync(recursive: true);
         const json = JsonEncoder.withIndent('  ');
+        // Never "no result": when the phone sent nothing, say so in a file.
+        if (data == null || data['perf_result'] == null) {
+          final md = data?['perf_markdown'];
+          final text = md is String
+              ? md
+              : '# LawBid on-device performance\n\nThe phone sent no result '
+                  '(the app died or the test never reached its end). '
+                  'See drive.log.\n';
+          File('${out.path}/perf_result.md').writeAsStringSync(text);
+          File('${out.path}/perf_result.json').writeAsStringSync(
+            json.convert(
+              {'passed': false, 'error': 'no result from the phone'},
+            ),
+          );
+          stdout.writeln(text);
+          return;
+        }
         final result = data['perf_result'];
         if (result != null) {
           File('${out.path}/perf_result.json')

@@ -33,7 +33,7 @@ describe('client tuning knobs (scale audit 2026-10-23)', () => {
     ).not.toBeNull();
     expect(validateConfigValue(schema['client.retry_max'], 100)).not.toBeNull();
     expect(
-      validateConfigValue(schema['client.realtime_reconnect_max_ms'], 1),
+      validateConfigValue(schema['realtime.reconnect_max_ms'], 1),
     ).not.toBeNull();
     expect(
       validateConfigValue(schema['client.events_flush_s'], 86_400),
