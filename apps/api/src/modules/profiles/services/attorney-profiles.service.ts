@@ -21,6 +21,7 @@ import { PrivacySettingsService } from '../../privacy-settings/privacy-settings.
 import { ConsultationsService } from '../../consultations/consultations.service';
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
+import { PrismaReadService } from '../../../prisma/prisma-read.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { weakEtag } from '../../../common/sync/cheap-etag';
 
@@ -128,6 +129,10 @@ type PublicCore = Pick<
   stamp: string;
 };
 
+type PublicCoreRow = Awaited<
+  ReturnType<AttorneyProfilesService['publicCoreRow']>
+>;
+
 @Injectable()
 export class AttorneyProfilesService implements OnApplicationShutdown {
   constructor(
@@ -149,6 +154,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     // Caching round 2 (S2-8): the viewer-independent body of the public
     // profile is cached per username on the evictable cache Redis.
     @Optional() @Inject(REDIS_CACHE_CLIENT) private readonly cache?: Redis,
+    // DB-ops S5-6: the public profile row may be a few seconds old.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
@@ -595,7 +602,20 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
    * can sit in Redis). 404 for an unknown / unavailable profile (never
    * cached: the loader throws). */
   private async loadPublicCore(usernameLower: string): Promise<PublicCore> {
-    const row = await this.prisma.attorneyProfile.findUnique({
+    // DB-ops S5-6: the body tolerates a few seconds of replica lag (it is
+    // cached anyway); a miss may only be lag, so it is asked of the primary.
+    const reader = this.read?.db ?? this.prisma;
+    const first = await this.publicCoreRow(reader, usernameLower);
+    const row =
+      first || reader === this.prisma
+        ? first
+        : await this.publicCoreRow(this.prisma, usernameLower);
+    return this.publicCoreOf(row);
+  }
+
+  /** @internal The public profile row (one indexed read). */
+  publicCoreRow(db: PrismaService, usernameLower: string) {
+    return db.attorneyProfile.findUnique({
       where: { username_lower: usernameLower },
       select: {
         user_id: true,
@@ -632,6 +652,9 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
         },
       },
     });
+  }
+
+  private async publicCoreOf(row: PublicCoreRow): Promise<PublicCore> {
     if (
       !row ||
       row.verification_status === 'suspended' ||

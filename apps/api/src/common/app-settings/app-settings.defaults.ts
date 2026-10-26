@@ -816,6 +816,23 @@ export const OWNER_STORAGE_SETTINGS = {
   // Scale audit 2026-10-23: the two fastest-growing statistics tables.
   'storage.retention_post_view_events_days': 730,
   'storage.retention_user_activity_days': 400,
+  // DB-ops hardening 2026-10-25: the cross-family event queue (outbox) and its
+  // dedupe table (inbox) are cleaned like any log. 0 = keep for ever.
+  'storage.retention_outbox_done_days': 7,
+  'storage.retention_inbox_days': 30,
+  // DB-ops hardening: the daily db.health report goes yellow at this table
+  // size (GB) / share of dead rows (%). 0 = no signal.
+  // Three-state controls «Выкл / Вкл / Авто» (owner rule 2026-10-25).
+  // db.health_mode: off = never; on = daily; auto = daily, but skipped while
+  // heavy jobs are paused (the database is already slow).
+  'db.health_mode': 'auto',
+  // db.replica_reads: off = every read on the primary; on = replica always
+  // (lag ignored); auto = replica only while its lag is under the ceiling.
+  'db.replica_reads': 'auto',
+  // The ceiling of «auto»: max replica lag in ms (also per call via readDb).
+  'db.replica_max_lag_ms': 5000,
+  'db.health_table_size_gb': 20,
+  'db.health_dead_ratio_percent': 20,
   'storage.growth_alert_percent': 20,
   // Owner 2026-10-20 (government requests): evidence archives are built one at
   // a time by the worker; the file is removed after `export_ttl_days` (the

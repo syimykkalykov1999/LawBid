@@ -13,6 +13,7 @@ import {
   encodeCursor as encodeKeyset,
 } from '../../common/pagination/cursor.util';
 import { GUEST_USER_ID } from '../../common/viewer/guest';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -89,6 +90,8 @@ export class FeedService implements FeedProvider {
     // block set) live on the evictable cache Redis; the recommendation
     // snapshot stays on the main client (written by FeedRecoJob).
     @Optional() @Inject(REDIS_CACHE_CLIENT) cache?: Redis,
+    // DB-ops S5-6: the guest feed (no viewer, no writes) reads the replica.
+    @Optional() private readonly read?: PrismaReadService,
   ) {
     this.cache = cache ?? redis;
   }
@@ -188,7 +191,7 @@ export class FeedService implements FeedProvider {
         throw badCursor();
       }
     }
-    const rows = await this.prisma.post.findMany({
+    const rows = await (this.read?.db ?? this.prisma).post.findMany({
       where: {
         AND: [
           VISIBLE_POST_WHERE,
