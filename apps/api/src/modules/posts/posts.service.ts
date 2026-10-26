@@ -1,3 +1,4 @@
+import { onlyDeleted } from '../../prisma/soft-delete.extension';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
@@ -611,19 +612,16 @@ export class PostsService {
     if (count !== 1) throw postNotFound();
     // S2-3: the deleted post leaves the author's cached first page at once.
     await bumpFeedVersion(this.redis, user.sub);
+    // Owner 2026-10-26 (ROOT CAUSE): the row is soft-deleted now, and every
+    // read hides soft-deleted rows, so this lookup came back empty: the
+    // profile counter never dropped (and the reel's video was never
+    // purged). Read it with onlyDeleted().
     const post = await this.prisma.post.findFirst({
-      where: { id },
+      where: onlyDeleted({ id }),
       select: { status: true, video_asset_id: true, archived_at: true },
     });
-    // Owner 2026-10-01: the reel's video goes with the post.
-    if (post?.video_asset_id) {
-      await this.videos.markDeleted([post.video_asset_id]);
-      const asset = await this.prisma.videoAsset.findUnique({
-        where: { id: post.video_asset_id },
-      });
-      if (asset) await this.videos.purgeNow(asset);
-    }
-    // An archived post is already out of the profile count.
+    // The counter drops BEFORE the video purge (a purge error must not
+    // leave it stale). An archived post is already out of the count.
     if (post?.status === 'published' && !post.archived_at) {
       await this.counters.bump(
         profileEntity(user.role),
@@ -631,6 +629,14 @@ export class PostsService {
         'posts_count',
         -1,
       );
+    }
+    // Owner 2026-10-01: the reel's video goes with the post.
+    if (post?.video_asset_id) {
+      await this.videos.markDeleted([post.video_asset_id]);
+      const asset = await this.prisma.videoAsset.findUnique({
+        where: { id: post.video_asset_id },
+      });
+      if (asset) await this.videos.purgeNow(asset);
     }
     return { deleted: true };
   }
