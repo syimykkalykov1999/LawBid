@@ -237,3 +237,37 @@ export function chatPushData(input: {
       : {}),
   };
 }
+
+/**
+ * Owner 2026-10-24 (P1 resilience): one collapse key per CONVERSATION, so a
+ * burst of messages replaces itself on the phone and the newest text wins:
+ *  - iPhone: `apns-collapse-id` (Apple: a newer push with the same id replaces
+ *    the alert in the Notification Center and, while the phone is offline, the
+ *    stored one - APNs keeps one per id);
+ *  - Android (the system shows the notification): FCM `collapse_key` (offline
+ *    storage keeps the newest only) and `notification.tag` (replaces the
+ *    alert on screen).
+ * An Android app that draws chat notifications itself (`chat_style`) is
+ * data-only and NOT collapsed (fcm-push.sender): its MessagingStyle needs
+ * every line. A @mention in a group uses its own key so a later ordinary
+ * message cannot hide it. VoIP call pushes never use this (apns-voip.sender
+ * collapses by call id only). Kill switch: env PUSH_CHAT_COLLAPSE=0.
+ */
+export function chatCollapseKey(
+  conversationId: string,
+  opts: { mention?: boolean } = {},
+): string {
+  return `${opts.mention ? 'chatm' : 'chat'}-${conversationId}`;
+}
+
+/** APNs limits `apns-collapse-id` to 64 BYTES (not characters). */
+export function apnsCollapseId(key: string): string {
+  const enc = new TextEncoder();
+  if (enc.encode(key).length <= 64) return key;
+  let out = '';
+  for (const ch of key) {
+    if (enc.encode(out + ch).length > 64) break;
+    out += ch;
+  }
+  return out;
+}

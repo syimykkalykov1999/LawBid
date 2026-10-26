@@ -285,3 +285,41 @@ export class TreasuryExpenseIdParamDto {
   @IsUUID('all')
   id!: string;
 }
+
+// ---- money ledger (read-only; docs/architecture/MONEY_LEDGER.md) --------------
+
+export class LedgerBalanceDto {
+  @ApiProperty({ example: 'stripe_platform_balance' }) code!: string;
+  @ApiProperty({
+    enum: ['asset', 'liability', 'revenue', 'expense', 'external'],
+  })
+  type!: string;
+  @ApiProperty({ example: 'usd' }) currency!: string;
+  @ApiProperty({ enum: ['platform', 'users'] }) ownerKey!: string;
+  @ApiProperty({ type: 'integer' }) debitCents!: number;
+  @ApiProperty({ type: 'integer' }) creditCents!: number;
+}
+
+export class LedgerReconcileDto {
+  @ApiProperty() ranAt!: string;
+  @ApiProperty() ok!: boolean;
+  @ApiProperty({ type: 'integer' }) entries!: number;
+  @ApiProperty({ type: 'integer' }) unbalancedEntries!: number;
+  @ApiProperty({ type: 'integer' }) missingPayments!: number;
+  @ApiProperty({ type: 'integer' }) missingCasePayments!: number;
+  @ApiProperty({ type: 'integer' }) caseRefundDriftCents!: number;
+  @ApiProperty({ enum: ['skipped', 'compared'] }) stripeStatus!: string;
+  @ApiProperty({ type: 'integer', nullable: true })
+  stripeDeltaCents!: number | null;
+  @ApiProperty({ type: [String] }) problems!: string[];
+}
+
+export class LedgerOverviewDto {
+  @ApiProperty({ type: [LedgerBalanceDto] }) balances!: LedgerBalanceDto[];
+  @ApiProperty({
+    type: LedgerReconcileDto,
+    nullable: true,
+    description: 'The last nightly reconciliation, null before the first run.',
+  })
+  last!: LedgerReconcileDto | null;
+}

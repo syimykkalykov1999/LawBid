@@ -17,6 +17,7 @@ import {
   PRIVACY_OPTIONS,
   type PrivacyModuleOptions,
 } from './privacy.constants';
+import { bullOptions } from '../../redis/redis-connection';
 
 interface DeletionJobData {
   userId: string;
@@ -67,9 +68,10 @@ export class AccountDeletionRunner
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
-    this.queue = new Queue<DeletionJobData>(ACCOUNT_DELETION_QUEUE, {
-      connection: { url },
-    });
+    this.queue = new Queue<DeletionJobData>(
+      ACCOUNT_DELETION_QUEUE,
+      bullOptions(ACCOUNT_DELETION_QUEUE, url),
+    );
     if (!this.workerEnabled) return;
     this.worker = new Worker<DeletionJobData>(
       ACCOUNT_DELETION_QUEUE,
@@ -77,7 +79,10 @@ export class AccountDeletionRunner
         this.anonymization.anonymize(job.data.userId),
       // Each job talks to Stripe, S3 and Bunny: a small concurrency keeps
       // their rate limits and the database calm.
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 2 },
+      {
+        ...bullOptions(ACCOUNT_DELETION_QUEUE, url, { worker: true }),
+        concurrency: 2,
+      },
     );
     this.worker.on('failed', (job, error) => {
       if (!job) return;

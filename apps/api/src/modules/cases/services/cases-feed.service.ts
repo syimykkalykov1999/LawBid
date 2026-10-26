@@ -649,21 +649,35 @@ export class CasesFeedService {
     }
   }
 
-  /** Fire-and-forget impression counter for promoted cases shown. */
+  /** Fire-and-forget impression counter for promoted cases shown. Owner
+   * 2026-10-25 (DB audit finding 8): one pending delta per promotion through
+   * the counter aggregator instead of an UPDATE of every hot promotion row
+   * for every feed page. */
   private countImpressions(caseIds: string[]): void {
     const now = new Date();
     void Promise.resolve()
-      .then(() =>
-        this.prisma.casePromotion.updateMany({
-          where: {
-            case_id: { in: caseIds },
-            status: 'active',
-            starts_at: { lte: now },
-            ends_at: { gt: now },
-          },
-          data: { impressions: { increment: 1 } },
-        }),
-      )
+      .then(async () => {
+        const where = {
+          case_id: { in: caseIds },
+          status: 'active' as const,
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+        };
+        if (!this.counters) {
+          await this.prisma.casePromotion.updateMany({
+            where,
+            data: { impressions: { increment: 1 } },
+          });
+          return;
+        }
+        const live = await this.prisma.casePromotion.findMany({
+          where,
+          select: { id: true },
+        });
+        for (const p of live) {
+          await this.counters.bump('case_promotion', p.id, 'impressions', 1);
+        }
+      })
       .catch(() => undefined);
   }
 }

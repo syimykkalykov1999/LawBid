@@ -98,7 +98,7 @@ Why not presigned GETs from R2: a presigned URL changes on every request, so the
 
 Requirements: `lawbid.dev` becomes a Cloudflare zone (change nameservers at Namecheap; recreate the existing DNS records first, all "DNS only"/grey cloud so API, admin and mail keep working exactly as now). If the owner does not want to move the main domain, register a separate cheap domain just for media and put that on Cloudflare.
 
-- Unguessable keys: `<purpose>/<userId>/<random UUID v4 fileId>`; 122 bits of randomness, bucket listing is not public. A new file is a new key, so bytes behind a URL never change (immutable cache header, as today).
+- Unguessable keys: new uploads use `<purpose>/s<shard>/<yyyy>/<mm>/<random UUID v4 fileId>` (no owner id in the key since 2026-10-24; ownership is the `File` row; rows created before keep `<purpose>/<userId>/<fileId>`, and nothing parses a key, every reader uses the stored `s3_key`); 122 bits of randomness, bucket listing is not public. A new file is a new key, so bytes behind a URL never change (immutable cache header, as today).
 - Cache rule: Cache Everything for the media hostname, Edge TTL 1 day (overrides the origin's one-year header at the edge; browsers still keep it a year).
 - WAF/hotlink rules can be added later on the same hostname.
 
