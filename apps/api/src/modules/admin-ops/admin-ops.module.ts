@@ -5,6 +5,7 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { AdminOpsController } from './admin-ops.controller';
 import { PartitionService } from '../../partitioning/partition.service';
+import { QueueAdminService } from './queue-admin.service';
 import { SearchIndexController } from './search-index.controller';
 import { SearchModule } from '../search/search.module';
 import { ScaleService } from './scale.service';
@@ -20,6 +21,7 @@ import { SystemHealthService } from './system-health.service';
     MessageReencryptJob,
     ScaleService,
     PartitionService,
+    QueueAdminService,
   ],
 })
 export class AdminOpsModule {}
