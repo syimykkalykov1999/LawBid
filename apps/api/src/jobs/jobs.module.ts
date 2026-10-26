@@ -55,6 +55,9 @@ import { LedgerModule } from '../modules/ledger/ledger.public';
 import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
 import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
 import { SearchIndexerService } from '../modules/search/search-indexer.service';
+import { FeatureFlagsModule } from '../modules/feature-flags/feature-flags.module';
+import { AnalyticsService } from '../modules/analytics/analytics.service';
+import { AppEventsService } from '../modules/analytics/app-events.service';
 import { DashboardService } from '../modules/admin/dashboard.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
@@ -90,6 +93,8 @@ export class JobsModule {
       module: JobsModule,
       imports: [
         NotificationsModule,
+        // AppEventsService (analytics snapshot) needs the flags.
+        FeatureFlagsModule,
         // Security research #5 (A7): ContactsPepper for the contacts jobs.
         ContactsSyncModule,
         CallsModule,
@@ -170,6 +175,8 @@ export class JobsModule {
         SearchDocsLoader,
         OPENSEARCH_CLIENT_PROVIDER,
         DashboardService,
+        AnalyticsService,
+        AppEventsService,
         BillingOverviewService,
         OpsGuardJob,
         StatusWatchdogJob,
