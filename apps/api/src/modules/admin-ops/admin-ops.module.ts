@@ -5,6 +5,7 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { AdminOpsController } from './admin-ops.controller';
 import { AdminStatusPageController } from './admin-status-page.controller';
+import { QueueAdminService } from './queue-admin.service';
 import { SearchIndexController } from './search-index.controller';
 import { SearchModule } from '../search/search.module';
 import { ScaleService } from './scale.service';
@@ -19,6 +20,11 @@ import { SystemHealthService } from './system-health.service';
     SearchIndexController,
   ],
   // The re-encryption job here only reads / resets its Redis progress.
-  providers: [SystemHealthService, MessageReencryptJob, ScaleService],
+  providers: [
+    SystemHealthService,
+    MessageReencryptJob,
+    ScaleService,
+    QueueAdminService,
+  ],
 })
 export class AdminOpsModule {}
