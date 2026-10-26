@@ -101,8 +101,15 @@ Owner: «when Cloudflare goes down, people must not notice the switch».
             → CallController._startReconnect → _freshIceThenRestart
             → GET /calls/ice-servers?relayFailed=true   (≤ 1.8 s budget, shared, ≤ 1 per 10 s)
                  server: new Cloudflare login (cache skipped) + own TURN FIRST
-                         report → CloudflareTransport.recordClientFailure (counts only when
-                         ≥ 10 phones AND ≥ 30 % of calls that took Cloudflare in the window)
+                         (a normal call already carries own TURN SECOND, after Cloudflare:
+                         a dead Cloudflare relay behind a live credential API costs a
+                         timed-out candidate, not the call — FO-1)
+                         report → CloudflareTransport.recordClientFailure: the breaker opens
+                         when ≥ calls.transport_report_min distinct phones (10; shrinks to
+                         2 phones / half of the calls while calls are few) AND
+                         ≥ calls.transport_report_ratio_pct (30 %) of the calls that took
+                         Cloudflare in the window say so; the API also verifies the
+                         relay itself once per 10 s (STUN + Allocate, CF-6)
             → media.updateIceServers (setConfiguration) → ICE restart (offerer) / ask (answerer)
             same call id, same tracks, same peer connections
 network change / socket back → _restartAllFresh (fresh list, no report) → ICE restart
@@ -122,7 +129,10 @@ SFU group   any /calls/:id/sfu/* answers 503 CALL_MEDIA_UNAVAILABLE (5xx, timeou
                  kCallReconnectingDelay (3 s) — a relay switch or the swap is not seen.
 ```
 
-Health: the breaker probe runs at most once a minute fleet-wide while open (driven by new
-calls and the `ops.status-watchdog` job, every minute). Admin → «Ключи и сервисы» →
-«Связь для звонков» → «Проверить» runs the synthetic STUN Binding + TURN Allocate
-(`relay-check.ts`) on both sides.
+Health: the TURN breaker probe (`cloudflare-relay-probe.ts`: a login AND a real STUN
+Binding + TURN Allocate on the Cloudflare relay) runs at most once a minute fleet-wide —
+while open (driven by new calls and the `ops.status-watchdog` job; only a relay that
+allocates closes it) and while closed too (the watchdog: two misses in a row open it,
+each miss also counts as one of the N failures). Admin → «Ключи и сервисы» →
+«Связь для звонков» → «Проверить» runs the same STUN Binding + TURN Allocate
+(`relay-check.ts`) on both sides. STUN list default: stun.cloudflare.com:3478, then Google.

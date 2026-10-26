@@ -132,6 +132,22 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 10,
     max: 3600,
   };
+  out['calls.transport_report_min'] = {
+    type: 'integer',
+    defaultValue: 10,
+    description:
+      'Phones reporting a dead Cloudflare relay (within calls.transport_fail_window_sec) switch new calls to our own path when at least this many distinct phones say so; with only a few calls the minimum shrinks by itself to 2 phones / half of the calls.',
+    min: 2,
+    max: 10000,
+  };
+  out['calls.transport_report_ratio_pct'] = {
+    type: 'integer',
+    defaultValue: 30,
+    description:
+      'The reporting phones must also be at least this percent of the calls that took Cloudflare in the window (one phone in a lift is not an outage).',
+    min: 0,
+    max: 100,
+  };
   out['calls.max_participants'] = {
     type: 'integer',
     defaultValue: 9,

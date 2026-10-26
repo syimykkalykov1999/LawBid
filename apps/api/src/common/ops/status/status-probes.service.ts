@@ -9,6 +9,10 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { AppSettingsService } from '../../app-settings/app-settings.service';
 import { SecretsService } from '../../secrets/secrets.service';
 import { fetchCloudflareTurn } from '../../../modules/calls/cloudflare-turn';
+import {
+  probeCloudflareRelay,
+  type RelayCheck,
+} from '../../../modules/calls/cloudflare-relay-probe';
 import { CloudflareSfuProvider } from '../../../modules/calls/cloudflare-sfu.provider';
 import {
   CloudflareTransport,
@@ -172,6 +176,8 @@ export class StatusProbesService implements OnModuleDestroy {
   >();
   private sfu?: CloudflareSfuProvider;
   private cfTransport?: CloudflareTransport;
+  /** The STUN Binding + TURN Allocate check (a fake in unit tests). */
+  private relayCheck: RelayCheck = checkRelay;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -414,20 +420,25 @@ export class StatusProbesService implements OnModuleDestroy {
   /**
    * Owner 2026-10-26: which path NEW calls take right now, for the status
    * dot: `cloudflare` (primary) or `own` (automatic backup / forced). Read
-   * from the breaker shared in Redis, so every API instance agrees. While
-   * the breaker is open the board also gives it its probe (at most one a
-   * minute fleet-wide), so Cloudflare comes back even with no calls.
+   * from the breaker shared in Redis, so every API instance agrees. The
+   * board (and the every-minute watchdog) also gives the breaker its probe
+   * (at most one a minute fleet-wide): while open so Cloudflare comes back
+   * even with no calls; with [always] (TURN: a real STUN + Allocate on the
+   * relay, FO-2) while closed too, so a dead relay behind a live credential
+   * API opens the breaker before many calls fail.
    */
   private async callPath(
     part: CfPart,
     probe: () => Promise<unknown>,
+    always = false,
   ): Promise<Record<string, unknown>> {
     this.cfTransport ??= new CloudflareTransport(this.redis, this.settings);
     const t = this.cfTransport;
     const mode = await t.mode();
     let st = await t.state(part);
-    if (st.open && mode !== 'own') {
-      if (await t.maybeProbe(part, probe)) st = await t.state(part);
+    if (mode !== 'own' && (st.open || always)) {
+      await t.probe(part, probe);
+      st = await t.state(part);
     }
     const path =
       mode === 'own'
@@ -482,8 +493,10 @@ export class StatusProbesService implements OnModuleDestroy {
         };
       }
     });
-    const path = await this.callPath('turn', () =>
-      fetchCloudflareTurn(keyId, token, PROBE_TURN_TTL_SEC),
+    const path = await this.callPath(
+      'turn',
+      () => probeCloudflareRelay(keyId, token, { check: this.relayCheck }),
+      true,
     );
     return this.withPath(probe, path);
   }
@@ -683,7 +696,7 @@ export class StatusProbesService implements OnModuleDestroy {
         );
         const target = udpTargetOf(login.urls);
         if (!target) throw new Error('no UDP relay address');
-        const r = await checkRelay(target, {
+        const r = await this.relayCheck(target, {
           username: login.username ?? '',
           credential: login.credential ?? '',
         });
@@ -725,7 +738,7 @@ export class StatusProbesService implements OnModuleDestroy {
       const target = udpTargetOf(turn.urls);
       if (target) {
         const username = `${Math.floor(Date.now() / 1000) + PROBE_TURN_TTL_SEC}:status-probe`;
-        const r = await checkRelay(target, {
+        const r = await this.relayCheck(target, {
           username,
           credential: createHmac('sha1', turn.secret)
             .update(username)

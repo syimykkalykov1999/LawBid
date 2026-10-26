@@ -64,10 +64,15 @@ import {
   CLOUDFLARE_TURN_MIN_TRY_MS,
   CLOUDFLARE_TURN_RETRY_MS,
   cloudflareTurnFor,
-  fetchCloudflareTurn,
   forgetCloudflareTurn,
 } from './cloudflare-turn';
 import { CloudflareTransport } from './cloudflare-transport';
+import {
+  checkRelayLogin,
+  probeCloudflareRelay,
+  type RelayCheck,
+} from './cloudflare-relay-probe';
+import { checkRelay } from './relay-check';
 import { LiveKitVideoProvider, type LiveKitRole } from './livekit.provider';
 import {
   SfuBrokerService,
@@ -123,8 +128,19 @@ export const CALL_VOTE_MS = 30_000;
 // coturn checks the login on every refresh of a relay too: it must outlive
 // the longest call, or a relayed call drops when it expires.
 const TURN_TTL_SEC = 24 * 60 * 60;
-/** The breaker probe asks for a login that lives only 5 minutes. */
-const PROBE_TURN_TTL_SEC = 300;
+/** CF-7 (audit 2026-10-26): Cloudflare's own public STUN first (it sits
+ * next to the Cloudflare relay every 1:1 call uses), Google's as the
+ * second opinion. Admin -> Integrations -> TURN (stunUrls) or STUN_URLS
+ * replace the whole list. */
+export const DEFAULT_STUN_URLS = [
+  'stun:stun.cloudflare.com:3478',
+  'stun:stun.l.google.com:19302',
+];
+/** FO-8 (audit 2026-10-26): while the TURN breaker is open and our own
+ * TURN carries the call, Cloudflare is still offered second when its login
+ * comes within this long (ICE gathers from both at once; usually it is the
+ * cached login and costs nothing). */
+export const CLOUDFLARE_TURN_OPEN_TRY_MS = 500;
 
 type Outcome = 'ended' | 'missed' | 'declined' | 'busy' | 'canceled' | 'failed';
 
@@ -262,6 +278,9 @@ export class CallsService {
   }
 
   private cfTransportOwn?: CloudflareTransport;
+  /** The STUN Binding + TURN Allocate check the breaker probe and the
+   * phones' report verification use (a fake in unit tests). */
+  private relayCheck: RelayCheck = checkRelay;
 
   /** The shared Cloudflare breaker (the broker's; a local one without it). */
   private get cfTransport(): CloudflareTransport {
@@ -869,11 +888,8 @@ export class CallsService {
   ): Promise<IceServersDto> {
     // Owner 2026-10-01: TURN / STUN can be changed in the admin.
     const turnKeys = (await this.secrets?.get('turn'))?.fields ?? {};
-    const stun = (
-      turnKeys.stunUrls ??
-      this.config.get<string>('STUN_URLS') ??
-      'stun:stun.l.google.com:19302'
-    )
+    const stunRaw = turnKeys.stunUrls ?? this.config.get<string>('STUN_URLS');
+    const stun = (stunRaw ?? DEFAULT_STUN_URLS.join(','))
       .split(',')
       .map((u) => u.trim())
       .filter(Boolean);
@@ -907,11 +923,15 @@ export class CallsService {
     const secret = turnKeys.secret ?? this.config.get<string>('TURN_SECRET');
     const ownTurn = turn.length > 0 && Boolean(secret);
     let cfWorks = false;
+    /** Cloudflare offered as the BACKUP (own TURN first): the breaker is
+     * open, or the phone said its Cloudflare relay died. */
+    let cfSecond = false;
     // Owner 2026-10-26 (failover): a phone whose call lost its relay asks
     // again with relayFailed — it gets a NEW login and our own TURN next
     // to (and before) Cloudflare, so the ICE restart finds a working relay
-    // whichever side is down. Its report teaches the breaker (only when
-    // many phones say so; see recordClientFailure).
+    // whichever side is down. Its report teaches the breaker (enough
+    // distinct phones in the window; see recordClientFailure), and the API
+    // checks the relay itself once (CF-6).
     const relayFailed = opts.relayFailed === true;
     if (cfKeyId && cfToken) {
       if (relayFailed) {
@@ -923,15 +943,14 @@ export class CallsService {
       const d = await this.cfTransport.decide(
         'turn',
         true,
-        // The probe reads the keys of THIS moment (a restored key counts).
+        // The probe reads the keys of THIS moment (a restored key counts)
+        // and does a real STUN Binding + TURN Allocate on the relay (FO-2):
+        // the breaker closes only when the data plane answers.
         () =>
-          fetchCloudflareTurn(
-            cfKeyId,
-            cfToken,
-            PROBE_TURN_TTL_SEC,
-            undefined,
-            CLOUDFLARE_TURN_BUDGET_MS,
-          ),
+          probeCloudflareRelay(cfKeyId, cfToken, {
+            check: this.relayCheck,
+            loginTimeoutMs: CLOUDFLARE_TURN_BUDGET_MS,
+          }),
         () => this.slo?.count('turnProviderFailed'),
       );
       // Breaker open but no own TURN to fall back on: Cloudflare is still
@@ -941,17 +960,43 @@ export class CallsService {
         if (relay) {
           out.iceServers.unshift(relay);
           cfWorks = true;
-          // The denominator of the phones' relay reports.
-          if (!relayFailed) {
+          cfSecond = relayFailed;
+          if (relayFailed) {
+            // CF-6: one real Allocate on the relay the phone complained
+            // about (fleet-wide at most every 10 s); never waited for.
+            void this.cfTransport
+              .verify('turn', () => checkRelayLogin(relay, this.relayCheck))
+              .catch(() => undefined);
+          } else {
+            // The denominator of the phones' relay reports.
             void this.cfTransport.noteUse('turn').catch(() => undefined);
           }
         }
+      } else if (d.reason === 'breaker_open') {
+        // FO-8: own TURN carries the call; Cloudflare is still offered
+        // second when its login comes quickly (nothing is counted here —
+        // the minute probe owns the breaker while it is open).
+        const relay = await this.cloudflareRelay(
+          user.sub,
+          cfKeyId,
+          cfToken,
+          CLOUDFLARE_TURN_OPEN_TRY_MS,
+          false,
+        );
+        if (relay) {
+          out.iceServers.unshift(relay);
+          cfWorks = true;
+          cfSecond = true;
+        }
       }
     }
-    // Own TURN only as the backup: dead or extra addresses next to a working
-    // Cloudflare would make ICE wait for their timeouts. After a relay
-    // failure it comes FIRST (WebRTC prefers the earlier TURN server).
-    if (ownTurn && secret && (!cfWorks || relayFailed)) {
+    // FO-1 / TS-2 (audit 2026-10-26): our own TURN is ALWAYS offered next
+    // to Cloudflare — after it while Cloudflare is primary (ICE gathers from
+    // both at once; a dead Cloudflare relay with a live credential API then
+    // costs a timed-out candidate, not the call), FIRST after a relay
+    // failure or while the breaker is open (WebRTC prefers the earlier TURN
+    // server).
+    if (ownTurn && secret) {
       const urls = withTcpFallback(turn);
       const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
       const own: IceServerDto = {
@@ -961,7 +1006,7 @@ export class CallsService {
           .update(username)
           .digest('base64'),
       };
-      if (relayFailed && cfWorks) {
+      if (cfWorks && cfSecond) {
         out.iceServers.unshift(own);
       } else {
         out.iceServers.push(own);
@@ -970,23 +1015,24 @@ export class CallsService {
     return out;
   }
 
-  /** A Cloudflare TURN login within [CLOUDFLARE_TURN_BUDGET_MS] (1.5 s):
-   * a 1 s first try, one quick retry with the rest. Null when Cloudflare
-   * did not give one (counted for the SLO alarm and the breaker). */
+  /** A Cloudflare TURN login within [budgetMs] (1.5 s by default): a 1 s
+   * first try, one quick retry with the rest. Null when Cloudflare did not
+   * give one (counted for the SLO alarm and the breaker unless [count] is
+   * false: the quick try while the breaker is already open). */
   private async cloudflareRelay(
     userId: string,
     keyId: string,
     token: string,
+    budgetMs = CLOUDFLARE_TURN_BUDGET_MS,
+    count = true,
   ): Promise<IceServerDto | null> {
     const started = Date.now();
     let lastError = '';
     for (let attempt = 0; attempt < 2; attempt++) {
-      let timeoutMs = CLOUDFLARE_TURN_FIRST_TRY_MS;
+      let timeoutMs = Math.min(CLOUDFLARE_TURN_FIRST_TRY_MS, budgetMs);
       if (attempt > 0) {
         const left =
-          CLOUDFLARE_TURN_BUDGET_MS -
-          (Date.now() - started) -
-          CLOUDFLARE_TURN_RETRY_MS;
+          budgetMs - (Date.now() - started) - CLOUDFLARE_TURN_RETRY_MS;
         if (left < CLOUDFLARE_TURN_MIN_TRY_MS) break;
         await new Promise((r) => setTimeout(r, CLOUDFLARE_TURN_RETRY_MS));
         timeoutMs = left;
@@ -1006,12 +1052,13 @@ export class CallsService {
         lastError = (e as Error).message;
       }
     }
+    if (!count) return null;
     this.slo?.count('turnProviderFailed');
     void this.cfTransport
       .recordFailure('turn', lastError)
       .catch(() => undefined);
     this.logger.warn(
-      `alert=cloudflare_turn_failed Cloudflare TURN unavailable within ${CLOUDFLARE_TURN_BUDGET_MS} ms (call continues on our own TURN if set, else STUN): ${lastError}`,
+      `alert=cloudflare_turn_failed Cloudflare TURN unavailable within ${budgetMs} ms (call continues on our own TURN if set, else STUN): ${lastError}`,
     );
     return null;
   }

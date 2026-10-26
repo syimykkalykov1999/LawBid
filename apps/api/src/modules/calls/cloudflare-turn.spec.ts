@@ -1,5 +1,21 @@
-import { CallsService } from './calls.service';
+import { CallsService, DEFAULT_STUN_URLS } from './calls.service';
+import type { RelayCheck } from './cloudflare-relay-probe';
+import { CloudflareTransport } from './cloudflare-transport';
 import { clearCloudflareTurnCache } from './cloudflare-turn';
+
+/** The relay answers STUN and allocates (unit tests never touch UDP). */
+const relayAlive: RelayCheck = (target) =>
+  Promise.resolve({
+    target: `${target.host}:${target.port}`,
+    stun: { ok: true, ms: 1 },
+    turn: { ok: true, ms: 1 },
+  });
+const relayDead: RelayCheck = (target) =>
+  Promise.resolve({
+    target: `${target.host}:${target.port}`,
+    stun: { ok: true, ms: 1 },
+    turn: { ok: false, ms: 2000, error: 'no answer in 2000 ms' },
+  });
 
 const TOKEN = 'cf-secret-token-0123456789';
 const CF_RESPONSE = {
@@ -25,6 +41,10 @@ function make(opts: {
   settings?: Record<string, string | number>;
   /** Read on every request (key rotation tests). */
   keys?: () => Record<string, string> | undefined;
+  /** The breaker probe's STUN + Allocate step (alive by default). */
+  relayCheck?: RelayCheck;
+  /** The breaker's clock (probe slots are a minute apart). */
+  now?: () => number;
 }) {
   const secrets = {
     get: (id: string) => {
@@ -50,7 +70,20 @@ function make(opts: {
     number: (k: string) => Promise.resolve(Number(st[k] ?? defaults[k] ?? 0)),
   });
   const Ctor = CallsService as unknown as new (...a: unknown[]) => CallsService;
-  return new Ctor(...args);
+  const svc = new Ctor(...args);
+  const inner = svc as unknown as {
+    relayCheck: RelayCheck;
+    cfTransportOwn?: CloudflareTransport;
+  };
+  inner.relayCheck = opts.relayCheck ?? relayAlive;
+  if (opts.now) {
+    inner.cfTransportOwn = new CloudflareTransport(
+      undefined,
+      args[args.length - 1] as never,
+      opts.now,
+    );
+  }
+  return svc;
 }
 
 const user = { sub: 'u1' } as never;
@@ -67,7 +100,7 @@ describe('iceServers with Cloudflare TURN', () => {
     jest.restoreAllMocks();
   });
 
-  it('puts Cloudflare first, then STUN; skips own coturn while Cloudflare works; keeps explicit transports; drops port 53', async () => {
+  it('puts Cloudflare first, then STUN, then own coturn (always offered: FO-1); keeps explicit transports; drops port 53', async () => {
     const fetchMock = jest.fn(() =>
       Promise.resolve(
         new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
@@ -84,9 +117,14 @@ describe('iceServers with Cloudflare TURN', () => {
       credential: 'cf-pass',
     });
     expect(res.iceServers[1].username).toBeNull(); // STUN
-    // Dead own-TURN addresses must not slow ICE: not offered at all.
-    expect(res.iceServers).toHaveLength(2);
-    expect(JSON.stringify(res)).not.toContain('own.example');
+    // FO-1 (audit 2026-10-26): our own TURN is offered AFTER Cloudflare, so
+    // a dead Cloudflare relay behind a live credential API never leaves a
+    // call without a path (ICE gathers from both at once).
+    expect(res.iceServers).toHaveLength(3);
+    expect(res.iceServers[2].urls).toEqual([
+      'turn:own.example:3478',
+      'turn:own.example:3478?transport=tcp',
+    ]);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [
       string,
       RequestInit,
@@ -123,7 +161,8 @@ describe('iceServers with Cloudflare TURN', () => {
     const res = await make({ cf, turn: ownTurn, slo }).iceServers(user);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.iceServers[0].username).toBe('cf-user');
-    expect(res.iceServers).toHaveLength(2); // no own TURN
+    expect(res.iceServers).toHaveLength(3); // + STUN + own TURN second
+    expect(res.iceServers[2].urls[0]).toBe('turn:own.example:3478');
     expect(slo.count).not.toHaveBeenCalled();
   });
 
@@ -165,6 +204,8 @@ describe('iceServers with Cloudflare TURN', () => {
     global.fetch = fetchMock as never;
     const res = await make({}).iceServers(user);
     expect(res.iceServers).toHaveLength(1);
+    // CF-7: Cloudflare's STUN ahead of Google's by default.
+    expect(res.iceServers[0].urls).toEqual(DEFAULT_STUN_URLS);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -240,7 +281,7 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     expect(isCf(res)).toBe(false);
   });
 
-  it('N failures open the breaker: NEW calls skip Cloudflare (one probe a minute only)', async () => {
+  it('N failures open the breaker: NEW calls are own-first, Cloudflare only a quick second try (one probe a minute only)', async () => {
     const fetchMock = jest.fn(fail);
     global.fetch = fetchMock as never;
     const slo = { count: jest.fn() };
@@ -255,15 +296,45 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     expect(fetchMock).toHaveBeenCalledTimes(6); // try + retry each
     await flush();
     const before = fetchMock.mock.calls.length;
+    const failures = slo.count.mock.calls.length;
     const next = await svc.iceServers(u(10));
     await flush();
     expect(isOwn(next)).toBe(true);
     expect(isCf(next)).toBe(false);
-    // Only the background probe asked Cloudflare (it failed: still open).
-    expect(fetchMock.mock.calls.length - before).toBe(1);
+    // The background probe (1) and the quick second-place try (try + retry,
+    // FO-8) asked Cloudflare; the quick try counts nothing.
+    expect(fetchMock.mock.calls.length - before).toBe(3);
+    expect(slo.count.mock.calls.length - failures).toBe(1); // the probe
     await svc.iceServers(u(11));
     await flush();
-    expect(fetchMock.mock.calls.length - before).toBe(1); // probe slot: 60 s
+    // Probe slot: 60 s — only the quick try this time.
+    expect(fetchMock.mock.calls.length - before).toBe(5);
+  });
+
+  it('FO-2: while open, a login alone does not close the breaker — the relay must allocate', async () => {
+    let now = 10_000_000;
+    const fetchMock = jest.fn(fail);
+    global.fetch = fetchMock as never;
+    const svc = make({
+      cf,
+      turn: ownTurn,
+      settings: { 'calls.transport_fail_limit': 1 },
+      relayCheck: relayDead,
+      now: () => now,
+    });
+    await svc.iceServers(u(1)); // opens
+    fetchMock.mockImplementation(ok); // the credential API is back...
+    await svc.iceServers(u(2)); // ...the probe runs: login OK, Allocate dead
+    await flush();
+    const still = await svc.iceServers(u(3));
+    expect(isOwn(still)).toBe(true);
+    expect(isCf(still)).toBe(false);
+    // The relay answers again: the next probe closes it.
+    (svc as unknown as { relayCheck: RelayCheck }).relayCheck = relayAlive;
+    now += 60_000;
+    await svc.iceServers(u(4));
+    await flush();
+    expect(isCf(await svc.iceServers(u(5)))).toBe(true);
   });
 
   it('probe success closes the breaker: the next new call is on Cloudflare again', async () => {
@@ -282,7 +353,8 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     await flush();
     const after = await svc.iceServers(u(4));
     expect(isCf(after)).toBe(true);
-    expect(isOwn(after)).toBe(false);
+    // Own TURN stays offered, after Cloudflare again.
+    expect(after.iceServers.at(-1)?.urls[0]).toBe('turn:own.example:3478');
   });
 
   it('breaker open but no own TURN configured: Cloudflare is still tried', async () => {
@@ -323,7 +395,7 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
     expect(isCf(await svc.iceServers(u(2)))).toBe(true);
   });
 
-  it('calls.transport = auto with keys: Cloudflare first, own TURN not offered', async () => {
+  it('calls.transport = auto with keys: Cloudflare first, own TURN offered after it', async () => {
     global.fetch = jest.fn(ok) as never;
     const res = await make({
       cf,
@@ -331,7 +403,8 @@ describe('Cloudflare primary, own TURN as the automatic backup (owner 2026-10-26
       settings: { 'calls.transport': 'auto' },
     }).iceServers(user);
     expect(isCf(res)).toBe(true);
-    expect(isOwn(res)).toBe(false);
+    expect(isOwn(res)).toBe(true);
+    expect(res.iceServers.at(-1)?.urls[0]).toBe('turn:own.example:3478');
   });
 
   it('key rotation mid-call: the next fetch uses the new key, the running call keeps its login', async () => {

@@ -1,6 +1,8 @@
 import {
   CF_BREAKER_PROBE_MS,
+  CF_VERIFY_EVERY_MS,
   CloudflareTransport,
+  clientReportMin,
   parseTransport,
 } from './cloudflare-transport';
 
@@ -162,5 +164,174 @@ describe('CloudflareTransport (shared breaker, owner 2026-10-26)', () => {
     const t = new CloudflareTransport(broken as never, settings({}));
     expect(await t.recordFailure('sfu', 'x')).toBe(false);
     expect(await t.decide('sfu', true)).toMatchObject({ use: true });
+  });
+});
+
+describe('phones report a dead relay at launch scale (TS-2 / CF-6, audit 2026-10-26)', () => {
+  it('the minimum shrinks with the usage: 2 phones while calls are few, the admin cap at scale', () => {
+    expect(clientReportMin(0, 10)).toBe(2);
+    expect(clientReportMin(1, 10)).toBe(2);
+    expect(clientReportMin(3, 10)).toBe(2);
+    expect(clientReportMin(7, 10)).toBe(4);
+    expect(clientReportMin(100, 10)).toBe(10);
+    // The cap never goes under two phones.
+    expect(clientReportMin(100, 1)).toBe(2);
+  });
+
+  it('2 distinct phones out of 3 Cloudflare calls open the breaker; one phone twice does not', async () => {
+    const t = new CloudflareTransport(undefined, settings({}));
+    for (let i = 0; i < 3; i++) await t.noteUse('turn');
+    expect(await t.recordClientFailure('turn', 'a', 'ICE failed')).toBe(false);
+    expect(await t.recordClientFailure('turn', 'a', 'ICE failed')).toBe(false);
+    expect(await t.isOpen('turn')).toBe(false);
+    expect(await t.recordClientFailure('turn', 'b', 'ICE failed')).toBe(true);
+    expect(await t.isOpen('turn')).toBe(true);
+    expect(await t.decide('turn', true)).toEqual({
+      use: false,
+      reason: 'breaker_open',
+    });
+  });
+
+  it('two phones open it even before any call was counted in the window', async () => {
+    const t = new CloudflareTransport(undefined, settings({}));
+    await t.recordClientFailure('turn', 'a', 'ICE failed');
+    expect(await t.isOpen('turn')).toBe(false);
+    await t.recordClientFailure('turn', 'b', 'ICE failed');
+    expect(await t.isOpen('turn')).toBe(true);
+  });
+
+  it('at scale the admin minimum and ratio hold: 29 of 100 is not enough (30 %), 30 is', async () => {
+    const t = new CloudflareTransport(undefined, settings({}));
+    for (let i = 0; i < 100; i++) await t.noteUse('turn');
+    for (let i = 0; i < 29; i++) {
+      expect(await t.recordClientFailure('turn', `p${i}`, 'x')).toBe(false);
+    }
+    expect(await t.isOpen('turn')).toBe(false);
+    expect(await t.recordClientFailure('turn', 'p29', 'x')).toBe(true);
+    expect(await t.isOpen('turn')).toBe(true);
+  });
+
+  it('calls.transport_report_min / _ratio_pct are admin settings', async () => {
+    const t = new CloudflareTransport(
+      undefined,
+      settings({
+        'calls.transport_report_min': 3,
+        'calls.transport_report_ratio_pct': 50,
+      }),
+    );
+    for (let i = 0; i < 10; i++) await t.noteUse('turn');
+    // min = min(3, max(2, 5)) = 3 phones, and 50 % of 10 calls = 5.
+    for (let i = 0; i < 4; i++) {
+      expect(await t.recordClientFailure('turn', `p${i}`, 'x')).toBe(false);
+    }
+    expect(await t.recordClientFailure('turn', 'p4', 'x')).toBe(true);
+    expect(await t.isOpen('turn')).toBe(true);
+  });
+
+  it('shared through Redis: two phones on two API instances open it for the fleet', async () => {
+    const now = 2_000_000;
+    const redis = new FakeRedis(() => now);
+    const a = new CloudflareTransport(redis as never, settings({}), () => now);
+    const b = new CloudflareTransport(redis as never, settings({}), () => now);
+    await a.noteUse('turn');
+    await b.noteUse('turn');
+    expect(await a.recordClientFailure('turn', 'p1', 'x')).toBe(false);
+    expect(await b.recordClientFailure('turn', 'p2', 'x')).toBe(true);
+    expect(await a.isOpen('turn')).toBe(true);
+    expect(await b.isOpen('turn')).toBe(true);
+  });
+});
+
+describe('relay probe while the breaker is CLOSED (FO-2, audit 2026-10-26)', () => {
+  const dead = () =>
+    jest
+      .fn()
+      .mockRejectedValue(
+        new Error('TURN Allocate on turn.cloudflare.com:3478: no answer'),
+      );
+
+  it('two Allocate failures in a row open the breaker; one does not; a good probe resets the run', async () => {
+    let now = 1_000_000;
+    const t = new CloudflareTransport(undefined, settings({}), () => now);
+    const bad = dead();
+    expect(await t.probe('turn', bad)).toBe(false);
+    expect(await t.isOpen('turn')).toBe(false);
+    // Counted as a real Cloudflare failure too (N in M with the calls').
+    expect((await t.state('turn')).failures).toBe(1);
+    expect(await t.lastProbe('turn')).toMatchObject({ ok: false });
+    // The same minute: the slot is taken, nothing runs.
+    expect(await t.probe('turn', bad)).toBe(false);
+    expect(bad).toHaveBeenCalledTimes(1);
+    now += CF_BREAKER_PROBE_MS;
+    const good = jest.fn().mockResolvedValue(undefined);
+    expect(await t.probe('turn', good)).toBe(false); // closed stays closed
+    expect(await t.lastProbe('turn')).toMatchObject({ ok: true });
+    now += CF_BREAKER_PROBE_MS;
+    await t.probe('turn', bad);
+    expect(await t.isOpen('turn')).toBe(false);
+    now += CF_BREAKER_PROBE_MS;
+    await t.probe('turn', bad);
+    expect(await t.isOpen('turn')).toBe(true);
+    expect(await t.decide('turn', true)).toEqual({
+      use: false,
+      reason: 'breaker_open',
+    });
+  });
+
+  it('the failures in a row are shared through Redis (one probe a minute fleet-wide)', async () => {
+    let now = 3_000_000;
+    const redis = new FakeRedis(() => now);
+    const a = new CloudflareTransport(redis as never, settings({}), () => now);
+    const b = new CloudflareTransport(redis as never, settings({}), () => now);
+    const bad = dead();
+    await a.probe('turn', bad);
+    expect(await b.probe('turn', bad)).toBe(false); // same slot
+    expect(bad).toHaveBeenCalledTimes(1);
+    now += CF_BREAKER_PROBE_MS;
+    await b.probe('turn', bad);
+    expect(await a.isOpen('turn')).toBe(true);
+  });
+
+  it('while open: the credential API answering is not enough, the Allocate must pass to close it', async () => {
+    let now = 4_000_000;
+    const t = new CloudflareTransport(
+      undefined,
+      settings({ 'calls.transport_fail_limit': 1 }),
+      () => now,
+    );
+    await t.recordFailure('turn', 'down');
+    const probe = dead(); // login OK, Allocate fails
+    expect(await t.maybeProbe('turn', probe)).toBe(false);
+    expect(await t.isOpen('turn')).toBe(true);
+    now += CF_BREAKER_PROBE_MS;
+    probe.mockResolvedValue(undefined);
+    expect(await t.probe('turn', probe)).toBe(true);
+    expect(await t.isOpen('turn')).toBe(false);
+  });
+
+  it('verify: a phone report checked from the API counts a real failure, at most once per 10 s, never while open', async () => {
+    let now = 5_000_000;
+    const t = new CloudflareTransport(
+      undefined,
+      settings({ 'calls.transport_fail_limit': 2 }),
+      () => now,
+    );
+    const check = dead();
+    expect(await t.verify('turn', check)).toBe(true);
+    expect((await t.state('turn')).failures).toBe(1);
+    expect(await t.verify('turn', check)).toBe(false); // the 10 s slot
+    expect(check).toHaveBeenCalledTimes(1);
+    now += CF_VERIFY_EVERY_MS;
+    expect(await t.verify('turn', check)).toBe(true);
+    expect(await t.isOpen('turn')).toBe(true);
+    now += CF_VERIFY_EVERY_MS;
+    expect(await t.verify('turn', check)).toBe(false); // open: nothing runs
+    expect(check).toHaveBeenCalledTimes(2);
+    // A relay that allocates counts nothing.
+    const alive = new CloudflareTransport(undefined, settings({}), () => now);
+    expect(await alive.verify('turn', jest.fn().mockResolvedValue(1))).toBe(
+      false,
+    );
+    expect((await alive.state('turn')).failures).toBe(0);
   });
 });

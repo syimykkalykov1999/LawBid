@@ -9,6 +9,7 @@ import {
   CF_CLIENT_REPORT_MIN,
   CloudflareTransport,
 } from './cloudflare-transport';
+import type { RelayCheck } from './cloudflare-relay-probe';
 
 /**
  * Owner 2026-10-26: «when Cloudflare goes down, people must not notice the
@@ -281,7 +282,20 @@ const CF_RESPONSE = {
   ],
 };
 
-function iceSvc(transport?: CloudflareTransport) {
+/** A relay that answers STUN and allocates (the data plane is fine). */
+const relayAlive: RelayCheck = async (target) => ({
+  target: `${target.host}:${target.port}`,
+  stun: { ok: true, ms: 1 },
+  turn: { ok: true, ms: 1 },
+});
+/** A relay that is gone although the credential API still answers. */
+const relayDead: RelayCheck = async (target) => ({
+  target: `${target.host}:${target.port}`,
+  stun: { ok: false, ms: 2000, error: 'no answer in 2000 ms' },
+  turn: { ok: false, ms: 0, error: 'no answer' },
+});
+
+function iceSvc(transport?: CloudflareTransport, relayCheck = relayAlive) {
   const svc = Object.create(CallsService.prototype) as CallsService;
   const slo = { count: jest.fn() };
   Object.assign(svc, {
@@ -295,11 +309,18 @@ function iceSvc(transport?: CloudflareTransport) {
     },
     config: { get: () => undefined },
     slo,
-    logger: { warn: jest.fn() },
+    logger: { warn: jest.fn(), log: jest.fn() },
     cfTransportOwn: transport ?? new CloudflareTransport(),
+    relayCheck,
   });
   return svc;
 }
+
+const flush = () => new Promise((r) => setTimeout(r, 25));
+const first = (r: { iceServers: Array<{ urls: string[] }> }) =>
+  r.iceServers[0].urls[0];
+const relays = (r: { iceServers: Array<{ urls: string[] }> }) =>
+  r.iceServers.filter((s) => /^turn/.test(s.urls[0])).map((s) => s.urls[0]);
 
 describe('1:1: the relay died mid-call (relayFailed)', () => {
   const realFetch = global.fetch;
@@ -316,8 +337,11 @@ describe('1:1: the relay died mid-call (relayFailed)', () => {
     const svc = iceSvc();
     const user = { sub: 'u1' } as never;
     const normal = await svc.iceServers(user);
-    expect(normal.iceServers[0].urls[0]).toContain('cloudflare');
-    expect(JSON.stringify(normal)).not.toContain('own.example');
+    // Cloudflare first; our own TURN is offered too (after it, FO-1).
+    expect(relays(normal)).toEqual([
+      'turn:turn.cloudflare.com:3478?transport=udp',
+      'turn:own.example:3478',
+    ]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const after = await svc.iceServers(user, { relayFailed: true });
@@ -325,6 +349,86 @@ describe('1:1: the relay died mid-call (relayFailed)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(after.iceServers[0].urls[0]).toBe('turn:own.example:3478');
     expect(after.iceServers[1].urls[0]).toContain('cloudflare');
+  });
+
+  it('FO-1: the Cloudflare relay (data plane) is dead but its credential API answers — a NEW call still has a path: own TURN next to Cloudflare', async () => {
+    global.fetch = jest.fn(
+      async () => new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
+    ) as never;
+    const t = new CloudflareTransport();
+    const svc = iceSvc(t, relayDead);
+    const res = await svc.iceServers({ sub: 'u1' } as never);
+    expect(await t.isOpen('turn')).toBe(false); // the API said yes
+    expect(first(res)).toContain('cloudflare');
+    expect(relays(res)).toContain('turn:own.example:3478');
+    // STUN is still there, and the own TURN has its TCP twin.
+    expect(res.iceServers.some((s) => /^stun:/.test(s.urls[0]))).toBe(true);
+    expect(
+      res.iceServers.find((s) => s.urls[0] === 'turn:own.example:3478')?.urls,
+    ).toContain('turn:own.example:3478?transport=tcp');
+  });
+
+  it('FO-8: breaker open + own TURN — own first, Cloudflare still offered second', async () => {
+    const fetchMock = jest.fn(
+      async () => new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
+    );
+    global.fetch = fetchMock as never;
+    const t = new CloudflareTransport(undefined, {
+      string: async () => 'auto',
+      number: async (k: string) =>
+        k === 'calls.transport_fail_limit' ? 1 : 120,
+    });
+    await t.recordFailure('turn', 'down');
+    const svc = iceSvc(t, relayDead);
+    const res = await svc.iceServers({ sub: 'u1' } as never);
+    expect(relays(res)).toEqual([
+      'turn:own.example:3478',
+      'turn:turn.cloudflare.com:3478?transport=udp',
+    ]);
+    await flush();
+    // The quick second-place try counts nothing; the minute probe (a dead
+    // relay) keeps it open.
+    expect(await t.isOpen('turn')).toBe(true);
+  });
+
+  it('CF-6: a relayFailed request makes the API check the relay itself; a dead one is a real breaker failure', async () => {
+    global.fetch = jest.fn(
+      async () => new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
+    ) as never;
+    const t = new CloudflareTransport();
+    const svc = iceSvc(t, relayDead);
+    const res = await svc.iceServers({ sub: 'u1' } as never, {
+      relayFailed: true,
+    });
+    expect(first(res)).toBe('turn:own.example:3478');
+    await flush();
+    expect((await t.state('turn')).failures).toBe(1);
+    expect(await t.isOpen('turn')).toBe(false); // one check is not N
+    // A relay that allocates: the phone's report alone counts nothing.
+    const ok = new CloudflareTransport();
+    await iceSvc(ok, relayAlive).iceServers({ sub: 'u2' } as never, {
+      relayFailed: true,
+    });
+    await flush();
+    expect((await ok.state('turn')).failures).toBe(0);
+  });
+
+  it('TS-2 (launch scale): two phones of the only two Cloudflare calls report — the breaker opens, the next call is own-first', async () => {
+    global.fetch = jest.fn(
+      async () => new Response(JSON.stringify(CF_RESPONSE), { status: 201 }),
+    ) as never;
+    const t = new CloudflareTransport();
+    const svc = iceSvc(t, relayDead);
+    await svc.iceServers({ sub: 'a' } as never);
+    await svc.iceServers({ sub: 'b' } as never);
+    await svc.iceServers({ sub: 'a' } as never, { relayFailed: true });
+    await flush();
+    expect(await t.isOpen('turn')).toBe(false); // one phone is a lift
+    await svc.iceServers({ sub: 'b' } as never, { relayFailed: true });
+    await flush();
+    expect(await t.isOpen('turn')).toBe(true);
+    const next = await svc.iceServers({ sub: 'c' } as never);
+    expect(first(next)).toBe('turn:own.example:3478');
   });
 
   it('one phone reporting never opens the breaker; many phones (a real share of the calls) do', async () => {
@@ -337,11 +441,14 @@ describe('1:1: the relay died mid-call (relayFailed)', () => {
     }
     expect(await t.isOpen('turn')).toBe(false);
     expect((await t.state('turn')).failures).toBe(0);
-    // Many phones: from CF_CLIENT_REPORT_MIN on, each report counts against
-    // the breaker; the 5th counted one opens it.
-    for (let i = 0; i < CF_CLIENT_REPORT_MIN + 5; i++) {
+    // Many phones: CF_CLIENT_REPORT_MIN distinct phones (a third of the
+    // calls; the lone phone above is one of them) open it at once — the
+    // phones ARE the outage report.
+    for (let i = 0; i < CF_CLIENT_REPORT_MIN - 2; i++) {
       await t.recordClientFailure('turn', `user-${i}`, 'ICE failed');
     }
+    expect(await t.isOpen('turn')).toBe(false);
+    await t.recordClientFailure('turn', 'user-last', 'ICE failed');
     expect(await t.isOpen('turn')).toBe(true);
   });
 

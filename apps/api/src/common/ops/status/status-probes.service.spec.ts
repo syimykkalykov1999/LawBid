@@ -1,4 +1,23 @@
 import { StatusProbesService, WATCHED } from './status-probes.service';
+import type { RelayCheck } from '../../../modules/calls/cloudflare-relay-probe';
+import {
+  CF_BREAKER_PROBE_MS,
+  CloudflareTransport,
+} from '../../../modules/calls/cloudflare-transport';
+
+/** The relay answers STUN and allocates (unit tests never touch UDP). */
+const relayAlive: RelayCheck = (target) =>
+  Promise.resolve({
+    target: `${target.host}:${target.port}`,
+    stun: { ok: true, ms: 1 },
+    turn: { ok: true, ms: 1 },
+  });
+const relayDead: RelayCheck = (target) =>
+  Promise.resolve({
+    target: `${target.host}:${target.port}`,
+    stun: { ok: true, ms: 1 },
+    turn: { ok: false, ms: 2000, error: 'no answer in 2000 ms' },
+  });
 
 type Fields = Record<string, string>;
 interface Probes {
@@ -23,22 +42,29 @@ const CF_OK = {
 function make(
   secrets: Record<string, Fields>,
   settings: Record<string, string> = {},
+  opts: { relayCheck?: RelayCheck; now?: () => number } = {},
 ): Probes {
   const Ctor = StatusProbesService as unknown as new (
     ...a: unknown[]
   ) => unknown;
-  return new Ctor(
+  const st = { string: (k: string) => Promise.resolve(settings[k] ?? '') };
+  const p = new Ctor(
     null,
     null,
     { get: () => undefined },
     null,
-    { string: (k: string) => Promise.resolve(settings[k] ?? '') },
+    st,
     {
       get: (id: string) =>
         Promise.resolve(secrets[id] ? { fields: secrets[id] } : null),
     },
     null,
-  ) as Probes;
+  ) as Probes & { relayCheck: RelayCheck; cfTransport?: CloudflareTransport };
+  p.relayCheck = opts.relayCheck ?? relayAlive;
+  if (opts.now) {
+    p.cfTransport = new CloudflareTransport(undefined, st as never, opts.now);
+  }
+  return p;
 }
 
 const cfKeys = { cloudflare_turn: { keyId: 'key1', apiToken: 'tok-secret' } };
@@ -73,7 +99,64 @@ describe('StatusProbesService outside probes', () => {
     const p = make(cfKeys);
     expect((await p.cloudflareTurn()).status).toBe('green');
     await p.cloudflareTurn();
-    expect(f).toHaveBeenCalledTimes(1);
+    // The cached credential probe (1) and one login for the minute relay
+    // probe (FO-2; its slot is taken on the second pass).
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it('FO-2: the minute probe does a real Allocate — a dead relay behind a live credential API opens the breaker on the second miss, and a live one closes it', async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(CF_OK), { status: 201 })),
+    ) as never;
+    let now = 1_000_000;
+    const p = make(cfKeys, {}, { relayCheck: relayDead, now: () => now });
+    const one = await p.cloudflareTurn();
+    expect(one.status).toBe('green'); // the API answers...
+    expect(one.detail).toMatchObject({ breaker: 'closed', failures: 1 });
+    now += CF_BREAKER_PROBE_MS;
+    const two = await p.cloudflareTurn();
+    expect(two.detail).toMatchObject({ breaker: 'open', path: 'own' });
+    // The relay allocates again: the next minute closes it.
+    (p as unknown as { relayCheck: RelayCheck }).relayCheck = relayAlive;
+    now += CF_BREAKER_PROBE_MS;
+    const three = await p.cloudflareTurn();
+    expect(three.detail).toMatchObject({
+      breaker: 'closed',
+      path: 'cloudflare',
+    });
+  });
+
+  it('FO-2: while open, the credential API alone does not close the breaker', async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(CF_OK), { status: 201 })),
+    ) as never;
+    let now = 2_000_000;
+    const p = make(cfKeys, {}, { relayCheck: relayDead, now: () => now });
+    const t = (p as unknown as { cfTransport: CloudflareTransport })
+      .cfTransport;
+    for (let i = 0; i < 5; i++) await t.recordFailure('turn', 'down');
+    expect((await p.cloudflareTurn()).detail).toMatchObject({
+      breaker: 'open',
+    });
+    now += CF_BREAKER_PROBE_MS;
+    expect((await p.cloudflareTurn()).detail).toMatchObject({
+      breaker: 'open',
+    });
+  });
+
+  it('calls.transport = own: the relay is not probed at all', async () => {
+    const f = jest.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(CF_OK), { status: 201 })),
+    );
+    global.fetch = f as never;
+    const check = jest.fn(relayAlive);
+    await make(
+      cfKeys,
+      { 'calls.transport': 'own' },
+      { relayCheck: check },
+    ).cloudflareTurn();
+    expect(check).not.toHaveBeenCalled();
+    expect(f).toHaveBeenCalledTimes(1); // the credential dot only
   });
 
   it('cloudflare_turn is red on an error and never shows the token', async () => {
