@@ -50,8 +50,6 @@ jest.mock('../redis/redis-connection', () => ({
   ...jest.requireActual<typeof import('../redis/redis-connection')>(
     '../redis/redis-connection',
   ),
-  // realtime-event-log builds its key at import time (redis-cluster-safe).
-  isRedisClusterMode: () => false,
   bullOptions: (_q: string, url: string, o?: { worker?: boolean }) => ({
     connection: o?.worker ? { url, maxRetriesPerRequest: null } : { url },
   }),
