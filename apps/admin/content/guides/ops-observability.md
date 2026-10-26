@@ -1,7 +1,7 @@
 ---
 id: ops-observability
 title: Включить «Кто больше всех нагружает» и ежемесячную проверку бэкапа
-category: aws
+category: system
 cost: Около $0.05 за проверку, примерно $0.05 в месяц
 time: 15 минут
 verified: 2026-10-25

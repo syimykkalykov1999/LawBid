@@ -186,10 +186,11 @@ export class ChatService {
     @Optional() private readonly privacy?: PrivacySettingsService,
     // Owner 2026-10-21 (Instagram «Поделиться»): posts sent as cards.
     @Optional() private readonly postCards?: SharedPostCardsService,
-    // WP-G: who sends the most messages (admin «Масштаб»).
-    @Optional() private readonly heavy?: HeavyHittersService,
     // S1-3: the "effects still owed" list (see [markEffectsPending]).
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // WP-G: who sends the most messages (admin «Масштаб»). Last, so the
+    // positional constructor in specs keeps its order.
+    @Optional() private readonly heavy?: HeavyHittersService,
   ) {}
 
   /**
