@@ -149,6 +149,11 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   promotion_views: 'boost impressions',
   promotion_daily: 'boost numbers by day',
   search_query_log: 'what testers searched',
+  experiments: 'A/B tests of the test period',
+  experiment_exposures: 'who saw which variant',
+  experiment_results: 'nightly reports of those tests',
+  ranking_events:
+    'what testers were shown and tapped (weekly partitions go with it)',
   crash_reports: 'crashes of test builds',
   user_activity_days: 'who opened the app on which day (testers)',
   app_event_days: 'app event counts by day (testers)',
@@ -355,7 +360,11 @@ export const REDIS_KEEP_PATTERNS: readonly string[] = [
 
 export type TableClass = 'keep' | 'filtered' | 'wipe';
 
+/** Weekly partitions of ranking_events are the same table as far as the wipe goes. */
+const RANKING_PARTITION_RE = /^ranking_events_(p\d{8}|default)$/;
+
 export function classOf(table: string): TableClass | null {
+  if (RANKING_PARTITION_RE.test(table)) table = 'ranking_events';
   if (table in KEEP_TABLES) return 'keep';
   if (table in FILTERED_TABLES) return 'filtered';
   if (table in WIPE_TABLES) return 'wipe';
