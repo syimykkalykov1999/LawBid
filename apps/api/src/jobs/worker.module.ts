@@ -25,6 +25,7 @@ import { PlansCoreModule } from '../modules/plans/plans.module';
 import { PrivacyModule } from '../modules/privacy/privacy.module';
 import { MediaModerationModule } from '../modules/media-moderation/media-moderation.module';
 import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout.module';
+import { CaseFanoutModule } from '../modules/notifications/case-fanout/case-fanout.worker';
 import { GroupFanoutModule } from '../modules/groups/group-fanout.module';
 import { ChannelFanoutModule } from '../modules/channels/channel-fanout.module';
 
@@ -100,6 +101,7 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     // Owner 2026-10-22 (server load audit, finding 7): group messages
     // (`group-fanout-<n>`) and channel posts (`channel-fanout`).
     GroupFanoutModule.register({ mode: 'worker' }),
+    CaseFanoutModule.register({ mode: 'worker' }),
     ChannelFanoutModule.register({ mode: 'worker' }),
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
