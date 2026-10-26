@@ -59,7 +59,6 @@ import { ContractGrantsService } from './contract-grants.service';
 import { PromoCodesService } from './promo-codes.service';
 import { RefundsService } from './refunds.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
-import { AdminApprovalsService } from '../admin-auth/admin-approvals.service';
 import { SeatChangesAdminService } from './seat-changes-admin.service';
 
 const E = ErrorCode;
@@ -81,24 +80,8 @@ export class AdminBillingController {
     private readonly promos: PromoCodesService,
     private readonly refundsService: RefundsService,
     private readonly auth: AdminAuthService,
-    private readonly approvals: AdminApprovalsService,
     private readonly seatChanges: SeatChangesAdminService,
   ) {}
-
-  /** Owner 2026-10-22 (maker-checker): how an approved refund runs. */
-  onModuleInit(): void {
-    this.approvals.register({
-      kind: 'billing_refund',
-      label: 'Возврат денег за подписку',
-      route: {
-        path: '/api/v1/admin/billing/refunds',
-        method: 'POST',
-        roles: ['super_admin', 'finance'],
-      },
-      execute: (requester, payload) =>
-        this.refundsService.refund(requester, payload as CreateRefundDto),
-    });
-  }
 
   // --- dashboard -------------------------------------------------------------
 
@@ -352,7 +335,6 @@ export class AdminBillingController {
     404: [E.NOT_FOUND],
     409: [
       E.REFUND_AMOUNT_EXCEEDED,
-      E.ADMIN_APPROVAL_PENDING,
       E.REFUND_NOT_ALLOWED,
       E.IDEMPOTENCY_KEY_CONFLICT,
     ],
@@ -365,14 +347,6 @@ export class AdminBillingController {
   ): Promise<RefundDto> {
     // System audit #2, item 2: money back to a card — fresh 2FA code.
     await this.auth.assertStepUp(admin.sessionId);
-    // Item 11: from billing.dual_approval_min_cents on, a second admin
-    // approves it first (409 ADMIN_APPROVAL_PENDING; nothing is refunded).
-    await this.approvals.gate(admin, {
-      kind: 'billing_refund',
-      payload: dto,
-      amountCents: dto.amountCents,
-      summary: `Платёж ${dto.paymentId}: ${(dto.amountCents / 100).toFixed(2)} — ${dto.reason}`,
-    });
     return this.refundsService.refund(admin, dto);
   }
 }

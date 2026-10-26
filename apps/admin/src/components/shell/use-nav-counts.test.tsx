@@ -32,7 +32,7 @@ describe('useNavCounts', () => {
     permissions: {},
   } as unknown as Me;
 
-  it('asks GET /admin/counts once and maps the five badges', async () => {
+  it('asks GET /admin/counts once and maps the four badges', async () => {
     GET.mockResolvedValue({
       data: {
         data: {
@@ -40,14 +40,12 @@ describe('useNavCounts', () => {
           openReports: 2,
           supportUnread: 5,
           trustQueue: 1,
-          approvalsPending: 4,
         },
       },
     });
     const { result } = renderHook(() => useNavCounts(superAdmin), { wrapper });
     await waitFor(() => expect(result.current.support).toBe(5));
     expect(result.current).toEqual({
-      approvals: 4,
       verification: 3,
       trust: 1,
       reports: 2,

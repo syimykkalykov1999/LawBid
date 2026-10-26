@@ -236,6 +236,16 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
     resources = ["arn:aws:ecs:*:${local.account}:service/${local.name}/*"]
   }
+  # Canary (scripts/deploy/canary.sh, off unless CANARY_ENABLED): one temporary
+  # service api-canary, nothing else can be created or deleted.
+  statement {
+    actions   = ["ecs:CreateService", "ecs:DeleteService", "ecs:TagResource"]
+    resources = ["arn:aws:ecs:*:${local.account}:service/${local.name}/api-canary"]
+  }
+  statement {
+    actions   = ["cloudwatch:DescribeAlarms"]
+    resources = ["*"] # no resource-level permission exists for this read
+  }
   statement {
     actions   = ["ecs:RunTask"]
     resources = ["arn:aws:ecs:*:${local.account}:task-definition/${local.name}-*:*"]

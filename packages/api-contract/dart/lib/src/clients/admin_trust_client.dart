@@ -16,8 +16,8 @@ import '../models/document_request_dto.dart';
 import '../models/reason.dart';
 import '../models/recompute_all_result_envelope.dart';
 import '../models/staff_decision_stats_list_envelope.dart';
+import '../models/status13.dart';
 import '../models/status14.dart';
-import '../models/status15.dart';
 import '../models/trust_attorney_list_item_list_envelope.dart';
 import '../models/trust_hold_dto.dart';
 import '../models/trust_hold_list_item_list_envelope.dart';
@@ -111,7 +111,7 @@ abstract class AdminTrustClient {
   /// «Галочки → Адвокаты»: every attorney with their badge status
   @GET('/admin/trust/attorneys')
   Future<TrustAttorneyListItemListEnvelope> trustAttorneys({
-    @Query('status') Status14? status,
+    @Query('status') Status13? status,
     @Query('q') String? q,
     @Query('limit') int? limit,
     @Extras() Map<String, dynamic>? extras,
@@ -215,7 +215,7 @@ abstract class AdminTrustClient {
   /// Bar numbers that cannot register again: reason, who blocked, attempts
   @GET('/admin/trust/blocked-bar-numbers')
   Future<BarNumberBlockListEnvelope> blockedBarNumbers({
-    @Query('status') Status15? status,
+    @Query('status') Status14? status,
     @Query('q') String? q,
     @Query('limit') int? limit,
     @Extras() Map<String, dynamic>? extras,
