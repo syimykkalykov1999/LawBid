@@ -384,9 +384,22 @@ describe('case fan-out waves', () => {
     });
     w.state.fraud = 'restricted';
     w.state.alerts24h['a001'] = 9;
-    // switch off: sent right in this call, nothing queued
+    // switch off: still the old everybody-at-once wave, but run by the
+    // worker (review R-32), not in the API request
+    expect(await w.svc.start(CASE)).toBe(0);
+    expect(w.sent.size).toBe(0);
+    expect(w.jobs).toHaveLength(1);
+    const loadStats = jest.spyOn(w.svc, 'loadStats');
+    await w.svc.runWave(w.jobs.shift()!.job);
+    expect(w.sent.size).toBe(12);
+    // no ranking, so no per-person stats queries
+    expect(loadStats).not.toHaveBeenCalled();
+    expect(w.jobs).toHaveLength(0);
+  });
+
+  it('enabled=false without a queue (no Redis) still sends inline', async () => {
+    const w = world(12, { 'case_fanout.enabled': false }, { withQueue: false });
     expect(await w.svc.start(CASE)).toBe(12);
     expect(w.sent.size).toBe(12);
-    expect(w.jobs).toHaveLength(0);
   });
 });
