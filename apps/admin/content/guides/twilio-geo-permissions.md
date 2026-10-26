@@ -1,7 +1,7 @@
 ---
 id: twilio-geo-permissions
 title: Twilio - SMS и звонки только в США
-category: security
+category: people
 cost: Бесплатно
 time: 5 минут
 verified: 2026-10-25

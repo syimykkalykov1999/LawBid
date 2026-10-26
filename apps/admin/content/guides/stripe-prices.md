@@ -1,7 +1,7 @@
 ---
 id: stripe-prices
 title: Stripe - цены подписок ($99 и другие)
-category: keys
+category: money
 cost: Бесплатно. Создание продуктов и цен не стоит ничего.
 time: 20 минут
 verified: 2026-10-25
