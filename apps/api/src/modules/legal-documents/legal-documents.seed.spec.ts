@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PrismaService } from '../../prisma/prisma.service';
-import { LegalDocumentsSeed, seedDir } from './legal-documents.seed';
+import {
+  LegalDocumentsSeed,
+  REVISION_TAG,
+  seedDir,
+} from './legal-documents.seed';
 
 const SEEDED = [
   'terms',
@@ -15,18 +19,26 @@ const SEEDED = [
   'partner_terms',
   'dmca_policy',
   'accessibility',
+  'community_guidelines',
+  'advertising_disclosure',
+  'sms_terms',
 ];
+
+/** Types shipped in English only (new in 2026-10): no Russian text yet. */
+const EN_ONLY = ['community_guidelines', 'advertising_disclosure', 'sms_terms'];
+const hasRu = (t: string) => !EN_ONLY.includes(t);
 
 describe('default legal texts', () => {
   const dir = seedDir();
 
-  it('ships a draft in English and Russian for every seeded type', () => {
+  it('ships a draft in English (and Russian where written) for every seeded type', () => {
     expect(dir).not.toBeNull();
     for (const type of SEEDED) {
       for (const [locale, note] of [
-        ['en', 'licensed US attorney'],
+        ['en', 'licensed'],
         ['ru', 'лицензированным юристом США'],
       ] as const) {
+        if (locale === 'ru' && !hasRu(type)) continue;
         const md = readFileSync(join(dir!, `${type}.${locale}.md`), 'utf8');
         expect(md.startsWith('# ')).toBe(true);
         expect(md).toContain(note);
@@ -40,7 +52,13 @@ describe('LegalDocumentsSeed', () => {
   function setup(
     rows: Record<
       string,
-      { content_md: string; status: string; id?: string; version?: string }[]
+      {
+        content_md: string;
+        status: string;
+        id?: string;
+        version?: string;
+        change_note?: string;
+      }[]
     >,
   ) {
     const prisma = {
@@ -89,8 +107,10 @@ describe('LegalDocumentsSeed', () => {
     });
     const created = await seed.seed();
     // 11 types x 2 languages + disclaimer.en, minus the real eula.en and the
-    // refund.ru draft (owner 2026-10-22: + accessibility).
-    expect(created).toBe(21);
+    // refund.ru draft (owner 2026-10-22: + accessibility), plus the three
+    // English-only types of 2026-10 (community guidelines, advertising
+    // disclosure, SMS terms).
+    expect(created).toBe(24);
     const calls = (
       prisma.legalDocument.create.mock.calls as [
         { data: Record<string, unknown> },
@@ -145,15 +165,56 @@ describe('LegalDocumentsSeed', () => {
   });
 
   it('does nothing the second time', async () => {
-    const all: Record<string, { content_md: string; status: string }[]> = {};
+    const all: Record<
+      string,
+      { content_md: string; status: string; change_note?: string }[]
+    > = {};
     for (const t of SEEDED) {
-      for (const l of ['en', 'ru']) {
-        all[`${t}.${l}`] = [{ content_md: '# real', status: 'published' }];
+      for (const l of hasRu(t) ? ['en', 'ru'] : ['en']) {
+        all[`${t}.${l}`] = [
+          {
+            content_md: '# real',
+            status: 'published',
+            change_note: REVISION_TAG,
+          },
+        ];
       }
     }
     all['disclaimer.en'] = [{ content_md: '# real', status: 'published' }];
     const { seed, prisma } = setup(all);
     expect(await seed.seed()).toBe(0);
     expect(prisma.legalDocument.create).not.toHaveBeenCalled();
+  });
+
+  it('puts the improved English text in as a new draft where the owner published an older one, once', async () => {
+    const { seed, prisma } = setup({
+      'privacy.en': [{ content_md: '# Old owner text', status: 'published' }],
+      // The owner already has a draft: left alone.
+      'terms.en': [
+        { content_md: '# Old', status: 'published' },
+        { content_md: '# Owner draft', status: 'draft' },
+      ],
+      // Seen before (published after being a draft): not created again.
+      'sms_terms.en': [
+        {
+          content_md: '# Edited',
+          status: 'published',
+          change_note: `${REVISION_TAG} x`,
+        },
+      ],
+    });
+    expect(await seed.seedRevisions()).toBe(1);
+    const data = (
+      prisma.legalDocument.create.mock.calls as [
+        { data: Record<string, unknown> },
+      ][]
+    )[0][0].data;
+    expect(data).toMatchObject({
+      doc_type: 'privacy',
+      locale: 'en',
+      status: 'draft',
+      is_current: false,
+    });
+    expect(String(data.change_note)).toContain(REVISION_TAG);
   });
 });

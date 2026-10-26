@@ -26,6 +26,7 @@ import {
 } from '@aws-sdk/client-sns';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SecretsService } from '../../secrets/secrets.service';
+import { opsCredentials } from '../ops-credentials';
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 
@@ -83,6 +84,10 @@ export class PagerDutySnsService {
   private client(): SNSClient {
     return (this.sns ??= new SNSClient({
       region: this.topicArn?.split(':')[3] ?? 'us-east-1',
+      credentials: opsCredentials(
+        (n) => this.config.get<string>(n),
+        this.topicArn?.split(':')[3] ?? 'us-east-1',
+      ),
     }));
   }
 
@@ -270,7 +275,10 @@ export class AwsBudgetsAdminService {
 
   private b(): BudgetsClient {
     // Budgets is a global service answered from us-east-1.
-    return (this.client ??= new BudgetsClient({ region: 'us-east-1' }));
+    return (this.client ??= new BudgetsClient({
+      region: 'us-east-1',
+      credentials: opsCredentials((n) => this.env(n), 'us-east-1'),
+    }));
   }
 
   async list(fresh = false): Promise<BudgetRow[]> {
@@ -392,7 +400,10 @@ export class AwsCostService {
   private tags?: { at: number; keys: string[] };
 
   private c(): CostExplorerClient {
-    return (this.ce ??= new CostExplorerClient({ region: 'us-east-1' }));
+    return (this.ce ??= new CostExplorerClient({
+      region: 'us-east-1',
+      credentials: opsCredentials((n) => process.env[n], 'us-east-1'),
+    }));
   }
 
   async activeTagKeys(): Promise<string[]> {

@@ -55,6 +55,7 @@ import { viewerContext } from '../../../common/viewer/viewer-context';
 import { FilesService } from '../../files/files.service';
 import {
   CHAT_SENDER_SELECT,
+  chatCollapseKey,
   chatPushData,
   chatPushKind,
   chatPushPreview,
@@ -62,6 +63,7 @@ import {
   PUSH_TEXT_KEYS,
   type PushTextName,
 } from './chat-push';
+import { bullOptions } from '../../../redis/redis-connection';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -136,6 +138,13 @@ export class PushDispatcher
     this.logger.setContext(PushDispatcher.name);
   }
 
+  /** Per-conversation chat collapse (chat-push.ts chatCollapseKey) is opt-in:
+   * FCM keeps at most 4 collapse keys per offline device and advises against
+   * collapsing chat, so it could drop alerts. PUSH_CHAT_COLLAPSE=1 turns it on. */
+  private chatCollapse(): boolean {
+    return process.env.PUSH_CHAT_COLLAPSE === '1';
+  }
+
   /** The push words in [lang] (the app's own 85-language keys; built-in
    * en / ru until the translations are imported). */
   private async pushTexts(
@@ -164,7 +173,7 @@ export class PushDispatcher
     this.worker = new Worker<PushJobData>(
       PUSH_QUEUE,
       (job: Job<PushJobData>) => this.dispatch(job.data, job.id ?? ''),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 20 },
+      { ...bullOptions(PUSH_QUEUE, url, { worker: true }), concurrency: 20 },
     );
     this.worker.on('error', (error) => {
       this.logger.error({ err: error.message }, 'push worker error');
@@ -813,6 +822,13 @@ export class PushDispatcher
         sound: 'message',
         // One stack per chat in the shade (WhatsApp).
         threadId: data.groupId,
+        ...(this.chatCollapse()
+          ? {
+              collapseKey: chatCollapseKey(data.groupId, {
+                mention: mentioned,
+              }),
+            }
+          : {}),
         ...(chat ? { chat: true } : {}),
       },
     };
@@ -955,7 +971,10 @@ export class PushDispatcher
       collapseKey = `react-${data.messageId}`;
       dedupeKey = `r:${data.messageId}:${data.actorId}:${data.emoji ?? ''}`;
     } else {
-      collapseKey = `msg-${data.messageId}`;
+      // Owner 2026-10-24: a burst replaces itself, the newest text wins.
+      collapseKey = this.chatCollapse()
+        ? chatCollapseKey(data.conversationId)
+        : `msg-${data.messageId}`;
     }
     const pics = await this.avatarUrls(data.recipientId, [
       sender?.avatar_file_id,

@@ -639,6 +639,7 @@ export class ChatService {
     dto: SendMessageDto,
   ): Promise<MessageDto> {
     if (!dto.forwardFromId) return this.sendContent(user, id, dto);
+    await this.limits.consume('forward', user.sub);
     // A retry of a forward must not copy the file twice.
     const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
     if (existing) {
@@ -2264,6 +2265,7 @@ export class ChatService {
                     WHERE m.conversation_id = cp.conversation_id
                       AND m.deleted_at IS NULL
                       AND (m.sender_id IS NULL OR m.sender_id <> ${viewerId}::UUID)
+                      AND (lr.id IS NULL OR m.created_at >= lr.created_at)
                       AND (lr.id IS NULL
                            OR (m.created_at, m.id) > (lr.created_at, lr.id))
                     ORDER BY m.created_at DESC
