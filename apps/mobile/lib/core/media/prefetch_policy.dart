@@ -8,14 +8,14 @@ import 'package:lawbid/core/media/data_saver.dart';
 import 'package:lawbid/core/media/video_prefetch.dart';
 
 /// S16-4: the three states of the video warm-up (`client.video_prefetch_mode`
-/// in the admin Config): 0 «Выкл», 1 «Вкл», 2 «Авто» (default). «Авто» warms
+/// in the admin Config): `off` «Выкл», `on` «Вкл», `auto` «Авто» (default). «Авто» warms
 /// the next reels only on an unmetered link (Wi-Fi / ethernet) and never
 /// while the data saver is on; mobile data keeps the viewer's own taps only.
 enum PrefetchMode { off, on, auto }
 
-PrefetchMode prefetchModeOf(int raw) => switch (raw) {
-      0 => PrefetchMode.off,
-      1 => PrefetchMode.on,
+PrefetchMode prefetchModeOf(String raw) => switch (raw) {
+      'off' => PrefetchMode.off,
+      'on' => PrefetchMode.on,
       _ => PrefetchMode.auto,
     };
 

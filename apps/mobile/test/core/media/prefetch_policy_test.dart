@@ -5,11 +5,12 @@ import 'package:lawbid/core/media/video_prefetch.dart';
 /// S16-4: the reel warm-up has three states and never spends mobile data
 /// in «Авто» or anything while the data saver is on.
 void main() {
-  test('mode numbers map to the three states, unknown means auto', () {
-    expect(prefetchModeOf(0), PrefetchMode.off);
-    expect(prefetchModeOf(1), PrefetchMode.on);
-    expect(prefetchModeOf(2), PrefetchMode.auto);
-    expect(prefetchModeOf(9), PrefetchMode.auto);
+  test('mode words map to the three states, unknown means auto', () {
+    expect(prefetchModeOf('off'), PrefetchMode.off);
+    expect(prefetchModeOf('on'), PrefetchMode.on);
+    expect(prefetchModeOf('auto'), PrefetchMode.auto);
+    expect(prefetchModeOf('0'), PrefetchMode.auto);
+    expect(prefetchModeOf('whatever'), PrefetchMode.auto);
   });
 
   test('auto warms on an unmetered link only', () {
