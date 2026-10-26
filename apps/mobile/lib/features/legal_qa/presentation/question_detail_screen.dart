@@ -236,7 +236,8 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                   color: colors.gold,
                   onRefresh: () async {
                     try {
-                      await ref.refresh(questionDetailProvider(widget.id).future);
+                      ref.invalidate(questionDetailProvider(widget.id));
+                      await ref.read(questionDetailProvider(widget.id).future);
                     } on Object {
                       // The provider now holds the error and the screen
                       // shows it; the pull spinner must just end.
