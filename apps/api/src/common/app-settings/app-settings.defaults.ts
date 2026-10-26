@@ -822,8 +822,9 @@ export const OWNER_OPS_SETTINGS = {
    * percent of the last 30 days' revenue … */
   'economy.max_spend_percent': 50,
   /** … but never less than this many dollars a month (a floor to run on
-   * while revenue is still small). */
-  'economy.min_threshold_usd': 150,
+   * while revenue is still small). Owner 2026-10-26: 350 — the launch
+   * stack must not sit in «limited» from day one. */
+  'economy.min_threshold_usd': 350,
   /** Autoscaling ceiling: 'auto' (follows the rule above) or 'manual'
    * (the numbers below, always within the Terraform cap). */
   'economy.ceiling_mode': 'auto',

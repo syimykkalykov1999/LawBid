@@ -118,7 +118,7 @@ function guide() {
   L.push('---');
   L.push('id: cost-ladder');
   L.push('title: Лестница расходов: что мы платим и как это включить или выключить');
-  L.push('category: aws');
+  L.push('category: money');
   L.push(`cost: Сама страница бесплатна; на день первый всего ≈ ${usd(totals.all)} в месяц`);
   L.push('time: 15 минут, чтобы прочитать; по 2–5 минут на каждое переключение');
   L.push(`verified: ${checkedAt}`);
