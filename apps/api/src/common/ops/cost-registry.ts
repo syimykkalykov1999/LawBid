@@ -146,6 +146,7 @@ const U = {
   r2: 'https://developers.cloudflare.com/r2/pricing/',
   gtr: 'https://cloud.google.com/translate/pricing',
   persona: 'https://withpersona.com/pricing',
+  openai: 'https://platform.openai.com/docs/pricing',
   sentry: 'https://sentry.io/pricing/',
   pd: 'https://www.pagerduty.com/pricing/',
   fb: 'https://firebase.google.com/pricing',
@@ -1746,6 +1747,37 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: 'лимит проверок картинок в деньгах (BUDGET_IMAGE_MODERATION_*)',
     ceService: 'Amazon Rekognition',
     providers: ['aws_rekognition', 'photodna', 'ncmec'],
+  },
+  {
+    id: 'vendor.openai_moderation',
+    name: 'Проверка текстов на запрещённое (OpenAI moderation)',
+    purpose:
+      'Смотрит новые посты и комментарии на травлю, ненависть, порнографию и запрещённое до жалоб людей.',
+    kind: 'vendor',
+    control: {
+      type: 'app-setting',
+      key: 'moderation.detect.mode',
+      map: { off: 'off', on: 'shadow', auto: 'enforce' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: setCeil(
+      'moderation.detect.daily_cap',
+      'Лимит проверок в день (админка → Модерация → Настройки)',
+    ),
+    price: price(
+      'unit',
+      'omni-moderation бесплатно; около $0,00001 за запрос у других моделей (уточнить в кабинете)',
+      U.openai,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 10),
+    needed: 'later',
+    neededNote:
+      'Платит только при наличии ключа. Вкл = только смотреть (shadow), Авто = задерживать и блокировать (enforce). Дневной лимит запросов ограничивает расход.',
+    alarm: 'дневной лимит запросов (moderation.detect.daily_cap)',
+    providers: ['openai_moderation'],
   },
   {
     id: 'vendor.persona',
