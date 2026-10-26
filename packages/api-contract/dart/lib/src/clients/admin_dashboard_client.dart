@@ -21,6 +21,12 @@ abstract class AdminDashboardClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Recount user totals now (max once per 10 min)
+  @POST('/admin/dashboard/totals/refresh')
+  Future<DashboardEnvelope> refreshTotals({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Sidebar badges: verification queue, open reports, support unread, trust queue, approvals (ETag → 304)
   @GET('/admin/counts')
   Future<AdminCountsEnvelope> getCounts({
