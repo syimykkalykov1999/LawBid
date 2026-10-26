@@ -45,7 +45,7 @@
 
 ## Настройки (`case_fanout.*`, по умолчанию охват как сегодня)
 
-`enabled` false (выключено по умолчанию: пуш всем сразу и синхронно, как раньше); `first_wave_size` 5000; `wave_size` 5000; `wave_interval_minutes` 10; `max_waves` 20; `stop_at_bids` 0 (выкл.); `new_quota_percent` 20; `new_max_alerts` 20; `new_max_bids` 3; `daily_cap` 0 (выкл.); `fraud_review_action` normal; `fraud_restricted_action` none; `fraud_small_wave_size` 10; `fraud_delay_minutes` 60. `enabled=false` возвращает старое поведение (всем сразу, без лимитов и антифрода). Волна при этом идёт в воркере (очередь `case-fanout`), а не в запросе API, и без ранжирования и запросов статистики (проверка 2026-10-26, R-32); без Redis (тесты, разработка) — по-прежнему сразу в запросе.
+`enabled` false (выключено по умолчанию: пуш всем сразу и синхронно, как раньше); `first_wave_size` 5000; `wave_size` 5000; `wave_interval_minutes` 10; `max_waves` 20; `stop_at_bids` 0 (выкл.); `new_quota_percent` 20; `new_max_alerts` 20; `new_max_bids` 3; `daily_cap` 0 (выкл.); `fraud_review_action` normal; `fraud_restricted_action` none; `fraud_small_wave_size` 10; `fraud_delay_minutes` 60. `enabled=false` возвращает старое поведение (всем сразу, без лимитов и антифрода). Волна 1 при этом идёт сразу в самом запросе API (не через очередь `case-fanout`), только без ранжирования и запросов статистики (проверка 2026-10-26, R-32); без Redis (тесты, разработка) — так же сразу в запросе. Очередь используется только при `enabled=true`.
 
 ## Исследование (источники)
 
