@@ -5,6 +5,7 @@ startTelemetry('api');
 
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { captureKeyEnv, scrubKeyEnv } from './common/secrets/key-holder';
 import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -17,6 +18,8 @@ async function bootstrap(): Promise<void> {
   // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
   // in memory, before any module reads the config.
   await unwrapKmsWrappedKeys();
+  // S3-3: plaintext keys live in a module holder, not in process.env.
+  captureKeyEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true, // needed later for Stripe webhook signature verification (docs/06_PRODUCTION.md §1.5)
     bufferLogs: true,
@@ -28,6 +31,8 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
+  // Every cipher has read its keys by now: drop them from the environment.
+  scrubKeyEnv();
   // docs/06 §4.1 (stage 6.1): server-side request timeouts.
   //
   // Keep-alive rule (AWS ALB docs): the TARGET's keep-alive timeout must be

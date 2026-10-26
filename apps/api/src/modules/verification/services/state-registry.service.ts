@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Prisma, StateBarRegistry } from '@prisma/client';
+import { barRegistryAad } from '../../../common/secrets/aad';
+import { readKey } from '../../../common/secrets/key-holder';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   maskSecret,
@@ -51,7 +53,7 @@ export interface RegistryTestResult {
   testedAt: string;
 }
 
-const aad = (stateCode: string) => `bar_registry:${stateCode}`;
+const aad = barRegistryAad;
 
 function bad(message: string, field?: string): BadRequestException {
   return new BadRequestException({
@@ -83,7 +85,9 @@ export class StateRegistryService {
     @Inject(STATE_BAR_ADAPTERS)
     private readonly adapters: readonly StateBarAdapter[],
   ) {
-    const keys = config.get<string>('SECRETS_MASTER_KEYS');
+    const keys = readKey('SECRETS_MASTER_KEYS', () =>
+      config.get<string>('SECRETS_MASTER_KEYS'),
+    );
     const kid = config.get<string>('SECRETS_ACTIVE_KID');
     this.envelope = keys && kid ? new SecretEnvelope(keys, kid) : null;
     this.allowLocal = config.get<string>('NODE_ENV') !== 'production';

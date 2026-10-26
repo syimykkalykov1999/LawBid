@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { FilesService } from '../../files/files.service';
@@ -18,6 +20,8 @@ export class CasePhotosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
+    // S3-5: private details are stored sealed.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   /** 404/409 for files that are not the author's clean case photos.
@@ -141,6 +145,7 @@ export class CasePhotosService {
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: {
+        id: true,
         client_id: true,
         private_details: true,
         accepted_bid: { select: { attorney_id: true } },
@@ -156,7 +161,13 @@ export class CasePhotosService {
       photos: allowed ? await this.files.casePhotoUrls(ids) : [],
       photosCount: ids.length,
       // Owner 2026-10-18: private details follow the same rule as the files.
-      privateDetails: allowed ? kase.private_details : null,
+      privateDetails:
+        allowed && kase.private_details !== null
+          ? (this.cipher?.openField(
+              kase.private_details,
+              privateDetailsAad(kase.id),
+            ) ?? kase.private_details)
+          : null,
     };
   }
 }
