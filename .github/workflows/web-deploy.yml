@@ -75,9 +75,15 @@ jobs:
         working-directory: apps/mobile
         run: dart run build_runner build --delete-conflicting-outputs
 
+      # 2026-10-26 (smoothness P6c): `flutter build` cuts the icon fonts
+      # down to the glyphs the code uses (PhosphorBold 495 -> 16 KB,
+      # PhosphorFill 449 -> 40 KB). The log is kept so the next step can
+      # fail the deploy if that ever stops (e.g. --no-tree-shake-icons).
       - name: Build web (WebAssembly)
         working-directory: apps/mobile
+        shell: bash
         run: >-
+          set -o pipefail;
           flutter build web --wasm -t lib/main_prod.dart
           --no-web-resources-cdn
           --dart-define=WEB_ENABLED=true
@@ -90,6 +96,14 @@ jobs:
           --dart-define=FIREBASE_WEB_AUTH_DOMAIN=${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
           --dart-define=FIREBASE_WEB_VAPID_KEY=${{ secrets.FIREBASE_WEB_VAPID_KEY }}
           --dart-define=FIREBASE_WEB_RECAPTCHA_KEY=${{ secrets.FIREBASE_WEB_RECAPTCHA_KEY }}
+          2>&1 | tee "$RUNNER_TEMP/web-build.log"
+
+      - name: The icon fonts were cut to the used glyphs
+        run: |
+          for f in PhosphorBold.ttf PhosphorFill.ttf; do
+            grep -q "Font asset \"$f\" was tree-shaken" "$RUNNER_TEMP/web-build.log" \
+              || { echo "::error::$f was not tree-shaken (the web app would ship the whole icon font)"; exit 1; }
+          done
 
       # The push worker needs the same keys (it cannot read the build's).
       - name: Fill the push worker's keys
@@ -192,7 +206,12 @@ jobs:
           $R put "$ARN" web_app_paths "$PATHS"
           # The brotli twins of this release exist (the CloudFront function
           # serves them only to releases marked here; older ones have none).
-          if command -v brotli >/dev/null 2>&1; then $R put "$ARN" "br_$SHA" 1; fi
+          # br2_: this release also has the fonts' and main.dart.mjs twins
+          # (web-gzip-big.sh, 2026-10-26).
+          if command -v brotli >/dev/null 2>&1; then
+            $R put "$ARN" "br_$SHA" 1
+            $R put "$ARN" "br2_$SHA" 1
+          fi
           if [ -n "$PREV" ] && [ "$PREV" != "$SHA" ]; then $R put "$ARN" web_previous "$PREV"; fi
           $R put "$ARN" web_release "$SHA"
           # The error page (a real 404 shows the app) is the root index.html.

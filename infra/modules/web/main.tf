@@ -113,7 +113,7 @@ variable "stripe_frame_src" {
 variable "cross_origin_isolation" {
   type        = bool
   default     = false
-  description = "Send COOP/COEP headers so the engine can render on a worker thread (faster, Chrome and Firefox). Off by default: turn on after checking images and video still load."
+  description = "Send COOP/COEP on the app's own pages so the engine can render on a worker thread (multi-threaded skwasm; Chrome, Edge, Firefox). Off by default: Cloudflare Turnstile and the App Check reCAPTCHA run in cross-origin frames that may be blocked under COEP. Turn on only after the staging check in docs/perf/WEB_PASS_2026-10-23.md (cross-origin isolation)."
 }
 
 data "aws_region" "current" {}
@@ -249,13 +249,36 @@ moved {
   to   = aws_cloudfront_response_headers_policy.web["app"]
 }
 
-resource "aws_cloudfront_response_headers_policy" "web" {
-  for_each = local.csp
-  name     = each.key == "app" ? "${var.name}-web-security" : "${var.name}-site-security"
-  comment  = each.key == "app" ? "Security headers for the web app" : "Security headers for the company site pages"
+# 2026-10-26 (smoothness P6b): cross-origin isolation is for the app's own
+# page only. The company site (Next.js) has nothing to gain from it, and
+# the card page (/pay.html) embeds Stripe's frames, which a COEP page may
+# block — so with the switch on the card page gets its own policy ("pay":
+# the app's CSP without COOP/COEP) through an ordered behavior below.
+locals {
+  header_policies = merge(
+    { app = local.csp.app, site = local.csp.site },
+    var.cross_origin_isolation ? { pay = local.csp.app } : {},
+  )
+  policy_names = {
+    app  = ["${var.name}-web-security", "Security headers for the web app"]
+    site = ["${var.name}-site-security", "Security headers for the company site pages"]
+    pay  = ["${var.name}-pay-security", "Security headers for the card page (no cross-origin isolation)"]
+  }
+}
 
+resource "aws_cloudfront_response_headers_policy" "web" {
+  for_each = local.header_policies
+  name     = local.policy_names[each.key][0]
+  comment  = local.policy_names[each.key][1]
+
+  # COOP same-origin + COEP credentialless: `crossOriginIsolated === true`
+  # in Chrome/Edge/Firefox, so Flutter picks multi-threaded skwasm.
+  # credentialless (not require-corp): images, video and scripts from other
+  # hosts still load without a Cross-Origin-Resource-Policy header, only
+  # without cookies (we send none to them anyway). Safari ignores
+  # credentialless and simply stays single-threaded.
   dynamic "custom_headers_config" {
-    for_each = var.cross_origin_isolation ? [1] : []
+    for_each = var.cross_origin_isolation && each.key == "app" ? [1] : []
     content {
       items {
         header   = "Cross-Origin-Opener-Policy"
@@ -334,6 +357,10 @@ resource "aws_cloudfront_function" "seo_index" {
     // brotli twin (<file>.br, uploaded by scripts/deploy/web-gzip-big.sh)
     // about 27% smaller than the gzip the bucket object carries.
     var BR = /^\/v\/[^\/]+\/(main\.dart\.(js|wasm)|canvaskit\/([a-z_]+\/)?[a-z_]+\.(js|wasm))$/;
+    // 2026-10-26 (smoothness P6a): the release's fonts and main.dart.mjs
+    // have twins too, but only releases marked `br2_<sha>` carry them
+    // (older releases' tabs must not be sent to a .br that does not exist).
+    var BR2 = /^\/v\/[^\/]+\/(main\.dart\.mjs|assets\/[A-Za-z0-9_\/.-]+\.(ttf|otf))$/;
     var SHA = /^[0-9A-Za-z]{7,64}$/;
     async function get(key) {
       try { return await kvs.get(key); } catch (e) { return ''; }
@@ -390,8 +417,12 @@ resource "aws_cloudfront_function" "seo_index" {
         var rel = (first === 'v' && SHA.test(parts[2] || '')) ? parts[2] : release;
         request.uri = (first === 'v' ? '/releases/' + rel : base) + uri;
         var ae = request.headers['accept-encoding'];
-        if (BR.test(uri) && ae && ae.value.indexOf('br') !== -1 && (await get('br_' + rel)) === '1') {
-          request.uri += '.br';
+        if (ae && ae.value.indexOf('br') !== -1) {
+          if (BR.test(uri) && (await get('br_' + rel)) === '1') {
+            request.uri += '.br';
+          } else if (BR2.test(uri) && (await get('br2_' + rel)) === '1') {
+            request.uri += '.br';
+          }
         }
       } else if (!hasExt) {
         // An app screen: the same page, under a name noindex can tell apart.
@@ -485,6 +516,31 @@ resource "aws_cloudfront_distribution" "web" {
       compress                   = true
       cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
       response_headers_policy_id = aws_cloudfront_response_headers_policy.web["site"].id
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.seo_index.arn
+      }
+      function_association {
+        event_type   = "viewer-response"
+        function_arn = aws_cloudfront_function.app_noindex.arn
+      }
+    }
+  }
+
+  # The card page keeps Stripe's frames working when the app's page is
+  # cross-origin isolated (see header_policies).
+  dynamic "ordered_cache_behavior" {
+    for_each = var.cross_origin_isolation ? ["/pay.html"] : []
+    content {
+      path_pattern               = ordered_cache_behavior.value
+      target_origin_id           = "web"
+      viewer_protocol_policy     = "redirect-to-https"
+      allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+      cached_methods             = ["GET", "HEAD"]
+      compress                   = true
+      cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.web["pay"].id
 
       function_association {
         event_type   = "viewer-request"
