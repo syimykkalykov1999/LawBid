@@ -1,4 +1,8 @@
-import { EngineError, OpenSearchClient } from './opensearch.client';
+import {
+  EngineError,
+  OpenSearchClient,
+  createOpenSearchClient,
+} from './opensearch.client';
 
 function res(status: number, body: unknown = {}): Response {
   return {
@@ -284,5 +288,70 @@ describe('OpenSearchClient', () => {
     const f = jest.fn().mockResolvedValue(res(200, { hits: { hits: [] } }));
     await make(f).searchIds('tag', {}, 5, 100);
     expect(f.mock.calls[0][0]).toBe('http://es:9200/lawbid-tag/_search');
+  });
+});
+
+describe('createOpenSearchClient (engine kinds)', () => {
+  const env: Record<string, string> = {
+    OPENSEARCH_URL: 'https://vpc-d.es.amazonaws.com/',
+    OPENSEARCH_SERVERLESS_URL: 'https://abc.us-east-1.aoss.amazonaws.com',
+    OPENSEARCH_REPLICAS: '1',
+    AWS_REGION: 'us-east-1',
+  };
+  const config = { get: (k: string) => env[k] };
+
+  it('domain is the default: its url, replicas, no signing', async () => {
+    const c = createOpenSearchClient(undefined, config, {
+      string: () => Promise.resolve('domain'),
+    });
+    expect(await c.creds()).toMatchObject({
+      kind: 'domain',
+      url: 'https://vpc-d.es.amazonaws.com',
+      replicas: 1,
+    });
+    const none = createOpenSearchClient(undefined, config);
+    expect((await none.creds())?.kind).toBe('domain');
+  });
+
+  it('serverless uses its own url, zero replicas', async () => {
+    const c = createOpenSearchClient(undefined, config, {
+      string: () => Promise.resolve('serverless'),
+    });
+    expect(await c.creds()).toMatchObject({
+      kind: 'serverless',
+      url: 'https://abc.us-east-1.aoss.amazonaws.com',
+      replicas: 0,
+    });
+  });
+
+  it('serverless requests are SigV4-signed for aoss; domain ones are not', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(res(200, []));
+    const mk = (kind: 'domain' | 'serverless') =>
+      new OpenSearchClient(
+        undefined,
+        config,
+        fetchImpl,
+        () => Promise.resolve(kind),
+        () => Promise.resolve({ accessKeyId: 'AK', secretAccessKey: 'SK' }),
+        () => new Date('2026-10-25T00:00:00Z'),
+      );
+    await mk('serverless').ping();
+    const sh = fetchImpl.mock.calls[0][1].headers as Record<string, string>;
+    expect(sh.authorization).toContain('/us-east-1/aoss/aws4_request');
+    expect(sh['x-amz-content-sha256']).toBeDefined();
+    await mk('domain').ping();
+    const dh = fetchImpl.mock.calls[1][1].headers as Record<string, string>;
+    expect(dh.authorization).toBeUndefined();
+  });
+
+  it('serverless fails clearly without AWS credentials', async () => {
+    const c = new OpenSearchClient(
+      undefined,
+      config,
+      jest.fn(),
+      () => Promise.resolve('serverless'),
+      () => Promise.resolve(null),
+    );
+    await expect(c.ping()).rejects.toThrow(/credentials/);
   });
 });

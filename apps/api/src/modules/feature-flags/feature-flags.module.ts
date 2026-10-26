@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { BootstrapController } from './controllers/bootstrap.controller';
+import { MyFlagsController } from './controllers/my-flags.controller';
 import { FeatureFlagsService } from './services/feature-flags.service';
 import { AppConfigService } from './services/app-config.service';
 import { BootstrapService } from './services/bootstrap.service';
@@ -23,7 +24,7 @@ import { AppVersionGuard } from './guards/app-version.guard';
  * injectable here without listing them.
  */
 @Module({
-  controllers: [BootstrapController],
+  controllers: [BootstrapController, MyFlagsController],
   providers: [
     FeatureFlagsService,
     AppConfigService,
