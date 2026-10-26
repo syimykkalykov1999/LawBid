@@ -70,9 +70,18 @@ function harness(
     message: {
       findMany: jest.fn((args: never) => Promise.resolve(page(messages, args))),
       update: jest.fn(
-        ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
+        ({
+          where,
+          data,
+        }: {
+          where: { id?: string; id_conversation_id?: { id: string } };
+          data: Partial<Row>;
+        }) => {
+          // messages carry a composite key (id, conversation_id) since the
+          // partitioning prep.
+          const id = where.id ?? where.id_conversation_id?.id;
           Object.assign(
-            messages.find((m) => m.id === where.id)!,
+            messages.find((m) => m.id === id)!,
             data,
           );
           return Promise.resolve();
