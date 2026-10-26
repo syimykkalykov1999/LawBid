@@ -83,3 +83,56 @@ describe('payments_in_app is locked off (owner 2026-10-16)', () => {
     expect(lockFlags({ payments_in_app: true }).payments_in_app).toBe(true);
   });
 });
+
+describe('rollout_percent (owner 2026-10-25)', () => {
+  const rows = [
+    { key: 'full', enabled: true, rollout_percent: 100 },
+    { key: 'off', enabled: false, rollout_percent: 100 },
+    { key: 'partial', enabled: true, rollout_percent: 30 },
+    { key: 'zero', enabled: true, rollout_percent: 0 },
+  ];
+  const make = () => {
+    const redis = buildFakeRedis(new Map<string, string>());
+    const prisma = {
+      featureFlag: { findMany: jest.fn().mockResolvedValue(rows) },
+    };
+    return new FeatureFlagsService(prisma as never, redis as never);
+  };
+
+  it('the public view shows a partly rolled-out flag as off', async () => {
+    expect(await make().getFlags()).toEqual({
+      full: true,
+      off: false,
+      partial: false,
+      zero: false,
+    });
+  });
+
+  it('a user gets a stable answer for a partial flag; full / off / zero never change', async () => {
+    const svc = make();
+    const id = '5b7d9c1e-0000-4000-8000-000000000001';
+    const a = await svc.getFlagsFor(id);
+    const b = await svc.getFlagsFor(id);
+    expect(a).toEqual(b);
+    expect(a.full).toBe(true);
+    expect(a.off).toBe(false);
+    expect(a.zero).toBe(false);
+    expect(typeof a.partial).toBe('boolean');
+  });
+
+  it('about 30% of users get a 30% flag', async () => {
+    const svc = make();
+    let on = 0;
+    const n = 4000;
+    for (let i = 0; i < n; i++) {
+      const id = `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`;
+      if (await svc.isEnabledFor('partial', false, id)) on++;
+    }
+    expect(on / n).toBeGreaterThan(0.26);
+    expect(on / n).toBeLessThan(0.34);
+  });
+
+  it('falls back to the default for an unknown flag', async () => {
+    expect(await make().isEnabledFor('missing', true, 'u1')).toBe(true);
+  });
+});

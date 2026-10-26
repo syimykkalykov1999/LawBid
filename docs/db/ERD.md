@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-248 tables.
+252 tables.
 
 ```mermaid
 erDiagram
@@ -3107,6 +3107,56 @@ erDiagram
     Json value
     DateTime updated_at
   }
+  experiments {
+    String id PK
+    String key UK
+    String name
+    String hypothesis "nullable"
+    String surface
+    String status
+    Json variants
+    Int traffic_percent
+    Json guardrails
+    DateTime start_at "nullable"
+    DateTime end_at "nullable"
+    DateTime started_at "nullable"
+    DateTime stopped_at "nullable"
+    String stop_reason "nullable"
+    Boolean stopped_by_system
+    String created_by "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  experiment_exposures {
+    String experiment_id PK,FK
+    String unit_id PK
+    String variant
+    DateTime first_at
+  }
+  experiment_results {
+    String id PK
+    String experiment_id FK
+    DateTime computed_at
+    Float srm_p "nullable"
+    Boolean srm_flag
+    Boolean guardrail_tripped
+    Json payload
+  }
+  ranking_events {
+    BigInt id PK
+    DateTime created_at PK
+    String kind
+    String user_id "nullable"
+    String surface
+    String item_id "nullable"
+    String list_id "nullable"
+    Int position "nullable"
+    String formula_version "nullable"
+    String experiment_key "nullable"
+    String variant "nullable"
+    Int value "nullable"
+    Json features "nullable"
+  }
   users }o--o| files : "avatar_file_id"
   users }o--|| countries : "country_code"
   files }o--|| users : "owner_user_id"
@@ -3406,4 +3456,6 @@ erDiagram
   legal_exports }o--|| data_access_requests : "request_id"
   legal_holds }o--|| data_access_requests : "request_id"
   csam_reports }o--|| media_moderation_checks : "check_id"
+  experiment_exposures }o--|| experiments : "experiment_id"
+  experiment_results }o--|| experiments : "experiment_id"
 ```
