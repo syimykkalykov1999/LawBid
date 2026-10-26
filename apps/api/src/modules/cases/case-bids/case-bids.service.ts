@@ -2,10 +2,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
@@ -13,7 +15,18 @@ import { caseNotFound } from '../domain/case-state-machine';
 import { CaseAccessPolicy } from '../policies/case-access.policy';
 import { touchClientActive } from '../domain/client-activity';
 import {
+  afterScoreCursor,
+  bestMatchScore,
+  isSuspiciouslyLow,
+  priceContext,
+  ratingScore,
+  sortByScore,
+  type RankBid,
+  type RankSettings,
+} from './bid-ranking';
+import {
   CASE_BIDS_PAGE_DEFAULT,
+  CASE_BIDS_SORTS,
   type BidAttorneySummaryDto,
   type CaseBidItemDto,
   type CaseBidPage,
@@ -23,6 +36,14 @@ import {
 
 /** The most bids one delta answer carries (a case never has this many). */
 export const CASE_BIDS_DELTA_MAX = 200;
+
+/** Sorts the database orders; the others are scored in memory. */
+type DbSort = 'newest' | 'lowest_price';
+const isDbSort = (sort: CaseBidsSort): sort is DbSort =>
+  sort === 'newest' || sort === 'lowest_price';
+
+/** A case has few bids; scored sorts rank at most this many. */
+const SCORED_BIDS_MAX = 500;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -114,7 +135,49 @@ export class CaseBidsService {
     private readonly prisma: PrismaService,
     private readonly caseAccess: CaseAccessPolicy,
     private readonly files: FilesService,
+    private readonly settings: AppSettingsService,
   ) {}
+
+  private readonly logger = new Logger(CaseBidsService.name);
+
+  private async rankSettings(): Promise<RankSettings> {
+    const [rating, trust, speed, price, completed, prior, weight, low, min] =
+      await Promise.all([
+        this.settings.number('bids.best_match.rating'),
+        this.settings.number('bids.best_match.trust'),
+        this.settings.number('bids.best_match.speed'),
+        this.settings.number('bids.best_match.price'),
+        this.settings.number('bids.best_match.completed'),
+        this.settings.number('bids.bayes_prior'),
+        this.settings.number('bids.bayes_weight'),
+        this.settings.number('bids.low_ratio'),
+        this.settings.number('bids.min_bids_for_price'),
+      ]);
+    const nn = (x: number): number => (x > 0 ? x : 0);
+    return {
+      weights: {
+        rating: nn(rating),
+        trust: nn(trust),
+        speed: nn(speed),
+        price: nn(price),
+        completed: nn(completed),
+      },
+      bayesPrior: prior,
+      bayesWeight: nn(weight),
+      lowRatio: nn(low),
+      minBidsForPrice: Math.max(2, Math.floor(min)),
+    };
+  }
+
+  /** The sort of a request: its own, else the admin default (a bad
+   * stored value falls back to newest). */
+  private async sortOf(requested?: CaseBidsSort): Promise<CaseBidsSort> {
+    if (requested) return requested;
+    const d = await this.settings.string('bids.default_sort');
+    return (CASE_BIDS_SORTS as readonly string[]).includes(d)
+      ? (d as CaseBidsSort)
+      : 'newest';
+  }
 
   /** §11.1 "Адвокат в работе": the accepted bid of the owner's case. */
   async acceptedFor(
@@ -151,6 +214,60 @@ export class CaseBidsService {
     // since (a counter, accept, withdraw …); a bid never leaves this list,
     // so deletedIds is empty and meta.syncedAt moves the client forward.
     const since = parseUpdatedSince(query.updatedSince);
+    const sort = await this.sortOf(query.sort);
+    const limit = query.limit ?? CASE_BIDS_PAGE_DEFAULT;
+    const cursor = query.cursor
+      ? decodeBidListCursor(query.cursor, sort)
+      : null;
+    const [rs, guard, priceRows] = await Promise.all([
+      this.rankSettings(),
+      this.settings.boolean('bids.dumping_guard'),
+      this.prisma.bid.findMany({
+        where: { case_id: caseId },
+        select: {
+          id: true,
+          fee_type: true,
+          amount_cents: true,
+          percent_bps: true,
+          status: true,
+          created_at: true,
+        },
+        take: SCORED_BIDS_MAX,
+      }),
+    ]);
+    const ctx = priceContext(
+      priceRows.map((r) => ({
+        id: r.id,
+        feeType: r.fee_type,
+        amountCents: r.amount_cents,
+        percentBps: r.percent_bps,
+        status: r.status,
+        createdAtMs: r.created_at.getTime(),
+        ratingAvg: 0,
+        ratingCount: 0,
+        trustLevel: 0,
+        completedCases: 0,
+      })),
+      rs,
+    );
+    const byId = new Map(priceRows.map((r) => [r.id, r]));
+    const withFlags = (r: BidListRow) => {
+      const pr = byId.get(r.id);
+      const low =
+        guard &&
+        pr !== undefined &&
+        isSuspiciouslyLow(toRankBid(r, 0), ctx, rs);
+      if (low) {
+        this.logger.warn(
+          `Dumping guard: bid ${r.id} on case ${caseId} is far below the median price; review.`,
+        );
+      }
+      return this.toItem(r, {
+        bestPrice: ctx.bestPriceId === r.id,
+        lowOffer: low,
+      });
+    };
+
     if (since) {
       const changed = await this.prisma.bid.findMany({
         where: { case_id: caseId, updated_at: { gte: since } },
@@ -159,7 +276,7 @@ export class CaseBidsService {
         include: BID_LIST_INCLUDE,
       });
       return {
-        items: await Promise.all(changed.map((r) => this.toItem(r))),
+        items: await Promise.all(changed.map(withFlags)),
         nextCursor: null,
         deletedIds: [],
         syncedAt: syncedAt(
@@ -169,31 +286,103 @@ export class CaseBidsService {
       };
     }
 
-    const sort = query.sort ?? 'newest';
-    const limit = query.limit ?? CASE_BIDS_PAGE_DEFAULT;
-    const cursor = query.cursor
-      ? decodeBidListCursor(query.cursor, sort)
-      : null;
-    const rows = await this.prisma.bid.findMany({
-      where: { case_id: caseId, ...(cursor ? afterCursor(cursor) : {}) },
-      orderBy: orderOf(sort),
-      take: limit + 1,
-      include: BID_LIST_INCLUDE,
+    let page: BidListRow[];
+    let nextCursor: string | null = null;
+    if (isDbSort(sort)) {
+      const rows = await this.prisma.bid.findMany({
+        where: { case_id: caseId, ...(cursor ? afterCursor(cursor) : {}) },
+        orderBy: orderOf(sort),
+        take: limit + 1,
+        include: BID_LIST_INCLUDE,
+      });
+      page = rows.slice(0, limit);
+      const last = page[page.length - 1];
+      if (rows.length > limit && last) {
+        nextCursor = encodeBidListCursor({
+          sort,
+          key: keyOf(sort, last),
+          id: last.id,
+        });
+      }
+    } else {
+      const [rows, kase] = await Promise.all([
+        this.prisma.bid.findMany({
+          where: { case_id: caseId },
+          include: BID_LIST_INCLUDE,
+          take: SCORED_BIDS_MAX,
+        }),
+        this.prisma.case.findUnique({
+          where: { id: caseId },
+          select: { created_at: true },
+        }),
+      ]);
+      const completed =
+        sort === 'best_match'
+          ? await this.completedCases(rows.map((r) => r.attorney_id))
+          : new Map<string, number>();
+      const caseMs = kase?.created_at.getTime() ?? 0;
+      const score = new Map<string, number>();
+      for (const r of rows) {
+        const rb = toRankBid(r, completed.get(r.attorney_id) ?? 0);
+        score.set(
+          r.id,
+          sort === 'best_match'
+            ? bestMatchScore(rb, caseMs, ctx, rs)
+            : Math.round(ratingScore(rb, rs) * 1e6) / 1e6,
+        );
+      }
+      const scoreOf = (r: BidListRow): number => score.get(r.id) ?? 0;
+      let ordered = sortByScore(rows, scoreOf);
+      if (cursor) {
+        const key = Number(cursor.key);
+        if (!Number.isFinite(key)) {
+          throw new BadRequestException({
+            code: ErrorCode.VALIDATION_ERROR,
+            message: 'Invalid cursor.',
+            details: { field: 'cursor' },
+          });
+        }
+        ordered = afterScoreCursor(ordered, scoreOf, key, cursor.id);
+      }
+      page = ordered.slice(0, limit);
+      const last = page[page.length - 1];
+      if (ordered.length > limit && last) {
+        nextCursor = encodeBidListCursor({
+          sort,
+          key: String(scoreOf(last)),
+          id: last.id,
+        });
+      }
+    }
+
+    const items = await Promise.all(page.map(withFlags));
+    return { items, nextCursor };
+  }
+
+  /** Attorney id → cases finished through LawBid (accepted bid, closed). */
+  private async completedCases(
+    attorneyIds: string[],
+  ): Promise<Map<string, number>> {
+    if (attorneyIds.length === 0) return new Map();
+    const rows = await this.prisma.bid.groupBy({
+      by: ['attorney_id'],
+      where: {
+        attorney_id: { in: attorneyIds },
+        accepted_for_case: { is: { status: 'closed' } },
+      },
+      _count: { _all: true },
     });
-    const page = rows.slice(0, limit);
-    const items = await Promise.all(page.map((r) => this.toItem(r)));
-    const last = page[page.length - 1];
-    return {
-      items,
-      nextCursor:
-        rows.length > limit && last
-          ? encodeBidListCursor({ sort, key: keyOf(sort, last), id: last.id })
-          : null,
-    };
+    return new Map(rows.map((r) => [r.attorney_id, r._count._all]));
   }
 
   /** A bid with the attorney's public summary (§5.2 card). */
-  async toItem(bid: BidListRow): Promise<CaseBidItemDto> {
+  async toItem(
+    bid: BidListRow,
+    flags: { bestPrice: boolean; lowOffer: boolean } = {
+      bestPrice: false,
+      lowOffer: false,
+    },
+  ): Promise<CaseBidItemDto> {
     const a = bid.attorney;
     const avatar = await this.files.avatarUrls(a.avatar_file_id);
     return {
@@ -218,6 +407,8 @@ export class CaseBidsService {
       decidedAt: bid.decided_at?.toISOString() ?? null,
       createdAt: bid.created_at.toISOString(),
       attorney: toAttorneySummary(bid.attorney_id, a, avatar.url256),
+      bestPrice: flags.bestPrice,
+      lowOffer: flags.lowOffer,
     };
   }
 
@@ -259,28 +450,37 @@ export function toAttorneySummary(
   };
 }
 
-function orderOf(sort: CaseBidsSort): Prisma.BidOrderByWithRelationInput[] {
+function toRankBid(row: BidListRow, completedCases: number): RankBid {
+  const p = row.attorney.attorney_profile;
+  return {
+    id: row.id,
+    feeType: row.fee_type,
+    amountCents: row.amount_cents,
+    percentBps: row.percent_bps,
+    status: row.status,
+    createdAtMs: row.created_at.getTime(),
+    ratingAvg: p ? Number(p.rating_avg) : 0,
+    ratingCount: p?.rating_count ?? 0,
+    trustLevel: p?.trust_level ?? 0,
+    completedCases,
+  };
+}
+
+function orderOf(sort: DbSort): Prisma.BidOrderByWithRelationInput[] {
   switch (sort) {
     case 'newest':
       return [{ created_at: 'desc' }, { id: 'desc' }];
     case 'lowest_price':
       return [{ amount_cents: 'asc' }, { id: 'asc' }];
-    case 'highest_rating':
-      return [
-        { attorney: { attorney_profile: { rating_avg: 'desc' } } },
-        { id: 'desc' },
-      ];
   }
 }
 
-function keyOf(sort: CaseBidsSort, row: BidListRow): string {
+function keyOf(sort: DbSort, row: BidListRow): string {
   switch (sort) {
     case 'newest':
       return row.created_at.toISOString();
     case 'lowest_price':
       return String(row.amount_cents);
-    case 'highest_rating':
-      return row.attorney.attorney_profile?.rating_avg.toString() ?? '0';
   }
 }
 
@@ -319,19 +519,8 @@ function afterCursor(cursor: BidListCursor): Prisma.BidWhereInput {
         ],
       };
     }
-    case 'highest_rating':
-      return {
-        OR: [
-          {
-            attorney: {
-              attorney_profile: { is: { rating_avg: { lt: cursor.key } } },
-            },
-          },
-          {
-            attorney: { attorney_profile: { is: { rating_avg: cursor.key } } },
-            id: { lt: cursor.id },
-          },
-        ],
-      };
+    default:
+      // Scored sorts page in memory (see list()).
+      return {};
   }
 }

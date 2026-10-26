@@ -20,6 +20,7 @@ export const CASE_BIDS_SORTS = [
   'newest',
   'lowest_price',
   'highest_rating',
+  'best_match',
 ] as const;
 export type CaseBidsSort = (typeof CASE_BIDS_SORTS)[number];
 
@@ -28,7 +29,11 @@ export const CASE_BIDS_PAGE_MAX = 50;
 
 /** GET /cases/:id/bids?sort=&cursor=&limit= */
 export class CaseBidsQueryDto {
-  @ApiPropertyOptional({ enum: CASE_BIDS_SORTS, default: 'newest' })
+  @ApiPropertyOptional({
+    enum: CASE_BIDS_SORTS,
+    description:
+      'Owner 2026-10-25: when omitted the admin setting bids.default_sort applies (newest by default).',
+  })
   @IsOptional()
   @IsIn(CASE_BIDS_SORTS)
   sort?: CaseBidsSort;
@@ -68,6 +73,18 @@ export class CaseBidItemDto extends OmitType(BidDto, [
 ] as const) {
   @ApiProperty({ type: BidAttorneySummaryDto })
   attorney!: BidAttorneySummaryDto;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-25: the lowest reasonable price on the case (suspiciously low bids excluded). For a later "best price" label.',
+  })
+  bestPrice!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-25: far below the case median (setting bids.dumping_guard on); false when the guard is off.',
+  })
+  lowOffer!: boolean;
 }
 
 export interface CaseBidPage {

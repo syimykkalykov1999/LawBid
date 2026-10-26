@@ -1,3 +1,4 @@
+import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { CaseBidsService } from './case-bids.service';
 
@@ -36,8 +37,24 @@ describe('CaseBidsService delta (updatedSince)', () => {
     },
   });
 
+  // The light price list (select, no include) feeds the best-price and
+  // low-offer flags; the bid rows themselves come from the include query.
+  const isRowsQuery = (a: { include?: unknown }) => a.include !== undefined;
+
   function setup(rows: unknown[]) {
-    const findMany = jest.fn().mockResolvedValue(rows);
+    const findMany = jest.fn((a: { include?: unknown }) =>
+      Promise.resolve(isRowsQuery(a) ? rows : []),
+    );
+    const rowCalls = () =>
+      findMany.mock.calls
+        .map((c) => c[0])
+        .filter((a: { include?: unknown }) => isRowsQuery(a)) as Array<{
+        where: unknown;
+        take: number;
+      }>;
+    const setting = (k: string) =>
+      Promise.resolve(APP_SETTINGS[k as keyof typeof APP_SETTINGS]);
+    const settings = { number: setting, string: setting, boolean: setting };
     const prisma = {
       bid: { findMany },
       case: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -52,20 +69,21 @@ describe('CaseBidsService delta (updatedSince)', () => {
       prisma as never,
       access as never,
       files as never,
+      settings as never,
     );
-    return { service, findMany };
+    return { service, rowCalls };
   }
 
-  it('returns only the changed bids, newest change first, in one query', async () => {
-    const { service, findMany } = setup([
+  it('returns only the changed bids, newest change first, in one rows query', async () => {
+    const { service, rowCalls } = setup([
       bidRow('b2', at(7)),
       bidRow('b1', at(2)),
     ]);
     const out = await service.list(client, 'case-1', {
       updatedSince: since.toISOString(),
     });
-    expect(findMany).toHaveBeenCalledTimes(1);
-    const arg = findMany.mock.calls[0][0];
+    expect(rowCalls()).toHaveLength(1);
+    const arg = rowCalls()[0];
     expect(arg.where).toEqual({
       case_id: 'case-1',
       updated_at: { gte: since },
@@ -98,9 +116,9 @@ describe('CaseBidsService delta (updatedSince)', () => {
   });
 
   it('without updatedSince it is the paged list as before', async () => {
-    const { service, findMany } = setup([bidRow('b1', at(1))]);
+    const { service, rowCalls } = setup([bidRow('b1', at(1))]);
     const out = await service.list(client, 'case-1', {});
-    expect(findMany.mock.calls[0][0].take).toBe(21);
+    expect(rowCalls()[0].take).toBe(21);
     expect(out.deletedIds).toBeUndefined();
     expect(out.syncedAt).toBeUndefined();
   });
