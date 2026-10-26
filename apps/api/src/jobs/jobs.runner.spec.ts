@@ -271,9 +271,9 @@ describe('JobsRunner', () => {
     // DB-ops hardening: + db.health (daily).
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
-    // Owner 2026-10-24: + partition.maintain (daily) and partition.tick;
-    // day-one foundations: + ledger.reconcile (nightly).
-    expect(upserts).toHaveLength(72);
+    // Experiments: + experiments.metrics (nightly).
+    // Owner 2026-10-24: + partition.maintain (daily) and partition.tick.
+    expect(upserts).toHaveLength(73);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );
