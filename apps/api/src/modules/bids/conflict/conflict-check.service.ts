@@ -1,4 +1,11 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -73,7 +80,22 @@ export class ConflictCheckService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: CaseAccessPolicy,
+    // S3-5: private details are stored sealed.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
+
+  private opened<T extends { id: string; private_details: string | null }>(
+    row: T,
+  ): T {
+    if (row.private_details === null || !this.cipher) return row;
+    return {
+      ...row,
+      private_details: this.cipher.openField(
+        row.private_details,
+        privateDetailsAad(row.id),
+      ),
+    };
+  }
 
   /**
    * Owner 2026-10-22 (security audit #3, finding 7): the check used to load
@@ -109,12 +131,13 @@ export class ConflictCheckService {
       },
     });
     if (!kaseRow) return { conflict: false, matches: [] };
+    const kaseOpen = this.opened(kaseRow);
     // Shard-ready step 6: the client's name / phone / email come from the
     // user directory (users are a global family), not from a join.
     const kase = (
       await attachUsers(
         this.prisma,
-        [kaseRow],
+        [kaseOpen],
         'client_id',
         'client',
         CLIENT_CONTACT,
@@ -139,7 +162,7 @@ export class ConflictCheckService {
     });
     const pastWithClient = await attachUsers(
       this.prisma,
-      pastRows,
+      pastRows.map((r) => this.opened(r)),
       'client_id',
       'client',
       CLIENT_CONTACT,

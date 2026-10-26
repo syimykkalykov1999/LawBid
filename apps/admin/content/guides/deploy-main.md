@@ -1,7 +1,7 @@
 ---
 id: deploy-main
 title: Выкатить последнюю версию (main) на боевой сервер
-category: aws
+category: launch
 cost: Бесплатно (минуты GitHub Actions в рамках тарифа)
 time: 15-30 минут
 launch: deploy
