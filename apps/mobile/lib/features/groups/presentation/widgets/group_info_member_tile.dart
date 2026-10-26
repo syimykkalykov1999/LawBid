@@ -99,7 +99,7 @@ class GroupInfoMemberTile extends ConsumerWidget {
                             AppIcon(
                               AppIcons.verifiedRounded,
                               size: 16,
-                              color: colors.goldAccent,
+                              color: colors.verifiedGold,
                             ),
                           ],
                         ],
