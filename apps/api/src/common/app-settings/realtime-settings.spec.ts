@@ -52,6 +52,31 @@ describe('realtime settings (owner 2026-10-23)', () => {
     expect(t.reconnectJitter).toBe(0.8);
   });
 
+  it('the old client.realtime_reconnect_* keys are a read-only alias for one release (dedup D-11)', () => {
+    // Stored by the owner before the keys were merged: honoured while the
+    // new key is not stored, never when the new one is.
+    expect(
+      clientTimingsFrom({ 'client.realtime_reconnect_max_ms': 20_000 })
+        .reconnectMaxMs,
+    ).toBe(20_000);
+    expect(
+      clientTimingsFrom({
+        'client.realtime_reconnect_max_ms': 20_000,
+        'realtime.reconnect_max_ms': 45_000,
+      }).reconnectMaxMs,
+    ).toBe(45_000);
+    // Out of the new bounds: ignored.
+    expect(
+      clientTimingsFrom({ 'client.realtime_reconnect_min_ms': 5 })
+        .reconnectMinMs,
+    ).toBe(1000);
+    // And no longer a setting of its own.
+    expect(APP_SETTINGS).not.toHaveProperty('client.realtime_reconnect_max_ms');
+    expect(configSchema()).not.toHaveProperty(
+      'client.realtime_reconnect_min_ms',
+    );
+  });
+
   it('server-only keys never reach the app', () => {
     const t = clientTimingsFrom({});
     expect(
