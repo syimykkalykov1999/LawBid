@@ -10,6 +10,10 @@ import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 /// front camera is mirrored; a rear camera and every remote picture are not.
 const _method = MethodChannel('FlutterWebRTC.Method');
 const _texture = EventChannel('FlutterWebRTC/Texture1');
+// The plugin's first call starts listening here once per test file
+// (NativeLogsListener). Unmocked, its MissingPluginException is reported
+// a moment later — inside whichever test runs then (flaky on CI).
+const _events = EventChannel('FlutterWebRTC.Event');
 
 void main() {
   setUp(() {
@@ -31,13 +35,18 @@ void main() {
       ..setMockStreamHandler(
         _texture,
         MockStreamHandler.inline(onListen: (_, __) {}, onCancel: (_) {}),
+      )
+      ..setMockStreamHandler(
+        _events,
+        MockStreamHandler.inline(onListen: (_, __) {}, onCancel: (_) {}),
       );
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       ..setMockMethodCallHandler(_method, null)
-      ..setMockStreamHandler(_texture, null);
+      ..setMockStreamHandler(_texture, null)
+      ..setMockStreamHandler(_events, null);
   });
 
   Future<RTCVideoView> pumpPicture(

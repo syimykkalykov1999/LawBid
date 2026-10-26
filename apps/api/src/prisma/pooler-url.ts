@@ -12,6 +12,12 @@ import { join } from 'node:path';
  * host and port. The secret itself is NOT changed, so switching the pooler
  * off again (unset DB_POOLER_HOST) is the whole rollback.
  *
+ * The READ REPLICA client (prisma-read.service.ts) is routed by its OWN
+ * variable, `DB_REPLICA_POOLER_HOST`: the pooler above forwards every
+ * connection to ITS database host (the primary), so pointing the replica at
+ * `DB_POOLER_HOST` would silently send the "replica" reads to the primary.
+ * Set it only to a second PgBouncer whose DATABASE_URL is the replica.
+ *
  * Only the main client is routed. DDL / retention / demo URLs and the
  * migrate task keep the direct endpoint on purpose: transaction pooling is
  * wrong for them (CREATE DATABASE, session state, `prisma migrate`).
@@ -31,9 +37,10 @@ import { join } from 'node:path';
 export function withPoolerRouting(
   raw: string | undefined,
   env: NodeJS.ProcessEnv = process.env,
+  hostVar: 'DB_POOLER_HOST' | 'DB_REPLICA_POOLER_HOST' = 'DB_POOLER_HOST',
 ): string | undefined {
   if (!raw) return raw;
-  const host = env.DB_POOLER_HOST?.trim();
+  const host = env[hostVar]?.trim();
   if (!host) return raw;
   let url: URL;
   try {
