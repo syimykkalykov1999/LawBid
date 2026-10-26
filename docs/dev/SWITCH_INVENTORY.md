@@ -43,6 +43,10 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
 | `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 | `db.health_mode` | Ежедневная проверка базы (размер таблиц, мёртвые строки) | auto | 3 (off/on/auto) | daily DB health check (#363): table sizes, dead rows, vacuum lag | `jobs/handlers/db-health.job.ts:104` | see the setting | listed | |
+| `legal.disclaimer.enabled` | Пометка «не юридическая консультация» в ответах | on | 2 | legal Q&A safety (#378): server adds `meta.disclaimer` to Q&A, template and deadline responses | `common/legal-disclaimer/legal-disclaimer.interceptor.ts:70` | none | listed | |
+| `qa.pii_mode` | Личные данные в публичных вопросах и ответах | warn | 4 (off/warn/redact/block) | legal Q&A safety (#378): SSN, address, case number, opposing party name | `modules/legal-qa/qa-safety.service.ts:201` | none | listed | |
+| `qa.advice_flag_mode` | Ответы-консультации от юриста без лицензии в штате | flag | 3 (off/flag/hold) | legal Q&A safety (#378): flag = admin sees it; hold = hidden until a moderator restores it | `modules/legal-qa/qa-safety.service.ts:86` | none | listed | |
+| `moderation.csam.ncmec_submit_enabled` | Отправка отчёта CSAM в NCMEC через API | on | 2 | legal Q&A safety (#378): off = report opened and logged as «file by hand» | `modules/media-moderation/media-moderation.service.ts:770` | none | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
