@@ -1,5 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DeadlinesService } from '../deadlines/deadlines.service';
@@ -14,6 +21,16 @@ const CAP = 500;
 const MIN_MS = 60_000;
 /** A poll updates «last used» at most this often. */
 const TOUCH_EVERY_MS = 10 * MIN_MS;
+/** Perf review 2026-10-26 (R-38): a built feed is served from Redis this long. */
+export const FEED_CACHE_SECONDS = 60;
+/** Polls per link per minute (calendar apps poll every 15–60 minutes). */
+export const FEED_RATE_PER_MINUTE = 10;
+/** «Last-Modified» = when this ETag was first served; kept this long. */
+const FEED_LM_SECONDS = 35 * 86_400;
+const feedKey = (hash: string) => `calendar:feed:${hash}`;
+const lmKey = (userId: string) => `calendar:feed:lm:${userId}`;
+const rateKey = (hash: string, minute: number) =>
+  `calendar:feed:rl:${hash}:${minute}`;
 
 const COURT_KINDS = new Set([
   'court',
@@ -38,6 +55,13 @@ export interface BuiltFeed {
   etag: string;
   lastModified: Date;
 }
+
+/** What the public feed endpoint answers. */
+export type FeedAnswer =
+  | { status: 404 }
+  | { status: 429 }
+  | { status: 304; etag: string; lastModified: Date }
+  | { status: 200; etag: string; lastModified: Date; body: string };
 
 /** Pure: how a planner task shows in the calendar. */
 export function taskShape(kind: string): {
@@ -67,7 +91,133 @@ export class IcsFeedService {
     private readonly prisma: PrismaService,
     private readonly cfg: CalendarConfig,
     private readonly deadlines: DeadlinesService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
+
+  /**
+   * The public `GET /calendar/feed/:token.ics` (perf review 2026-10-26, R-38).
+   * The link is already a per-user secret (`lbc_` + 256 random bits, only
+   * its SHA-256 is stored, revocable). Order of work, cheapest first:
+   *  1. format check, switch `calendar.feed_enabled`;
+   *  2. rate limit per link (FEED_RATE_PER_MINUTE, Redis) -> 429;
+   *  3. Redis cache of the built feed per link (60 s): ETag / If-None-Match
+   *     and If-Modified-Since answered from it, no database read at all;
+   *  4. only on a miss: token + user lookup and the 4-5 feed queries.
+   * Last-Modified is the moment this ETag was first served (a deleted event
+   * changes the ETag, so Last-Modified moves forward too; a max(updated_at)
+   * would go backwards and give a wrong 304).
+   */
+  async serve(
+    file: string,
+    ifNoneMatch?: string,
+    ifModifiedSince?: string,
+  ): Promise<FeedAnswer> {
+    const token = file.replace(/\.ics$/, '');
+    if (!/^lbc_[A-Za-z0-9_-]{43}$/.test(token)) return { status: 404 };
+    if (!(await this.cfg.feedEnabled())) return { status: 404 };
+    const hash = hashToken(token);
+    if (await this.overRate(hash)) return { status: 429 };
+    let built = await this.cached(hash);
+    if (!built) {
+      const userId = await this.userForToken(token);
+      if (!userId) return { status: 404 };
+      const b = await this.build(userId);
+      built = {
+        ...b,
+        lastModified: await this.firstSeen(userId, b.etag, b.lastModified),
+      };
+      await this.redis
+        ?.set(
+          feedKey(hash),
+          JSON.stringify({ ...built, lastModified: built.lastModified }),
+          'EX',
+          FEED_CACHE_SECONDS,
+        )
+        .catch(() => undefined);
+    }
+    const notModified = ifNoneMatch
+      ? ifNoneMatch
+          .split(',')
+          .map((t) => t.trim().replace(/^W\//, ''))
+          .includes(built.etag)
+      : !!ifModifiedSince &&
+        Date.parse(ifModifiedSince) >=
+          Math.floor(built.lastModified.getTime() / 1000) * 1000;
+    if (notModified) {
+      return {
+        status: 304,
+        etag: built.etag,
+        lastModified: built.lastModified,
+      };
+    }
+    return { status: 200, ...built };
+  }
+
+  private async overRate(hash: string): Promise<boolean> {
+    if (!this.redis) return false;
+    try {
+      const key = rateKey(hash, Math.floor(Date.now() / MIN_MS));
+      const n = await this.redis.incr(key);
+      if (n === 1) await this.redis.expire(key, 120);
+      return n > FEED_RATE_PER_MINUTE;
+    } catch {
+      return false; // Redis trouble never locks a calendar out
+    }
+  }
+
+  private async cached(hash: string): Promise<BuiltFeed | null> {
+    try {
+      const raw = await this.redis?.get(feedKey(hash));
+      if (!raw) return null;
+      const v = JSON.parse(raw) as {
+        body: string;
+        etag: string;
+        lastModified: string;
+      };
+      return {
+        body: v.body,
+        etag: v.etag,
+        lastModified: new Date(v.lastModified),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async firstSeen(
+    userId: string,
+    etag: string,
+    fallback: Date,
+  ): Promise<Date> {
+    if (!this.redis) return fallback;
+    try {
+      const raw = await this.redis.get(lmKey(userId));
+      const prev = raw
+        ? (JSON.parse(raw) as { etag: string; at: string })
+        : null;
+      if (prev?.etag === etag) return new Date(prev.at);
+      const at = new Date();
+      await this.redis.set(
+        lmKey(userId),
+        JSON.stringify({ etag, at: at.toISOString() }),
+        'EX',
+        FEED_LM_SECONDS,
+      );
+      return at;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /** A revoked / replaced link stops at once, not after the cache TTL. */
+  private async dropCached(userId: string): Promise<void> {
+    if (!this.redis) return;
+    const row = await this.prisma.calendarFeedToken.findUnique({
+      where: { user_id: userId },
+      select: { token_hash: true },
+    });
+    if (row) await this.redis.del(feedKey(row.token_hash)).catch(() => 0);
+  }
 
   // --- the secret link --------------------------------------------------------
 
@@ -92,6 +242,7 @@ export class IcsFeedService {
         message: 'The calendar link is switched off.',
       });
     }
+    await this.dropCached(userId);
     const token = `lbc_${randomBytes(32).toString('base64url')}`;
     const now = new Date();
     await this.prisma.calendarFeedToken.upsert({
@@ -117,6 +268,7 @@ export class IcsFeedService {
   }
 
   async revoke(userId: string): Promise<void> {
+    await this.dropCached(userId);
     await this.prisma.calendarFeedToken.deleteMany({
       where: { user_id: userId },
     });

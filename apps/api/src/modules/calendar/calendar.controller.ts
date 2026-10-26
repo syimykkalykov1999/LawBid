@@ -49,7 +49,7 @@ import {
   UpdateCalendarConnectionDto,
 } from './calendar.dto';
 import { buildIcs } from './ics-builder';
-import { IcsFeedService } from './ics-feed.service';
+import { FEED_CACHE_SECONDS, IcsFeedService } from './ics-feed.service';
 
 const E = ErrorCode;
 const esc = (s: string): string =>
@@ -122,8 +122,9 @@ export class CalendarController {
 
   /**
    * The feed itself, fetched by the calendar app with no login: the secret
-   * in the URL is the key. Unknown / revoked → 404. ETag + 304 so a poll of
-   * an unchanged calendar costs the database reads but sends no body.
+   * in the URL is the key. Unknown / revoked → 404. Served from a 60 s Redis
+   * cache with ETag / Last-Modified (304 without a database read) and a per
+   * link rate limit (429); see IcsFeedService.serve (perf review R-38).
    */
   @Public()
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
@@ -136,24 +137,35 @@ export class CalendarController {
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
-    const userId = await this.feed.userForToken(file.replace(/\.ics$/, ''));
+    const inm = req.headers['if-none-match'];
+    const ims = req.headers['if-modified-since'];
+    const a = await this.feed.serve(
+      file,
+      typeof inm === 'string' ? inm : undefined,
+      typeof ims === 'string' ? ims : undefined,
+    );
     res.set({
       'Referrer-Policy': 'no-referrer',
       'X-Robots-Tag': 'noindex, nofollow',
     });
-    if (!userId) {
+    if (a.status === 404) {
       res.status(404).type('text/plain').send('Not found');
       return;
     }
-    const built = await this.feed.build(userId);
+    if (a.status === 429) {
+      res
+        .status(429)
+        .set('Retry-After', '60')
+        .type('text/plain')
+        .send('Too many requests');
+      return;
+    }
     res.set({
-      'Cache-Control': 'private, max-age=300, must-revalidate',
-      ETag: built.etag,
-      ...(built.lastModified.getTime() > 0
-        ? { 'Last-Modified': built.lastModified.toUTCString() }
-        : {}),
+      'Cache-Control': `private, max-age=${FEED_CACHE_SECONDS}, must-revalidate`,
+      ETag: a.etag,
+      'Last-Modified': a.lastModified.toUTCString(),
     });
-    if (req.headers['if-none-match'] === built.etag) {
+    if (a.status === 304) {
       res.status(304).end();
       return;
     }
@@ -161,7 +173,7 @@ export class CalendarController {
       .status(200)
       .type('text/calendar; charset=utf-8')
       .set('Content-Disposition', 'inline; filename="lawbid.ics"')
-      .send(built.body);
+      .send(a.body);
   }
 
   /** One event, from a link we signed (consultation / deadline result). */
