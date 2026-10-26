@@ -1,7 +1,7 @@
 ---
 id: google-play-data-safety
 title: Анкета Data safety в Google Play
-category: stores
+category: launch
 cost: бесплатно
 time: 30-60 минут; проверка Google до 7 дней
 verified: 2026-10-25
