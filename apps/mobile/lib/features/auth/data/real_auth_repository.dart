@@ -291,6 +291,17 @@ class RealAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<ReauthResult> reauthDemo() async {
+    try {
+      return ReauthResult.success(reauthToken: await _client.reauthDemo());
+    } on ApiException catch (e) {
+      return e.code == ApiErrorCodes.forbidden
+          ? const ReauthResult.invalid()
+          : const ReauthResult.networkError();
+    }
+  }
+
+  @override
   Future<AccountDeletionResult> deleteAccount({
     required String reauthToken,
   }) async {

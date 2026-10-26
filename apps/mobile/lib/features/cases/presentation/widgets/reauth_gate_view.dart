@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
+import 'package:lawbid/features/demo/application/demo_providers.dart';
 
 /// Re-authentication gate (docs/04 §12, docs/06 §5.2): a code to the
 /// verified phone → `POST /auth/reauth`; the resulting token lives in
@@ -29,6 +30,8 @@ class ReauthGateView extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = ref.read(historyAccessProvider.notifier);
     final phone = c.phone;
+    // Owner 2026-10-08: no code can reach a demo session — one tap instead.
+    final demo = ref.watch(isDemoSessionProvider);
     final error = switch (access.error) {
       'invalid' => t.t('history.reauth.invalid'),
       'rateLimited' => t.t('history.reauth.rateLimited'),
@@ -65,15 +68,32 @@ class ReauthGateView extends ConsumerWidget {
         AppEntrance(
           index: 2,
           child: Text(
-            phone == null
-                ? t.t('history.reauth.noPhone')
-                : t.t('history.reauth.message', {'phone': phone}),
+            demo
+                ? t.t('demo.reauth.message')
+                : phone == null
+                    ? t.t('history.reauth.noPhone')
+                    : t.t('history.reauth.message', {'phone': phone}),
             textAlign: TextAlign.center,
             style: typography.body.copyWith(color: colors.textSecondary),
           ),
         ),
         const SizedBox(height: AppSpacing.xl),
-        if (access.codeSent)
+        if (demo) ...[
+          if (error != null) ...[
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: typography.bodySmall.copyWith(color: colors.dangerText),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+          ],
+          AppButton(
+            key: const ValueKey('reauth-demo-continue'),
+            label: t.t('demo.reauth.continue'),
+            isLoading: access.busy,
+            onPressed: c.continueDemo,
+          ),
+        ] else if (access.codeSent)
           AppOtpField(
             semanticLabel: t.t('history.reauth.code'),
             errorText: error,
@@ -85,14 +105,14 @@ class ReauthGateView extends ConsumerWidget {
             textAlign: TextAlign.center,
             style: typography.bodySmall.copyWith(color: colors.dangerText),
           ),
-        const SizedBox(height: AppSpacing.xl),
-        if (!access.codeSent && phone != null)
+        if (!demo) const SizedBox(height: AppSpacing.xl),
+        if (!demo && !access.codeSent && phone != null)
           AppButton(
             label: t.t('history.reauth.send'),
             isLoading: access.busy,
             onPressed: c.sendCode,
           ),
-        if (access.codeSent)
+        if (!demo && access.codeSent)
           AppButton(
             label: t.t('history.reauth.resend'),
             variant: AppButtonVariant.secondary,
