@@ -231,6 +231,18 @@ variable "pgbouncer_max_tasks" {
   type    = number
   default = 4
 }
+# Security pass 2026-10-25 (S3-7, runbook docs/runbooks/DB_POOLER.md section
+# "Verified TLS"): both keep today's behaviour until the owner flips them.
+variable "pgbouncer_db_tls_mode" {
+  type        = string
+  default     = "require"
+  description = "require | verify-full (RDS CA bundle baked into the pgbouncer image; rebuild the image first)."
+}
+variable "pgbouncer_client_tls_private_ca" {
+  type        = bool
+  default     = false
+  description = "true: private CA + certificate for the pooler, verified by the api / worker."
+}
 variable "clamav_image" {
   type    = string
   default = "clamav/clamav:1.4"

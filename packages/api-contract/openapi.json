@@ -69541,6 +69541,354 @@
         ]
       }
     },
+    "/admin/system-health/search-index": {
+      "get": {
+        "operationId": "searchIndexStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Search index generations, aliases, counts and reindex progress",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/search-index/start": {
+      "post": {
+        "operationId": "start",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSearchReindexDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Start a zero-downtime reindex (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/search-index/swap": {
+      "post": {
+        "operationId": "swap",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verify, then swap the read alias; later the write alias (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/search-index/rollback": {
+      "post": {
+        "operationId": "rollback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Cancel the build or go back to the old index (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/launch": {
       "get": {
         "operationId": "launchReport",
@@ -150765,6 +151113,276 @@
           },
           "autoScaleDownOnBudget": {
             "type": "boolean"
+          }
+        }
+      },
+      "SearchIndexVerifyDto": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "enum": [
+              "person",
+              "case",
+              "post",
+              "question",
+              "tag"
+            ]
+          },
+          "live": {
+            "type": "number"
+          },
+          "next": {
+            "type": "number"
+          },
+          "sampled": {
+            "type": "number"
+          },
+          "mismatched": {
+            "type": "number"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "live",
+          "next",
+          "sampled",
+          "mismatched",
+          "ok"
+        ]
+      },
+      "SearchIndexGenerationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "number"
+          },
+          "docs": {
+            "type": "number"
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "read+write",
+              "building",
+              "rollback",
+              "idle"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "generation",
+          "docs",
+          "sizeBytes",
+          "role"
+        ]
+      },
+      "SearchIndexEntityDto": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "enum": [
+              "person",
+              "case",
+              "post",
+              "question",
+              "tag"
+            ]
+          },
+          "readTarget": {
+            "type": "string",
+            "nullable": true
+          },
+          "writeTarget": {
+            "type": "string",
+            "nullable": true
+          },
+          "mappingOutdated": {
+            "type": "boolean",
+            "description": "The live mapping is older than the code."
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchIndexGenerationDto"
+            }
+          }
+        },
+        "required": [
+          "entity",
+          "readTarget",
+          "writeTarget",
+          "mappingOutdated",
+          "indexes"
+        ]
+      },
+      "SearchIndexStatusDto": {
+        "type": "object",
+        "properties": {
+          "engineConfigured": {
+            "type": "boolean"
+          },
+          "mappingVersion": {
+            "type": "number",
+            "description": "Mapping revision in the code."
+          },
+          "phase": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "building",
+              "built",
+              "read_swapped",
+              "write_swapped",
+              "completed",
+              "rolled_back",
+              "cancelled"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "postgres",
+              "engine"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "progressEntity": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "person",
+              "case",
+              "post",
+              "question",
+              "tag"
+            ]
+          },
+          "progressIndexed": {
+            "type": "number",
+            "description": "Documents written to the new index so far."
+          },
+          "progressTotal": {
+            "type": "number",
+            "description": "Native copy: documents to copy (0 unknown)."
+          },
+          "progressDone": {
+            "type": "number",
+            "description": "Native copy: documents copied so far."
+          },
+          "verifyOk": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "verifiedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "verify": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchIndexVerifyDto"
+            }
+          },
+          "retainUntil": {
+            "type": "string",
+            "nullable": true
+          },
+          "nextSwap": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "read",
+              "write"
+            ],
+            "description": "What the Swap button does now."
+          },
+          "canStart": {
+            "type": "boolean"
+          },
+          "canSwap": {
+            "type": "boolean"
+          },
+          "canRollback": {
+            "type": "boolean"
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchIndexEntityDto"
+            }
+          }
+        },
+        "required": [
+          "engineConfigured",
+          "mappingVersion",
+          "phase",
+          "source",
+          "startedAt",
+          "error",
+          "progressEntity",
+          "progressIndexed",
+          "progressTotal",
+          "progressDone",
+          "verifyOk",
+          "verifiedAt",
+          "verify",
+          "retainUntil",
+          "nextSwap",
+          "canStart",
+          "canSwap",
+          "canRollback",
+          "entities"
+        ]
+      },
+      "SearchIndexStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SearchIndexStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StartSearchReindexDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "enum": [
+              "postgres",
+              "engine"
+            ],
+            "type": "string",
+            "description": "postgres (default): rebuild documents from the database. engine: copy inside the engine with the native _reindex task (documents keep their shape)."
           }
         }
       },

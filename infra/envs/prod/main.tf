@@ -6,6 +6,7 @@ terraform {
   required_providers {
     aws    = { source = "hashicorp/aws", version = "~> 5.60" }
     random = { source = "hashicorp/random", version = "~> 3.6" }
+    tls    = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
 
@@ -59,6 +60,8 @@ module "stack" {
   db_pooler_enabled               = var.db_pooler_enabled
   pgbouncer_image                 = var.pgbouncer_image
   pgbouncer_max_tasks             = var.pgbouncer_max_tasks
+  pgbouncer_db_tls_mode           = var.pgbouncer_db_tls_mode
+  pgbouncer_client_tls_private_ca = var.pgbouncer_client_tls_private_ca
   fcm_project_id                  = var.fcm_project_id
   fcm_client_email                = var.fcm_client_email
   google_client_ids               = var.google_client_ids

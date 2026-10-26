@@ -1,7 +1,7 @@
 ---
 id: aws-organizations
 title: AWS Organizations (делать позже)
-category: aws
+category: launch
 cost: Бесплатно (платите только за ресурсы в аккаунтах)
 time: 30 минут
 verified: 2026-10-25

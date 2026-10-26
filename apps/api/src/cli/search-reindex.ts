@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { unwrapKmsWrappedKeys } from '../common/secrets/kms-env';
+import { assertNoRecreate } from './search-reindex-guard';
 import { AppModule } from '../app.module';
 import { SearchIndexerService } from '../modules/search/search-indexer.service';
 import { OpenSearchClient } from '../modules/search/engine/opensearch.client';
@@ -15,7 +16,7 @@ import {
 //   --entity    only person | case | post | question | tag
 //   --batch     rows per round trip (default 500)
 //   --restart   forget the checkpoint, walk everything again
-//   --recreate  drop the index first (empty until filled: use in shadow mode)
+//   --recreate  REFUSED (would drop the live index): use search-alias.js
 //   --sync      also delete documents of rows that are no longer searchable
 // Run it AFTER setting `search.engine` to shadow (so changes made while it
 // runs are captured by the outbox), though the API's own indexer job does
@@ -27,6 +28,7 @@ function arg(name: string): string | undefined {
 const flag = (name: string) => process.argv.includes(`--${name}`);
 
 async function run(): Promise<void> {
+  assertNoRecreate(process.argv);
   await unwrapKmsWrappedKeys();
   const entityArg = arg('entity');
   if (entityArg && !isSearchEntity(entityArg)) {
@@ -45,12 +47,7 @@ async function run(): Promise<void> {
       );
     }
     const indexer = app.get(SearchIndexerService);
-    if (flag('recreate')) {
-      for (const e of entity ? [entity] : SEARCH_ENTITIES) {
-        await client.dropIndex(e);
-      }
-      await indexer.resetReindex(entity);
-    } else if (flag('restart')) {
+    if (flag('restart')) {
       await indexer.resetReindex(entity);
     }
     let last = -1;

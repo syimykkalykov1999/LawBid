@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { withPoolerRouting } from './pooler-url';
 import { withPoolDefaults } from './prisma.service';
 
@@ -33,6 +34,33 @@ describe('withPoolerRouting', () => {
     expect(u.searchParams.get('sslmode')).toBe('require');
     expect(u.searchParams.get('sslaccept')).toBe('accept_invalid_certs');
     expect(u.port).toBe('5432');
+  });
+
+  it('with the private CA pins it: strict verification and the CA file (S3-7)', () => {
+    const pem =
+      '-----BEGIN CERTIFICATE-----\nMIIBtest\n-----END CERTIFICATE-----';
+    const u = new URL(
+      withPoolerRouting(DIRECT, {
+        DB_POOLER_HOST: 'pgbouncer.lawbid-prod.internal',
+        DB_POOLER_CA_PEM: pem,
+      })!,
+    );
+    expect(u.searchParams.get('sslmode')).toBe('require');
+    expect(u.searchParams.get('sslaccept')).toBe('strict');
+    const file = u.searchParams.get('sslcert')!;
+    expect(file).toMatch(/lawbid-pooler-ca-[0-9a-f]{12}\.pem$/);
+    expect(readFileSync(file, 'utf8')).toContain('BEGIN CERTIFICATE');
+  });
+
+  it('ignores a CA value that is not a certificate', () => {
+    const u = new URL(
+      withPoolerRouting(DIRECT, {
+        DB_POOLER_HOST: 'pgb',
+        DB_POOLER_CA_PEM: 'garbage',
+      })!,
+    );
+    expect(u.searchParams.get('sslaccept')).toBe('accept_invalid_certs');
+    expect(u.searchParams.get('sslcert')).toBeNull();
   });
 
   it('adds DB_POOLER_QUERY (e.g. pgbouncer=true) and still gets pool defaults', () => {
