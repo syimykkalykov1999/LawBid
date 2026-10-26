@@ -335,6 +335,10 @@ enum CaseJournalEvent {
   signature_completed
   signature_declined
   invoice_issued
+  invoice_sent
+  invoice_voided
+  signature_viewed
+  signature_expired
 
   @@map("case_journal_event")
 }
@@ -3824,6 +3828,11 @@ model CaseComment {
   like_count        Int           @default(0)
   reply_count       Int           @default(0)
   deleted_at        DateTime?     @db.Timestamptz
+  // Owner 2026-10-25: edited within the admin's time window; every earlier
+  // text is kept for legal audit (server only): [{body, editedAt, editedBy}].
+  edited_at         DateTime?     @db.Timestamptz
+  edit_count        Int           @default(0)
+  edit_history      Json          @default("[]")
   created_at        DateTime      @default(now()) @db.Timestamptz
   updated_at        DateTime      @updatedAt @db.Timestamptz
 
@@ -5849,12 +5858,15 @@ model PaymentRequest {
   canceled_at          DateTime? @db.Timestamptz
   last_reminded_at     DateTime? @db.Timestamptz
   reminders_sent       Int       @default(0)
+  // Owner 2026-10-25: the case invoice this request is the pay link of.
+  invoice_id           String?   @db.Uuid
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @updatedAt @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@index([invoice_id])
   @@index([case_id, created_at(sort: Desc)])
   @@index([client_id, status, due_at])
   @@index([attorney_id, created_at(sort: Desc)])
@@ -6813,6 +6825,18 @@ model CaseExpense {
 /// An invoice document for the client (no payment — owner 2026-10-20:
 /// client → attorney payments are off): the time and expenses it carries
 /// are frozen in `lines`, the PDF is a case file.
+enum CaseInvoiceStatus {
+  draft
+  sent
+  viewed
+  paid
+  partially_paid
+  overdue
+  void
+
+  @@map("case_invoice_status")
+}
+
 model CaseInvoice {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   case_id        String   @db.Uuid
@@ -6831,10 +6855,25 @@ model CaseInvoice {
   lines          Json
   file_id        String   @db.Uuid
   created_at     DateTime @default(now()) @db.Timestamptz
+  // Owner 2026-10-25: life of the invoice (Clio / MyCase / LawPay style).
+  status             CaseInvoiceStatus @default(sent)
+  due_at             DateTime?         @db.Timestamptz
+  sent_at            DateTime?         @db.Timestamptz
+  viewed_at          DateTime?         @db.Timestamptz
+  paid_at            DateTime?         @db.Timestamptz
+  voided_at          DateTime?         @db.Timestamptz
+  /// Paid so far through the case-payments flow (attorney's amount).
+  paid_cents         Int               @default(0)
+  late_fee_cents     Int               @default(0)
+  late_fee_applied_at DateTime?        @db.Timestamptz
+  reminders_enabled  Boolean           @default(true)
+  reminders_sent     Int               @default(0)
+  last_reminded_at   DateTime?         @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
 
+  @@index([status, due_at])
   @@unique([case_id, seq])
   @@index([attorney_id, created_at])
   @@map("case_invoices")
@@ -6866,6 +6905,14 @@ model CaseSignRequest {
   declined_by    String?         @db.Uuid
   decline_reason String?         @db.VarChar(300)
   completed_at   DateTime?       @db.Timestamptz
+  // Owner 2026-10-25: expiry (an expired request is `canceled` with
+  // expired_at set, so no new status reaches the apps), reminders, and the
+  // audit of who opened it: last 50 views [{userId, role, at, ip}].
+  expires_at       DateTime?     @db.Timestamptz
+  expired_at       DateTime?     @db.Timestamptz
+  reminders_sent   Int           @default(0)
+  last_reminded_at DateTime?     @db.Timestamptz
+  view_log         Json          @default("[]")
   created_at     DateTime        @default(now()) @db.Timestamptz
   updated_at     DateTime        @default(now()) @updatedAt @db.Timestamptz
   signatures     CaseSignature[]
@@ -6874,6 +6921,7 @@ model CaseSignRequest {
   shard_id Int @default(0) @db.SmallInt
 
   @@index([case_id, created_at])
+  @@index([status, expires_at])
   @@map("case_sign_requests")
 }
 

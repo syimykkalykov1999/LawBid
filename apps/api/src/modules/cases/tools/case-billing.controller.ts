@@ -27,6 +27,7 @@ import {
   AddTimeDto,
   CaseBillingDto,
   EntryIdParamDto,
+  InvoiceIdParamDto,
   IssueInvoiceDto,
   RunningTimerDto,
   SetRateDto,
@@ -174,5 +175,48 @@ export class CaseBillingController {
     @Body() dto: IssueInvoiceDto,
   ) {
     return this.billing.issueInvoice(u, p.id, dto);
+  }
+
+  @Post('cases/:id/billing/invoices/:invoiceId/send')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Attorney: send a draft invoice (the client sees it now)',
+  })
+  @ApiEnvelopeResponse(CaseBillingDto)
+  @ApiErrors(ERR)
+  sendCaseInvoice(
+    @CurrentUser() u: RequestUser,
+    @Param() p: InvoiceIdParamDto,
+  ) {
+    return this.billing.sendInvoice(u, p.id, p.invoiceId);
+  }
+
+  @Post('cases/:id/billing/invoices/:invoiceId/void')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Attorney: void an unpaid invoice; its time and expenses become billable again',
+  })
+  @ApiEnvelopeResponse(CaseBillingDto)
+  @ApiErrors(ERR)
+  voidCaseInvoice(
+    @CurrentUser() u: RequestUser,
+    @Param() p: InvoiceIdParamDto,
+  ) {
+    return this.billing.voidInvoice(u, p.id, p.invoiceId);
+  }
+
+  @Post('cases/:id/billing/invoices/:invoiceId/remind')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Attorney: remind the client about an unpaid invoice now',
+  })
+  @ApiEnvelopeResponse(CaseBillingDto)
+  @ApiErrors(ERR)
+  remindCaseInvoice(
+    @CurrentUser() u: RequestUser,
+    @Param() p: InvoiceIdParamDto,
+  ) {
+    return this.billing.remindInvoice(u, p.id, p.invoiceId);
   }
 }

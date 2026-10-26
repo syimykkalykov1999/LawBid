@@ -9,6 +9,7 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { reconcileInvoicePayment } from './invoice-reconcile';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -970,7 +971,7 @@ export class CasePaymentsService {
         },
       });
       if (p.request_id) {
-        await tx.paymentRequest.updateMany({
+        const marked = await tx.paymentRequest.updateMany({
           where: { id: p.request_id, status: { in: ['open', 'expired'] } },
           data: {
             status: 'paid',
@@ -981,6 +982,11 @@ export class CasePaymentsService {
             fee_payer_agreed_at: new Date(),
           },
         });
+        // Owner 2026-10-25: a request that is the pay link of a case
+        // invoice moves that invoice (partially paid / paid).
+        if (marked.count > 0) {
+          await reconcileInvoicePayment(tx, p.request_id, p.amount_cents);
+        }
       }
       return p;
     });

@@ -1,3 +1,4 @@
+import { CaseToolsSweepService } from '../modules/cases/tools/case-tools.sweep';
 import { Injectable, Optional } from '@nestjs/common';
 import { CRON_JOBS } from './jobs.constants';
 import { CasePaymentsService } from '../modules/case-payments/case-payments.service';
@@ -146,6 +147,8 @@ export class CronProcessor {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Owner 2026-10-25: `case-tools.sweep`.
+    @Optional() private readonly caseToolsSweep?: CaseToolsSweepService,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -252,6 +255,8 @@ export class CronProcessor {
         return this.casePayments.expire();
       case CRON_JOBS.casePaymentsRemind:
         return this.casePayments.remind();
+      case CRON_JOBS.caseToolsSweep:
+        return this.caseToolsSweep?.run() ?? null;
       case CRON_JOBS.partnersSweep:
         return this.partners.sweep();
       case CRON_JOBS.countryPartnersSweep:

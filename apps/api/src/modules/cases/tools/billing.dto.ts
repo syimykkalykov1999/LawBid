@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -116,16 +117,30 @@ export class IssueInvoiceDto {
   @IsString()
   @MaxLength(INVOICE_NOTE_MAX)
   note?: string;
-}
 
-export class EntryIdParamDto {
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID('all')
-  id!: string;
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'Due date; without it the admin default (days after sending) applies, or none.',
+  })
+  @IsOptional()
+  @IsDateString()
+  dueAt?: string;
 
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID('all')
-  entryId!: string;
+  @ApiPropertyOptional({
+    description:
+      'Keep it a draft: the client sees nothing until it is sent. Default false.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  draft?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Automatic reminders for this invoice (default true).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  remindersEnabled?: boolean;
 }
 
 export class InvoiceIdParamDto {
@@ -136,6 +151,16 @@ export class InvoiceIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   invoiceId!: string;
+}
+
+export class EntryIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  entryId!: string;
 }
 
 export class TimeEntryDto {
@@ -193,6 +218,40 @@ export class InvoiceDto {
   })
   url!: string | null;
   @ApiProperty({ type: String, format: 'uuid' }) fileId!: string;
+  @ApiProperty({
+    enum: [
+      'draft',
+      'sent',
+      'viewed',
+      'paid',
+      'partially_paid',
+      'overdue',
+      'void',
+    ],
+  })
+  status!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  dueAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  sentAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  viewedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  paidAt!: string | null;
+  @ApiProperty({ description: 'Paid so far, cents.' }) paidCents!: number;
+  @ApiProperty({ description: 'Late fee added, cents (0 = none).' })
+  lateFeeCents!: number;
+  @ApiProperty({ description: 'Still owed: total + late fee - paid.' })
+  balanceCents!: number;
+  @ApiProperty() remindersEnabled!: boolean;
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'The open payment request (case-payments flow) that pays this invoice.',
+  })
+  paymentRequestId!: string | null;
 }
 
 export class RunningTimerDto {

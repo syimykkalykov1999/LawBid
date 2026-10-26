@@ -95,6 +95,9 @@ export const CRON_JOBS = {
   casePaymentsExpire: 'case-payments.expire',
   /** Owner 2026-10-05: payment-request reminders (due soon / overdue). */
   casePaymentsRemind: 'case-payments.remind',
+  /** Owner 2026-10-25: invoice overdue / late fee / reminders and signing
+   * request expiry / reminders. */
+  caseToolsSweep: 'case-tools.sweep',
   /** Owner 2026-10-05: partner commissions past their hold → approved,
    * monthly base accrued. */
   partnersSweep: 'partners.sweep',
@@ -217,6 +220,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   // Hourly: each client is reminded in their own morning (09:00–21:00
   // local), so a missed run is caught up the same day.
   { name: CRON_JOBS.casePaymentsRemind, pattern: '0 * * * *' },
+  { name: CRON_JOBS.caseToolsSweep, pattern: '30 * * * *' },
   { name: CRON_JOBS.partnersSweep, pattern: '20 3 * * *' },
   // 04:25 UTC daily: the 1st settles the month just finished.
   { name: CRON_JOBS.countryPartnersSweep, pattern: '25 4 * * *' },

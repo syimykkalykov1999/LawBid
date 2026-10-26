@@ -903,6 +903,37 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   'files.access_log_enabled': true,
 };
 
+/** Owner 2026-10-25: case tools (invoices, signing, case comments). Every
+ * switch is off or neutral by default, so nothing changes until the owner
+ * turns it on in the admin (Config).
+ * - invoice_default_due_days: a new invoice gets this due date (0 = none).
+ * - invoice_reminder_days: reminders to the client this many days before
+ *   the due date (0 = on the day); overdue ones repeat every N days.
+ * - invoice_pay_link: sending an invoice also makes a payment request in
+ *   the existing case-payments flow (needs payments switched on).
+ * - invoice_late_fee_percent: 0 = no late fee; otherwise this percent of
+ *   the invoice is added once, after the grace days (check that the
+ *   engagement letter allows it).
+ * - sign_expiry_days: a signing request expires after N days (0 = never);
+ *   sign_reminder_every_days: remind the unsigned side every N days (0 = off).
+ * - case_comments.edit_window_minutes: the author may edit a comment this
+ *   long after posting (0 = editing off); earlier texts are kept. */
+export const OWNER_CASE_TOOLS_SETTINGS = {
+  'case_tools.invoice_default_due_days': 0,
+  'case_tools.invoice_reminder_days': [3, 0],
+  'case_tools.invoice_overdue_remind_every_days': 7,
+  'case_tools.invoice_max_reminders': 6,
+  'case_tools.invoice_pay_link': false,
+  'case_tools.invoice_late_fee_percent': 0,
+  'case_tools.invoice_late_fee_grace_days': 5,
+  'case_tools.sign_expiry_days': 0,
+  'case_tools.sign_reminder_every_days': 0,
+  'case_tools.sign_max_reminders': 3,
+  'case_tools.sign_resend_cooldown_minutes': 60,
+  'case_comments.edit_window_minutes': 15,
+  'case_comments.edit_max_edits': 5,
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -946,6 +977,7 @@ export const APP_SETTINGS = {
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_CASE_TOOLS_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
