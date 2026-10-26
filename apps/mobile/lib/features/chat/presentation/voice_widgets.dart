@@ -305,7 +305,8 @@ class _MicAvatar extends StatelessWidget {
           initials: avatarInitials((name ?? '').trim().isEmpty ? '?' : name!),
           imageProvider: url == null
               ? null
-              // Kept by the file (cache keyed by path), retried on a fresh link.
+              // Kept by the file (cache keyed by path), retried on a fresh
+              // link.
               : stableNetworkImage(url!, cache: AppImageCaches.chatMedia),
         ),
         PositionedDirectional(
