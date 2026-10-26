@@ -66,6 +66,11 @@ variable "max_node_type" {
   default     = "cache.r7g.large"
   description = "Ceiling for the bill (≈ $320/month with one replica). Above it the owner gets an e-mail and decides."
 }
+variable "initial_ceiling" {
+  type        = string
+  default     = ""
+  description = "Starting value of the money ceiling (SSM max-class): the biggest node type the budget allows on day 1, not above max_node_type. Empty = max_node_type. The app lowers or raises it later from the allowed spend (economy tick); it can never exceed max_node_type."
+}
 variable "mode" {
   type        = string
   default     = "on"
@@ -161,6 +166,10 @@ resource "terraform_data" "check_ladder" {
       condition     = contains(var.ladder, var.min_node_type) && contains(var.ladder, var.max_node_type) && local.min_index <= local.max_index
       error_message = "min_node_type and max_node_type must be in the ladder, min not above max."
     }
+    precondition {
+      condition     = var.initial_ceiling == "" || (contains(var.ladder, var.initial_ceiling) && try(index(var.ladder, var.initial_ceiling), -1) <= local.max_index && try(index(var.ladder, var.initial_ceiling), -1) >= local.min_index)
+      error_message = "initial_ceiling must be in the ladder, between min_node_type and max_node_type."
+    }
   }
 }
 
@@ -169,6 +178,15 @@ resource "aws_ssm_parameter" "mode" {
   type        = "String"
   value       = var.mode
   description = "Redis autoscale switch: on | dry-run | off (docs/runbooks/redis-autoscale.md). Read on every run; changing it here after creation is ignored."
+  tags        = var.tags
+  lifecycle { ignore_changes = [value] }
+}
+
+resource "aws_ssm_parameter" "max_class" {
+  name        = "${local.prefix}/max-class"
+  type        = "String"
+  value       = var.initial_ceiling != "" ? var.initial_ceiling : var.max_node_type
+  description = "Biggest size the money allows right now (cost registry V4). The app writes it from the allowed monthly spend; the Lambda treats it as a ceiling that can only be LOWER than max_node_type, never higher. Changing it here after creation is ignored."
   tags        = var.tags
   lifecycle { ignore_changes = [value] }
 }
@@ -265,7 +283,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "ModeAndState"
     actions   = ["ssm:GetParameter", "ssm:PutParameter"]
-    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn]
+    resources = [aws_ssm_parameter.mode.arn, aws_ssm_parameter.state.arn, aws_ssm_parameter.max_class.arn]
   }
   statement {
     sid       = "Logs"
@@ -305,6 +323,7 @@ resource "aws_lambda_function" "this" {
       TOPIC_ARN        = var.alerts_topic_arn
       STATE_PARAM      = aws_ssm_parameter.state.name
       MODE_PARAM       = aws_ssm_parameter.mode.name
+      MAX_CLASS_PARAM  = aws_ssm_parameter.max_class.name
       CLUSTER          = var.cluster_name
       SERVICES         = join(",", var.service_names)
       NIGHT_TZ         = var.night_timezone
@@ -398,6 +417,7 @@ resource "aws_cloudwatch_metric_alarm" "errors" {
 output "function_name" { value = aws_lambda_function.this.function_name }
 output "mode_parameter" { value = aws_ssm_parameter.mode.name }
 output "state_parameter" { value = aws_ssm_parameter.state.name }
+output "max_class_parameter" { value = aws_ssm_parameter.max_class.name }
 output "monthly_usd" {
   description = "Approximate on-demand price per month of the whole group (primary + replicas), by node type."
   value       = { for s in local.ladder_json : s.name => s.monthly_usd }

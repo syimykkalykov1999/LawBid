@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'dashboard_new_users_dto.dart';
 import 'dashboard_subscriptions_dto.dart';
+import 'dashboard_totals_dto.dart';
 import 'dashboard_verification_dto.dart';
 
 part 'dashboard_dto.g.dart';
@@ -14,6 +15,7 @@ part 'dashboard_dto.g.dart';
 class DashboardDto {
   const DashboardDto({
     required this.newUsers,
+    required this.totals,
     required this.verification,
     required this.subscriptions,
     required this.openCases,
@@ -32,6 +34,7 @@ class DashboardDto {
       _$DashboardDtoFromJson(json);
 
   final DashboardNewUsersDto newUsers;
+  final DashboardTotalsDto totals;
   final DashboardVerificationDto verification;
   final DashboardSubscriptionsDto subscriptions;
   final int openCases;

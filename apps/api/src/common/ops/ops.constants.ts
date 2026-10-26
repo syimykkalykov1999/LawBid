@@ -38,6 +38,8 @@ export const OPS_KEYS = {
   adminSummariesLast: 'ops:admin-summaries:last',
   /** Per cron job `{empty, lastRunAt}`: idle back-off state (S20-6). */
   cronIdle: 'ops:cron-idle:',
+  /** JSON ChatSearchBackfillState (jobs/handlers/chat-search-backfill.job.ts). */
+  chatSearchBackfill: 'ops:chat-search-backfill',
 } as const;
 
 /** An automatic pause lasts this long; the guard renews it while the
@@ -54,6 +56,7 @@ export const HEAVY_CRON_JOBS: readonly string[] = [
   CRON_JOBS.licenseRegistryRecheck,
   CRON_JOBS.opsBusinessMetrics,
   CRON_JOBS.messagesReencrypt,
+  CRON_JOBS.chatSearchBackfill,
   CRON_JOBS.adminSummaries,
 ];
 

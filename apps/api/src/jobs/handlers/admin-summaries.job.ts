@@ -8,6 +8,7 @@ import { OPS_KEYS } from '../../common/ops/ops.constants';
 import { triMode } from '../../common/ops/tri-mode';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { AnalyticsService } from '../../modules/analytics/analytics.service';
 import { BillingOverviewService } from '../../modules/admin-billing/billing-overview.service';
 import { DashboardService } from '../../modules/admin/dashboard.service';
 import {
@@ -34,6 +35,7 @@ export class AdminSummariesJob {
     private readonly billing: BillingOverviewService,
     private readonly trust: AttorneyTrustService,
     private readonly summary: AdminSummaryService,
+    private readonly analytics: AnalyticsService,
     private readonly logger: PinoLogger,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
@@ -78,6 +80,8 @@ export class AdminSummariesJob {
       .catch(() => undefined);
     const steps: [string, () => Promise<void>][] = [
       ['dashboard', () => this.dashboard.refresh()],
+      // Owner 2026-10-25: the heavy analytics SQL runs once a day (04 UTC).
+      ['analytics', () => this.analytics.refreshSnapshots()],
       ['billing-overview', () => this.billing.refreshOverview()],
       [
         'trust-scan',
