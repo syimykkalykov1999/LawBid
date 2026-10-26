@@ -1,0 +1,95 @@
+# S11-6 + S11-8: two small scheduled jobs that keep the pipeline honest.
+#  * weekly heartbeat: "the last green production deploy was <date>" is sent
+#    to the owner's channels even when nothing is wrong, so silence means
+#    "the alerting itself broke" (and an error when no deploy went green in
+#    14 days while main moved).
+#  * daily: cancel Deploy runs that have waited for the production approval
+#    longer than 12 hours (a stale release must not sit in front of the next
+#    one; GitHub has no timeout for a pending environment approval).
+name: CI housekeeping
+
+on:
+  schedule:
+    - cron: "11 15 * * 1" # Monday heartbeat
+    - cron: "41 6 * * *" # daily stale-approval sweep
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  contents: read
+  deployments: read
+
+jobs:
+  heartbeat:
+    name: Last green deploy
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && (github.event_name == 'workflow_dispatch' || github.event.schedule == '11 15 * * 1') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      stale: ${{ steps.last.outputs.stale }}
+      summary: ${{ steps.last.outputs.summary }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: DORA four keys (scripts/ops/dora.mjs, from GitHub deployments)
+        continue-on-error: true
+        run: node scripts/ops/dora.mjs --days=30
+      - id: last
+        run: |
+          set -eu
+          LAST=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy.yml --branch main --status success --limit 1 \
+                 --json updatedAt,headSha --jq '.[0] | "\(.updatedAt) \(.headSha[0:9])"' || true)
+          if [ -z "$LAST" ] || [ "$LAST" = "null null" ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"; echo "summary=no green production deploy on record" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          WHEN="${LAST%% *}"
+          AGE_D=$(( ( $(date +%s) - $(date -d "$WHEN" +%s) ) / 86400 ))
+          # Pushes to main since then that touch deployable paths?
+          MOVED=$(gh api "repos/$GITHUB_REPOSITORY/commits?sha=main&since=$WHEN&per_page=1" --jq 'length')
+          echo "summary=last green production deploy: $LAST (${AGE_D} days ago)" >> "$GITHUB_OUTPUT"
+          if [ "$AGE_D" -gt 14 ] && [ "$MOVED" != "0" ]; then echo "stale=true" >> "$GITHUB_OUTPUT"; else echo "stale=false" >> "$GITHUB_OUTPUT"; fi
+          echo "last green deploy: $LAST"
+
+  heartbeat-ok:
+    needs: [heartbeat]
+    if: ${{ needs.heartbeat.result == 'success' && needs.heartbeat.outputs.stale != 'true' }}
+    permissions: { contents: read, issues: write, id-token: write }
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Weekly heartbeat. The alerting works; the last green deploy is in the run summary"
+      kind: heartbeat
+      severity: info
+    secrets: inherit
+
+  heartbeat-stale:
+    needs: [heartbeat]
+    if: ${{ needs.heartbeat.result == 'success' && needs.heartbeat.outputs.stale == 'true' }}
+    permissions: { contents: read, issues: write, id-token: write }
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "No green production deploy for more than 14 days while main moved"
+      kind: heartbeat
+    secrets: inherit
+
+  stale-approvals:
+    name: Cancel stale waiting deploys
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.schedule == '41 6 * * *' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MAX_HOURS: "12"
+    steps:
+      - name: Cancel Deploy runs waiting for approval too long
+        run: |
+          set -eu
+          NOW=$(date +%s)
+          gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy.yml --status waiting --limit 50 \
+            --json databaseId,createdAt --jq '.[] | "\(.databaseId) \(.createdAt)"' | while read -r ID AT; do
+            AGE_H=$(( ( NOW - $(date -d "$AT" +%s) ) / 3600 ))
+            if [ "$AGE_H" -ge "$MAX_HOURS" ]; then
+              echo "cancelling run $ID (waiting ${AGE_H} h)"
+              gh run cancel "$ID" --repo "$GITHUB_REPOSITORY" || true
+            fi
+          done

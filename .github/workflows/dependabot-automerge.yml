@@ -1,0 +1,53 @@
+# S11-11: Dependabot minor/patch updates merge themselves once CI is green, through
+# the merge queue. A major version is never touched here: it stays open for a human
+# (the owner or an agent) to read the changelog.
+#
+# Safe by construction:
+#  * runs on `pull_request` (the token of a Dependabot PR is read-only and has no
+#    secrets, so a hostile dependency cannot reach anything; it only turns on
+#    auto-merge via the app token, see permissions),
+#  * does nothing unless the author is dependabot[bot],
+#  * a grouped PR (title "bump the <group> group ...") carries only minor+patch by
+#    the config in .github/dependabot.yml; a single bump is merged only when the
+#    first version component does not change,
+#  * `gh pr merge --auto` waits for the REQUIRED checks of the ruleset and then the
+#    merge queue; without a ruleset it merges when there is nothing to wait for, so
+#    OWNER STEP: create the ruleset (docs/runbooks/DEPLOY_SAFETY.md "Ruleset main")
+#    and enable Settings -> General -> Allow auto-merge BEFORE turning this on.
+# Switch: repository variable DEPENDABOT_AUTOMERGE = 'true' (default off).
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    name: Auto-merge minor and patch
+    if: ${{ github.actor == 'dependabot[bot]' && vars.DEPENDABOT_AUTOMERGE == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Decide
+        id: d
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -eu
+          echo "title: $TITLE"
+          if echo "$TITLE" | grep -Eq '^(chore|build)(\(.*\))?: bump the .+ group'; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          FROM=$(echo "$TITLE" | sed -nE 's/.* from v?([0-9]+)[.0-9a-zA-Z-]* to v?([0-9]+).*/\1/p')
+          TO=$(echo "$TITLE" | sed -nE 's/.* from v?([0-9]+)[.0-9a-zA-Z-]* to v?([0-9]+).*/\2/p')
+          if [ -n "$FROM" ] && [ "$FROM" = "$TO" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; echo "major / unknown bump: left for a human"; fi
+      - name: Turn on auto-merge (squash, after the required checks and the queue)
+        if: steps.d.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR"

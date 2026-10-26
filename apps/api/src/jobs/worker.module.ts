@@ -14,6 +14,7 @@ import { AppSettingsModule } from '../common/app-settings/app-settings.module';
 import { EconomyModule } from '../common/economy/economy.module';
 import { CostGuardModule } from '../common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs.module';
+import { EventsModule } from '../modules/events/events.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { FilesWorkerModule } from '../modules/files/files-worker.module';
 import { CaseHistoryModule } from '../modules/case-history/case-history.module';
@@ -59,6 +60,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     AdminSummaryModule,
     // Owner 2026-10-05: ops guard (DB probe, budget, backups) + heartbeat.
     OpsModule,
+    // N-2: domain-event bus (events.maintain).
+    EventsModule,
     // LicenseExpiryJob: typed app_config reads + the notifications seam.
     AppSettingsModule,
     // Global paid-provider caps: FilesService (calls, client reviews in

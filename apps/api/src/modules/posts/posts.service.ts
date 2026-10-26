@@ -1,6 +1,8 @@
 import { AttorneyAdsService } from '../attorney-ads/attorney-ads.service';
 import { onlyDeleted } from '../../prisma/soft-delete.extension';
 import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
+
+import { DomainEvents } from '../events/domain-events.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   BadRequestException,
@@ -132,6 +134,8 @@ export class PostsService {
     @Optional() private readonly flags?: FeatureFlagsService,
     // Owner 2026-10-28: attorney ad-text checker + archive (off by default).
     @Optional() private readonly ads?: AttorneyAdsService,
+    // N-2: the domain-event bus.
+    @Optional() private readonly events?: DomainEvents,
   ) {}
 
   /** Owner 2026-10-06: News is switched off for now (flag `news_posts`,
@@ -394,6 +398,11 @@ export class PostsService {
       post._count.media === 0 &&
       post._count.attachments === 0;
     alerts?.later(() => alerts.followersOfPost(post.author_id, post.id, brief));
+    await this.events?.record(
+      'post.published',
+      { postId: post.id, authorId: post.author_id },
+      { actorId: post.author_id, key: `post.published:${post.id}` },
+    );
   }
 
   /** Owner 2026-10-01: the reel's video could not be used. */

@@ -238,6 +238,13 @@ abstract interface class CasesSyncRepository {
     WorkFilter filter,
     DateTime since,
   );
+
+  /// Owner 2026-10-22 (delta audit D-P4): the bids of one case changed
+  /// since [since].
+  Future<SyncedPage<CaseBid>> caseBidsChangedSince(
+    String caseId,
+    DateTime since,
+  );
 }
 
 class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
@@ -704,6 +711,21 @@ class ApiCasesRepository implements CasesRepository, CasesSyncRepository {
     );
     return SyncedPage(
       items: env.data.map(CasesMappers.myBid).toList(growable: false),
+      deletedIds: env.meta?.deletedIds ?? const [],
+      syncedAt: env.meta?.syncedAt,
+    );
+  }
+
+  @override
+  Future<SyncedPage<CaseBid>> caseBidsChangedSince(
+    String caseId,
+    DateTime since,
+  ) async {
+    final env = await guardApiCall(
+      () => _cases.listCaseBids(id: caseId, updatedSince: since.toUtc()),
+    );
+    return SyncedPage(
+      items: env.data.map(CasesMappers.listedBid).toList(growable: false),
       deletedIds: env.meta?.deletedIds ?? const [],
       syncedAt: env.meta?.syncedAt,
     );
