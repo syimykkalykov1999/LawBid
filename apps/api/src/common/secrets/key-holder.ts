@@ -20,6 +20,8 @@ export const KEY_ENV_VARS = [
   'SECRETS_MASTER_KEYS',
   'JWT_KEYS',
   'ADMIN_TOTP_ENC_KEY',
+  // BUG-1 (package N-12b): HMAC key of the chat search blind index.
+  'SEARCH_INDEX_KEY',
 ] as const;
 
 export type KeyEnvVar = (typeof KEY_ENV_VARS)[number];

@@ -76,6 +76,8 @@ import {
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { fileNameAad } from '../../common/secrets/field-aad';
+import { MessageSearchIndex } from '../../common/secrets/message-search-index';
+import { writeSearchTokens } from './chat-search-tokens';
 import { loadMessageExtras, type MessageExtras } from './chat-message-extras';
 import { expiresAtFor, notExpired } from './disappearing';
 import { touchClientActive } from '../cases/cases.public';
@@ -187,6 +189,8 @@ export class ChatService {
     @Optional() private readonly postCards?: SharedPostCardsService,
     // S1-3: the "effects still owed" list (see [markEffectsPending]).
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // BUG-1 (package N-12b): blind word index of the sealed texts.
+    @Optional() private readonly searchIndex?: MessageSearchIndex,
   ) {}
 
   /**
@@ -375,6 +379,37 @@ export class ChatService {
   }
 
   /**
+   * BUG-1 (package N-12b): which messages of chat `c` hold every typed word.
+   * Sealed bodies (MESSAGE_ENC_KEYS) are matched through the blind index
+   * `message_search_tokens` — per word one of its tokens must be there
+   * (intersection: COUNT(DISTINCT word) = words), read by the primary key
+   * (conversation_id, token, …). Without the key nothing in a sealed body
+   * can match (FALSE; names and titles still do). Plain bodies (local dev)
+   * keep the LIKE.
+   */
+  private async messageTextMatch(
+    q: string,
+    words: string[],
+  ): Promise<Prisma.Sql> {
+    if (!this.searchIndex?.sealed && !this.cipher?.enabled) {
+      return allWordsSql(Prisma.sql`m.body_display`, words);
+    }
+    if (!this.searchIndex?.enabled) return Prisma.sql`FALSE`;
+    const t = this.searchIndex.queryTokens(
+      q,
+      await this.searchIndex.prefixMode(),
+    );
+    if (t.words === 0) return Prisma.sql`FALSE`;
+    return Prisma.sql`m.id IN (
+            SELECT st.message_id FROM message_search_tokens st
+            JOIN unnest(${t.hex}::TEXT[], ${t.word}::INT[]) AS qt(h, w)
+              ON st.token = decode(qt.h, 'hex')
+            WHERE st.conversation_id = c.id
+            GROUP BY st.message_id
+            HAVING COUNT(DISTINCT qt.w) = ${t.words})`;
+  }
+
+  /**
    * Owner 2026-10-18: chat search. The chats of [me] where the OTHER person's
    * name (any alphabet / typo / word order) or @username, the case title, or
    * a (not deleted) message contains the typed words. Id → snippet of the
@@ -389,6 +424,7 @@ export class ChatService {
     const words = typedWords(q);
     if (!words.length) return new Map();
     const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+    const textMatch = await this.messageTextMatch(q, words);
     const rows = await this.prisma.$queryRaw<
       {
         id: string;
@@ -415,7 +451,7 @@ export class ChatService {
         WHERE m.conversation_id = c.id
           AND m.deleted_at IS NULL
           AND m.type IN ('text', 'attachment')
-          AND ${allWordsSql(Prisma.sql`m.body_display`, words)}
+          AND ${textMatch}
         ORDER BY m.created_at DESC LIMIT 1) msg ON TRUE
       WHERE (c.client_id = ${me}::UUID OR c.attorney_id = ${me}::UUID)
         AND c.last_message_at IS NOT NULL) t
@@ -1151,116 +1187,142 @@ export class ChatService {
       opts.silent === true,
       requestFirst,
     );
+    // BUG-1 (package N-12b): read before the transaction (a settings read).
+    const searchPrefixes = this.searchIndex?.enabled
+      ? await this.searchIndex.prefixMode()
+      : false;
     let message: Message;
     try {
-      message = await withTxRetry(this.prisma, async (tx) => {
-        // Serializes with the file-04 transactions that close the chat or
-        // unlock contacts.
-        const [locked] = await tx.$queryRaw<
-          {
-            status: string;
-            contacts_unlocked: boolean;
-            disappear_after_s: number | null;
-          }[]
-        >`SELECT status, contacts_unlocked, disappear_after_s FROM conversations
+      message = await withTxRetry(
+        this.prisma,
+        async (tx) => {
+          // Serializes with the file-04 transactions that close the chat or
+          // unlock contacts.
+          const [locked] = await tx.$queryRaw<
+            {
+              status: string;
+              contacts_unlocked: boolean;
+              disappear_after_s: number | null;
+            }[]
+          >`SELECT status, contacts_unlocked, disappear_after_s FROM conversations
             WHERE id = ${id}::UUID FOR UPDATE`;
-        if (!locked || locked.status === 'closed') throw closed();
-        if (attachment && !locked.contacts_unlocked) {
-          throw new ForbiddenException({
-            code: ErrorCode.CHAT_ATTACHMENTS_LOCKED,
-            message: 'Files can be sent once the bid is accepted.',
-          });
-        }
-        const masked =
-          voice || contact || post || locked.contacts_unlocked
-            ? { text: body, masked: false }
-            : maskContactInfo(body);
-        const giftNote = gift && masked.text ? masked.text.slice(0, 200) : null;
-        const given = gift
-          ? await this.stars.giveGift(tx, {
-              giftId: dto.giftId!,
-              senderId: user.sub,
-              recipientId:
-                user.sub === conv.client_id ? conv.attorney_id : conv.client_id,
-              conversationId: id,
-              note: giftNote,
-            })
-          : null;
-        // Audit #6: the id is chosen here, the sealed bodies are bound to it.
-        const messageId = randomUUID();
-        // S3-5: the attachment's original name is sealed like the body.
-        const fileName = attachment ? cleanFileName(dto.fileName!) : null;
-        const storedFileName =
-          fileName !== null && this.cipher
-            ? await this.cipher.sealMetadata(fileName, fileNameAad(messageId))
-            : fileName;
-        const m = await tx.message.create({
-          data: {
-            id: messageId,
-            conversation_id: id,
-            sender_id: user.sub,
-            sent_by_membership_id: user.assistant?.membershipId ?? null,
-            sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
-            type: voice
-              ? 'voice'
-              : attachment
-                ? 'attachment'
-                : sticker
-                  ? 'sticker'
-                  : gift
-                    ? 'gift'
-                    : contact
-                      ? 'contact'
-                      : place
-                        ? 'place'
-                        : post
-                          ? 'post'
-                          : 'text',
-            body_original: this.seal(gift ? '' : body, messageId),
-            body_display: this.seal(gift ? '' : masked.text, messageId),
-            contact_masked: masked.masked,
-            client_message_id: dto.clientMessageId,
-            reply_to_id: replyToId,
-            // Owner 2026-10-21: disappearing messages.
-            expires_at: expiresAtFor(locked.disappear_after_s),
-            forwarded: dto.forwarded === true,
-            forwarded_from_name: dto.forwardedFromName ?? null,
-            ...(voice
-              ? {
-                  file_id: dto.fileId,
-                  duration_ms: dto.durationMs,
-                  waveform: dto.waveform ?? [],
-                }
-              : attachment
+          if (!locked || locked.status === 'closed') throw closed();
+          if (attachment && !locked.contacts_unlocked) {
+            throw new ForbiddenException({
+              code: ErrorCode.CHAT_ATTACHMENTS_LOCKED,
+              message: 'Files can be sent once the bid is accepted.',
+            });
+          }
+          const masked =
+            voice || contact || post || locked.contacts_unlocked
+              ? { text: body, masked: false }
+              : maskContactInfo(body);
+          const giftNote =
+            gift && masked.text ? masked.text.slice(0, 200) : null;
+          const given = gift
+            ? await this.stars.giveGift(tx, {
+                giftId: dto.giftId!,
+                senderId: user.sub,
+                recipientId:
+                  user.sub === conv.client_id
+                    ? conv.attorney_id
+                    : conv.client_id,
+                conversationId: id,
+                note: giftNote,
+              })
+            : null;
+          // Audit #6: the id is chosen here, the sealed bodies are bound to it.
+          const messageId = randomUUID();
+          // S3-5: the attachment's original name is sealed like the body.
+          const fileName = attachment ? cleanFileName(dto.fileName!) : null;
+          const storedFileName =
+            fileName !== null && this.cipher
+              ? await this.cipher.sealMetadata(fileName, fileNameAad(messageId))
+              : fileName;
+          const m = await tx.message.create({
+            data: {
+              id: messageId,
+              conversation_id: id,
+              sender_id: user.sub,
+              sent_by_membership_id: user.assistant?.membershipId ?? null,
+              sent_by_name: user.assistant?.name.slice(0, 80) ?? null,
+              type: voice
+                ? 'voice'
+                : attachment
+                  ? 'attachment'
+                  : sticker
+                    ? 'sticker'
+                    : gift
+                      ? 'gift'
+                      : contact
+                        ? 'contact'
+                        : place
+                          ? 'place'
+                          : post
+                            ? 'post'
+                            : 'text',
+              body_original: this.seal(gift ? '' : body, messageId),
+              body_display: this.seal(gift ? '' : masked.text, messageId),
+              contact_masked: masked.masked,
+              client_message_id: dto.clientMessageId,
+              reply_to_id: replyToId,
+              // Owner 2026-10-21: disappearing messages.
+              expires_at: expiresAtFor(locked.disappear_after_s),
+              forwarded: dto.forwarded === true,
+              forwarded_from_name: dto.forwardedFromName ?? null,
+              ...(voice
                 ? {
                     file_id: dto.fileId,
-                    file_name: storedFileName,
+                    duration_ms: dto.durationMs,
+                    waveform: dto.waveform ?? [],
                   }
-                : sticker
-                  ? { sticker_id: dto.stickerId }
-                  : given
-                    ? { gift_send_id: given.send.id }
-                    : {}),
-          },
-        });
-        await tx.conversation.update({
-          where: { id },
-          data: { last_message_at: m.created_at, last_message_id: m.id },
-        });
-        // A new message brings a removed chat back for both sides.
-        await tx.conversationParticipant.updateMany({
-          where: { conversation_id: id, hidden_at: { not: null } },
-          data: { hidden_at: null },
-        });
-        // Your own message is read by you.
-        await tx.conversationParticipant.update({
-          where: {
-            conversation_id_user_id: { conversation_id: id, user_id: user.sub },
-          },
-          data: { last_read_message_id: m.id, last_read_at: new Date() },
-        });
-        return m;
-      });
+                : attachment
+                  ? {
+                      file_id: dto.fileId,
+                      file_name: storedFileName,
+                    }
+                  : sticker
+                    ? { sticker_id: dto.stickerId }
+                    : given
+                      ? { gift_send_id: given.send.id }
+                      : {}),
+            },
+          });
+          // BUG-1: the words of the shown text, as blind tokens, in the same
+          // transaction (a message is never searchable-less or vice versa).
+          await writeSearchTokens(
+            tx,
+            this.searchIndex,
+            m,
+            gift ? '' : masked.text,
+            searchPrefixes,
+          );
+          await tx.conversation.update({
+            where: { id },
+            data: { last_message_at: m.created_at, last_message_id: m.id },
+          });
+          // A new message brings a removed chat back for both sides.
+          await tx.conversationParticipant.updateMany({
+            where: { conversation_id: id, hidden_at: { not: null } },
+            data: { hidden_at: null },
+          });
+          // Your own message is read by you.
+          await tx.conversationParticipant.update({
+            where: {
+              conversation_id_user_id: {
+                conversation_id: id,
+                user_id: user.sub,
+              },
+            },
+            data: { last_read_message_id: m.id, last_read_at: new Date() },
+          });
+          return m;
+        },
+        {
+          ...(gift ? {} : { isolation: 'readCommitted' as const }),
+          op: 'chat.send',
+        },
+      );
     } catch (error) {
       // Nothing was stored (or a retry's own request delivers): no effects owed.
       await this.clearEffectsPending(pending);

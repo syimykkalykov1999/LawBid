@@ -45,6 +45,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.inverseText,
     required this.barFill,
     required this.successText,
+    required this.verifiedGold,
+    required this.verifiedGreen,
     this.headerFill,
     this.headerGradient,
     this.onHeader,
@@ -89,6 +91,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         inverseText: AppColorsLight.bg,
         barFill: AppColorsLight.bg,
         successText: AppColorsStatus.success,
+        verifiedGold: Color(0xFF9C7A35),
+        verifiedGreen: Color(0xFF1F9D67),
       );
 
   factory AppColorTokens.dark() => const AppColorTokens(
@@ -130,6 +134,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         inverseText: AppColorsDark.bg,
         barFill: AppColorsDark.bg,
         successText: AppColorsStatus.success,
+        verifiedGold: Color(0xFFE6CE98),
+        verifiedGreen: Color(0xFF1F9D67),
       );
 
   /// Blue: the Citi app look (owner 2026-10-23), built like Night: a solid
@@ -173,6 +179,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         inverseText: AppColorsBlue.bg,
         barFill: AppColorsBlue.bar,
         successText: AppColorsBlue.success,
+        verifiedGold: Color(0xFFFFC629),
+        verifiedGreen: Color(0xFF1F9D67),
       );
 
   /// Green: the Credit Karma look (owner 2026-10-23), built like Night: a
@@ -216,6 +224,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         inverseText: AppColorsGreen.bg,
         barFill: AppColorsGreen.bar,
         successText: AppColorsGreen.success,
+        verifiedGold: Color(0xFFFFC629),
+        verifiedGreen: Color(0xFF1F9D67),
       );
 
   final Color bg;
@@ -295,6 +305,14 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// Readable green for TEXT on a success tint .
   final Color successText;
 
+  /// Verified (client) check: saturated gold, >= 3:1 on the page and card
+  /// of every theme (WCAG 1.4.11). Owner 2026-10-26.
+  final Color verifiedGold;
+
+  /// Attorney verified badge green: >= 3:1 against the white icon on it
+  /// (WCAG 1.4.11), in every theme.
+  final Color verifiedGreen;
+
   /// Owner 2026-10-22 (Blue, Green): the top bar is a deep-to-light wash
   /// with white ink, over a light page. null = the plain [barFill] bar with
   /// [text] ink (Day, Night).
@@ -351,6 +369,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? inverseText,
     Color? barFill,
     Color? successText,
+    Color? verifiedGold,
+    Color? verifiedGreen,
     Color? headerFill,
     List<Color>? headerGradient,
     Color? onHeader,
@@ -394,6 +414,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       inverseText: inverseText ?? this.inverseText,
       barFill: barFill ?? this.barFill,
       successText: successText ?? this.successText,
+      verifiedGold: verifiedGold ?? this.verifiedGold,
+      verifiedGreen: verifiedGreen ?? this.verifiedGreen,
       headerFill: headerFill ?? this.headerFill,
       headerGradient: headerGradient ?? this.headerGradient,
       onHeader: onHeader ?? this.onHeader,
@@ -447,6 +469,8 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       inverseText: Color.lerp(inverseText, other.inverseText, t)!,
       barFill: Color.lerp(barFill, other.barFill, t)!,
       successText: Color.lerp(successText, other.successText, t)!,
+      verifiedGold: Color.lerp(verifiedGold, other.verifiedGold, t)!,
+      verifiedGreen: Color.lerp(verifiedGreen, other.verifiedGreen, t)!,
       headerFill: Color.lerp(headerFill, other.headerFill, t),
       headerGradient: t < 0.5 ? headerGradient : other.headerGradient,
       onHeader: Color.lerp(onHeader, other.onHeader, t),
