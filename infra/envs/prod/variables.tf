@@ -299,6 +299,22 @@ variable "web_extra_hosts" {
   type    = list(string)
   default = []
 }
+variable "status_page_enabled" {
+  type    = bool
+  default = false
+}
+variable "status_host" {
+  type    = string
+  default = ""
+}
+variable "status_certificate_arn" {
+  type    = string
+  default = ""
+}
+variable "status_create_certificate" {
+  type    = bool
+  default = false
+}
 variable "create_database" {
   type    = bool
   default = false
