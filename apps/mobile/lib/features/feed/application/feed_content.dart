@@ -41,17 +41,24 @@ class FeedContentModeNotifier extends Notifier<FeedContentMode> {
 
   /// The server's value (the admin default until the person picks one).
   Future<void> sync() async {
+    final picks = _picks;
     try {
       final mode = FeedContentMode.fromName(
         await ref.read(socialRepositoryProvider).feedContentMode(),
       );
+      // Audit C21d: the person picked a mode meanwhile — theirs wins.
+      if (picks != _picks) return;
       if (_apply(mode)) _reloadLists();
     } on Object {
       // Offline: keep the value on the device.
     }
   }
 
+  /// Counts the person's own picks (a late [sync] must not undo one).
+  int _picks = 0;
+
   Future<void> set(FeedContentMode mode) async {
+    _picks++;
     final before = state;
     if (!_apply(mode)) return;
     try {

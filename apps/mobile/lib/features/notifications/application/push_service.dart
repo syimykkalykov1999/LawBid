@@ -26,7 +26,7 @@ import 'package:lawbid/features/notifications/application/timezone_sync.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -382,10 +382,12 @@ class PushService {
     final route = notificationRoute(
       type: '${data['type'] ?? ''}',
       payload: Map<String, Object?>.from(data),
-      attorney: _ref.read(currentUserRoleProvider) == UserRole.attorney,
+      attorney: _ref.read(actsAsAttorneyProvider),
       myId: _ref.read(currentUserIdProvider),
     );
-    if (route != null) unawaited(_ref.read(appRouterProvider).push(route));
+    if (route != null) {
+      openNotificationRoute(_ref.read(appRouterProvider), route);
+    }
   }
 
   Future<void> _markRead(String id) async {

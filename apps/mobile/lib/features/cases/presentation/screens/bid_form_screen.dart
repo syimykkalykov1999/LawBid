@@ -78,17 +78,25 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
     try {
       final d = await ref.read(teamRepositoryProvider).bidDraft(widget.caseId);
       if (d == null || !mounted) return;
+      // The draft only fills what the attorney has not touched yet: typed
+      // text and the invite's prefilled amount win over it.
       setState(() {
-        if (d.feeType != null) _fee = FeeType.fromJson(d.feeType!);
-        if (d.amountCents != null) {
+        if (d.feeType != null && _fee == FeeType.fixed) {
+          _fee = FeeType.fromJson(d.feeType!);
+        }
+        if (d.amountCents != null && _amount.text.trim().isEmpty) {
           _amount.text = '${d.amountCents! ~/ 100}';
         }
-        if (d.message != null) _message.text = d.message!;
-        if (d.startAvailability != null) {
+        if (d.message != null && _message.text.trim().isEmpty) {
+          _message.text = d.message!;
+        }
+        if (d.startAvailability != null &&
+            _start == StartAvailability.immediately) {
           _start = StartAvailability.fromJson(d.startAvailability!);
         }
-        _startDate = d.startDate ?? _startDate;
-        if (d.estimatedDurationDays != null) {
+        _startDate ??= d.startDate;
+        if (d.estimatedDurationDays != null &&
+            _duration.text.trim().isEmpty) {
           _duration.text = '${d.estimatedDurationDays}';
         }
         _draftBy = d.preparedBy ?? '';
@@ -181,7 +189,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: now.add(const Duration(days: 365 * 2)),
     );
-    if (picked != null) setState(() => _startDate = picked);
+    if (picked != null && mounted) setState(() => _startDate = picked);
   }
 
   Future<void> _submit() async {
