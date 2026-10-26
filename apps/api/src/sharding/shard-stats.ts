@@ -61,6 +61,47 @@ class ShardStats {
     this.globalWrites.set(k, (this.globalWrites.get(k) ?? 0) + 1);
   }
 
+  private idV8 = 0;
+  private idV4 = 0;
+  private idV4ByModel = new Map<string, number>();
+
+  /**
+   * DB-ops S5-12: one insert of a sharded-family row whose primary key is a
+   * time-ordered sharded id (`sharded = true`, UUIDv8) or a random UUIDv4
+   * (the caller passed `randomUUID()`, `SHARD_IDS=off`, or the database
+   * default `gen_random_uuid()` filled it). Counted here, in the process,
+   * because a database trigger per insert would cost far more than the
+   * number is worth.
+   */
+  idInsert(model: string, sharded: boolean): void {
+    if (sharded) {
+      this.idV8 += 1;
+      return;
+    }
+    this.idV4 += 1;
+    this.idV4ByModel.set(model, (this.idV4ByModel.get(model) ?? 0) + 1);
+  }
+
+  /** Id counts since the last call; null when nothing was inserted. */
+  drainIds(): {
+    v8: number;
+    v4: number;
+    share: number;
+    v4ByModel: Record<string, number>;
+  } | null {
+    if (this.idV8 === 0 && this.idV4 === 0) return null;
+    const out = {
+      v8: this.idV8,
+      v4: this.idV4,
+      share: this.idV4 / (this.idV8 + this.idV4),
+      v4ByModel: Object.fromEntries(this.idV4ByModel),
+    };
+    this.idV8 = 0;
+    this.idV4 = 0;
+    this.idV4ByModel = new Map();
+    return out;
+  }
+
   /** Counts since the last `drain()`, without resetting them. */
   peek(): ShardStatsSnapshot {
     return {
@@ -111,6 +152,23 @@ export class ShardStatsService implements OnModuleInit, OnApplicationShutdown {
   }
 
   flush(): void {
+    // DB-ops S5-12: share of random v4 primary keys among new sharded-family
+    // rows (a hot table whose key is half random loses index locality).
+    const ids = shardStats.drainIds();
+    if (ids && ids.v4 > 0) {
+      this.logger.log({
+        metric: 'shard_id_v4_share',
+        v8: ids.v8,
+        v4: ids.v4,
+        share: Math.round(ids.share * 10_000) / 10_000,
+        v4ByModel: Object.fromEntries(
+          Object.entries(ids.v4ByModel)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, TOP_MODELS),
+        ),
+        msg: 'new sharded-family rows with a random (v4) primary key',
+      });
+    }
     const s = shardStats.drain();
     if (!s) return;
     const top = (m: Record<string, number>) =>
