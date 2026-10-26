@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -298,7 +299,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
     if (_inCall) return;
     setState(() => _muted = !_muted);
     _fadeTo(_muted ? 0 : 1, const Duration(milliseconds: 140));
-    unawaited(HapticFeedback.selectionClick());
+    unawaited(AppHaptics.selection());
   }
 
   /// Owner 2026-10-20: no click — volume moves along an eased slope (the
@@ -479,7 +480,7 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
       _scheduleHide();
     }
     // After the sound moved: the buzz is only a touch cue.
-    unawaited(HapticFeedback.selectionClick());
+    unawaited(AppHaptics.selection());
   }
 
   @override

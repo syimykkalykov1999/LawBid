@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
@@ -112,7 +112,7 @@ class AppSideNav extends StatelessWidget {
                     label: tabs[i].label,
                     selected: i == currentIndex,
                     onTap: () {
-                      if (i != currentIndex) HapticFeedback.selectionClick();
+                      if (i != currentIndex) AppHaptics.selection();
                       onTabSelected(i);
                     },
                   ),

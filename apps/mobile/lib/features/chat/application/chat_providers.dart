@@ -2,7 +2,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/audio/app_sounds.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -1311,7 +1311,7 @@ class ChatThread extends Notifier<ChatThreadState> {
     final queue = ref.read(chatMediaOutboxProvider);
     if (queue.ownerId == null) return;
     // ignore: unawaited_futures
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     await queue.enqueue(
       id: newClientMessageId(),
       kind: ChatMediaKind.sticker,

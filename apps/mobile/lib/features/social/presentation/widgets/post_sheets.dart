@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -98,7 +99,7 @@ Future<void> showRepostSheet(
     ),
   );
   if (go != true) return;
-  unawaited(HapticFeedback.mediumImpact());
+  unawaited(AppHaptics.medium());
   final error = await ref.read(socialActionsProvider).toggleRepost(current);
   if (error != null && context.mounted) {
     showAppSnackBar(context, errorText(t, error));

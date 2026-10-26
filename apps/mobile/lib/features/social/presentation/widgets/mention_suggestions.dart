@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -92,7 +92,7 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
   }
 
   void _pick(PersonRow p) {
-    HapticFeedback.selectionClick();
+    AppHaptics.selection();
     _query = null;
     widget.controller.value =
         insertMention(widget.controller.value, p.username);

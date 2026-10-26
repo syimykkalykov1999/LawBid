@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
@@ -89,7 +89,7 @@ class AppBottomNav extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () {
-              if (!selected) HapticFeedback.selectionClick();
+              if (!selected) AppHaptics.selection();
               onTabSelected(index);
             },
             // Owner 2026-10-12: a narrow pill (52) behind the icon, centred,

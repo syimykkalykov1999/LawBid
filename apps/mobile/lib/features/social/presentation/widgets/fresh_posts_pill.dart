@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/shell/tab_reselect.dart';
@@ -45,7 +45,7 @@ class _FreshPostsOverlayState extends ConsumerState<FreshPostsOverlay> {
   }
 
   Future<void> _open() async {
-    unawaited(HapticFeedback.selectionClick());
+    unawaited(AppHaptics.selection());
     final notifier = ref.read(freshPostsProvider.notifier);
     final listContext = _list.currentContext;
     if (listContext != null) {
