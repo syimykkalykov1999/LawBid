@@ -74,6 +74,8 @@ export const CRON_JOBS = {
   searchTagTopics: 'search.tag-topics',
   /** Owner 2026-10-24: search-engine outbox → engine (off = prune only). */
   searchIndex: 'search.index',
+  /** Owner 2026-10-25: experiment reports, guardrails, ranking_events partitions. */
+  experimentsMetrics: 'experiments.metrics',
   /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
   ledgerReconcile: 'ledger.reconcile',
   /** DB-ops hardening: daily table size / dead-tuple ratio / txid age → log metrics. */
@@ -231,6 +233,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.searchLearn, pattern: '30 3 * * *' },
   { name: CRON_JOBS.searchTagTopics, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.searchIndex, pattern: '* * * * *' },
+  // 02:20 UTC: after a full UTC day of events, before the US morning.
+  { name: CRON_JOBS.experimentsMetrics, pattern: '20 2 * * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },

@@ -18,6 +18,7 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
@@ -45,6 +46,7 @@ import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
 import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
+import 'package:lawbid/features/chat/presentation/chat_list_layout.dart';
 import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
@@ -390,10 +392,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 
   @override
   Widget build(BuildContext context) {
+    BuildCounter.hit('chat.screen');
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final s = ref.watch(chatThreadProvider(widget.conversationId));
-    final c = s.conversation;
+    // Owner 2026-10-26 (smoothness): the screen watches only what its own
+    // frame shows (the conversation, the first load, a load error). The
+    // list, the pins and the typing dots watch the rest in their own small
+    // Consumers, so "typing…" or a read receipt no longer rebuilds the
+    // header and the composer.
+    final thread = chatThreadProvider(widget.conversationId);
+    final c = ref.watch(thread.select((x) => x.conversation));
+    final loading = ref.watch(thread.select((x) => x.loading));
+    final error = ref.watch(thread.select((x) => x.error));
     ref.listen(
       chatThreadProvider(widget.conversationId)
           .select((x) => x.messages.firstOrNull?.id),
@@ -489,14 +499,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                     icon:
                         AppIcon(AppIcons.moreHorizRounded, color: colors.text),
                     semanticLabel: t.t('chat.menu'),
-                    onPressed: () => _menu(s),
+                    onPressed: () => _menu(ref.read(thread)),
                   ),
               ],
             ),
-      body: s.loading && c == null
+      body: loading && c == null
           ? const CasesListSkeleton()
-          : s.error != null && c == null
-              ? CasesErrorView(error: s.error!, t: t, onRetry: _thread.load)
+          : error != null && c == null
+              ? CasesErrorView(error: error, t: t, onRetry: _thread.load)
               : Column(
                   children: [
                     if (c != null && c.closed)
@@ -504,30 +514,41 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                         icon: AppIcons.lockOutlineRounded,
                         text: t.t('chat.closed'),
                       ),
-                    PinnedBanner(
-                      state: s,
-                      conversationId: widget.conversationId,
-                    ),
-                    Expanded(
-                      child: _MessageList(
-                        key: _listKey,
-                        state: s,
-                        onMore: _thread.loadMore,
+                    Consumer(
+                      builder: (context, ref, _) => PinnedBanner(
+                        state: ref.watch(thread),
+                        conversationId: widget.conversationId,
                       ),
                     ),
-                    AnimatedSwitcher(
-                      duration: context.reduceMotion
-                          ? Duration.zero
-                          : AppMotion.stateChange,
-                      child: s.typing
-                          ? Align(
-                              key: ValueKey(
-                                s.typingVoice ? 'typing-voice' : 'typing',
-                              ),
-                              alignment: AlignmentDirectional.centerStart,
-                              child: _TypingDots(voice: s.typingVoice),
-                            )
-                          : const SizedBox.shrink(),
+                    Expanded(
+                      child: Consumer(
+                        builder: (context, ref, _) => _MessageList(
+                          key: _listKey,
+                          state: ref.watch(thread.select(_ListSlice.new)).s,
+                          onMore: _thread.loadMore,
+                        ),
+                      ),
+                    ),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final typing = ref.watch(
+                          thread.select((x) => (x.typing, x.typingVoice)),
+                        );
+                        return AnimatedSwitcher(
+                          duration: context.reduceMotion
+                              ? Duration.zero
+                              : AppMotion.stateChange,
+                          child: typing.$1
+                              ? Align(
+                                  key: ValueKey(
+                                    typing.$2 ? 'typing-voice' : 'typing',
+                                  ),
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: _TypingDots(voice: typing.$2),
+                                )
+                              : const SizedBox.shrink(),
+                        );
+                      },
                     ),
                     // OQ-043: a request sent to me — accept / delete /
                     // block before anything else.
@@ -750,25 +771,68 @@ class _MessageList extends ConsumerStatefulWidget {
   ConsumerState<_MessageList> createState() => _MessageListState();
 }
 
+/// Owner 2026-10-26 (smoothness): the slice of the thread the message list
+/// draws. Equal while those parts did not change, so "typing…" or a new pin
+/// does not rebuild the list.
+@immutable
+class _ListSlice {
+  const _ListSlice(this.s);
+
+  final ChatThreadState s;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ListSlice &&
+      identical(other.s.messages, s.messages) &&
+      identical(other.s.outbox, s.outbox) &&
+      identical(other.s.voiceOutbox, s.voiceOutbox) &&
+      identical(other.s.conversation, s.conversation) &&
+      other.s.nextCursor == s.nextCursor &&
+      other.s.loadingMore == s.loadingMore &&
+      other.s.loadMoreFailed == s.loadMoreFailed &&
+      other.s.unreadFromId == s.unreadFromId &&
+      other.s.unreadCount == s.unreadCount;
+
+  @override
+  int get hashCode => Object.hash(
+        identityHashCode(s.messages),
+        identityHashCode(s.outbox),
+        identityHashCode(s.voiceOutbox),
+        identityHashCode(s.conversation),
+        s.nextCursor,
+        s.loadingMore,
+        s.loadMoreFailed,
+        s.unreadFromId,
+        s.unreadCount,
+      );
+}
+
 class _MessageListState extends ConsumerState<_MessageList> {
   late final ChatListController _c;
   final _listKey = GlobalKey();
-  List<ChatListEntry> _entries = const [];
+  ChatListLayout? _layout;
+  List<ChatListEntry> get _entries => _layout?.entries ?? const [];
+
+  // Owner 2026-10-26 (smoothness): the pill and the date chip listen to
+  // these on their own; a scroll tick never rebuilds the list (and every
+  // visible bubble with it).
 
   /// New messages that came while the person read above (the pill's badge).
-  int _fresh = 0;
+  final _fresh = ValueNotifier<int>(0);
+  final _away = ValueNotifier<bool>(false);
+  final _sticky = ValueNotifier<({String? label, bool shown})>(
+    (label: null, shown: false),
+  );
   String? _newestId;
-  bool _away = false;
-  String? _stickyLabel;
-  bool _stickyShown = false;
+  int? _stickyTop;
   Timer? _hideSticky;
+  ValueNotifier<bool>? _scrolling;
 
   @override
   void initState() {
     super.initState();
     _c = ChatListController(
-      indexOfMessage: (id) =>
-          _entries.indexWhere((e) => e.messages.any((m) => m.id == id)),
+      indexOfMessage: (id) => _layout?.entryOf(id) ?? -1,
       loadOlder: widget.onMore,
       hasOlder: () => widget.state.nextCursor != null,
     );
@@ -777,7 +841,7 @@ class _MessageListState extends ConsumerState<_MessageList> {
 
   Future<void> toBottom() => _c.toBottom();
 
-  // Memo of the merged list and its grouping: they are rebuilt only when the
+  // Memo of the merged list: it is rebuilt only when the
   // messages / outbox lists change (not on typing or upload-progress ticks
   // that touch other fields). Disappearing messages must still leave by the
   // clock, so such a thread is never memoised.
@@ -785,7 +849,6 @@ class _MessageListState extends ConsumerState<_MessageList> {
   Object? _mOutbox;
   Object? _mVoice;
   List<ChatMessage>? _mItems;
-  List<ChatListEntry>? _mEntries;
 
   List<ChatMessage> _itemsOf(ChatThreadState s) {
     final cached = _mItems;
@@ -799,47 +862,72 @@ class _MessageListState extends ConsumerState<_MessageList> {
     _mMessages = s.messages;
     _mOutbox = s.outbox;
     _mVoice = s.voiceOutbox;
-    _mEntries = null;
     return _mItems = s.all;
   }
-
-  List<ChatListEntry> _entriesOf(List<ChatMessage> items) =>
-      _mEntries ??= groupChatMessages(items);
 
   @override
   void dispose() {
     _hideSticky?.cancel();
+    _scrolling?.removeListener(_onScrollingChanged);
     _c.dispose();
+    _fresh.dispose();
+    _away.dispose();
+    _sticky.dispose();
     super.dispose();
   }
 
   void _onScroll() {
     final away = _c.away;
-    if (away != _away || (!away && _fresh != 0)) {
-      setState(() {
-        _away = away;
-        if (!away) _fresh = 0;
-      });
-    }
+    _away.value = away;
+    if (!away) _fresh.value = 0;
     // The date chip follows the scroll and fades out when it stops.
     final top = _c.topIndex(_listKey.currentContext ?? context);
-    if (top != null && top < _entries.length) {
-      final f = ref.read(l10nFormatsProvider);
-      final label = _dayLabel(
-        ref.read(translatorProvider),
-        f,
-        _entries[top].oldest.createdAt,
-      );
-      if (label != _stickyLabel || !_stickyShown) {
-        setState(() {
-          _stickyLabel = label;
-          _stickyShown = true;
-        });
+    final entries = _entries;
+    if (top != null && top < entries.length) {
+      final shown = _sticky.value;
+      if (top != _stickyTop || !shown.shown) {
+        _stickyTop = top;
+        final label = _dayLabel(
+          ref.read(translatorProvider),
+          ref.read(l10nFormatsProvider),
+          entries[top].oldest.createdAt,
+        );
+        if (label != shown.label || !shown.shown) {
+          _sticky.value = (label: label, shown: true);
+        }
       }
     }
+    // The fade waits 1.2 s after the scroll stops. A finger or a fling
+    // reports its end (one timer then); a jump from code has no end, so
+    // its tick starts the timer itself.
+    final scrolling = _c.scroll.position.isScrollingNotifier;
+    if (!identical(scrolling, _scrolling)) {
+      _scrolling?.removeListener(_onScrollingChanged);
+      _scrolling = scrolling..addListener(_onScrollingChanged);
+    }
+    if (scrolling.value) {
+      _hideSticky?.cancel();
+      _hideSticky = null;
+    } else {
+      _armHideSticky();
+    }
+  }
+
+  void _onScrollingChanged() {
+    if (_scrolling?.value ?? false) {
+      _hideSticky?.cancel();
+      _hideSticky = null;
+    } else {
+      _armHideSticky();
+    }
+  }
+
+  void _armHideSticky() {
     _hideSticky?.cancel();
     _hideSticky = Timer(const Duration(milliseconds: 1200), () {
-      if (mounted && _stickyShown) setState(() => _stickyShown = false);
+      _hideSticky = null;
+      final s = _sticky.value;
+      if (mounted && s.shown) _sticky.value = (label: s.label, shown: false);
     });
   }
 
@@ -849,13 +937,14 @@ class _MessageListState extends ConsumerState<_MessageList> {
     final newest = _itemsOf(widget.state).firstOrNull;
     if (newest != null && _newestId != null && newest.id != _newestId) {
       final me = ref.read(currentUserIdProvider);
-      if (_c.away && newest.senderId != me) _fresh++;
+      if (_c.away && newest.senderId != me) _fresh.value++;
     }
     _newestId = newest?.id;
   }
 
   @override
   Widget build(BuildContext context) {
+    BuildCounter.hit('chat.list');
     final state = widget.state;
     final onMore = widget.onMore;
     final t = ref.watch(translatorProvider);
@@ -868,149 +957,156 @@ class _MessageListState extends ConsumerState<_MessageList> {
         message: t.t('chat.thread.empty'),
       );
     }
-    // The newest own message the other side has read (§8.2 "Seen").
+    // The newest own message the other side has read (§8.2 "Seen"), and
+    // two grey ticks up to the newest message that reached the other
+    // device (reading counts as well). Owner 2026-10-19: photos / files
+    // sent together share one bubble. Owner 2026-10-26: worked out once
+    // per change of the messages or the receipts, not on every build.
     final lastRead = state.conversation?.counterpartLastReadId;
-    final seenIndex =
-        lastRead == null ? -1 : items.indexWhere((m) => m.id == lastRead);
-    final newestOwnSeen = seenIndex < 0
-        ? null
-        : items.skip(seenIndex).where((m) => m.senderId == me).firstOrNull?.id;
-    // Owner 2026-10-19: photos / files sent together share one bubble.
-    final entries = _entriesOf(items);
-    _entries = entries;
-    _newestId ??= items.first.id;
-    final seenIds = seenIndex < 0
-        ? const <String>{}
-        : items.skip(seenIndex).map((m) => m.id).toSet();
-    // Two grey ticks: everything up to the newest message that reached the
-    // other device (reading counts as well).
     final lastDelivered = state.conversation?.counterpartLastDeliveredId;
-    final deliveredIndex = lastDelivered == null
-        ? -1
-        : items.indexWhere((m) => m.id == lastDelivered);
-    final deliveredIds = deliveredIndex < 0
-        ? const <String>{}
-        : items.skip(deliveredIndex).map((m) => m.id).toSet();
+    final cached = _layout;
+    final layout = cached != null &&
+            cached.sameAs(
+              items: items,
+              me: me,
+              lastReadId: lastRead,
+              lastDeliveredId: lastDelivered,
+            )
+        ? cached
+        : ChatListLayout.of(
+            items: items,
+            me: me,
+            lastReadId: lastRead,
+            lastDeliveredId: lastDelivered,
+          );
+    _layout = layout;
+    final entries = layout.entries;
+    _newestId ??= items.first.id;
+    final unreadEntry =
+        state.unreadFromId == null ? -1 : layout.entryOf(state.unreadFromId!);
 
     final list = CustomPaint(
       // Owner 2026-10-17: a faint pattern of legal signs behind the
       // messages (it stays put while they scroll, like WhatsApp).
+      // Owner 2026-10-26: the scrolling list paints on its own layer, so
+      // a scroll frame does not repaint the pattern under it.
       painter: _WallpaperPainter(ChatColors.of(context).pattern),
-      child: ListView.builder(
-        key: _listKey,
-        controller: _c.scroll,
-        reverse: true,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.screenSide,
-          vertical: AppSpacing.md,
-        ),
-        itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
-        itemBuilder: (context, i) {
-          if (i == entries.length) {
-            if (state.loadMoreFailed) {
-              return Center(
-                child: TextButton(
-                  onPressed: onMore,
-                  child: Text(t.t('error.retry')),
+      child: RepaintBoundary(
+        child: ListView.builder(
+          key: _listKey,
+          controller: _c.scroll,
+          reverse: true,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.screenSide,
+            vertical: AppSpacing.md,
+          ),
+          itemCount: entries.length + (state.nextCursor != null ? 1 : 0),
+          itemBuilder: (context, i) {
+            if (i == entries.length) {
+              if (state.loadMoreFailed) {
+                return Center(
+                  child: TextButton(
+                    onPressed: onMore,
+                    child: Text(t.t('error.retry')),
+                  ),
+                );
+              }
+              // Ask for the older page after this frame (never during build).
+              if (!state.loadingMore) {
+                WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
+              }
+              return const Padding(
+                padding: EdgeInsets.all(AppSpacing.md),
+                child: Center(
+                  child: SizedBox.square(
+                    dimension: AppSizes.footerSpinner,
+                    child: CircularProgressIndicator(
+                      strokeWidth: AppSizes.footerSpinnerStroke,
+                    ),
+                  ),
                 ),
               );
             }
-            // Ask for the older page after this frame (never during build).
-            if (!state.loadingMore) {
-              WidgetsBinding.instance.addPostFrameCallback((_) => onMore());
-            }
-            return const Padding(
-              padding: EdgeInsets.all(AppSpacing.md),
-              child: Center(
-                child: SizedBox.square(
-                  dimension: AppSizes.footerSpinner,
-                  child: CircularProgressIndicator(
-                    strokeWidth: AppSizes.footerSpinnerStroke,
+            BuildCounter.hit('chat.row');
+            final entry = entries[i];
+            final m = entry.newest;
+            final older = i + 1 < entries.length ? entries[i + 1].newest : null;
+            final newDay = older == null ||
+                !DateUtils.isSameDay(
+                  older.createdAt.toLocal(),
+                  entry.oldest.createdAt.toLocal(),
+                );
+            final seen = layout.seen(i) && m.senderId == me;
+            final row = Column(
+              // Stretch: a bubble sits at the right (mine) or left (theirs)
+              // edge like Telegram, never centered (owner 2026-09-29).
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (newDay) ChatDateChip(label: _dayLabel(t, f, m.createdAt)),
+                if (i == unreadEntry) UnreadDivider(count: state.unreadCount),
+                if (m.kind == MessageKind.system &&
+                    consultationIdOfSystemLine(m.body) != null)
+                  // Owner 2026-10-20: a booking's card (tap opens it, a call
+                  // button at the appointed time).
+                  ConsultationChatCard(
+                    consultationId: consultationIdOfSystemLine(m.body)!,
+                  )
+                else if (m.kind == MessageKind.system)
+                  _SystemMessage(
+                    text: isDisappearLine(m.body)
+                        ? disappearLineText(
+                            t,
+                            m.body,
+                            name: m.senderId == me
+                                ? t.t('chat.you')
+                                : (state.conversation?.counterpart
+                                        .displayName ??
+                                    state.conversation?.counterpart.username ??
+                                    ''),
+                          )
+                        : systemLineText(t, m.body, formats: f),
+                    // Owner 2026-10-19: a tap opens what the line is about.
+                    target: _systemTarget(
+                      m.body,
+                      caseId: state.conversation?.caseId,
+                      attorney: ref.read(actsAsAttorneyProvider),
+                    ),
+                  )
+                else if (m.kind == MessageKind.call && m.callLog != null)
+                  CallLogEntry(
+                    message: m,
+                    mine: m.senderId == me,
+                    conversation: state.conversation,
+                  )
+                else
+                  _Bubble(
+                    message: m,
+                    group: entry.isGroup ? entry.messages : null,
+                    mine: m.senderId == me,
+                    seen: seen,
+                    delivered: layout.delivered(i) && m.senderId == me,
+                    showSeenLabel: i == layout.seenLabelEntry,
+                    threadId: state.conversation?.id ?? m.conversationId,
+                    // Owner 2026-10-01: the client sees "Assistant of <the
+                    // attorney>", not the assistant's own account.
+                    attorneyName: m.senderId == me
+                        ? null
+                        : state.conversation?.counterpart.displayName,
                   ),
-                ),
+              ],
+            );
+            // Keyed by its newest message (jump to a quoted message), and
+            // flashed while it is the jump target.
+            return KeyedSubtree(
+              key: _c.keyFor(m.id),
+              child: ChatHighlight(
+                controller: _c,
+                ids: {for (final x in entry.messages) x.id},
+                child: row,
               ),
             );
-          }
-          final entry = entries[i];
-          final m = entry.newest;
-          final older = i + 1 < entries.length ? entries[i + 1].newest : null;
-          final newDay = older == null ||
-              !DateUtils.isSameDay(
-                older.createdAt.toLocal(),
-                entry.oldest.createdAt.toLocal(),
-              );
-          final seen = seenIds.contains(m.id) && m.senderId == me;
-          final row = Column(
-            // Stretch: a bubble sits at the right (mine) or left (theirs)
-            // edge like Telegram, never centered (owner 2026-09-29).
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (newDay) ChatDateChip(label: _dayLabel(t, f, m.createdAt)),
-              if (state.unreadFromId != null &&
-                  entry.messages.any((x) => x.id == state.unreadFromId))
-                UnreadDivider(count: state.unreadCount),
-              if (m.kind == MessageKind.system &&
-                  consultationIdOfSystemLine(m.body) != null)
-                // Owner 2026-10-20: a booking's card (tap opens it, a call
-                // button at the appointed time).
-                ConsultationChatCard(
-                  consultationId: consultationIdOfSystemLine(m.body)!,
-                )
-              else if (m.kind == MessageKind.system)
-                _SystemMessage(
-                  text: isDisappearLine(m.body)
-                      ? disappearLineText(
-                          t,
-                          m.body,
-                          name: m.senderId == me
-                              ? t.t('chat.you')
-                              : (state.conversation?.counterpart.displayName ??
-                                  state.conversation?.counterpart.username ??
-                                  ''),
-                        )
-                      : systemLineText(t, m.body, formats: f),
-                  // Owner 2026-10-19: a tap opens what the line is about.
-                  target: _systemTarget(
-                    m.body,
-                    caseId: state.conversation?.caseId,
-                    attorney: ref.read(actsAsAttorneyProvider),
-                  ),
-                )
-              else if (m.kind == MessageKind.call && m.callLog != null)
-                CallLogEntry(
-                  message: m,
-                  mine: m.senderId == me,
-                  conversation: state.conversation,
-                )
-              else
-                _Bubble(
-                  message: m,
-                  group: entry.isGroup ? entry.messages : null,
-                  mine: m.senderId == me,
-                  seen: seen,
-                  delivered: deliveredIds.contains(m.id) && m.senderId == me,
-                  showSeenLabel:
-                      entry.messages.any((x) => x.id == newestOwnSeen),
-                  threadId: state.conversation?.id ?? m.conversationId,
-                  // Owner 2026-10-01: the client sees "Assistant of <the
-                  // attorney>", not the assistant's own account.
-                  attorneyName: m.senderId == me
-                      ? null
-                      : state.conversation?.counterpart.displayName,
-                ),
-            ],
-          );
-          // Keyed by its newest message (jump to a quoted message), and
-          // flashed while it is the jump target.
-          return KeyedSubtree(
-            key: _c.keyFor(m.id),
-            child: ChatHighlight(
-              controller: _c,
-              ids: {for (final x in entry.messages) x.id},
-              child: row,
-            ),
-          );
-        },
+          },
+        ),
       ),
     );
     final t2 = t;
@@ -1029,38 +1125,46 @@ class _MessageListState extends ConsumerState<_MessageList> {
           Positioned.fill(child: list),
           // Owner 2026-10-22 (WhatsApp / Telegram): the day of the top
           // message follows the scroll, then fades.
-          if (_stickyLabel != null)
-            PositionedDirectional(
-              top: 6,
-              start: 0,
-              end: 0,
-              child: IgnorePointer(
-                child: AnimatedOpacity(
-                  opacity: _stickyShown ? 1 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: ChatDateChip(
-                    key: const ValueKey('sticky-date'),
-                    label: _stickyLabel!,
-                    padded: false,
-                  ),
-                ),
-              ),
+          PositionedDirectional(
+            top: 6,
+            start: 0,
+            end: 0,
+            child: ValueListenableBuilder<({String? label, bool shown})>(
+              valueListenable: _sticky,
+              builder: (context, sticky, _) => sticky.label == null
+                  ? const SizedBox.shrink()
+                  : IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: sticky.shown ? 1 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: ChatDateChip(
+                          key: const ValueKey('sticky-date'),
+                          label: sticky.label!,
+                          padded: false,
+                        ),
+                      ),
+                    ),
             ),
+          ),
           // Owner 2026-10-22: the round "down" button with the count of
           // messages that came while reading above.
           PositionedDirectional(
             end: 10,
             bottom: 8,
-            child: ScrollToBottomPill(
-              visible: _away,
-              count: _fresh,
-              countLabel: _fresh > 99
-                  ? '${ref.watch(l10nFormatsProvider).digits(99)}+'
-                  : ref.watch(l10nFormatsProvider).digits(_fresh),
-              label: t.t('chat.scrollDown'),
-              onTap: () {
-                setState(() => _fresh = 0);
-                unawaited(_c.toBottom());
+            child: ListenableBuilder(
+              listenable: Listenable.merge([_away, _fresh]),
+              builder: (context, _) {
+                final fresh = _fresh.value;
+                return ScrollToBottomPill(
+                  visible: _away.value,
+                  count: fresh,
+                  countLabel: fresh > 99 ? '${f.digits(99)}+' : f.digits(fresh),
+                  label: t.t('chat.scrollDown'),
+                  onTap: () {
+                    _fresh.value = 0;
+                    unawaited(_c.toBottom());
+                  },
+                );
               },
             ),
           ),

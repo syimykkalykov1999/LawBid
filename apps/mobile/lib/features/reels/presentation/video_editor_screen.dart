@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -10,6 +11,7 @@ import 'package:image_picker/image_picker.dart'
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -280,8 +282,12 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen>
                                     size: 40,
                                     color: colors.textSecondary,
                                   )
-                                : Image.memory(
-                                    _coverFrame!,
+                                : Image(
+                                    image: thumbImage(
+                                      context,
+                                      _coverFrame!,
+                                      maxSide: 352,
+                                    ),
                                     fit: BoxFit.cover,
                                     width: 198,
                                     height: 352,
@@ -607,8 +613,18 @@ class _FrameStripState extends State<_FrameStrip> {
                                       color: colors.surface,
                                       child: const SizedBox.expand(),
                                     )
-                                  : Image.memory(
-                                      f,
+                                  : Image(
+                                      // A strip cell: the strip's height,
+                                      // at most the screen / frames wide.
+                                      image: thumbImage(
+                                        context,
+                                        f,
+                                        maxSide: math.max(
+                                          _kStripHeight,
+                                          MediaQuery.sizeOf(context).width /
+                                              widget.frames.length,
+                                        ),
+                                      ),
                                       fit: BoxFit.cover,
                                       height: _kStripHeight,
                                       gaplessPlayback: true,
@@ -699,8 +715,13 @@ class _GridPreview extends StatelessWidget {
                   ? null
                   : ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadii.field - 1),
-                      child: Image.memory(
-                        bytes,
+                      child: Image(
+                        // A third of the screen wide, 3:4.
+                        image: thumbImage(
+                          context,
+                          bytes,
+                          maxSide: MediaQuery.sizeOf(context).width * 4 / 9,
+                        ),
                         fit: BoxFit.cover,
                         gaplessPlayback: true,
                       ),

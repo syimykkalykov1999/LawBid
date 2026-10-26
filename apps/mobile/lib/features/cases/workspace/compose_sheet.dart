@@ -11,6 +11,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart'
     show casesRepositoryProvider;
 import 'package:lawbid/features/cases/domain/case_models.dart'
@@ -967,6 +968,8 @@ class _KeptTile extends StatelessWidget {
               dimension: 44,
               child: file.isImage && url != null
                   ? Image(
+                      // Owner 2026-10-26: kept on disk and decoded at the
+                      // box's size (it was a full-size download each time).
                       image: appNetworkImage(url, decodeWidthFor(44)),
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => ColoredBox(
@@ -1038,7 +1041,10 @@ class _PickedTile extends ConsumerWidget {
             child: SizedBox.square(
               dimension: 44,
               child: file.isImage
-                  ? Image.memory(file.bytes, fit: BoxFit.cover)
+                  ? Image(
+                      image: thumbImage(context, file.bytes, maxSide: 44),
+                      fit: BoxFit.cover,
+                    )
                   : ColoredBox(
                       color: colors.surface,
                       child: AppIcon(

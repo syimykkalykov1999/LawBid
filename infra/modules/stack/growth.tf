@@ -10,6 +10,8 @@ variable "growth" {
       db_proxy_secret_arn        Secrets Manager secret {username,password} of the app role.
       opensearch_enabled         OpenSearch domain for the search engine. The app finds it by itself (OPENSEARCH_URL); admin Settings: search.engine = shadow, then engine, turns it on. docs/architecture/SEARCH_READY.md.
       opensearch_instance_type / _count / _volume_gb   size of that domain.
+      opensearch_serverless_enabled   Amazon OpenSearch Serverless collection INSTEAD of the domain (admin Settings: search.engine_kind = serverless). about $350 a month minimum (2 OCU, AWS pricing page 2026-10-26) vs about $28 for the t3.small domain: keep false until the domain needs several nodes. Never applied by helpers.
+      opensearch_serverless_standby   false = no standby nodes (about $175, staging only).
       redis_cluster_mode         MOVED: set the stack variable redis_cluster_mode = "standby" | "on" (docs/runbooks/redis-cluster.md); this field stays false.
       livekit_nodes              NOT BUILT: validation refuses > 1 (modules/livekit is one box).
       cdn_images_provider        "cloudfront" (default) or "bunny": which CDN serves public images; "bunny" needs cdn_images_base_url (https://<pull-zone>).
@@ -17,20 +19,22 @@ variable "growth" {
       event_loop_p99_alarm_ms    alarm threshold for the Node event-loop delay metric; 0 = no alarm.
   EOT
   type = object({
-    rds_read_replicas          = optional(number, 0)
-    rds_replica_instance_class = optional(string, "")
-    db_proxy_enabled           = optional(bool, false)
-    db_proxy_secret_arn        = optional(string, "")
-    opensearch_enabled         = optional(bool, false)
-    opensearch_instance_type   = optional(string, "t3.small.search")
-    opensearch_instance_count  = optional(number, 1)
-    opensearch_volume_gb       = optional(number, 20)
-    redis_cluster_mode         = optional(bool, false)
-    livekit_nodes              = optional(number, 1)
-    cdn_images_provider        = optional(string, "cloudfront")
-    cdn_images_base_url        = optional(string, "")
-    event_loop_p99_alarm_ms    = optional(number, 250)
-    events_stream_enabled      = optional(bool, false)
+    rds_read_replicas             = optional(number, 0)
+    rds_replica_instance_class    = optional(string, "")
+    db_proxy_enabled              = optional(bool, false)
+    db_proxy_secret_arn           = optional(string, "")
+    opensearch_enabled            = optional(bool, false)
+    opensearch_instance_type      = optional(string, "t3.small.search")
+    opensearch_instance_count     = optional(number, 1)
+    opensearch_volume_gb          = optional(number, 20)
+    opensearch_serverless_enabled = optional(bool, false)
+    opensearch_serverless_standby = optional(bool, true)
+    redis_cluster_mode            = optional(bool, false)
+    livekit_nodes                 = optional(number, 1)
+    cdn_images_provider           = optional(string, "cloudfront")
+    cdn_images_base_url           = optional(string, "")
+    event_loop_p99_alarm_ms       = optional(number, 250)
+    events_stream_enabled         = optional(bool, false)
   })
   default = {}
 
@@ -101,3 +105,20 @@ module "growth" {
 output "growth_replica_endpoints" { value = module.growth.replica_endpoints }
 output "growth_db_proxy_endpoint" { value = module.growth.db_proxy_endpoint }
 output "growth_opensearch_endpoint" { value = module.growth.opensearch_endpoint }
+
+# N-11: OpenSearch Serverless collection (default OFF, see the module header
+# for the price: min 2 OCU, about $350 a month).
+module "opensearch_serverless" {
+  count                   = var.growth.opensearch_serverless_enabled ? 1 : 0
+  source                  = "../opensearch-serverless"
+  name                    = local.name
+  tags                    = local.tags
+  vpc_id                  = module.network.vpc_id
+  private_subnet_ids      = module.network.private_subnet_ids
+  tasks_security_group_id = aws_security_group.tasks.id
+  kms_key_arn             = module.kms.key_arn
+  task_role_arn           = module.ecs.task_role_arn
+  standby_replicas        = var.growth.opensearch_serverless_standby
+}
+
+output "growth_opensearch_serverless_endpoint" { value = one(module.opensearch_serverless[*].endpoint) }
