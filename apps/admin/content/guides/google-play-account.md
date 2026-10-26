@@ -1,7 +1,7 @@
 ---
 id: google-play-account
 title: Аккаунт Google Play Console для компании
-category: accounts
+category: launch
 cost: $25 один раз; номер D-U-N-S бесплатный
 time: от 1 до 4 недель (D-U-N-S у Google до 30 дней, проверка организации ещё несколько дней)
 verified: 2026-10-25
