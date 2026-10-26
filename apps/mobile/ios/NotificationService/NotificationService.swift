@@ -1,4 +1,5 @@
 import Intents
+import UIKit
 import UserNotifications
 
 /// Owner 2026-10-22 (message pushes like WhatsApp / Telegram): a chat push
@@ -8,11 +9,14 @@ import UserNotifications
 /// contact, a group titled with the group. The app writes the saved names
 /// into the shared App Group (AppDelegate.swift, `lawbid/chat_notifications`).
 ///
-/// Not wired into Runner.xcodeproj yet: the target, its App ID, the App
-/// Group and the Communication Notifications capability are set up in
-/// Xcode / Apple Developer — docs/runbooks/IOS_CHAT_NOTIFICATIONS.md. Until
-/// then the iPhone shows the server's alert as is (title = sender, body =
-/// text, stacked per chat), just with the app icon.
+/// Owner 2026-10-26: wired into Runner.xcodeproj (target
+/// `NotificationService`, embedded in the app). Apple's side (App ID of the
+/// extension, Communication Notifications capability; the App Group for
+/// phone-book names) — docs/runbooks/IOS_CHAT_NOTIFICATIONS.md. Without the
+/// capability the banner stays the server's alert (title = sender, body =
+/// text, stacked per chat) with the app icon; nothing breaks. A
+/// notification with a person (`style == "actor"`) gets their photo as an
+/// attachment.
 class NotificationService: UNNotificationServiceExtension {
   private var contentHandler: ((UNNotificationContent) -> Void)?
   private var bestAttempt: UNMutableNotificationContent?
@@ -22,9 +26,30 @@ class NotificationService: UNNotificationServiceExtension {
     withContentHandler contentHandler: @escaping (UNNotificationContent) -> Void
   ) {
     self.contentHandler = contentHandler
-    guard let content = request.content.mutableCopy() as? UNMutableNotificationContent,
-      content.userInfo["style"] as? String == "chat"
+    guard let content = request.content.mutableCopy() as? UNMutableNotificationContent
     else {
+      contentHandler(request.content)
+      return
+    }
+    // Owner 2026-10-26: a notification with a person (a bid, a comment, a
+    // like, a missed call …): their photo as the picture on the banner.
+    if content.userInfo["style"] as? String == "actor" {
+      bestAttempt = content
+      AvatarCache.file(
+        url: content.userInfo["actorAvatar"] as? String,
+        key: content.userInfo["actorAvatarKey"] as? String
+      ) { [weak self] file in
+        if let file = file,
+          let attachment = try? UNNotificationAttachment(
+            identifier: "actor", url: AvatarCache.copyForAttachment(file), options: nil)
+        {
+          content.attachments = [attachment]
+        }
+        self?.finish(content)
+      }
+      return
+    }
+    guard content.userInfo["style"] as? String == "chat" else {
       contentHandler(request.content)
       return
     }
@@ -155,6 +180,27 @@ enum AppGroup {
 /// does not), kept in the extension's caches.
 enum AvatarCache {
   static func image(url: String?, key: String?, done: @escaping (INImage?) -> Void) {
+    file(url: url, key: key) { file in
+      guard let file = file, let data = try? Data(contentsOf: file) else {
+        done(nil)
+        return
+      }
+      done(INImage(imageData: data))
+    }
+  }
+
+  /// iOS moves an attachment's file into its own store: a copy, so the
+  /// cached photo stays for the next push.
+  static func copyForAttachment(_ file: URL) -> URL {
+    let copy = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString + ".png")
+    try? FileManager.default.copyItem(at: file, to: copy)
+    return copy
+  }
+
+  /// The cached photo file (downloaded once). A missing 256 px preview
+  /// (`…_w256` 404) falls back to the full picture of a public link.
+  static func file(url: String?, key: String?, done: @escaping (URL?) -> Void) {
     guard let url = url, let link = URL(string: url),
       link.scheme == "https" || link.scheme == "http"
     else {
@@ -165,11 +211,36 @@ enum AvatarCache {
       .replacingOccurrences(of: "/", with: "_")
     let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("chat_avatars", isDirectory: true)
-    let file = dir.appendingPathComponent(name)
-    if let data = try? Data(contentsOf: file) {
-      done(INImage(imageData: data))
+    let file = dir.appendingPathComponent(name + ".png")
+    if FileManager.default.fileExists(atPath: file.path) {
+      done(file)
       return
     }
+    download(link) { data in
+      if let data = data {
+        store(data, dir: dir, file: file, done: done)
+      } else if let full = fullPicture(of: link) {
+        download(full) { data in
+          if let data = data { store(data, dir: dir, file: file, done: done) } else { done(nil) }
+        }
+      } else {
+        done(nil)
+      }
+    }
+  }
+
+  private static func store(_ data: Data, dir: URL, file: URL, done: (URL?) -> Void) {
+    // Kept as PNG so iOS accepts it as an attachment whatever the source.
+    guard let image = UIImage(data: data), let png = image.pngData() else {
+      done(nil)
+      return
+    }
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try? png.write(to: file, options: .atomic)
+    done(file)
+  }
+
+  private static func download(_ link: URL, done: @escaping (Data?) -> Void) {
     var request = URLRequest(url: link)
     request.timeoutInterval = 8
     URLSession.shared.dataTask(with: request) { data, response, _ in
@@ -179,9 +250,17 @@ enum AvatarCache {
         done(nil)
         return
       }
-      try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-      try? data.write(to: file, options: .atomic)
-      done(INImage(imageData: data))
+      done(data)
     }.resume()
+  }
+
+  /// `…/<file>_w256` → `…/<file>` for an unsigned link (a signature
+  /// covers the exact path).
+  private static func fullPicture(of link: URL) -> URL? {
+    let s = link.absoluteString
+    guard !s.contains("?"),
+      let range = s.range(of: "_w[0-9]+(\\.avif)?$", options: .regularExpression)
+    else { return nil }
+    return URL(string: String(s[..<range.lowerBound]))
   }
 }

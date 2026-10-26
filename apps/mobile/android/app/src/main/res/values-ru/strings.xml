@@ -8,4 +8,9 @@
     <string name="call_hangup">Завершить</string>
     <!-- Owner 2026-10-22: the reader in a chat notification (MessagingStyle). -->
     <string name="chat_me">Вы</string>
+    <!-- Owner 2026-10-26: the buttons of a chat notification. -->
+    <string name="chat_action_reply">Ответить</string>
+    <string name="chat_action_read">Прочитано</string>
+    <string name="chat_reply_hint">Сообщение</string>
+    <string name="chat_reply_failed">Не отправлено. Откройте чат, чтобы повторить.</string>
 </resources>
