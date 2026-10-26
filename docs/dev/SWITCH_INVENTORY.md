@@ -36,6 +36,12 @@ move to Выкл/Вкл/Авто there. "Ceiling" is the number that caps the be
 | `feed.default_content_mode` | Лента по умолчанию | all | content filter, not billable | default feed filter | `modules/posts/content-filter.service.ts:21` | none | listed | |
 | `ops.auto_pause_heavy_jobs` | Авто-пауза тяжёлых задач | on | 2 | pause when DB slow | `jobs/handlers/ops-guard.job.ts:61` | `ops.db_slow_ms` | default | |
 | `ops.auto_scale_down_on_budget` | Авто-снижение по бюджету | on | 2 | cap autoscaling at budget | `jobs/handlers/ops-guard.job.ts:107` | monthly budget | default | |
+| `chat.search.backfill_mode` | Индексация старых сообщений для поиска | auto | 3 (off/on/auto) | landed on main after this inventory was written | `jobs/handlers/chat-search-backfill.job.ts:95` | see the setting | listed | |
+| `queues.scale_signal_mode` | Как считать нагрузку для автодобавления фоновых серверов | auto | 3 (off/on/auto) | landed on main after this inventory was written | `jobs/handlers/ops-metrics.job.ts:157` | see the setting | listed | |
+| `queues.push_rate_mode` | Ограничение скорости отправки пушей в FCM/APNs | auto | 3 (off/on/auto) | landed on main after this inventory was written | `modules/notifications/push/push-dispatcher.ts:160` | see the setting | listed | |
+| `scale.capacity_ceiling.mode` | Потолок размера базы и Redis по деньгам | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/economy/economy.service.ts:348` | see the setting | listed | |
+| `scale.bunny_hardstop.mode` | Новые загрузки видео (Bunny) | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1622` | see the setting | listed | |
+| `scale.cloudflare_hardstop.mode` | Групповые видеозвонки на Cloudflare | auto | 3 (off/on/auto) | landed on main after this inventory was written | `common/ops/cost-registry.ts:1654` | see the setting | listed | |
 
 "listed" = in the inventory and the reader exists, no behaviour test yet. `calls.channel_live_enabled` was removed (nothing read it; the feature does not exist).
 Three billable/load switches were converted to off/on/auto (`common/app-settings/switch-mode.ts`).
