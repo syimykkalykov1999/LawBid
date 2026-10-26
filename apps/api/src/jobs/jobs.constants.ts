@@ -95,6 +95,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-22 (SECURITY_TODO): rewrite `enc:v2` / retired-kid
    * message bodies as `enc:v3` under the active key (resumable batches). */
   messagesReencrypt: 'messages.reencrypt',
+  /** BUG-1 (package N-12b): blind search tokens for the messages written
+   * before the index existed (or under an older SEARCH_INDEX_KEY). */
+  chatSearchBackfill: 'chat.search-backfill',
   /** Owner 2026-10-05: archived tasks past the retention → removed. */
   taskArchivePurge: 'tasks.archive-purge',
   /** Owner 2026-10-05: client → attorney checkouts never finished → canceled. */
@@ -219,6 +222,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.contactsJoined, pattern: '1-59/2 * * * *' },
   { name: CRON_JOBS.contactsPepperBackfill, pattern: '3-58/5 * * * *' },
   { name: CRON_JOBS.messagesReencrypt, pattern: '4-59/5 * * * *' },
+  // Every 5 minutes; «Авто» works only at night (UTC 06–12) until done.
+  { name: CRON_JOBS.chatSearchBackfill, pattern: '1-56/5 * * * *' },
   // 16:20 UTC: notices arrive in the US daytime.
   { name: CRON_JOBS.taskArchivePurge, pattern: '20 16 * * *' },
   { name: CRON_JOBS.casePaymentsExpire, pattern: '7-57/10 * * * *' },

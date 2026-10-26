@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -15,8 +16,9 @@ const kCacheMaxAgeExtra = 'cacheMaxAge';
 const kFromCacheExtra = 'fromCache';
 
 /// Request extras for a GET that may be served from the phone for [maxAge].
-Map<String, dynamic> cacheFor(Duration maxAge) =>
-    {kCacheMaxAgeExtra: maxAge.inSeconds};
+Map<String, dynamic> cacheFor(Duration maxAge) => {
+      kCacheMaxAgeExtra: maxAge.inSeconds,
+    };
 
 /// [Options] for a GET that may be served from the phone for [maxAge].
 Options cachedFor(Duration maxAge) => Options(extra: cacheFor(maxAge));
@@ -82,6 +84,16 @@ class HttpCacheInterceptor extends Interceptor {
   final int maxDiskBodyBytes;
 
   static const _keyExtra = 'httpCacheKey';
+  static const _leaderExtra = 'httpCacheLeader';
+
+  /// `Options.extra` flag: never share this GET with an identical one in
+  /// flight (a poll that must reach the server).
+  static const noCoalesceExtra = 'noCoalesce';
+
+  /// S15-12: identical GETs in flight right now (key → the leader's answer,
+  /// null when the leader failed and each follower must ask for itself).
+  final _inFlight = <String, Completer<Response<dynamic>?>>{};
+
   static const _hitExtra = 'httpCacheHit';
 
   final _entries = <String, HttpCacheEntry>{};
@@ -110,6 +122,7 @@ class HttpCacheInterceptor extends Interceptor {
       if (hit != null) _put(key, hit);
     }
     if (hit == null) {
+      if (await _followOrLead(options, key, handler)) return;
       handler.next(options);
       return;
     }
@@ -133,7 +146,62 @@ class HttpCacheInterceptor extends Interceptor {
     // Held on the request itself: an eviction between the request and its
     // 304 must not turn the answer into an error.
     options.extra[_hitExtra] = hit;
+    if (await _followOrLead(options, key, handler)) return;
     handler.next(options);
+  }
+
+  /// S15-12: two widgets asking the same URL at the same moment sent two
+  /// requests. The first one (the leader) goes out; an identical GET that
+  /// arrives while it is in flight waits for its answer and gets the same
+  /// body, with no request of its own. Returns true when [handler] was
+  /// resolved here. A leader that fails (or is retried) answers nobody: each
+  /// follower then asks for itself, so an error is never shared. The cache
+  /// key carries the user and language, so answers never cross accounts.
+  Future<bool> _followOrLead(
+    RequestOptions options,
+    String key,
+    RequestInterceptorHandler handler,
+  ) async {
+    if (options.extra[noCoalesceExtra] == true ||
+        options.extra[_leaderExtra] == true) {
+      // Opted out, or the leader itself coming round again (a retry / a
+      // repeat after a token refresh re-enters through `dio.fetch`).
+      return false;
+    }
+    final leader = _inFlight[key];
+    if (leader == null) {
+      options.extra[_leaderExtra] = true;
+      _inFlight[key] = Completer<Response<dynamic>?>();
+      return false;
+    }
+    final shared = await leader.future;
+    if (shared == null) {
+      // The leader failed: this request becomes a leader of its own when
+      // nobody else took over meanwhile.
+      if (_inFlight[key] == null) {
+        options.extra[_leaderExtra] = true;
+        _inFlight[key] = Completer<Response<dynamic>?>();
+      }
+      return false;
+    }
+    handler.resolve(
+      Response<dynamic>(
+        requestOptions: options,
+        data: shared.data,
+        statusCode: shared.statusCode,
+        headers: shared.headers,
+        extra: {...shared.extra, 'coalesced': true},
+      ),
+    );
+    return true;
+  }
+
+  void _finish(RequestOptions options, Response<dynamic>? answer) {
+    if (options.extra[_leaderExtra] != true) return;
+    final key = options.extra[_keyExtra] as String?;
+    if (key == null) return;
+    final done = _inFlight.remove(key);
+    if (done != null && !done.isCompleted) done.complete(answer);
   }
 
   @override
@@ -162,6 +230,7 @@ class HttpCacheInterceptor extends Interceptor {
       _put(key, entry);
       if (json.length <= maxDiskBodyBytes) _writeDisk(key, entry, json);
     }
+    _finish(response.requestOptions, response);
     handler.next(response);
   }
 
@@ -177,18 +246,19 @@ class HttpCacheInterceptor extends Interceptor {
         _put(key, fresh);
         _touchDisk(key, confirmed: true);
       }
-      handler.resolve(
-        Response<dynamic>(
-          requestOptions: err.requestOptions,
-          data: hit.data,
-          statusCode: 200,
-          headers: res.headers,
-          extra: {kFromCacheExtra: true},
-        ),
+      final answer = Response<dynamic>(
+        requestOptions: err.requestOptions,
+        data: hit.data,
+        statusCode: 200,
+        headers: res.headers,
+        extra: {kFromCacheExtra: true},
       );
+      _finish(err.requestOptions, answer);
+      handler.resolve(answer);
       return;
     }
     if (res != null) _usage?.request(bytes: _roughSize(res.data));
+    _finish(err.requestOptions, null);
     handler.next(err);
   }
 

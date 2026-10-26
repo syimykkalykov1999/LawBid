@@ -65,7 +65,10 @@ class SentryReporter {
     // Owner 2026-10-22: the same DSN starts the native SDK (native crashes,
     // ANRs) on a prod release phone.
     unawaited(SentryNative.configure(dsn, flavor));
-    _dsn = _Dsn.tryParse(dsn);
+    // S15-11: no admin value → the DSN compiled into the build.
+    final effective =
+        (dsn ?? '').trim().isEmpty ? SentryNative.compiledDsn : dsn;
+    _dsn = _Dsn.tryParse(effective);
     if (!_active || _dsn == null) {
       _pending.clear();
       return;
@@ -186,7 +189,8 @@ class SentryReporter {
         'platform': 'other',
         'level': c.fatal ? 'fatal' : 'error',
         'environment': 'production',
-        'release': 'lawbid@${AppVersion.current}',
+        'release': 'lawbid@${AppVersion.current}+${AppVersion.build}',
+        'dist': AppVersion.build,
         'tags': {
           'os': _platform(),
           'flavor': 'prod',
