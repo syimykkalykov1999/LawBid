@@ -402,6 +402,8 @@ const KEY_TEXT: Record<string, string> = {
   'privacy.retention_audit_log_days': 'Сколько дней хранить журнал действий админов (1825 = 5 лет, как в политике; 0 — хранить всегда). Ключ: privacy.retention_audit_log_days.',
   'privacy.retention_data_access_log_days': 'Сколько дней хранить журнал «что открывали по запросам властей» (1825 = 5 лет; записи запроса под юридическим холдом остаются; 0 — хранить всегда). Ключ: privacy.retention_data_access_log_days.',
   'privacy.retention_session_ip_days': 'Через сколько дней без использования у сессии стираются IP-адрес и название браузера (90; 0 — не стирать). Ключ: privacy.retention_session_ip_days.',
+  'privacy.retention_batch': 'Сколько строк ночная чистка по срокам хранения меняет одной командой (5000). Меньше — короче каждая транзакция. Ключ: privacy.retention_batch.',
+  'privacy.retention_max_rows': 'Сколько строк одной таблицы ночная чистка обрабатывает за ночь (1 000 000); остальное — в следующую ночь. Ключ: privacy.retention_max_rows.',
   'privacy.retention_contact_disclosure_ip_days': 'Через сколько дней у раскрытия контактов стираются IP и устройство (сама запись остаётся; 730; 0 — не стирать). Ключ: privacy.retention_contact_disclosure_ip_days.',
   'privacy.login_cancels_deletion': 'Вкл. — любой вход в аккаунт отменяет запрос на удаление (старое поведение). Выкл. — вход НЕ отменяет: отмена только кнопкой или ссылкой из письма (человеку пишем в день запроса и за день до удаления). Ключ: privacy.login_cancels_deletion.',
   'privacy.deletion_notices_per_day': 'Потолок: сколько писем/пушей «аккаунт удалится завтра» уходит за один ночной запуск (2000; остальные — на следующий день). Ключ: privacy.deletion_notices_per_day.',
