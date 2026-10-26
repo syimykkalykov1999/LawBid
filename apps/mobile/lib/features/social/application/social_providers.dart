@@ -13,7 +13,6 @@ import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/feed/application/feed_topics.dart'
     show topicTagFor;
-import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
@@ -889,15 +888,10 @@ class SocialActions {
   Future<Object?> deletePost(Post post) => _guard('del:${post.id}', () async {
         await _repo.deletePost(post.id);
         _ref.read(deletedPostsProvider.notifier).add(post.id);
-        // The author's profile grids and post counters follow at once.
-        _ref
-          ..invalidate(archivedPostsProvider)
-          ..invalidate(attorneyPostsProvider(post.author.id))
-          ..invalidate(attorneyNewsProvider(post.author.id))
-          ..invalidate(attorneyPhotoPostsProvider(post.author.id))
-          ..invalidate(attorneyReelsProvider(post.author.id))
-          ..invalidate(publicAttorneyProfileProvider)
-          ..invalidate(publicClientProfileProvider);
+        // The post is hidden at once by deletedPostsProvider; the profile
+        // grids and counters are not refetched now (delta audit P6) — they
+        // read again the next time they are opened.
+        _ref.invalidate(archivedPostsProvider);
       });
 
   /// Owner 2026-10-12: pin to slot 1..3 / unpin; the profile lists reload
@@ -955,12 +949,11 @@ class SocialActions {
         } else {
           hidden.remove(post.id);
         }
+        // Hidden / shown through deletedPostsProvider + the override; the
+        // profile lists are not refetched (delta audit P6).
         _ref
           ..read(postOverridesProvider.notifier).put(updated)
-          ..invalidate(archivedPostsProvider)
-          ..invalidate(publicAttorneyProfileProvider)
-          ..invalidate(publicClientProfileProvider);
-        _refreshProfileLists(post);
+          ..invalidate(archivedPostsProvider);
       });
 
   void _refreshProfileLists(Post post) {

@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { sealJournalPayload } from './journal-text-seal';
 import { createHash, randomUUID } from 'node:crypto';
 import type {
   CaseJournal,
@@ -97,7 +99,11 @@ type JournalReader = Pick<Prisma.TransactionClient, 'caseJournal'>;
  */
 @Injectable()
 export class CaseJournalService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // S3-5: free text in the payload is sealed when the admin switch is on.
+    @Optional() private readonly cipher?: MessageBodyCipher,
+  ) {}
 
   async append(
     tx: Prisma.TransactionClient,
@@ -119,15 +125,22 @@ export class CaseJournalService {
     const createdAt = new Date(
       last ? Math.max(now, last.created_at.getTime() + 1) : now,
     );
+    const id = randomUUID();
+    // The hash covers the stored (sealed) form, so verifyChain needs no key.
+    const payload = await sealJournalPayload(
+      input.payload as Record<string, unknown>,
+      id,
+      this.cipher,
+    );
     const row: HashedRow = {
-      id: randomUUID(),
+      id,
       case_id: input.caseId,
       client_id: input.clientId,
       attorney_id: input.attorneyId ?? null,
       actor_user_id: input.actor.userId,
       actor_role: input.actor.role,
       event_type: input.event,
-      payload: input.payload,
+      payload,
       prev_hash: last?.row_hash ?? null,
       retain_until: retainUntil(createdAt),
       created_at: createdAt,
@@ -135,7 +148,7 @@ export class CaseJournalService {
     return tx.caseJournal.create({
       data: {
         ...row,
-        payload: input.payload,
+        payload: payload as Prisma.InputJsonObject,
         row_hash: computeRowHash(row),
       },
     });

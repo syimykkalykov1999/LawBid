@@ -213,11 +213,12 @@ class ApiPracticesRepository implements PracticesRepository {
   final api.AttorneysClient _attorneys;
 
   @override
-  Future<List<PracticeCategory>> fetchTree() async => (await guardApiCall(
-        // Caching round 2 (S2-4): reference data, the server keeps it 5 min
-        // (an admin edit drops it); shown from the phone for the same time.
+  Future<List<PracticeCategory>> fetchTree() async =>
+      (await guardApiCall(
+        // Delta audit P7: the tree changes a few times a year; the server
+        // ETag still revalidates it after the hour.
         () => _tree.listPracticeAreas(
-          extras: cacheFor(const Duration(minutes: 5)),
+          extras: cacheFor(const Duration(hours: 1)),
         ),
       ))
           .data
