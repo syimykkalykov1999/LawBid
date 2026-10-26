@@ -176,8 +176,10 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // S16-1: the session check (keychain + token refresh + `GET /me/session`)
   // starts now and runs beside the translation load and the first frame;
   // the splash only waits for its result (AppStartupController.start).
-  container.read(prefetchGateProvider);
-  final startup = container.read(appStartupProvider.notifier);
+  // The prefetch gate is created first (it listens to connectivity).
+  final startup = (container..read(prefetchGateProvider)).read(
+    appStartupProvider.notifier,
+  );
   unawaited(startup.prime());
 
   // L10n cache bootstrap (docs/01_FOUNDATION_AUTH.md §9.4: "читает кэш из
