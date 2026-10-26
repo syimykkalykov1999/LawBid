@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/data/reels_repository.dart';
@@ -36,8 +37,8 @@ import '../social/social_fakes.dart';
 /// cover; under it a wide button ("Смотреть" / "Читать") opens its inside
 /// — text, up to 9 photos, up to 9 documents; posts carry documents too.
 
-Post _reel({bool photos = true, bool docs = true}) {
-  final base = fakePost('r1', withPhoto: photos);
+Post _reel({String id = 'r1', bool photos = true, bool docs = true}) {
+  final base = fakePost(id, withPhoto: photos);
   return Post(
     id: base.id,
     author: base.author,
@@ -371,6 +372,58 @@ void main() {
       extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
     );
     expect(find.byType(ReelFollowButton), findsNothing);
+  });
+
+  testWidgets(
+      'owner 2026-10-26 (smoothness): a tap pauses the player without '
+      'rebuilding the reel page', (tester) async {
+    await pump(
+      tester,
+      ReelsScreen(initial: [_reel()]),
+      extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
+    );
+    bool paused() => tester.widget<ReelVideo>(find.byType(ReelVideo)).paused;
+    expect(paused(), isFalse);
+    BuildCounter.reset();
+    await tester.tapAt(const Offset(100, 300));
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pump();
+    expect(paused(), isTrue);
+    await tester.tapAt(const Offset(100, 300));
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pump();
+    expect(paused(), isFalse);
+    final page = BuildCounter.of('reels.page');
+    final screen = BuildCounter.of('reels.screen');
+    // ignore: avoid_print
+    print('reels: pause+play -> page builds=$page screen builds=$screen');
+    expect(page, 0);
+    expect(screen, 0);
+  });
+
+  testWidgets(
+      'owner 2026-10-26 (smoothness): a swipe to the next reel does not '
+      'rebuild the player screen', (tester) async {
+    await pump(
+      tester,
+      ReelsScreen(
+        initial: [for (var i = 0; i < 4; i++) _reel(id: 'r$i')],
+      ),
+      extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
+    );
+    BuildCounter.reset();
+    await tester.fling(
+      find.byType(PageView),
+      const Offset(0, -400),
+      1500,
+    );
+    await tester.pumpAndSettle();
+    final page = BuildCounter.of('reels.page');
+    final screen = BuildCounter.of('reels.screen');
+    // ignore: avoid_print
+    print('reels: one swipe -> page builds=$page screen builds=$screen');
+    expect(screen, 0);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('anything opened over the reel pauses it; back, it plays on',

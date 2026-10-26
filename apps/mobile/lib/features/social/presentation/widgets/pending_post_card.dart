@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/social/application/pending_posts.dart';
 
@@ -69,12 +70,10 @@ class PendingPostCard extends ConsumerWidget {
                 if (thumb != null && thumb.isNotEmpty) ...[
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      thumb,
+                    child: Image(
+                      image: thumbImage(context, thumb, maxSide: 40),
                       width: 40,
                       height: 40,
-                      cacheWidth:
-                          (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
                       errorBuilder: (_, __, ___) => SizedBox(

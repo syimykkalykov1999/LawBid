@@ -33,6 +33,8 @@ class CaseBidItemDto {
     required this.outsideLicensedStates,
     required this.createdAt,
     required this.attorney,
+    required this.bestPrice,
+    required this.lowOffer,
     this.percentBps,
   });
 
@@ -68,6 +70,12 @@ class CaseBidItemDto {
   final bool outsideLicensedStates;
   final DateTime createdAt;
   final BidAttorneySummaryDto attorney;
+
+  /// Owner 2026-10-25: the lowest reasonable price on the case (suspiciously low bids excluded). For a later "best price" label.
+  final bool bestPrice;
+
+  /// Owner 2026-10-25: far below the case median (setting bids.dumping_guard on); false when the guard is off.
+  final bool lowOffer;
 
   Map<String, Object?> toJson() => _$CaseBidItemDtoToJson(this);
 }
