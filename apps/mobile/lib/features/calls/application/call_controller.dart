@@ -66,7 +66,11 @@ class CallSession {
     this.reconnecting = false,
     this.notice,
     this.videoPrompt,
+    this.endedAt,
   });
+
+  /// When the call ended here (the «Call ended · 2:14» line).
+  final DateTime? endedAt;
 
   /// Owner 2026-10-22 (WhatsApp): the member (user id) who just switched
   /// their camera on while ours is off — the screen asks «Turn on yours?».
@@ -126,6 +130,7 @@ class CallSession {
     bool clearNotice = false,
     String? videoPrompt,
     bool clearVideoPrompt = false,
+    DateTime? endedAt,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -142,6 +147,7 @@ class CallSession {
         reconnecting: reconnecting ?? this.reconnecting,
         notice: clearNotice ? null : notice ?? this.notice,
         videoPrompt: clearVideoPrompt ? null : videoPrompt ?? this.videoPrompt,
+        endedAt: endedAt ?? this.endedAt,
       );
 }
 
@@ -791,6 +797,17 @@ class CallController extends Notifier<CallSession> {
     } else if (forAll) {
       ref.read(groupRejoinProvider.notifier).set(null);
     }
+    // Owner 2026-10-26 (WhatsApp): in a call of two the other phone hears
+    // «bye» over the call's own link first and ends at once — not after
+    // the server's event or a dropped-link timeout.
+    if (call != null && (_twoPersonCall(call) || forAll)) {
+      callTrace('hangUp ${call.id}: bye to the other side');
+      unawaited(
+        ref
+            .read(callSignalSenderProvider)(call.id, const {'type': 'bye'})
+            .then<void>((_) {}, onError: (Object _) {}),
+      );
+    }
     final ending =
         call == null ? null : _endQuietly(call.id, reason, forAll: forAll);
     _finish(
@@ -1078,6 +1095,13 @@ class CallController extends Notifier<CallSession> {
     }
     if (_aloneTimer != null) return;
     final id = call.id;
+    // Owner 2026-10-26 (WhatsApp): a call of two (a 1:1 that got an invite
+    // nobody took) ends the moment the other hangs up — no 3 s.
+    if (_twoPersonCall(call)) {
+      callTrace('alone in $id (a call of two): ending now');
+      unawaited(hangUp());
+      return;
+    }
     callTrace('alone in $id: ending in ${kCallAloneGrace.inSeconds} s');
     _aloneTimer = Timer(kCallAloneGrace, () {
       _aloneTimer = null;
@@ -1086,6 +1110,14 @@ class CallController extends Notifier<CallSession> {
       unawaited(hangUp());
     });
   }
+
+  /// A call between two people only: not a group chat's or a channel's,
+  /// and never more than two people in it (the server's twin rule).
+  bool _twoPersonCall(AppCall call) =>
+      !call.group ||
+      (call.groupId == null &&
+          call.channelId == null &&
+          call.participants.where((m) => m.joinedAt != null).length <= 2);
 
   /// One link per joined member: new ones are added (the later joiner
   /// offers), those who left are closed.
@@ -2052,6 +2084,22 @@ class CallController extends Notifier<CallSession> {
       case 'call:signal':
         if (data is! Map || data['callId'] != state.call?.id) return;
         final payload = data['data'];
+        // Owner 2026-10-26 (WhatsApp): the other side hung up a call of
+        // two — it ends here now («Call ended · 2:14»), nothing to wait for.
+        final current = state.call;
+        if (payload is Map &&
+            payload['type'] == 'bye' &&
+            current != null &&
+            state.busy &&
+            _twoPersonCall(current)) {
+          callTrace('bye from the other side: ending ${current.id} now');
+          _finish(
+            state.phase == CallPhase.active
+                ? CallStatus.ended
+                : CallStatus.canceled,
+          );
+          return;
+        }
         if (payload is Map) {
           final from = data['from'];
           unawaited(
@@ -2232,6 +2280,7 @@ class CallController extends Notifier<CallSession> {
       outcome: outcome,
       call: call,
       reconnecting: false,
+      endedAt: DateTime.now(),
     );
     // The 409 sheet decides when this screen goes.
     if (keepOpen) return;

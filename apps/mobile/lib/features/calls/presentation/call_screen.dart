@@ -1025,7 +1025,15 @@ String callStatusText(Translator t, CallSession s) {
         case 'CALL_NOT_FOUND':
           return t.t('error.api.${s.errorCode}');
       }
-      return t.t('call.status.${(s.outcome ?? CallStatus.ended).name}');
+      final outcome = s.outcome ?? CallStatus.ended;
+      final text = t.t('call.status.${outcome.name}');
+      // Owner 2026-10-26 (WhatsApp): «Call ended · 2:14».
+      final from = s.connectedAt;
+      final to = s.endedAt;
+      if (outcome == CallStatus.ended && from != null && to != null) {
+        return '$text · ${voiceClock(to.difference(from))}';
+      }
+      return text;
     case CallPhase.idle:
       return '';
   }

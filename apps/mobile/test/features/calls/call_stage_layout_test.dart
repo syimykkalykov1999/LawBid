@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
+import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_screen.dart';
 import 'package:lawbid/features/calls/presentation/call_stage.dart';
@@ -180,5 +182,16 @@ void main() {
     expect(c.read(callVideoLayoutProvider).focusId, isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  test('the end says how long the call was: «Call ended · 2:14»', () {
+    final at = DateTime(2026, 10, 26, 12);
+    final s = callSession1to1(CallPhase.active).copyWith(
+      phase: CallPhase.ended,
+      outcome: CallStatus.ended,
+      connectedAt: at,
+      endedAt: at.add(const Duration(minutes: 2, seconds: 14)),
+    );
+    expect(callStatusText(const StaticTranslatorEn(), s), 'Call ended · 2:14');
   });
 }

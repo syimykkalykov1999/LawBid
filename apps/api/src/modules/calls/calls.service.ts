@@ -2403,6 +2403,13 @@ export class CallsService {
       return this.finish(call, 'ended', viewerId);
     }
     if (joined === 1 && !ringing) {
+      // Owner 2026-10-26 (WhatsApp): a call of two — a 1:1 call that got
+      // a «group» only because someone was invited who never came — ends
+      // the moment the other person hangs up. The grace is for real group
+      // calls (a group chat's or a channel's, or three people who talked).
+      if (this.wasTwoPersonCall(call, rows)) {
+        return this.finish(call, 'ended', viewerId);
+      }
       const grace = await this.soloGraceMs();
       if (grace <= 0) return this.finish(call, 'ended', viewerId);
       const now = new Date();
@@ -2415,6 +2422,13 @@ export class CallsService {
     }
     await this.clearSolo(call.id);
     return null;
+  }
+
+  /** A call between two people only: not a group chat's or a channel's
+   * call, and never more than two people in it. */
+  private wasTwoPersonCall(call: Call, rows: CallParticipant[]): boolean {
+    if (call.group_id || call.channel_id) return false;
+    return rows.filter((r) => Boolean(r.joined_at)).length <= 2;
   }
 
   private async clearSolo(callId: string): Promise<void> {

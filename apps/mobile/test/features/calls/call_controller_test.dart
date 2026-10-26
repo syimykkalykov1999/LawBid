@@ -1989,4 +1989,122 @@ void main() {
       });
     });
   });
+
+  group('a call of two ends at once (owner 2026-10-26)', () {
+    test('the other side hangs up: «bye» ends it here at once', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.media.onState!(CallMediaState.connected);
+        async.elapse(const Duration(seconds: 5));
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'bye'},
+        });
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.s.outcome, CallStatus.ended);
+        expect(h.media.closed, isTrue);
+        // The «Call ended · 2:14» line has both ends of the call.
+        expect(h.s.connectedAt, isNotNull);
+        expect(h.s.endedAt, isNotNull);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('our hang-up tells the other side «bye» before the server', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.media.onState!(CallMediaState.connected);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        expect(h.signals.last, {'type': 'bye'});
+        expect(h.repo.ends, [CallEndReason.hangup]);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('a 1:1 that got an invite nobody took: alone = ends at once', () {
+      fakeAsync((async) {
+        CallMember m(String id, CallMemberStatus st) => CallMember(
+              userId: id,
+              status: st,
+              displayName: id,
+              joinedAt: st == CallMemberStatus.declined
+                  ? null
+                  : DateTime.utc(2026, 10, 26),
+            );
+        final h = _Harness();
+        h.repo.acceptMembers = [
+          m('p1', CallMemberStatus.joined),
+          m('me', CallMemberStatus.joined),
+        ];
+        h.repo.acceptGroupId = null;
+        h.emit(
+          'call:incoming',
+          _event(
+            _call(
+              'g1',
+              CallStatus.active,
+              outgoing: false,
+              members: [
+                m('p1', CallMemberStatus.joined),
+                m('me', CallMemberStatus.invited),
+              ],
+            ),
+          ),
+        );
+        async.flushMicrotasks();
+        h.c.accept();
+        async
+          ..flushMicrotasks()
+          ..elapse(const Duration(milliseconds: 50));
+        h.media.onState!(CallMediaState.connected);
+        async.flushMicrotasks();
+        h.emit('call:participants', {
+          'callId': 'g1',
+          'hostId': 'p1',
+          'participants': [
+            for (final x in [
+              m('p1', CallMemberStatus.left),
+              m('x', CallMemberStatus.declined),
+              m('me', CallMemberStatus.joined),
+            ])
+              {
+                'userId': x.userId,
+                'displayName': x.displayName,
+                'username': null,
+                'avatarUrl': null,
+                'status': x.status.name,
+                'muted': false,
+                'mutedByHost': false,
+                'joinedAt': x.joinedAt?.toIso8601String(),
+              },
+          ],
+        });
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.ended);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+  });
 }

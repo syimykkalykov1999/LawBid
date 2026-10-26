@@ -21,6 +21,9 @@ function world(graceSec: number | undefined) {
     status: 'active',
     solo_since: null as Date | null,
     is_group: true,
+    // A group chat's call (owner 2026-10-26: a call of two ends at once,
+    // the grace is for group calls).
+    group_id: 'grp',
   } as Call;
   let rows: Partial<CallParticipant>[] = [
     { user_id: 'a', status: 'joined' },
