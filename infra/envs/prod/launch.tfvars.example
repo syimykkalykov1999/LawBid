@@ -156,3 +156,4 @@ web_create_certificate = true
 # anomaly_extra_emails         = ["REPLACE@gmail.com"]
 # redis_memory_alarm_percent   = 70   # default
 # nat_traffic_alarm_gb_per_day = 20  # default; 0 = off
+# media_replication_max_gb_per_day = 50  # default; alarm when media grows more than this a day (0 = off); stop the copy with replicate_media = false

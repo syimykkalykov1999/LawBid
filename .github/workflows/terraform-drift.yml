@@ -161,3 +161,19 @@ jobs:
               if [ -n "$N" ]; then gh issue close "$N" --comment "Plan is empty again ($RUN_URL)."; fi
               ;;
           esac
+
+  # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [drift]
+    if: ${{ always() && contains(needs.*.result, 'failure') && true }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Terraform drift check failed or found drift on production"
+      kind: drift
+      remind_after_minutes: 720
+    secrets: inherit

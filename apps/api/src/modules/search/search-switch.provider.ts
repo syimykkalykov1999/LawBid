@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { OpenSearchProvider } from './engine/opensearch-search.provider';
+import { EngineError } from './engine/opensearch.client';
 import { PostgresSearchProvider } from './postgres-search.provider';
 import type {
   AttorneySearchFilters,
@@ -16,6 +17,9 @@ export type SearchMode = 'postgres' | 'shadow' | 'engine';
 /** After this many engine failures in a row it is skipped for [OPEN_MS]. */
 const BREAKER_FAILS = 5;
 const OPEN_MS = 30_000;
+/** Latency lines: one aggregated line per op and engine per this window
+ * (review R-56: an unsampled line per search was ≈ 375 MB a day at 1M users). */
+const LATENCY_WINDOW_MS = 60_000;
 /** Identical shadow answers are logged this often (differences always). */
 const LOG_SAMPLE = 20;
 
@@ -75,6 +79,10 @@ export class SwitchingSearchProvider implements SearchProvider {
   private openUntil = 0;
   private shadowSeen = 0;
   private readonly pending = new Set<Promise<void>>();
+  private readonly latencyBuf = new Map<
+    string,
+    { op: string; engine: string; since: number; samples: number[] }
+  >();
   /** Counters since start (shadow runs / differing runs / engine fallbacks). */
   readonly stats = { shadow: 0, shadowDiff: 0, fallbacks: 0 };
 
@@ -100,14 +108,47 @@ export class SwitchingSearchProvider implements SearchProvider {
    * graceful shutdown). */
   async idle(): Promise<void> {
     await Promise.all([...this.pending]);
+    this.flushLatency();
   }
 
-  /** One metric line per search answered by Postgres: the CloudWatch metric
-   * filter `search-pg-latency` (infra/modules/monitoring) takes the p95 of
-   * `ms`; above 300 ms for 15 minutes the owner is told to turn the separate
-   * search on (admin: search.engine). */
+  /** One aggregated metric line per op and engine per minute (not one per
+   * search): `ms` is the p95 of the window, `n` the searches in it, `max` the
+   * slowest. The CloudWatch metric filter `search-pg-latency`
+   * (infra/modules/monitoring) takes the p95 of `ms`; above 300 ms for 15
+   * minutes the owner is told to turn the separate search on (admin:
+   * search.engine). Idle processes flush on `idle()`. */
   private latency(op: string, engine: string, ms: number): void {
-    this.log.log({ metric: 'search_latency', op, engine, ms });
+    const key = `${op}|${engine}`;
+    const nowMs = Date.now();
+    let b = this.latencyBuf.get(key);
+    if (!b) {
+      b = { op, engine, since: nowMs, samples: [] };
+      this.latencyBuf.set(key, b);
+    }
+    b.samples.push(ms);
+    if (nowMs - b.since >= LATENCY_WINDOW_MS) this.flushLatency(key);
+  }
+
+  /** Writes the pending aggregated latency line(s); all buckets when no key. */
+  flushLatency(key?: string): void {
+    for (const k of key ? [key] : [...this.latencyBuf.keys()]) {
+      const b = this.latencyBuf.get(k);
+      if (!b || b.samples.length === 0) continue;
+      const sorted = [...b.samples].sort((x, y) => x - y);
+      const p95 =
+        sorted[
+          Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)
+        ];
+      this.log.log({
+        metric: 'search_latency',
+        op: b.op,
+        engine: b.engine,
+        ms: p95,
+        n: sorted.length,
+        max: sorted[sorted.length - 1],
+      });
+      this.latencyBuf.delete(k);
+    }
   }
 
   private async timeoutMs(): Promise<number> {
@@ -151,11 +192,16 @@ export class SwitchingSearchProvider implements SearchProvider {
       return run(this.pg);
     }
     try {
-      const ms = await this.timeoutMs();
-      const result = await withTimeout(run(this.engine), ms);
+      // The time box lives inside the engine calls (client.searchIds, one
+      // budget); the Postgres filters that follow are not part of it.
+      const result = await run(this.engine);
       this.fails = 0;
       return result;
     } catch (e) {
+      // Only an engine failure (unreachable, slow, 404 missing index, 5xx)
+      // falls back and feeds the breaker; a Postgres error would fail the
+      // fallback too, so it is shown as it is. An empty answer is an answer.
+      if (!(e instanceof EngineError)) throw e;
       this.fails++;
       if (this.fails >= BREAKER_FAILS) {
         this.openUntil = this.now() + OPEN_MS;
