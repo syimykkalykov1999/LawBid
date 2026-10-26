@@ -68,6 +68,7 @@ import { StorageCleanupService } from '../modules/storage/storage-cleanup.servic
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
 import { EconomyService } from '../common/economy/economy.service';
+import { ChatService } from '../modules/chat/chat.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
 
@@ -133,6 +134,7 @@ export class CronProcessor {
     @Optional() private readonly legalExports?: LegalExportBuilder,
     @Optional() private readonly legalRetention?: LegalRetentionService,
     @Optional() private readonly disappearing?: DisappearingSweepService,
+    @Optional() private readonly chat?: ChatService,
     @Optional() private readonly legalQaSweep?: LegalQaSweepJob,
     // Owner 2026-10-22: `contacts.joined`.
     @Optional() private readonly contactsJoined?: ContactsJoinedJob,
@@ -229,6 +231,8 @@ export class CronProcessor {
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:
         return this.disappearing?.run() ?? null;
+      case CRON_JOBS.chatRedeliver:
+        return this.chat?.redeliverPending() ?? null;
       case CRON_JOBS.callsSweep:
         return this.calls.sweep();
       case CRON_JOBS.reviewAppealsSweep:
