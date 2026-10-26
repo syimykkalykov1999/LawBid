@@ -92,6 +92,42 @@ export class StickersService {
     };
   }
 
+  /** Delta audit P7: the inputs of GET /stickers/featured's cheap ETag:
+   * the official packs and their stickers, plus this person's installs
+   * (the `installed` flag). Aggregates only, no rows, no presigning. */
+  async featuredStamp(
+    userId: string,
+  ): Promise<(string | number | Date | null)[]> {
+    const official = { is_official: true, status: 'active', deleted_at: null };
+    const [packs, stickers, mine] = await Promise.all([
+      this.prisma.stickerPack.aggregate({
+        where: official,
+        _max: { updated_at: true },
+        _sum: { install_count: true },
+        _count: { _all: true },
+      }),
+      this.prisma.sticker.aggregate({
+        where: { deleted_at: null, pack: official },
+        _max: { created_at: true },
+        _count: { _all: true },
+      }),
+      this.prisma.userStickerPack.aggregate({
+        where: { user_id: userId },
+        _max: { installed_at: true },
+        _count: { _all: true },
+      }),
+    ]);
+    return [
+      packs._max.updated_at,
+      packs._sum.install_count,
+      packs._count._all,
+      stickers._max.created_at,
+      stickers._count._all,
+      mine._max.installed_at,
+      mine._count._all,
+    ];
+  }
+
   /** GET /stickers/featured — official packs, most installed first. */
   async featured(userId: string): Promise<StickerPackDto[]> {
     const packs = await this.prisma.stickerPack.findMany({

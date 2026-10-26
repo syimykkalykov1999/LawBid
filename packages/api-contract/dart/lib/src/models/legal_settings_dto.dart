@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'dmca_agent_dto.dart';
 import 'incident_contact_dto.dart';
 import 'legal_texts_by_lang_dto.dart';
+import 'legal_texts_need_review_dto.dart';
 
 part 'legal_settings_dto.g.dart';
 
@@ -17,6 +18,7 @@ class LegalSettingsDto {
     required this.incidentContact,
     required this.dmcaStrikesToSuspend,
     required this.texts,
+    this.textsNeedReview,
   });
 
   factory LegalSettingsDto.fromJson(Map<String, Object?> json) =>
@@ -28,6 +30,9 @@ class LegalSettingsDto {
   /// DMCA removals after which the author is suspended; 0 = never automatically.
   final int dmcaStrikesToSuspend;
   final LegalTextsByLangDto texts;
+
+  /// Which languages are marked "needs review" (machine translations by default).
+  final LegalTextsNeedReviewDto? textsNeedReview;
 
   Map<String, Object?> toJson() => _$LegalSettingsDtoToJson(this);
 }
