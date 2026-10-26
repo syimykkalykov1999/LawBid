@@ -208,6 +208,24 @@ variable "web_extra_hosts" {
   type    = list(string)
   default = []
 }
+# Owner 2026-10-25: public status page (modules/status-page), off by default.
+variable "status_page_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the public status page (S3 + CloudFront, independent of the API) and let the worker publish status.json to it."
+}
+variable "status_host" {
+  type    = string
+  default = ""
+}
+variable "status_certificate_arn" {
+  type    = string
+  default = ""
+}
+variable "status_create_certificate" {
+  type    = bool
+  default = false
+}
 variable "hosted_zone_id" {
   type    = string
   default = null
@@ -878,6 +896,17 @@ module "web" {
   force_destroy          = var.ephemeral
 }
 
+module "status_page" {
+  count              = var.status_page_enabled && !var.ephemeral ? 1 : 0
+  source             = "../status-page"
+  name               = local.name
+  status_host        = var.status_host
+  certificate_arn    = var.status_certificate_arn
+  create_certificate = var.status_create_certificate
+  hosted_zone_id     = var.hosted_zone_id == null ? "" : var.hosted_zone_id
+  tags               = local.tags
+}
+
 module "ses" {
   count          = var.ephemeral ? 0 : 1 # one SES identity per domain per account
   source         = "../ses"
@@ -1371,6 +1400,7 @@ locals {
     S3_BUCKET_DOCUMENTS = module.s3.documents_bucket
     S3_BUCKET_MEDIA     = module.s3.media_bucket
     MEDIA_CDN_BASE_URL  = local.media_cdn_base_url # growth.cdn_images_provider (modules/stack/growth.tf)
+    STATUS_PAGE_BUCKET  = length(module.status_page) > 0 ? module.status_page[0].bucket : ""
     # Owner 2026-10-22: private media through CloudFront signed URLs (empty
     # until the owner supplies documents_cdn_public_key_pem; the private key
     # is the CLOUDFRONT_PRIVATE_KEY_PEM secret in extra_secrets).
@@ -1702,6 +1732,13 @@ data "aws_iam_policy_document" "task" {
   statement {
     actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload"]
     resources = ["${module.s3.documents_bucket_arn}/*", "${module.s3.media_bucket_arn}/*"]
+  }
+  dynamic "statement" {
+    for_each = module.status_page
+    content {
+      actions   = ["s3:PutObject"]
+      resources = ["${statement.value.bucket_arn}/status.json"]
+    }
   }
   statement {
     actions   = ["s3:ListBucket"]
@@ -2154,6 +2191,8 @@ output "documents_cdn_domain" { value = module.s3.documents_cdn_domain }
 output "documents_cdn_key_pair_id" { value = module.s3.documents_cdn_key_pair_id }
 output "data_keys_kms_key_arn" { value = aws_kms_key.data_keys.arn }
 output "data_keys_kms_alias" { value = aws_kms_alias.data_keys.name }
+output "status_page_dns_target" { value = length(module.status_page) > 0 ? module.status_page[0].dns_target : "" }
+output "status_page_validation_records" { value = length(module.status_page) > 0 ? module.status_page[0].validation_records : [] }
 output "web_bucket" { value = module.web.web_bucket }
 output "web_certificate_validation" { value = module.web.web_certificate_validation }
 output "web_distribution_id" { value = module.web.web_distribution_id }
