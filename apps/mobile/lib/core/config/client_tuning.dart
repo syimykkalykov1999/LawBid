@@ -22,6 +22,8 @@ abstract final class ClientTuning {
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
   static int _videoPrefetchAhead = 3;
+  static int _videoCacheMb = 100;
+  static int _videoCacheChunkS = 4;
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
 
@@ -51,6 +53,14 @@ abstract final class ClientTuning {
 
   /// Reels warmed ahead of the one on screen (`client.video_prefetch_ahead`).
   static int get videoPrefetchAhead => _videoPrefetchAhead;
+
+  /// Disk ceiling of the video chunk cache, MB; 0 = off
+  /// (`client.video_cache_mb`).
+  static int get videoCacheMb => _videoCacheMb;
+
+  /// Seconds from the start of a video kept on the phone
+  /// (`client.video_cache_chunk_s`).
+  static int get videoCacheChunkSeconds => _videoCacheChunkS;
 
   /// Longest side / JPEG quality of a photo sent in a chat
   /// (`media.chat_photo_*`; the original stays on the phone).
@@ -86,6 +96,8 @@ abstract final class ClientTuning {
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
+    _videoCacheMb = pick('client.video_cache_mb', 100, 0, 1000);
+    _videoCacheChunkS = pick('client.video_cache_chunk_s', 4, 1, 15);
     _chatPhotoMaxPx =
         pick('media.chat_photo_max_px', 1600, 640, 4096).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
