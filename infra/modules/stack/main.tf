@@ -174,6 +174,11 @@ variable "web_cross_origin_isolation" {
   default     = false
   description = "COOP/COEP headers on the web app (the engine renders on a worker thread)."
 }
+variable "web_api_proxy" {
+  type        = bool
+  default     = false
+  description = "Same-origin /api/* on the web distribution, forwarded to the ALB (no CORS preflights for the web app). Off = the web calls api.<domain> directly. Billing: CloudFront requests + data out for the web's API traffic (docs/perf/WEB_PERF_2026-10-25.md)."
+}
 variable "web_certificate_arn" {
   type        = string
   default     = ""
@@ -800,6 +805,7 @@ module "web" {
   create_certificate     = var.web_create_certificate
   extra_hosts            = var.web_extra_hosts
   cross_origin_isolation = var.web_cross_origin_isolation
+  api_proxy_host         = var.web_api_proxy ? var.api_host : ""
   hosted_zone_id         = var.hosted_zone_id == null ? "" : var.hosted_zone_id
   api_origin             = "https://${var.api_host}"
   media_origins          = ["https://${module.s3.media_cdn_domain}"]

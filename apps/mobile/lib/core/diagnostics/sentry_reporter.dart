@@ -173,6 +173,8 @@ class SentryReporter {
     };
   }
 
+  static const _buildSha = String.fromEnvironment('BUILD_SHA');
+
   static Future<void> _send(_Captured c) async {
     final dsn = _dsn;
     if (dsn == null || _sent >= _maxPerSession) return;
@@ -187,6 +189,9 @@ class SentryReporter {
         'level': c.fatal ? 'fatal' : 'error',
         'environment': 'production',
         'release': 'lawbid@${AppVersion.current}',
+        // S17-2: the web build's commit (--dart-define=BUILD_SHA), the key
+        // the uploaded source maps are matched by.
+        if (_buildSha.isNotEmpty) 'dist': _buildSha,
         'tags': {
           'os': _platform(),
           'flavor': 'prod',
