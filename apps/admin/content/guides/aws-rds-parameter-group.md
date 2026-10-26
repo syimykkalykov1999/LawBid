@@ -1,7 +1,7 @@
 ---
 id: aws-rds-parameter-group
 title: RDS: параметры базы и перезагрузка
-category: aws
+category: system
 cost: Бесплатно (Enhanced Monitoring около $2-3 в месяц)
 time: 20 минут
 verified: 2026-10-25

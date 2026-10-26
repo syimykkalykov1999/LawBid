@@ -102,7 +102,7 @@ variable "monitoring_interval" {
 variable "autovacuum_vacuum_scale_factor" {
   type        = number
   default     = 0.05
-  description = "Instance-wide default (PostgreSQL: 0.2). A 500M-row table is vacuumed after 25M dead rows instead of 100M. The hot tables get their own, lower value from a migration (20261029700000_autovacuum_hot_tables)."
+  description = "Instance-wide default (PostgreSQL: 0.2). A 500M-row table is vacuumed after 25M dead rows instead of 100M. The hot tables get their own, lower value from a migration (20261101300000_autovacuum_hot_tables)."
 }
 variable "autovacuum_analyze_scale_factor" {
   type        = number

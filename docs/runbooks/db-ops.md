@@ -6,7 +6,7 @@
 
 - Группа параметров RDS (`infra/modules/postgres`) теперь пишет в лог долгие уборки (`log_autovacuum_min_duration` = 1 с), ожидания блокировок (`log_lock_waits`, `deadlock_timeout` = 1 с), время ввода-вывода (`track_io_timing`) и временные файлы больше 10 МБ (`log_temp_files`).
 - База убирает мусор раньше: `autovacuum_vacuum_scale_factor` 0,05 (было 0,2), `autovacuum_analyze_scale_factor` 0,02 (было 0,1). Значения меняются через переменные модуля.
-- Миграция `20261029700000_autovacuum_hot_tables` ставит ещё более строгие настройки (1 %, лимит работы 2000, пауза 2 мс) на таблицы, которые растут и теряют строки быстрее всех: `messages`, `notifications`, `sessions`, `post_view_events`, `cross_family_outbox`, `cross_family_inbox`, `search_outbox`. Это только параметры хранения: перезаписи данных нет.
+- Миграция `20261101300000_autovacuum_hot_tables` ставит ещё более строгие настройки (1 %, лимит работы 2000, пауза 2 мс) на таблицы, которые растут и теряют строки быстрее всех: `messages`, `notifications`, `sessions`, `post_view_events`, `cross_family_outbox`, `cross_family_inbox`, `search_outbox`. Это только параметры хранения: перезаписи данных нет.
 - Раз в сутки (04:35 UTC) воркер запускает `db.health` и пишет в лог:
   `db_dead_tuple_ratio` (доля мёртвых строк, таблицы от 10 тысяч строк), `db_table_size` (самые большие таблицы), `db_txid_age` (расстояние до переполнения счётчика транзакций).
   Жёлтый сигнал (`alert: db_table_large` / `db_table_bloat`) идёт при 20 ГБ или 20 % мёртвых строк. Включатель с тремя состояниями (**Настройки → `db.health_mode`**: off / on / auto, по умолчанию auto: раз в сутки, но пропускается, пока тяжёлые задачи на паузе). Пороги меняются в админке: **Настройки → `db.health_table_size_gb`, `db.health_dead_ratio_percent`** (0 = не проверять).
@@ -18,7 +18,7 @@
 
 ## 2. Таймауты миграций
 
-- Миграция `20261029710000_migrator_role_timeouts` ставит роли `lawbid_migrator`: ждать блокировку не дольше 5 секунд (`lock_timeout`) и не выполнять один запрос дольше 10 минут (`statement_timeout`). Действует на новые подключения. Тот же текст в `infra/postgres/role-settings.sql` (для базы, где миграция ещё не ходила).
+- Миграция `20261101310000_migrator_role_timeouts` ставит роли `lawbid_migrator`: ждать блокировку не дольше 5 секунд (`lock_timeout`) и не выполнять один запрос дольше 10 минут (`statement_timeout`). Действует на новые подключения. Тот же текст в `infra/postgres/role-settings.sql` (для базы, где миграция ещё не ходила).
 - `scripts/deploy/run-migrations.sh`: если миграция не получила блокировку (SQLSTATE 55P03, в логе «lock timeout»), задача запускается ещё один раз через 20 секунд. Миграция идёт одной транзакцией, поэтому неудачная попытка ничего не меняет. Любая другая ошибка останавливает выкладку сразу.
 - Большая правка таблицы (долгий backfill) должна идти порциями, а не одним запросом дольше 10 минут.
 
@@ -26,7 +26,7 @@
 
 В ночной задаче `storage.retention` добавлены:
 - `cross_family_outbox` со статусом `done` старше 7 дней (**Настройки → `storage.retention_outbox_done_days`**, 0 = хранить всегда). Строки `pending` и `dead` не трогаются.
-- `cross_family_inbox` старше 30 дней (**`storage.retention_inbox_days`**). Для этого добавлен индекс по `applied_at` (миграция `20261029730000_...`).
+- `cross_family_inbox` старше 30 дней (**`storage.retention_inbox_days`**). Для этого добавлен индекс по `applied_at` (миграция `20261101330000_...`).
 - Каждую минуту реле (`outbox.sweep`) пишет возраст самого старого ожидающего события (`cross_family_outbox_oldest_pending`). Пока частей базы одна, строк нет и строка не пишется.
 
 ## 4. Реплика для чтения: отставание
