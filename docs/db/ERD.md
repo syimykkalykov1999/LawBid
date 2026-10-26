@@ -25,6 +25,7 @@ erDiagram
     String password_hash "nullable"
     DateTime password_set_at "nullable"
     String ui_language
+    String home_region
     String timezone "nullable"
     Boolean notif_icon_badge
     Json notif_topics
@@ -176,6 +177,7 @@ erDiagram
     String physical_db
     String state
     Int version
+    String region
     DateTime updated_at
   }
   cross_family_outbox {

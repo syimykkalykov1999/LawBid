@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  NotFoundException,
   HttpStatus,
   Param,
   Post,
@@ -23,8 +24,10 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AuditLogService } from '../admin-access/audit-log.service';
+import { PersonalDataErasureService } from '../privacy/personal-data-erasure.service';
 import {
   CreateLegalExportDto,
+  ErasureRecordDto,
   CreateLegalHoldDto,
   LegalAccountCardDto,
   LegalDownloadDto,
@@ -57,6 +60,7 @@ export class AdminLegalExportController {
     private readonly lookup: LegalLookupService,
     private readonly exports: LegalExportService,
     private readonly audit: AuditLogService,
+    private readonly erasure: PersonalDataErasureService,
   ) {}
 
   @Get('lookup')
@@ -104,6 +108,43 @@ export class AdminLegalExportController {
       justification: admin.justification,
     });
     return card;
+  }
+
+  @Get('erasure/:userId')
+  @Justification()
+  @ApiOperation({
+    summary: 'Account erasure record and certificate (per-store results)',
+  })
+  @ApiEnvelopeResponse(ErasureRecordDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  async erasureRecord(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: LegalUserParamDto,
+  ): Promise<ErasureRecordDto> {
+    const record = await this.erasure.certificateOf(params.userId);
+    if (!record) {
+      throw new NotFoundException({
+        code: E.NOT_FOUND,
+        message: 'No erasure record for this account',
+      });
+    }
+    await this.audit.record({
+      adminId: admin.id,
+      action: LEGAL_AUDIT.card,
+      targetType: 'user',
+      targetId: params.userId,
+      after: { erasure: record.status },
+      ip: admin.ip,
+      justification: admin.justification,
+    });
+    return {
+      status: record.status,
+      stores: record.stores as unknown as Record<string, unknown>,
+      certificate: record.certificate as unknown as Record<
+        string,
+        unknown
+      > | null,
+    };
   }
 
   @Get('requests/:requestId/exports')
