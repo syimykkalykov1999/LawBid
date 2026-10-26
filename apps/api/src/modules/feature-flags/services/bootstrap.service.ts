@@ -235,6 +235,31 @@ export class BootstrapService {
     }
   }
 
+  /** The two client guest switches, forced off while the master is off. */
+  private guestBrowseKeys(
+    appConfig: Record<string, unknown>,
+  ): Record<string, boolean> {
+    const master = appConfig['guest.browsing_enabled'] !== false;
+    const pick = (
+      key:
+        'client.guest_browse_app_enabled' | 'client.guest_browse_web_enabled',
+    ) => {
+      const stored = appConfig[key];
+      return (
+        master &&
+        (typeof stored === 'boolean' ? stored : CLIENT_TUNING_DEFS[key].default)
+      );
+    };
+    return {
+      'client.guest_browse_app_enabled': pick(
+        'client.guest_browse_app_enabled',
+      ),
+      'client.guest_browse_web_enabled': pick(
+        'client.guest_browse_web_enabled',
+      ),
+    };
+  }
+
   async build(): Promise<BootstrapResponse> {
     const [flags, appConfig, content] = await Promise.all([
       this.flags.getFlags(),
@@ -272,6 +297,11 @@ export class BootstrapService {
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
           ),
         ),
+        // Dedup D-12: `guest.browsing_enabled` is the one master switch (it is
+        // also the server's gate for token-less reads). The apps are told
+        // "browse as guest" only while it is on, so an app never offers what
+        // the API would answer with 401.
+        ...this.guestBrowseKeys(appConfig),
         // Owner 2026-10-07 (bug 17): the app shows and checks the admin's
         // upload limits (always present, inside the safe ceilings).
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),

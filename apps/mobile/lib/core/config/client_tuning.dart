@@ -1,5 +1,5 @@
 /// Scale audit 2026-10-23: the knobs of the phone's own traffic (repeats of
-/// a failed request, reconnects of the live connection, polling, usage
+/// a failed request, polling, usage
 /// events). A store release takes days; if a build misbehaves under load
 /// the server raises these numbers in the admin panel and every phone
 /// follows at its next start (`GET /config/bootstrap`, `client.*`).
@@ -15,8 +15,6 @@ abstract final class ClientTuning {
   static int _retryBaseMs = 1000;
   static int _retryAfterMaxS = 10;
   static int _outboxRetryMaxS = 30;
-  static int _reconnectMinMs = 1000;
-  static int _reconnectMaxMs = 10000;
   static bool _eventsEnabled = true;
   static int _eventsFlushS = 60;
   static int _callSyncS = 30;
@@ -45,10 +43,6 @@ abstract final class ClientTuning {
 
   /// Longest wait between retries of an unsent message / upload.
   static int get outboxRetryMaxS => _outboxRetryMaxS;
-
-  static int get reconnectMinMs => _reconnectMinMs;
-  static int get reconnectMaxMs =>
-      _reconnectMaxMs < _reconnectMinMs ? _reconnectMinMs : _reconnectMaxMs;
 
   /// Server kill switch of the usage events (on top of the user's consent
   /// and the `app_events` flag).
@@ -94,18 +88,6 @@ abstract final class ClientTuning {
     _retryBaseMs = pick('client.retry_base_ms', 1000, 200, 30000);
     _retryAfterMaxS = pick('client.retry_after_max_s', 10, 1, 120);
     _outboxRetryMaxS = pick('client.outbox_retry_max_s', 30, 5, 600);
-    _reconnectMinMs = pick(
-      'client.realtime_reconnect_min_ms',
-      1000,
-      500,
-      60000,
-    );
-    _reconnectMaxMs = pick(
-      'client.realtime_reconnect_max_ms',
-      10000,
-      2000,
-      300000,
-    );
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
