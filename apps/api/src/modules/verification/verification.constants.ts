@@ -61,8 +61,6 @@ export const IDENTITY_NEEDS_BACK: readonly VerificationDocType[] = [
   'state_id',
 ];
 
-/** docs/03 §2.2: up to 3 files per document. */
-export const MAX_FILES_PER_DOCUMENT = 3;
 /** Free-text limits of verifier messages. docs/03 only bounds
  * applicant_comment (500); these keep admin input bounded too. */
 export const APPLICANT_COMMENT_MAX = 500;
@@ -75,10 +73,18 @@ export const VERIFICATION_NOTIFICATION_KIND = {
   inReview: 'in_review',
   needsMoreInfo: 'needs_more_info',
   approved: 'approved',
+  /** Owner 2026-10-07: approved on the sworn statement alone — the
+   * license is not confirmed yet (no blue check until it is). */
+  selfAttested: 'self_attested',
   rejected: 'rejected',
   suspended: 'suspended',
   restored: 'restored',
 } as const;
+
+/** Owner 2026-10-04: version of the sworn statement the attorney accepts
+ * on submit (app text `verification.attest.text`). Bump it whenever the
+ * wording changes; each request stores the version it was accepted in. */
+export const ATTESTATION_VERSION = '2026-10-04';
 
 /** admin_note prefix of a request created by a verifier's license
  * re-check (§2.5 recheck → manual review queue). */
@@ -98,6 +104,9 @@ export const AUDIT_ACTION = {
   requestInfo: 'verification.request_info',
   reject: 'verification.reject',
   recheck: 'verification.license_recheck',
+  registryCheck: 'verification.registry_check',
+  registryFlagClear: 'verification.registry_flag_clear',
+  licenseExpiry: 'verification.license_expiry_set',
   suspend: 'verification.suspend',
   restore: 'verification.restore',
 } as const;

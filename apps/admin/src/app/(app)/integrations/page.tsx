@@ -1,78 +1,166 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowsClockwise, LockKey, Plugs, Plus } from '@phosphor-icons/react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
+import { useConfirm } from '@/components/legacy/confirm';
+import { FadeIn } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
+import { useReason } from '@/components/reason-dialog';
+import { StateRegistries } from '@/components/registries/state-registries';
 import { StepUpDialog } from '@/components/step-up-dialog';
+import { CustomServiceDialog } from '@/components/integrations/custom-service-dialog';
+import { IntegrationCard, type Guarded, type Integration } from '@/components/integrations/integration-card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { EmptyState, Skeleton } from '@/components/ui/empty';
+import { useToast } from '@/components/ui/toast';
 import { api, ApiError, errorText } from '@/lib/api/client';
-import type { components } from '@/lib/api/schema';
-import { formatDateTime } from '@/lib/utils';
+import { fieldHint, fieldLabelWithKey, providerDescription, providerLabel, providerWarning } from '@/lib/integration-labels';
 
-type Integration = components['schemas']['IntegrationDto'];
-type Version = components['schemas']['IntegrationVersionDto'];
+/** Russian service / field texts (keys stay as the server sends them). */
+function localize(it: Integration): Integration {
+  return {
+    ...it,
+    label: providerLabel(it.provider, it.label),
+    description: providerDescription(it.provider, it.description),
+    warning: providerWarning(it.provider, it.warning),
+    fields: it.fields.map((f) => ({
+      ...f,
+      label: fieldLabelWithKey(it.provider, f.name, f.label),
+      hint: fieldHint(f.hint) ?? f.hint,
+    })),
+  };
+}
 
 /**
  * Owner 2026-10-01 — "Integrations & API keys": the owner adds, changes,
  * tests, activates, rolls back and removes the keys of Bunny, Stripe,
  * Twilio… Values are write-only (only ••••last4 is ever shown); every
  * change asks for a fresh 2FA code; a new key works at once, no release.
+ * Owner 2026-10-05: several keys per service (backups in order) and
+ * services added from here without a code change.
  */
 export default function IntegrationsPage() {
   const qc = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const { ask, dialog: reasonDialog } = useReason();
   const [stepUp, setStepUp] = useState(false);
+  const [adding, setAdding] = useState(false);
   const retry = useRef<(() => void) | null>(null);
   const q = useQuery({
     queryKey: ['integrations'],
     queryFn: async () => (await api.GET('/admin/integrations')).data!.data,
   });
 
-  /** Runs [fn]; on "2FA needed" asks for a code and runs it again. */
-  const guarded = (fn: () => Promise<unknown>) => {
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['integrations'] });
+    // Every provider's history (prefix match on the key).
+    void qc.invalidateQueries({ queryKey: ['integration-versions'] });
+  };
+
+  const guarded: Guarded = (fn, opts) => {
     const run = () => {
-      setError(null);
       fn()
-        .then(() => qc.invalidateQueries({ queryKey: ['integrations'] }))
-        .catch((e: unknown) => {
+        .then(() => {
+          toast.success(opts.success);
+          refresh();
+        })
+        .catch(async (e: unknown) => {
           if (e instanceof ApiError && e.code === 'ADMIN_STEP_UP_REQUIRED') {
             retry.current = run;
             setStepUp(true);
             return;
           }
-          setError(errorText(e));
+          if (opts.onError && (await opts.onError(e))) return;
+          toast.error(e);
+          refresh();
         });
     };
     run();
   };
 
+  const reencrypt = async () => {
+    const ok = await confirm({
+      title: 'Перешифровать ключи?',
+      description:
+        'Все ключи, сохранённые в админке, будут заново зашифрованы текущим мастер-ключом сервера (SECRETS_ACTIVE_KID). Значения ключей не меняются, приложение продолжит работать. Нужно после смены мастер-ключа, чтобы старый можно было убрать.',
+      confirm: 'Перешифровать',
+    });
+    if (!ok) return;
+    guarded(
+      async () => {
+        await api.POST('/admin/integrations/reencrypt');
+      },
+      { success: 'Ключи перешифрованы текущим мастер-ключом' },
+    );
+  };
+
   const data = q.data;
+  const items = (data?.items ?? []).map(localize);
   return (
     <>
+      {confirmDialog}
+      {reasonDialog}
       <PageHeader
-        title="Интеграции и ключи"
-        subtitle="Ключи сторонних сервисов. Новый ключ сначала проверяется, затем включается — приложение подхватывает его сразу, без релиза. Значения никому не показываются."
+        eyebrow="Система"
+        title="Ключи и сервисы"
+        subtitle="Ключи сторонних сервисов. Как добавить: 1) откройте «Где взять ключи?» в карточке сервиса и скопируйте значения с его сайта; 2) «Добавить ключи» → вставьте → «Сохранить»; 3) «Проверить» → «Включить». Приложение подхватывает ключ сразу, без обновления. Значения никому не показываются — видны только последние 4 символа."
+        actions={
+          data?.storageEnabled ? (
+            <>
+              <Button variant="outline" onClick={() => setAdding(true)}>
+                <Plus size={16} weight="light" />
+                Добавить сервис
+              </Button>
+              <Button variant="outline" onClick={() => void reencrypt()}>
+                <ArrowsClockwise size={16} weight="light" />
+                Перешифровать ключи
+              </Button>
+            </>
+          ) : null
+        }
       />
-      <ErrorNote text={error ?? (q.error ? errorText(q.error) : null)} />
+      <ErrorNote text={q.error ? errorText(q.error) : null} />
       {data && !data.storageEnabled ? (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-gold-600">
-          Хранение ключей в админке выключено: на сервере не задан мастер-ключ
-          шифрования (SECRETS_MASTER_KEYS, SECRETS_ACTIVE_KID). Сейчас ключи
-          берутся только из настроек сервера.
-        </div>
+        <FadeIn className="mb-4">
+          <div className="flex items-start gap-3 rounded-xl bg-warning-soft p-4 text-sm text-warning">
+            <LockKey size={20} weight="light" className="mt-0.5 shrink-0" />
+            <span>
+              <b className="block text-base">Кнопки «Добавить ключи» неактивны: хранение ключей выключено</b>
+              На сервере не задан мастер-ключ шифрования: переменные SECRETS_MASTER_KEYS и SECRETS_ACTIVE_KID в
+              настройках API. Задайте их и перезапустите API, кнопки включатся. Пока ключи берутся только из настроек
+              сервера.
+            </span>
+          </div>
+        </FadeIn>
       ) : null}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {(data?.items ?? []).map((it) => (
-          <IntegrationCard
-            key={it.provider}
-            it={it}
-            editable={data?.storageEnabled ?? false}
-            guarded={guarded}
-          />
-        ))}
-      </div>
+      {q.isPending ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-64 rounded-[var(--radius-lg)]" />
+          ))}
+        </div>
+      ) : !q.error && items.length === 0 ? (
+        <EmptyState icon={Plugs} title="Сервисов нет" text="Сервер не вернул ни одной интеграции." />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {items.map((it, i) => (
+            <FadeIn key={it.provider} i={i}>
+              <IntegrationCard
+                it={it}
+                editable={data?.storageEnabled ?? false}
+                guarded={guarded}
+                confirm={confirm}
+                ask={ask}
+              />
+            </FadeIn>
+          ))}
+        </div>
+      )}
+      {/* Owner 2026-10-05: per-state lawyer registries (keys per state). */}
+      <StateRegistries />
+      <CustomServiceDialog open={adding} onClose={() => setAdding(false)} guarded={guarded} />
       <StepUpDialog
         open={stepUp}
         onCancel={() => setStepUp(false)}
@@ -82,285 +170,5 @@ export default function IntegrationsPage() {
         }}
       />
     </>
-  );
-}
-
-function SourceBadge({ it }: { it: Integration }) {
-  if (it.source === 'db' && it.active) {
-    return <Badge tone="success">Активен · версия {it.active.version}</Badge>;
-  }
-  if (it.source === 'env') return <Badge tone="gold">Из настроек сервера</Badge>;
-  return <Badge tone="neutral">Не настроен</Badge>;
-}
-
-function IntegrationCard({
-  it,
-  editable,
-  guarded,
-}: {
-  it: Integration;
-  editable: boolean;
-  guarded: (fn: () => Promise<unknown>) => void;
-}) {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [history, setHistory] = useState(false);
-  const shown = it.active?.masked ?? it.envMasked ?? {};
-  const pending = it.pending;
-  const p = { params: { path: { provider: it.provider } } };
-
-  const versions = useQuery({
-    queryKey: ['integration-versions', it.provider],
-    enabled: history,
-    queryFn: async () =>
-      (await api.GET('/admin/integrations/{provider}/versions', p)).data!.data,
-  });
-  const test = useMutation({
-    mutationFn: (v: number) =>
-      api.POST('/admin/integrations/{provider}/versions/{version}/test', {
-        params: { path: { provider: it.provider, version: v } },
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
-  });
-
-  const save = () =>
-    guarded(async () => {
-      await api.POST('/admin/integrations/{provider}/versions', {
-        ...p,
-        body: { values },
-      });
-      setEditing(false);
-      setValues({});
-    });
-
-  return (
-    <div className="rounded-xl border border-line bg-surface p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-navy">{it.label}</h2>
-          <p className="mt-0.5 text-sm text-muted">{it.description}</p>
-        </div>
-        <SourceBadge it={it} />
-      </div>
-
-      {it.restartRequired ? (
-        <p className="mt-3 text-xs text-gold-600">
-          Применяется после перезапуска сервера.
-        </p>
-      ) : null}
-      {it.warning ? (
-        <p className="mt-3 rounded-md bg-amber-50 p-2 text-xs text-gold-600">
-          ⚠︎ {it.warning}
-        </p>
-      ) : null}
-
-      <dl className="mt-4 space-y-1.5 text-sm">
-        {it.fields.map((f) => (
-          <div key={f.name} className="flex justify-between gap-3">
-            <dt className="text-muted">
-              {f.label}
-              {f.required ? '' : ' (необязательно)'}
-            </dt>
-            <dd className="truncate font-mono text-xs text-ink">
-              {shown[f.name] ?? <span className="text-muted">—</span>}
-            </dd>
-          </div>
-        ))}
-      </dl>
-
-      {pending ? (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-medium text-navy">
-              Новая версия {pending.version} ждёт включения
-            </div>
-            {pending.lastTestAt ? (
-              <Badge tone={pending.lastTestOk ? 'success' : 'danger'}>
-                {pending.lastTestOk ? 'проверка пройдена' : 'проверка не прошла'}
-              </Badge>
-            ) : null}
-          </div>
-          {pending.lastTestError ? (
-            <p className="mt-1 text-xs text-danger">{pending.lastTestError}</p>
-          ) : null}
-          <div className="mt-3 flex flex-wrap gap-2">
-            {it.testable ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={test.isPending}
-                onClick={() => test.mutate(pending.version)}
-              >
-                {test.isPending ? 'Проверяю…' : 'Проверить подключение'}
-              </Button>
-            ) : null}
-            <Button
-              size="sm"
-              variant="gold"
-              disabled={it.testable && !pending.lastTestOk}
-              title={
-                it.testable && !pending.lastTestOk
-                  ? 'Сначала пройдите проверку'
-                  : undefined
-              }
-              onClick={() =>
-                guarded(() =>
-                  api.POST(
-                    '/admin/integrations/{provider}/versions/{version}/activate',
-                    {
-                      params: {
-                        path: { provider: it.provider, version: pending.version },
-                      },
-                      body: {},
-                    },
-                  ),
-                )
-              }
-            >
-              Включить
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      {editing ? (
-        <form
-          className="mt-4 space-y-3 border-t border-line pt-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            save();
-          }}
-        >
-          {it.fields.map((f) => (
-            <label key={f.name} className="block text-sm">
-              <span className="text-muted">
-                {f.label}
-                {f.hint ? ` — ${f.hint}` : ''}
-              </span>
-              <Input
-                className="mt-1 font-mono text-xs"
-                type={f.secret ? 'password' : 'text'}
-                autoComplete="off"
-                placeholder={
-                  f.secret
-                    ? shown[f.name]
-                      ? 'оставьте пустым, чтобы не менять'
-                      : 'введите значение'
-                    : (shown[f.name] ?? '')
-                }
-                value={values[f.name] ?? ''}
-                onChange={(e) =>
-                  setValues({ ...values, [f.name]: e.target.value })
-                }
-              />
-            </label>
-          ))}
-          <p className="text-xs text-muted">
-            Сохранится как новая версия. Работающее приложение продолжит
-            использовать текущие ключи, пока вы не проверите и не включите
-            новые.
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setEditing(false);
-                setValues({});
-              }}
-            >
-              Отмена
-            </Button>
-            <Button type="submit">Сохранить</Button>
-          </div>
-        </form>
-      ) : (
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
-          <Button
-            size="sm"
-            disabled={!editable}
-            title={editable ? undefined : 'Хранение ключей выключено'}
-            onClick={() => setEditing(true)}
-          >
-            {it.configured ? 'Изменить ключи' : 'Добавить ключи'}
-          </Button>
-          {it.source === 'db' ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  guarded(() =>
-                    api.POST('/admin/integrations/{provider}/rollback', p),
-                  )
-                }
-              >
-                Вернуть прошлую версию
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-danger"
-                onClick={() => {
-                  const typed = prompt(
-                    `Ключи «${it.label}» из админки перестанут использоваться. Введите «${it.provider}» для подтверждения.`,
-                  );
-                  if (typed !== it.provider) return;
-                  guarded(() =>
-                    api.DELETE('/admin/integrations/{provider}', {
-                      ...p,
-                      body: { confirm: it.provider },
-                    }),
-                  );
-                }}
-              >
-                Удалить
-              </Button>
-            </>
-          ) : null}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setHistory((h) => !h)}
-          >
-            {history ? 'Скрыть историю' : 'История версий'}
-          </Button>
-        </div>
-      )}
-
-      {history ? (
-        <ul className="mt-3 space-y-1 text-xs">
-          {(versions.data ?? []).map((v: Version) => (
-            <li
-              key={v.id}
-              className="flex items-center justify-between rounded-md bg-canvas px-2 py-1.5"
-            >
-              <span>
-                v{v.version} · {formatDateTime(v.createdAt)}
-              </span>
-              <Badge
-                tone={
-                  v.status === 'active'
-                    ? 'success'
-                    : v.status === 'pending'
-                      ? 'gold'
-                      : 'neutral'
-                }
-              >
-                {v.status === 'active'
-                  ? 'активна'
-                  : v.status === 'pending'
-                    ? 'ждёт'
-                    : 'архив'}
-              </Badge>
-            </li>
-          ))}
-          {versions.data?.length === 0 ? (
-            <li className="text-muted">Версий в админке ещё нет.</li>
-          ) : null}
-        </ul>
-      ) : null}
-    </div>
   );
 }

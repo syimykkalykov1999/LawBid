@@ -1,4 +1,14 @@
 import type { EmailMessage } from '../providers/email/email-provider.interface';
+import type { EmailTemplateKey } from '../providers/email/email-template-render';
+
+/** Owner 2026-10-02: the `template` hook for admin overrides. */
+function tpl(
+  key: EmailTemplateKey,
+  vars: Record<string, string>,
+  locale?: string,
+): NonNullable<EmailMessage['template']> {
+  return locale ? { key, vars, locale } : { key, vars };
+}
 
 /** Custom-scheme deep links handled by the mobile app's router. */
 export const APP_DEEP_LINK_SCHEME = 'lawbid://';
@@ -70,6 +80,7 @@ export function buildLoginOtpEmail(input: {
   ttlMinutes: number;
   linkToken?: string;
   appLinkBaseUrl?: string;
+  locale?: string;
 }): EmailMessage {
   const links = input.linkToken
     ? buildAppLinks(
@@ -98,7 +109,21 @@ export function buildLoginOtpEmail(input: {
     ...(links ? [htmlLinks(links, 'Sign in to LawBid')] : []),
     `<p style="font-size:12px">If you didn't request this code, you can ignore this email.</p>`,
   ].join('');
-  return { to: input.email, subject: 'Your LawBid code', text, html };
+  return {
+    to: input.email,
+    subject: 'Your LawBid code',
+    text,
+    html,
+    template: tpl(
+      'login_otp',
+      {
+        code: input.code,
+        ttlMinutes: String(input.ttlMinutes),
+        link: links ? (links.universalLink ?? links.deepLink) : '',
+      },
+      input.locale,
+    ),
+  };
 }
 
 /** Admin panel sign-in (docs/06 §2.1, POST /admin/auth/login/start):
@@ -107,6 +132,7 @@ export function buildAdminLoginCodeEmail(input: {
   email: string;
   code: string;
   ttlMinutes: number;
+  locale?: string;
 }): EmailMessage {
   const text = [
     `Your LawBid admin sign-in code: ${input.code}`,
@@ -120,7 +146,17 @@ export function buildAdminLoginCodeEmail(input: {
     `<p>It expires in ${input.ttlMinutes} minutes.</p>`,
     `<p style="font-size:12px">If you didn't try to sign in to the admin panel, tell the super admin.</p>`,
   ].join('');
-  return { to: input.email, subject: 'LawBid admin sign-in code', text, html };
+  return {
+    to: input.email,
+    subject: 'LawBid admin sign-in code',
+    text,
+    html,
+    template: tpl(
+      'admin_login_code',
+      { code: input.code, ttlMinutes: String(input.ttlMinutes) },
+      input.locale,
+    ),
+  };
 }
 
 /** Contact verification (POST /users/me/contacts/request): code only. */
@@ -128,6 +164,7 @@ export function buildContactOtpEmail(input: {
   email: string;
   code: string;
   ttlMinutes: number;
+  locale?: string;
 }): EmailMessage {
   const text = [
     `Your LawBid verification code: ${input.code}`,
@@ -145,6 +182,11 @@ export function buildContactOtpEmail(input: {
     subject: 'Your LawBid verification code',
     text,
     html,
+    template: tpl(
+      'contact_otp',
+      { code: input.code, ttlMinutes: String(input.ttlMinutes) },
+      input.locale,
+    ),
   };
 }
 
@@ -160,6 +202,7 @@ export function buildNewDeviceEmail(input: {
   platform?: string;
   at: Date;
   appLinkBaseUrl?: string;
+  locale?: string;
 }): EmailMessage {
   const links = buildAppLinks(
     ACTIVE_DEVICES_LINK_PATH,
@@ -191,6 +234,68 @@ export function buildNewDeviceEmail(input: {
     subject: 'New sign-in to your LawBid account',
     text,
     html,
+    template: tpl(
+      'new_device',
+      {
+        device,
+        time: when,
+        link: links.universalLink ?? links.deepLink,
+      },
+      input.locale,
+    ),
+  };
+}
+
+/** Owner 2026-10-22 (security audit #3, finding 2): goes to the e-mail the
+ * account had BEFORE the change, so an intruder who adds or swaps a contact
+ * cannot hide it. `what` is a fixed word from the server, never user text. */
+export function buildSignInChangedEmail(input: {
+  email: string;
+  what: 'phone' | 'email' | 'google' | 'apple' | 'password';
+  at: Date;
+  appLinkBaseUrl?: string;
+  locale?: string;
+}): EmailMessage {
+  const links = buildAppLinks(
+    ACTIVE_DEVICES_LINK_PATH,
+    undefined,
+    input.appLinkBaseUrl,
+  );
+  const what = {
+    phone: 'The phone number',
+    email: 'The e-mail address',
+    google: 'A Google sign-in',
+    apple: 'An Apple sign-in',
+    password: 'The password',
+  }[input.what];
+  const when = `${input.at.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+  const subject = 'Your LawBid sign-in settings changed';
+  const text = [
+    subject,
+    '',
+    `${what} of your account was added or changed.`,
+    `Time: ${when}`,
+    '',
+    "If this was you, there's nothing to do.",
+    "If it wasn't, open Active devices, sign out everywhere and contact support:",
+    textLinks(links),
+  ].join('\n');
+  const html = [
+    `<p><strong>${escapeHtml(subject)}</strong></p>`,
+    `<p>${escapeHtml(what)} of your account was added or changed.<br>Time: ${escapeHtml(when)}</p>`,
+    `<p>If this was you, there's nothing to do. If it wasn't, sign out everywhere and contact support:</p>`,
+    htmlLinks(links, 'Review active devices'),
+  ].join('');
+  return {
+    to: input.email,
+    subject,
+    text,
+    html,
+    template: tpl(
+      'sign_in_changed',
+      { what, time: when, link: links.universalLink ?? links.deepLink },
+      input.locale,
+    ),
   };
 }
 
@@ -200,6 +305,7 @@ export function buildDataExportEmail(input: {
   url: string;
   expiresAt: Date;
   appLinkBaseUrl?: string;
+  locale?: string;
 }): EmailMessage {
   const until = `${input.expiresAt.toISOString().replace('T', ' ').slice(0, 16)} UTC`;
   const text = [
@@ -223,5 +329,30 @@ export function buildDataExportEmail(input: {
     subject: 'Your LawBid data export is ready',
     text,
     html,
+    template: tpl(
+      'data_export',
+      { url: input.url, expiresAt: until },
+      input.locale,
+    ),
+  };
+}
+
+/** The push dispatcher's email copy of a `system` notification
+ * (docs/05 §9.5): the rendered push title/body. */
+export function buildNotificationEmail(input: {
+  email: string;
+  title: string;
+  body: string;
+  locale?: string;
+}): EmailMessage {
+  return {
+    to: input.email,
+    subject: input.title,
+    text: input.body,
+    template: tpl(
+      'notification',
+      { title: input.title, body: input.body },
+      input.locale,
+    ),
   };
 }

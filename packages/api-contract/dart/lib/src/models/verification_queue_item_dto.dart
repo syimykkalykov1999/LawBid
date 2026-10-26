@@ -17,6 +17,7 @@ class VerificationQueueItemDto {
     required this.submittedAt,
     required this.attorney,
     required this.stateCodes,
+    required this.formatReview,
     required this.reviewerId,
     required this.adminNote,
   });
@@ -31,6 +32,9 @@ class VerificationQueueItemDto {
 
   /// States of the licenses under review.
   final List<String> stateCodes;
+
+  /// Owner 2026-10-18: a license of this request does not fit its state's format and the attorney sent it for manual review (bar card attached).
+  final bool formatReview;
   final String? reviewerId;
 
   /// System note (name re-check, license re-check).

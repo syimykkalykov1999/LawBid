@@ -54,7 +54,9 @@ class CallLogEntry extends ConsumerWidget {
         : mine
             ? AppIcons.callMadeRounded
             : AppIcons.callReceivedRounded;
-    final fg = mine ? colors.onAccent : colors.text;
+    // Owner 2026-10-17: the chat's theme colours (no gold bubble).
+    final chat = ChatColors.of(context);
+    final fg = mine ? chat.onMine : chat.onTheirs;
     final c = conversation;
     final canCall = c != null && !c.closed && c.contactsUnlocked;
 
@@ -77,16 +79,20 @@ class CallLogEntry extends ConsumerWidget {
 
     final bubble = Container(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
-        color: mine ? colors.accent : colors.surface,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(mine ? 18 : 4),
-          bottomRight: Radius.circular(mine ? 4 : 18),
+        color: mine ? chat.mine : chat.theirs,
+        borderRadius: BorderRadiusDirectional.only(
+          topStart: const Radius.circular(18),
+          topEnd: const Radius.circular(18),
+          bottomStart: Radius.circular(mine ? 18 : 4),
+          bottomEnd: Radius.circular(mine ? 4 : 18),
         ),
-        border: mine ? null : Border.all(color: colors.border),
+        border: mine ? null : Border.all(color: chat.theirsBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -102,37 +108,45 @@ class CallLogEntry extends ConsumerWidget {
             child: AppIcon(
               icon,
               size: 20,
-              color: missedHere
-                  ? colors.danger
-                  : (mine ? colors.goldLight : colors.goldDark),
+              color: missedHere ? colors.danger : colors.iconTint,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: type.body.copyWith(
-                  color: missedHere ? colors.danger : fg,
-                  fontWeight: FontWeight.w600,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.body.copyWith(
+                    color: missedHere ? colors.danger : fg,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              Text(
-                [
-                  f.time(message.createdAt),
-                  if (log.durationSec > 0)
-                    voiceClock(Duration(seconds: log.durationSec)),
-                ].join(' · '),
-                style: type.caption.copyWith(color: fg.withValues(alpha: 0.7)),
-              ),
-            ],
+                Text(
+                  [
+                    f.time(message.createdAt),
+                    if (log.durationSec > 0)
+                      voiceClock(Duration(seconds: log.durationSec)),
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style:
+                      type.caption.copyWith(color: fg.withValues(alpha: 0.7)),
+                ),
+              ],
+            ),
           ),
           if (canCall) ...[
             const SizedBox(width: AppSpacing.md),
-            AppIcon(AppIcons.callOutlined,
-                size: 20, color: mine ? colors.goldLight : colors.goldDark),
+            AppIcon(
+              AppIcons.callOutlined,
+              size: 20,
+              color: colors.iconTint,
+            ),
           ],
         ],
       ),
@@ -141,7 +155,9 @@ class CallLogEntry extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Align(
-        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+        alignment: mine
+            ? AlignmentDirectional.centerEnd
+            : AlignmentDirectional.centerStart,
         child: Semantics(
           button: canCall,
           label: [

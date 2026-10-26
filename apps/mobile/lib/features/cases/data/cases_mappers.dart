@@ -1,9 +1,11 @@
-import 'package:lawbid_api/lawbid_api.dart' as api;
-
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 DateTime _date(String iso) => DateTime.parse(iso).toLocal();
 DateTime? _dateOrNull(String? iso) => iso == null ? null : _date(iso);
+
+/// An urgency this build does not know yet reads as "not set".
+CaseUrgency? _urgency(CaseUrgency? u) => u == CaseUrgency.$unknown ? null : u;
 
 /// API DTO → domain (docs/04). Pure functions, unit-tested.
 abstract final class CasesMappers {
@@ -29,28 +31,52 @@ abstract final class CasesMappers {
         coverUrl: c.coverUrl,
         title: c.title,
         practice: practiceRef(c.practiceArea),
+        extraPracticeCount: c.extraPracticeCount,
         primaryStateCode: c.primaryStateCode,
         additionalStateCount: c.additionalStateCount,
         city: c.city,
         status: c.status,
-        budget: CaseBudget(mode: c.budgetMode, amountCents: c.budgetCents),
+        budget: CaseBudget(
+          mode: c.budgetMode,
+          amountCents: c.budgetCents,
+          percentBps: c.budgetPercentBps,
+        ),
         bidsCount: c.bidsCount,
         createdAt: _date(c.createdAt),
         lastActivityAt: _date(c.lastActivityAt),
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
+        pausedAt: _dateOrNull(c.pausedAt),
+        stillNeededPending: c.stillNeededPending,
+        canMakeNotUrgent: c.canMakeNotUrgent,
+        hidesAt: _dateOrNull(c.hidesAt),
+        archivesAt: _dateOrNull(c.archivesAt),
       );
 
   static OwnerCase ownerCase(api.OwnerCaseDetailDto c) => OwnerCase(
         id: c.id,
         title: c.title,
         description: c.description,
+        privateDetails: c.privateDetails,
         practice: practiceRef(c.practiceArea),
+        extraPractices: [for (final p in c.extraPracticeAreas) practiceRef(p)],
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: [
           for (final s in c.states)
             if (!s.isPrimary) s.stateCode,
         ],
         city: c.city,
-        budget: CaseBudget(mode: c.budgetMode, amountCents: c.budgetCents),
+        budget: CaseBudget(
+          mode: c.budgetMode,
+          amountCents: c.budgetCents,
+          percentBps: c.budgetPercentBps,
+        ),
         status: c.status,
         viewCount: c.viewCount,
         bidsCount: c.bidsCount,
@@ -58,11 +84,26 @@ abstract final class CasesMappers {
         lastActivityAt: _date(c.lastActivityAt),
         archivedAt: _dateOrNull(c.archivedAt),
         clientCompletedAt: _dateOrNull(c.clientCompletedAt),
+        attorneyConfirmedAt: _dateOrNull(c.attorneyConfirmedAt),
         autoCloseAt: _dateOrNull(c.autoCloseAt),
         closedAt: _dateOrNull(c.closedAt),
         acceptedBid: c.acceptedBid == null ? null : listedBid(c.acceptedBid!),
         conversationId: c.conversationId,
         photos: c.photos.map(casePhoto).toList(growable: false),
+        stalePromptSentAt: _dateOrNull(c.stalePromptSentAt),
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
+        pausedAt: _dateOrNull(c.pausedAt),
+        stillNeededPending: c.stillNeededPending,
+        canMakeNotUrgent: c.canMakeNotUrgent,
+        hidesAt: _dateOrNull(c.hidesAt),
+        archivesAt: _dateOrNull(c.archivesAt),
       );
 
   static CasePhoto casePhoto(api.CasePhotoDto p) => CasePhoto(
@@ -70,7 +111,7 @@ abstract final class CasesMappers {
         url: p.url,
         previewUrl: p.previewUrl,
         mime: p.mime,
-        sizeBytes: p.sizeBytes.toInt(),
+        sizeBytes: p.sizeBytes,
       );
 
   static BidAttorney attorney(api.BidAttorneySummaryDto a) => BidAttorney(
@@ -82,6 +123,8 @@ abstract final class CasesMappers {
         verifiedBadge: a.verifiedBadge,
         ratingAvg: a.rating.avg.toDouble(),
         ratingCount: a.rating.count.toInt(),
+        licensedStates: a.licensedStates,
+        trustLevel: a.trustLevel,
       );
 
   static BidOffer offer(api.BidOfferDto o) => BidOffer(
@@ -90,6 +133,7 @@ abstract final class CasesMappers {
         fromRole: o.fromRole,
         feeType: o.feeType,
         amountCents: o.amountCents,
+        percentBps: o.percentBps,
         message: o.message,
         status: o.status,
         createdAt: o.createdAt.toLocal(),
@@ -102,6 +146,7 @@ abstract final class CasesMappers {
         status: b.status,
         feeType: b.feeType,
         amountCents: b.amountCents,
+        percentBps: b.percentBps,
         message: b.message,
         startAvailability: b.startAvailability,
         startDate: b.startDate,
@@ -112,6 +157,7 @@ abstract final class CasesMappers {
         decidedAt: b.decidedAt?.toLocal(),
         attorney: attorney(b.attorney),
         outsidePractice: b.outsidePractice,
+        outsideLicensedStates: b.outsideLicensedStates,
       );
 
   static CaseBid bid(api.BidDto b) => CaseBid(
@@ -121,6 +167,7 @@ abstract final class CasesMappers {
         status: b.status,
         feeType: b.feeType,
         amountCents: b.amountCents,
+        percentBps: b.percentBps,
         message: b.message,
         startAvailability: b.startAvailability,
         startDate: b.startDate,
@@ -130,7 +177,10 @@ abstract final class CasesMappers {
         createdAt: b.createdAt.toLocal(),
         decidedAt: b.decidedAt?.toLocal(),
         offers: b.offers.map(offer).toList(growable: false),
+        // Audit 2026-10-04: the lawyer header when opened without a row.
+        attorney: b.attorney == null ? null : attorney(b.attorney!),
         outsidePractice: b.outsidePractice,
+        outsideLicensedStates: b.outsideLicensedStates,
       );
 
   static FeedCase feedCase(api.CaseFeedItemDto c) => FeedCase(
@@ -138,20 +188,53 @@ abstract final class CasesMappers {
         title: c.title,
         excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
+        extraPracticeCount: c.extraPracticeCount,
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,
         status: c.status,
-        budget:
-            CaseBudget(mode: c.budget.mode, amountCents: c.budget.amountCents),
+        budget: CaseBudget(
+          mode: c.budget.mode,
+          amountCents: c.budget.amountCents,
+          percentBps: c.budget.percentBps,
+        ),
         viewCount: c.viewCount,
         bidsCount: c.bidsCount,
         createdAt: c.createdAt.toLocal(),
         isNew: c.isNew,
         hasOwnBid: c.hasOwnBid,
         isSaved: c.isSaved,
-        commentCount: c.commentCount.toInt(),
-        shareCount: c.shareCount.toInt(),
+        commentCount: c.commentCount,
+        shareCount: c.shareCount,
+        promoted: c.promoted,
+        promotedUntil: c.promotedUntil?.toLocal(),
+        priorityClient: c.priorityClient,
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
+        dossier: dossier(c.dossier),
+        clientActivity: clientActivity(c.clientActivity),
+      );
+
+  /// OQ-054: null when the client's activity status is hidden.
+  static ClientActivity? clientActivity(api.ClientActivityDto? a) => a == null
+      ? null
+      : ClientActivity(
+          online: a.online,
+          lastSeenDays: a.lastSeenDays,
+          respondsWithinDay: a.respondsWithinDay,
+        );
+
+  static CaseDossier dossier(api.CaseDossierDto d) => CaseDossier(
+        imagesCount: d.imagesCount,
+        documentsCount: d.documentsCount,
+        descriptionLength: d.descriptionLength,
+        privateDetailsLength: d.privateDetailsLength,
       );
 
   static FeedCase attorneyCase(api.CaseDetailForAttorneyDto c) => FeedCase(
@@ -159,25 +242,44 @@ abstract final class CasesMappers {
         title: c.title,
         excerpt: c.excerpt,
         practice: feedPractice(c.practiceArea),
+        extraPracticeCount: c.extraPracticeCount,
         primaryStateCode: c.primaryStateCode,
         additionalStateCodes: c.additionalStateCodes,
         city: c.city,
         status: c.status,
-        budget:
-            CaseBudget(mode: c.budget.mode, amountCents: c.budget.amountCents),
+        budget: CaseBudget(
+          mode: c.budget.mode,
+          amountCents: c.budget.amountCents,
+          percentBps: c.budget.percentBps,
+        ),
         viewCount: c.viewCount,
         bidsCount: c.bidsCount,
         createdAt: c.createdAt.toLocal(),
         isNew: c.isNew,
         hasOwnBid: c.hasOwnBid,
         description: c.description,
+        privateDetails: c.privateDetails,
         isSaved: c.isSaved,
         ownBidId: c.ownBidId,
+        completionRequestedBy: c.completionRequestedBy?.json,
         photos: c.photos.map(casePhoto).toList(growable: false),
         photosCount: c.photosCount.toInt(),
-        commentCount: c.commentCount.toInt(),
-        shareCount: c.shareCount.toInt(),
+        commentCount: c.commentCount,
+        shareCount: c.shareCount,
         inMyPractice: c.inMyPractice,
+        inMyLicensedStates: c.inMyLicensedStates,
+        bidAllowed: c.bidAllowed,
+        acceptedBidIsMine: c.acceptedBidIsMine,
+        coverKey: c.coverKey,
+        urgency: _urgency(c.urgency),
+        urgencyDetail: CaseUrgencyInfo.of(
+          urgency: c.urgency,
+          level: c.urgencyLevel,
+          deadlineAt: c.deadlineAt,
+          kind: c.deadlineKind,
+        ),
+        dossier: dossier(c.dossier),
+        clientActivity: clientActivity(c.clientActivity),
       );
 
   static MyBid myBid(api.MyBidItemDto b) => MyBid(
@@ -188,6 +290,7 @@ abstract final class CasesMappers {
           status: b.status,
           feeType: b.feeType,
           amountCents: b.amountCents,
+          percentBps: b.percentBps,
           message: b.message,
           startAvailability: b.startAvailability,
           startDate: b.startDate,
@@ -215,8 +318,11 @@ abstract final class CasesMappers {
         title: w.title,
         status: w.status,
         clientName: w.clientName,
+        clientAvatarUrl: w.clientAvatarUrl,
+        additionalStateCount: w.additionalStateCount,
         feeType: w.feeType,
         amountCents: w.amountCents,
+        percentBps: w.percentBps,
         autoCloseAt: _dateOrNull(w.autoCloseAt),
         acceptedAt: _dateOrNull(w.acceptedAt),
         closedAt: _dateOrNull(w.closedAt),
@@ -258,6 +364,7 @@ abstract final class CasesMappers {
         closedAt: _dateOrNull(c.closedAt),
         archivedAt: _dateOrNull(c.archivedAt),
         acceptedAmountCents: c.acceptedBid?.amountCents,
+        acceptedPercentBps: c.acceptedBid?.percentBps,
         acceptedFeeType: c.acceptedBid?.feeType,
       );
 
@@ -275,6 +382,7 @@ abstract final class CasesMappers {
           closedAt: _dateOrNull(c.closedAt),
           archivedAt: _dateOrNull(c.archivedAt),
           acceptedAmountCents: c.acceptedBid?.amountCents,
+          acceptedPercentBps: c.acceptedBid?.percentBps,
           acceptedFeeType: c.acceptedBid?.feeType,
         ),
         clientName: c.clientName,
@@ -291,9 +399,10 @@ abstract final class CasesMappers {
                 api.CaseHistoryEventDtoActorRole.admin => HistoryActor.admin,
                 _ => HistoryActor.system,
               },
-              amountCents: e.amountCents?.toInt(),
+              amountCents: e.amountCents,
+              percentBps: e.percentBps,
               feeType: e.feeType,
-              roundNo: e.roundNo?.toInt(),
+              roundNo: e.roundNo,
               reason: e.reason,
             ),
         ],

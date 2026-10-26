@@ -8,8 +8,15 @@ import 'package:lawbid/core/connectivity/network_interface_monitor.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/calls/application/call_history_providers.dart';
+import 'package:lawbid/features/calls/domain/call_history_models.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
+import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
+import 'package:lawbid/features/stories/application/stories_providers.dart';
+
 import '../features/cases/cases_fakes.dart';
 import '../features/social/social_fakes.dart';
+import 'legal_overrides.dart';
 
 /// Controllable [NetworkInterfaceMonitor] (no platform channel).
 class FakeNetworkMonitor implements NetworkInterfaceMonitor {
@@ -18,6 +25,7 @@ class FakeNetworkMonitor implements NetworkInterfaceMonitor {
   bool up;
   final StreamController<bool> _changes = StreamController<bool>.broadcast();
 
+  // ignore: avoid_positional_boolean_parameters
   void set(bool value) {
     up = value;
     _changes.add(value);
@@ -32,7 +40,7 @@ class FakeNetworkMonitor implements NetworkInterfaceMonitor {
   Future<void> close() => _changes.close();
 }
 
-/// Controllable [ReachabilityProbe]: answers [result], counts calls, and
+/// Controllable `ReachabilityProbe`: answers [result], counts calls, and
 /// can be held open with [hold] to observe the "checking" state.
 class FakeProbe {
   bool result = true;
@@ -49,21 +57,78 @@ class FakeProbe {
 
 /// Provider overrides for UX tests: English static strings (no drift),
 /// fake connectivity plumbing.
+class _NoContactsSync implements ContactsSyncRepository {
+  @override
+  Future<ContactsSyncStatus> status() async =>
+      const ContactsSyncStatus(enabled: false, matches: 0);
+
+  @override
+  Future<ContactsUploadResult> upload(
+    Set<String> hashes, {
+    ContactsUploadProgress? onProgress,
+  }) async =>
+      const ContactsUploadResult(matched: 0, people: []);
+
+  @override
+  Future<void> remove() async {}
+
+  @override
+  Future<void> setFindByPhone({required bool enabled}) async {}
+
+  @override
+  Future<ContactsSyncAnswer> sync({
+    bool full = false,
+    String? baseHash,
+    List<String> added = const [],
+    List<String> removed = const [],
+    String? bookHash,
+    int? matchesVersion,
+  }) async =>
+      const ContactsSyncAnswer(
+        status: ContactsSyncStatusCode.ok,
+        bookHash: null,
+      );
+
+  @override
+  Future<void> setNotifyJoined({required bool enabled}) async {}
+}
+
+/// "Asked already": the soft row shows, no system dialog in tests.
+class _AskedActions extends ContactsSyncActions {
+  _AskedActions(super.ref);
+
+  @override
+  bool get asked => true;
+}
+
 List<Override> uxOverrides({
   FakeNetworkMonitor? monitor,
   FakeProbe? probe,
   FakeSocialRepository? social,
   FakeSearchRepository? search,
   Translator translator = const StaticTranslatorEn(),
+  FakeCasesRepository? cases,
   List<Override> extra = const [],
+  bool storiesTray = true,
+  List<OngoingGroupCall> ongoingCalls = const [],
+  List<Override>? uploadQueue,
 }) =>
     [
       translatorProvider.overrideWithValue(translator),
       networkInterfaceMonitorProvider
           .overrideWithValue(monitor ?? FakeNetworkMonitor()),
       reachabilityProbeProvider.overrideWithValue((probe ?? FakeProbe()).call),
-      ...casesOverrides(),
-      ...socialOverrides(social, search),
+      ...casesOverrides(repo: cases),
+      // The feed's stories tray: no network in tests.
+      if (storiesTray) storyTrayProvider.overrideWith((ref) async => const []),
+      ...socialOverrides(social, search, uploadQueue),
+      ...legalOverrides(),
+      contactsSyncRepositoryProvider.overrideWithValue(_NoContactsSync()),
+      contactsSyncActionsProvider.overrideWith(_AskedActions.new),
+      // Owner 2026-10-21: the «+» of the chats asks for running group calls;
+      // a test has no network and no pending timers.
+      ongoingGroupCallsProvider
+          .overrideWith(() => _FixedOngoingCalls(ongoingCalls)),
       ...extra,
     ];
 
@@ -95,4 +160,14 @@ Widget uxApp(
       ),
     ),
   );
+}
+
+/// Owner 2026-10-22: the running group calls, fixed (no network, no timer).
+class _FixedOngoingCalls extends OngoingGroupCallsNotifier {
+  _FixedOngoingCalls(this.calls);
+
+  final List<OngoingGroupCall> calls;
+
+  @override
+  Future<List<OngoingGroupCall>> build() async => calls;
 }

@@ -8,13 +8,18 @@ const base: Record<string, string> = {
   // Deployed configs run behind one ALB (security audit 2026-10-01).
   TRUST_PROXY_HOPS: '1',
   NODE_ENV: 'development',
-  DATABASE_URL: 'postgresql://root@localhost:26257/lawbid?sslmode=disable',
-  REDIS_URL: 'redis://localhost:6379',
-  JWT_KEYS: `k1:${strong('jwt')}`,
+  DATABASE_URL: 'postgresql://root@localhost:5432/lawbid?sslmode=require',
+  // Security research #5 (A12): TLS, as a deployed environment requires.
+  REDIS_URL: 'rediss://localhost:6379',
+  // S3-13: deployed keys must look random (fixed dummies, not real).
+  JWT_KEYS: 'k1:q8Zr3Lw0xV7bNc2YhT5mKp9sDfG1aJe4uRiO6tBnXyC=',
   JWT_ACTIVE_KID: 'k1',
   OTP_CODE_SECRET: strong('otp'),
   OTP_KEY_PEPPER: strong('pepper'),
   AUTH_EVENT_PEPPER: strong('event'),
+  // Scaling TZ point 11: required when deployed.
+  MESSAGE_ENC_KEYS: 'm1:Hs7Qe1Zk4Wn8Pd3Vb6Yt0Lc9Ux2Mj5Rf=GaIoNqTyKw',
+  MESSAGE_ENC_ACTIVE_KID: 'm1',
 };
 
 const twilio = {
@@ -95,6 +100,37 @@ describe('envSchema — credentials', () => {
     );
   });
 
+  it('owner 2026-10-14: staging/production refuse an unencrypted database link', () => {
+    for (const NODE_ENV of ['staging', 'production']) {
+      expect(
+        issuePaths({
+          NODE_ENV,
+          DATABASE_URL: 'postgresql://app@db:5432/lawbid?sslmode=disable',
+        }),
+      ).toContain('DATABASE_URL');
+      expect(
+        issuePaths({
+          NODE_ENV,
+          DATABASE_URL: 'postgresql://app@db:5432/lawbid',
+        }),
+      ).toContain('DATABASE_URL');
+    }
+  });
+
+  it('security research #5 A12: staging/production refuse a plain redis:// link', () => {
+    for (const NODE_ENV of ['staging', 'production']) {
+      expect(
+        issuePaths({ NODE_ENV, REDIS_URL: 'redis://:pw@cache:6379' }),
+      ).toContain('REDIS_URL');
+      expect(
+        issuePaths({ NODE_ENV, REDIS_URL: 'rediss://:pw@cache:6379' }),
+      ).not.toContain('REDIS_URL');
+    }
+    expect(
+      issuePaths({ NODE_ENV: 'development', REDIS_URL: 'redis://localhost' }),
+    ).not.toContain('REDIS_URL');
+  });
+
   it('staging/production refuse TRUST_PROXY_HOPS=0 (one shared per-IP bucket)', () => {
     for (const NODE_ENV of ['staging', 'production']) {
       expect(issuePaths({ NODE_ENV, TRUST_PROXY_HOPS: '0' })).toContain(
@@ -116,6 +152,22 @@ describe('envSchema — credentials', () => {
         ...stripe,
       }),
     ).toEqual(['SMS_PROVIDER']);
+  });
+
+  it('staging/production refuse to store chat messages unencrypted', () => {
+    const env = { NODE_ENV: 'production', ...twilio, ...ses, ...stripe };
+    expect(issuePaths({ ...env, MESSAGE_ENC_KEYS: '' })).toEqual([
+      'MESSAGE_ENC_KEYS',
+    ]);
+    expect(issuePaths({ ...env, MESSAGE_ENC_ACTIVE_KID: 'm2' })).toEqual([
+      'MESSAGE_ENC_KEYS',
+    ]);
+    expect(issuePaths({ NODE_ENV: 'staging', MESSAGE_ENC_KEYS: '' })).toContain(
+      'MESSAGE_ENC_KEYS',
+    );
+    expect(
+      issues({ MESSAGE_ENC_KEYS: '', MESSAGE_ENC_ACTIVE_KID: '' }),
+    ).toEqual([]);
   });
 
   it('production with complete credentials boots', () => {

@@ -1,8 +1,6 @@
-
-import '../../../shared/domain/user_role.dart';
-import '../../design_system/widgets/bars/app_bottom_nav.dart';
-import '../../l10n/translator.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Role affects bottom-nav CONTENT only, never route topology (file 01 §3):
 /// both roles get the same 4 shell branches (Лента/Поиск/Моё/Профиль), just
@@ -17,8 +15,8 @@ List<AppTabConfig> tabsForRole(UserRole? role, Translator t) {
   return [
     AppTabConfig(
       key: AppTabKey.feed,
-      icon: AppIcons.articleOutlined,
-      activeIcon: AppIcons.article,
+      icon: AppIcons.homeOutlined,
+      activeIcon: AppIcons.homeRounded,
       label: t.t('nav.tab.feed'),
     ),
     AppTabConfig(

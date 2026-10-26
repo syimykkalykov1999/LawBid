@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 
 import 'verification_fakes.dart';
@@ -18,6 +19,7 @@ void main() {
     FakeVerificationBackend backend, {
     FakeDocumentSource? source,
     String initial = AppRoutes.verification,
+    OwnTrust? trust,
   }) async {
     tester.view.physicalSize = const Size(390, 844) * 3;
     tester.view.devicePixelRatio = 3;
@@ -28,6 +30,7 @@ void main() {
         theme: theme,
         source: source,
         initial: initial,
+        trust: trust,
       ),
     );
     await tester.pumpAndSettle();
@@ -39,6 +42,14 @@ void main() {
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
     await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> tickAttestation(WidgetTester tester) async {
+    final box = find.byKey(const ValueKey('verification-attestation'));
+    await tester.ensureVisible(box);
+    await tester.pumpAndSettle();
+    await tester.tap(box);
     await tester.pumpAndSettle();
   }
 
@@ -72,21 +83,25 @@ void main() {
     await tapText(tester, 'Start');
     expect(find.text('Your licenses'), findsOneWidget);
 
-    // Continue is refused until a license with its document exists.
+    // Continue is grey and inert until a license with its document exists.
     await tapText(tester, 'Continue');
-    expect(find.text('Add at least one state license.'), findsOneWidget);
+    expect(find.text('Your licenses'), findsOneWidget);
 
     await addLicense(tester, 'Add a state', 'Alabama', 'al123');
     await addLicense(tester, 'Add another state', 'Alaska', 'AK-77');
     expect(
-        backend.request!.pendingLicenses.map((l) => l.stateCode), ['AL', 'AK']);
+      backend.request!.pendingLicenses.map((l) => l.stateCode),
+      ['AL', 'AK'],
+    );
     expect(backend.request!.pendingLicenses.first.barNumber, 'AL123');
 
     for (var i = 0; i < 2; i++) {
       await tapText(tester, 'Photo or PDF', at: i);
     }
-    expect(backend.attached.where((s) => s.kind == DocKind.barLicense),
-        hasLength(2));
+    expect(
+      backend.attached.where((s) => s.kind == DocKind.barLicense),
+      hasLength(2),
+    );
     await tapText(tester, 'Continue');
 
     expect(find.text('Identity document'), findsWidgets);
@@ -102,9 +117,14 @@ void main() {
     expect(find.text('Check and submit'), findsOneWidget);
     expect(find.text('Alabama, Alaska'), findsOneWidget);
     await tester.enterText(find.byType(TextField).last, 'Maiden name on ID');
+    // Owner 2026-10-04: no submission without the sworn statement.
+    await tapText(tester, 'Submit for review');
+    expect(backend.submitCalls, 0);
+    await tickAttestation(tester);
     await tapText(tester, 'Submit for review');
 
     expect(backend.submitCalls, 1);
+    expect(backend.lastAttestation, isTrue);
     expect(backend.lastComment, 'Maiden name on ID');
     // Back on the status screen, now pending.
     expect(find.text('Under review'), findsWidgets);
@@ -171,7 +191,8 @@ void main() {
     expect(
       backend.request!
           .docsFor(
-              DocSlot.identity(IdDocumentType.driversLicense, DocSide.front))
+            DocSlot.identity(IdDocumentType.driversLicense, DocSide.front),
+          )
           .length,
       2,
     );
@@ -184,6 +205,33 @@ void main() {
     expect(find.text('Under review'), findsWidgets);
   });
 
+  // Owner 2026-10-07 (phone test): a number accepted under oath is not
+  // «verified» while the profile has no blue check.
+  testWidgets('declared under oath: no «verified» without the blue check',
+      (tester) async {
+    final backend = FakeVerificationBackend(
+      status: VerificationStatus.verified,
+      request: VerificationRequest(
+        id: 'r1',
+        status: RequestStatus.approved,
+        licenses: [license('NY', status: LicenseStatus.verified)],
+        documents: const [],
+      ),
+    );
+    await pumpApp(
+      tester,
+      backend,
+      trust: trustOf(badge: false, licenseConfirmed: false),
+    );
+    expect(find.text("You're verified"), findsNothing);
+    expect(find.text('License declared'), findsOneWidget);
+    expect(find.textContaining('Declared under oath'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('verification-whats-left')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('4. rejected: reason shown and a new request', (tester) async {
     final backend = FakeVerificationBackend(
       status: VerificationStatus.rejected,
@@ -194,9 +242,11 @@ void main() {
         rejectionCode: 'name_mismatch',
         rejectionReason: 'The surname on the ID differs.',
         licenses: [
-          license('AL',
-              status: LicenseStatus.rejected,
-              rejectionCode: 'license_not_found'),
+          license(
+            'AL',
+            status: LicenseStatus.rejected,
+            rejectionCode: 'license_not_found',
+          ),
         ],
         documents: const [],
       ),
@@ -209,9 +259,13 @@ void main() {
       findsOneWidget,
     );
     expect(
-        find.textContaining('The surname on the ID differs.'), findsOneWidget);
-    expect(find.textContaining('License not found in the state database'),
-        findsOneWidget);
+      find.textContaining('The surname on the ID differs.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('License not found in the state database'),
+      findsOneWidget,
+    );
     expect(find.text('Requests in the last 30 days: 1 of 5.'), findsOneWidget);
 
     await tapText(tester, 'Submit a new request');
@@ -225,12 +279,12 @@ void main() {
     final backend = FakeVerificationBackend(
       status: VerificationStatus.rejected,
       submissionsLast30Days: 5,
-      request: VerificationRequest(
+      request: const VerificationRequest(
         id: 'old',
         status: RequestStatus.rejected,
         rejectionCode: 'other',
-        licenses: const [],
-        documents: const [],
+        licenses: [],
+        documents: [],
       ),
     );
     await pumpApp(tester, backend);
@@ -263,21 +317,14 @@ void main() {
     await tapText(tester, 'Continue');
     await tapText(tester, 'Continue');
     await tapText(tester, 'Continue');
+    // Submit is grey and inert while a file is still uploading.
     await tapText(tester, 'Submit for review');
-    expect(
-      find.text('Wait until all files finish uploading and checking.'),
-      findsOneWidget,
-    );
     expect(backend.submitCalls, 0);
 
     // The upload finishes but the antivirus flags it.
     gate.complete();
     await tester.pumpAndSettle();
     await tapText(tester, 'Submit for review');
-    expect(
-      find.textContaining("didn't pass the security check"),
-      findsWidgets,
-    );
     expect(backend.submitCalls, 0);
 
     // Removing the infected file unblocks submission.
@@ -292,6 +339,7 @@ void main() {
     for (var i = 0; i < 3; i++) {
       await tapText(tester, 'Continue');
     }
+    await tickAttestation(tester);
     await tapText(tester, 'Submit for review');
     expect(backend.submitCalls, 1);
   });

@@ -1,12 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AttorneyTrustService } from '../../modules/attorney-trust/attorney-trust.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { emitOnce } from './reminder-claim';
+import { utcDay } from '../../modules/verification/license-renewal';
+
+export { utcDay };
 
 const DAY_SEC = 24 * 60 * 60;
 const DAY_MS = DAY_SEC * 1000;
@@ -18,6 +22,8 @@ export const LICENSE_EXPIRY_BATCH = 500;
 export const LICENSE_NOTIFICATION_KIND = {
   expiring: 'license_expiring',
   expired: 'license_expired',
+  /** Owner 2026-10-24: the date passed; the grace period started. */
+  renewalDue: 'license_renewal_due',
   profileUnverified: 'profile_unverified',
 } as const;
 
@@ -25,13 +31,8 @@ export interface LicenseExpiryResult {
   expired: number;
   unverifiedProfiles: number;
   reminders: number;
-}
-
-/** UTC midnight of [now] — `attorney_licenses.expires_at` is a DATE. */
-export function utcDay(now: Date): Date {
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-  );
+  /** Licenses that entered the grace period tonight (badge hidden). */
+  lapsed: number;
 }
 
 /**
@@ -76,6 +77,9 @@ export class LicenseExpiryJob {
     private readonly notifications: NotificationsService,
     private readonly logger: PinoLogger,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-05 (anti-fraud): the badge and the gates follow the
+    // verification status, so an expired last license takes them away.
+    @Optional() private readonly trust?: AttorneyTrustService,
   ) {
     this.logger.setContext(LicenseExpiryJob.name);
   }
@@ -86,22 +90,90 @@ export class LicenseExpiryJob {
       expired: 0,
       unverifiedProfiles: 0,
       reminders: 0,
+      lapsed: 0,
     };
-    await this.expire(today, result);
+    const grace = Math.max(
+      0,
+      Math.floor(
+        await this.settings.number('verification.license_expiry_grace_days'),
+      ),
+    );
+    await this.lapse(today, grace, result);
+    await this.expire(today, grace, result);
     await this.remind(today, result);
     this.logger.info({ ...result }, 'license expiry finished');
     return result;
   }
 
-  private async expire(
+  /**
+   * Owner 2026-10-24: a verified license whose date has passed but is
+   * still inside the grace period. The attorney is told once, and the
+   * trust badge is recomputed (it hides while every verified license is
+   * lapsed). Nothing else changes: the account is not blocked.
+   */
+  private async lapse(
     today: Date,
+    grace: number,
     result: LicenseExpiryResult,
   ): Promise<void> {
+    if (grace <= 0) return;
+    const since = new Date(today.getTime() - grace * DAY_MS);
+    let cursor: string | undefined;
+    for (;;) {
+      const batch = await this.prisma.attorneyLicense.findMany({
+        where: {
+          license_status: 'verified',
+          expires_at: { lte: today, gt: since },
+          ...(cursor && { id: { gt: cursor } }),
+        },
+        select: {
+          id: true,
+          attorney_id: true,
+          state_code: true,
+          expires_at: true,
+        },
+        orderBy: { id: 'asc' },
+        take: LICENSE_EXPIRY_BATCH,
+      });
+      for (const license of batch) {
+        const expiresAt = dateOnly(license.expires_at);
+        await this.trust?.recompute(license.attorney_id);
+        const emitted = await emitOnce(
+          this.redis,
+          `reminder:license:${license.id}:${expiresAt}:due`,
+          (grace + 2) * DAY_SEC,
+          () =>
+            this.notifications.emit({
+              recipientId: license.attorney_id,
+              type: 'verification_update',
+              payload: {
+                kind: LICENSE_NOTIFICATION_KIND.renewalDue,
+                licenseId: license.id,
+                stateCode: license.state_code,
+                expiresAt,
+                graceDays: grace,
+              },
+            }),
+        );
+        if (emitted) result.lapsed += 1;
+      }
+      if (batch.length < LICENSE_EXPIRY_BATCH) return;
+      cursor = batch[batch.length - 1].id;
+    }
+  }
+
+  private async expire(
+    today: Date,
+    grace: number,
+    result: LicenseExpiryResult,
+  ): Promise<void> {
+    // The grace period keeps a lapsed license `verified` for [grace] days.
+    const cutoff = new Date(today.getTime() - grace * DAY_MS);
     for (;;) {
       // Each processed row leaves the `verified` set, so re-reading the
       // first batch always makes progress.
       const due = await this.prisma.attorneyLicense.findMany({
-        where: { license_status: 'verified', expires_at: { lte: today } },
+        where: { license_status: 'verified', expires_at: { lte: cutoff } },
         select: {
           id: true,
           attorney_id: true,
@@ -149,6 +221,7 @@ export class LicenseExpiryJob {
           });
           if (downgraded.count === 0) return;
           result.unverifiedProfiles += 1;
+          await this.trust?.recompute(license.attorney_id, undefined, tx);
           await this.notifications.emit(
             {
               recipientId: license.attorney_id,

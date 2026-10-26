@@ -35,7 +35,8 @@ String? resolvePlural(
   String? Function(String key) lookup,
 ) {
   final category = pluralCategoryOf(languageCode, count);
-  return lookup('$base.${category.name}') ?? lookup('$base.${PluralCategory.other.name}');
+  return lookup('$base.${category.name}') ??
+      lookup('$base.${PluralCategory.other.name}');
 }
 
 /// `{count}` for plural strings: [count] formatted with the language's
@@ -55,7 +56,14 @@ String interpolate(String template, Map<String, String>? params) {
   if (params == null) return template;
   var value = template;
   for (final entry in params.entries) {
-    value = value.replaceAll('{${entry.key}}', entry.value);
+    final slot = '{${entry.key}}';
+    // "closes automatically {date}." with no date: no dangling " .".
+    if (entry.value.isEmpty) value = value.replaceAll(' $slot', '');
+    // "19 окт. 2026 г." + the sentence's own full stop is one full stop.
+    if (entry.value.endsWith('.') && !entry.value.endsWith('..')) {
+      value = value.replaceAll('$slot.', entry.value);
+    }
+    value = value.replaceAll(slot, entry.value);
   }
   return value;
 }
@@ -70,7 +78,8 @@ String pluralize({
   required String? Function(String key) lookup,
   Map<String, String>? params,
 }) {
-  final template = resolvePlural(languageCode, key, count, lookup) ?? '$key.other';
+  final template =
+      resolvePlural(languageCode, key, count, lookup) ?? '$key.other';
   return interpolate(template, {
     'count': formatPluralCount(languageCode, count),
     ...?params,

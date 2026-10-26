@@ -11,17 +11,32 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+variable "deletion_window_in_days" {
+  type        = number
+  default     = 30
+  description = "Waiting period before a destroyed key is really deleted (7-30). Load-test stacks use 7."
+}
+variable "allow_macie" {
+  type        = bool
+  default     = false
+  description = "Let Amazon Macie's service-linked role decrypt objects (modules/macie) so it can read the SSE-KMS documents bucket. Written as a condition on the role ARN because the role does not exist before Macie is enabled."
+}
+variable "backup_copy_account_ids" {
+  type        = list(string)
+  default     = []
+  description = "Separate backup account(s) allowed to use this key, so AWS Backup can copy RDS snapshots encrypted with it into their vault (modules/backup)."
+}
 
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 resource "aws_kms_key" "this" {
   description             = "${var.name}: S3, Secrets Manager, logs"
-  deletion_window_in_days = 30
+  deletion_window_in_days = var.deletion_window_in_days
   enable_key_rotation     = true
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Sid       = "AccountAdmin"
         Effect    = "Allow"
@@ -38,8 +53,58 @@ resource "aws_kms_key" "this" {
         Condition = {
           ArnLike = { "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*" }
         }
-      }
-    ]
+      },
+      {
+        # The media bucket is SSE-KMS with this key: CloudFront (origin
+        # access control) must decrypt objects or every photo is a 403.
+        # Account-wide distribution ARN avoids a kms ↔ s3 module cycle.
+        Sid       = "CloudFrontMediaRead"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = ["kms:Decrypt"]
+        Resource  = "*"
+        Condition = {
+          ArnLike = { "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*" }
+        }
+      },
+      {
+        # Alarms (CloudWatch) and backup-job events (EventBridge) publish to
+        # the alerts topic, which is encrypted with this key: without this
+        # statement AWS drops the notification silently.
+        Sid       = "AlertPublishers"
+        Effect    = "Allow"
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com", "budgets.amazonaws.com"] }
+        Action    = ["kms:Decrypt", "kms:GenerateDataKey*"]
+        Resource  = "*"
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      },
+      {
+        # Cost Anomaly Detection publishes to the encrypted alerts topic.
+        Sid       = "CostAnomalyPublisher"
+        Effect    = "Allow"
+        Principal = { Service = "costalerts.amazonaws.com" }
+        Action    = ["kms:Decrypt", "kms:GenerateDataKey*"]
+        Resource  = "*"
+      },
+      ], var.allow_macie ? [{
+        Sid       = "MacieRead"
+        Effect    = "Allow"
+        Principal = { AWS = "*" }
+        Action    = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"]
+        Resource  = "*"
+        Condition = {
+          ArnEquals    = { "aws:PrincipalArn" = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/macie.amazonaws.com/AWSServiceRoleForAmazonMacie" }
+          StringEquals = { "kms:CallerAccount" = data.aws_caller_identity.current.account_id }
+        }
+        }] : [], length(var.backup_copy_account_ids) == 0 ? [] : [{
+        Sid       = "BackupCopyAccount"
+        Effect    = "Allow"
+        Principal = { AWS = [for a in var.backup_copy_account_ids : "arn:aws:iam::${a}:root"] }
+        Action    = ["kms:Decrypt", "kms:DescribeKey", "kms:CreateGrant", "kms:ReEncrypt*", "kms:GenerateDataKey*"]
+        Resource  = "*"
+    }])
   })
   tags = var.tags
 }

@@ -7,7 +7,9 @@ import { io, type Socket } from 'socket.io-client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { FilesService } from '../src/modules/files/files.service';
 import { CallsService } from '../src/modules/calls/calls.service';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 
 /**
  * OQ-041 (owner 2026-09-30): in-app audio calls — only after the bid is
@@ -220,6 +222,7 @@ describe('In-app calls (e2e, OQ-041)', () => {
     expect(await gotOffer).toEqual({
       callId,
       data: { type: 'offer', sdp: 'v=0' },
+      from: c.attorney.id,
     });
     const stranger = await prisma.user.create({
       data: { role: 'client', first_name: 'Eve', last_name: 'Drop' },
@@ -269,6 +272,120 @@ describe('In-app calls (e2e, OQ-041)', () => {
     ).find((m) => m.type === 'call')!;
     expect(entry.call.outcome).toBe('ended');
     expect(entry.call.durationSec).toBeGreaterThanOrEqual(75);
+  });
+
+  it('the incoming call follows the callee’s view of the caller’s photo', async () => {
+    const link = jest
+      .spyOn(
+        FilesService.prototype as unknown as {
+          mediaUrlOf: () => Promise<string | null>;
+        },
+        'mediaUrlOf',
+      )
+      .mockResolvedValue('https://media.test/a.jpg');
+    try {
+      const c = await chat();
+      const avatar = await prisma.file.create({
+        data: {
+          owner_user_id: c.attorney.id,
+          purpose: 'avatar',
+          s3_bucket: process.env.S3_BUCKET_MEDIA ?? 'lawbid-media',
+          s3_key: `avatars/${c.attorney.id}/${randomUUID()}.jpg`,
+          mime: 'image/jpeg',
+          size_bytes: 10n,
+          sha256: 'd'.repeat(64),
+          scan_status: 'clean',
+        },
+      });
+      await prisma.user.update({
+        where: { id: c.attorney.id },
+        data: { avatar_file_id: avatar.id },
+      });
+      await prisma.userPrivacySettings.create({
+        data: { user_id: c.attorney.id, photo_from: 'nobody' },
+      });
+      const clientSock = await connect(c.client.token);
+      const incoming = once<{ call: { peer: { avatarUrl: string | null } } }>(
+        clientSock,
+        'call:incoming',
+      );
+      await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .expect(201);
+      // The caller sees their own photo rules, the callee gets initials.
+      expect((await incoming).call.peer.avatarUrl).toBeNull();
+    } finally {
+      link.mockRestore();
+    }
+  });
+
+  it('a call is never left blocking: the end frees both at once, a silent one is closed (owner 2026-10-20)', async () => {
+    const c = await chat();
+    const first = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.client.auth)
+      .expect(201);
+    await api()
+      .post(`/api/v1/calls/${first.body.data.id}/accept`)
+      .set(c.attorney.auth)
+      .expect(200);
+    await api()
+      .post(`/api/v1/calls/${first.body.data.id}/end`)
+      .set(c.client.auth)
+      .send({})
+      .expect(200);
+    // Straight after the hang-up the same pair can call again, both ways.
+    const again = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    expect(again.body.data.status).toBe('ringing');
+    await api()
+      .post(`/api/v1/calls/${again.body.data.id}/end`)
+      .set(c.attorney.auth)
+      .send({})
+      .expect(200);
+
+    // A call whose apps went silent (the end request was lost, both phones
+    // gone) is over: asking for it is a heartbeat, silence is closed.
+    const stuck = await prisma.call.create({
+      data: {
+        conversation_id: c.id,
+        caller_id: c.client.id,
+        callee_id: c.attorney.id,
+        status: 'active',
+        answered_at: new Date(Date.now() - 600_000),
+        video: true,
+      },
+    });
+    await prisma.$executeRaw`UPDATE calls SET updated_at = now() - interval '4 minutes' WHERE id = ${stuck.id}::uuid`;
+    const fresh = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.client.auth)
+      .expect(201);
+    expect(fresh.body.data.status).toBe('ringing');
+    expect(
+      (await prisma.call.findUniqueOrThrow({ where: { id: stuck.id } })).status,
+    ).toBe('ended');
+
+    // An answered call that keeps being read stays up.
+    await api()
+      .post(`/api/v1/calls/${fresh.body.data.id}/accept`)
+      .set(c.attorney.auth)
+      .expect(200);
+    await api()
+      .get(`/api/v1/calls/${fresh.body.data.id}`)
+      .set(c.client.auth)
+      .expect(200);
+    await app.get(CallsService).sweep();
+    expect(
+      (
+        await prisma.call.findUniqueOrThrow({
+          where: { id: fresh.body.data.id },
+        })
+      ).status,
+    ).toBe('active');
   });
 
   it('decline, busy and missed (sweep) are logged; missed notifies the callee', async () => {
@@ -322,7 +439,7 @@ describe('In-app calls (e2e, OQ-041)', () => {
       await prisma.notification.count({
         where: { user_id: c.attorney.id, type: 'missed_call' },
       }),
-    ).toBe(1);
+    ).toBe(2); // the busy call and the unanswered one
 
     expect((await callLog(c.id)).map((m) => m.body_display)).toEqual([
       'declined',
@@ -373,5 +490,79 @@ describe('In-app calls (e2e, OQ-041)', () => {
     const turn = servers.find((s) => s.urls[0].startsWith('turn:'))!;
     expect(turn.username).toMatch(new RegExp(`^\\d+:${c.client.id}$`));
     expect(turn.credential).toBeTruthy();
+  });
+
+  describe('video calls (owner 2026-10-05)', () => {
+    async function setVideoFlag(enabled: boolean): Promise<void> {
+      await prisma.featureFlag.upsert({
+        where: { key: 'video_calls' },
+        create: { key: 'video_calls', enabled },
+        update: { enabled },
+      });
+      await app.get(FeatureFlagsService).invalidate();
+    }
+
+    afterAll(() => setVideoFlag(false));
+
+    it('is refused while the video_calls flag is off; audio still rings', async () => {
+      await setVideoFlag(false);
+      const c = await chat();
+      const cfg = await api()
+        .get('/api/v1/calls/video')
+        .set(c.client.auth)
+        .expect(200);
+      expect(cfg.body.data).toEqual({
+        available: false,
+        provider: 'webrtc',
+        reason: 'flag_off',
+      });
+      const res = await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .send({ video: true });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('FEATURE_DISABLED');
+      const audio = await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .expect(201);
+      expect(audio.body.data.video).toBe(false);
+      await api()
+        .post(`/api/v1/calls/${audio.body.data.id}/end`)
+        .set(c.attorney.auth)
+        .send({})
+        .expect(200);
+    });
+
+    it('rings the callee as a video call once the flag is on', async () => {
+      await setVideoFlag(true);
+      const c = await chat();
+      const cfg = await api()
+        .get('/api/v1/calls/video')
+        .set(c.client.auth)
+        .expect(200);
+      expect(cfg.body.data).toMatchObject({ available: true, reason: null });
+      const clientSock = await connect(c.client.token);
+      const incoming = once<{ call: { video: boolean } }>(
+        clientSock,
+        'call:incoming',
+      );
+      const res = await api()
+        .post(`/api/v1/conversations/${c.id}/calls`)
+        .set(c.attorney.auth)
+        .send({ video: true })
+        .expect(201);
+      expect(res.body.data).toMatchObject({ status: 'ringing', video: true });
+      expect((await incoming).call.video).toBe(true);
+      const row = await prisma.call.findUniqueOrThrow({
+        where: { id: res.body.data.id as string },
+      });
+      expect(row.video).toBe(true);
+      await api()
+        .post(`/api/v1/calls/${row.id}/end`)
+        .set(c.attorney.auth)
+        .send({})
+        .expect(200);
+    });
   });
 });

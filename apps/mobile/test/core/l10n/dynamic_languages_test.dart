@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,7 +46,10 @@ void main() {
       expect(entry(list, 'en').appLanguage, AppLanguage.en);
       expect(entry(list, 'ru').appLanguage, AppLanguage.ru);
       expect(entry(list, 'es').isEnabled, isFalse);
-      expect(list.map((e) => e.code), orderedEquals(kLanguageCatalog.map((e) => e.code)));
+      expect(
+        list.map((e) => e.code),
+        orderedEquals(kLanguageCatalog.map((e) => e.code)),
+      );
     });
 
     test('active server languages become selectable; others stay "soon"', () {
@@ -58,15 +62,27 @@ void main() {
       final es = entry(list, 'es');
       expect(es.isEnabled, isTrue);
       expect(es.appLanguage, AppLanguage.fromCode('es'));
-      expect(es.nativeName, 'Español (servidor)', reason: 'server name_native wins');
+      expect(
+        es.nativeName,
+        'Español (servidor)',
+        reason: 'server name_native wins',
+      );
       expect(es.englishName, 'Spanish', reason: 'curated English name kept');
-      expect(entry(list, 'fr').isEnabled, isFalse, reason: 'not active on the server');
+      expect(
+        entry(list, 'fr').isEnabled,
+        isFalse,
+        reason: 'not active on the server',
+      );
       expect(list.last.code, 'sw', reason: 'server-only language appended');
       expect(list.last.appLanguage, AppLanguage.fromCode('sw'));
     });
 
-    test('en stays selectable even if the server list omits it (mandatory fallback)', () {
-      final list = mergeLanguageCatalog(const [ServerLanguage(code: 'es', nameNative: 'Español')]);
+    test(
+        'en stays selectable even if the server list omits it (mandatory fallback)',
+        () {
+      final list = mergeLanguageCatalog(
+        const [ServerLanguage(code: 'es', nameNative: 'Español')],
+      );
       expect(entry(list, 'en').isEnabled, isTrue);
       expect(entry(list, 'ru').isEnabled, isFalse);
       expect(entry(list, 'es').isEnabled, isTrue);
@@ -82,7 +98,21 @@ void main() {
     expect(AppLanguage.isValidCode('xyz'), isFalse);
   });
 
-  test('server-only language: listed, selected, rendered from its bundle with en fallback', () async {
+  test('Traditional Chinese keeps its own code; RTL languages are flagged', () {
+    expect(AppLanguage.fromCode('zh-TW').code, 'zh-tw');
+    expect(AppLanguage.fromCode('zh_Hant_HK').code, 'zh-tw');
+    expect(AppLanguage.fromCode('zh-MO').code, 'zh-tw');
+    expect(AppLanguage.fromCode('zh-CN').code, 'zh');
+    expect(AppLanguage.fromCode('zh_Hans').code, 'zh');
+    expect(AppLanguage.isValidCode('zh-tw'), isTrue);
+    expect(AppLanguage.fromCode('ar').isRtl, isTrue);
+    expect(AppLanguage.fromCode('he').isRtl, isTrue);
+    expect(AppLanguage.en.isRtl, isFalse);
+  });
+
+  test(
+      'server-only language: listed, selected, rendered from its bundle with en fallback',
+      () async {
     final api = serverWithSpanish();
     final h = await L10nHarness.create(api: api);
     final c = h.container();
@@ -95,7 +125,9 @@ void main() {
     expect(entry(catalog, 'sw').isEnabled, isTrue);
     expect(entry(catalog, 'fr').isEnabled, isFalse);
 
-    await c.read(languageControllerProvider.notifier).setLanguage(es.appLanguage!);
+    await c
+        .read(languageControllerProvider.notifier)
+        .setLanguage(es.appLanguage!);
     await settle();
 
     final t = c.read(translatorProvider);
@@ -104,18 +136,27 @@ void main() {
     expect(t.t('auth.otp.submit'), 'Verify');
     expect(api.calls, contains('bundle:es:-'));
     // Cached in Drift for the next (possibly offline) launch.
-    expect(await h.db.loadLanguage('es'), containsPair('lang.picker.title', 'Idioma'));
+    expect(
+      await h.db.loadLanguage('es'),
+      containsPair('lang.picker.title', 'Idioma'),
+    );
   });
 
-  test('offline cold start keeps a previously chosen server-only language', () async {
+  test('offline cold start keeps a previously chosen server-only language',
+      () async {
     final api = serverWithSpanish();
     final h1 = await L10nHarness.create(api: api);
     final c1 = h1.container();
     await c1.read(activeLanguagesControllerProvider.notifier).refresh();
-    await c1.read(languageControllerProvider.notifier).setLanguage(AppLanguage.fromCode('es'));
+    await c1
+        .read(languageControllerProvider.notifier)
+        .setLanguage(AppLanguage.fromCode('es'));
     await c1.read(l10nCacheControllerProvider.notifier).refreshInBackground();
     await settle();
-    expect(await h1.db.loadLanguage('es'), containsPair('auth.welcome.phone', 'Continuar con teléfono'));
+    expect(
+      await h1.db.loadLanguage('es'),
+      containsPair('auth.welcome.phone', 'Continuar con teléfono'),
+    );
 
     // Same device (prefs + Drift file), no network.
     api.offline = true;
@@ -123,14 +164,29 @@ void main() {
     final c2 = h2.container();
     await c2.read(l10nCacheControllerProvider.notifier).bootstrap();
 
-    expect(await c2.read(languageControllerProvider.future), AppLanguage.fromCode('es'));
-    expect(c2.read(activeLanguagesControllerProvider)!.map((l) => l.code), contains('es'));
-    expect(c2.read(translatorProvider).t('auth.welcome.phone'), 'Continuar con teléfono');
+    expect(
+      await c2.read(languageControllerProvider.future),
+      AppLanguage.fromCode('es'),
+    );
+    expect(
+      c2.read(activeLanguagesControllerProvider)!.map((l) => l.code),
+      contains('es'),
+    );
+    expect(
+      c2.read(translatorProvider).t('auth.welcome.phone'),
+      'Continuar con teléfono',
+    );
     final catalog = await c2.read(languageCatalogProvider.future);
-    expect(entry(catalog, 'es').isEnabled, isTrue, reason: 'cached list used offline');
+    expect(
+      entry(catalog, 'es').isEnabled,
+      isTrue,
+      reason: 'cached list used offline',
+    );
   });
 
-  testWidgets('picker: the server-only language row is tappable and switches the app', (tester) async {
+  testWidgets(
+      'picker: the server-only language row is tappable and switches the app',
+      (tester) async {
     final api = serverWithSpanish();
     late L10nHarness h;
     await tester.runAsync(() async {
@@ -162,19 +218,39 @@ void main() {
     // Rows the server doesn't serve keep the "coming soon" badge.
     expect(find.text('Coming soon'), findsWidgets);
     expect(
-      find.descendant(of: find.byType(LanguagePickerSheet), matching: find.text('ES')),
+      find.descendant(
+        of: find.byType(LanguagePickerSheet),
+        matching: find.text('ES'),
+      ),
       findsOneWidget,
       reason: 'selectable rows show the code, not the "coming soon" badge',
     );
 
+    // Owner 2026-10-20: with the keyboard up (a search typed) one tap on
+    // the row applies the language and drops the focus.
+    await tester.enterText(find.byType(TextField), 'Esp');
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.hasPrimaryFocus, isTrue);
     await tester.tap(esRow);
     await tester.runAsync(settle);
     await tester.pumpAndSettle();
 
-    expect(find.byType(LanguagePickerSheet), findsNothing, reason: 'sheet closes on pick');
-    final container = ProviderScope.containerOf(tester.element(find.text('open')));
-    expect(container.read(languageControllerProvider).value, AppLanguage.fromCode('es'));
-    expect(container.read(translatorProvider).t('auth.welcome.phone'), 'Continuar con teléfono');
+    expect(
+      find.byType(LanguagePickerSheet),
+      findsNothing,
+      reason: 'sheet closes on pick',
+    );
+    expect(find.byType(EditableText), findsNothing);
+    final container =
+        ProviderScope.containerOf(tester.element(find.text('open')));
+    expect(
+      container.read(languageControllerProvider).value,
+      AppLanguage.fromCode('es'),
+    );
+    expect(
+      container.read(translatorProvider).t('auth.welcome.phone'),
+      'Continuar con teléfono',
+    );
     await tester.runAsync(h.db.close);
   });
 }

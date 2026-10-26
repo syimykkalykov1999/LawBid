@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
@@ -30,6 +31,7 @@ import type { AuthTokensResult } from './auth-result.types';
 import { RateLimitService } from '../services/rate-limit.service';
 import { LoginMethodPolicy } from '../services/login-method-policy.service';
 import { NewDeviceNotifier } from '../notifications/new-device-notifier.service';
+import { ClientFraudService } from '../../client-fraud/client-fraud.service';
 
 /**
  * Dispatches to the right SocialTokenVerifier, resolves-or-creates the
@@ -56,6 +58,9 @@ export class SocialAuthService {
     private readonly newDevice: NewDeviceNotifier,
     private readonly config: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a new Apple / Google
+    // account of a blocked fraudster (same subject, e-mail or device).
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   async login(
@@ -66,6 +71,7 @@ export class SocialAuthService {
     // (AUTH_SOCIAL_LIMIT_PER_IP_PER_HOUR) — both before the verifier's
     // JWKS work and any DB write.
     await this.loginMethods.assertEnabled(dto.provider);
+    await this.loginMethods.assertPlatformAllowed(dto.deviceInfo?.platform);
     await this.assertIpLimit(meta);
 
     const verifier = dto.provider === 'apple' ? this.apple : this.google;
@@ -94,6 +100,13 @@ export class SocialAuthService {
     // puts given_name/family_name straight in the token. Prefer whatever
     // the verifier itself returned; fall back to what the client passed
     // through for the Apple first-login case.
+    const social = { provider: dto.provider, uid: verifyResult.providerUid };
+    await this.fraud?.assertSignInAllowed({
+      social,
+      email: verifyResult.emailVerified ? verifyResult.email : null,
+      deviceKey: meta.deviceKey,
+    });
+
     const firstName = verifyResult.firstName ?? dto.firstName;
     const lastName = verifyResult.lastName ?? dto.lastName;
 
@@ -203,6 +216,15 @@ export class SocialAuthService {
       });
     }
 
+    const fraudSignals = {
+      social,
+      email: user.email,
+      phone: user.phone_e164,
+      deviceKey: meta.deviceKey,
+      ip: meta.ip,
+    };
+    await this.fraud?.assertSignInAllowed(fraudSignals, user.id);
+
     const isNewDevice = await this.sessions.isNewDevice(
       user.id,
       deviceInfo.deviceId,
@@ -233,6 +255,8 @@ export class SocialAuthService {
       userAgent: meta.userAgent,
       meta: { provider: dto.provider, isNewDevice },
     });
+
+    await this.fraud?.recordSignIn(user.id, fraudSignals);
 
     // docs/01 §10.6 new-device alert: audit row inline, delivery detached.
     await this.newDevice.onLogin({

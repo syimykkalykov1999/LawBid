@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/legal_document.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
-import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/consent_type.dart';
@@ -32,7 +31,7 @@ class ConsentsStepScreen extends ConsumerStatefulWidget {
 
 class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
   final Map<ConsentType, bool> _values = {
-    for (final c in ConsentType.requiredTypes) c: false
+    for (final c in ConsentType.requiredTypes) c: false,
   };
   bool _attempted = false;
 
@@ -74,7 +73,6 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
     final termsAccepted =
         _values[ConsentType.terms]! && _values[ConsentType.privacy]!;
 
-
     return OnboardingScaffold(
       step: OnboardingStepId.consents,
       title: t.t('onboarding.consents.title'),
@@ -82,6 +80,7 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
       error: action.error,
       primaryLabel: t.t('onboarding.continue'),
       primaryLoading: action.busy,
+      primaryEnabled: _requiredOk,
       onPrimary: _continue,
       footnote: _attempted && !_requiredOk
           ? t.t('onboarding.consents.requiredHint')
@@ -116,31 +115,29 @@ class _ConsentsStepScreenState extends ConsumerState<ConsentsStepScreen> {
           showError: missing(ConsentType.disclaimer),
           onChanged: (v) => _set(ConsentType.disclaimer, v),
         ),
-        const SizedBox(height: AppSpacing.xl),
-        StepSectionLabel(t.t('onboarding.consents.docs')),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            const docs = ['terms', 'privacy', 'disclaimer'];
-            final itemWidth = (constraints.maxWidth - AppSpacing.sm) / 2;
-            return Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (var i = 0; i < docs.length; i++)
-                  SizedBox(
-                    // An odd last item spans the full row, edge to edge
-                    // with the two columns above it.
-                    width: docs.length.isOdd && i == docs.length - 1
-                        ? constraints.maxWidth
-                        : itemWidth,
-                    child: _DocLink(
-                      label: t.t('legal.doc.${docs[i]}'),
-                      onTap: () => context.push(AppRoutes.legalDoc(docs[i])),
-                    ),
+        const SizedBox(height: AppSpacing.md),
+        // Terms and Privacy side by side (same height, wrapping by words),
+        // the disclaimer below them across the full width.
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final doc in const ['terms', 'privacy']) ...[
+                if (doc == 'privacy') const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: _DocLink(
+                    label: t.t('legal.doc.$doc'),
+                    onTap: () => context.push(AppRoutes.legalDoc(doc)),
                   ),
+                ),
               ],
-            );
-          },
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _DocLink(
+          label: t.t('legal.doc.disclaimer'),
+          onTap: () => context.push(AppRoutes.legalDoc('disclaimer')),
         ),
       ],
     );
@@ -167,7 +164,9 @@ class _DocLink extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minHeight: AppSizes.hitTarget),
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.sm,
+            ),
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(AppRadii.card),
@@ -178,8 +177,11 @@ class _DocLink extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AppIcon(AppIcons.descriptionOutlined,
-                    size: AppSizes.iconSm, color: colors.gold),
+                AppIcon(
+                  AppIcons.descriptionOutlined,
+                  size: AppSizes.iconSm,
+                  color: colors.iconTint,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Flexible(
                   child: Text(

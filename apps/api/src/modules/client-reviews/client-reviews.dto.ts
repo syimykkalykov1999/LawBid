@@ -13,7 +13,6 @@ import {
   Max,
   MaxLength,
   Min,
-  MinLength,
 } from 'class-validator';
 
 export const CLIENT_REVIEW_BODY_MAX = 2000;
@@ -35,25 +34,13 @@ export class UpsertClientReviewDto {
   @MaxLength(CLIENT_REVIEW_BODY_MAX)
   body?: string;
 
-  /** Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files. */
-  @ApiPropertyOptional({ type: [String], maxItems: 10 })
+  /** Owner 2026-10-01 (Google Maps-style): `review_photo` files (count: admin, bug 17). */
+  @ApiPropertyOptional({ type: [String], maxItems: 20 })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(20)
   @IsUUID('all', { each: true })
   photoIds?: string[];
-}
-
-/** Owner 2026-09-30: POST /client-reviews/:id/appeal. */
-export class AppealClientReviewDto {
-  @ApiProperty({ minLength: 1, maxLength: 1000 })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsString()
-  @MinLength(1)
-  @MaxLength(1000)
-  reason!: string;
 }
 
 export class ClientReviewIdParamDto {

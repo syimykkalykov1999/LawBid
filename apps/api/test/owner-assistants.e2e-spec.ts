@@ -4,13 +4,15 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import type Redis from 'ioredis';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { ensurePostPractices } from './support/post-practices';
 
 /**
  * OQ-048 (owner 2026-09-30): attorney assistants — seats from the plan,
- * joining (added phone / code to the attorney's phone), working inside
+ * joining (added phone / the attorney's one-time code, no SMS), working inside
  * the attorney's account without bidding, labelled chat messages, the
  * hidden activity log, publications through approval, bid drafts and
  * tasks with results going back to the assistant.
@@ -43,11 +45,28 @@ describe('Assistants (e2e, OQ-048)', () => {
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
     await ensurePostPractices(prisma);
+    // Owner 2026-10-22: an assistant holds at most 3 duties by default;
+    // these flows predate the limit and give one assistant many duties.
+    await setMaxDuties(10);
   });
 
   afterAll(async () => {
+    await prisma.appConfig.deleteMany({
+      where: { key: 'assistants.max_duties' },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
     await app.close();
   });
+
+  async function setMaxDuties(value: number) {
+    await prisma.appConfig.upsert({
+      where: { key: 'assistants.max_duties' },
+      create: { key: 'assistants.max_duties', value },
+      update: { value },
+    });
+    // AppConfigService caches the whole table in Redis for 30 s.
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+  }
 
   const api = () => request(base);
   const bearer = (id: string, role: string | null) => ({
@@ -179,29 +198,123 @@ describe('Assistants (e2e, OQ-048)', () => {
     expect(me.body.data.role).toBe('assistant');
   });
 
-  it('joining with the code sent to the attorney phone; yearly = 6 seats', async () => {
+  it('owner 2026-10-04: one-time code per seat, no SMS; yearly = all seats (default 10)', async () => {
     const att = await attorney(0, 'yearly');
-    const asst = await assistantUser();
+    const other = await attorney(1);
+    const CODE = /^[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}-[2-9A-HJKMNP-Z]{4}$/;
+
+    const added = await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ name: 'Sam' })
+      .expect(201);
+    expect(added.body.data).toMatchObject({ seats: 10, used: 1 });
+    const seat = added.body.data.members[0];
+    expect(seat.status).toBe('invited');
+    expect(seat.phone).toBeNull();
+    expect(seat.joinCode).toMatch(CODE);
+    expect(Date.parse(seat.joinCodeExpiresAt)).toBeGreaterThan(Date.now());
+
+    // Another attorney's seat never shares the code.
+    const theirs = await api()
+      .post('/api/v1/team')
+      .set(other.auth)
+      .send({})
+      .expect(201);
+    expect(theirs.body.data.members[0].joinCode).not.toBe(seat.joinCode);
+
+    const wrong = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: 'AAAA-BBBB-CCCC' })
+      .expect(401);
+    expect(wrong.body.error.code).toBe('ASSISTANT_CODE_INVALID');
+
+    // Lower case and no dashes are fine; a new account becomes the assistant.
+    const login = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({
+        code: (seat.joinCode as string).replace(/-/g, '').toLowerCase(),
+        deviceInfo: { deviceId: `dev-${randomUUID()}`, platform: 'ios' },
+      })
+      .expect(201);
+    expect(login.body.data.isNewUser).toBe(true);
+    const asstAuth = {
+      Authorization: `Bearer ${login.body.data.accessToken}`,
+    };
+    const me = await api()
+      .get('/api/v1/assistants/me')
+      .set(asstAuth)
+      .expect(200);
+    expect(me.body.data).toMatchObject({
+      state: 'active',
+      attorneyName: 'Ada Counsel',
+    });
+
+    // Used once.
+    const again = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: seat.joinCode })
+      .expect(401);
+    expect(again.body.error.code).toBe('ASSISTANT_CODE_INVALID');
+    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
+    expect(team.body.data.members[0]).toMatchObject({
+      status: 'active',
+      joinCode: null,
+    });
+
+    // "New code": the same assistant on a new phone; the old one is out.
+    const renewed = await api()
+      .post(`/api/v1/team/${seat.id}/code`)
+      .set(att.auth)
+      .expect(201);
+    const second = renewed.body.data.members[0].joinCode as string;
+    expect(second).toMatch(CODE);
+    expect(second).not.toBe(seat.joinCode);
+    const relog = await api()
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: second })
+      .expect(201);
+    expect(relog.body.data.isNewUser).toBe(false);
+    const row = await prisma.assistantMembership.findUniqueOrThrow({
+      where: { id: seat.id },
+    });
+    const live = await prisma.session.count({
+      where: { user_id: row.assistant_user_id!, revoked_at: null },
+    });
+    expect(live).toBe(1);
+
+    // Removing the assistant voids an issued code.
+    const third = await api()
+      .post(`/api/v1/team/${seat.id}/code`)
+      .set(att.auth)
+      .expect(201);
+    await api().delete(`/api/v1/team/${seat.id}`).set(att.auth).expect(200);
     await api()
-      .post('/api/v1/assistants/join/request-code')
-      .set(asst.auth)
-      .send({ phone: att.phone })
-      .expect(204);
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: third.body.data.members[0].joinCode })
+      .expect(401);
+  });
+
+  it('owner 2026-10-04: a signed-in account without a team joins with the code', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    const added = await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({})
+      .expect(201);
     const bad = await api()
-      .post('/api/v1/assistants/join/verify')
+      .post('/api/v1/assistants/join/code')
       .set(asst.auth)
-      .send({ attorneyPhone: att.phone, code: '111111' })
-      .expect(400);
-    expect(bad.body.error.code).toBe('AUTH_OTP_INVALID');
+      .send({ code: 'ZZZZ-ZZZZ-ZZZZ' })
+      .expect(401);
+    expect(bad.body.error.code).toBe('ASSISTANT_CODE_INVALID');
     const ok = await api()
-      .post('/api/v1/assistants/join/verify')
+      .post('/api/v1/assistants/join/code')
       .set(asst.auth)
-      .send({ attorneyPhone: att.phone, code: '000000' })
+      .send({ code: added.body.data.members[0].joinCode })
       .expect(201);
     expect(ok.body.data.state).toBe('active');
-    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
-    expect(team.body.data).toMatchObject({ seats: 6, used: 1, plan: 'yearly' });
-    expect(team.body.data.members[0].approval).toBe('attorney_otp');
   });
 
   it('approvals, tasks, bid drafts, labelled chat and the hidden log', async () => {
@@ -358,6 +471,17 @@ describe('Assistants (e2e, OQ-048)', () => {
       amountCents: 150000,
       preparedBy: 'Sam H.',
     });
+    // Owner 2026-10-21 (inbox 30): the attorney hears of it once.
+    await api()
+      .put(`/api/v1/cases/${kase.id}/bid-draft`)
+      .set(asst.auth)
+      .send({ feeType: 'fixed', amountCents: 160000, message: 'Draft text' })
+      .expect(200);
+    expect(
+      await prisma.notification.count({
+        where: { user_id: att.id, type: 'assistant_bid_draft' },
+      }),
+    ).toBe(1);
 
     // Chat: labelled "assistant" messages; files need the "files" duty.
     const conv = await prisma.conversation.create({
@@ -630,22 +754,19 @@ describe('Assistants (e2e, OQ-048)', () => {
       .expect(404);
   });
 
-  it('join codes are rate-limited (no SMS flood to an attorney)', async () => {
-    const att = await attorney(2);
-    const asst = await assistantUser();
-    for (let i = 0; i < 3; i++) {
+  it('owner 2026-10-04: code sign-in is rate-limited per device', async () => {
+    const deviceInfo = { deviceId: `dev-${randomUUID()}` };
+    for (let i = 0; i < 10; i++) {
       await api()
-        .post('/api/v1/assistants/join/request-code')
-        .set(asst.auth)
-        .send({ phone: att.phone })
-        .expect(204);
+        .post('/api/v1/auth/assistant/code')
+        .send({ code: 'AAAA-BBBB-CCCC', deviceInfo })
+        .expect(401);
     }
     const r = await api()
-      .post('/api/v1/assistants/join/request-code')
-      .set(asst.auth)
-      .send({ phone: att.phone })
+      .post('/api/v1/auth/assistant/code')
+      .send({ code: 'AAAA-BBBB-CCCC', deviceInfo })
       .expect(429);
-    expect(r.body.error.code).toBe('AUTH_OTP_REQUEST_LIMIT');
+    expect(r.body.error.code).toBe('RATE_LIMITED');
   });
 
   it('one task, many steps: each with its own time, checked off one by one', async () => {
@@ -864,5 +985,146 @@ describe('Assistants (e2e, OQ-048)', () => {
       .set(asst.auth)
       .send({ title: 'x', body: 'y', practiceCode: 'family_law' })
       .expect(403);
+  });
+  it('security audit #3: an assistant acts on their own sign-in, never the attorney’s', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ phone: asst.phone })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: att.id,
+        session_chain_id: chain,
+        refresh_hash: `audit3-${randomUUID()}`,
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+
+    // Owner 2026-10-22: the attorney's devices are not the assistant's.
+    const list = await api()
+      .get('/api/v1/auth/sessions')
+      .set(asst.auth)
+      .expect(200);
+    expect(
+      (list.body.data as { sessionId: string }[]).map((s) => s.sessionId),
+    ).not.toContain(chain);
+    await api()
+      .delete(`/api/v1/auth/sessions/${chain}`)
+      .set(asst.auth)
+      .expect(404);
+    const row = await prisma.session.findFirstOrThrow({
+      where: { session_chain_id: chain },
+    });
+    expect(row.revoked_at).toBeNull();
+
+    // No duty: the attorney's groups and channels stay closed, and the
+    // attorney-only referral / partner routes refuse the assistant.
+    for (const path of ['/api/v1/groups', '/api/v1/channels']) {
+      const r = await api().get(path).set(asst.auth).expect(403);
+      expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    }
+    const ref = await api()
+      .post('/api/v1/referrals/apply')
+      .set(asst.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ code: 'ABCDEF' })
+      .expect(403);
+    expect(ref.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    const partner = await api()
+      .post('/api/v1/partners/me/join')
+      .set(asst.auth)
+      .send({})
+      .expect(403);
+    expect(partner.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+
+    // Finding 3: the attorney's stars and promotion credits.
+    for (const path of [
+      `/api/v1/stars/received-gifts/${randomUUID()}/convert`,
+      `/api/v1/stars/gifts/${randomUUID()}/send`,
+      `/api/v1/promotions/${randomUUID()}/stop`,
+    ]) {
+      const r = await api()
+        .post(path)
+        .set(asst.auth)
+        .set('Idempotency-Key', randomUUID())
+        .send({})
+        .expect(403);
+      expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
+    }
+  });
+  it('security audit #3 (finding 6): removing an assistant ends their own sessions', async () => {
+    const att = await attorney(1);
+    const asst = await assistantUser();
+    await api()
+      .post('/api/v1/team')
+      .set(att.auth)
+      .send({ phone: asst.phone })
+      .expect(201);
+    await api()
+      .post('/api/v1/assistants/join/accept')
+      .set(asst.auth)
+      .expect(201);
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: asst.id,
+        session_chain_id: chain,
+        refresh_hash: `audit3-${randomUUID()}`,
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const live = {
+      Authorization: `Bearer ${tokens.signAccessToken({
+        sub: asst.id,
+        role: 'assistant',
+        sid: chain,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+    await api().get('/api/v1/users/me').set(live).expect(200);
+
+    const team = await api().get('/api/v1/team').set(att.auth).expect(200);
+    await api()
+      .delete(`/api/v1/team/${team.body.data.members[0].id as string}`)
+      .set(att.auth)
+      .expect(200);
+
+    const gone = await api().get('/api/v1/users/me').set(live).expect(401);
+    expect(gone.body.error.code).toBe('AUTH_SESSION_REVOKED');
+    const row = await prisma.session.findFirstOrThrow({
+      where: { session_chain_id: chain },
+    });
+    expect(row.revoked_reason).toBe('assistant_removed');
+  });
+
+  // Owner 2026-10-22: more assistants, nobody with the whole account.
+  it('one assistant holds at most assistants.max_duties duties', async () => {
+    await setMaxDuties(3);
+    try {
+      const att = await attorney(2);
+      const four = await api()
+        .post('/api/v1/team')
+        .set(att.auth)
+        .send({ duties: ['calls', 'chats', 'files', 'tasks'] })
+        .expect(409);
+      expect(four.body.error.code).toBe('ASSISTANT_TOO_MANY_DUTIES');
+      const ok = await api()
+        .post('/api/v1/team')
+        .set(att.auth)
+        .send({ duties: ['calls', 'chats', 'tasks'], acceptLiability: true })
+        .expect(201);
+      expect(ok.body.data.maxDuties).toBe(3);
+    } finally {
+      await setMaxDuties(10);
+    }
   });
 });

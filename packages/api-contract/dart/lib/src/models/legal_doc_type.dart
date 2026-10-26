@@ -14,6 +14,30 @@ enum LegalDocType {
   disclaimer('disclaimer'),
   @JsonValue('client_contact_sharing')
   clientContactSharing('client_contact_sharing'),
+  @JsonValue('attorney_agreement')
+  attorneyAgreement('attorney_agreement'),
+  @JsonValue('client_agreement')
+  clientAgreement('client_agreement'),
+  @JsonValue('eula')
+  eula('eula'),
+  @JsonValue('refund')
+  refund('refund'),
+  @JsonValue('cookies')
+  cookies('cookies'),
+  @JsonValue('third_party_services')
+  thirdPartyServices('third_party_services'),
+  @JsonValue('partner_terms')
+  partnerTerms('partner_terms'),
+  @JsonValue('dmca_policy')
+  dmcaPolicy('dmca_policy'),
+  @JsonValue('accessibility')
+  accessibility('accessibility'),
+  @JsonValue('community_guidelines')
+  communityGuidelines('community_guidelines'),
+  @JsonValue('advertising_disclosure')
+  advertisingDisclosure('advertising_disclosure'),
+  @JsonValue('sms_terms')
+  smsTerms('sms_terms'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

@@ -11,7 +11,14 @@ CreateVideoUploadDto _$CreateVideoUploadDtoFromJson(
 ) => CreateVideoUploadDto(
   sizeBytes: (json['sizeBytes'] as num).toInt(),
   durationSec: (json['durationSec'] as num).toInt(),
+  kind: json['kind'] == null
+      ? CreateVideoUploadDtoKind.reel
+      : CreateVideoUploadDtoKind.fromJson(json['kind'] as String),
   title: json['title'] as String?,
+  trimStartMs: (json['trimStartMs'] as num?)?.toInt(),
+  trimEndMs: (json['trimEndMs'] as num?)?.toInt(),
+  coverTimeMs: (json['coverTimeMs'] as num?)?.toInt(),
+  coverFileId: json['coverFileId'] as String?,
 );
 
 Map<String, dynamic> _$CreateVideoUploadDtoToJson(
@@ -20,4 +27,9 @@ Map<String, dynamic> _$CreateVideoUploadDtoToJson(
   'sizeBytes': instance.sizeBytes,
   'durationSec': instance.durationSec,
   'title': ?instance.title,
+  'trimStartMs': ?instance.trimStartMs,
+  'trimEndMs': ?instance.trimEndMs,
+  'coverTimeMs': ?instance.coverTimeMs,
+  'coverFileId': ?instance.coverFileId,
+  'kind': instance.kind.toJson(),
 };

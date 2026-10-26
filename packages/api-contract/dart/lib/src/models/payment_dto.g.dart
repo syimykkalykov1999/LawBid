@@ -16,6 +16,11 @@ PaymentDto _$PaymentDtoFromJson(Map<String, dynamic> json) => PaymentDto(
       : DateTime.parse(json['paidAt'] as String),
   failureCode: json['failureCode'] as String?,
   createdAt: DateTime.parse(json['createdAt'] as String),
+  kind: PaymentDtoKind.fromJson(json['kind'] as String),
+  taxCents: (json['taxCents'] as num?)?.toInt(),
+  subtotalCents: (json['subtotalCents'] as num?)?.toInt(),
+  boostTarget: json['boostTarget'] as String?,
+  boostDays: (json['boostDays'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$PaymentDtoToJson(PaymentDto instance) =>
@@ -27,4 +32,9 @@ Map<String, dynamic> _$PaymentDtoToJson(PaymentDto instance) =>
       'paidAt': ?instance.paidAt?.toIso8601String(),
       'failureCode': ?instance.failureCode,
       'createdAt': instance.createdAt.toIso8601String(),
+      'taxCents': ?instance.taxCents,
+      'subtotalCents': ?instance.subtotalCents,
+      'kind': instance.kind.toJson(),
+      'boostTarget': ?instance.boostTarget,
+      'boostDays': ?instance.boostDays,
     };

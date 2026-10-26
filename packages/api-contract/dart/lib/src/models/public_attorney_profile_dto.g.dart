@@ -9,6 +9,9 @@ part of 'public_attorney_profile_dto.dart';
 PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
   Map<String, dynamic> json,
 ) => PublicAttorneyProfileDto(
+  firm: json['firm'] == null
+      ? null
+      : ProfileFirmDto.fromJson(json['firm'] as Map<String, dynamic>),
   id: json['id'] as String,
   username: json['username'] as String,
   firstName: json['firstName'] as String?,
@@ -22,6 +25,9 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
       .map((e) => e as String)
       .toList(),
   verifiedBadge: json['verifiedBadge'] as bool,
+  advertisingLabel: json['advertisingLabel'] as bool,
+  publicUrl: json['publicUrl'] as String,
+  trustLevel: (json['trustLevel'] as num).toInt(),
   licensedStates: (json['licensedStates'] as List<dynamic>)
       .map((e) => StateRefDto.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -29,11 +35,13 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
       .map((e) => SelectedPracticeAreaDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   rating: RatingDto.fromJson(json['rating'] as Map<String, dynamic>),
+  qa: QaStatsDto.fromJson(json['qa'] as Map<String, dynamic>),
   counters: ProfileCountersDto.fromJson(
     json['counters'] as Map<String, dynamic>,
   ),
   isSelf: json['isSelf'] as bool,
   isFollowing: json['isFollowing'] as bool,
+  consultationEnabled: json['consultationEnabled'] as bool,
   isBlocked: json['isBlocked'] as bool,
   hasBlockedMe: json['hasBlockedMe'] as bool,
 );
@@ -41,6 +49,7 @@ PublicAttorneyProfileDto _$PublicAttorneyProfileDtoFromJson(
 Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   PublicAttorneyProfileDto instance,
 ) => <String, dynamic>{
+  'firm': ?instance.firm?.toJson(),
   'id': instance.id,
   'username': instance.username,
   'firstName': ?instance.firstName,
@@ -52,12 +61,17 @@ Map<String, dynamic> _$PublicAttorneyProfileDtoToJson(
   'avatarUrl256': ?instance.avatarUrl256,
   'languages': instance.languages,
   'verifiedBadge': instance.verifiedBadge,
+  'advertisingLabel': instance.advertisingLabel,
+  'publicUrl': instance.publicUrl,
+  'trustLevel': instance.trustLevel,
   'licensedStates': instance.licensedStates.map((e) => e.toJson()).toList(),
   'practiceAreas': instance.practiceAreas.map((e) => e.toJson()).toList(),
   'rating': instance.rating.toJson(),
+  'qa': instance.qa.toJson(),
   'counters': instance.counters.toJson(),
   'isSelf': instance.isSelf,
   'isFollowing': instance.isFollowing,
+  'consultationEnabled': instance.consultationEnabled,
   'isBlocked': instance.isBlocked,
   'hasBlockedMe': instance.hasBlockedMe,
 };

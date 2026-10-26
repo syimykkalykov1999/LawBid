@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/plans/domain/plan_models.dart';
 
 /// docs/06 §1.3 `subscription_status`. [unknown] guards against a status
 /// a newer server may add.
@@ -39,7 +40,11 @@ class PlanPrices {
     this.monthlyCents = 39900,
     this.seatCents = 10000,
     this.yearlyCents = 959000,
-    this.maxSeats = 6,
+    this.maxSeats = 10,
+    this.trialDays = 7,
+    this.monthlyDiscount,
+    this.seatDiscount,
+    this.yearlyDiscount,
   });
 
   final int monthlyCents;
@@ -47,11 +52,50 @@ class PlanPrices {
   final int yearlyCents;
   final int maxSeats;
 
+  /// Owner 2026-10-05: free trial days, set in the admin (Деньги → Цены).
+  final int trialDays;
+
+  /// Owner 2026-10-07: the strikethrough old prices, or null.
+  final PriceDiscount? monthlyDiscount;
+  final PriceDiscount? seatDiscount;
+  final PriceDiscount? yearlyDiscount;
+
   int monthlyTotal(int seats) => monthlyCents + seats * seatCents;
 
   /// What the yearly plan saves against 12 months of the monthly plan
   /// with every seat.
   int get yearlySavingsCents => 12 * monthlyTotal(maxSeats) - yearlyCents;
+}
+
+/// Owner 2026-10-02: a free subscription granted by contract (blogger
+/// attorneys etc.) — access without payment until [endsAt].
+@immutable
+class ContractGrant {
+  const ContractGrant({required this.endsAt, required this.assistantSeats});
+
+  final DateTime endsAt;
+  final int assistantSeats;
+}
+
+/// Owner 2026-10-02: the answer to "can I use this promo code here?".
+@immutable
+class PromoCheck {
+  const PromoCheck({
+    required this.valid,
+    this.percentOff,
+    this.amountOffCents,
+    this.freeDays,
+    this.reason,
+  });
+
+  final bool valid;
+  final int? percentOff;
+  final int? amountOffCents;
+  final int? freeDays;
+
+  /// not_found · inactive · not_started · expired · exhausted ·
+  /// wrong_audience · wrong_plan · already_used.
+  final String? reason;
 }
 
 /// The attorney's subscription row as `GET /subscriptions/me` presents it.
@@ -116,7 +160,39 @@ class SubscriptionOverview {
     required this.priceCents,
     this.prices = const PlanPrices(),
     this.subscription,
+    this.contractGrant,
+    this.plan,
+    this.plans = const [],
+    this.entitlements = PlanEntitlements.none,
+    this.seats,
   });
+
+  /// Owner 2026-10-02: free under contract (isActive is true then).
+  final ContractGrant? contractGrant;
+
+  /// Owner 2026-10-05 (plan builder): the plan the attorney is on (null
+  /// = none / a legacy subscription without a plan).
+  final PlanOffer? plan;
+
+  /// Every plan for sale; empty on a server without the plan builder —
+  /// the picker then falls back to the monthly / yearly tiers.
+  final List<PlanOffer> plans;
+
+  /// The entitlements that stand right now (baseline ← plan).
+  final PlanEntitlements entitlements;
+
+  /// Assistant seats: included by the plan, bought extra, total, cap.
+  final SeatSummary? seats;
+
+  /// The plan among [plans] the attorney is on, by code.
+  PlanOffer? get currentPlan {
+    final code = plan?.code;
+    if (code == null) return plan;
+    for (final p in plans) {
+      if (p.code == code) return p;
+    }
+    return plan;
+  }
 
   final SubscriptionInfo? subscription;
   final PlanPrices prices;
@@ -178,7 +254,14 @@ class PaymentRecord {
     required this.createdAt,
     this.paidAt,
     this.failureCode,
+    this.boostTarget,
+    this.boostDays,
   });
+
+  /// Owner 2026-10-15: a Boost payment (`post` | `case`, for [boostDays]).
+  final String? boostTarget;
+  final int? boostDays;
+  bool get isBoost => boostTarget != null;
 
   final String id;
   final int amountCents;
@@ -207,4 +290,80 @@ class WebCheckout {
   final bool trialEligible;
   final int priceCents;
   final int trialDays;
+}
+
+/// Owner 2026-10-22: `POST /subscriptions/seats/preview` — what buying
+/// seats costs NOW (the prorated rest of the period) and per month after.
+@immutable
+class SeatPreview {
+  const SeatPreview({
+    required this.seats,
+    required this.currentSeats,
+    required this.amountNowCents,
+    required this.currency,
+    required this.prorationDate,
+    required this.seatCents,
+    required this.monthlyIncreaseCents,
+    required this.nextChargeCents,
+    this.periodEnd,
+  });
+
+  /// The wanted extra seats (on top of the plan's included ones).
+  final int seats;
+
+  /// Extra seats usable now.
+  final int currentSeats;
+  final int amountNowCents;
+  final String currency;
+
+  /// Sent back with the purchase so the charge equals what was shown.
+  final int prorationDate;
+
+  /// «до {date}»: the paid period ends.
+  final DateTime? periodEnd;
+  final int seatCents;
+
+  /// «затем +$Y/мес».
+  final int monthlyIncreaseCents;
+  final int nextChargeCents;
+}
+
+/// Owner 2026-10-22: what `POST /subscriptions/seats` did.
+enum SeatChangeStatus {
+  /// Paid; the seats are usable now.
+  applied,
+
+  /// The bank asks for 3-D Secure: confirm with
+  /// [SeatChangeOutcome.clientSecret].
+  requiresAction,
+
+  /// The card was declined; nothing changed.
+  failed,
+
+  /// Fewer seats from the period end (no refund).
+  scheduled;
+
+  static SeatChangeStatus parse(String? raw) => switch (raw) {
+        'applied' => applied,
+        'requires_action' => requiresAction,
+        'scheduled' => scheduled,
+        _ => failed,
+      };
+}
+
+@immutable
+class SeatChangeOutcome {
+  const SeatChangeOutcome({
+    required this.status,
+    required this.overview,
+    this.clientSecret,
+    this.amountCents = 0,
+    this.effectiveAt,
+  });
+
+  final SeatChangeStatus status;
+  final String? clientSecret;
+  final int amountCents;
+  final DateTime? effectiveAt;
+  final SubscriptionOverview overview;
 }

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_state_layout.dart';
-import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Error-state placeholder with a "Повторить" (Retry) action (file 01 §15;
 /// `.cursorrules` requires "error+Повторить" on every screen). Uses a plain

@@ -1,4 +1,10 @@
-import { IsIn, IsOptional, IsString, ValidateIf } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  ValidateIf,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * POST /auth/identifiers — attach an additional login method to the
@@ -21,6 +27,7 @@ export class LinkIdentifierDto {
   @ValidateIf(
     (o: LinkIdentifierDto) => o.provider === 'phone' || o.provider === 'email',
   )
+  @MaxLength(254)
   identifier?: string;
 
   @IsOptional()
@@ -28,6 +35,7 @@ export class LinkIdentifierDto {
   @ValidateIf(
     (o: LinkIdentifierDto) => o.provider === 'phone' || o.provider === 'email',
   )
+  @MaxLength(16)
   code?: string;
 
   @IsOptional()
@@ -35,6 +43,7 @@ export class LinkIdentifierDto {
   @ValidateIf(
     (o: LinkIdentifierDto) => o.provider === 'apple' || o.provider === 'google',
   )
+  @MaxLength(4096)
   idToken?: string;
 
   @IsOptional()
@@ -42,5 +51,6 @@ export class LinkIdentifierDto {
   @ValidateIf(
     (o: LinkIdentifierDto) => o.provider === 'apple' || o.provider === 'google',
   )
+  @MaxLength(256)
   nonce?: string;
 }

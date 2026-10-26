@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
-import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show sha256Hex;
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -14,17 +14,22 @@ abstract interface class TeamRepository {
   // The assistant themself.
   Future<AssistantMe> assistantMe();
   Future<AssistantMe> acceptInvite();
-  Future<void> requestJoinCode(String attorneyPhone);
-  Future<AssistantMe> verifyJoinCode(String attorneyPhone, String code);
+
+  /// Owner 2026-10-04: join with the attorney's one-time code (no SMS).
+  Future<AssistantMe> joinWithCode(String code);
 
   // The attorney's team.
   Future<TeamInfo> team();
-  Future<TeamInfo> addAssistant(
-    String phone, {
+
+  /// Takes a seat and gives it a new one-time code (in the answer).
+  Future<TeamInfo> addAssistant({
     String? name,
     Set<AssistantDuty>? duties,
     bool acceptLiability = false,
   });
+
+  /// A new code for the seat; the old one stops working.
+  Future<TeamInfo> regenerateCode(String id);
 
   /// OQ-049: [acceptLiability] — the attorney accepted responsibility for
   /// the newly switched-on duties (required by the server).
@@ -69,6 +74,23 @@ abstract interface class TeamRepository {
   Future<TaskItem> updateTask(String id, TaskDraft draft);
   Future<void> deleteTask(String id);
 
+  /// Owner 2026-10-05: "postpone" — the task gets a new time (and a new
+  /// reminder); nothing else changes.
+  Future<TaskItem> moveTask(String id, DateTime dueAt);
+
+  /// People to add: the team, chats, contacts used before; [q] (2+
+  /// letters) also finds attorneys by name.
+  Future<List<TaskPersonSuggestion>> taskPeople([String? q]);
+
+  /// One action on many tasks; tasks the viewer may not touch are skipped.
+  Future<({int affected, int skipped})> bulkTasks(
+    List<String> ids,
+    TaskBulkAction action, {
+    TaskStatus? status,
+    TaskPriority? priority,
+    String? assigneeMembershipId,
+  });
+
   // Owner 2026-10-01: a task's checklist steps.
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step);
 
@@ -100,13 +122,11 @@ class ApiTeamRepository implements TeamRepository {
   ApiTeamRepository(Dio dio, {Dio? storageDio})
       : _api = api.AssistantsClient(dio),
         _bids = api.BidsClient(dio),
-        _files = api.FilesClient(dio),
-        _storage = storageDio ?? dio;
+        _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
   final api.AssistantsClient _api;
   final api.BidsClient _bids;
-  final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
 
   static DateTime? _date(String? raw) =>
       raw == null ? null : DateTime.tryParse(raw)?.toLocal();
@@ -141,6 +161,8 @@ class ApiTeamRepository implements TeamRepository {
               approval: m.approval.json ?? 'attorney_added',
               duties: AssistantDuty.parseAll(m.duties),
               joinedAt: _date(m.joinedAt),
+              joinCode: m.joinCode,
+              joinCodeExpiresAt: _date(m.joinCodeExpiresAt),
               liabilityAcceptedAt: _date(m.liabilityAcceptedAt),
               createdAt: _date(m.createdAt) ?? DateTime.now(),
             ),
@@ -148,6 +170,7 @@ class ApiTeamRepository implements TeamRepository {
         seats: d.seats,
         used: d.used,
         plan: d.plan.json ?? 'none',
+        maxDuties: d.maxDuties,
       );
 
   static ActivityEntry _activity(api.ActivityDto a) => ActivityEntry(
@@ -188,6 +211,8 @@ class ApiTeamRepository implements TeamRepository {
         location: t.location,
         caseId: t.caseId,
         caseTitle: t.caseTitle,
+        casePracticeCode: t.casePracticeCode,
+        consultationId: t.consultationId,
         contactName: t.contactName,
         contactPhone: t.contactPhone,
         contactEmail: t.contactEmail,
@@ -202,6 +227,36 @@ class ApiTeamRepository implements TeamRepository {
         canDelete: t.canDelete,
         createdAt: _date(t.createdAt) ?? DateTime.now(),
         doneAt: _date(t.doneAt),
+        places: [
+          for (final p in t.places)
+            TaskPlace(id: p.id, address: p.address, label: p.label),
+        ],
+        people: [
+          for (final p in t.people)
+            TaskPerson(
+              id: p.id,
+              userId: p.userId,
+              userRole: p.userRole?.json,
+              avatarUrl: p.avatarUrl,
+              name: p.name,
+              role: p.role,
+              phone: p.phone,
+              email: p.email,
+            ),
+        ],
+        priority: TaskPriority.parse(t.priority.json),
+        repeat: TaskRepeat.parse(t.repeat.json),
+        repeatUntil: _date(t.repeatUntil),
+        remindBeforeMin: t.remindBeforeMin?.toInt(),
+        assigneeMembershipId: t.assigneeMembershipId,
+        assigneeName: t.assigneeName,
+        assignedToMe: t.assignedToMe,
+        conversationId: t.conversationId,
+        archivedAt: _date(t.archivedAt),
+        keepForever: t.keepForever,
+        purgeAt: _date(t.purgeAt),
+        canComplete: t.canComplete,
+        canEdit: t.canEdit,
         steps: [
           for (final s in t.steps)
             TaskStep(
@@ -221,6 +276,52 @@ class ApiTeamRepository implements TeamRepository {
         ],
       );
 
+  /// Owner 2026-10-15: a task of a case's workspace as a board card.
+  static TaskItem boardTask(api.BoardCaseTaskDto t) {
+    final done = t.status == api.BoardCaseTaskDtoStatus.done;
+    final kind = t.kind.json ?? 'joint';
+    return TaskItem(
+      id: 'case:${t.id}',
+      kind: switch (kind) {
+        'for_client' => TaskKind.documents,
+        'shared' => TaskKind.review,
+        _ => TaskKind.other,
+      },
+      title: t.title,
+      notes: t.description,
+      dueAt: _date(t.dueAt),
+      caseId: t.caseId,
+      caseTitle: t.caseTitle,
+      casePracticeCode: t.practiceCode,
+      status: done ? TaskStatus.done : TaskStatus.open,
+      canDelete: false,
+      createdAt: _date(t.createdAt) ?? DateTime.now(),
+      doneAt: _date(t.doneAt),
+      archivedAt: done ? _date(t.doneAt) : null,
+      steps: [
+        for (final i in t.items)
+          TaskStep(
+            id: i.id,
+            title: i.title,
+            status: i.done ? TaskStatus.done : TaskStatus.open,
+            doneAt: _date(i.doneAt),
+          ),
+      ],
+      canComplete: t.canTick,
+      canEdit: false,
+      boardTask: BoardCaseTask(
+        taskId: t.id,
+        kind: kind,
+        viewerIsAttorney:
+            t.viewerRole == api.BoardCaseTaskDtoViewerRole.attorney,
+        createdByClient:
+            t.createdByRole == api.BoardCaseTaskDtoCreatedByRole.client,
+        canTick: t.canTick,
+        closed: t.closed,
+      ),
+    );
+  }
+
   static api.TaskStepInputDto _stepInput(TaskStepDraft s) =>
       api.TaskStepInputDto(
         kind:
@@ -232,6 +333,22 @@ class ApiTeamRepository implements TeamRepository {
         contactPhone: s.contactPhone,
         contactEmail: s.contactEmail,
       );
+
+  static List<api.TaskPlaceInputDto> _placesInput(TaskDraft d) => [
+        for (final p in d.places)
+          api.TaskPlaceInputDto(address: p.address, label: p.label),
+      ];
+
+  static List<api.TaskPersonInputDto> _peopleInput(TaskDraft d) => [
+        for (final p in d.people)
+          api.TaskPersonInputDto(
+            userId: p.userId,
+            name: p.name,
+            role: p.role,
+            phone: p.phone,
+            email: p.email,
+          ),
+      ];
 
   static BidDraft _draft(api.BidDraftDto d) => BidDraft(
         caseId: d.caseId,
@@ -257,22 +374,9 @@ class ApiTeamRepository implements TeamRepository {
       _me((await guardApiCall(_api.acceptAssistantInvite)).data);
 
   @override
-  Future<void> requestJoinCode(String attorneyPhone) => guardApiCall(
-        () => _api.requestAssistantCode(
-          body: api.AssistantPhoneDto(phone: attorneyPhone),
-        ),
-      );
-
-  @override
-  Future<AssistantMe> verifyJoinCode(String attorneyPhone, String code) async =>
-      _me(
+  Future<AssistantMe> joinWithCode(String code) async => _me(
         (await guardApiCall(
-          () => _api.verifyAssistantCode(
-            body: api.JoinVerifyDto(
-              attorneyPhone: attorneyPhone,
-              code: code,
-            ),
-          ),
+          () => _api.joinWithCode(body: api.JoinCodeDto(code: code)),
         ))
             .data,
       );
@@ -282,8 +386,7 @@ class ApiTeamRepository implements TeamRepository {
       _team((await guardApiCall(_api.getTeam)).data);
 
   @override
-  Future<TeamInfo> addAssistant(
-    String phone, {
+  Future<TeamInfo> addAssistant({
     String? name,
     Set<AssistantDuty>? duties,
     bool acceptLiability = false,
@@ -292,7 +395,6 @@ class ApiTeamRepository implements TeamRepository {
         (await guardApiCall(
           () => _api.addAssistant(
             body: api.AddAssistantDto(
-              phone: phone,
               name: name,
               acceptLiability: acceptLiability ? true : null,
               duties: _duties(duties)
@@ -325,6 +427,11 @@ class ApiTeamRepository implements TeamRepository {
           ),
         ))
             .data,
+      );
+
+  @override
+  Future<TeamInfo> regenerateCode(String id) async => _team(
+        (await guardApiCall(() => _api.regenerateAssistantCode(id: id))).data,
       );
 
   @override
@@ -408,7 +515,7 @@ class ApiTeamRepository implements TeamRepository {
   Future<List<TaskItem>> tasks({bool done = false, bool mine = false}) async {
     final env = await guardApiCall(
       () => _api.listTasks(
-        view: done ? api.TasksView.done : api.TasksView.active,
+        view: done ? api.TasksView.archive : api.TasksView.active,
         mine: mine ? true : null,
       ),
     );
@@ -428,11 +535,16 @@ class ApiTeamRepository implements TeamRepository {
               title: d.title,
               notes: d.notes,
               dueAt: d.dueAt?.toUtc(),
-              location: d.location,
               caseId: d.caseId,
-              contactName: d.contactName,
-              contactPhone: d.contactPhone,
-              contactEmail: d.contactEmail,
+              places: _placesInput(d),
+              people: _peopleInput(d),
+              priority: api.TaskPriority.fromJson(d.priority.wire),
+              repeat: api.TaskRepeat.fromJson(d.repeat.wire),
+              repeatUntil: d.repeatUntil?.toUtc(),
+              remindBeforeMin: d.remindBeforeMin,
+              assigneeMembershipId: d.assigneeMembershipId,
+              conversationId: d.conversationId,
+              keepForever: d.keepForever ? true : null,
               fileIds: d.fileIds.isEmpty ? null : d.fileIds,
               steps: d.steps.isEmpty
                   ? null
@@ -476,13 +588,22 @@ class ApiTeamRepository implements TeamRepository {
               notes: d.notes ?? '',
               dueAt: d.dueAt?.toUtc(),
               clearDueAt: d.dueAt == null ? true : null,
-              location: d.location ?? '',
-              contactName: d.contactName ?? '',
-              contactPhone: d.contactPhone ?? '',
-              contactEmail: d.contactEmail ?? '',
               fileIds: d.fileIds,
               caseId: d.caseId,
               clearCaseId: d.caseId == null ? true : null,
+              places: _placesInput(d),
+              people: _peopleInput(d),
+              priority: api.TaskPriority.fromJson(d.priority.wire),
+              repeat: api.TaskRepeat.fromJson(d.repeat.wire),
+              repeatUntil: d.repeatUntil?.toUtc(),
+              clearRepeatUntil: d.repeatUntil == null ? true : null,
+              remindBeforeMin: d.remindBeforeMin,
+              clearRemind: d.remindBeforeMin == null ? true : null,
+              assigneeMembershipId: d.assigneeMembershipId,
+              clearAssignee: d.assigneeMembershipId == null ? true : null,
+              conversationId: d.conversationId,
+              clearConversation: d.conversationId == null ? true : null,
+              keepForever: d.keepForever,
             ),
           ),
         ))
@@ -492,6 +613,70 @@ class ApiTeamRepository implements TeamRepository {
   @override
   Future<void> deleteTask(String id) =>
       guardApiCall(() => _api.deleteTask(id: id));
+
+  @override
+  Future<TaskItem> moveTask(String id, DateTime dueAt) async => _task(
+        (await guardApiCall(
+          () => _api.updateTask(
+            id: id,
+            body: api.UpdateTaskDto(dueAt: dueAt.toUtc()),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<List<TaskPersonSuggestion>> taskPeople([String? q]) async {
+    final query = q?.trim();
+    final env = await guardApiCall(
+      () => _api.taskPeople(q: query == null || query.isEmpty ? null : query),
+    );
+    return [
+      for (final p in env.data)
+        TaskPersonSuggestion(
+          source: TaskPersonSource.values.firstWhere(
+            (s) => s.name == p.source.json,
+            orElse: () => TaskPersonSource.contact,
+          ),
+          name: p.name,
+          userId: p.userId,
+          membershipId: p.membershipId,
+          avatarUrl: p.avatarUrl,
+          role: p.role,
+          phone: p.phone,
+          email: p.email,
+        ),
+    ];
+  }
+
+  @override
+  Future<({int affected, int skipped})> bulkTasks(
+    List<String> ids,
+    TaskBulkAction action, {
+    TaskStatus? status,
+    TaskPriority? priority,
+    String? assigneeMembershipId,
+  }) async {
+    final env = await guardApiCall(
+      () => _api.bulkTasks(
+        body: api.BulkTasksDto(
+          ids: ids,
+          action: api.TaskBulkAction.fromJson(action.wire),
+          status: status == null
+              ? null
+              : api.BulkTasksDtoStatus.fromJson(status.wire),
+          priority: priority == null
+              ? null
+              : api.TaskPriority.fromJson(priority.wire),
+          assigneeMembershipId: assigneeMembershipId,
+        ),
+      ),
+    );
+    return (
+      affected: env.data.affected.toInt(),
+      skipped: env.data.skipped.toInt(),
+    );
+  }
 
   @override
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step) async =>
@@ -537,57 +722,12 @@ class ApiTeamRepository implements TeamRepository {
 
   @override
   Future<String> uploadTaskFile(Uint8List bytes, String mime) async {
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.taskAttachment,
-          mime: mime,
-          sizeBytes: bytes.length,
-          sha256: sha256Hex(bytes),
-        ),
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
-    final parts = mime.split('/');
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          // S3 POST policy: the file must be the LAST field.
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: 'file',
-            contentType: DioMediaType(parts.first, parts.last),
-          ),
-        }),
-      );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var status = (await guardApiCall(() => _files.confirm(id: target.fileId)))
-        .data
-        .scanStatus;
-    for (var i = 0; status == api.ScanStatus.pending && i < 40; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-      status = (await guardApiCall(() => _files.getFilesId(id: target.fileId)))
-          .data
-          .scanStatus;
-    }
-    if (status != api.ScanStatus.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
+    // Owner 2026-10-22 (audit #4 §3): the shared uploader.
+    return _uploader.upload(
+      purpose: api.FilePurpose.taskAttachment,
+      body: UploadBody.bytes(bytes),
+      mime: mime,
+    );
   }
 
   @override

@@ -1,18 +1,29 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sniffImageMime;
+import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/stars/domain/stars_models.dart';
+import 'package:lawbid/features/stars/presentation/gift_names.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/stickers/presentation/emoji_data.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-10-01 — Telegram-style stickers: the image, the panel under
 /// the chat composer (Emoji · Stickers), the pack sheet and "+" for own
@@ -30,20 +41,25 @@ class StickerImage extends StatelessWidget {
       dimension: size,
       child: url == null
           ? Center(
-              child: Text(sticker.emoji,
-                  style: TextStyle(fontSize: size * 0.55)),
+              child:
+                  Text(sticker.emoji, style: TextStyle(fontSize: size * 0.55)),
             )
           : CachedNetworkImage(
               imageUrl: url,
+              memCacheWidth: decodeWidthFor(size),
               fit: BoxFit.contain,
               fadeInDuration: const Duration(milliseconds: 120),
               placeholder: (_, __) => Center(
-                child: Text(sticker.emoji,
-                    style: TextStyle(fontSize: size * 0.45)),
+                child: Text(
+                  sticker.emoji,
+                  style: TextStyle(fontSize: size * 0.45),
+                ),
               ),
               errorWidget: (_, __, ___) => Center(
-                child: Text(sticker.emoji,
-                    style: TextStyle(fontSize: size * 0.45)),
+                child: Text(
+                  sticker.emoji,
+                  style: TextStyle(fontSize: size * 0.45),
+                ),
               ),
             ),
     );
@@ -51,15 +67,36 @@ class StickerImage extends StatelessWidget {
 }
 
 /// The panel that replaces the keyboard: Emoji · Stickers.
+/// Stickers whose emoji is in [q] or whose pack's name matches it (any
+/// case / alphabet, a small typo). Each sticker once.
+List<ChatSticker> searchStickers(StickerLibrary data, String q) {
+  final text = q.trim();
+  if (text.isEmpty) return const [];
+  final out = <ChatSticker>[];
+  final seen = <String>{};
+  for (final p in data.packs) {
+    final byPack = textMatches(text, [p.title, p.shortName]);
+    for (final st in p.stickers) {
+      final byEmoji = st.emoji.isNotEmpty && text.contains(st.emoji);
+      if ((byPack || byEmoji) && seen.add(st.id)) out.add(st);
+    }
+  }
+  return out;
+}
+
 class StickerPanel extends ConsumerStatefulWidget {
   const StickerPanel({
     required this.onSticker,
     required this.onEmoji,
+    this.onGift,
     super.key,
   });
 
   final ValueChanged<ChatSticker> onSticker;
   final ValueChanged<String> onEmoji;
+
+  /// Owner 2026-10-20: set when stars are on — shows the «Подарки» tab.
+  final ValueChanged<Gift>? onGift;
 
   static const height = 300.0;
 
@@ -69,6 +106,30 @@ class StickerPanel extends ConsumerStatefulWidget {
 
 class _StickerPanelState extends ConsumerState<StickerPanel> {
   bool _stickers = true;
+  bool _gifts = false;
+
+  /// Owner 2026-10-18: the search over the stickers (by the pack's name and
+  /// the sticker's emoji); null = the pack strip shows.
+  String? _query;
+  final _searchText = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchText.addListener(() {
+      if (_query != null && _query != _searchText.text) {
+        setState(() => _query = _searchText.text);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchText.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   /// -1 = recent, otherwise an index into the packs.
   int _section = -1;
@@ -78,48 +139,101 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    // Owner 2026-10-02: the Emoji · Stickers tabs sit above the system
+    // navigation (gesture bar or Samsung's back/home/recents buttons).
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return Material(
       color: colors.surface,
-      child: SizedBox(
-        height: StickerPanel.height,
-        child: Column(
-          children: [
-            Expanded(child: _stickers ? _stickerView(t, colors, type) : _emojiView()),
-            Container(
-              height: 44,
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: colors.border)),
+      child: Padding(
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: SizedBox(
+          height: StickerPanel.height,
+          child: Column(
+            children: [
+              Expanded(
+                child: _gifts && widget.onGift != null
+                    ? GiftPicker(onGift: widget.onGift!)
+                    : _stickers
+                        ? _stickerView(t, colors, type)
+                        : _emojiView(),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _tab(t.t('stickers.tab.emoji'), !_stickers,
-                      () => setState(() => _stickers = false), colors, type),
-                  const SizedBox(width: AppSpacing.md),
-                  _tab(t.t('stickers.tab.stickers'), _stickers,
-                      () => setState(() => _stickers = true), colors, type),
-                ],
+              Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: colors.border)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: _tab(
+                        t.t('stickers.tab.emoji'),
+                        !_stickers && !_gifts,
+                        () => setState(() {
+                          _stickers = false;
+                          _gifts = false;
+                        }),
+                        colors,
+                        type,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Flexible(
+                      child: _tab(
+                        t.t('stickers.tab.stickers'),
+                        _stickers && !_gifts,
+                        () => setState(() {
+                          _stickers = true;
+                          _gifts = false;
+                        }),
+                        colors,
+                        type,
+                      ),
+                    ),
+                    if (widget.onGift != null) ...[
+                      const SizedBox(width: AppSpacing.md),
+                      Flexible(
+                        child: _tab(
+                          t.t('stars.tab.gifts'),
+                          _gifts,
+                          () => setState(() => _gifts = true),
+                          colors,
+                          type,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _tab(String label, bool on, VoidCallback tap, AppColorTokens colors,
-          AppTypographyTokens type) =>
+  Widget _tab(
+    String label,
+    bool on,
+    VoidCallback tap,
+    AppColorTokens colors,
+    AppTypographyTokens type,
+  ) =>
       AppPressable(
         onTap: tap,
         child: Container(
           padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md, vertical: 6),
+            horizontal: AppSpacing.md,
+            vertical: 6,
+          ),
           decoration: BoxDecoration(
             color: on ? colors.goldTint : null,
             borderRadius: BorderRadius.circular(AppRadii.pill),
           ),
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: type.bodySmall.copyWith(
               color: on ? colors.goldDark : colors.textSecondary,
               fontWeight: on ? FontWeight.w700 : FontWeight.w500,
@@ -133,7 +247,9 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
           for (final (_, list) in kEmojiGroups)
             SliverPadding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
               sliver: SliverGrid.count(
                 crossAxisCount: 8,
                 children: [
@@ -152,17 +268,25 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
       );
 
   Widget _stickerView(
-      Translator t, AppColorTokens colors, AppTypographyTokens type) {
+    Translator t,
+    AppColorTokens colors,
+    AppTypographyTokens type,
+  ) {
     final lib = ref.watch(stickerLibraryProvider);
     final data = lib.value ?? StickerLibrary.empty;
     if (lib.isLoading && lib.value == null) {
       return Center(child: CircularProgressIndicator(color: colors.gold));
     }
     final section = _section >= data.packs.length ? -1 : _section;
-    final List<ChatSticker> items =
-        section == -1 ? data.recent : data.packs[section].stickers;
-    final pack = section == -1 ? null : data.packs[section];
+    final searching = _query != null;
+    final items = searching
+        ? searchStickers(data, _query!)
+        : section == -1
+            ? data.recent
+            : data.packs[section].stickers;
+    final pack = searching || section == -1 ? null : data.packs[section];
 
+    // ignore: avoid_positional_boolean_parameters
     Widget strip(Widget child, bool on, VoidCallback tap) => AppPressable(
           onTap: tap,
           child: Container(
@@ -177,65 +301,123 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
           ),
         );
 
+    final searchBar = Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.xs,
+      ),
+      child: FlipSearchBar(
+        key: const ValueKey('sticker-search'),
+        controller: _searchText,
+        focusNode: _searchFocus,
+        semanticLabel: t.t('stickers.search.hint'),
+        hints: [t.t('stickers.search.hint')],
+        cancelLabel: t.t('common.cancel'),
+        clearLabel: t.t('search.clear'),
+        keepCancel: true,
+        onCancel: () {
+          _searchText.clear();
+          _searchFocus.unfocus();
+          setState(() => _query = null);
+        },
+      ),
+    );
+
     return Column(
       children: [
-        SizedBox(
-          height: 52,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm, vertical: 4),
-            children: [
-              strip(
-                AppIcon(AppIcons.scheduleRounded,
-                    color: colors.textSecondary, size: 22),
-                section == -1,
-                () => setState(() => _section = -1),
+        if (searching)
+          searchBar
+        else
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 4,
               ),
-              for (var i = 0; i < data.packs.length; i++)
+              children: [
                 strip(
-                  data.packs[i].cover == null
-                      ? AppIcon(AppIcons.stickerOutlined,
-                          color: colors.textSecondary, size: 22)
-                      : StickerImage(sticker: data.packs[i].cover!, size: 34),
-                  section == i,
-                  () => setState(() => _section = i),
+                  AppIcon(
+                    AppIcons.searchRounded,
+                    key: const ValueKey('sticker-search-open'),
+                    color: colors.textSecondary,
+                    size: 22,
+                  ),
+                  false,
+                  () {
+                    setState(() => _query = '');
+                    _searchFocus.requestFocus();
+                  },
                 ),
-              strip(
-                AppIcon(AppIcons.addRounded, color: colors.goldDark, size: 24),
-                false,
-                () => showStickerHub(context),
-              ),
-            ],
+                strip(
+                  AppIcon(
+                    AppIcons.scheduleRounded,
+                    color: colors.textSecondary,
+                    size: 22,
+                  ),
+                  section == -1,
+                  () => setState(() => _section = -1),
+                ),
+                for (var i = 0; i < data.packs.length; i++)
+                  strip(
+                    data.packs[i].cover == null
+                        ? AppIcon(
+                            AppIcons.stickerOutlined,
+                            color: colors.textSecondary,
+                            size: 22,
+                          )
+                        : StickerImage(sticker: data.packs[i].cover!, size: 34),
+                    section == i,
+                    () => setState(() => _section = i),
+                  ),
+                strip(
+                  AppIcon(
+                    AppIcons.addRounded,
+                    color: colors.iconTint,
+                    size: 24,
+                  ),
+                  false,
+                  () => showStickerHub(context),
+                ),
+              ],
+            ),
           ),
-        ),
         Expanded(
           child: items.isEmpty
               ? Center(
-                  child: Padding(
+                  // Scrolls: the panel is short (keyboard height).
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          pack != null && pack.isMine
-                              ? t.t('stickers.packEmpty')
-                              : t.t('stickers.empty'),
+                          searching
+                              ? ((_query ?? '').trim().isEmpty
+                                  ? t.t('stickers.search.prompt')
+                                  : t.t('stickers.search.empty'))
+                              : pack != null && pack.isMine
+                                  ? t.t('stickers.packEmpty')
+                                  : t.t('stickers.empty'),
                           textAlign: TextAlign.center,
                           style: type.bodySmall
                               .copyWith(color: colors.textSecondary),
                         ),
-                        const SizedBox(height: AppSpacing.sm),
-                        TextButton(
-                          onPressed: () => pack != null && pack.isMine
-                              ? showStickerPackSheet(context, pack.id)
-                              : showStickerHub(context),
-                          child: Text(
-                            pack != null && pack.isMine
-                                ? t.t('stickers.add')
-                                : t.t('stickers.browse'),
+                        if (!searching) const SizedBox(height: AppSpacing.sm),
+                        if (!searching)
+                          TextButton(
+                            onPressed: () => pack != null && pack.isMine
+                                ? showStickerPackSheet(context, pack.id)
+                                : showStickerHub(context),
+                            child: Text(
+                              pack != null && pack.isMine
+                                  ? t.t('stickers.add')
+                                  : t.t('stickers.browse'),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -275,8 +457,7 @@ class StickerMessageBody extends StatelessWidget {
 }
 
 /// "+" in the panel: my packs (create one), and popular official packs.
-Future<void> showStickerHub(BuildContext context) =>
-    showAppBottomSheet<void>(
+Future<void> showStickerHub(BuildContext context) => showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) => const _StickerHub(),
@@ -298,13 +479,23 @@ class _StickerHub extends ConsumerWidget {
           leading: p.cover == null
               ? AppIcon(AppIcons.stickerOutlined, color: colors.textSecondary)
               : StickerImage(sticker: p.cover!, size: 44),
-          title: Text(p.title, style: type.body.copyWith(color: colors.text)),
+          title: Text(
+            packTitle(t, p.shortName, p.title),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.body.copyWith(color: colors.text),
+          ),
           subtitle: Text(
-            t.t('stickers.count', {'count': '${p.stickers.length}'}),
+            [
+              t.t('stickers.count', {'count': '${p.stickers.length}'}),
+              if (p.isPaid && !p.installed) '${p.priceStars} ⭐',
+            ].join(' · '),
             style: type.caption.copyWith(color: colors.textSecondary),
           ),
-          trailing: AppIcon(AppIcons.chevronRightRounded,
-              color: colors.textSecondary),
+          trailing: AppIcon(
+            AppIcons.chevronRightRounded,
+            color: colors.textSecondary,
+          ),
           onTap: () => showStickerPackSheet(context, p.id),
         );
 
@@ -314,13 +505,19 @@ class _StickerHub extends ConsumerWidget {
       maxChildSize: 0.95,
       builder: (_, scroll) => ListView(
         controller: scroll,
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.md,
-            AppSpacing.screenSide, AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
+          AppSpacing.screenSide,
+          AppSpacing.xl,
+        ),
         children: [
           const AppSheetHandle(),
           const SizedBox(height: AppSpacing.md),
-          Text(t.t('stickers.title'),
-              style: type.titleMedium.copyWith(color: colors.text)),
+          Text(
+            t.t('stickers.title'),
+            style: type.titleMedium.copyWith(color: colors.text),
+          ),
           const SizedBox(height: AppSpacing.md),
           AppButton(
             label: t.t('stickers.create'),
@@ -329,14 +526,18 @@ class _StickerHub extends ConsumerWidget {
           ),
           if (lib.packs.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
-            Text(t.t('stickers.mine'),
-                style: type.bodySmall.copyWith(color: colors.textSecondary)),
+            Text(
+              t.t('stickers.mine'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
             for (final p in lib.packs) row(p),
           ],
           if (featured.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.lg),
-            Text(t.t('stickers.featured'),
-                style: type.bodySmall.copyWith(color: colors.textSecondary)),
+            Text(
+              t.t('stickers.featured'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
             for (final p in featured) row(p),
           ],
         ],
@@ -352,9 +553,12 @@ Future<void> _createPack(BuildContext context, WidgetRef ref) async {
     context: context,
     isScrollControlled: true,
     builder: (ctx) => Padding(
-      padding: EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.md,
-          AppSpacing.screenSide,
-          AppSpacing.lg + MediaQuery.viewInsetsOf(ctx).bottom),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        AppSpacing.lg + MediaQuery.viewInsetsOf(ctx).bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -419,7 +623,18 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
         ..invalidate(stickerPackProvider(widget.packRef))
         ..invalidate(stickerLibraryProvider);
     } on Object catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
+      if (mounted) {
+        // Owner 2026-10-20: a paid pack and too few stars → the top-up.
+        final low =
+            e is ApiException && e.code == ApiErrorCodes.insufficientStars;
+        showAppSnackBar(
+          context,
+          errorText(t, e),
+          // Store rules: the top-up action exists on the web build only.
+          actionLabel: low && kIsWeb ? t.t('stars.topup') : null,
+          onAction: low && kIsWeb ? () => context.push(AppRoutes.stars) : null,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -445,6 +660,7 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
       await ref
           .read(stickersRepositoryProvider)
           .add(pack.id, bytes, mime, emoji: emoji);
+      // ignore: unawaited_futures
       HapticFeedback.mediumImpact();
       if (mounted) showAppSnackBar(context, t.t('stickers.added'));
     });
@@ -474,8 +690,8 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                           InkWell(
                             onTap: () => Navigator.of(ctx).pop(e),
                             child: Center(
-                              child: Text(e,
-                                  style: const TextStyle(fontSize: 26)),
+                              child:
+                                  Text(e, style: const TextStyle(fontSize: 26)),
                             ),
                           ),
                       ],
@@ -511,8 +727,12 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
         data: (pack) => Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.md, AppSpacing.sm, 0),
+              padding: const EdgeInsetsDirectional.fromSTEB(
+                AppSpacing.screenSide,
+                AppSpacing.md,
+                AppSpacing.sm,
+                0,
+              ),
               child: Column(
                 children: [
                   const AppSheetHandle(),
@@ -522,9 +742,13 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(pack.title,
-                                style: type.titleMedium
-                                    .copyWith(color: colors.text)),
+                            Text(
+                              packTitle(t, pack.shortName, pack.title),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  type.titleMedium.copyWith(color: colors.text),
+                            ),
                             Text(
                               pack.isOfficial
                                   ? t.t('stickers.official')
@@ -537,10 +761,31 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                           ],
                         ),
                       ),
+                      if (!pack.isMine && !pack.isOfficial)
+                        PopupMenuButton<String>(
+                          icon: AppIcon(
+                            AppIcons.moreHorizRounded,
+                            color: colors.text,
+                          ),
+                          onSelected: (_) => showReportSheet(
+                            context,
+                            ref,
+                            ReportTarget.stickerPack,
+                            pack.id,
+                          ),
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: 'report',
+                              child: Text(t.t('stickers.reportPack')),
+                            ),
+                          ],
+                        ),
                       if (pack.isMine)
                         PopupMenuButton<String>(
-                          icon: AppIcon(AppIcons.moreHorizRounded,
-                              color: colors.text),
+                          icon: AppIcon(
+                            AppIcons.moreHorizRounded,
+                            color: colors.text,
+                          ),
                           onSelected: (v) async {
                             if (v == 'delete') {
                               await _run(() => repo.delete(pack.id));
@@ -576,18 +821,23 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                       child: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: colors.goldStroke),
-                          color: colors.goldTint,
+                          border: Border.all(color: colors.iconTint),
+                          color: colors.iconTintFill,
                         ),
                         child: Center(
                           child: _busy
                               ? SizedBox.square(
                                   dimension: 22,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: colors.gold),
+                                    strokeWidth: 2,
+                                    color: colors.gold,
+                                  ),
                                 )
-                              : AppIcon(AppIcons.addRounded,
-                                  color: colors.goldDark, size: 30),
+                              : AppIcon(
+                                  AppIcons.addRounded,
+                                  color: colors.iconTint,
+                                  size: 30,
+                                ),
                         ),
                       ),
                     );
@@ -610,8 +860,12 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                   child: AppButton(
                     label: pack.installed
                         ? t.t('stickers.remove')
-                        : t.t('stickers.install',
-                            {'count': '${pack.stickers.length}'}),
+                        : pack.isPaid
+                            ? t.t('stars.pack.add', {'n': '${pack.priceStars}'})
+                            : t.t(
+                                'stickers.install',
+                                {'count': '${pack.stickers.length}'},
+                              ),
                     variant: pack.installed
                         ? AppButtonVariant.secondary
                         : AppButtonVariant.primary,
@@ -630,8 +884,12 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
               SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, 0,
-                      AppSpacing.screenSide, AppSpacing.md),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    0,
+                    AppSpacing.screenSide,
+                    AppSpacing.md,
+                  ),
                   child: Text(
                     t.t('stickers.mineHint'),
                     textAlign: TextAlign.center,

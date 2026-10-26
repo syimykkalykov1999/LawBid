@@ -65,6 +65,70 @@ class _SearchClient implements SearchClient {
   }
 
   @override
+  Future<SuggestionListEnvelope> suggest({
+    required String q,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{r'q': q};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<SuggestionListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/search/suggest',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late SuggestionListEnvelope _value;
+    try {
+      _value = SuggestionListEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PracticeMatchListEnvelope> practices({
+    required String q,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{r'q': q};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<PracticeMatchListEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/search/practices',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PracticeMatchListEnvelope _value;
+    try {
+      _value = PracticeMatchListEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<PersonItemListEnvelope> people({
     required String q,
     String? cursor,
@@ -123,7 +187,11 @@ class _SearchClient implements SearchClient {
     num? budgetMin,
     num? budgetMax,
     bool? budgetUnknown,
+    bool? budgetPercent,
+    num? percentMax,
     bool? noBids,
+    MinUrgency? minUrgency,
+    bool? hasDeadline,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -138,7 +206,11 @@ class _SearchClient implements SearchClient {
       r'budgetMin': budgetMin,
       r'budgetMax': budgetMax,
       r'budgetUnknown': budgetUnknown,
+      r'budgetPercent': budgetPercent,
+      r'percentMax': percentMax,
       r'noBids': noBids,
+      r'minUrgency': minUrgency?.toJson(),
+      r'hasDeadline': hasDeadline,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -174,6 +246,7 @@ class _SearchClient implements SearchClient {
     String? tag,
     String? state,
     bool? withPhotos,
+    bool? briefsOnly,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -187,6 +260,7 @@ class _SearchClient implements SearchClient {
       r'tag': tag,
       r'state': state,
       r'withPhotos': withPhotos,
+      r'briefsOnly': briefsOnly,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -279,6 +353,7 @@ class _SearchClient implements SearchClient {
     Sort3? sort = Sort3.top,
     String? cursor,
     String? state,
+    bool? videoOnly,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -287,6 +362,7 @@ class _SearchClient implements SearchClient {
       r'sort': sort?.toJson(),
       r'cursor': cursor,
       r'state': state,
+      r'videoOnly': videoOnly,
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
@@ -313,15 +389,44 @@ class _SearchClient implements SearchClient {
   }
 
   @override
+  Future<void> click({
+    required SearchClickDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<void>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/search/clicks',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    await _dio.fetch<void>(_options);
+  }
+
+  @override
   Future<PostListEnvelope> latestPosts({
     Period? period = Period.all,
     String? cursor,
     String? state,
+    String? states,
+    String? practices,
     String? practice,
     String? tag,
     PostKind? kind,
     bool? withPhotos,
+    bool? briefsOnly,
     LatestPostsSort? sort,
+    PostContentClass? contentClass,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -330,11 +435,15 @@ class _SearchClient implements SearchClient {
       r'period': period?.toJson(),
       r'cursor': cursor,
       r'state': state,
+      r'states': states,
+      r'practices': practices,
       r'practice': practice,
       r'tag': tag,
       r'kind': kind?.toJson(),
       r'withPhotos': withPhotos,
+      r'briefsOnly': briefsOnly,
       r'sort': sort?.toJson(),
+      r'contentClass': contentClass?.toJson(),
     };
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};

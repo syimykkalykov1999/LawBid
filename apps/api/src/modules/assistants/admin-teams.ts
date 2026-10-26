@@ -5,6 +5,7 @@ import {
   Get,
   Injectable,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   Post,
@@ -21,7 +22,9 @@ import {
   ArrayUnique,
   IsArray,
   IsIn,
-  IsNotEmpty,
+  IsInt,
+  Max,
+  Min,
   IsOptional,
   IsString,
   IsUUID,
@@ -33,11 +36,30 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AdminEndpoint, Roles } from '../admin-auth/admin-auth.decorators';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { SEATS_HARD_CAP } from '../billing/billing.constants';
+import { getAssistantLimit } from '../billing/seat-limit';
+import { EntitlementsService } from '../plans/entitlements.service';
+import {
+  AdminEndpoint,
+  CurrentAdmin,
+  Roles,
+  SkipAutoAudit,
+  type AdminActor,
+} from '../admin-auth/admin-auth.decorators';
+import { AuditLogService } from '../admin-access/audit-log.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { ASSISTANT_DUTIES, type AssistantDuty } from './assistant-duties';
 import { ActivityDto, AssistantMemberDto } from './assistants.dto';
 import { nameOf } from './assistants.service';
+import {
+  effectiveSeats,
+  findActiveGrant,
+  paidSeats,
+} from '../subscriptions/contract-grant.util';
+import { SessionRevocationService } from '../auth/auth.public';
+import { endAssistantSessions } from './end-assistant-sessions';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -64,12 +86,12 @@ export class AdminMemberParamDto {
 }
 
 export class AdminRemoveMemberDto {
-  @ApiProperty({ maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminMemberDutiesDto {
@@ -91,6 +113,28 @@ export class AdminTeamRowDto {
   @ApiProperty({ type: 'integer' }) invited!: number;
   @ApiProperty({ type: 'integer' }) pendingRequests!: number;
   @ApiProperty({ type: 'integer' }) openTasks!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Owner 2026-10-05: how many assistants this attorney may add.',
+  })
+  seatLimit!: number;
+  @ApiProperty({ description: 'An admin set a personal limit.' })
+  seatLimitPersonal!: boolean;
+}
+
+/** PATCH /admin/teams/:id/seat-limit — null returns to the global limit. */
+export class AdminSeatLimitDto {
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    minimum: 1,
+    maximum: SEATS_HARD_CAP,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(SEATS_HARD_CAP)
+  limit!: number | null;
 }
 
 export class AdminTeamDto extends AdminTeamRowDto {
@@ -99,11 +143,20 @@ export class AdminTeamDto extends AdminTeamRowDto {
   activity!: ActivityDto[];
 }
 
+export const TEAM_AUDIT = {
+  removeMember: 'admin.team.member_remove',
+} as const;
+
 @Injectable()
 export class AdminTeamsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly context: AssistantContextService,
+    private readonly audit: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-22 (security audit #3, finding 6).
+    @Optional() private readonly revocation?: SessionRevocationService,
   ) {}
 
   async list(q?: string): Promise<AdminTeamRowDto[]> {
@@ -167,6 +220,8 @@ export class AdminTeamsService {
         joinedAt: m.joined_at?.toISOString() ?? null,
         createdAt: m.created_at.toISOString(),
         liabilityAcceptedAt: null,
+        joinCode: null,
+        joinCodeExpiresAt: null,
       })),
       activity: acts.map((x) => ({
         id: x.id,
@@ -181,24 +236,42 @@ export class AdminTeamsService {
     };
   }
 
-  async remove(memberId: string, reason: string): Promise<AdminTeamDto> {
+  async remove(
+    memberId: string,
+    reason: string,
+    admin: AdminActor,
+  ): Promise<AdminTeamDto> {
     const m = await this.member(memberId);
-    await this.prisma.$transaction([
-      this.prisma.assistantMembership.update({
+    await withTxRetry(this.prisma, async (tx) => {
+      await tx.assistantMembership.update({
         where: { id: memberId },
         data: { status: 'removed', removed_at: new Date() },
-      }),
+      });
       // The attorney sees in the Team feed that LawBid removed them.
-      this.prisma.assistantActivity.create({
+      await tx.assistantActivity.create({
         data: {
           attorney_id: m.attorney_id,
           membership_id: memberId,
           action: 'admin.remove',
           summary: reason.slice(0, 300),
         },
-      }),
-    ]);
+      });
+      // Audit 2026-10-02: who removed whom and why, with the change.
+      await this.audit.record(
+        {
+          adminId: admin.id,
+          action: TEAM_AUDIT.removeMember,
+          targetType: 'assistant_membership',
+          targetId: memberId,
+          before: { status: m.status, duties: m.duties },
+          after: { status: 'removed', attorneyId: m.attorney_id, reason },
+          ip: admin.ip,
+        },
+        tx,
+      );
+    });
     if (m.assistant_user_id) await this.context.invalidate(m.assistant_user_id);
+    await endAssistantSessions(this.revocation, m.assistant_user_id);
     return this.get(m.attorney_id);
   }
 
@@ -239,13 +312,15 @@ export class AdminTeamsService {
   }
 
   private async row(attorneyId: string): Promise<AdminTeamRowDto> {
-    const [u, sub, groups, pending, open] = await Promise.all([
+    const [u, sub, groups, pending, open, grant] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: attorneyId },
         select: {
           first_name: true,
           last_name: true,
-          attorney_profile: { select: { username: true } },
+          attorney_profile: {
+            select: { username: true, assistant_seat_limit: true },
+          },
         },
       }),
       this.prisma.subscription.findUnique({
@@ -263,7 +338,14 @@ export class AdminTeamsService {
       this.prisma.attorneyTask.count({
         where: { attorney_id: attorneyId, status: { in: ['open', 'taken'] } },
       }),
+      findActiveGrant(this.prisma, attorneyId),
     ]);
+    const seatLimit = await getAssistantLimit(
+      this.prisma,
+      attorneyId,
+      this.settings,
+      this.entitlements,
+    );
     if (!u) {
       throw new NotFoundException({
         code: ErrorCode.NOT_FOUND,
@@ -278,12 +360,52 @@ export class AdminTeamsService {
         [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Attorney',
       username: u.attorney_profile?.username ?? null,
       plan: sub?.plan ?? 'none',
-      seats: sub ? (sub.plan === 'yearly' ? 6 : sub.assistant_seats) : 0,
+      // Owner 2026-10-02: max(paid seats, contract grant seats).
+      seats: effectiveSeats(
+        paidSeats(sub, seatLimit),
+        grant?.assistant_seats ?? null,
+      ),
       active: count('active'),
       invited: count('invited'),
       pendingRequests: pending,
       openTasks: open,
+      seatLimit,
+      seatLimitPersonal: (u.attorney_profile?.assistant_seat_limit ?? 0) > 0,
     };
+  }
+
+  /** Owner 2026-10-05: an admin sets (or clears) the attorney's own
+   * assistant limit directly. */
+  async setSeatLimit(
+    attorneyId: string,
+    limit: number | null,
+    admin: AdminActor,
+  ): Promise<AdminTeamDto> {
+    const profile = await this.prisma.attorneyProfile.findUnique({
+      where: { user_id: attorneyId },
+      select: { assistant_seat_limit: true },
+    });
+    if (!profile) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Attorney not found.',
+      });
+    }
+    await this.prisma.attorneyProfile.update({
+      where: { user_id: attorneyId },
+      data: { assistant_seat_limit: limit },
+    });
+    await this.entitlements?.invalidateUser(attorneyId);
+    await this.audit.record({
+      adminId: admin.id,
+      action: 'billing.seat_limit.set',
+      targetType: 'user',
+      targetId: attorneyId,
+      before: { assistantSeatLimit: profile.assistant_seat_limit },
+      after: { assistantSeatLimit: limit },
+      ip: admin.ip,
+    });
+    return this.get(attorneyId);
   }
 }
 
@@ -311,14 +433,33 @@ export class AdminTeamsController {
 
   @Post('members/:memberId/remove')
   @Roles('super_admin', 'moderator')
+  // Audit 2026-10-02: the service writes the audit row (before/after).
+  @SkipAutoAudit()
   @ApiOperation({ summary: 'Remove an assistant (access ends at once)' })
   @ApiEnvelopeResponse(AdminTeamDto)
   @ApiErrors({ 404: [ErrorCode.NOT_FOUND] })
   removeAdminTeamMember(
+    @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminMemberParamDto,
     @Body() dto: AdminRemoveMemberDto,
   ): Promise<AdminTeamDto> {
-    return this.teams.remove(p.memberId, dto.reason);
+    return this.teams.remove(p.memberId, dto.reason, admin);
+  }
+
+  @Patch(':id/seat-limit')
+  @Roles('super_admin')
+  @SkipAutoAudit()
+  @ApiOperation({
+    summary: "Set the attorney's own assistant limit (null = global)",
+  })
+  @ApiEnvelopeResponse(AdminTeamDto)
+  @ApiErrors({ 400: [ErrorCode.VALIDATION_ERROR], 404: [ErrorCode.NOT_FOUND] })
+  setAdminTeamSeatLimit(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: AdminTeamParamDto,
+    @Body() dto: AdminSeatLimitDto,
+  ): Promise<AdminTeamDto> {
+    return this.teams.setSeatLimit(p.id, dto.limit ?? null, admin);
   }
 
   @Patch('members/:memberId/duties')

@@ -996,3 +996,90 @@ reviews a client).
 - Like / follow toggles notify the person once a day.
 - Icons: the owner rejected colourful / cartoon 3D art and chose Phosphor
   Light (thin, serious lines) for the whole app; colour follows the theme.
+
+## OQ-052 — Chat for everyone, like Instagram (owner, 2026-10-17)
+
+Replaces the "attorney ↔ client only" part of OQ-043.
+- "Message" sits next to Follow on every profile: client ↔ client,
+  attorney ↔ attorney and attorney ↔ client all have one direct chat per
+  pair (assistants need the "chats" duty).
+- If the recipient follows the sender, the chat goes straight to the main
+  list (accepted, contacts open); otherwise it is a message request as in
+  OQ-043. No cap on messages while a request is pending.
+- Only attorney → client messages and attorney ↔ client calls need the
+  attorney's subscription; client ↔ client and attorney ↔ attorney are free.
+- Message length and allowed chat file formats stay in the admin
+  (`limits.chat_message_chars`, Система → «Загрузки и файлы» → chat).
+- Next: video in chat (owner wants WhatsApp/Telegram-level media).
+
+## OQ-053 — Percent (contingency) budgets and bids (owner, 2026-10-17)
+
+- The percent is a deal between the client and the attorney; LawBid takes
+  nothing from it.
+- New case → Budget: «Сумма», «Проценты», «Уточню позже». Bids: a new fee
+  type «Процент»; a percent bid is negotiated in percent.
+- Admin: `fees.contingency_max_percent` (default 100 = no cap) and
+  `fees.contingency_blocked_practices` (default criminal_defense,
+  dui_and_dwi, traffic_tickets, family_law — ethics rules forbid
+  contingency there; a code covers its subtopics). The option is hidden
+  there in the app and refused by the API (`CONTINGENCY_NOT_ALLOWED`).
+
+## OQ-054 — Stale cases in the attorney feed (owner, 2026-10-17) — BUILT 2026-10-18 (see CHANGELOG)
+
+Decided:
+- Activity = the client's own actions only (open the case, view bids,
+  reply, edit). Attorney bids/comments never keep a case alive.
+- "Still need an attorney?" question, then a pause (hidden from the feed,
+  not deleted; one tap brings it back; 30 days paused → archived).
+- Freshness and client silence lower a case in the feed.
+- A passed case date (court, deadline) → pause + question.
+- Every number in the admin.
+- Timers by urgency (client silent → question; no answer → pause):
+  very urgent 2 d + 1 d; urgent 4 d + 2 d; this week 7 d + 3 d;
+  within a month 30 d + 4 d; not urgent 30 d + 14 d; by date: date
+  passed + 3 d.
+- Question buttons: «Да, нужен», «Жду предложений получше» (restarts the
+  timer), «Уже не нужен».
+- A long-"urgent" case is offered "change to not urgent".
+- Urgent cases with an active client rank first; silent ones drop fast.
+- Card line «В сети / Был …» and «Отвечает за день» — mockup first.
+Rejected: hiding cases with many bids; refunding bids (bids are free and
+unlimited now).
+Reminders (E, owner answers 2026-10-17):
+- A new bid is the reminder: its push carries «Кейс ещё актуален» /
+  «Уже не нужен» — no separate LawBid message.
+- One LawBid question only when there are no bids and the client stayed
+  silent until the case's timer; never repeated.
+- NO weekly LawBid reminder / digest. LawBid writes no reminders of its
+  own beyond that one question; bids and the other notifications go as
+  usual.
+- Never SMS (no Twilio spend) — push + in-app only.
+- The pause comes silently (in the app: «Кейс скрыт · Вернуть»).
+- "By date" cases: the feed lifts them more and more as the date gets
+  closer (clients post early to find an attorney in time); bids keep
+  reaching the client.
+- The launch cleanup follows the same rules (one push per client at most,
+  no SMS), sent when each case's own timer has run out.
+
+Built 2026-10-18 (details and the few small choices in the CHANGELOG):
+- Timers are the admin settings `cases.stale_ask_days_<urgency>` /
+  `cases.stale_pause_days_<urgency>` (by date: `…_by_date` days after the
+  date) and `cases.stale_archive_after_pause_days` (30).
+- «Уже не нужен» closes the case as the client withdrawing it (bids
+  rejected, chats closed) — the existing «Закрыть кейс» path.
+- The question waits for the client's daytime (09:00–21:00 in the time
+  zone of their quiet-hours setting, else US Eastern) and for the case to
+  have no new bids in the silent window (as long as the first timer; for a
+  date case: since the date passed).
+
+## OQ-055 — Support: attachments, device info, macros (owner, 2026-10-18)
+
+Owner decisions (built 2026-10-18, see CHANGELOG):
+- Support takes photos, videos and documents both ways: ticket, reply, admin reply. Same safe formats as a chat; the number per message and the MB per file are set in «Загрузки и файлы» → «Поддержка» (default 5 files, 25 MB).
+- Every new ticket carries the app version and build, platform, OS, phone model, app language, theme, time zone and the screen the user came from. Admins see it in an «Устройство» card; the user is told in one line.
+- Ready answers work: `{name}` and `{ticket}` are filled by the server; one answer has an English and a Russian text, picked by the user's language (English when there is no Russian one).
+- The support list has «Непрочитанные».
+Open (not decided, not built):
+- «Скриншот последнего экрана» next to the paperclip — needs a screenshot boundary at the root of the app; only if the owner wants it.
+- A third language for ready answers (today EN + RU; other languages get English).
+- Whether the files of a deleted account's tickets are erased with the account (today they stay with the ticket history).

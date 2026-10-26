@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/plans/domain/plan_models.dart';
+import 'package:lawbid/features/plans/presentation/discount_price.dart';
 
 /// Owner 2026-10-01 (subscription redesign): one card per plan — the
 /// status at the top right ("Active" / "Selected" / a badge), the price,
@@ -19,6 +22,10 @@ class PlanTierCard extends StatelessWidget {
     this.highlighted = false,
     this.onTap,
     this.child,
+    this.discount,
+    this.formatCents,
+    this.translator,
+    this.yearly = false,
     super.key,
   });
 
@@ -44,6 +51,13 @@ class PlanTierCard extends StatelessWidget {
 
   /// The plan's own controls, inside the card under the features.
   final Widget? child;
+
+  /// Owner 2026-10-07: «$99 / ~~$149~~ month −33%» when set (with
+  /// [formatCents] to print the old price); the card is otherwise as is.
+  final PriceDiscount? discount;
+  final String Function(int cents)? formatCents;
+  final Translator? translator;
+  final bool yearly;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +99,7 @@ class PlanTierCard extends StatelessWidget {
                   border:
                       Border.all(color: colors.gold.withValues(alpha: 0.55)),
                 ),
-                child: AppIcon(icon, size: 19, color: colors.gold),
+                child: AppIcon(icon, size: 19, color: colors.iconTint),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -111,8 +125,11 @@ class PlanTierCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (statusFilled) ...[
-                        const AppIcon(AppIcons.checkRounded,
-                            size: 14, color: AppColorsLight.navy),
+                        const AppIcon(
+                          AppIcons.checkRounded,
+                          size: 14,
+                          color: AppColorsLight.navy,
+                        ),
                         const SizedBox(width: 4),
                       ],
                       Text(
@@ -132,21 +149,22 @@ class PlanTierCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text.rich(
             TextSpan(
-              children: [
-                TextSpan(
-                  text: price,
-                  style: typography.titleLarge.copyWith(
-                    color: colors.text,
-                    fontSize: 30,
-                    height: 1.1,
-                  ),
+              children: priceSpans(
+                context: context,
+                t: translator,
+                price: price,
+                period: period,
+                discount: discount,
+                format: formatCents,
+                yearly: yearly,
+                priceStyle: typography.titleLarge.copyWith(
+                  color: colors.text,
+                  fontSize: 22,
+                  height: 1.1,
                 ),
-                TextSpan(
-                  text: '  $period',
-                  style:
-                      typography.body.copyWith(color: colors.textSecondary),
-                ),
-              ],
+                periodStyle:
+                    typography.body.copyWith(color: colors.textSecondary),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -158,8 +176,11 @@ class PlanTierCard extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: AppIcon(AppIcons.checkRounded,
-                        size: 16, color: colors.goldDark),
+                    child: AppIcon(
+                      AppIcons.checkRounded,
+                      size: 16,
+                      color: colors.iconTint,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -207,6 +228,7 @@ class AssistantSeatsControl extends StatelessWidget {
     required this.total,
     required this.onChanged,
     this.min = 0,
+    this.eachText,
     super.key,
   });
 
@@ -217,6 +239,10 @@ class AssistantSeatsControl extends StatelessWidget {
 
   /// "$100".
   final String seatPrice;
+
+  /// Owner 2026-10-05: the line under the count ("+$100 a month each");
+  /// null = the legacy text with "up to 6".
+  final String? eachText;
 
   /// "$599 per month".
   final String total;
@@ -235,6 +261,7 @@ class AssistantSeatsControl extends StatelessWidget {
         onPressed: max > 0 ? () => onChanged(1) : null,
       );
     }
+    // ignore: avoid_positional_boolean_parameters
     Widget round(IconData icon, bool enabled, int to, String key) {
       final plus = icon == AppIcons.addRounded;
       return Semantics(
@@ -294,18 +321,24 @@ class AssistantSeatsControl extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    t.t('plans.assistants.each', {'price': seatPrice}),
+                    eachText ??
+                        t.t('plans.assistants.each', {'price': seatPrice}),
                     style: typography.caption
                         .copyWith(color: colors.textSecondary),
                   ),
                 ],
               ),
             ),
-            round(AppIcons.removeRounded, seats > min, seats - 1, 'seats-minus'),
+            round(
+              AppIcons.removeRounded,
+              seats > min,
+              seats - 1,
+              'seats-minus',
+            ),
             SizedBox(
               width: 26,
               child: Text(
-                '$seats',
+                context.digits(seats),
                 key: const ValueKey('seats-value'),
                 textAlign: TextAlign.center,
                 style: typography.titleMedium.copyWith(color: colors.text),

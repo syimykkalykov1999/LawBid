@@ -1,18 +1,45 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/realtime/realtime_timings.dart';
+import 'package:lawbid/core/realtime/reconnect_controller.dart';
 
 /// Real-world "can we reach the LawBid API" signal fed by the app's actual
 /// traffic (docs/01 §8.3 offline state): every HTTP response proves the
 /// server is reachable; every connection-level failure proves it is not.
 /// Owns no dependencies, so the dio stack can feed it without creating a
-/// provider cycle with [ConnectivityService] (which also uses dio for its
+/// provider cycle with `ConnectivityService` (which also uses dio for its
 /// health probe).
+///
+/// Owner 2026-10-23 (part C4): a single failed request is not "offline".
+/// The signal turns unreachable only after `offlineFailures` failures in a
+/// row AND `offlineSeconds` since the first of them, with no success in
+/// between; the first success turns it back at once. Failures
+/// while the app is in the background are ignored (a sleeping radio is not
+/// a dead server).
 class ReachabilitySignal {
-  final StreamController<bool> _controller =
-      StreamController<bool>.broadcast(sync: true);
+  ReachabilitySignal({
+    RealtimeTimings Function()? timings,
+    DateTime Function()? now,
+    TimerFactory? timer,
+  })  : _timings = timings ?? (() => const RealtimeTimings()),
+        _now = now ?? DateTime.now,
+        _timer = timer ?? Timer.new;
+
+  final RealtimeTimings Function() _timings;
+  final DateTime Function() _now;
+  final TimerFactory _timer;
+
+  final StreamController<bool> _controller = StreamController<bool>.broadcast(
+    sync: true,
+  );
 
   bool? _last;
+  int _failures = 0;
+  DateTime? _firstFailureAt;
+  Timer? _graceTimer;
+  bool _background = false;
 
   /// Last observed reachability, or null before any request finished.
   bool? get lastKnown => _last;
@@ -20,9 +47,48 @@ class ReachabilitySignal {
   /// Emits only on change (a busy screen doesn't flood listeners).
   Stream<bool> get changes => _controller.stream;
 
-  void markReachable() => _set(true);
+  void markReachable() {
+    _resetFailures();
+    _set(true);
+  }
 
-  void markUnreachable() => _set(false);
+  void markUnreachable() {
+    if (_background || _last == false) return;
+    _failures++;
+    final first = _firstFailureAt ??= _now();
+    final t = _timings();
+    // Both must hold (docs/runbooks/REALTIME_LIFECYCLE.md §5): enough
+    // failures in a row AND the failing has lasted long enough.
+    if (_failures < t.offlineFailures) return;
+    final left = Duration(seconds: t.offlineSeconds) - _now().difference(first);
+    if (left <= Duration.zero) {
+      _resetFailures();
+      _set(false);
+      return;
+    }
+    if (_graceTimer?.isActive ?? false) return;
+    _graceTimer = _timer(left, () {
+      _graceTimer = null;
+      if (_background || _failures < _timings().offlineFailures) return;
+      _resetFailures();
+      _set(false);
+    });
+  }
+
+  /// The app went to the background (true) or came back (false): failures
+  /// seen in the background are forgotten.
+  // ignore: avoid_positional_boolean_parameters
+  void setBackground(bool background) {
+    _background = background;
+    if (background) _resetFailures();
+  }
+
+  void _resetFailures() {
+    _failures = 0;
+    _firstFailureAt = null;
+    _graceTimer?.cancel();
+    _graceTimer = null;
+  }
 
   void _set(bool value) {
     if (_last == value) return;
@@ -30,7 +96,10 @@ class ReachabilitySignal {
     if (!_controller.isClosed) _controller.add(value);
   }
 
-  Future<void> dispose() => _controller.close();
+  Future<void> dispose() {
+    _graceTimer?.cancel();
+    return _controller.close();
+  }
 }
 
 /// Feeds [ReachabilitySignal] from dio. Added LAST in the chain (after
@@ -73,7 +142,10 @@ class ReachabilityInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (err.response != null) {
+    if (isCaptivePortalResponse(err.response)) {
+      // S15-13: a Wi-Fi sign-in page is not our server.
+      _signal().markUnreachable();
+    } else if (err.response != null) {
       _signal().markReachable();
     } else if (isConnectivityFailure(err)) {
       _signal().markUnreachable();

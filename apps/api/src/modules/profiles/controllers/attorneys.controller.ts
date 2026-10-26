@@ -7,8 +7,12 @@ import {
   Put,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import { AnonymousCache } from '../../../common/cache/http-cache';
+import { OptionalAuth } from '../../auth/decorators/optional-auth.decorator';
+import type { Request, Response } from 'express';
+import { notModified } from '../../../common/sync/cheap-etag';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
@@ -16,17 +20,24 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   CurrentUser,
   type RequestUser,
 } from '../../auth/decorators/current-user.decorator';
+import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
 import {
   OwnAttorneyProfileDto,
   PublicAttorneyProfileDto,
   UpdateAttorneyProfileDto,
   UsernameAvailabilityDto,
   UsernameAvailableQueryDto,
+  UsernameSuggestionsDto,
+  UsernameSuggestionsQueryDto,
 } from '../dto/attorney-profile.dto';
 import {
   ReplacePracticeAreasDto,
@@ -63,20 +74,31 @@ export class AttorneysController {
     return this.profiles.getOwn(user.sub);
   }
 
+  @Get('me/stats')
+  @ApiEnvelopeResponse(AttorneyStatsDto)
+  @ApiErrors({ 403: [E.FORBIDDEN] })
+  async getMyStats(
+    @CurrentUser() user: RequestUser,
+  ): Promise<AttorneyStatsDto> {
+    return this.profiles.stats(user.sub);
+  }
+
   @AttorneyOnly()
   @Patch('me/profile')
+  @ApiIfMatchVersion()
   @ApiEnvelopeResponse(OwnAttorneyProfileDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.USERNAME_RESERVED],
     403: [E.FORBIDDEN],
     404: [E.NOT_FOUND],
-    409: [E.USERNAME_TAKEN, E.USERNAME_CHANGE_TOO_SOON],
+    409: [E.USERNAME_TAKEN, E.USERNAME_CHANGE_TOO_SOON, E.STALE_VERSION],
   })
   async updateMyAttorneyProfile(
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdateAttorneyProfileDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<OwnAttorneyProfileDto> {
-    return this.profiles.updateOwn(user.sub, dto);
+    return this.profiles.updateOwn(user.sub, dto, new Date(), expectedVersion);
   }
 
   @Get('me/practice-areas')
@@ -113,16 +135,47 @@ export class AttorneysController {
     @CurrentUser() user: RequestUser,
     @Query() query: UsernameAvailableQueryDto,
   ): Promise<UsernameAvailabilityDto> {
-    return this.profiles.availability(query.u, user.sub);
+    return this.profiles.availability(query.u, user.sub, {
+      first: query.first,
+      last: query.last,
+    });
   }
 
+  /** Owner 2026-10-18 («как в инсте»): free handles for the sign-up and
+   * edit forms. Rate-limited like the availability check. */
+  @Get('username-suggestions')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiEnvelopeResponse(UsernameSuggestionsDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  async usernameSuggestions(
+    @CurrentUser() user: RequestUser,
+    @Query() query: UsernameSuggestionsQueryDto,
+  ): Promise<UsernameSuggestionsDto> {
+    return {
+      suggestions: await this.profiles.suggestions(user.sub, {
+        first: query.first,
+        last: query.last,
+        typed: query.u,
+      }),
+    };
+  }
+
+  @OptionalAuth()
+  @AnonymousCache(30)
   @Get(':username')
   @ApiEnvelopeResponse(PublicAttorneyProfileDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
   async getAttorneyProfile(
     @CurrentUser() user: RequestUser,
     @Param('username') username: string,
-  ): Promise<PublicAttorneyProfileDto> {
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<PublicAttorneyProfileDto | undefined> {
+    // Owner 2026-10-22 (client economy plan, package D): the cheap ETag is
+    // checked before the profile queries run; a match is a 304 (0 further
+    // queries, no body).
+    const tag = await this.profiles.publicEtag(username, user.sub);
+    if (tag && notModified(req, res, tag)) return undefined;
     return this.profiles.getPublic(username, user.sub);
   }
 }

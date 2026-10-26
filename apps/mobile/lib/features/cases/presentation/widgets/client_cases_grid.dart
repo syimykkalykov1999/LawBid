@@ -53,11 +53,22 @@ class ClientCasesGrid extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            AppIcon(AppIcons.lockOutlineRounded,
-                                size: AppSpacing.md + 2,
-                                color: colors.goldDark),
-                            const Spacer(),
-                            CaseStatusPill(status: c.status, t: t),
+                            AppIcon(
+                              AppIcons.lockOutlineRounded,
+                              size: AppSpacing.md + 2,
+                              color: colors.iconTint,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: CaseStatusPill(
+                                  status: c.status,
+                                  t: t,
+                                  paused: c.paused,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -67,13 +78,17 @@ class ClientCasesGrid extends ConsumerWidget {
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                             style: typography.body.copyWith(
-                                color: colors.text,
-                                fontWeight: FontWeight.w600),
+                              color: colors.text,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         Text(
                           CaseFormat.practice(
-                              t, c.practice.i18nKey, c.practice.nameEn),
+                            t,
+                            c.practice.i18nKey,
+                            c.practice.nameEn,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: typography.caption

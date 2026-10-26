@@ -8,20 +8,17 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, OPS_RIGHTS } from './support/admin-login';
 import {
-  CaseAutoArchiveJob,
   CaseAutoCloseJob,
   CaseCompletionReminderJob,
-  CaseStalePromptJob,
 } from '../src/jobs/handlers/case-lifecycle.jobs';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.6 acceptance, with an injected clock
- * (each job takes `now`), against real CockroachDB/Redis:
- *  - 30 days without activity → one `case_stale_prompt`; 14 more days →
- *    `archived` (active bids rejected_auto, `case_archived`);
- *  - "Да, актуален" resets the timer (no archive after the next 14 days);
+ * (each job takes `now`), against real PostgreSQL/Redis:
+ *  - (the stale question / pause / archive of OQ-054 moved to
+ *    owner-stale-cases.e2e-spec.ts);
  *  - `pending_completion` is `closed` automatically after 7 days;
  *  - jobs never duplicate notifications (runs repeated), and a held Redis
  *    lock skips a run;
@@ -184,19 +181,6 @@ describe('Case lifecycle and jobs (e2e, docs/04 §10, stage 4.6)', () => {
     });
   }
 
-  async function staleCase(ageDays: number) {
-    const client = await user('client');
-    const attorney = await user('attorney');
-    const caseId = await kase(client.id);
-    const res = await postBid(attorney.auth, caseId, bidBody());
-    expect(res.status).toBe(201);
-    await prisma.case.update({
-      where: { id: caseId },
-      data: { last_activity_at: days(-ageDays) },
-    });
-    return { client, attorney, caseId, bidId: res.body.data.id as string };
-  }
-
   async function inProgressCase() {
     const client = await user('client');
     const attorney = await user('attorney');
@@ -212,53 +196,6 @@ describe('Case lifecycle and jobs (e2e, docs/04 §10, stage 4.6)', () => {
 
   const post = (auth: Record<string, string>, path: string, body = {}) =>
     api().post(`/api/v1${path}`).set(auth).send(body);
-
-  it('30 days idle → one stale prompt; +14 days → archived with bids rejected', async () => {
-    const { client, attorney, caseId, bidId } = await staleCase(31);
-    const stale = app.get(CaseStalePromptJob);
-    const archive = app.get(CaseAutoArchiveJob);
-    const now = new Date();
-
-    expect((await stale.run(now)).ran).toBe(true);
-    await stale.run(now);
-    expect(await notifCount(client.id, 'case_stale_prompt', caseId)).toBe(1);
-
-    // Not yet 14 days after the prompt: stays open.
-    await archive.run(days(13, now));
-    expect(
-      (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).status,
-    ).toBe('open');
-
-    await archive.run(days(15, now));
-    await archive.run(days(15, now));
-    const after = await prisma.case.findUniqueOrThrow({
-      where: { id: caseId },
-    });
-    expect(after.status).toBe('archived');
-    expect(after.archived_at).not.toBeNull();
-    expect(
-      (await prisma.bid.findUniqueOrThrow({ where: { id: bidId } })).status,
-    ).toBe('rejected_auto');
-    expect(await notifCount(client.id, 'case_archived', caseId)).toBe(1);
-    expect(await notifCount(attorney.id, 'bid_rejected', caseId)).toBe(1);
-  });
-
-  it('"Да, актуален" resets the timer: no archive 14 days after the prompt', async () => {
-    const { client, caseId } = await staleCase(31);
-    const now = new Date();
-    await app.get(CaseStalePromptJob).run(now);
-    expect(await notifCount(client.id, 'case_stale_prompt', caseId)).toBe(1);
-
-    const keep = await post(client.auth, `/cases/${caseId}/keep-alive`);
-    expect(keep.status).toBe(200);
-    const kept = await prisma.case.findUniqueOrThrow({ where: { id: caseId } });
-    expect(kept.stale_prompt_sent_at).toBeNull();
-
-    await app.get(CaseAutoArchiveJob).run(days(15, now));
-    expect(
-      (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).status,
-    ).toBe('open');
-  });
 
   it('"Выполнено" → reminder at ≤24 h once → auto-closed after 7 days', async () => {
     const { client, attorney, caseId } = await inProgressCase();
@@ -334,7 +271,9 @@ describe('Case lifecycle and jobs (e2e, docs/04 §10, stage 4.6)', () => {
       where: { case_id: caseId },
     });
 
-    const adminAuth = (await adminSession(baseUrl, prisma, 'support')).auth;
+    const adminAuth = (
+      await adminSession(baseUrl, prisma, 'support', undefined, OPS_RIGHTS)
+    ).auth;
     // A client can't use the admin route (mobile tokens are refused on
     // /admin/*: docs/06 stage 6.2).
     expect(

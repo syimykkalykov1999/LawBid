@@ -93,7 +93,11 @@ void main() {
         theme,
         Column(
           children: [
-            AppOtpField(semanticLabel: 'Verification code', onCompleted: (_) {}, autofocus: false),
+            AppOtpField(
+              semanticLabel: 'Verification code',
+              onCompleted: (_) {},
+              autofocus: false,
+            ),
             const SizedBox(height: AppSpacing.lg),
             AppOtpField(
               semanticLabel: 'Verification code',

@@ -14,7 +14,6 @@ class AdminSessionDto {
     required this.accessToken,
     required this.expiresAt,
     required this.admin,
-    this.recoveryCodes,
   });
 
   factory AdminSessionDto.fromJson(Map<String, Object?> json) =>
@@ -26,9 +25,6 @@ class AdminSessionDto {
   /// Absolute expiry (8 h); the session also ends after 30 min idle.
   final DateTime expiresAt;
   final AdminMeDto admin;
-
-  /// Only right after the authenticator was bound: ten one-time recovery codes, shown once.
-  final List<String>? recoveryCodes;
 
   Map<String, Object?> toJson() => _$AdminSessionDtoToJson(this);
 }

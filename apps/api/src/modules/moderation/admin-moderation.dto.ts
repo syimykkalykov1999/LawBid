@@ -3,7 +3,6 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -25,6 +24,15 @@ export const REPORT_TARGET_TYPES = [
   'review',
   // Owner 2026-10-01: reviews of clients and assistants.
   'client_review',
+  // Owner 2026-10-02: user sticker packs.
+  'sticker_pack',
+  // Owner 2026-10-20: stories, channels and channel posts.
+  'story',
+  'channel',
+  'channel_post',
+  // Owner 2026-10-20: «Вопрос юристу».
+  'legal_question',
+  'legal_answer',
 ] as const;
 export type ReportTargetName = (typeof REPORT_TARGET_TYPES)[number];
 
@@ -87,15 +95,16 @@ export class ModerationActionDto {
   @IsIn(MODERATION_ACTIONS)
   action!: ModerationActionName;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
     maxLength: 500,
-    description: 'Required for every action (§3.2).',
+    description: 'Optional (owner 2026-10-05).',
   })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 // ---- responses ----------------------------------------------------------

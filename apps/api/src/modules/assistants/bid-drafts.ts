@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -7,9 +8,11 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  Optional,
   Param,
   Put,
 } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -25,7 +28,6 @@ import {
   IsOptional,
   IsString,
   Max,
-  MaxLength,
   Min,
 } from 'class-validator';
 import {
@@ -46,6 +48,7 @@ import {
   ESTIMATED_DURATION_MAX_DAYS,
 } from '../bids/dto/bid-requests.dto';
 import { CaseIdParamDto } from '../cases/dto/cases-feed.dto';
+import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
 
 /** The bid form, every field optional (a draft may be half done). */
 export class BidDraftBodyDto {
@@ -64,7 +67,7 @@ export class BidDraftBodyDto {
   @ApiPropertyOptional({ maxLength: BID_MESSAGE_MAX })
   @IsOptional()
   @IsString()
-  @MaxLength(BID_MESSAGE_MAX)
+  @MaxTextChars('limits.bid_message_chars')
   message?: string;
 
   @ApiPropertyOptional({
@@ -97,7 +100,10 @@ export class BidDraftDto extends BidDraftBodyDto {
 
 @Injectable()
 export class BidDraftsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications?: NotificationsService,
+  ) {}
 
   async get(user: RequestUser, caseId: string): Promise<BidDraftDto> {
     const d = await this.prisma.bidDraft.findUnique({
@@ -126,16 +132,42 @@ export class BidDraftsService {
   ): Promise<BidDraftDto> {
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
-      select: { id: true },
+      select: { id: true, status: true, deleted_at: true },
     });
-    if (!kase) {
+    if (!kase || kase.deleted_at) {
       throw new NotFoundException({
         code: ErrorCode.CASE_NOT_FOUND,
         message: 'Case not found.',
       });
     }
+    // Audit 2026-10-04: a draft only for a bid that can still be sent.
+    if (kase.status !== 'open') {
+      throw new ConflictException({
+        code: ErrorCode.CASE_INVALID_STATE,
+        message: 'This case is no longer accepting bids.',
+        details: { status: kase.status },
+      });
+    }
+    const bid = await this.prisma.bid.findUnique({
+      where: {
+        case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+      },
+      select: { status: true },
+    });
+    if (bid?.status === 'active' || bid?.status === 'accepted') {
+      throw new ConflictException({
+        code: ErrorCode.BID_ALREADY_EXISTS,
+        message: 'There is already a bid on this case.',
+      });
+    }
     const payload = { ...dto } as Prisma.InputJsonObject;
     const by = user.assistant?.name.slice(0, 80) ?? null;
+    const existed = await this.prisma.bidDraft.findUnique({
+      where: {
+        attorney_id_case_id: { attorney_id: user.sub, case_id: caseId },
+      },
+      select: { case_id: true },
+    });
     await this.prisma.bidDraft.upsert({
       where: {
         attorney_id_case_id: { attorney_id: user.sub, case_id: caseId },
@@ -148,6 +180,15 @@ export class BidDraftsService {
       },
       update: { payload, prepared_by_name: by },
     });
+    // Owner 2026-10-21 (inbox 30): the attorney hears that an assistant
+    // prepared a bid (once per draft; Settings → From assistants → Bids).
+    if (user.assistant && !existed) {
+      await this.notifications?.emit({
+        type: 'assistant_bid_draft',
+        recipientId: user.sub,
+        payload: { caseId },
+      });
+    }
     return this.get(user, caseId);
   }
 
@@ -183,7 +224,10 @@ export class BidDraftsController {
     summary: 'Save a bid draft (the attorney reviews and sends)',
   })
   @ApiEnvelopeResponse(BidDraftDto)
-  @ApiErrors({ 404: [ErrorCode.CASE_NOT_FOUND] })
+  @ApiErrors({
+    404: [ErrorCode.CASE_NOT_FOUND],
+    409: [ErrorCode.CASE_INVALID_STATE, ErrorCode.BID_ALREADY_EXISTS],
+  })
   saveBidDraft(
     @CurrentUser() user: RequestUser,
     @Param() p: CaseIdParamDto,

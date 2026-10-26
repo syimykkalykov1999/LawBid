@@ -10,23 +10,35 @@ import 'package:lawbid/core/feature_flags/legal_document.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/legal/application/legal_providers.dart';
+import 'package:lawbid/features/legal/presentation/widgets/legal_markdown.dart';
 
 const _knownDocTypes = {
   'terms',
   'privacy',
   'disclaimer',
-  'client_contact_sharing'
+  'client_contact_sharing',
+  'attorney_agreement',
+  'client_agreement',
+  'eula',
+  'refund',
+  'cookies',
+  'third_party_services',
+  'partner_terms',
+  'dmca_policy',
 };
 
-/// `/legal/:docType` — current Terms / Privacy / Disclaimer from
-/// `/config/bootstrap` `legal_documents` (docs/01_FOUNDATION_AUTH.md
-/// §10.2 H: "ссылки"). Renders `content_md` as readable text (headings
-/// only — the seed ships plain placeholder copy); a document hosted at
-/// `content_url` shows the link with a copy action (no in-app browser
-/// dependency in this stage).
+/// `/legal/:docType` — the current text of any legal document (terms,
+/// privacy, the role agreements, EULA, refunds, cookies, ...) from
+/// `GET /legal/documents/:type` in the user's language; the bootstrap copy
+/// (`/config/bootstrap` `legal_documents`) of the four old ones is the
+/// fallback. The Markdown the owner writes in the admin is rendered by
+/// [LegalMarkdown]; a document hosted at `content_url` shows the link with
+/// a copy action.
 ///
-/// States: loading (bootstrap still in flight → skeleton), empty (no such
-/// document published), error/offline (bootstrap failed → Retry).
+/// States: loading (skeleton), empty (no such document published),
+/// error/offline (Retry).
 class LegalDocumentScreen extends ConsumerStatefulWidget {
   const LegalDocumentScreen({required this.docType, super.key});
 
@@ -42,6 +54,7 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
 
   Future<void> _retry() async {
     setState(() => _refreshing = true);
+    ref.invalidate(legalDocumentTextProvider(widget.docType));
     await ref
         .read(featureFlagsControllerProvider.notifier)
         .refreshInBackground();
@@ -53,13 +66,30 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
-    final docs = ref
-        .watch(featureFlagsControllerProvider.select((s) => s.legalDocuments));
+    final docs = ref.watch(
+      featureFlagsControllerProvider.select((s) => s.legalDocuments),
+    );
     final lang = ref.watch(languageControllerProvider).value ?? AppLanguage.en;
-    final doc = pickLegalDocument(docs, widget.docType, lang.name);
+    final bootstrapDoc = pickLegalDocument(docs, widget.docType, lang.name);
+    // Owner 2026-10-05: the text comes from GET /legal/documents/:type (all
+    // twelve documents, in the user's language); the bootstrap copy of the
+    // four old ones is the fallback while that loads or when it fails.
+    final remote = ref.watch(legalDocumentTextProvider(widget.docType));
+    final fallback = bootstrapDoc != null &&
+            (bootstrapDoc.contentMd != null || bootstrapDoc.contentUrl != null)
+        ? bootstrapDoc
+        : null;
+    final remoteText = remote.value;
+    final version = remoteText?.version ?? fallback?.version;
+    final markdown = remoteText?.contentMd ?? fallback?.contentMd;
+    final contentUrl = remoteText == null ? fallback?.contentUrl : null;
+    final hasContent = remoteText != null || fallback != null;
+    final notPublished = remote.hasError &&
+        remote.error is ApiException &&
+        (remote.error! as ApiException).code == ApiErrorCodes.notFound;
 
     final Widget body;
-    if (_refreshing) {
+    if (_refreshing || (remote.isLoading && !hasContent)) {
       body = ListView(
         padding: const EdgeInsets.all(AppSpacing.screenSide),
         children: [
@@ -69,8 +99,13 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
           ],
         ],
       );
-    } else if (docs.isEmpty) {
-      // Bootstrap never arrived (offline or failed).
+    } else if (!hasContent && notPublished) {
+      body = AppEmptyState(
+        icon: AppIcons.descriptionOutlined,
+        message: t.t('legal.notFound'),
+      );
+    } else if (!hasContent) {
+      // Offline or failed, and no bootstrap copy either.
       body = AppOfflineState(
         title: t.t('offline.title'),
         message: t.t('legal.unavailable'),
@@ -85,9 +120,6 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
           ),
         ),
       );
-    } else if (doc == null) {
-      body = AppEmptyState(
-          icon: AppIcons.descriptionOutlined, message: t.t('legal.notFound'));
     } else {
       body = ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -98,36 +130,22 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
         ),
         children: [
           Text(
-            t.t('legal.version', {'version': doc.version}),
+            t.t('legal.version', {'version': version ?? ''}),
             style: typography.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.lg),
-          if (doc.contentMd != null)
-            for (final block in doc.contentMd!.split(RegExp(r'\n{2,}')))
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                child: block.startsWith('#')
-                    ? Semantics(
-                        header: true,
-                        child: Text(
-                          block.replaceFirst(RegExp(r'^#+\s*'), ''),
-                          style: typography.titleMedium
-                              .copyWith(color: colors.text),
-                        ),
-                      )
-                    : SelectableText(block,
-                        style: typography.body.copyWith(color: colors.text)),
-              ),
-          if (doc.contentUrl != null)
+          if (markdown != null) LegalMarkdown(markdown),
+          if (contentUrl != null)
             AppListRow(
               icon: AppIcons.linkRounded,
-              label: doc.contentUrl!,
+              label: contentUrl,
               trailingText: t.t('legal.copyLink'),
               showChevron: false,
               onTap: () async {
-                await Clipboard.setData(ClipboardData(text: doc.contentUrl!));
-                if (context.mounted)
+                await Clipboard.setData(ClipboardData(text: contentUrl));
+                if (context.mounted) {
                   showAppSnackBar(context, t.t('legal.linkCopied'));
+                }
               },
             ),
         ],
@@ -137,9 +155,13 @@ class _LegalDocumentScreenState extends ConsumerState<LegalDocumentScreen> {
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Text(t.t(_knownDocTypes.contains(widget.docType)
-            ? 'legal.doc.${widget.docType}'
-            : 'legal.doc.document')),
+        title: Text(
+          t.t(
+            _knownDocTypes.contains(widget.docType)
+                ? 'legal.doc.${widget.docType}'
+                : 'legal.doc.document',
+          ),
+        ),
         leading: AppBackButton(
           semanticLabel: t.t('common.close'),
           onPressed: () => Navigator.of(context).maybePop(),

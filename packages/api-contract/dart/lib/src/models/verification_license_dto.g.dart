@@ -18,6 +18,7 @@ VerificationLicenseDto _$VerificationLicenseDtoFromJson(
       : DateTime.parse(json['expiresAt'] as String),
   rejectionCode: json['rejectionCode'] as String?,
   rejectionNote: json['rejectionNote'] as String?,
+  manualReview: json['manualReview'] as bool,
 );
 
 Map<String, dynamic> _$VerificationLicenseDtoToJson(
@@ -30,4 +31,5 @@ Map<String, dynamic> _$VerificationLicenseDtoToJson(
   'expiresAt': ?instance.expiresAt?.toIso8601String(),
   'rejectionCode': ?instance.rejectionCode,
   'rejectionNote': ?instance.rejectionNote,
+  'manualReview': instance.manualReview,
 };

@@ -1,4 +1,9 @@
-import { Inject, OnApplicationShutdown } from '@nestjs/common';
+import {
+  BeforeApplicationShutdown,
+  Inject,
+  OnApplicationShutdown,
+  Optional,
+} from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
@@ -8,13 +13,20 @@ import {
   SubscribeMessage,
   WebSocketGateway,
 } from '@nestjs/websockets';
-import { createAdapter } from '@socket.io/redis-adapter';
+import { createAdapter, createShardedAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
+import { socketClientIp } from './socket-ip';
 import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import {
+  SESSION_REVOKED_CHANNEL,
+  parseSessionRevoked,
+} from '../../redis/session-revoked';
 import { PresenceService } from '../presence/presence.service';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
 import {
@@ -23,10 +35,21 @@ import {
 } from '../auth/services/token.service';
 import {
   REALTIME_NAMESPACE,
+  channelRoom,
   conversationRoom,
+  postRoom,
+  socketAdapterMode,
   userRoom,
   viewingKey,
 } from './realtime-publisher.service';
+import { demoContext } from '../../common/demo/demo-context';
+import { shardContext } from '../../sharding/shard-context';
+import { RealtimeEventLog } from './realtime-event-log';
+import {
+  newSocketEventBucket,
+  takeSocketEvent,
+  type SocketEventBucket,
+} from './socket-event-bucket';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -34,20 +57,71 @@ const UUID_RE =
 const VIEW_TTL_SEC = 3600;
 /** At most one typing event per socket per this window. */
 const TYPING_MIN_GAP_MS = 1000;
+/** S1-7: `call:signal` budget (own bucket) and how long a call's members
+ * are remembered per socket. */
+const SIGNAL_EVENT_CAPACITY = 60;
+const SIGNAL_EVENT_REFILL_PER_SECOND = 10;
+const SIGNAL_CALL_CACHE_MS = 30_000;
+/** S1-12: the window in which a typer counts as "recent". */
+const TYPING_RECENT_MS = 5000;
+
+interface SignalCall {
+  caller_id: string;
+  callee_id: string;
+  status: string;
+  is_group: boolean;
+  participants: { user_id: string }[];
+}
 /** OQ-041: one signaling payload (SDP / ICE candidate) at most. */
 const SIGNAL_MAX_BYTES = 64 * 1024;
-/** How often a live socket re-checks the session blacklist. */
-const REVOCATION_CHECK_MS = 45_000;
+/** Sockets of one person per API instance (setting `realtime.max_sockets_per_user`). */
+const DEFAULT_MAX_SOCKETS_PER_USER = 10;
+const DEFAULT_CONNECTS_PER_IP_PER_MINUTE = 120;
+/** How often a live socket refreshes its presence (and an assistant's
+ * socket re-checks its duties). Owner 2026-10-22 (server load audit,
+ * finding 5): no longer the session blacklist — a revoked session's
+ * sockets are dropped by the `session:revoked` message instead. */
+const HEARTBEAT_MS = 45_000;
+/** A person back within this long after a drop counts as a reconnect. */
+const RECONNECT_WINDOW_SEC = 120;
+const goneKey = (userId: string) => `rt:gone:${userId}`;
+
+/**
+ * How long a shutting-down instance waits for its clients to move away
+ * (REALTIME_DRAIN_MAX_MS overrides). Production stays under the ECS
+ * `stopTimeout` (60 s, infra/modules/ecs) so SIGKILL never cuts it; dev
+ * restarts (`nest start --watch`) and tests do not wait.
+ */
+export function drainBudgetMs(env: NodeJS.ProcessEnv = process.env): number {
+  const set = Number(env.REALTIME_DRAIN_MAX_MS);
+  if (env.REALTIME_DRAIN_MAX_MS !== undefined && Number.isFinite(set)) {
+    return Math.max(0, set);
+  }
+  return env.NODE_ENV === 'production' ? 35_000 : 0;
+}
 
 interface SocketState {
   user: AccessTokenClaims;
   /** OQ-048: an assistant's own id while `user.sub` is the attorney. */
   selfId?: string;
+  /** Owner 2026-10-23: `auth:expiring` goes out `auth_expiring_lead`
+   * before the token ends; `expiryTimer` closes the socket only after the
+   * grace period (a refreshed token re-arms both). */
+  expiringTimer?: NodeJS.Timeout;
   expiryTimer?: NodeJS.Timeout;
-  /** Security review: a revoked session (logout, "log out all") must
-   * stop receiving events before the access token expires. */
-  revocationTimer?: NodeJS.Timeout;
+  /** `exp` of the access token the socket is running on (ms). */
+  expiresAtMs?: number;
+  /** Presence heartbeat and the assistant's duty re-check. */
+  heartbeatTimer?: NodeJS.Timeout;
   lastTypingAt?: number;
+  /** Security research #5 (2026-10-22), A5: the per-socket packet
+   * budget. */
+  bucket: SocketEventBucket;
+  /** S1-7: the budget of `call:signal` packets alone. */
+  signalBucket?: SocketEventBucket;
+  /** S1-7: the last call looked up for signaling (30 s), so each ICE
+   * candidate does not cost a database query. */
+  signalCall?: { id: string; at: number; call: SignalCall };
   viewing: Set<string>;
   /** Owner 2026-10-01: the other members of each open chat — "typing…"
    * also reaches their chat list. */
@@ -84,17 +158,40 @@ function expiryOf(token: string): number | null {
   namespace: REALTIME_NAMESPACE,
   cors: { origin: true },
   transports: ['websocket', 'polling'],
+  // Owner 2026-10-15: limits so one heavy or broken client cannot hurt the
+  // rest. Every socket event is small (join, typing, presence, a call's
+  // SDP/ICE of a few KB); files go through the REST API, not the socket.
+  maxHttpBufferSize: 64 * 1024,
+  pingInterval: 25_000,
+  pingTimeout: 20_000,
+  connectTimeout: 10_000,
 })
 export class RealtimeGateway
   implements
     OnGatewayInit,
     OnGatewayConnection,
     OnGatewayDisconnect,
+    BeforeApplicationShutdown,
     OnApplicationShutdown
 {
   private pub?: Redis;
   private sub?: Redis;
+  /** Owner 2026-10-22: the `session:revoked` listener (a subscriber
+   * connection can run nothing else). */
+  private revocations?: Redis;
   private nsp?: Namespace;
+  /** Security review: a revoked session (logout, "log out all", a block)
+   * must stop receiving events before the access token expires — this
+   * instance's sockets by session chain id (`sid`), for the
+   * `session:revoked` message. */
+  private readonly bySession = new Map<string, Set<Socket>>();
+  /** Scale audit 2026-10-23: this instance's sockets per person, oldest
+   * first - a client stuck in a reconnect loop (or a hostile one with a
+   * valid token) must not pile up sockets, timers and Redis work. */
+  private readonly byUser = new Map<string, Set<Socket>>();
+  /** The key a socket was counted under (an assistant's socket later acts as
+   * its attorney, so the claims' id is remembered here). */
+  private readonly capKeys = new WeakMap<Socket, string>();
 
   constructor(
     private readonly tokens: TokenService,
@@ -104,8 +201,84 @@ export class RealtimeGateway
     private readonly logger: PinoLogger,
     private readonly assistants: AssistantContextService,
     private readonly presence: PresenceService,
+    @Optional() private readonly stats?: RealtimeStatsService,
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly eventLog?: RealtimeEventLog,
   ) {
     this.logger.setContext(RealtimeGateway.name);
+  }
+
+  /** Owner 2026-10-23: the lifecycle timings (app_config `realtime.server.*`),
+   * refreshed every 30 s — sockets arm timers synchronously from this. */
+  private timing = {
+    expiringLeadMs: 120_000,
+    graceMs: 120_000,
+    goingAwaySpreadMs: 20_000,
+    // S1-4: offline announcements wait this long; the viewer-permission
+    // answer is cached this long.
+    presenceGraceMs: 10_000,
+    presencePermCacheSec: 30,
+    // P2 limits, all 0 = off (as before).
+    maxSocketsGlobal: 0,
+    maxWriteBuffer: 0,
+    typingBigRoomSockets: 0,
+    typingBigRoomMaxTypers: 3,
+  };
+  /** S1-12: who typed lately per conversation on this instance. */
+  private readonly recentTypers = new Map<string, Map<string, number>>();
+  /** S1-4: this instance's held-back "went offline" announcements. */
+  private readonly offlineTimers = new Map<
+    string,
+    { timer: NodeJS.Timeout; leftAt: Date }
+  >();
+  private timingTimer?: NodeJS.Timeout;
+  /** SIGTERM / `startDraining()`: no new sockets, going-away sent. */
+  private draining = false;
+
+  private async loadTiming(): Promise<void> {
+    if (!this.settings) return;
+    try {
+      const [
+        lead,
+        grace,
+        spread,
+        presGrace,
+        presCache,
+        maxGlobal,
+        maxBuffer,
+        bigRoom,
+        bigRoomTypers,
+      ] = await Promise.all([
+        this.settings.number('realtime.server.auth_expiring_lead_seconds'),
+        this.settings.number('realtime.server.auth_grace_seconds'),
+        this.settings.number('realtime.server.going_away_spread_ms'),
+        this.settings.number('realtime.server.presence_offline_grace_seconds'),
+        this.settings.number(
+          'realtime.server.presence_permission_cache_seconds',
+        ),
+        this.settings.number('realtime.server.max_sockets_per_user_global'),
+        this.settings.number('realtime.server.max_write_buffer_packets'),
+        this.settings.number('realtime.server.typing_big_room_sockets'),
+        this.settings.number('realtime.server.typing_big_room_max_typers'),
+      ]);
+      this.timing = {
+        expiringLeadMs: lead * 1000,
+        graceMs: grace * 1000,
+        goingAwaySpreadMs: spread,
+        presenceGraceMs: presGrace * 1000,
+        presencePermCacheSec: presCache,
+        maxSocketsGlobal: maxGlobal,
+        maxWriteBuffer: maxBuffer,
+        typingBigRoomSockets: bigRoom,
+        typingBigRoomMaxTypers: bigRoomTypers,
+      };
+    } catch {
+      // keep the previous values
+    }
+  }
+
+  get isDraining(): boolean {
+    return this.draining;
   }
 
   /** docs/06 §8 "число активных WebSocket-соединений": a gauge line per
@@ -118,19 +291,158 @@ export class RealtimeGateway
 
   afterInit(nsp: Namespace): void {
     this.nsp = nsp;
+    void this.loadTiming();
+    this.timingTimer = setInterval(() => void this.loadTiming(), 30_000);
+    this.timingTimer.unref();
     // Test doubles of REDIS_CLIENT can't pub/sub: stay on the in-memory
     // adapter (a single instance) then.
     if (typeof this.redis.duplicate !== 'function') return;
     this.pub = this.redis.duplicate();
     this.sub = this.redis.duplicate();
-    nsp.server.adapter(createAdapter(this.pub, this.sub));
+    // Owner 2026-10-22 (server load audit, finding 5): Redis 7 sharded
+    // pub/sub (infra/modules/redis: engine 7.1). An event for `user:X`
+    // reaches only the instances that hold that room, instead of every
+    // instance reading every event (the classic adapter).
+    // SOCKET_IO_ADAPTER=classic switches back; RealtimePublisher follows
+    // the same setting.
+    nsp.server.adapter(
+      socketAdapterMode() === 'sharded'
+        ? createShardedAdapter(this.pub, this.sub, {
+            subscriptionMode: 'dynamic',
+          })
+        : createAdapter(this.pub, this.sub),
+    );
+    this.revocations = this.redis.duplicate();
+    this.revocations.on('message', (channel: string, raw: string) => {
+      if (channel === SESSION_REVOKED_CHANNEL) this.onSessionRevoked(raw);
+    });
+    void this.revocations
+      .subscribe(SESSION_REVOKED_CHANNEL)
+      .catch((error: unknown) =>
+        this.logger.warn(
+          { err: error instanceof Error ? error.message : error },
+          'session:revoked subscribe failed',
+        ),
+      );
+  }
+
+  /** Owner 2026-10-22: drops this instance's sockets of a revoked session
+   * (every instance gets the message and checks its own sockets). */
+  onSessionRevoked(raw: string): void {
+    const msg = parseSessionRevoked(raw);
+    if (!msg) return;
+    const sockets = this.bySession.get(msg.sessionId);
+    if (!sockets) return;
+    this.bySession.delete(msg.sessionId);
+    for (const socket of sockets) {
+      socket.emit('auth:error', { code: 'AUTH_SESSION_REVOKED' });
+      socket.disconnect(true);
+    }
+  }
+
+  private index(socket: Socket, sid: string | undefined): void {
+    if (!sid) return;
+    let set = this.bySession.get(sid);
+    if (!set) this.bySession.set(sid, (set = new Set()));
+    set.add(socket);
+  }
+
+  /** Keeps at most `realtime.max_sockets_per_user` sockets of one person on
+   * this instance: the oldest ones are closed (the server's disconnect
+   * does not trigger the client's automatic reconnect). */
+  private async capUserSockets(socket: Socket, userId: string): Promise<void> {
+    this.capKeys.set(socket, userId);
+    let set = this.byUser.get(userId);
+    if (!set) this.byUser.set(userId, (set = new Set()));
+    set.add(socket);
+    let max = DEFAULT_MAX_SOCKETS_PER_USER;
+    try {
+      const v = await this.settings?.number('realtime.max_sockets_per_user');
+      if (v !== undefined && Number.isFinite(v) && v >= 1) max = Math.round(v);
+    } catch {
+      // Settings cache unreachable: keep the default.
+    }
+    while (set.size > max) {
+      const oldest = set.values().next().value as Socket;
+      set.delete(oldest);
+      this.logger.info(
+        { metric: 'ws_user_cap_evicted', max },
+        'ws per-user cap: closing oldest',
+      );
+      oldest.emit('auth:error', { code: 'TOO_MANY_CONNECTIONS' });
+      oldest.disconnect(true);
+    }
+  }
+
+  private unindex(socket: Socket, sid: string | undefined): void {
+    if (!sid) return;
+    const set = this.bySession.get(sid);
+    if (!set) return;
+    set.delete(socket);
+    if (set.size === 0) this.bySession.delete(sid);
+  }
+
+  /**
+   * Owner 2026-10-23 (graceful draining): on SIGTERM — before Nest
+   * disposes the socket server — every connected socket gets
+   * `server:going-away {retryAfterMs}` (a random 0..spread each, so the
+   * herd does not come back in one second), no new socket is accepted,
+   * and the existing ones are served until they leave or the drain
+   * budget ends (the ECS stop timeout is 60 s). Old apps ignore the
+   * event and are dropped at the end exactly as before.
+   */
+  async beforeApplicationShutdown(): Promise<void> {
+    await this.startDraining();
+    await this.waitForDrain();
+  }
+
+  /** Marks the instance as draining and tells every socket to leave. */
+  async startDraining(): Promise<number> {
+    if (this.draining) return 0;
+    this.draining = true;
+    let sent = 0;
+    for (const socket of this.nsp?.sockets?.values() ?? []) {
+      this.sendGoingAway(socket);
+      sent += 1;
+    }
+    this.logger.info({ metric: 'ws_going_away', count: sent }, 'draining');
+    await this.stats?.flush();
+    return sent;
+  }
+
+  private sendGoingAway(socket: Socket): void {
+    const retryAfterMs = Math.floor(
+      Math.random() * (this.timing.goingAwaySpreadMs + 1),
+    );
+    socket.emit('server:going-away', { retryAfterMs, reason: 'deploy' });
+    this.stats?.record('going_away');
+  }
+
+  /** Waits (bounded) for the clients to move away on their own. */
+  private async waitForDrain(): Promise<void> {
+    const budget = drainBudgetMs();
+    const deadline = Date.now() + budget;
+    while (Date.now() < deadline && (this.nsp?.sockets.size ?? 0) > 0) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    await this.stats?.flush();
+  }
+
+  private dropUserSocket(socket: Socket): void {
+    const userId = this.capKeys.get(socket);
+    const set = userId === undefined ? undefined : this.byUser.get(userId);
+    if (userId === undefined || !set) return;
+    set.delete(socket);
+    if (set.size === 0) this.byUser.delete(userId);
   }
 
   /** After Nest has closed the socket server (app.close() disposes it
    * before the shutdown hooks), so the adapter sends nothing more. */
   async onApplicationShutdown(): Promise<void> {
+    if (this.timingTimer) clearInterval(this.timingTimer);
+    await this.settleAllOffline();
     await Promise.all(
-      [this.pub, this.sub].map(async (c) => {
+      [this.pub, this.sub, this.revocations].map(async (c) => {
         try {
           await c?.quit();
         } catch {
@@ -140,7 +452,47 @@ export class RealtimeGateway
     );
   }
 
+  /** Owner 2026-10-25: new connections per minute from one address
+   * (`realtime.max_connects_per_ip_per_minute`, 0 = off). Fails open: a
+   * Redis or settings hiccup never blocks a connection. Metric line:
+   * `ws_ip_limited`. */
+  private async overIpConnectLimit(socket: Socket): Promise<boolean> {
+    try {
+      let max = DEFAULT_CONNECTS_PER_IP_PER_MINUTE;
+      const v = await this.settings?.number(
+        'realtime.max_connects_per_ip_per_minute',
+      );
+      if (v !== undefined && Number.isFinite(v) && v >= 0) max = Math.round(v);
+      if (max === 0) return false;
+      const ip = socketClientIp(
+        socket.handshake.headers,
+        socket.handshake.address,
+        Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
+      );
+      if (!ip) return false;
+      const key = `ws:connect:${ip}`;
+      const n = await this.redis.incr(key);
+      if (n === 1) await this.redis.expire(key, 60);
+      if (n <= max) return false;
+      this.logger.warn({ metric: 'ws_ip_limited', ip }, 'ws connect limit');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async handleConnection(socket: Socket): Promise<void> {
+    // Owner 2026-10-23: a draining instance takes no new sockets — the
+    // client waits the given time and lands on a healthy instance.
+    if (this.draining) {
+      this.sendGoingAway(socket);
+      socket.disconnect(true);
+      return;
+    }
+    // Runs alongside the token check below (not before it): a socket is
+    // usable the moment it connects, so a serial extra round trip here would
+    // widen the window where a first packet arrives before `socket.data`.
+    const ipLimited = this.overIpConnectLimit(socket);
     const auth = socket.handshake.auth as { token?: unknown } | undefined;
     const header = socket.handshake.headers.authorization;
     const token =
@@ -150,20 +502,105 @@ export class RealtimeGateway
           ? header.slice(7)
           : undefined;
     const claims = token ? await this.verify(token) : null;
+    // Never awaited: the limit check adds no latency to the handshake; an
+    // over-limit socket is closed as soon as the answer arrives.
+    void ipLimited.then((limited) => {
+      if (!limited) return;
+      socket.emit('auth:error', { code: 'RATE_LIMITED' });
+      socket.disconnect(true);
+    });
     if (!token || !claims) {
       socket.emit('auth:error', { code: 'UNAUTHORIZED' });
       socket.disconnect(true);
       return;
     }
-    socket.data = { user: claims, viewing: new Set<string>() } as SocketState;
+    // Owner 2026-10-05 (demo mode): a demo session's socket works in the
+    // demo database for its whole life — the rest of this handshake and
+    // every later packet run inside the demo context (src/common/demo).
+    const demo = claims.demo === true;
+    // Security research #5 (2026-10-22), A5: every packet takes a token
+    // from the socket's bucket; a flood (a broken or hostile client) gets
+    // `RATE_LIMITED` and is disconnected — the REST API has had this per
+    // user for a long time, the socket had nothing.
+    socket.use((packet, next) => {
+      const s = state(socket);
+      // S1-7: trickle-ICE bursts get their own, larger budget so they never
+      // eat (or trip) the budget of the chat packets.
+      const bucket =
+        packet[0] === 'call:signal' && s?.signalBucket
+          ? s.signalBucket
+          : s?.bucket;
+      const isSignal = bucket !== undefined && bucket === s?.signalBucket;
+      if (
+        bucket &&
+        !(isSignal
+          ? takeSocketEvent(
+              bucket,
+              Date.now(),
+              SIGNAL_EVENT_CAPACITY,
+              SIGNAL_EVENT_REFILL_PER_SECOND,
+            )
+          : takeSocketEvent(bucket))
+      ) {
+        this.logger.warn(
+          { userId: s.user?.sub, event: String(packet[0]) },
+          'socket packet limit: disconnecting',
+        );
+        socket.emit('auth:error', { code: 'RATE_LIMITED' });
+        socket.disconnect(true);
+        return;
+      }
+      demoContext.run(demo, () =>
+        shardContext.runForUser(claims.sub, () => next(), 'socket'),
+      );
+    });
+    // Shard-ready step 4: the socket's shard context is its user's shard
+    // (the same weak default HTTP uses); handlers that touch another
+    // entity set their own with shardContext.runForCase(...).
+    return demoContext.run(demo, () =>
+      shardContext.runForUser(
+        claims.sub,
+        () => this.finishConnection(socket, claims, token),
+        'socket',
+      ),
+    );
+  }
+
+  private async finishConnection(
+    socket: Socket,
+    claims: AccessTokenClaims,
+    token: string,
+  ): Promise<void> {
+    socket.data = {
+      user: claims,
+      viewing: new Set<string>(),
+      bucket: newSocketEventBucket(),
+      signalBucket: newSocketEventBucket(Date.now(), SIGNAL_EVENT_CAPACITY),
+    } as SocketState;
+    // The session was checked at the handshake (verify); from now on a
+    // revocation reaches this socket as a `session:revoked` message.
+    this.index(socket, claims.sid);
+    await this.capUserSockets(socket, claims.sub);
     this.armExpiry(socket, token);
-    state(socket).revocationTimer = setInterval(() => {
-      void this.revocation.isBlacklisted(state(socket).user.sid).then((r) => {
-        if (r) {
-          socket.emit('auth:error', { code: 'AUTH_SESSION_REVOKED' });
-          socket.disconnect(true);
-        }
-      });
+    socket.on('disconnect', (reason: string) => {
+      this.stats?.recordDisconnect(reason);
+      this.logger.info({ metric: 'ws_disconnect', reason }, 'ws disconnect');
+    });
+    state(socket).heartbeatTimer = setInterval(() => {
+      // S1-9: a stalled-but-alive phone must not hold an unbounded queue;
+      // it reconnects and resumes from its cursor. Off (0) as before.
+      const maxBuffer = this.timing.maxWriteBuffer;
+      const queued = (
+        socket.conn as unknown as { writeBuffer?: unknown[] } | undefined
+      )?.writeBuffer?.length;
+      if (maxBuffer > 0 && queued !== undefined && queued > maxBuffer) {
+        this.logger.warn(
+          { userId: state(socket).user?.sub, queued },
+          'slow client: disconnecting',
+        );
+        socket.disconnect(true);
+        return;
+      }
       // Audit 2026-10-02: an assistant removed, stripped of "chats"/"calls"
       // or whose attorney's subscription lapsed stops hearing the
       // attorney's chats — the socket reconnects as the assistant alone.
@@ -186,8 +623,8 @@ export class RealtimeGateway
           .touch(state(socket).user.sub, socket.id)
           .catch(() => undefined);
       }
-    }, REVOCATION_CHECK_MS);
-    state(socket).revocationTimer?.unref?.();
+    }, HEARTBEAT_MS);
+    state(socket).heartbeatTimer?.unref?.();
     await socket.join(userRoom(claims.sub));
     // OQ-048: an assistant with the "chats" (or "calls") duty hears the
     // attorney's chats and calls live, acting as the attorney like REST.
@@ -206,14 +643,69 @@ export class RealtimeGateway
     // attorney look online.
     if (claims.role !== 'assistant') {
       try {
-        if (await this.presence.touch(claims.sub, socket.id)) {
-          await this.announce(claims.sub, true, null);
+        const before = await this.presence.touchCount(claims.sub, socket.id);
+        // S1-8: the per-instance cap above times the number of instances is
+        // no cap; the live-socket set in Redis is cluster-wide. Off (0).
+        const globalMax = this.timing.maxSocketsGlobal;
+        if (globalMax > 0 && before >= globalMax) {
+          socket.emit('auth:error', { code: 'TOO_MANY_CONNECTIONS' });
+          socket.disconnect(true);
+          return;
+        }
+        if (before === 0) {
+          // S1-4: back inside the grace — the watchers never saw the
+          // person leave, so there is nothing to announce.
+          this.clearOfflineTimer(claims.sub);
+          const resumed = await this.presence.cancelOffline(claims.sub);
+          if (!resumed) await this.announce(claims.sub, true, null);
         }
       } catch {
         // Presence is best-effort.
       }
     }
     this.gauge();
+    await this.markConnected(socket, claims.sub);
+  }
+
+  /**
+   * Owner 2026-10-23: counts connects and recognises a reconnect (the same
+   * person dropped less than 2 minutes ago, see [markGone]) for the board,
+   * then tells the client where its event cursor is (`realtime:ready`).
+   */
+  private async markConnected(socket: Socket, userId: string): Promise<void> {
+    this.stats?.record('connect');
+    try {
+      if ((await this.redis.del(goneKey(userId))) > 0) {
+        this.stats?.record('reconnect');
+        this.logger.info({ metric: 'ws_reconnect' }, 'ws reconnect');
+      }
+    } catch {
+      // statistics only
+    }
+    let seq: number | null = null;
+    try {
+      seq = (await this.eventLog?.currentSeq()) ?? null;
+    } catch {
+      // the client then simply has no cursor and refreshes fully
+    }
+    socket.emit('realtime:ready', {
+      seq,
+      serverTime: new Date().toISOString(),
+      authExpiresAt: this.expiryOfSocket(socket),
+    });
+  }
+
+  private async markGone(userId: string): Promise<void> {
+    try {
+      await this.redis.set(goneKey(userId), '1', 'EX', RECONNECT_WINDOW_SEC);
+    } catch {
+      // statistics only
+    }
+  }
+
+  private expiryOfSocket(socket: Socket): string | null {
+    const exp = state(socket)?.expiresAtMs;
+    return exp ? new Date(exp).toISOString() : null;
   }
 
   /** Tells the watchers of [userId] (open chats with them) — only when
@@ -224,23 +716,100 @@ export class RealtimeGateway
     lastSeenAt: Date | null,
   ): Promise<void> {
     if (!this.nsp || !(await this.presence.visible(userId))) return;
-    this.nsp.to(presenceRoom(userId)).emit('presence:update', {
+    const room = presenceRoom(userId);
+    const payload = {
       userId,
       online,
       lastSeenAt: lastSeenAt?.toISOString() ?? null,
-    });
+    };
+    // Owner 2026-10-20 (privacy review): each watcher is checked against the
+    // person's *current* "last seen" audience — someone who stopped being a
+    // contact (or lost the right after a setting change) is dropped from the
+    // room instead of staying subscribed.
+    const sockets = await this.nsp.in(room).fetchSockets();
+    const allowed = new Map<string, boolean>();
+    for (const s of sockets) {
+      const viewer = (s.data as SocketState | undefined)?.user?.sub;
+      if (!viewer) continue;
+      let ok = allowed.get(viewer);
+      if (ok === undefined) {
+        ok = await this.presence.mayWatch(
+          viewer,
+          userId,
+          this.timing.presencePermCacheSec,
+        );
+        allowed.set(viewer, ok);
+      }
+      if (ok) s.emit('presence:update', payload);
+      else s.leave(room);
+    }
+  }
+
+  private clearOfflineTimer(userId: string): void {
+    const held = this.offlineTimers.get(userId);
+    if (!held) return;
+    clearTimeout(held.timer);
+    this.offlineTimers.delete(userId);
+  }
+
+  private async holdOffline(userId: string, graceMs: number): Promise<void> {
+    const leftAt = new Date();
+    await this.presence.holdOffline(userId, Math.ceil(graceMs / 1000));
+    this.clearOfflineTimer(userId);
+    const timer = setTimeout(() => {
+      this.offlineTimers.delete(userId);
+      void this.settleOffline(userId, leftAt);
+    }, graceMs);
+    timer.unref?.();
+    this.offlineTimers.set(userId, { timer, leftAt });
+  }
+
+  private async settleOffline(userId: string, leftAt: Date): Promise<void> {
+    try {
+      if (await this.presence.settleOffline(userId, leftAt)) {
+        await this.announce(userId, false, leftAt);
+      }
+    } catch {
+      // Presence is best-effort: the marker expires on its own.
+    }
+  }
+
+  /** Shutdown: held announcements are settled now, not lost with the timers. */
+  private async settleAllOffline(): Promise<void> {
+    const held = [...this.offlineTimers.entries()];
+    for (const [userId, h] of held) {
+      clearTimeout(h.timer);
+      this.offlineTimers.delete(userId);
+      await this.settleOffline(userId, h.leftAt);
+    }
   }
 
   async handleDisconnect(socket: Socket): Promise<void> {
+    const demo = (socket.data as SocketState | undefined)?.user?.demo === true;
+    return demoContext.run(demo, () => this.finishDisconnect(socket));
+  }
+
+  private async finishDisconnect(socket: Socket): Promise<void> {
     this.gauge();
     const s = state(socket);
     if (!s?.user) return;
+    clearTimeout(s.expiringTimer);
     clearTimeout(s.expiryTimer);
-    clearInterval(s.revocationTimer);
+    clearInterval(s.heartbeatTimer);
+    this.unindex(socket, s.user.sid);
+    this.dropUserSocket(socket);
     if (!s.selfId && s.user.role !== 'assistant') {
+      void this.markGone(s.user.sub);
       try {
-        if (await this.presence.leave(s.user.sub, socket.id)) {
-          await this.announce(s.user.sub, false, new Date());
+        const graceMs = this.timing.presenceGraceMs;
+        if (graceMs <= 0) {
+          if (await this.presence.leave(s.user.sub, socket.id)) {
+            await this.announce(s.user.sub, false, new Date());
+          }
+        } else if (await this.presence.leave(s.user.sub, socket.id, false)) {
+          // S1-4: hold "offline" back; a reconnect inside the grace (any
+          // instance) cancels it through the Redis marker.
+          await this.holdOffline(s.user.sub, graceMs);
         }
       } catch {
         // Shutting down: the entry expires anyway.
@@ -255,13 +824,20 @@ export class RealtimeGateway
     }
   }
 
-  /** §8.5 "повторная проверка при обновлении токена". */
+  /**
+   * §8.5 "повторная проверка при обновлении токена". Owner 2026-10-23: the
+   * answer to `auth:expiring` — the new access token arrives as
+   * `{accessToken}` (the older apps' `{token}` works too), is verified
+   * like at the handshake and moves the expiry; the socket is never
+   * closed for being refreshed. A bad or revoked token still ends it.
+   */
   @SubscribeMessage('auth:refresh')
   async refresh(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() body: { token?: unknown },
-  ): Promise<{ ok: boolean }> {
-    const token = typeof body?.token === 'string' ? body.token : '';
+    @MessageBody() body: { accessToken?: unknown; token?: unknown },
+  ): Promise<{ ok: boolean; expiresAt?: string }> {
+    const raw = body?.accessToken ?? body?.token;
+    const token = typeof raw === 'string' ? raw : '';
     const claims = token ? await this.verify(token) : null;
     const s = state(socket);
     if (!claims || claims.sub !== (s.selfId ?? s.user.sub)) {
@@ -269,9 +845,49 @@ export class RealtimeGateway
       socket.disconnect(true);
       return { ok: false };
     }
+    if (claims.sid !== s.user.sid) {
+      this.unindex(socket, s.user.sid);
+      this.index(socket, claims.sid);
+    }
     s.user = s.selfId ? { ...claims, sub: s.user.sub } : claims;
     this.armExpiry(socket, token);
-    return { ok: true };
+    this.stats?.record('auth_refresh');
+    return {
+      ok: true,
+      expiresAt: s.expiresAtMs
+        ? new Date(s.expiresAtMs).toISOString()
+        : undefined,
+    };
+  }
+
+  /**
+   * Owner 2026-10-23: after a reconnect the client sends the `seq` of the
+   * last event it saw and gets only what it missed (5-minute window, at
+   * most 200 events). `complete: false` = something is gone — refresh
+   * once, then continue from the returned `seq`. Same data as
+   * `GET /realtime/missed`.
+   */
+  @SubscribeMessage('sync:since')
+  async syncSince(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { seq?: unknown },
+  ): Promise<
+    | { ok: true; seq: number; events: unknown[]; complete: boolean }
+    | { ok: false }
+  > {
+    const s = state(socket);
+    const since = typeof body?.seq === 'number' ? body.seq : Number(body?.seq);
+    if (!s?.user || !this.eventLog || !Number.isFinite(since)) {
+      return { ok: false };
+    }
+    try {
+      const ids = s.selfId ? [s.user.sub, s.selfId] : [s.user.sub];
+      const missed = await this.eventLog.since(ids, since);
+      this.stats?.record('sync');
+      return { ok: true, ...missed };
+    } catch {
+      return { ok: false };
+    }
   }
 
   @SubscribeMessage('conversation:join')
@@ -286,13 +902,23 @@ export class RealtimeGateway
       where: { conversation_id_user_id: { conversation_id: id, user_id: uid } },
       select: { user_id: true },
     });
-    if (!member) return { ok: false };
+    // Owner 2026-10-20: a group chat is "open" the same way (push
+    // suppression); no peer presence is followed in a group.
+    const groupMember = member
+      ? null
+      : await this.prisma.chatGroupMember.findFirst({
+          where: { group_id: id, user_id: uid, left_at: null },
+          select: { user_id: true },
+        });
+    if (!member && !groupMember) return { ok: false };
     await socket.join(conversationRoom(id));
     state(socket).viewing.add(id);
-    const others = await this.prisma.conversationParticipant.findMany({
-      where: { conversation_id: id, user_id: { not: uid } },
-      select: { user_id: true },
-    });
+    const others = member
+      ? await this.prisma.conversationParticipant.findMany({
+          where: { conversation_id: id, user_id: { not: uid } },
+          select: { user_id: true },
+        })
+      : [];
     (state(socket).peers ??= new Map()).set(
       id,
       others.map((o) => o.user_id),
@@ -315,6 +941,74 @@ export class RealtimeGateway
     await socket.leave(conversationRoom(id));
     state(socket).viewing.delete(id);
     await this.redis.srem(viewingKey(state(socket).user.sub, id), socket.id);
+    return { ok: true };
+  }
+
+  /** Owner 2026-10-22 (load audit finding 3): an open channel hears its
+   * call start / change / end (`call:ongoing`, `call:ongoing_ended`) instead
+   * of asking every 10 s. Only its owner / admins and subscribers. */
+  @SubscribeMessage('channel:watch')
+  async watchChannel(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { channelId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.channelId === 'string' ? body.channelId : '';
+    const uid = state(socket)?.user?.sub;
+    if (!uid || !UUID_RE.test(id)) return { ok: false };
+    const where = { channel_id_user_id: { channel_id: id, user_id: uid } };
+    const reader =
+      (await this.prisma.channelAdmin.findUnique({
+        where,
+        select: { user_id: true },
+      })) ??
+      (await this.prisma.channelSubscription.findUnique({
+        where,
+        select: { user_id: true },
+      }));
+    if (!reader) return { ok: false };
+    await socket.join(channelRoom(id));
+    return { ok: true };
+  }
+
+  /** Owner 2026-10-22 (client economy plan, package F): an open post hears
+   * its new comments (`comment:new`) instead of reloading the list. Any
+   * signed-in person who can see the post (published, not deleted). */
+  @SubscribeMessage('post:watch')
+  async watchPost(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { postId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.postId === 'string' ? body.postId : '';
+    const uid = state(socket)?.user?.sub;
+    if (!uid || !UUID_RE.test(id)) return { ok: false };
+    const post = await this.prisma.post.findFirst({
+      where: { id, deleted_at: null, status: 'published' },
+      select: { id: true },
+    });
+    if (!post) return { ok: false };
+    await socket.join(postRoom(id));
+    return { ok: true };
+  }
+
+  @SubscribeMessage('post:unwatch')
+  async unwatchPost(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { postId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.postId === 'string' ? body.postId : '';
+    if (!UUID_RE.test(id)) return { ok: false };
+    await socket.leave(postRoom(id));
+    return { ok: true };
+  }
+
+  @SubscribeMessage('channel:unwatch')
+  async unwatchChannel(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { channelId?: unknown },
+  ): Promise<{ ok: boolean }> {
+    const id = typeof body?.channelId === 'string' ? body.channelId : '';
+    if (!UUID_RE.test(id)) return { ok: false };
+    await socket.leave(channelRoom(id));
     return { ok: true };
   }
 
@@ -379,7 +1073,7 @@ export class RealtimeGateway
   @SubscribeMessage('typing:start')
   typingStart(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() body: { conversationId?: unknown },
+    @MessageBody() body: { conversationId?: unknown; kind?: unknown },
   ): void {
     this.relayTyping(socket, body, true);
   }
@@ -396,7 +1090,7 @@ export class RealtimeGateway
    * 5 s without a new `typing` (§8.5 TTL). */
   private relayTyping(
     socket: Socket,
-    body: { conversationId?: unknown },
+    body: { conversationId?: unknown; kind?: unknown },
     typing: boolean,
   ): void {
     const id = this.conversationIdOf(body);
@@ -410,9 +1104,41 @@ export class RealtimeGateway
     // The open chat and the other members' chat lists (one delivery per
     // socket even when it is in both rooms).
     const peers = s.peers?.get(id) ?? [];
+    if (!this.typingAllowed(id, s.user.sub, now)) return;
     socket
       .to([conversationRoom(id), ...peers.map(userRoom)])
-      .emit('typing', { conversationId: id, typing });
+      // S1-9: typing is only worth showing now — never queued for a slow
+      // client.
+      .volatile // Owner 2026-10-20: `kind` tells «typing…» from «recording a voice…».
+      .emit('typing', {
+        conversationId: id,
+        typing,
+        kind: body?.kind === 'voice' ? 'voice' : 'text',
+      });
+  }
+
+  /** S1-12: in a big open chat only a few people's typing is forwarded
+   * (WhatsApp / Telegram show a few typers). Off (0) = everybody, as before. */
+  private typingAllowed(id: string, userId: string, now: number): boolean {
+    const bigAt = this.timing.typingBigRoomSockets;
+    if (bigAt <= 0) return true;
+    const size = this.nsp?.adapter?.rooms?.get(conversationRoom(id))?.size ?? 0;
+    if (size < bigAt) return true;
+    let typers = this.recentTypers.get(id);
+    if (!typers)
+      this.recentTypers.set(id, (typers = new Map<string, number>()));
+    for (const [u, at] of typers) {
+      if (now - at > TYPING_RECENT_MS) typers.delete(u);
+    }
+    if (
+      !typers.has(userId) &&
+      typers.size >= this.timing.typingBigRoomMaxTypers
+    ) {
+      return false;
+    }
+    typers.set(userId, now);
+    if (typers.size === 0) this.recentTypers.delete(id);
+    return true;
   }
 
   /**
@@ -423,7 +1149,7 @@ export class RealtimeGateway
   @SubscribeMessage('call:signal')
   async callSignal(
     @ConnectedSocket() socket: Socket,
-    @MessageBody() body: { callId?: unknown; data?: unknown },
+    @MessageBody() body: { callId?: unknown; data?: unknown; to?: unknown },
   ): Promise<{ ok: boolean }> {
     const uid = state(socket)?.user?.sub;
     const callId =
@@ -436,21 +1162,56 @@ export class RealtimeGateway
     }
     // SDP is a few KB; anything larger is not signaling.
     if (JSON.stringify(data).length > SIGNAL_MAX_BYTES) return { ok: false };
-    const call = await this.prisma.call.findUnique({
-      where: { id: callId },
-      select: { caller_id: true, callee_id: true, status: true },
-    });
+    const to =
+      typeof body?.to === 'string' && UUID_RE.test(body.to)
+        ? body.to
+        : undefined;
+    const st = state(socket);
+    let call: SignalCall | null;
+    if (
+      st.signalCall?.id === callId &&
+      Date.now() - st.signalCall.at < SIGNAL_CALL_CACHE_MS
+    ) {
+      call = st.signalCall.call;
+    } else {
+      call = await this.prisma.call.findUnique({
+        where: { id: callId },
+        select: {
+          caller_id: true,
+          callee_id: true,
+          status: true,
+          is_group: true,
+          participants: {
+            where: { status: 'joined' },
+            select: { user_id: true },
+          },
+        },
+      });
+      st.signalCall = call ? { id: callId, at: Date.now(), call } : undefined;
+    }
     if (!call || (call.status !== 'ringing' && call.status !== 'active')) {
       return { ok: false };
     }
-    const peer =
-      call.caller_id === uid
-        ? call.callee_id
-        : call.callee_id === uid
-          ? call.caller_id
-          : null;
-    if (!peer) return { ok: false };
-    this.nsp?.to(userRoom(peer)).emit('call:signal', { callId, data });
+    let targets: string[] = [];
+    if (call.is_group) {
+      // Group call: only joined members signal, to one named member or
+      // (no `to`) to all the others.
+      const joined = call.participants.map((p) => p.user_id);
+      if (joined.includes(uid)) {
+        const others = joined.filter((u) => u !== uid);
+        targets = to ? others.filter((u) => u === to) : others;
+      }
+    } else if (call.caller_id === uid) {
+      targets = [call.callee_id];
+    } else if (call.callee_id === uid) {
+      targets = [call.caller_id];
+    }
+    if (targets.length === 0) return { ok: false };
+    for (const t of targets) {
+      this.nsp
+        ?.to(userRoom(t))
+        .emit('call:signal', { callId, data, from: uid });
+    }
     return { ok: true };
   }
 
@@ -469,18 +1230,42 @@ export class RealtimeGateway
     }
   }
 
-  /** An expired access token ends the socket unless refreshed first. */
+  /**
+   * Owner 2026-10-23 (Slack/Discord style): the access token ending no
+   * longer cuts the socket at once. `auth:expiring` goes out
+   * `expiringLeadMs` before the end (the client answers `auth:refresh`
+   * with a new token); only when none arrives within the grace period
+   * after the end does the socket get `auth:expired` and close — exactly
+   * what apps that never send `auth:refresh` always saw, just later.
+   * Revocation is separate and immediate (`session:revoked`).
+   */
   private armExpiry(socket: Socket, token: string): void {
     const s = state(socket);
+    clearTimeout(s.expiringTimer);
     clearTimeout(s.expiryTimer);
     const exp = expiryOf(token);
+    s.expiresAtMs = exp ?? undefined;
     if (exp === null) return;
+    const { expiringLeadMs, graceMs } = this.timing;
+    s.expiringTimer = setTimeout(
+      () => {
+        socket.emit('auth:expiring', {
+          expiresAt: new Date(exp).toISOString(),
+          expiresInMs: Math.max(0, exp - Date.now()),
+          graceMs,
+        });
+        this.stats?.record('auth_expiring');
+      },
+      Math.max(0, exp - expiringLeadMs - Date.now()),
+    );
+    s.expiringTimer.unref?.();
     s.expiryTimer = setTimeout(
       () => {
+        this.stats?.record('auth_expired');
         socket.emit('auth:expired', {});
         socket.disconnect(true);
       },
-      Math.max(0, exp - Date.now()),
+      Math.max(0, exp + graceMs - Date.now()),
     );
     s.expiryTimer.unref?.();
   }

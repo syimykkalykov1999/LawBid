@@ -1,0 +1,491 @@
+POST /admin/auth/login/verify the response property `data/ticket` became nullable for the status `200`
+GET /admin/dashboard the response property `data/subscriptions/revenueEstimateCents` became nullable for the status `200`
+GET /admin/dashboard the response property `data/subscriptions/revenueEstimateUsd` became nullable for the status `200`
+PATCH /admin/teams/members/{memberId}/duties the response property `data/members/items/phone` became nullable for the status `200`
+PATCH /admin/teams/members/{memberId}/duties the response property `data/members/items/phone` became optional for the status `200`
+POST /admin/teams/members/{memberId}/remove the response property `data/members/items/phone` became nullable for the status `200`
+POST /admin/teams/members/{memberId}/remove the response property `data/members/items/phone` became optional for the status `200`
+GET /admin/teams/{id} the response property `data/members/items/phone` became nullable for the status `200`
+GET /admin/teams/{id} the response property `data/members/items/phone` became optional for the status `200`
+POST /assistants/join/request-code api path removed without deprecation
+POST /assistants/join/verify api path removed without deprecation
+GET /team the response property `data/members/items/phone` became nullable for the status `200`
+GET /team the response property `data/members/items/phone` became optional for the status `200`
+POST /team the response property `data/members/items/phone` became nullable for the status `200`
+POST /team the response property `data/members/items/phone` became optional for the status `200`
+DELETE /team/{id} the response property `data/members/items/phone` became nullable for the status `200`
+DELETE /team/{id} the response property `data/members/items/phone` became optional for the status `200`
+PATCH /team/{id} the response property `data/members/items/phone` became nullable for the status `200`
+PATCH /team/{id} the response property `data/members/items/phone` became optional for the status `200`
+PUT /attorneys/me/practice-areas the `practiceAreaIds` request property's minItems was set to `1`
+# PR #55 (anti-fraud): registry_flag gains duplicate_claim (two accounts claim one bar number); the clients read it as a string
+POST /admin/verification/licenses/{licenseId}/recheck added the new `duplicate_claim` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-check added the new `duplicate_claim` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-flag/clear added the new `duplicate_claim` enum value to the `data/registryFlag` response property for the response status `200`
+GET /admin/verification/registry-flags added the new `duplicate_claim` enum value to the `data/items/license/registryFlag` response property for the response status `200`
+GET /admin/verification/requests/{id} added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/approve added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/licenses/{licenseId}/decision added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/reject added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/request-info added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/take added the new `duplicate_claim` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+# PR #75 (Instagram-style promotion): a promotion is of a post or a case, so caseId is null for posts; admin and app read it as optional in the same PR
+# PR #75: the admin promotion settings form gains its new fields in the same PR (PUT body is the full settings object)
+GET /admin/promotions the response property `data/items/caseId` became nullable for the status `200`
+GET /admin/promotions the response property `data/items/caseId` became optional for the status `200`
+POST /admin/promotions/grant the response property `data/promotion/caseId` became nullable for the status `201`
+POST /admin/promotions/grant the response property `data/promotion/caseId` became optional for the status `201`
+PUT /admin/promotions/settings added the new required request property `autoApprove`
+PUT /admin/promotions/settings added the new required request property `budgetPresetsCents`
+PUT /admin/promotions/settings added the new required request property `caseFeedSlots`
+PUT /admin/promotions/settings added the new required request property `cpmCents`
+PUT /admin/promotions/settings added the new required request property `durationPresets`
+PUT /admin/promotions/settings added the new required request property `feedEveryN`
+PUT /admin/promotions/settings added the new required request property `frequencyCapPerDay`
+PUT /admin/promotions/settings added the new required request property `impressionsPerPerson`
+PUT /admin/promotions/settings added the new required request property `maxDailyBudgetCents`
+PUT /admin/promotions/settings added the new required request property `minDailyBudgetCents`
+PUT /admin/promotions/settings added the new required request property `postsEnabled`
+PUT /admin/promotions/settings added the new required request property `requireSubscription`
+POST /admin/promotions/{id}/cancel the response property `data/promotion/caseId` became nullable for the status `200`
+POST /admin/promotions/{id}/cancel the response property `data/promotion/caseId` became optional for the status `200`
+POST /admin/promotions/{id}/extend the response property `data/promotion/caseId` became nullable for the status `200`
+POST /admin/promotions/{id}/extend the response property `data/promotion/caseId` became optional for the status `200`
+POST /cases/{id}/promotions the response property `data/promotion/caseId` became nullable for the status `201`
+POST /cases/{id}/promotions the response property `data/promotion/caseId` became optional for the status `201`
+# Legal PR (2026-10-05): joining the partner program now requires accepting the partner rules; old app builds get a 400 and are told to update
+POST /partners/me/join added required request body
+# 2026-10-15: both sides can add tasks; a task of both is kind `joint`. The generated Dart client maps any unknown kind to CaseTaskDtoKind.$unknown, so an app built before this value ignores it instead of failing
+GET /cases/{id}/tasks added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/close added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/done added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/items/{itemId}/done added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/reopen added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+POST /cases/{id}/tasks/{taskId}/submissions added the new `joint` enum value to the `data/forClient/items/kind` response property for the response status `200` (shared schema: `CaseTaskDto`, also at `data/private/items/kind`, `data/shared/items/kind`)
+GET /admin/trust/cleared-by for the `query` request parameter `from`, the maxLength was set to `40`
+GET /admin/trust/cleared-by for the `query` request parameter `to`, the maxLength was set to `40`
+GET /admin/trust/staff-decisions for the `query` request parameter `from`, the maxLength was set to `40`
+GET /admin/trust/staff-decisions for the `query` request parameter `to`, the maxLength was set to `40`
+POST /auth/identifiers the `code` request property's maxLength was set to `16`
+POST /auth/identifiers the `idToken` request property's maxLength was set to `4096`
+POST /auth/identifiers the `identifier` request property's maxLength was set to `254`
+POST /auth/identifiers the `nonce` request property's maxLength was set to `256`
+POST /auth/otp/request the `identifier` request property's maxLength was set to `254`
+POST /auth/otp/verify the `identifier` request property's maxLength was set to `254`
+POST /auth/refresh the `refreshToken` request property's maxLength was set to `4096`
+POST /auth/social the `idToken` request property's maxLength was set to `4096`
+POST /auth/social the `nonce` request property's maxLength was set to `256`
+GET /cases/{id}/bids for the `query` request parameter `cursor`, the maxLength was set to `300`
+POST /users/me/contacts/request the `value` request property's maxLength was set to `254`
+POST /users/me/contacts/verify the `value` request property's maxLength was set to `254`
+GET /admin/feature-flags removed the required property `data/items/notBuilt` from the response with the `200` status
+PATCH /admin/feature-flags/{key} removed the required property `data/notBuilt` from the response with the `200` status
+GET /admin/billing/refunds the response property `data/items/adminId` became nullable for the status `200`
+POST /admin/billing/refunds the response property `data/adminId` became nullable for the status `201`
+POST /admin/verification/licenses/{licenseId}/recheck added the new `format_unusual` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-check added the new `format_unusual` enum value to the `data/license/registryFlag` response property for the response status `200`
+POST /admin/verification/licenses/{licenseId}/registry-flag/clear added the new `format_unusual` enum value to the `data/registryFlag` response property for the response status `200`
+GET /admin/verification/registry-flags added the new `format_unusual` enum value to the `data/items/license/registryFlag` response property for the response status `200`
+GET /admin/verification/requests/{id} added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/approve added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/licenses/{licenseId}/decision added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/reject added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/request-info added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+POST /admin/verification/requests/{id}/take added the new `format_unusual` enum value to the `data/licenses/items/registryFlag` response property for the response status `200`
+GET /admin/storage/uploads added the new `mov` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+GET /admin/storage/uploads added the new `mp4` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+GET /admin/storage/uploads added the new `webm` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+PUT /admin/storage/uploads added the new `mov` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+PUT /admin/storage/uploads added the new `mp4` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+PUT /admin/storage/uploads added the new `webm` enum value to the `data/places/items/defaults/formats/items/` response property for the response status `200`
+PUT /admin/promotions/settings removed the enum value `download` of the request property `ctaTypes/items/`
+POST /cases/{id}/promotions removed the enum value `download` of the request property `ctaType`
+POST /posts/{id}/promotions removed the enum value `download` of the request property `ctaType`
+GET /admin/moderation/queue added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `story` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `story` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `channel` enum value to the `data/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `channel_post` enum value to the `data/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `story` enum value to the `data/targetType` response property for the response status `200`
+GET /moderation/notices added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /moderation/notices added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /moderation/notices added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `channel` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `channel_post` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `story` enum value to the `data/items/targetType` response property for the response status `200`
+GET /conversations/{id}/messages added the new `gift` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `gift` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `gift` enum value to the `data/type` response property for the response status `200`
+# 2026-10-20: the moderation queue and card gain two report targets (legal_question, legal_answer); admin web only, the generated clients map unknown values to $unknown
+GET /admin/moderation/queue added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/queue added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+GET /admin/moderation/targets/{type}/{id} added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
+>>>>>>> origin/claude/release-20oct
+# release-20oct: новые enum legal_answer/legal_question, типы contact/place, conversationId nullable у звонков (групповые) — все изменения намеренные, старых клиентов в магазинах ещё нет
+GET /admin/moderation/appeals added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/appeals added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /admin/moderation/journal added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /calls/{id} the response property `data/conversationId` became nullable for the status `200`
+POST /calls/{id}/accept the response property `data/conversationId` became nullable for the status `200`
+POST /calls/{id}/decline the response property `data/conversationId` became nullable for the status `200`
+POST /calls/{id}/end the response property `data/conversationId` became nullable for the status `200`
+POST /conversations/{id}/calls the response property `data/conversationId` became nullable for the status `201`
+GET /conversations/{id}/messages added the new `contact` enum value to the `data/items/type` response property for the response status `200`
+GET /conversations/{id}/messages added the new `place` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `contact` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages added the new `place` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `contact` enum value to the `data/type` response property for the response status `200`
+POST /conversations/{id}/messages/{messageId}/listened added the new `place` enum value to the `data/type` response property for the response status `200`
+POST /moderation/appeals added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
+POST /moderation/appeals added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
+GET /moderation/notices added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /moderation/notices added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
+GET /reports/mine added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
+# 2026-10-21 (owner: yes): notification categories gain channels and groups; an extension, the generated clients map unknown values to $unknown
+GET /notification-settings added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+GET /notification-settings added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings/quiet-hours added the new `channels` enum value to the `data/categories/items/category` response property for the response status `200`
+PUT /notification-settings/quiet-hours added the new `groups` enum value to the `data/categories/items/category` response property for the response status `200`
+GET /notifications added the new `channels` enum value to the `data/items/category` response property for the response status `200`
+GET /notifications added the new `groups` enum value to the `data/items/category` response property for the response status `200`
+GET /conversations/{id}/messages added the new `post` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `post` enum value to the `data/type` response property for the response status `201`
+POST /conversations/{id}/messages/{messageId}/listened added the new `post` enum value to the `data/type` response property for the response status `200`
+# Owner 2026-10-22 (system audit #2, item 1): the admin authenticator is mandatory — the emailed-code sign-in and the optional 2FA switch are gone (the admin panel changes in the same PR; no other client calls them)
+POST /admin/auth/login/start api path removed without deprecation
+POST /admin/auth/login/verify api path removed without deprecation
+POST /admin/auth/2fa/begin api path removed without deprecation
+POST /admin/auth/2fa/enable api path removed without deprecation
+POST /admin/auth/2fa/disable api path removed without deprecation
+POST /admin/auth/step-up the `code` request property became required
+POST /admin/auth/step-up the request property `code` became required
+POST /admin/auth/login/password added the new required response property `data/totpSetupRequired`
+# Owner 2026-10-22 (audit #4): legal documents in ten languages (en, ru + es, fr, de, it, pt, nl, pl, uk) and the image_moderation cost provider; generated Dart enums fall back to $unknown
+GET /admin/config/budgets added the new `image_moderation` enum value to the `data/items/provider` response property for the response status `200`
+PUT /admin/config/budgets/{provider}/{window} added the new `image_moderation` enum value to the `data/provider` response property for the response status `200`
+GET /admin/legal/documents added the new `de` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents added the new `es` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents added the new `fr` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents added the new `it` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents added the new `nl` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents added the new `pl` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents added the new `pt` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents added the new `uk` enum value to the `data/items/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `de` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `es` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `fr` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `it` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `nl` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `pl` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `pt` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `uk` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `de` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `es` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `fr` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `it` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `nl` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `pl` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `pt` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `uk` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `de` enum value to the `data/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `es` enum value to the `data/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `fr` enum value to the `data/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `it` enum value to the `data/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `nl` enum value to the `data/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `pl` enum value to the `data/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `pt` enum value to the `data/locales/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `uk` enum value to the `data/locales/items/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `de` enum value to the `data/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `es` enum value to the `data/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `fr` enum value to the `data/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `it` enum value to the `data/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `nl` enum value to the `data/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `pl` enum value to the `data/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `pt` enum value to the `data/locale` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `uk` enum value to the `data/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `de` enum value to the `data/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `es` enum value to the `data/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `fr` enum value to the `data/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `it` enum value to the `data/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `nl` enum value to the `data/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `pl` enum value to the `data/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `pt` enum value to the `data/items/locale` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `uk` enum value to the `data/items/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `de` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `es` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `fr` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `it` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `nl` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `pl` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `pt` enum value to the `data/locale` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `uk` enum value to the `data/locale` response property for the response status `200`
+POST /legal/accept added the new `de` enum value to the `data/items/locale` response property for the response status `200`
+POST /legal/accept added the new `es` enum value to the `data/items/locale` response property for the response status `200`
+POST /legal/accept added the new `fr` enum value to the `data/items/locale` response property for the response status `200`
+POST /legal/accept added the new `it` enum value to the `data/items/locale` response property for the response status `200`
+POST /legal/accept added the new `nl` enum value to the `data/items/locale` response property for the response status `200`
+POST /legal/accept added the new `pl` enum value to the `data/items/locale` response property for the response status `200`
+POST /legal/accept added the new `pt` enum value to the `data/items/locale` response property for the response status `200`
+POST /legal/accept added the new `uk` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `de` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `es` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `fr` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `it` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `nl` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `pl` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `pt` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents added the new `uk` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `de` enum value to the `data/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `es` enum value to the `data/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `fr` enum value to the `data/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `it` enum value to the `data/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `nl` enum value to the `data/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `pl` enum value to the `data/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `pt` enum value to the `data/locale` response property for the response status `200`
+GET /legal/documents/{type} added the new `uk` enum value to the `data/locale` response property for the response status `200`
+GET /legal/pending added the new `de` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/pending added the new `es` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/pending added the new `fr` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/pending added the new `it` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/pending added the new `nl` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/pending added the new `pl` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/pending added the new `pt` enum value to the `data/items/locale` response property for the response status `200`
+GET /legal/pending added the new `uk` enum value to the `data/items/locale` response property for the response status `200`
+GET /users/me added the new `de` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+GET /users/me added the new `es` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+GET /users/me added the new `fr` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+GET /users/me added the new `it` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+GET /users/me added the new `nl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+GET /users/me added the new `pl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+GET /users/me added the new `pt` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+GET /users/me added the new `uk` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `de` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `es` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `fr` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `it` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `nl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `pl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `pt` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me added the new `uk` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `de` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `es` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `fr` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `it` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `nl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `pl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `pt` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+PATCH /users/me/onboarding added the new `uk` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `de` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `es` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `fr` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `it` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `nl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `pl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `pt` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `uk` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `de` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `es` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `fr` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `it` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `nl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `pl` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `pt` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+POST /users/me/role added the new `uk` enum value to the `data/pendingLegalDocuments/items/locale` response property for the response status `200`
+# Owner 2026-10-22 (security audit #3, finding 2): a new admin-editable e-mail ("your sign-in details changed"); only the admin panel reads these keys and shows any key it gets
+GET /admin/email-templates added the new `sign_in_changed` enum value to the `data/items/key` response property for the response status `200`
+GET /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`
+PUT /admin/email-templates/{key}/{locale} added the new `sign_in_changed` enum value to the `data/key` response property for the response status `200`
+# Client economy plan 2026-10-22 (package D): follow / unfollow answer {following, followersCount} with 200 instead of an empty 204. Older apps call them as void and ignore the body — a 200 is still a success for them.
+POST /attorneys/{id}/follow removed the success response with the status `204`
+DELETE /attorneys/{id}/follow removed the success response with the status `204`
+# Wave 1 (2026-10-23): new enum values (consent do_not_sell, legal doc accessibility, passkey error codes); generated Dart enums fall back to $unknown
+GET /admin/legal/documents added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/system-health added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+GET /legal/documents added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /legal/documents/{type} added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+GET /legal/pending added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+GET /me/session added the new `accessibility` enum value to the `data/me/pendingLegalDocuments/items/docType` response property for the response status `200`
+GET /users/me added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /users/me added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me/onboarding added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `message_keys` enum value to the `data/items/items/key` response property for the response status `200`
+POST /legal/accept added the new `accessibility` enum value to the `data/items/docType` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /users/me/role added the new `accessibility` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `accessibility` enum value to the `data/docType` response property for the response status `200`
+# Owner 2026-10-22: theme Blue / Green. Old apps map an unknown ThemePref to $unknown; the API itself reads legacy navy as blue and glass as dark
+GET /users/me added the new `blue` enum value to the `data/theme` response property for the response status `200`
+GET /users/me added the new `green` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me added the new `blue` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me added the new `green` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/role added the new `blue` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/role added the new `green` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me/onboarding added the new `blue` enum value to the `data/theme` response property for the response status `200`
+PATCH /users/me/onboarding added the new `green` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `blue` enum value to the `data/theme` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `green` enum value to the `data/theme` response property for the response status `200`
+GET /me/session added the new `blue` enum value to the `data/me/theme` response property for the response status `200`
+GET /me/session added the new `green` enum value to the `data/me/theme` response property for the response status `200`
+GET /admin/system-health added the new `http` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `push` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `stripe_webhooks` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `turn` enum value to the `data/items/items/key` response property for the response status `200`
+GET /calls/video added the new `livekit` enum value to the `data/provider` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `http` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `push` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `stripe_webhooks` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `http` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `push` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `stripe_webhooks` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `http` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `push` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `stripe_webhooks` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `http` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `push` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `stripe_webhooks` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `http` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `push` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `stripe_webhooks` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `turn` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `realtime` enum value to the `data/items/items/key` response property for the response status `200`
+GET /calls/video added the new `cloudflare` enum value to the `data/provider` response property for the response status `200`
+# Owner 2026-10-24: Cloudflare TURN / SFU / R2 join the status board (health item keys are read as strings)
+GET /admin/system-health added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `cloudflare_turn` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `cloudflare_sfu` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `r2` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `breakers` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `bunny_usage` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/system-health added the new `cloudflare_usage` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `breakers` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `bunny_usage` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `cloudflare_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `breakers` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `bunny_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `cloudflare_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `breakers` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `bunny_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `cloudflare_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `breakers` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `bunny_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `cloudflare_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `breakers` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `bunny_usage` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `cloudflare_usage` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/economy added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
+POST /admin/economy/increase added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
+PATCH /admin/economy/settings added the new `scaled_down` enum value to the `data/events/items/kind` response property for the response status `200`
+GET /admin/system-health added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/heavy-jobs added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/message-reencrypt/restart added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/restart-worker added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+POST /admin/system-health/scale added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+PATCH /admin/system-health/settings added the new `secret_rotation` enum value to the `data/items/items/key` response property for the response status `200`
+GET /admin/legal/documents added the new `advertising_disclosure` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/legal/documents added the new `community_guidelines` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/legal/documents added the new `sms_terms` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/version/{id} added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `advertising_disclosure` enum value to the `data/locales/items/current/allOf[#/components/schemas/AdminLegalVersionDto]/docType` response property for the response status `200` (shared schema: `AdminLegalVersionDto`, also at `data/locales/items/draft/allOf[#/components/schemas/AdminLegalVersionDto]/docType`)
+GET /admin/legal/documents/{type} added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `community_guidelines` enum value to the `data/locales/items/current/allOf[#/components/schemas/AdminLegalVersionDto]/docType` response property for the response status `200` (shared schema: `AdminLegalVersionDto`, also at `data/locales/items/draft/allOf[#/components/schemas/AdminLegalVersionDto]/docType`)
+GET /admin/legal/documents/{type} added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`
+GET /admin/legal/documents/{type} added the new `sms_terms` enum value to the `data/locales/items/current/allOf[#/components/schemas/AdminLegalVersionDto]/docType` response property for the response status `200` (shared schema: `AdminLegalVersionDto`, also at `data/locales/items/draft/allOf[#/components/schemas/AdminLegalVersionDto]/docType`)
+GET /admin/legal/documents/{type}/{locale}/history added the new `advertising_disclosure` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `community_guidelines` enum value to the `data/items/docType` response property for the response status `200`
+GET /admin/legal/documents/{type}/{locale}/history added the new `sms_terms` enum value to the `data/items/docType` response property for the response status `200`
+GET /config/bootstrap added the new `advertising_disclosure` enum value to the `data/legal_documents/items/doc_type/allOf[#/components/schemas/LegalDocType]/` response property for the response status `200`
+GET /config/bootstrap added the new `community_guidelines` enum value to the `data/legal_documents/items/doc_type/allOf[#/components/schemas/LegalDocType]/` response property for the response status `200`
+GET /config/bootstrap added the new `sms_terms` enum value to the `data/legal_documents/items/doc_type/allOf[#/components/schemas/LegalDocType]/` response property for the response status `200`
+GET /legal/documents added the new `advertising_disclosure` enum value to the `data/items/docType` response property for the response status `200`
+GET /legal/documents added the new `community_guidelines` enum value to the `data/items/docType` response property for the response status `200`
+GET /legal/documents added the new `sms_terms` enum value to the `data/items/docType` response property for the response status `200`
+GET /legal/documents/{type} added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
+GET /legal/documents/{type} added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
+GET /legal/documents/{type} added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`
+GET /legal/pending added the new `advertising_disclosure` enum value to the `data/items/docType` response property for the response status `200`
+GET /legal/pending added the new `community_guidelines` enum value to the `data/items/docType` response property for the response status `200`
+GET /legal/pending added the new `sms_terms` enum value to the `data/items/docType` response property for the response status `200`
+GET /me/session added the new `advertising_disclosure` enum value to the `data/me/pendingLegalDocuments/items/docType` response property for the response status `200`
+GET /me/session added the new `community_guidelines` enum value to the `data/me/pendingLegalDocuments/items/docType` response property for the response status `200`
+GET /me/session added the new `sms_terms` enum value to the `data/me/pendingLegalDocuments/items/docType` response property for the response status `200`
+GET /users/me added the new `advertising_disclosure` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+GET /users/me added the new `community_guidelines` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+GET /users/me added the new `sms_terms` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me added the new `advertising_disclosure` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me added the new `community_guidelines` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me added the new `sms_terms` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me/onboarding added the new `advertising_disclosure` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me/onboarding added the new `community_guidelines` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PATCH /users/me/onboarding added the new `sms_terms` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
+POST /admin/legal/documents/version/{id}/rollback added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
+POST /admin/legal/documents/{type}/{locale}/publish added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`
+POST /legal/accept added the new `advertising_disclosure` enum value to the `data/items/docType` response property for the response status `200`
+POST /legal/accept added the new `community_guidelines` enum value to the `data/items/docType` response property for the response status `200`
+POST /legal/accept added the new `sms_terms` enum value to the `data/items/docType` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `advertising_disclosure` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `community_guidelines` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /users/me/onboarding/complete added the new `sms_terms` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /users/me/role added the new `advertising_disclosure` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /users/me/role added the new `community_guidelines` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+POST /users/me/role added the new `sms_terms` enum value to the `data/pendingLegalDocuments/items/docType` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
+PUT /admin/legal/documents/{type}/{locale}/draft added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`

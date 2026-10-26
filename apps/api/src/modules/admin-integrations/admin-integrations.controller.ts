@@ -4,18 +4,23 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpException,
   HttpStatus,
   Param,
+  Patch,
   Post,
+  Optional,
+  Put,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { PagerDutySnsService } from '../../common/ops/launch/aws-launch.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -28,8 +33,15 @@ import {
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   ActivateIntegrationDto,
+  CreateCustomIntegrationDto,
+  CustomIntegrationCreatedDto,
+  ReorderIntegrationSlotsDto,
+  SlotBodyDto,
+  SlotParamDto,
+  UpdateIntegrationSlotDto,
   CreateIntegrationVersionDto,
   IntegrationsOverviewDto,
+  IntegrationRevealDto,
   IntegrationVersionDto,
   ProviderParamDto,
   RemoveIntegrationDto,
@@ -54,6 +66,8 @@ export class AdminIntegrationsController {
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
     private readonly rateLimit: RateLimitService,
+    // Owner 2026-10-24: a changed PagerDuty link is re-subscribed at once.
+    @Optional() private readonly paging?: PagerDutySnsService,
   ) {}
 
   @Get()
@@ -95,9 +109,35 @@ export class AdminIntegrationsController {
       p.provider,
       stringValues(dto.values),
       admin.id,
+      { slot: dto.slot, label: dto.label },
     );
     await this.log(admin, 'integration.create_version', p.provider, v);
     return v;
+  }
+
+  /**
+   * Owner 2026-10-06: «я должен видеть ключ целиком, откуда начинается и
+   * где заканчивается». The saved values in full — super_admin only (the
+   * whole controller), behind a fresh 2FA code or password, every reveal
+   * in the audit log (field names only, never values), never cached.
+   */
+  @Post(':provider/versions/:version/reveal')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Show the saved values of this version in full' })
+  @ApiEnvelopeResponse(IntegrationRevealDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.NOT_FOUND] })
+  async revealIntegrationVersion(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: VersionParamDto,
+  ): Promise<IntegrationRevealDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    const values = await this.secrets.reveal(p.provider, p.version);
+    await this.log(admin, 'integration.reveal', p.provider, {
+      version: p.version,
+      fields: Object.keys(values).join(','),
+    });
+    return { version: p.version, values };
   }
 
   @Post(':provider/versions/:version/test')
@@ -137,20 +177,25 @@ export class AdminIntegrationsController {
       ...v,
       forced: dto.force ?? false,
     });
+    await this.afterChange(p.provider);
     return v;
   }
 
   @Post(':provider/rollback')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Back to the previous version (needs step-up)' })
+  // The body is optional: older clients send none (slot "main").
+  @ApiBody({ type: SlotBodyDto, required: false })
   @ApiEnvelopeResponse(IntegrationVersionDto)
   async rollbackIntegration(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ProviderParamDto,
+    @Body() dto: SlotBodyDto = {},
   ): Promise<IntegrationVersionDto> {
     await this.guard(admin);
-    const v = await this.secrets.rollback(p.provider);
+    const v = await this.secrets.rollback(p.provider, dto?.slot);
     await this.log(admin, 'integration.rollback', p.provider, v);
+    await this.afterChange(p.provider);
     return v;
   }
 
@@ -171,8 +216,99 @@ export class AdminIntegrationsController {
       });
     }
     await this.guard(admin);
-    await this.secrets.remove(p.provider);
-    await this.log(admin, 'integration.delete', p.provider, null);
+    await this.secrets.remove(p.provider, dto.slot);
+    await this.log(
+      admin,
+      'integration.delete',
+      p.provider,
+      dto.slot ? { slot: dto.slot } : null,
+    );
+    await this.afterChange(p.provider);
+  }
+
+  @Patch(':provider/slots/:slot')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-05: rename or switch a key set on/off (needs step-up)',
+  })
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED], 404: [E.NOT_FOUND] })
+  async updateIntegrationSlot(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: SlotParamDto,
+    @Body() dto: UpdateIntegrationSlotDto,
+  ): Promise<void> {
+    await this.guard(admin);
+    await this.secrets.updateSlot(p.provider, p.slot, dto);
+    await this.log(admin, 'integration.update_slot', p.provider, {
+      slot: p.slot,
+      ...dto,
+    });
+  }
+
+  @Put(':provider/order')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-05: the order the API tries the key sets in (needs step-up)',
+  })
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async reorderIntegrationSlots(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: ProviderParamDto,
+    @Body() dto: ReorderIntegrationSlotsDto,
+  ): Promise<void> {
+    await this.guard(admin);
+    await this.secrets.reorder(p.provider, dto.slots);
+    await this.log(admin, 'integration.reorder', p.provider, {
+      slots: dto.slots.join(','),
+    });
+  }
+
+  @Post('custom')
+  @ApiOperation({
+    summary:
+      'Owner 2026-10-05: add a service with its own key fields, no code change (needs step-up)',
+  })
+  @ApiEnvelopeResponse(CustomIntegrationCreatedDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.INTEGRATION_CONFLICT],
+  })
+  async createCustomIntegration(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: CreateCustomIntegrationDto,
+  ): Promise<CustomIntegrationCreatedDto> {
+    await this.guard(admin);
+    const provider = await this.secrets.createCustom(dto, admin.id);
+    await this.log(admin, 'integration.custom_create', provider, {
+      label: dto.label,
+      fields: dto.fields.map((f) => f.name).join(','),
+    });
+    return { provider };
+  }
+
+  @Delete('custom/:provider')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Owner 2026-10-05: delete a service added from the admin',
+  })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  async deleteCustomIntegration(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() p: ProviderParamDto,
+    @Body() dto: RemoveIntegrationDto,
+  ): Promise<void> {
+    if (dto.confirm !== p.provider) {
+      throw new BadRequestException({
+        code: E.VALIDATION_ERROR,
+        message: 'Type the integration id to confirm.',
+      });
+    }
+    await this.guard(admin);
+    await this.secrets.deleteCustom(p.provider);
+    await this.log(admin, 'integration.custom_delete', p.provider, null);
   }
 
   @Post('reencrypt')
@@ -184,9 +320,25 @@ export class AdminIntegrationsController {
     @CurrentAdmin() admin: AdminActor,
   ): Promise<{ reencrypted: number }> {
     await this.guard(admin);
-    const n = await this.secrets.reencrypt();
-    await this.log(admin, 'integration.reencrypt', 'all', { reencrypted: n });
+    const keys = await this.secrets.reencrypt();
+    // S3-4: join codes, bar-registry keys and authenticator secrets too.
+    const stores = await this.secrets.reencryptStores();
+    const n = keys + stores.joinCodes + stores.registries + stores.adminTotp;
+    await this.log(admin, 'integration.reencrypt', 'all', {
+      reencrypted: n,
+      integrationKeys: keys,
+      ...stores,
+    });
     return { reencrypted: n };
+  }
+
+  /**
+   * The PagerDuty link lives in SNS too: subscribe the new one, drop the
+   * old one. Best effort — the card shows the real state afterwards.
+   */
+  private async afterChange(provider: string): Promise<void> {
+    if (provider !== 'pagerduty' || !this.paging) return;
+    await this.paging.sync().catch(() => undefined);
   }
 
   /** A fresh 2FA code + at most 20 key changes an hour per admin. */

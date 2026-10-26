@@ -4,15 +4,6 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 
-/** OQ-048: who is really acting when an assistant uses the attorney's
- * account (set by JwtAuthGuard on `req.user.assistant`). */
-export interface ActingAssistant {
-  userId: string;
-  membershipId: string;
-  name: string;
-  duties: string[];
-}
-
 /** Routes an assistant may never use (billing, team, account) — or, with
  * [unlessDuty], only with that duty the attorney granted under their own
  * responsibility (OQ-049: "bids", "publish"). */

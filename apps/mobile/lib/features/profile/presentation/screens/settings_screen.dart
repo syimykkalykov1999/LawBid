@@ -1,20 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
-import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/push_once.dart';
+import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
-import 'package:lawbid/features/settings/account/account_routes.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
+import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/consultations/application/consultations_providers.dart';
+import 'package:lawbid/features/consultations/consultations_routes.dart';
+import 'package:lawbid/features/demo/application/demo_providers.dart';
+import 'package:lawbid/features/demo/presentation/demo_settings_card.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/partners/application/partners_providers.dart';
+import 'package:lawbid/features/partners/domain/partner_models.dart';
+import 'package:lawbid/features/privacy/privacy_routes.dart';
+import 'package:lawbid/features/promotions/application/promotions_providers.dart';
+import 'package:lawbid/features/referrals/application/referrals_providers.dart';
+import 'package:lawbid/features/settings/account/account_routes.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/profile/settings` (file 01 §3.6: "Настройки (гамбургер): Аккаунт,
@@ -43,22 +58,17 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
-    final themeMode =
-        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
-
-    void showNotBuiltYet() =>
-        showAppSnackBar(context, t.t('auth.welcome.notBuiltYet'));
-
-    String themeLabel(ThemeMode mode) => switch (mode) {
-          ThemeMode.system => t.t('settings.theme.system'),
-          ThemeMode.light => t.t('settings.theme.light'),
-          ThemeMode.dark => t.t('settings.theme.dark'),
-        };
+    final chosenTheme = ref.watch(appThemeControllerProvider) ??
+        AppThemes.autoFor(MediaQuery.platformBrightnessOf(context));
+    final themeLabel = t.t(AppThemes.of(chosenTheme).nameKey);
 
     // UI modernization pass (2026-09-27): the flat §3.6 list is grouped
     // into captioned, elevated sections (same rows, same order, same
     // handlers) with icon medallions, and each section staggers in.
     final sections = <Widget>[
+      // Owner 2026-10-05 (docs/ops/demo-world.md): «Вы в демо-аккаунте» on top
+      // while in a demo session.
+      if (ref.watch(isDemoSessionProvider)) const DemoSettingsCard(),
       AppListSection(
         title: t.t('settings.section.account'),
         children: [
@@ -67,23 +77,68 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.account'),
             onTap: () => context.push(AccountRoutes.account),
           ),
-          // docs/03 §5 (stage 3.9): confirmed contacts + contact preferences.
-          AppListRow(
-            icon: AppIcons.contactPhoneOutlined,
-            label: t.t('contacts.title'),
-            onTap: () => context.push(AppRoutes.myContacts),
-          ),
+          // docs/03 §5 (stage 3.9): contact preferences. Audit 2026-10-04:
+          // clients only; phone / email are edited in Account.
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-contact-prefs'),
+              // Owner 2026-10-22 (audit #4 §1): the phone card is Contacts'.
+              icon: AppIcons.forumOutlined,
+              label: t.t('settings.contactPreferences'),
+              onTap: () => context.push(AppRoutes.myContacts),
+            ),
           AppListRow(
             icon: AppIcons.shieldOutlined,
             label: t.t('settings.security'),
             onTap: () => context.push(AppRoutes.activeDevices),
           ),
+          // Owner 2026-10-13: change the sign-in password. Owner
+          // 2026-10-22 (audit #4 §2): the password is optional after the
+          // code — without one the row sets it («Задать пароль»).
+          if (ref.watch(
+            currentUserControllerProvider
+                .select((s) => s.user?.passwordRequired ?? false),
+          ))
+            AppListRow(
+              key: const ValueKey('settings-set-password'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('settings.setPassword'),
+              subtitle: t.t('settings.setPassword.hint'),
+              onTap: () => context.push(AuthRoutes.setPassword),
+            )
+          else
+            AppListRow(
+              key: const ValueKey('settings-change-password'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('auth.change.title'),
+              onTap: () => context.push(AuthRoutes.changePassword),
+            ),
           // docs/01 §3.6 "Подписка (адвокат)" → docs/06 §1.7 screens.
           if (ref.watch(currentUserRoleProvider) == UserRole.attorney)
             AppListRow(
               icon: AppIcons.workspacePremiumOutlined,
               label: t.t('settings.subscription'),
               onTap: () => context.push(SubscriptionRoutes.subscription),
+            ),
+          // Owner 2026-10-22 (audit #4 §1, Stripe / Slack «Billing»): one
+          // «Платежи» for both roles — receipts, case payments, purchases.
+          AppListRow(
+            key: const ValueKey('settings-payments'),
+            icon: AppIcons.receiptLongOutlined,
+            label: t.t('payments.hub.title'),
+            subtitle: t.t('payments.hint'),
+            onTap: () => context.push(AppRoutes.payments),
+          ),
+          // Owner 2026-10-05: attorney trust levels — what LawBid checked,
+          // what raises the level, holds (docs/ATTORNEY_TRUST.md).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-trust'),
+              icon: AppIcons.verifiedUserOutlined,
+              label: t.t('trust.me.title'),
+              subtitle: t.t('trust.me.hint'),
+              onTap: () => context.push(TrustRoutes.me),
             ),
           // Owner 2026-10-01: assistants' access lives in Settings too —
           // the Team screen (seats, every access switch, removal).
@@ -96,11 +151,147 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('settings.assistants.hint'),
               onTap: () => context.push(TeamRoutes.team),
             ),
+          // Owner 2026-10-05: client → attorney payments through the
+          // platform (flag payments_in_app).
+          if (ref.watch(casePaymentsFlagProvider) &&
+              ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-payouts'),
+              icon: AppIcons.accountBalanceOutlined,
+              label: t.t('cpay.payout.title'),
+              subtitle: t.t('cpay.payout.hint'),
+              onTap: () => context.push(CasePaymentsRoutes.payoutAccount),
+            ),
+          // Owner 2026-10-20: consultation booking (flag `consultations`):
+          // the attorney sets the hours; both roles see the bookings.
+          if (ref.watch(consultationsFlagProvider) &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-consultations'),
+              icon: AppIcons.eventAvailableOutlined,
+              label: t.t('consult.title'),
+              subtitle: t.t(
+                ref.watch(currentUserRoleProvider) == UserRole.attorney
+                    ? 'consult.hint.attorney'
+                    : 'consult.hint.client',
+              ),
+              onTap: () => context.push(ConsultationsRoutes.list),
+            ),
+          // Owner 2026-10-02: clients can earn the gold badge (paid).
+          if (ref.watch(currentUserRoleProvider) == UserRole.client)
+            AppListRow(
+              key: const ValueKey('settings-client-badge'),
+              // Owner 2026-10-22 (audit #4 §1): its own icon — the shield
+              // is the attorney's Trust row.
+              icon: AppIcons.militaryTechRounded,
+              label: t.t('cbadge.title'),
+              onTap: () => context.push(AppRoutes.clientBadge),
+            ),
+          // Owner 2026-10-14: offer packs (flag `bid_packs`).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider) &&
+              ref.watch(featureFlagsControllerProvider).isEnabled('bid_packs'))
+            AppListRow(
+              key: const ValueKey('settings-bid-packs'),
+              // Owner 2026-10-22 (audit #4 §1): the gift is Referrals'.
+              icon: AppIcons.localOfferOutlined,
+              label: t.t('packs.title'),
+              subtitle: t.t('packs.hint'),
+              onTap: () => context.push(AppRoutes.bidPacks),
+            ),
+          // Owner 2026-10-20: stars — the balance, gifts, paid stickers
+          // (flag `stars`).
+          if (!ref.watch(isAssistantProvider) &&
+              ref.watch(featureFlagsControllerProvider).isEnabled('stars'))
+            AppListRow(
+              key: const ValueKey('settings-stars'),
+              icon: AppIcons.starRounded,
+              label: t.t('stars.title'),
+              subtitle: t.t('stars.hint'),
+              onTap: () => context.push(AppRoutes.stars),
+            ),
+          // Owner 2026-10-14: the firm profile (flag `firm_profiles`).
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider) &&
+              ref
+                  .watch(featureFlagsControllerProvider)
+                  .isEnabled('firm_profiles'))
+            AppListRow(
+              key: const ValueKey('settings-firm'),
+              icon: AppIcons.groupsOutlined,
+              label: t.t('firm.title'),
+              subtitle: t.t('firm.hint'),
+              onTap: () => context.push(AppRoutes.myFirm),
+            ),
+          // Owner 2026-10-14: the attorney's own numbers.
+          if (ref.watch(currentUserRoleProvider) == UserRole.attorney &&
+              !ref.watch(isAssistantProvider))
+            AppListRow(
+              key: const ValueKey('settings-stats'),
+              icon: AppIcons.insightsOutlined,
+              label: t.t('stats.title'),
+              subtitle: t.t('stats.hint'),
+              onTap: () => context.push(AppRoutes.myStats),
+            ),
+          // Owner 2026-10-05: promoted posts / cases (reach, clicks, stop) —
+          // once there is one; the first starts from «Продвигать».
+          if (!ref.watch(isAssistantProvider) &&
+              (ref.watch(myPromotionsProvider).value?.items.isNotEmpty ??
+                  false))
+            AppListRow(
+              icon: AppIcons.campaignOutlined,
+              label: t.t('promote.mine.title'),
+              subtitle: t.t('promote.mine.hint'),
+              onTap: () => context.push(AppRoutes.myPromotions),
+            ),
+          // Owner 2026-10-02: referrals (shown only when the program is on).
+          if (ref.watch(referralMeProvider).value?.enabled ?? false)
+            AppListRow(
+              icon: AppIcons.giftOutlined,
+              label: t.t('referral.title'),
+              subtitle: t.t('referral.hint'),
+              onTap: () => context.push(AppRoutes.referral),
+            ),
+          // Owner 2026-10-05: partner program — partners and, while the
+          // owner allows self-enrolment, everyone who may join. Hidden when
+          // the program is switched off.
+          if (ref.watch(partnerMeProvider).value case final PartnerMe pm
+              when pm.enabled && (pm.isPartner || pm.canJoin))
+            AppListRow(
+              key: const ValueKey('settings-partner'),
+              icon: AppIcons.handshakeOutlined,
+              label: t.t('partner.title'),
+              subtitle:
+                  t.t(pm.isPartner ? 'partner.hint' : 'partner.join.hint'),
+              onTap: () => context.push(AppRoutes.partner),
+            ),
+          // Owner 2026-10-15: the client's Saved moved here from «Mine».
+          // Owner 2026-10-22 (audit #4 §1, Instagram): «Сохранённое» in the
+          // same place for both roles (the attorney's bookmark in «Мои»
+          // stays as a shortcut while working).
+          AppListRow(
+            key: const ValueKey('settings-saved'),
+            icon: AppIcons.bookmarkBorderRounded,
+            label: t.t('mine.tab.saved'),
+            onTap: () => context.push(AppRoutes.saved),
+          ),
+          // Owner 2026-10-18 (Instagram): every author's archived posts (an
+          // assistant with "publish" sees the attorney's).
+          if (ref.watch(canDoProvider(AssistantDuty.publish)))
+            AppListRow(
+              key: const ValueKey('settings-archive'),
+              icon: AppIcons.inventory2Outlined,
+              label: t.t('settings.archive'),
+              subtitle: t.t('settings.archive.hint'),
+              onTap: () => context.push(AppRoutes.postArchive),
+            ),
           AppListRow(
             icon: AppIcons.historyRounded,
             label: t.t('settings.caseHistory'),
             onTap: () => context.push(AppRoutes.caseHistory),
           ),
+          // Owner 2026-10-14: the document templates row is gone from Settings.
         ],
       ),
       AppListSection(
@@ -114,30 +305,69 @@ class SettingsScreen extends ConsumerWidget {
           AppListRow(
             icon: AppIcons.contrastRounded,
             label: t.t('settings.theme'),
-            trailingText: themeLabel(themeMode),
-            onTap: () => _ThemePickerSheet.show(context),
+            trailingText: themeLabel,
+            onTap: () => ThemePickerSheet.show(context),
           ),
           AppListRow(
             icon: AppIcons.notificationsNoneRounded,
             label: t.t('settings.notifications'),
-            onTap: () => context.push(ChatRoutes.notificationSettings),
+            onTap: () => context.pushOnce(ChatRoutes.notificationSettings),
           ),
-          // Owner 2026-10-01: online / last seen in chats (reciprocal).
-          const _ActivityStatusRow(),
+          // Owner 2026-10-20: last seen, who may write / call me, blocked
+          // users, my reports and moderation decisions in one place.
+          AppListRow(
+            key: const ValueKey('settings-privacy'),
+            // Owner 2026-10-22 (audit #4 §1): the lock is the password's.
+            icon: AppIcons.privacyTipOutlined,
+            label: t.t('settings.privacy'),
+            onTap: () => context.push(PrivacyRoutes.privacy),
+          ),
         ],
       ),
       AppListSection(
         title: t.t('settings.section.support'),
         children: [
-          AppListRow(
-            icon: AppIcons.helpOutlineRounded,
-            label: t.t('settings.help'),
-            onTap: showNotBuiltYet,
+          // Audit 2026-10-04: a gold dot (left of the chevron) for an
+          // unread reply from the team.
+          Stack(
+            children: [
+              AppListRow(
+                icon: AppIcons.helpOutlineRounded,
+                label: t.t('support.title'),
+                subtitle: t.t('support.hint.short'),
+                onTap: () => context.push(AppRoutes.support),
+              ),
+              if (ref.watch(supportUnreadProvider))
+                PositionedDirectional(
+                  end: AppSpacing.md + AppSizes.iconSm + AppSpacing.sm,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      key: const ValueKey('settings-support-unread'),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: colors.gold,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
+          // Owner 2026-10-02: About LawBid + the website.
           AppListRow(
-            icon: AppIcons.balanceRounded,
-            label: t.t('settings.legal'),
-            onTap: () => context.push(AppRoutes.legalDoc('terms')),
+            icon: AppIcons.infoOutlineRounded,
+            label: t.t('about.title'),
+            subtitle: t.t('about.hint'),
+            onTap: () => context.push(AppRoutes.about),
+          ),
+          // Owner 2026-10-20: contacts like WhatsApp — who is on LawBid.
+          AppListRow(
+            icon: AppIcons.contactPhoneOutlined,
+            label: t.t('phoneContacts.title'),
+            onTap: () => context.push('${AppRoutes.contacts}?tab=contacts'),
           ),
           // OQ-028: who I blocked, with Unblock.
           AppListRow(
@@ -150,6 +380,15 @@ class SettingsScreen extends ConsumerWidget {
             icon: AppIcons.downloadRounded,
             label: t.t('settings.downloadData'),
             onTap: () => context.push(AppRoutes.dataExport),
+          ),
+          // Owner 2026-10-22 (client economy plan §5.2): the phone's
+          // caches, «Хранить медиа», the limits and today's traffic.
+          AppListRow(
+            key: const ValueKey('settings-storage'),
+            icon: AppIcons.folderOutlined,
+            label: t.t('settings.storage.title'),
+            subtitle: t.t('settings.storage.hint'),
+            onTap: () => context.push(AppRoutes.storage),
           ),
         ],
       ),
@@ -199,119 +438,6 @@ class SettingsScreen extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Theme picker (file 01 §8.1: "Системная / Светлая / Тёмная") — a small
-/// bottom sheet rather than the welcome screen's single quick-toggle icon
-/// button, since here all 3 [ThemeMode] values need a home, not just a
-/// light<->dark shortcut.
-class _ThemePickerSheet extends ConsumerWidget {
-  const _ThemePickerSheet();
-
-  static Future<void> show(BuildContext context) {
-    return showAppBottomSheet<void>(
-      context: context,
-      builder: (_) => const _ThemePickerSheet(),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final t = ref.watch(translatorProvider);
-    final current =
-        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
-
-    final options = <(ThemeMode, String, IconData)>[
-      (
-        ThemeMode.system,
-        t.t('settings.theme.system'),
-        AppIcons.smartphoneRounded
-      ),
-      (
-        ThemeMode.light,
-        t.t('settings.theme.light'),
-        AppIcons.lightModeOutlined
-      ),
-      (ThemeMode.dark, t.t('settings.theme.dark'), AppIcons.darkModeOutlined),
-    ];
-
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.md,
-          AppSpacing.screenSide,
-          AppSpacing.lg,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const AppSheetHandle(),
-            Semantics(
-              header: true,
-              child: Text(
-                t.t('settings.theme'),
-                style: typography.titleMedium.copyWith(color: colors.text),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            for (var i = 0; i < options.length; i++) ...[
-              if (i > 0) const SizedBox(height: AppSpacing.xs),
-              AppEntrance(
-                index: i,
-                child: AppListRow(
-                  icon: options[i].$3,
-                  label: options[i].$2,
-                  selected: options[i].$1 == current,
-                  showChevron: false,
-                  onTap: () {
-                    ref
-                        .read(themeModeControllerProvider.notifier)
-                        .setThemeMode(options[i].$1);
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivityStatusRow extends ConsumerWidget {
-  const _ActivityStatusRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final value = ref.watch(activityStatusProvider);
-    final on = value.value ?? true;
-    return AppListRow(
-      key: const ValueKey('settings-activity-status'),
-      icon: AppIcons.visibilityOutlined,
-      label: t.t('settings.activityStatus'),
-      subtitle: t.t('settings.activityStatus.hint'),
-      trailingText: value.hasValue ? t.t(on ? 'common.on' : 'common.off') : '…',
-      showChevron: false,
-      onTap: value.hasValue
-          ? () async {
-              try {
-                await ref.read(activityStatusProvider.notifier).set(!on);
-              } on Object catch (e) {
-                if (context.mounted) {
-                  showAppSnackBar(context, errorText(t, e));
-                }
-              }
-            }
-          : null,
     );
   }
 }

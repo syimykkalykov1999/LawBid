@@ -3,12 +3,11 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../persistence/local_kv_store.dart';
-import '../persistence/persistence_providers.dart';
-import 'app_language.dart';
-import 'i18n_api_client.dart';
-import 'l10n_providers.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/i18n_api_client.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/persistence/local_kv_store.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 
 const _kActiveLanguagesKey = 'l10n.languages.active';
 
@@ -110,12 +109,14 @@ class ActiveLanguagesController extends Notifier<List<ServerLanguage>?> {
   Future<bool>? _inFlight;
 
   @override
-  List<ServerLanguage>? build() => ref.read(activeLanguagesCacheProvider).read();
+  List<ServerLanguage>? build() =>
+      ref.read(activeLanguagesCacheProvider).read();
 
   /// Fetches `GET /i18n/languages`; on success updates state + cache and
   /// returns `true`. Never throws — offline/backend errors keep the cached
   /// list and return `false`. Concurrent calls share one request.
-  Future<bool> refresh() => _inFlight ??= _fetch().whenComplete(() => _inFlight = null);
+  Future<bool> refresh() =>
+      _inFlight ??= _fetch().whenComplete(() => _inFlight = null);
 
   Future<bool> _fetch() async {
     try {

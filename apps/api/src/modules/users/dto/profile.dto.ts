@@ -1,7 +1,11 @@
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 import { PERSON_NAME_MAX_LENGTH } from './onboarding-profile.dto';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
+  IsEmail,
   IsEnum,
+  MaxLength,
   IsUUID,
   ValidateIf,
   IsIn,
@@ -26,20 +30,35 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   firstName?: string;
 
   @IsOptional()
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   lastName?: string;
 
   @IsOptional()
-  @Matches(/^[a-z]{2}$/)
+  @Matches(/^[a-z]{2}(-[a-z]{2,4})?$/)
   uiLanguage?: string;
 
   @IsOptional()
   @IsEnum(ThemePref)
   theme?: ThemePref;
+
+  /** Owner 2026-10-15: hide like counters under other people's posts. */
+  @IsOptional()
+  @IsBoolean()
+  hideLikeCounts?: boolean;
+
+  /** Owner 2026-10-13: e-mail is a plain required profile field — format
+   * only, no code is sent and it is not verified. Shared with the other
+   * party when a case is accepted. */
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(254)
+  email?: string;
 
   /** docs/03 §4.1 photo (OQ-012 attorney onboarding photo step): a clean
    * `avatar` file from POST /files/presign + confirm; null removes it. */

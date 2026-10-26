@@ -70,6 +70,7 @@ class DocSlot {
           : side == null || (d.side ?? DocSide.front) == side);
 
   @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
   bool operator ==(Object other) =>
       other is DocSlot &&
       other.kind == kind &&
@@ -77,6 +78,7 @@ class DocSlot {
       other.stateCode == stateCode;
 
   @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes
   int get hashCode => Object.hash(kind, side, stateCode);
 
   @override
@@ -93,6 +95,7 @@ class VerificationLicense {
     this.expiresAt,
     this.rejectionCode,
     this.rejectionNote,
+    this.manualReview = false,
   });
 
   final String id;
@@ -105,6 +108,11 @@ class VerificationLicense {
   final DateTime? expiresAt;
   final String? rejectionCode;
   final String? rejectionNote;
+
+  /// Owner 2026-10-18: the attorney sent the number for manual review
+  /// («Мой номер верный — отправить на проверку»); its bar card photo is
+  /// required whatever [VerificationOverview.barDocumentRequired] says.
+  final bool manualReview;
 }
 
 class VerificationDocument {
@@ -182,6 +190,18 @@ class VerificationRequest {
         );
   }
 
+  /// Owner 2026-10-04 ("только номер"): the bar card photo is optional
+  /// unless the API asks for it ([VerificationOverview.barDocumentRequired]).
+  /// A license sent for manual review always needs its card.
+  bool licensesReady({required bool barDocumentRequired}) => barDocumentRequired
+      ? licensesComplete
+      : pendingLicenses.isNotEmpty &&
+          pendingLicenses.every(
+            (l) =>
+                !l.manualReview ||
+                docsFor(DocSlot.barLicense(l.stateCode)).isNotEmpty,
+          );
+
   /// Same rule as the API's identityCompleteness: some identity type has
   /// its front, plus back where needed.
   bool get identityComplete {
@@ -204,15 +224,25 @@ class VerificationOverview {
     required this.submissionsLast30Days,
     required this.maxSubmissions30Days,
     this.request,
+    this.barDocumentRequired = true,
+    this.barAttemptsRetryAfterSeconds = 0,
   });
 
   final VerificationStatus status;
   final VerificationRequest? request;
 
-  /// false for an already verified attorney adding a state (§2.1).
+  /// Off by default (owner 2026-10-04); on for a verified attorney
+  /// confirming a new name.
   final bool identityRequired;
+
+  /// A bar card photo per license (off by default, owner 2026-10-04).
+  final bool barDocumentRequired;
   final int submissionsLast30Days;
   final int maxSubmissions30Days;
+
+  /// Owner 2026-10-18: seconds until a bar number can be added again after
+  /// too many failed attempts (0 = not locked). Manual review stays open.
+  final int barAttemptsRetryAfterSeconds;
 
   bool get submissionLimitReached =>
       submissionsLast30Days >= maxSubmissions30Days;
@@ -257,6 +287,7 @@ sealed class MissingItem {
 
   static MissingItem? parse(String raw) {
     if (raw == 'license') return const MissingLicense();
+    if (raw == 'attestation') return const MissingAttestation();
     if (raw == 'identity_document') return const MissingIdentity(back: false);
     if (raw == 'identity_document_back') {
       return const MissingIdentity(back: true);
@@ -272,6 +303,11 @@ sealed class MissingItem {
 
 class MissingLicense extends MissingItem {
   const MissingLicense();
+}
+
+/// Owner 2026-10-04: the sworn statement was not ticked.
+class MissingAttestation extends MissingItem {
+  const MissingAttestation();
 }
 
 class MissingIdentity extends MissingItem {

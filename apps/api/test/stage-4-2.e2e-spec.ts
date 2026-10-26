@@ -9,7 +9,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.2 acceptance, against real
- * CockroachDB/Redis:
+ * PostgreSQL/Redis:
  *  - a case is not created without verified contacts, without the
  *    client_contact_sharing consent, with more than 3 states, a short
  *    description, or contact info in free text;
@@ -91,7 +91,7 @@ describe('Stage 4.2 — case creation and management (e2e)', () => {
   async function clientUser(
     opts: {
       phoneVerified?: boolean;
-      emailVerified?: boolean;
+      withEmail?: boolean;
       onboardingComplete?: boolean;
     } = {},
   ): Promise<{ id: string; auth: Record<string, string> }> {
@@ -102,7 +102,10 @@ describe('Stage 4.2 — case creation and management (e2e)', () => {
         first_name: 'Anna',
         last_name: 'Kowalski',
         phone_verified_at: opts.phoneVerified === false ? null : now,
-        email_verified_at: opts.emailVerified === false ? null : now,
+        // Owner 2026-10-13: the e-mail is a profile field (no code); a
+        // client without one cannot post a case.
+        email:
+          opts.withEmail === false ? null : `anna.${randomUUID()}@example.com`,
       },
     });
     if (opts.onboardingComplete !== false) {
@@ -204,7 +207,10 @@ describe('Stage 4.2 — case creation and management (e2e)', () => {
   }
 
   it('rejects creation without verified contacts', async () => {
-    const client = await clientUser({ emailVerified: false });
+    const client = await clientUser({
+      withEmail: false,
+      onboardingComplete: false,
+    });
     const res = await postCase(client.auth, validCase());
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('CLIENT_CONTACTS_INCOMPLETE');
@@ -411,6 +417,46 @@ describe('Stage 4.2 — case creation and management (e2e)', () => {
       .set(foreign.auth)
       .send({ city: 'Nowhere' });
     expect(notOwner.status).toBe(404);
+  });
+
+  it('stores the cover and urgency, edits and clears them (owner 2026-10-04)', async () => {
+    const client = await clientUser();
+    const created = await postCase(
+      client.auth,
+      validCase({ coverKey: 'icon:family', urgency: 'urgent' }),
+    );
+    expect(created.status).toBe(201);
+    expect(created.body.data).toMatchObject({
+      coverKey: 'icon:family',
+      urgency: 'urgent',
+    });
+    const caseId = created.body.data.id as string;
+
+    const photoUrl = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(client.auth)
+      .send({ coverKey: 'https://example.com/me.jpg' });
+    expect(photoUrl.status).toBe(400);
+
+    const edited = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(client.auth)
+      .send({ coverKey: 'art:2', urgency: 'soon' });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data).toMatchObject({
+      coverKey: 'art:2',
+      urgency: 'soon',
+    });
+
+    const cleared = await api()
+      .patch(`/api/v1/cases/${caseId}`)
+      .set(client.auth)
+      .send({ coverKey: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data).toMatchObject({
+      coverKey: null,
+      urgency: 'soon',
+    });
   });
 
   it('closes a case: bid auto-rejected and notified; re-closing fails', async () => {

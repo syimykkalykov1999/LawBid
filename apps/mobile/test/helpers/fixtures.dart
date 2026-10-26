@@ -1,3 +1,4 @@
+import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -16,6 +17,12 @@ CurrentUser meFixture({
   OnboardingStepId? step,
   bool completed = false,
   Map<String, dynamic> data = const {},
+  List<PendingLegalDocument> pendingLegal = const [],
+  // Owner 2026-10-07: false = admin «Вход и письма по почте» off (the
+  // server asks no client e-mail).
+  bool clientEmailRequired = true,
+  // Owner 2026-10-13: signs in only with an SMS code, no password yet.
+  bool passwordRequired = false,
 }) {
   final hasName = (firstName ?? '').isNotEmpty && (lastName ?? '').isNotEmpty;
   return CurrentUser(
@@ -31,6 +38,8 @@ CurrentUser meFixture({
     uiLanguage: 'en',
     theme: null,
     requiredConsentsGranted: consents,
+    pendingLegalDocuments: pendingLegal,
+    passwordRequired: passwordRequired,
     onboarding: OnboardingProgress(
       currentStep: step,
       completedAt: completed ? DateTime.utc(2026, 9, 27) : null,
@@ -41,8 +50,15 @@ CurrentUser meFixture({
       if (!consents) MissingRequirement.consents,
       if (role == null) MissingRequirement.role,
       if (!hasName) MissingRequirement.name,
-      if (role != null && !phoneVerified) MissingRequirement.phoneVerified,
-      if (role == UserRole.client && !emailVerified) MissingRequirement.emailVerified,
+      // Owner 2026-10-04: assistants sign in with a code, no phone.
+      if ((role == UserRole.client || role == UserRole.attorney) &&
+          !phoneVerified)
+        MissingRequirement.phoneVerified,
+      // Owner 2026-10-13: the e-mail is a profile field, never verified.
+      if (clientEmailRequired &&
+          (role == UserRole.client || role == UserRole.attorney) &&
+          email == null)
+        MissingRequirement.email,
     },
   );
 }

@@ -14,7 +14,7 @@ void main() {
     expect(AppRouterGuard.forwardRoute(user), '/onboarding/role');
   });
 
-  test('after a client picks the role, Continue goes to contacts', () {
+  test('after the role, Continue goes to the profile (no contacts step)', () {
     final user = meFixture(
       consents: true,
       role: UserRole.client,
@@ -22,7 +22,7 @@ void main() {
       phoneVerified: true,
       step: OnboardingStepId.contacts,
     );
-    expect(AppRouterGuard.forwardRoute(user), '/onboarding/contacts');
+    expect(AppRouterGuard.forwardRoute(user), '/onboarding/profile');
   });
 
   test('when onboarding is complete, Continue goes to the feed', () {

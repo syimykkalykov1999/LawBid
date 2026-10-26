@@ -58,7 +58,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go(entry == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.phone);
+      context.go(
+        entry == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.phone,
+      );
     }
   }
 
@@ -79,6 +81,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       if (!mounted) return;
       final t = ref.read(translatorProvider);
       final phone = displayIdentifier(ref.read(onboardingFlowProvider));
+      // ignore: deprecated_member_use
       SemanticsService.announce(
         t.t('auth.otp.subtitle', {'phone': phone}),
         TextDirection.ltr,
@@ -112,16 +115,23 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
+            const PositionedDirectional(
+              end: -40,
+              bottom: 70,
+              child: WatermarkScales(),
+            ),
             // See PhoneScreen's doc comment on this same pattern (file 07
             // §9: scrollable so the button stays reachable up to 200% text
             // scale, but visually pinned to the bottom at normal scale).
             LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,30 +140,57 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         // layout, none on reduce-
                         // motion.
                         children: staggeredEntrance([
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 8),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () => _returnToEntry(
-                              ref.read(onboardingFlowProvider.notifier).changeIdentifier(),
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .changeIdentifier(),
                             ),
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 14),
                           Text(
                             t.t('auth.otp.title'),
-                            style: typography.titleLarge.copyWith(color: colors.text),
+                            style: typography.titleLarge
+                                .copyWith(color: colors.text),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             t.t('auth.otp.subtitle', {'phone': phone}),
-                            style: typography.body.copyWith(color: colors.textSecondary),
+                            style: typography.body
+                                .copyWith(color: colors.textSecondary),
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
                           AppOtpField(
                             semanticLabel: t.t('auth.otp.fieldLabel'),
                             controller: _codeController,
                             errorText: flowState.errorMessage,
-                            onChanged: (value) => _currentCode = value,
+                            onChanged: (value) =>
+                                setState(() => _currentCode = value),
                             onCompleted: _handleCompleted,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 14, bottom: 8),
+                            child: GavelStrikeButton(
+                              label: t.t('auth.otp.submit'),
+                              isLoading: flowState.isSubmitting,
+                              isEnabled: _currentCode.length == 6,
+                              // AppOtpField.onCompleted already auto-submits
+                              // the instant the 6th digit lands (unchanged
+                              // stage-1.5 contract). This button — required
+                              // by file 07 §6.3's layout and §7.4's
+                              // gavel-button list — is the manual fallback:
+                              // it re-submits whatever `_currentCode` the
+                              // field's onChanged last reported, so it still
+                              // works if autofill/paste didn't trigger
+                              // onCompleted for some reason.
+                              onPressed: () {
+                                if (_currentCode.length == 6) {
+                                  _handleCompleted(_currentCode);
+                                }
+                              },
+                            ),
                           ),
                           const SizedBox(height: 14),
                           _ResendCountdown(
@@ -169,27 +206,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                                   : 'auth.otp.changeNumber',
                             ),
                             onTap: () => _returnToEntry(
-                              ref.read(onboardingFlowProvider.notifier).changeIdentifier(),
-                            ),
-                          ),
-                          const Spacer(),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 22),
-                            child: GavelStrikeButton(
-                              label: t.t('auth.otp.submit'),
-                              isLoading: flowState.isSubmitting,
-                              // AppOtpField.onCompleted already auto-submits
-                              // the instant the 6th digit lands (unchanged
-                              // stage-1.5 contract). This button — required
-                              // by file 07 §6.3's layout and §7.4's
-                              // gavel-button list — is the manual fallback:
-                              // it re-submits whatever `_currentCode` the
-                              // field's onChanged last reported, so it still
-                              // works if autofill/paste didn't trigger
-                              // onCompleted for some reason.
-                              onPressed: () {
-                                if (_currentCode.length == 6) _handleCompleted(_currentCode);
-                              },
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .changeIdentifier(),
                             ),
                           ),
                         ]),
@@ -233,12 +252,12 @@ class _ChangeIdentifierLink extends StatelessWidget {
               minWidth: AppSizes.touchTarget,
             ),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               widthFactor: 1,
               child: Text(
                 label,
                 style: typography.caption.copyWith(
-                  color: colors.gold,
+                  color: colors.goldText,
                   decoration: TextDecoration.underline,
                 ),
               ),
@@ -301,13 +320,17 @@ class _ResendCountdownState extends State<_ResendCountdown> {
     if (_remaining > 0) {
       final minutes = _remaining ~/ 60;
       final seconds = (_remaining % 60).toString().padLeft(2, '0');
-      final label = widget.t.t('auth.otp.resendIn', {'time': '$minutes:$seconds'});
+      final label =
+          widget.t.t('auth.otp.resendIn', {'time': '$minutes:$seconds'});
       // Fast-updating (1/sec) text — excluded from the semantics tree so a
       // screen reader doesn't re-announce it every second (a11y review,
       // docs/CHANGELOG.md stage 1.7). The static link below IS announced
       // once it appears.
       return ExcludeSemantics(
-        child: Text(label, style: typography.caption.copyWith(color: colors.textSecondary)),
+        child: Text(
+          label,
+          style: typography.caption.copyWith(color: colors.textSecondary),
+        ),
       );
     }
 
@@ -323,7 +346,7 @@ class _ResendCountdownState extends State<_ResendCountdown> {
           child: Text(
             widget.t.t('auth.otp.resend'),
             style: typography.caption.copyWith(
-              color: colors.gold,
+              color: colors.goldText,
               decoration: TextDecoration.underline,
             ),
           ),

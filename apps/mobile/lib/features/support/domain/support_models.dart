@@ -1,0 +1,168 @@
+import 'package:flutter/foundation.dart';
+
+/// Owner 2026-10-02 — help & support: a ticket is a thread between the
+/// user and the LawBid team.
+enum SupportCategory {
+  account,
+  billing,
+  verification,
+  caseIssue('case'),
+  bug,
+  abuse,
+  other;
+
+  const SupportCategory([this._wire]);
+  final String? _wire;
+
+  String get wire => _wire ?? name;
+
+  static SupportCategory from(String? v) => SupportCategory.values.firstWhere(
+        (c) => c.wire == v,
+        orElse: () => SupportCategory.other,
+      );
+}
+
+/// open · waiting_user (the team answered) · resolved · closed.
+enum SupportStatus {
+  open,
+  waitingUser('waiting_user'),
+  resolved,
+  closed;
+
+  const SupportStatus([this._wire]);
+  final String? _wire;
+
+  String get wire => _wire ?? name;
+
+  static SupportStatus from(String? v) => SupportStatus.values.firstWhere(
+        (s) => s.wire == v,
+        orElse: () => SupportStatus.open,
+      );
+}
+
+/// Owner 2026-10-18 (OQ-055): a photo, video or document on a support
+/// message (short signed links; null while the scan runs).
+@immutable
+class SupportAttachment {
+  const SupportAttachment({
+    required this.fileId,
+    required this.name,
+    required this.mime,
+    required this.sizeBytes,
+    required this.isImage,
+    required this.isVideo,
+    this.url,
+    this.previewUrl,
+    this.width,
+    this.height,
+  });
+
+  final String fileId;
+  final String name;
+  final String mime;
+  final int sizeBytes;
+  final bool isImage;
+  final bool isVideo;
+  final String? url;
+  final String? previewUrl;
+  final int? width;
+  final int? height;
+}
+
+/// What the app sends along with a new ticket so the team can reproduce a
+/// problem (shown to admins only). The user id and role come from the
+/// session on the server.
+@immutable
+class SupportClientContext {
+  const SupportClientContext({
+    this.appVersion,
+    this.buildNumber,
+    this.platform,
+    this.osVersion,
+    this.deviceModel,
+    this.language,
+    this.theme,
+    this.timezone,
+    this.route,
+  });
+
+  final String? appVersion;
+  final String? buildNumber;
+
+  /// ios · android · web · other.
+  final String? platform;
+  final String? osVersion;
+  final String? deviceModel;
+  final String? language;
+  final String? theme;
+  final String? timezone;
+
+  /// The screen the user came from.
+  final String? route;
+}
+
+@immutable
+class SupportMessage {
+  const SupportMessage({
+    required this.id,
+    required this.fromTeam,
+    required this.body,
+    required this.createdAt,
+    this.authorName,
+    this.attachments = const [],
+  });
+
+  final String id;
+  final bool fromTeam;
+  final String body;
+  final DateTime createdAt;
+  final String? authorName;
+  final List<SupportAttachment> attachments;
+}
+
+@immutable
+class SupportTicket {
+  const SupportTicket({
+    required this.id,
+    required this.subject,
+    required this.category,
+    required this.status,
+    required this.unread,
+    required this.canReply,
+    required this.lastMessageAt,
+    required this.createdAt,
+    this.messages = const [],
+  });
+
+  final String id;
+  final String subject;
+  final SupportCategory category;
+  final SupportStatus status;
+
+  /// The team wrote and the user has not opened it yet.
+  final bool unread;
+  final bool canReply;
+  final DateTime lastMessageAt;
+  final DateTime createdAt;
+  final List<SupportMessage> messages;
+
+  bool get isOpen =>
+      status == SupportStatus.open || status == SupportStatus.waitingUser;
+}
+
+/// Owner 2026-10-05 — support 24/7: when the team answers. Shown on the
+/// new-request screen ("usually within 1 h" / "back Monday 9:00").
+@immutable
+class SupportInfo {
+  const SupportInfo({
+    required this.open,
+    required this.expectedReplyMinutes,
+    this.opensAt,
+  });
+
+  final bool open;
+  final int expectedReplyMinutes;
+
+  /// When the team is back (null while open).
+  final DateTime? opensAt;
+}

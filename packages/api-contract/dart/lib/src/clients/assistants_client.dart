@@ -8,17 +8,21 @@ import 'package:retrofit/retrofit.dart';
 import '../models/activity_list_envelope.dart';
 import '../models/add_assistant_dto.dart';
 import '../models/assistant_me_envelope.dart';
-import '../models/assistant_phone_dto.dart';
 import '../models/assistant_request_envelope.dart';
 import '../models/assistant_request_list_envelope.dart';
 import '../models/assistant_request_status.dart';
+import '../models/bulk_tasks_dto.dart';
+import '../models/bulk_tasks_result_envelope.dart';
 import '../models/create_assistant_request_dto.dart';
 import '../models/create_task_dto.dart';
 import '../models/decide_request_dto.dart';
-import '../models/join_verify_dto.dart';
+import '../models/join_code_dto.dart';
 import '../models/task_envelope.dart';
 import '../models/task_list_envelope.dart';
+import '../models/task_person_suggestion_list_envelope.dart';
+import '../models/task_place_suggestion_list_envelope.dart';
 import '../models/task_step_input_dto.dart';
+import '../models/tasks_sort.dart';
 import '../models/tasks_view.dart';
 import '../models/team_envelope.dart';
 import '../models/update_assistant_dto.dart';
@@ -44,17 +48,10 @@ abstract class AssistantsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Send a join code to the attorney's phone
-  @POST('/assistants/join/request-code')
-  Future<void> requestAssistantCode({
-    @Body() required AssistantPhoneDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Join with the code the attorney received
-  @POST('/assistants/join/verify')
-  Future<AssistantMeEnvelope> verifyAssistantCode({
-    @Body() required JoinVerifyDto body,
+  /// Join with the attorney's one-time code
+  @POST('/assistants/join/code')
+  Future<AssistantMeEnvelope> joinWithCode({
+    @Body() required JoinCodeDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -62,10 +59,17 @@ abstract class AssistantsClient {
   @GET('/team')
   Future<TeamEnvelope> getTeam({@Extras() Map<String, dynamic>? extras});
 
-  /// Add an assistant by phone (joins without a code)
+  /// Add an assistant: takes a seat and gives it a one-time code
   @POST('/team')
   Future<TeamEnvelope> addAssistant({
     @Body() required AddAssistantDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A new one-time code for this seat (the old one stops working; for a joined assistant it signs them in on a new phone)
+  @POST('/team/{id}/code')
+  Future<TeamEnvelope> regenerateAssistantCode({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -132,15 +136,56 @@ abstract class AssistantsClient {
 
   /// The attorney's tasks (calendar order).
   ///
+  /// [view] - `done` and `archive` both list the archive.
+  ///
+  /// [caseId] - Owner 2026-10-05: planner filters.
+  ///
+  /// [assignee] - An assistant membership id, `me` or `none`.
+  ///
+  /// [dueFrom] - Due from.
+  ///
+  /// [dueTo] - Due before.
+  ///
+  /// [overdue] - Only the ones past their time.
+  ///
+  /// [q] - Search the text.
+  ///
   /// [mine] - Assistant: only the tasks they set (their Results).
   ///
   /// [from] - From this day (YYYY-MM-DD).
   @GET('/tasks')
   Future<TaskListEnvelope> listTasks({
     @Query('view') TasksView? view,
+    @Query('caseId') String? caseId,
+    @Query('assignee') String? assignee,
+    @Query('dueFrom') DateTime? dueFrom,
+    @Query('dueTo') DateTime? dueTo,
+    @Query('overdue') bool? overdue,
+    @Query('q') String? q,
+    @Query('sort') TasksSort? sort,
     @Query('mine') bool? mine,
     @Query('from') DateTime? from,
     @Query('to') DateTime? to,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Addresses already used in this planner
+  @GET('/tasks/places')
+  Future<TaskPlaceSuggestionListEnvelope> taskPlaces({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// People to add to a task (team, chats, contacts, attorneys)
+  @GET('/tasks/people')
+  Future<TaskPersonSuggestionListEnvelope> taskPeople({
+    @Query('q') String? q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Many tasks at once: delete, archive, return, keep forever, assign, status, priority
+  @POST('/tasks/bulk')
+  Future<BulkTasksResultEnvelope> bulkTasks({
+    @Body() required BulkTasksDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -151,11 +196,14 @@ abstract class AssistantsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Edit a task
+  /// Edit a task.
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/tasks/{id}')
   Future<TaskEnvelope> updateTask({
     @Path('id') required String id,
     @Body() required UpdateTaskDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -166,11 +214,14 @@ abstract class AssistantsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Take / done / not done (+ note, + new time) / cancel
+  /// Take / done / not done (+ note, + new time) / cancel.
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @PATCH('/tasks/{id}/status')
   Future<TaskEnvelope> setTaskStatus({
     @Path('id') required String id,
     @Body() required UpdateTaskStatusDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 

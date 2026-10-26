@@ -1,3 +1,4 @@
+import { type CountryScope, userInScope } from '../countries/country-scope';
 import type { Prisma } from '@prisma/client';
 import {
   ConflictException,
@@ -8,6 +9,7 @@ import {
 } from '@nestjs/common';
 import type { ReportReason } from '@prisma/client';
 import { ModerationService } from '../moderation/moderation.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
@@ -18,6 +20,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { assertNoContactInfo } from '../cases/domain/contact-detector';
 import { FilesService } from '../files/files.service';
+import { assertUploadCount } from '../files/upload-limits';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { ReviewSummaryDto } from '../reviews/dto/review-responses.dto';
 import { displayRating } from '../reviews/review-rating';
@@ -30,22 +33,17 @@ import type {
   UpsertClientReviewDto,
 } from './client-reviews.dto';
 import { assertNoBlock } from '../blocks/block-guard';
+import { removedByModeration } from '../reviews/reviews.service';
+import { userDirectory } from '../../sharding/user-directory';
 
 const PAGE = 20;
 
 /** Owner 2026-09-30: an appeal nobody decided removes the review then. */
 export const REVIEW_APPEAL_AUTO_REMOVE_DAYS = 30;
 
-/** Owner 2026-10-01: Google-style — no automatic removal. */
-const AUTO_REMOVE_UNDECIDED_APPEALS = false;
-
-/** Cases in these states have a working relationship to review. */
-const REVIEWABLE = [
-  'in_progress',
-  'pending_completion',
-  'disputed',
-  'closed',
-] as const;
+/** Audit 2026-10-04: like client → attorney reviews, only once the case
+ * is closed. */
+const REVIEWABLE = ['closed'] as const;
 
 /**
  * Owner 2026-09-30 (OQ-038, OQ-046): reviews of clients. The hired
@@ -64,6 +62,7 @@ export class ClientReviewsService {
     private readonly notifications: NotificationsService,
     // Optional: the worker wires this service without the moderation module.
     @Optional() private readonly moderation?: ModerationService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   async upsert(
@@ -93,12 +92,37 @@ export class ClientReviewsService {
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
-    const existing = await this.prisma.clientReview.findUnique({
+    const found = await this.prisma.clientReview.findUnique({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        status: true,
+        appeal: { select: { status: true, decided_by: true } },
+      },
     });
+    // A review the author deleted is absent: writing again publishes the
+    // row anew. One removed by an admin (appeal or moderation) stays.
+    if (
+      found?.status === 'removed' &&
+      (found.appeal?.decided_by ||
+        (await removedByModeration(this.prisma, found.id, 'client_review')))
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.REVIEW_NOT_EDITABLE,
+        message: 'This review was removed by moderation.',
+      });
+    }
+    const revived = found?.status === 'removed';
+    if (revived) {
+      // Its appeal was closed by the author's delete: the client may
+      // appeal the new review.
+      await this.prisma.clientReviewAppeal.deleteMany({
+        where: { review_id: found.id, decided_by: null },
+      });
+    }
+    const existing = revived ? null : found;
     const row = await this.prisma.clientReview.upsert({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
@@ -115,6 +139,7 @@ export class ClientReviewsService {
         rating: dto.rating,
         body,
         ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+        ...(revived ? { status: 'published' as const } : {}),
       },
     });
     await this.recalc(kase.client_id);
@@ -405,11 +430,14 @@ export class ClientReviewsService {
   async listAppeals(
     status: 'pending' | 'accepted' | 'rejected' | 'auto_removed' = 'pending',
     cursor?: string,
+    countries: CountryScope = null,
   ): Promise<{ items: AdminReviewAppealDto[]; nextCursor: string | null }> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const rows = await this.prisma.clientReviewAppeal.findMany({
       where: {
         status,
+        // Owner 2026-10-05: moderators of one country see its appeals.
+        ...(countries ? { appellant: userInScope(countries) } : {}),
         ...(c
           ? {
               OR: [
@@ -421,18 +449,21 @@ export class ClientReviewsService {
       },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       take: PAGE + 1,
-      include: {
-        review: {
-          include: {
-            attorney: {
-              select: { first_name: true, last_name: true, role: true },
-            },
-            client: { select: { first_name: true, last_name: true } },
-          },
-        },
-      },
+      include: { review: true },
     });
     const page = rows.slice(0, PAGE);
+    // Shard-ready step 6: the two names come from the user directory.
+    const people = userDirectory(this.prisma);
+    const [attorneys, clients] = await Promise.all([
+      people.select(
+        page.map((a) => a.review.attorney_id),
+        { first_name: true, last_name: true, role: true },
+      ),
+      people.select(
+        page.map((a) => a.review.client_id),
+        { first_name: true, last_name: true },
+      ),
+    ]);
     const last = page[page.length - 1];
     const name = (u: { first_name: string | null; last_name: string | null }) =>
       [u.first_name, u.last_name].filter(Boolean).join(' ') || '—';
@@ -446,15 +477,15 @@ export class ClientReviewsService {
         reviewId: a.review_id,
         rating: a.review.rating,
         body: a.review.body,
-        authorName: name(a.review.attorney),
+        authorName: name(attorneys.get(a.review.attorney_id)!),
         authorRole:
-          a.review.attorney.role === 'client'
+          attorneys.get(a.review.attorney_id)!.role === 'client'
             ? 'client'
-            : a.review.attorney.role === 'assistant'
+            : attorneys.get(a.review.attorney_id)!.role === 'assistant'
               ? 'assistant'
               : 'attorney',
         clientId: a.review.client_id,
-        clientName: name(a.review.client),
+        clientName: name(clients.get(a.review.client_id)!),
       })),
       nextCursor:
         rows.length > PAGE && last
@@ -519,11 +550,21 @@ export class ClientReviewsService {
     return { decided: pending.length };
   }
 
-  /** Own, clean `review_photo` files only (owner 2026-10-01). */
+  /** Own, clean `review_photo` files only (owner 2026-10-01); count,
+   * formats and MB per photo are the admin's «Отзывы» limits (bug 17). */
   private async checkPhotos(userId: string, ids?: string[]): Promise<string[]> {
     const unique = [...new Set(ids ?? [])];
+    assertUploadCount(
+      await this.files.uploadLimits(),
+      'review',
+      'photos',
+      unique.length,
+    );
     for (const id of unique) {
-      await this.files.assertAttachable(userId, id, ['review_photo']);
+      const file = await this.files.assertAttachable(userId, id, [
+        'review_photo',
+      ]);
+      await this.files.assertFitsPlace('review', file);
     }
     return unique;
   }
@@ -532,7 +573,11 @@ export class ClientReviewsService {
    * Owner 2026-10-01 (Google-style): nothing is removed automatically any
    * more — reviews are removed by their author or by moderation. */
   async sweepAppeals(now = new Date()): Promise<number> {
-    if (!AUTO_REMOVE_UNDECIDED_APPEALS) return 0;
+    // Owner 2026-10-05: an admin switch (default off, as decided 2026-10-01).
+    const auto = this.settings
+      ? await this.settings.boolean('reviews.auto_remove_undecided_appeals')
+      : false;
+    if (!auto) return 0;
     const due = await this.prisma.clientReviewAppeal.findMany({
       where: { status: 'pending', auto_remove_at: { lte: now } },
       select: {
@@ -758,20 +803,21 @@ export class ClientReviewsService {
       include: {
         case: { select: { title: true } },
         appeal: { select: { status: true } },
-        attorney: {
-          select: {
-            role: true,
-            first_name: true,
-            last_name: true,
-            avatar_file_id: true,
-            phone_verified_at: true,
-            attorney_profile: { select: { username: true } },
-          },
-        },
       },
     });
+    const authorsById = await userDirectory(this.prisma).select(
+      rows.map((r) => r.attorney_id),
+      {
+        role: true,
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        phone_verified_at: true,
+        attorney_profile: { select: { username: true } },
+      },
+    );
     const avatars = await this.files.avatarUrlsMany(
-      rows.map((r) => r.attorney.avatar_file_id),
+      rows.map((r) => authorsById.get(r.attorney_id)!.avatar_file_id),
     );
     const photos = await this.files.postImageUrls(
       rows.flatMap((r) => r.photo_ids),
@@ -809,7 +855,7 @@ export class ClientReviewsService {
     return ids.flatMap((id) => {
       const r = byId.get(id);
       if (!r) return [];
-      const a = r.attorney;
+      const a = authorsById.get(r.attorney_id)!;
       const username = a.attorney_profile?.username ?? '';
       return [
         {

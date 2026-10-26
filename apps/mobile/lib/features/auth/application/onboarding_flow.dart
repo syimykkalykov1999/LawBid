@@ -1,16 +1,17 @@
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/auth/application/auth_providers.dart';
+import 'package:lawbid/features/auth/data/sms_code_retriever.dart';
+import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/referrals/application/install_referrer.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../../../core/l10n/api_error_text.dart';
-import '../../../core/l10n/l10n_providers.dart';
-import '../../../shared/domain/user_role.dart';
-import '../../onboarding/application/current_user_controller.dart';
-import '../data/auth_repository.dart';
-import '../data/sms_code_retriever.dart';
-import '../domain/onboarding_flow_state.dart';
-import '../domain/onboarding_step.dart';
-import '../domain/otp_verify_result.dart';
-import '../domain/social_login_result.dart';
-import 'auth_providers.dart';
 
 part 'onboarding_flow.g.dart';
 
@@ -29,12 +30,20 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   /// Welcome screen's "Продолжить с телефоном" — screen 1 → 2.
   void goToPhoneStep() {
-    state = state.copyWith(step: OnboardingStep.phone, channel: AuthChannel.phone, errorMessage: null);
+    state = state.copyWith(
+      step: OnboardingStep.phone,
+      channel: AuthChannel.phone,
+      errorMessage: null,
+    );
   }
 
   /// Email sign-in entry (file 01 §10.2 E).
   void goToEmailStep() {
-    state = state.copyWith(step: OnboardingStep.email, channel: AuthChannel.email, errorMessage: null);
+    state = state.copyWith(
+      step: OnboardingStep.email,
+      channel: AuthChannel.email,
+      errorMessage: null,
+    );
   }
 
   Future<bool> submitPhoneNumber(String e164Phone) =>
@@ -44,11 +53,19 @@ class OnboardingFlow extends _$OnboardingFlow {
       _requestCode(AuthChannel.email, email.trim().toLowerCase());
 
   Future<bool> _requestCode(AuthChannel channel, String identifier) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null, autofilledCode: null);
+    state = state.copyWith(
+      isSubmitting: true,
+      errorMessage: null,
+      closedCountry: null,
+      autofilledCode: null,
+    );
     // SMS Retriever must be listening BEFORE the SMS is sent (§10.2 D).
     if (channel == AuthChannel.phone) _listenForSmsCode(identifier);
     try {
-      await ref.read(authRepositoryProvider).requestOtp(identifier, channel: channel.wireName);
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(identifier, channel: channel.wireName);
+      AppEvents.track(AppEventNames.otpRequested);
       state = state.copyWith(
         step: OnboardingStep.otp,
         channel: channel,
@@ -61,6 +78,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       state = state.copyWith(
         isSubmitting: false,
         errorMessage: errorText(ref.read(translatorProvider), e),
+        closedCountry: _closedCountry(e),
       );
       return false;
     }
@@ -72,7 +90,10 @@ class OnboardingFlow extends _$OnboardingFlow {
     if (identifier == null) return null;
     if (state.channel == AuthChannel.phone) _listenForSmsCode(identifier);
     try {
-      await ref.read(authRepositoryProvider).requestOtp(identifier, channel: state.channel.wireName);
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(identifier, channel: state.channel.wireName);
+      AppEvents.track(AppEventNames.otpRequested);
       return null;
     } catch (e) {
       return errorText(ref.read(translatorProvider), e);
@@ -113,7 +134,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   /// Email magic link (docs/01_FOUNDATION_AUTH.md §10.2 E/F, security
   /// review 2026-09-27; deep link `lawbid://auth/email-code?token=…` or
-  /// `https://lawbid.app/auth/email-code?token=…`, see core/deeplinks).
+  /// `https://lawbid.dev/auth/email-code?token=…`, see core/deeplinks).
   ///
   /// The link only works together with the verifier this device stored
   /// when it requested the code (`MagicLinkVerifierStore`):
@@ -143,7 +164,8 @@ class OnboardingFlow extends _$OnboardingFlow {
       return _magicLinkToEmailStep(t.t('auth.magicLink.otherDevice'), show);
     }
     // Same device: the address is still known if the flow survived.
-    final identifier = state.channel == AuthChannel.email ? state.identifier : null;
+    final identifier =
+        state.channel == AuthChannel.email ? state.identifier : null;
     state = OnboardingFlowState(
       step: OnboardingStep.otp,
       channel: AuthChannel.email,
@@ -172,7 +194,8 @@ class OnboardingFlow extends _$OnboardingFlow {
     String message,
     void Function(OnboardingStep step) show,
   ) async {
-    final identifier = state.channel == AuthChannel.email ? state.identifier : null;
+    final identifier =
+        state.channel == AuthChannel.email ? state.identifier : null;
     state = OnboardingFlowState(
       step: OnboardingStep.email,
       channel: AuthChannel.email,
@@ -207,13 +230,33 @@ class OnboardingFlow extends _$OnboardingFlow {
     );
   }
 
+  /// Owner 2026-10-04: an assistant signs in with the attorney's one-time
+  /// code (no SMS); the guard then opens the assistant's next step.
+  Future<bool> signInWithAssistantCode(String code) async {
+    state = state.copyWith(isSubmitting: true, errorMessage: null);
+    final t = ref.read(translatorProvider);
+    final result =
+        await ref.read(authRepositoryProvider).signInWithAssistantCode(code);
+    return result.when(
+      success: (_) => _afterSignIn(isNewUser: false),
+      invalid: () => _fail(t.t('assistant.code.invalid')),
+      expired: () => _fail(t.t('assistant.code.invalid')),
+      locked: () => _fail(t.t('assistant.code.tooMany')),
+      rateLimited: (_) => _fail(t.t('assistant.code.tooMany')),
+      networkError: () => _fail(t.t('error.api.NETWORK_ERROR')),
+    );
+  }
+
   Future<bool> _fail(String message) async {
+    // docs/analytics_events.md: a sign-in attempt that did not succeed.
+    AppEvents.track(AppEventNames.loginFailure);
     state = state.copyWith(isSubmitting: false, errorMessage: message);
     return false;
   }
 
   Future<bool> _afterSignIn({required bool isNewUser}) async {
     _stopSmsListener();
+    AppEvents.track(AppEventNames.loginSuccess);
     // The magic-link verifier is single-use; drop it once signed in.
     try {
       await ref.read(magicLinkVerifierStoreProvider).clear();
@@ -221,44 +264,18 @@ class OnboardingFlow extends _$OnboardingFlow {
       // Best effort — the server consumes the link token anyway.
     }
     await ref.read(currentUserControllerProvider.notifier).ensureLoaded();
+    if (isNewUser) {
+      // docs/ops/demo-world.md: a brand-new account is owed the one-time
+      // «Есть код приглашения?» sheet once onboarding is done (MainShell).
+      try {
+        await ref.read(pendingReferralStoreProvider).markAskPending();
+      } catch (_) {}
+    }
     state = state.copyWith(
       isSubmitting: false,
       step: isNewUser ? OnboardingStep.role : OnboardingStep.completed,
     );
     return true;
-  }
-
-  /// Welcome screen's Apple button (file 07 §6.1). A cancelled native
-  /// sheet is not an error — no `errorMessage` is set for it.
-  Future<bool> signInWithApple() => _signInWithSocial((repo) => repo.signInWithApple());
-
-  /// Same as [signInWithApple], via Google.
-  Future<bool> signInWithGoogle() => _signInWithSocial((repo) => repo.signInWithGoogle());
-
-  Future<bool> _signInWithSocial(
-    Future<SocialLoginResult> Function(AuthRepository) signIn,
-  ) async {
-    state = state.copyWith(isSubmitting: true, errorMessage: null);
-    final result = await signIn(ref.read(authRepositoryProvider));
-    final t = ref.read(translatorProvider);
-    return result.when(
-      success: (isNewUser) => _afterSignIn(isNewUser: isNewUser),
-      cancelled: () async {
-        state = state.copyWith(isSubmitting: false);
-        return false;
-      },
-      invalidToken: () => _fail(t.t('auth.social.error.invalidToken')),
-      providerDisabled: () => _fail(t.t('auth.social.error.providerDisabled')),
-      accountExists: (maskedIdentifier, availableMethods) => _fail(
-        t.t('auth.social.error.accountExists', {
-          'identifier': maskedIdentifier,
-          'methods': availableMethods.join(', '),
-        }),
-      ),
-      suspended: () => _fail(t.t('auth.social.error.suspended')),
-      deleted: () => _fail(t.t('auth.social.error.deleted')),
-      networkError: () => _fail(t.t('auth.social.error.network')),
-    );
   }
 
   /// Role step's local card selection (before "Continue" posts it).
@@ -270,7 +287,8 @@ class OnboardingFlow extends _$OnboardingFlow {
   /// losing what's already been entered.
   void goBackTo(OnboardingStep step) {
     if (step != OnboardingStep.otp) _stopSmsListener();
-    state = state.copyWith(step: step, errorMessage: null, autofilledCode: null);
+    state =
+        state.copyWith(step: step, errorMessage: null, autofilledCode: null);
   }
 
   /// «Изменить номер» / "Change number" on the code screen
@@ -278,7 +296,9 @@ class OnboardingFlow extends _$OnboardingFlow {
   /// current channel (phone, or email for an email code). Returns that
   /// step so the screen knows where to navigate.
   OnboardingStep changeIdentifier() {
-    final entry = state.channel == AuthChannel.email ? OnboardingStep.email : OnboardingStep.phone;
+    final entry = state.channel == AuthChannel.email
+        ? OnboardingStep.email
+        : OnboardingStep.phone;
     goBackTo(entry);
     return entry;
   }
@@ -286,5 +306,15 @@ class OnboardingFlow extends _$OnboardingFlow {
   /// Clears a stale error (e.g. when the user edits the field).
   void clearError() {
     if (state.errorMessage != null) state = state.copyWith(errorMessage: null);
+  }
+
+  static String? _closedCountry(Object e) {
+    if (e is! ApiException) return null;
+    final code = e.details?['countryCode'];
+    if (code is! String || code.length != 2) return null;
+    final closed = e.code == ApiErrorCodes.countryNotAvailable ||
+        (e.code == ApiErrorCodes.phoneCountryNotSupported &&
+            e.details?['reason'] == 'country_not_allowed');
+    return closed ? code : null;
   }
 }

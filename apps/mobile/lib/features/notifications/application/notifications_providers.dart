@@ -1,15 +1,21 @@
 import 'dart:async';
 
 import 'package:app_badge_plus/app_badge_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
-import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/core/startup/app_session.dart';
+import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+
+extension on String {
+  String? get nullIfEmpty => isEmpty ? null : this;
+}
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -27,16 +33,45 @@ class BadgesNotifier extends Notifier<Badges> {
       unawaited(_appIcon(0));
       return const Badges();
     }
+    // Audit 2026-10-02: the "category off" switches are loaded with the
+    // badges (so the first chime/ring after a cold start honours them).
+    ref.listen(mutedCategoriesProvider, (_, __) {});
+    // Owner 2026-10-21 (inbox 29/29b): Settings → Notifications changed
+    // (here or re-read): the icon follows «Счётчик на иконке» at once and
+    // the counters are re-read (a kind switched off leaves them).
+    ref.listen(notificationSettingsProvider, (prev, next) {
+      final s = next.value;
+      if (s == null || prev?.value == null || identical(prev!.value, s)) {
+        return;
+      }
+      _set(state);
+      unawaited(refresh());
+    });
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'badge:update') {
+        // Owner 2026-10-22 (package F): the server sends an assistant its
+        // own numbers in the event too — no GET on every event.
         final b = Badges.fromEvent(e.data);
         if (b != null) _set(b);
       } else if (e.name == RealtimeEvent.reconnected) {
+        unawaited(ref.read(notificationSettingsProvider.notifier).reload());
         unawaited(refresh());
       }
     });
     ref.onDispose(sub.cancel);
-    unawaited(Future.microtask(refresh));
+    // Owner 2026-10-22 (package G): the start's one answer already carries
+    // the badges — no GET /badges on top of it.
+    ref.listen(appSessionProvider, (_, s) {
+      if (s != null) _set(Badges.fromSession(s.badges));
+    });
+    final session = ref.read(appSessionProvider);
+    if (session != null) {
+      unawaited(
+        Future.microtask(() => _set(Badges.fromSession(session.badges))),
+      );
+    } else {
+      unawaited(Future.microtask(refresh));
+    }
     return const Badges();
   }
 
@@ -50,11 +85,21 @@ class BadgesNotifier extends Notifier<Badges> {
 
   void _set(Badges b) {
     if (!ref.mounted) return;
-    state = b;
-    unawaited(_appIcon(b.total));
+    // Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» — the
+    // settings state (changed here at once) wins over a count that was
+    // already on its way.
+    final on =
+        ref.read(notificationSettingsProvider).value?.iconBadge ?? b.iconBadge;
+    state = Badges(
+      chats: b.chats,
+      notifications: b.notifications,
+      iconBadge: on,
+    );
+    unawaited(_appIcon(state.iconCount));
   }
 
   static Future<void> _appIcon(int n) async {
+    if (kIsWeb) return; // no launcher badge in a browser
     try {
       if (await AppBadgePlus.isSupported()) await AppBadgePlus.updateBadge(n);
     } on Object {
@@ -63,15 +108,17 @@ class BadgesNotifier extends Notifier<Badges> {
   }
 }
 
-final badgesProvider =
-    NotifierProvider<BadgesNotifier, Badges>(BadgesNotifier.new);
+final badgesProvider = NotifierProvider<BadgesNotifier, Badges>(
+  BadgesNotifier.new,
+);
 
 /// Owner 2026-10-02: the categories switched off in Settings → Notifications
 /// (the same screen opens from the bell and from Profile → Settings). Off =
 /// still delivered, but no badge, no chime, calls ring silently.
 final mutedCategoriesProvider = FutureProvider<Set<NotifCategory>>((ref) async {
   if (ref.watch(currentUserIdProvider) == null) return const {};
-  final s = await ref.watch(notificationsRepositoryProvider).settings();
+  // Owner 2026-10-21 (29b): the same state the settings screen shows.
+  final s = await ref.watch(notificationSettingsProvider.future);
   return {
     for (final c in s.categories)
       if (!c.locked && !c.push) c.category,
@@ -82,11 +129,103 @@ final mutedCategoriesProvider = FutureProvider<Set<NotifCategory>>((ref) async {
 bool isCategoryMuted(Ref ref, NotifCategory c) =>
     ref.read(mutedCategoriesProvider).value?.contains(c) ?? false;
 
-/// docs/05 §9.1 notifications list.
-class NotificationsNotifier extends PagedNotifier<AppNotification> {
+/// Owner 2026-10-06: the bell's open tab (null = All); kept while the app
+/// runs so the bell reopens on the same tab.
+class NotificationGroupNotifier extends Notifier<NotifGroup?> {
   @override
-  Future<CursorPage<AppNotification>> fetch(String? cursor) =>
-      ref.read(notificationsRepositoryProvider).list(cursor: cursor);
+  NotifGroup? build() => null;
+
+  // ignore: use_setters_to_change_properties
+  void set(NotifGroup? group) => state = group;
+}
+
+final notificationGroupProvider =
+    NotifierProvider<NotificationGroupNotifier, NotifGroup?>(
+  NotificationGroupNotifier.new,
+);
+
+/// Owner 2026-10-18: the text typed in the bell's search box ('' = none).
+class NotificationQueryNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  // ignore: use_setters_to_change_properties
+  void set(String query) => state = query;
+}
+
+final notificationQueryProvider =
+    NotifierProvider.autoDispose<NotificationQueryNotifier, String>(
+  NotificationQueryNotifier.new,
+);
+
+/// docs/05 §9.1 notifications list (of the open tab).
+/// Package F: the delta side of the repository (null with a test fake).
+final notificationsSyncProvider = Provider<NotificationsSyncRepository?>((ref) {
+  final repo = ref.watch(notificationsRepositoryProvider);
+  return repo is NotificationsSyncRepository
+      ? repo as NotificationsSyncRepository
+      : null;
+});
+
+/// Owner 2026-10-22 (client economy plan, package F): the bell list is
+/// never reloaded whole while it is open — a `notification:new` (the
+/// event carries only the id) and a reconnect are one `?updatedSince`.
+class NotificationsNotifier extends SyncedListNotifier<AppNotification> {
+  @override
+  String get listKey =>
+      'notifications:${ref.read(notificationGroupProvider)?.name ?? 'all'}';
+
+  @override
+  String? get syncOwner => ref.read(currentUserIdProvider);
+
+  @override
+  SyncStateStore? get syncStore => ref.read(cacheDatabaseProvider);
+
+  /// A text search has no delta on the server.
+  @override
+  bool get catchesUp =>
+      ref.read(notificationQueryProvider).nullIfEmpty == null &&
+      ref.read(notificationsSyncProvider) != null;
+
+  @override
+  int Function(AppNotification, AppNotification)? get order =>
+      (a, b) => b.createdAt.compareTo(a.createdAt);
+
+  @override
+  Future<PaginatedList<AppNotification>> build() {
+    // Another tab = a fresh first page.
+    ref
+      ..watch(notificationGroupProvider)
+      ..watch(notificationQueryProvider);
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'notification:new' || e.name == RealtimeEvent.reconnected) {
+        catchUp();
+      }
+    });
+    ref.onDispose(sub.cancel);
+    return super.build();
+  }
+
+  @override
+  Future<CursorPage<AppNotification>> fetchPage(String? cursor) =>
+      ref.read(notificationsRepositoryProvider).list(
+            cursor: cursor,
+            group: ref.read(notificationGroupProvider),
+            query: ref.read(notificationQueryProvider).nullIfEmpty,
+          );
+
+  @override
+  Future<SyncedPage<AppNotification>> fetchChanged(DateTime since) =>
+      ref.read(notificationsSyncProvider)!.listChangedSince(
+            since,
+            group: ref.read(notificationGroupProvider),
+          );
+
+  @override
+  String keyOf(AppNotification item) => item.id;
+
+  @override
+  DateTime? updatedAtOf(AppNotification item) => null;
 
   @override
   Object idOf(AppNotification item) => item.id;
@@ -95,13 +234,16 @@ class NotificationsNotifier extends PagedNotifier<AppNotification> {
   Future<void> markRead({String? id}) async {
     final current = state.value;
     if (current != null) {
-      state = AsyncData(PaginatedList(
-        items: [
-          for (final n in current.items)
-            id == null || n.id == id ? n.markedRead() : n,
-        ],
-        nextCursor: current.nextCursor,
-      ));
+      state = AsyncData(
+        PaginatedList(
+          items: [
+            for (final n in current.items)
+              // ignore: prefer_if_elements_to_conditional_expressions
+              id == null || n.id == id ? n.markedRead() : n,
+          ],
+          nextCursor: current.nextCursor,
+        ),
+      );
     }
     try {
       await ref
@@ -115,10 +257,8 @@ class NotificationsNotifier extends PagedNotifier<AppNotification> {
 }
 
 final notificationsProvider = AsyncNotifierProvider.autoDispose<
-    NotificationsNotifier, PaginatedList<AppNotification>>(
-  NotificationsNotifier.new,
-  retry: _noRetry,
-);
+    NotificationsNotifier,
+    PaginatedList<AppNotification>>(NotificationsNotifier.new, retry: _noRetry);
 
 /// Owner 2026-10-01: qualifications for "new case" alerts (attorneys).
 final newCaseAlertsProvider = FutureProvider.autoDispose<NewCaseAlerts>(
@@ -126,8 +266,77 @@ final newCaseAlertsProvider = FutureProvider.autoDispose<NewCaseAlerts>(
   retry: _noRetry,
 );
 
+/// Owner 2026-10-21 (inbox 29b): Settings → Notifications — one state for
+/// the screen (opened from the bell and from Profile → Settings), the
+/// chimes / ringing ([mutedCategoriesProvider]) and the app icon. Every
+/// change is shown at once and rolled back if the server says no.
+class NotificationSettingsNotifier extends AsyncNotifier<NotificationSettings> {
+  @override
+  Future<NotificationSettings> build() async {
+    if (ref.watch(currentUserIdProvider) == null) {
+      return const NotificationSettings(categories: []);
+    }
+    return ref.watch(notificationsRepositoryProvider).settings();
+  }
+
+  NotificationsRepository get _repo =>
+      ref.read(notificationsRepositoryProvider);
+
+  /// Re-reads quietly (the screen opens, the socket reconnects): the old
+  /// state stays on screen meanwhile.
+  Future<void> reload() async {
+    try {
+      final s = await _repo.settings();
+      if (ref.mounted) state = AsyncData(s);
+    } on Object {
+      // Offline: keep what is shown.
+    }
+  }
+
+  Future<void> _apply(
+    NotificationSettings optimistic,
+    Future<NotificationSettings> Function() call,
+  ) async {
+    final before = state.value;
+    state = AsyncData(optimistic);
+    try {
+      final saved = await call();
+      if (ref.mounted) state = AsyncData(saved);
+    } on Object {
+      if (ref.mounted && before != null) state = AsyncData(before);
+      rethrow;
+    }
+  }
+
+  Future<void> setTopic(TopicSetting t, {required bool push}) {
+    final s = state.requireValue;
+    final next = t.copyWith(push: push);
+    return _apply(
+      s.copyWith(
+        topics: [
+          // ignore: prefer_if_elements_to_conditional_expressions
+          for (final x in s.topics) x.key == t.key ? next : x,
+        ],
+      ),
+      () => _repo.updateTopics([next]),
+    );
+  }
+
+  Future<void> setQuietHours(QuietHours? q) => _apply(
+        state.requireValue.copyWith(quietHours: () => q),
+        () => _repo.setQuietHours(q),
+      );
+
+  /// Owner 2026-10-21 (inbox 29): off clears the app icon at once.
+  /// [BadgesNotifier] follows this state, so the icon changes at once.
+  Future<void> setIconBadge({required bool enabled}) => _apply(
+        state.requireValue.copyWith(iconBadge: enabled),
+        () => _repo.setIconBadge(enabled: enabled),
+      );
+}
+
 final notificationSettingsProvider =
-    FutureProvider.autoDispose<NotificationSettings>(
-  (ref) => ref.watch(notificationsRepositoryProvider).settings(),
+    AsyncNotifierProvider<NotificationSettingsNotifier, NotificationSettings>(
+  NotificationSettingsNotifier.new,
   retry: _noRetry,
 );

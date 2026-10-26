@@ -1,6 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import { FilePurpose, ScanStatus } from '@prisma/client';
-import { IsEnum, IsInt, Matches, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsISO8601,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { ALL_FILE_MIMES } from '../files.policy';
 
 const FILE_MIME_PATTERN = new RegExp(
@@ -39,12 +51,20 @@ export class PresignFileDto {
   })
   @Matches(/^[0-9a-f]{64}$/)
   sha256!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  supportsPut?: boolean;
 }
 
 export class PresignedUploadDto {
   @ApiProperty({
     description:
-      'POST target (multipart/form-data): send every field, then the file as the last field named "file".',
+      'Upload target. With method POST (default): multipart/form-data, send every field, then the file as the last field named "file". With method PUT: send the raw file as the body.',
   })
   url!: string;
 
@@ -52,9 +72,24 @@ export class PresignedUploadDto {
     type: 'object',
     additionalProperties: { type: 'string' },
     description:
-      'Form fields signed by the server (key, policy, signature, Content-Type).',
+      'Form fields signed by the server (key, policy, signature, Content-Type). Empty for method PUT.',
   })
   fields!: Record<string, string>;
+
+  @ApiPropertyOptional({
+    enum: ['POST', 'PUT'],
+    description:
+      'HTTP method of the upload. Absent means POST (older servers).',
+  })
+  method?: 'POST' | 'PUT';
+
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: { type: 'string' },
+    description:
+      'Headers to send exactly as given with a PUT upload (Content-Type, Cache-Control).',
+  })
+  headers?: Record<string, string>;
 }
 
 export class PresignedFileDto {
@@ -114,4 +149,88 @@ export class FileDto {
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
+}
+
+/** One entry of GET /files/:id/views — somebody other than the owner was
+ * given a link to the file (security & legal pass 2026-10-24). */
+export class FileViewDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Journal row id (the client merges and de-duplicates by it).',
+  })
+  id!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  viewerUserId!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  viewerName!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Signed link to the viewer avatar, when they have a clean one.',
+  })
+  viewerAvatarUrl!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'client | attorney | assistant (the viewer account role).',
+  })
+  viewerRole!: string | null;
+
+  @ApiProperty({ format: 'date-time' })
+  viewedAt!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Device name of the viewer session, when known.',
+  })
+  device!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  platform!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'The viewer address with its host part hidden (203.0.113.x / 2001:db8:1::x); the full address never leaves the server.',
+  })
+  ip!: string | null;
+}
+
+/** GET /files/:id/views query (cursor-paged, newest first). */
+export class FileViewsQueryDto {
+  @ApiPropertyOptional({ description: 'meta.nextCursor of the previous page.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  cursor?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 50,
+    default: 20,
+    description: 'Page size (a small page keeps the phone sync cheap).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description:
+      'Only views logged after this time (ISO), newest first and paged like the full list; meta.syncedAt = the newest viewedAt of the answer (or `since`). The journal is append-only, so there is no SYNC_TOO_OLD.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  since?: string;
 }

@@ -290,6 +290,72 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
     ).toBe('sent');
   });
 
+  it('owner 2026-10-15: each category switches on its own; all off leaves only system', async () => {
+    const u = await user('attorney');
+    const cases: [string, 'bid_accepted' | 'case_closed' | 'new_follower'][] = [
+      ['bids', 'bid_accepted'],
+      ['cases', 'case_closed'],
+      ['social', 'new_follower'],
+    ];
+    const send = async (type: string, key: string) => {
+      const n = await notifications.emit({
+        type: type as never,
+        recipientId: u.id,
+        payload: {
+          caseId: randomUUID(),
+          bidId: randomUUID(),
+          userId: randomUUID(),
+        },
+      });
+      return dispatcher.dispatch(
+        { kind: 'notification', notificationId: n!.id, push: true },
+        key,
+      );
+    };
+    const set = (category: string, on: boolean) =>
+      prisma.notificationSetting.upsert({
+        where: {
+          user_id_category: { user_id: u.id, category: category as never },
+        },
+        create: {
+          user_id: u.id,
+          category: category as never,
+          push_enabled: on,
+        },
+        update: { push_enabled: on },
+      });
+    // Everything on: all three are pushed.
+    for (const [c] of cases) await set(c, true);
+    for (const [c, type] of cases)
+      expect(await send(type, `on-${c}`)).toBe('sent');
+    // One category off: only that one is silent.
+    for (const [off] of cases) {
+      await set(off, false);
+      for (const [c, type] of cases) {
+        expect(await send(type, `one-${off}-${c}`)).toBe(
+          c === off ? 'disabled' : 'sent',
+        );
+      }
+      await set(off, true);
+    }
+    // All off: nothing but the system.
+    for (const [c] of cases) await set(c, false);
+    for (const [c, type] of cases) {
+      expect(await send(type, `off-${c}`)).toBe('disabled');
+    }
+    const sys = await notifications.emit({
+      type: 'verification_update',
+      recipientId: u.id,
+      payload: {},
+    });
+    expect(
+      await dispatcher.dispatch(
+        { kind: 'notification', notificationId: sys!.id, push: true },
+        'off-system',
+      ),
+    ).toBe('sent');
+  });
+
   it('badge = unread messages + unread notifications, new_message not twice', async () => {
     const client = await user('client');
     const att = await user('attorney');
@@ -310,6 +376,7 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
       chatsUnread: 2,
       notificationsUnread: 1,
       total: 3,
+      iconBadge: true,
     });
 
     const read = await api()
@@ -319,6 +386,30 @@ describe('Notifications, push, badges (e2e, docs/05 §9-§10, stage 5.8)', () =>
     expect(read.body.data.updated).toBe(1);
     const after = await api().get('/api/v1/badges').set(client.auth);
     expect(after.body.data.total).toBe(2);
+  });
+
+  it('the bell tabs: important vs other (owner 2026-10-06)', async () => {
+    const u = await user('attorney');
+    await notifications.emit({
+      type: 'bid_accepted',
+      recipientId: u.id,
+      payload: { caseId: randomUUID(), bidId: randomUUID() },
+    });
+    await notifications.emit({
+      type: 'new_follower',
+      recipientId: u.id,
+      payload: { actorKind: 'client' },
+    });
+    const types = async (q: string) =>
+      (
+        (await api().get(`/api/v1/notifications${q}`).set(u.auth)).body
+          .data as { type: string }[]
+      ).map((n) => n.type);
+    expect(await types('?group=important')).toEqual(['bid_accepted']);
+    expect(await types('?group=other')).toEqual(['new_follower']);
+    expect((await types('')).sort()).toEqual(['bid_accepted', 'new_follower']);
+    const bad = await api().get('/api/v1/notifications?group=nope').set(u.auth);
+    expect(bad.status).toBe(400);
   });
 
   it('retention removes notifications older than retention_days', async () => {

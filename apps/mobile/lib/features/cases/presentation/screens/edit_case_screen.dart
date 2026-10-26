@@ -76,7 +76,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
         0 => _draft.practiceValid,
         1 => _draft.titleValid && _draft.descriptionValid,
         2 => _draft.placeValid,
-        _ => _draft.budgetValid,
+        _ => _draft.budgetValid && _draft.urgencyValid,
       };
 
   void _change(CaseDraft Function(CaseDraft d) f) => setState(() {
@@ -103,8 +103,9 @@ class _EditFormState extends ConsumerState<_EditForm> {
       setState(() {
         _saving = false;
         _error = e;
-        if (e.code == ApiErrorCodes.caseContainsContactInfo)
+        if (e.code == ApiErrorCodes.caseContainsContactInfo) {
           _index = _steps.indexOf(1);
+        }
       });
     }
   }
@@ -121,7 +122,10 @@ class _EditFormState extends ConsumerState<_EditForm> {
     final Widget step = switch (_step) {
       0 => PracticeStep(draft: _draft, onChange: _change),
       1 => EssenceStep(
-          draft: _draft, onChange: _change, contactError: contactError),
+          draft: _draft,
+          onChange: _change,
+          contactError: contactError,
+        ),
       2 => PlaceStep(
           draft: _draft,
           onChange: _change,
@@ -176,14 +180,13 @@ class _EditFormState extends ConsumerState<_EditForm> {
                   label: t.t('common.back'),
                   variant: AppButtonVariant.secondary,
                   isEnabled: _index > 0,
-                  dimWhenDisabled: true,
                   onPressed: () => setState(() => _index--),
                 ),
                 right: AppButton(
                   label: last ? t.t('common.save') : t.t('common.next'),
+                  disabledHint: t.t('form.disabled.required'),
                   isEnabled: _valid,
                   isLoading: _saving,
-                  dimWhenDisabled: true,
                   onPressed: last ? _save : () => setState(() => _index++),
                 ),
               ),

@@ -1,4 +1,4 @@
-import 'app_language.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
 
 /// Reads/writes the user's EXPLICIT language choice (the picker, or the
 /// server's `uiLanguage` applied after login). "Nothing stored" is

@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'bootstrap_legal_document_dto.dart';
+import 'client_timings_dto.dart';
 import 'i18n_language_dto.dart';
 
 part 'bootstrap_dto.g.dart';
@@ -17,6 +18,7 @@ class BootstrapDto {
     required this.languages,
     required this.translationsVersion,
     required this.legalDocuments,
+    required this.client,
   });
 
   factory BootstrapDto.fromJson(Map<String, Object?> json) =>
@@ -35,6 +37,9 @@ class BootstrapDto {
   final Map<String, int> translationsVersion;
   @JsonKey(name: 'legal_documents')
   final List<BootstrapLegalDocumentDto> legalDocuments;
+
+  /// Server-driven client behaviour (connection timings).
+  final ClientTimingsDto client;
 
   Map<String, Object?> toJson() => _$BootstrapDtoToJson(this);
 }

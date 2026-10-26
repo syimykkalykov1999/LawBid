@@ -1,0 +1,52 @@
+# Hourly safety net of the load test (docs/runbooks/LOAD_TEST.md): finds every
+# resource tagged Project=lawbid-loadtest, and destroys the stacks older than
+# 4 hours (Terraform with the stack's own state; if that fails, a sweep by tag
+# of everything that costs money while it runs). It prints what it found into
+# the run summary and turns the run RED when it had to clean something up, so
+# GitHub e-mails the owner: a normal load test never leaves anything behind.
+# It does nothing until the secret AWS_LOADTEST_WATCHDOG_ROLE exists.
+#
+# Uses its own OIDC role (lawbid-loadtest-watchdog, infra/bootstrap-loadtest):
+# a scheduled job cannot wait for the approval of the `load-test` environment.
+name: Load test watchdog
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      ROLE: ${{ secrets.AWS_LOADTEST_WATCHDOG_ROLE }}
+      TF_VERSION: "1.9.8"
+    steps:
+      - name: Not configured yet
+        if: env.ROLE == ''
+        run: echo "Add the secret AWS_LOADTEST_WATCHDOG_ROLE (docs/runbooks/LOAD_TEST.md, one-time setup) to enable the watchdog."
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: env.ROLE != ''
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        if: env.ROLE != ''
+        with:
+          role-to-assume: ${{ secrets.AWS_LOADTEST_WATCHDOG_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-duration-seconds: 7200
+      - name: Install Terraform
+        if: env.ROLE != ''
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_SHA256SUMS"
+          grep "linux_amd64.zip" "terraform_${TF_VERSION}_SHA256SUMS" | sha256sum -c -
+          unzip -qo "terraform_${TF_VERSION}_linux_amd64.zip" terraform && sudo install terraform /usr/local/bin/terraform
+      - name: Destroy what is older than 4 hours, report, prove
+        if: env.ROLE != ''
+        run: loadtest/scripts/watchdog.sh

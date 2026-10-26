@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 
 /// Hero tag shared by every place an attorney's photo appears, so a list
 /// row (search, file 05) → profile → editor flies the same avatar.
@@ -21,7 +22,12 @@ class ProfileAvatar extends StatelessWidget {
     this.heroTag,
     this.progress,
     this.semanticLabel,
+    this.viewerCloseLabel,
   });
+
+  /// Owner 2026-10-07: set → a tap opens the photo full screen (zoom,
+  /// double tap, swipe down to close); this is its close button label.
+  final String? viewerCloseLabel;
 
   final double size;
   final String? url;
@@ -36,9 +42,12 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
+    // ignore: omit_local_variable_types
     final ImageProvider? image = preview != null
         ? MemoryImage(preview!)
-        : (url != null && url!.isNotEmpty ? NetworkImage(url!) : null);
+        : (url != null && url!.isNotEmpty
+            ? appNetworkImage(url!, decodeWidthFor(size))
+            : null);
 
     Widget avatar = AppAvatar(
       imageProvider: image,
@@ -47,6 +56,22 @@ class ProfileAvatar extends StatelessWidget {
       semanticLabel: semanticLabel,
     );
     if (heroTag != null) avatar = Hero(tag: heroTag!, child: avatar);
+    final photo = url;
+    if (viewerCloseLabel != null &&
+        preview == null &&
+        photo != null &&
+        photo.isNotEmpty) {
+      avatar = GestureDetector(
+        key: const ValueKey('avatar-open'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => showPhotoGallery(
+          context,
+          urls: [photo],
+          closeLabel: viewerCloseLabel!,
+        ),
+        child: avatar,
+      );
+    }
     if (progress == null) return avatar;
 
     return Stack(
@@ -68,25 +93,6 @@ class ProfileAvatar extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Blue check (docs/03 §6.3). Status blue from docs/01 §8.1 (`info`).
-class VerifiedBadge extends StatelessWidget {
-  const VerifiedBadge(
-      {required this.semanticLabel, super.key, this.size = AppSizes.iconSm});
-
-  final String semanticLabel;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Semantics(
-      label: semanticLabel,
-      excludeSemantics: true,
-      child: AppIcon(AppIcons.verifiedRounded, size: size, color: colors.info),
     );
   }
 }

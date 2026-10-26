@@ -8,7 +8,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, OPS_RIGHTS } from './support/admin-login';
 
 jest.setTimeout(120_000);
 
@@ -145,6 +145,12 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
         primary_state_code: 'NJ',
         budget_mode: 'clarify_later',
         status,
+        // Symmetric completion (62386883): only the side that did not mark
+        // "Done" first may dispute — here the client marked, the attorney
+        // disputes.
+        ...(status === 'pending_completion'
+          ? { client_completed_at: new Date() }
+          : {}),
       },
     });
     await prisma.caseState.create({
@@ -181,7 +187,13 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
   }
 
   it('dispute queue + decision: closed with journal event and notifications; back to in_progress', async () => {
-    const support = await adminSession(baseUrl, prisma, 'support');
+    const support = await adminSession(
+      baseUrl,
+      prisma,
+      'support',
+      undefined,
+      OPS_RIGHTS,
+    );
     const verifier = await adminSession(baseUrl, prisma, 'verifier');
     const c = await client();
     const a = await attorney();
@@ -201,7 +213,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
     await api()
       .get('/api/v1/admin/case-disputes')
       .set(verifier.auth)
-      .expect(403);
+      .expect(404);
     const queue = await api()
       .get('/api/v1/admin/case-disputes')
       .set(support.auth)
@@ -286,7 +298,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
       await prisma.notification.count({
         where: {
           user_id: { in: [c2.id, a.id] },
-          type: 'case_updated',
+          type: 'dispute_resolved',
           payload: { path: ['disputeId'], equals: d2.id },
         },
       }),
@@ -387,7 +399,7 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
     await api()
       .get('/api/v1/admin/data-requests')
       .set(support.auth)
-      .expect(403);
+      .expect(404);
     const created = await api()
       .post('/api/v1/admin/data-requests')
       .set(sup.auth)

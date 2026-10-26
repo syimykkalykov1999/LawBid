@@ -6,7 +6,6 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/create_video_upload_dto.dart';
-import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
 import '../models/video_asset_envelope.dart';
 import '../models/video_upload_envelope.dart';
@@ -42,12 +41,12 @@ abstract class VideosClient {
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
-  /// [kind] - Owner 2026-09-30: only News / only regular posts (profile tabs).
+  /// [practice] - A practice category or subcategory code; the same hidden-tag filter as the feed topics.
   @GET('/reels')
   Future<PostListEnvelope> listReels({
-    @Query('limit') num? limit = 20,
     @Query('cursor') String? cursor,
-    @Query('kind') PostKind? kind,
+    @Query('limit') num? limit,
+    @Query('practice') String? practice,
     @Extras() Map<String, dynamic>? extras,
   });
 }

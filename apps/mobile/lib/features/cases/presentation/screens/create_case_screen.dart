@@ -10,8 +10,12 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
+import 'package:lawbid/features/cases/domain/case_draft.dart';
+import 'package:lawbid/features/cases/domain/case_urgency.dart';
+import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 
@@ -33,17 +37,19 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
   Future<void> _close() async {
     final t = ref.read(translatorProvider);
     final state = ref.read(createCaseControllerProvider);
-    if (state.draft.isEmpty) {
+    if (state.draft.isEmpty && state.photos.isEmpty) {
       await _c.finishEditing(keepDraft: false);
       if (mounted) Navigator.of(context).pop();
       return;
     }
-    final keep = await showAppBottomSheet<bool>(
+    // Owner 2026-10-15: no saved draft any more — just «Exit without
+    // saving?» with [Exit] / [Continue].
+    final leave = await showAppBottomSheet<bool>(
       context: context,
-      builder: (context) => _SaveDraftSheet(t: t),
+      builder: (context) => CreateCaseExitSheet(t: t),
     );
-    if (keep == null) return; // "Continue editing"
-    await _c.finishEditing(keepDraft: keep);
+    if (leave != true) return;
+    await _c.finishEditing(keepDraft: false);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -53,7 +59,9 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
     final state = ref.read(createCaseControllerProvider);
     if (ok && state.publishedCaseId != null) {
       showAppSnackBar(
-          context, ref.read(translatorProvider).t('cases.create.published'));
+        context,
+        ref.read(translatorProvider).t('cases.create.published'),
+      );
       context.pushReplacement(AppRoutes.myCase(state.publishedCaseId!));
     }
   }
@@ -103,8 +111,11 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                 onTap: _close,
                 child: SizedBox.square(
                   dimension: AppSizes.touchTarget,
-                  child: AppIcon(AppIcons.closeRounded,
-                      color: colors.text, size: AppSizes.iconMd),
+                  child: AppIcon(
+                    AppIcons.closeRounded,
+                    color: colors.text,
+                    size: AppSizes.iconMd,
+                  ),
                 ),
               ),
             ),
@@ -139,7 +150,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                 ],
               ),
             ),
-            if (state.restoredDraft && d.step == 0)
+            if (state.restoredDraft)
               _DraftBanner(t: t, onStartOver: _c.startOver),
             Expanded(
               child: !state.loaded
@@ -192,33 +203,33 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
                       label: t.t('common.back'),
                       variant: AppButtonVariant.secondary,
                       isEnabled: d.step > 0,
-                      dimWhenDisabled: true,
                       onPressed: _c.back,
                     ),
                     right: AppButton(
                       label: t.t('common.next'),
+                      disabledHint: t.t('form.disabled.required'),
                       isEnabled: state.stepValid,
-                      dimWhenDisabled: true,
                       onPressed: _c.next,
                     ),
                   )
-                else ...[
-                  GavelStrikeButton(
-                    label: t.t('cases.create.publish'),
-                    strike: true,
-                    isLoading: state.isSubmitting,
-                    isEnabled: state.stepValid,
-                    // Owner 2026-09-29: visibly off until the consent box
-                    // is ticked, lights up once it is.
-                    dimWhenDisabled: true,
-                    onPressed: _publish,
+                else
+                  ButtonPair(
+                    left: AppButton(
+                      label: t.t('common.back'),
+                      variant: AppButtonVariant.secondary,
+                      onPressed: _c.back,
+                    ),
+                    right: GavelStrikeButton(
+                      label: t.t('cases.create.publish'),
+                      strike: true,
+                      isLoading: state.isSubmitting,
+                      disabledHint: t.t('form.disabled.required'),
+                      isEnabled: state.stepValid,
+                      // Owner 2026-09-29: visibly off until the consent box
+                      // is ticked, lights up once it is.
+                      onPressed: _publish,
+                    ),
                   ),
-                  AppButton(
-                    label: t.t('common.back'),
-                    variant: AppButtonVariant.secondary,
-                    onPressed: _c.back,
-                  ),
-                ],
               ],
             ),
           ],
@@ -247,15 +258,20 @@ class _DraftBanner extends StatelessWidget {
           0,
         ),
         padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         decoration: BoxDecoration(
-          color: colors.goldTint,
+          color: colors.iconTintFill,
           borderRadius: BorderRadius.circular(AppRadii.field),
         ),
         child: Row(
           children: [
-            AppIcon(AppIcons.historyEduRounded,
-                color: colors.goldDark, size: AppSizes.iconSm),
+            AppIcon(
+              AppIcons.historyEduRounded,
+              color: colors.iconTint,
+              size: AppSizes.iconSm,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -263,12 +279,19 @@ class _DraftBanner extends StatelessWidget {
                 style: typography.bodySmall.copyWith(color: colors.text),
               ),
             ),
-            TextButton(
-              onPressed: onStartOver,
-              child: Text(
-                t.t('cases.create.startOver'),
-                style: typography.bodySmall.copyWith(
-                    color: colors.goldDark, fontWeight: FontWeight.w600),
+            // Capped so a long label can't squeeze the message away.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: TextButton(
+                onPressed: onStartOver,
+                child: FitText(
+                  t.t('cases.create.startOver'),
+                  textAlign: TextAlign.center,
+                  style: typography.bodySmall.copyWith(
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ],
@@ -278,8 +301,9 @@ class _DraftBanner extends StatelessWidget {
   }
 }
 
-class _SaveDraftSheet extends StatelessWidget {
-  const _SaveDraftSheet({required this.t});
+/// «Exit without saving?» when the wizard is closed with something typed.
+class CreateCaseExitSheet extends StatelessWidget {
+  const CreateCaseExitSheet({required this.t, super.key});
 
   final Translator t;
 
@@ -302,32 +326,34 @@ class _SaveDraftSheet extends StatelessWidget {
             const AppSheetHandle(),
             const SizedBox(height: AppSpacing.lg),
             Text(
-              t.t('cases.create.saveDraftTitle'),
+              t.t('cases.create.exitTitle'),
               textAlign: TextAlign.center,
               style: typography.titleMedium.copyWith(color: colors.text),
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              t.t('cases.create.saveDraftMessage'),
+              t.t('cases.create.exitMessage'),
               textAlign: TextAlign.center,
               style: typography.body.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.xl),
-            AppButton(
-              label: t.t('cases.create.saveDraft'),
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              label: t.t('cases.create.discardDraft'),
-              variant: AppButtonVariant.secondary,
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(t.t('cases.create.keepEditing'),
-                  style: typography.button.copyWith(color: colors.text)),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: t.t('cases.create.exitConfirm'),
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => Navigator.of(context).pop(true),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: AppButton(
+                    label: t.t('cases.create.exitStay'),
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -339,8 +365,11 @@ class _SaveDraftSheet extends StatelessWidget {
 /// Step 5 (docs/04 §3.1): summary with edit links, disclaimer, first-case
 /// `client_contact_sharing` checkbox.
 class _ReviewStep extends ConsumerWidget {
-  const _ReviewStep(
-      {required this.state, required this.t, required this.formats});
+  const _ReviewStep({
+    required this.state,
+    required this.t,
+    required this.formats,
+  });
 
   final CreateCaseState state;
   final Translator t;
@@ -365,28 +394,35 @@ class _ReviewStep extends ConsumerWidget {
           child: AppPressable(
             onTap: () => c.goTo(step),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm + 2),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                  AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(label,
-                            style: typography.caption
-                                .copyWith(color: colors.textSecondary)),
+                        Text(
+                          label,
+                          style: typography.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
                         const SizedBox(height: 2),
-                        Text(value,
-                            style:
-                                typography.body.copyWith(color: colors.text)),
+                        Text(
+                          value,
+                          style:
+                              typography.bodySmall.copyWith(color: colors.text),
+                        ),
                       ],
                     ),
                   ),
-                  AppIcon(AppIcons.editOutlined,
-                      size: AppSpacing.lg, color: colors.textSecondary),
+                  AppIcon(
+                    AppIcons.editOutlined,
+                    size: AppSpacing.lg,
+                    color: colors.textSecondary,
+                  ),
                 ],
               ),
             ),
@@ -407,22 +443,35 @@ class _ReviewStep extends ConsumerWidget {
         ),
         AppCard(
           padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xs,
+          ),
           child: Column(
             children: [
               row(
                 t.t('cases.field.practice'),
                 CaseFormat.practice(
-                    t, d.practiceI18nKey ?? '', d.practiceNameEn ?? ''),
+                  t,
+                  d.practiceI18nKey ?? '',
+                  d.practiceNameEn ?? '',
+                ),
                 0,
                 AppIcons.balanceRounded,
               ),
               Divider(height: 1, color: colors.border),
-              row(t.t('cases.field.title'), d.title.trim(), 1,
-                  AppIcons.titleRounded),
+              row(
+                t.t('cases.field.title'),
+                d.title.trim(),
+                1,
+                AppIcons.titleRounded,
+              ),
               Divider(height: 1, color: colors.border),
-              row(t.t('cases.field.description'), d.description.trim(), 1,
-                  AppIcons.notesRounded),
+              row(
+                t.t('cases.field.description'),
+                d.description.trim(),
+                1,
+                AppIcons.notesRounded,
+              ),
               Divider(height: 1, color: colors.border),
               row(
                 t.t('cases.field.place'),
@@ -433,21 +482,35 @@ class _ReviewStep extends ConsumerWidget {
               Divider(height: 1, color: colors.border),
               row(
                 t.t('cases.card.budget'),
-                d.budgetIsAmount && d.budgetDollars != null
-                    ? CaseFormat.money(formats, d.budgetDollars! * 100)
-                    : t.t('cases.budget.clarifyLater'),
+                d.budgetIsPercent && d.budgetPercentBps != null
+                    ? CaseFormat.percent(t, formats, d.budgetPercentBps!)
+                    : d.budgetIsAmount && d.budgetDollars != null
+                        ? CaseFormat.money(formats, d.budgetDollars! * 100)
+                        : t.t('cases.budget.clarifyLater'),
                 3,
                 AppIcons.paymentsOutlined,
+              ),
+              Divider(height: 1, color: colors.border),
+              row(
+                t.t('cases.field.urgency'),
+                _urgencySummary(t, formats, d),
+                3,
+                AppIcons.timerOutlined,
               ),
             ],
           ),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        // Owner 2026-10-17: no cover choice — covers are not shown on the
+        // attorneys' cards; "Мои кейсы" keeps the automatic one.
+        const SizedBox(height: AppSpacing.xl),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(AppIcons.infoOutlineRounded,
-                size: AppSpacing.lg, color: colors.textSecondary),
+            AppIcon(
+              AppIcons.infoOutlineRounded,
+              size: AppSpacing.lg,
+              color: colors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -457,11 +520,29 @@ class _ReviewStep extends ConsumerWidget {
             ),
           ],
         ),
+        // Owner 2026-10-19: the case as attorneys will see it, before
+        // publishing (the same sheet as in «Мой кейс»).
+        const SizedBox(height: AppSpacing.lg),
+        AppButton(
+          key: const ValueKey('case-wizard-preview'),
+          label: t.t('cases.preview.button'),
+          icon: AppIcons.visibilityOutlined,
+          variant: AppButtonVariant.secondary,
+          onPressed: () => showAttorneyViewPreview(
+            context,
+            item: AttorneyViewPreview.feedViewOfDraft(d, state.photos),
+            t: t,
+            formats: formats,
+          ),
+        ),
         // Owner 2026-09-30 (OQ-039): what happens to the case and who sees
         // what, right above Publish.
         const SizedBox(height: AppSpacing.lg),
         Container(
-          padding: const EdgeInsets.all(AppSpacing.md),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
           decoration: BoxDecoration(
             color: colors.goldTint,
             borderRadius: BorderRadius.circular(AppRadii.card),
@@ -471,23 +552,31 @@ class _ReviewStep extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (final (icon, key) in const [
-                (AppIcons.visibilityOffOutlined, 'cases.create.privacy.clients'),
+                (
+                  AppIcons.visibilityOffOutlined,
+                  'cases.create.privacy.clients'
+                ),
                 (AppIcons.gavelRounded, 'cases.create.privacy.attorneys'),
                 (AppIcons.lockOutlineRounded, 'cases.create.privacy.files'),
               ]) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+                    AppIcon(
+                      icon,
+                      size: AppSpacing.xl - 2,
+                      color: colors.iconTint,
+                    ),
                     const SizedBox(width: AppSpacing.sm),
                     Expanded(
-                      child: Text(t.t(key),
-                          style: typography.bodySmall
-                              .copyWith(color: colors.text)),
+                      child: Text(
+                        t.t(key),
+                        style: typography.caption.copyWith(color: colors.text),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.sm),
+                const SizedBox(height: AppSpacing.xs + 2),
               ],
             ],
           ),
@@ -506,8 +595,11 @@ class _ReviewStep extends ConsumerWidget {
 }
 
 class _ConsentBox extends StatelessWidget {
-  const _ConsentBox(
-      {required this.checked, required this.label, required this.onChanged});
+  const _ConsentBox({
+    required this.checked,
+    required this.label,
+    required this.onChanged,
+  });
 
   final bool checked;
   final String label;
@@ -528,13 +620,14 @@ class _ConsentBox extends StatelessWidget {
         onTap: () => onChanged(!checked),
         child: AnimatedContainer(
           duration: motion,
-          padding: const EdgeInsets.all(AppSpacing.lg),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(AppRadii.card),
             border: Border.all(
-                color: checked ? colors.gold : colors.border,
-                width: checked ? 1.5 : 1),
+              color: checked ? colors.gold : colors.border,
+              width: checked ? 1.5 : 1,
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,23 +640,43 @@ class _ConsentBox extends StatelessWidget {
                   color: checked ? colors.gold : colors.surface,
                   borderRadius: BorderRadius.circular(AppSpacing.xs + 2),
                   border: Border.all(
-                      color: checked ? colors.gold : colors.textSecondary,
-                      width: 1.5),
+                    color: checked ? colors.gold : colors.textSecondary,
+                    width: 1.5,
+                  ),
                 ),
                 child: checked
-                    ? AppIcon(AppIcons.checkRounded,
-                        size: AppSpacing.lg, color: colors.navy)
+                    ? AppIcon(
+                        AppIcons.checkRounded,
+                        size: AppSpacing.lg,
+                        color: colors.navy,
+                      )
                     : null,
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
-                  child: Text(label,
-                      style:
-                          typography.bodySmall.copyWith(color: colors.text))),
+                child: Text(
+                  label,
+                  style: typography.caption.copyWith(color: colors.text),
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// The urgency line of the review step: the level, or the date with
+/// what it is (`Court hearing · Nov 3, 2026`).
+String _urgencySummary(Translator t, L10nFormats f, CaseDraft d) {
+  final day = parseIsoDay(d.deadlineAt);
+  if (d.urgency == 'by_date' && day != null) {
+    final kind = d.deadlineKind;
+    return [
+      if (kind != null) CaseUrgencyText.kindLabel(t, kind),
+      f.dateLong(day),
+    ].join(' · ');
+  }
+  return t.t('cases.urgency.${d.urgency ?? kDefaultCaseUrgency}');
 }

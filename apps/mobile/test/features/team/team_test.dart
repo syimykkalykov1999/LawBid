@@ -8,7 +8,8 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_join_screen.dart';
-import 'package:lawbid/features/team/presentation/task_editor_screen.dart';
+import 'package:lawbid/features/team/presentation/task_sheet.dart'
+    show normalizeTaskPhone;
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
@@ -24,18 +25,29 @@ void main() {
   setUpAll(initializeDateFormatting);
   setUp(() => repo = FakeTeamRepository());
 
-  Future<void> pump(WidgetTester tester, Widget child,
-      {ThemeData? theme, double textScale = 1, bool assistant = false}) async {
-    await tester.pumpWidget(uxApp(
-      Scaffold(body: child),
-      theme: theme ?? AppTheme.light(),
-      disableAnimations: true,
-      textScale: textScale,
-      overrides: uxOverrides(extra: [
-        teamRepositoryProvider.overrideWithValue(repo),
-        if (assistant) isAssistantProvider.overrideWithValue(true),
-      ]),
-    ));
+  Future<void> pump(
+    WidgetTester tester,
+    Widget child, {
+    ThemeData? theme,
+    double textScale = 1,
+    bool assistant = false,
+  }) async {
+    await tester.pumpWidget(
+      uxApp(
+        Scaffold(body: child),
+        theme: theme ?? AppTheme.light(),
+        disableAnimations: true,
+        textScale: textScale,
+        overrides: uxOverrides(
+          extra: [
+            teamRepositoryProvider.overrideWithValue(repo),
+            seatLimitRepositoryProvider
+                .overrideWithValue(FakeSeatLimitRepository()),
+            if (assistant) isAssistantProvider.overrideWithValue(true),
+          ],
+        ),
+      ),
+    );
     await tester.pump();
     await tester.pump();
   }
@@ -72,6 +84,40 @@ void main() {
       expect(find.byKey(const ValueKey('tasks-add')), findsOneWidget);
     });
 
+    // Owner 2026-10-23: "New task" is the app's floating "+" (one shared
+    // component with Chats and Q&A), bottom right, 16 dp from the edges of
+    // the tab; the chips row has only the search.
+    for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+      testWidgets('the floating "+" sits bottom right (${platform.name})',
+          (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        repo.active = [makeTask('a')];
+        await pump(
+          tester,
+          const TasksTab(),
+          theme: AppTheme.light().copyWith(platform: platform),
+        );
+        final fab = find.byKey(const ValueKey('tasks-add'));
+        expect(tester.widget(fab), isA<FloatingActionButton>());
+        expect(find.byType(AppFab), findsOneWidget);
+        expect(find.bySemanticsLabel('Add a task'), findsOneWidget);
+        final r = tester.getRect(fab);
+        final body = tester.getRect(find.byType(TasksTab));
+        expect(body.right - r.right, closeTo(AppSpacing.screenSide, 0.5));
+        expect(body.bottom - r.bottom, closeTo(AppSpacing.screenSide, 0.5));
+        expect(r.size, const Size(56, 56));
+        // Not in the chips row any more.
+        final search =
+            tester.getRect(find.byKey(const ValueKey('tasks-search-open')));
+        expect(r.center.dy, greaterThan(search.bottom));
+        await tester.tap(fab);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('a double tap marks the task done', (tester) async {
       repo.active = [
         makeTask('t1', dueAt: DateTime.now().add(const Duration(hours: 2))),
@@ -99,12 +145,18 @@ void main() {
       // A single tap waits out the double-tap window.
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const ValueKey('task-not-done')));
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('task-not-done')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('task-not-done')));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.byKey(const ValueKey('task-outcome')), 'No answer');
+        find.byKey(const ValueKey('task-outcome')),
+        'No answer',
+      );
       await tester.tap(find.byKey(const ValueKey('task-outcome-save')));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('status:t2:not_done:No answer'));
@@ -115,81 +167,14 @@ void main() {
         makeTask('t3', dueAt: DateTime.now(), note: 'Long note'),
         makeTask('t4', kind: TaskKind.court, by: null),
       ];
-      await pump(tester, const TasksTab(),
-          theme: AppTheme.dark(), textScale: 2);
+      await pump(
+        tester,
+        const TasksTab(),
+        theme: AppTheme.dark(),
+        textScale: 2,
+      );
       expect(tester.takeException(), isNull);
     });
-  });
-
-  testWidgets('TaskEditorScreen: kind, title → created', (tester) async {
-    await pump(tester, const TaskEditorScreen());
-    await tester.tap(find.byKey(const ValueKey('task-kind-court')));
-    await tester.pumpAndSettle();
-    // Owner 2026-10-01: the fields open once a kind is picked.
-    expect(find.byKey(const ValueKey('task-kind-picked')), findsOneWidget);
-    final save = find.byKey(const ValueKey('task-save'));
-    await tester.scrollUntilVisible(save, 300,
-        scrollable: find.byType(Scrollable).first);
-    await tester.ensureVisible(save);
-    await tester.pumpAndSettle();
-    await tester.tap(save);
-    await tester.pump();
-    await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('task-title')), -300,
-        scrollable: find.byType(Scrollable).first);
-    expect(find.text('Fill in this field'), findsOneWidget);
-    await tester.enterText(
-        find.byKey(const ValueKey('task-title')), 'Hearing at 10');
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(save, 300,
-        scrollable: find.byType(Scrollable).first);
-    await tester.tap(save);
-    await tester.pump();
-    await tester.pump();
-    expect(repo.calls, contains('create:court:Hearing at 10'));
-  });
-
-  testWidgets('TaskEditorScreen: each kind asks for its own fields',
-      (tester) async {
-    // A tall screen: the whole form is built at once.
-    tester.view.physicalSize = const Size(1200, 4000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(uxApp(
-      const Scaffold(body: TaskEditorScreen()),
-      theme: AppTheme.light(),
-      size: const Size(1200, 4000),
-      disableAnimations: true,
-      overrides: uxOverrides(extra: [
-        teamRepositoryProvider.overrideWithValue(repo),
-      ]),
-    ));
-    await tester.pump();
-    // Only "What to do" until a kind is picked.
-    expect(find.byKey(const ValueKey('task-title')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('task-kind-call')));
-    await tester.pump();
-    // Call: whom + phone, no address / email.
-    expect(find.text('Whom to call'), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-contact-phone')), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-location')), findsNothing);
-    expect(find.byKey(const ValueKey('task-contact-email')), findsNothing);
-    // Email: whom + address ("Change" opens the kinds again).
-    await tester.tap(find.byKey(const ValueKey('task-kind-change')));
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('task-kind-email')));
-    await tester.pump();
-    expect(find.text('Whom to write to'), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-contact-email')), findsOneWidget);
-    expect(find.byKey(const ValueKey('task-contact-phone')), findsNothing);
-    // Visit: where to go.
-    await tester.tap(find.byKey(const ValueKey('task-kind-change')));
-    await tester.pump();
-    await tester.ensureVisible(find.byKey(const ValueKey('task-kind-visit')));
-    await tester.tap(find.byKey(const ValueKey('task-kind-visit')));
-    await tester.pump();
-    expect(find.text('Where to go (address)'), findsOneWidget);
   });
 
   test('contact phones typed the usual way become +1…', () {
@@ -236,32 +221,6 @@ void main() {
       expect(find.byKey(const ValueKey('task-edit')), findsOneWidget);
       expect(find.byKey(const ValueKey('task-delete')), findsNothing);
     });
-
-    testWidgets('the editor opens prefilled and saves an update',
-        (tester) async {
-      tester.view.physicalSize = const Size(1200, 4000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(uxApp(
-        Scaffold(body: TaskEditorScreen(existing: makeTask('e1', by: null))),
-        theme: AppTheme.light(),
-        size: const Size(1200, 4000),
-        disableAnimations: true,
-        overrides: uxOverrides(extra: [
-          teamRepositoryProvider.overrideWithValue(repo),
-        ]),
-      ));
-      await tester.pump();
-      expect(find.text('Edit task'), findsWidgets);
-      expect(find.text('Task e1'), findsOneWidget);
-      // The checklist is managed on the task itself, not here.
-      expect(find.byKey(const ValueKey('task-editor-step-add')), findsNothing);
-      await tester.enterText(
-          find.byKey(const ValueKey('task-title')), 'Call Ann back');
-      await tester.tap(find.byKey(const ValueKey('task-save')));
-      await tester.pumpAndSettle();
-      expect(repo.calls, contains('update:e1:Call Ann back'));
-    });
   });
 
   group('Taking a checkmark back (owner 2026-10-01)', () {
@@ -296,15 +255,21 @@ void main() {
     testWidgets('a finished checklist: unchecking a step reopens it',
         (tester) async {
       repo.done = [
-        makeTask('u3', status: TaskStatus.done, steps: const [
-          TaskStep(id: 'a', title: 'Call A', status: TaskStatus.done),
-          TaskStep(id: 'b', title: 'Call B', status: TaskStatus.done),
-        ]),
+        makeTask(
+          'u3',
+          status: TaskStatus.done,
+          steps: const [
+            TaskStep(id: 'a', title: 'Call A', status: TaskStatus.done),
+            TaskStep(id: 'b', title: 'Call B', status: TaskStatus.done),
+          ],
+        ),
       ];
       await pump(tester, const TasksTab());
       await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('step-check-b')));
+      await tester.tap(find.text('expand'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('card-step-b')));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('step:u3:b:open:null'));
@@ -330,16 +295,21 @@ void main() {
         (tester) async {
       repo.active = [withSteps()];
       await pump(tester, const TasksTab());
-      expect(find.text('0 of 2'), findsOneWidget);
+      expect(find.text('0 of 2 sub-tasks'), findsOneWidget);
+      // Owner 2026-10-15: the sub-tasks open on the line under the title.
+      await tester.tap(find.text('expand'));
+      // The card's double tap holds a single tap for its window.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
       expect(find.text('Call Brown'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('step-check-s1')));
+      await tester.tap(find.byKey(const ValueKey('card-step-s1')));
       // The card's double tap holds a single tap for its window.
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('step:s:s1:done:null'));
-      expect(find.text('1 of 2'), findsOneWidget);
+      expect(find.text('1 of 2 sub-tasks'), findsOneWidget);
       // The last box finishes the whole task.
-      await tester.tap(find.byKey(const ValueKey('step-check-s2')));
+      await tester.tap(find.byKey(const ValueKey('card-step-s2')));
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(find.text('Task s'), findsNothing);
@@ -354,57 +324,116 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.calls, contains('step:s:s1:done:null'));
     });
-
-    testWidgets('the editor adds steps to one task', (tester) async {
-      tester.view.physicalSize = const Size(1200, 4000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(uxApp(
-        const Scaffold(body: TaskEditorScreen()),
-        theme: AppTheme.light(),
-        size: const Size(1200, 4000),
-        disableAnimations: true,
-        overrides: uxOverrides(extra: [
-          teamRepositoryProvider.overrideWithValue(repo),
-        ]),
-      ));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('task-kind-call')));
-      await tester.pump();
-      await tester.enterText(
-          find.byKey(const ValueKey('task-title')), 'Monday calls');
-      for (final name in ['Brown', 'Lee']) {
-        await tester.tap(find.byKey(const ValueKey('task-editor-step-add')));
-        await tester.pumpAndSettle();
-        await tester.enterText(
-            find.byKey(const ValueKey('step-title')), 'Call $name');
-        await tester.tap(find.byKey(const ValueKey('step-save')));
-        await tester.pumpAndSettle();
-      }
-      expect(find.text('Call Brown'), findsOneWidget);
-      expect(find.text('Call Lee'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('task-save')));
-      await tester.pump();
-      await tester.pump();
-      expect(repo.calls, contains('steps:Call Brown|Call Lee'));
-    });
   });
 
   group('Team', () {
-    testWidgets('add an assistant by phone', (tester) async {
+    testWidgets(
+        'owner 2026-10-04: add an assistant → their one-time code, '
+        'copy / send / new code', (tester) async {
       await pump(tester, const TeamScreen());
       expect(find.text('Seats: 0 of 2'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('team-add')));
       await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('team-add-phone')), findsNothing);
       await tester.enterText(
-          find.byKey(const ValueKey('team-add-phone')), '+13125550111');
-      await tester.enterText(
-          find.byKey(const ValueKey('team-add-name')), 'Sam');
+        find.byKey(const ValueKey('team-add-name')),
+        'Sam',
+      );
       await tester.tap(find.byKey(const ValueKey('team-add-save')));
       await tester.pumpAndSettle();
-      expect(repo.calls, contains('add:+13125550111:Sam'));
-      expect(find.text('Sam'), findsOneWidget);
-      expect(find.text('Seats: 1 of 2'), findsOneWidget);
+      expect(repo.calls, contains('add:Sam'));
+      // The code shows at once, ready to copy or send.
+      expect(find.byKey(const ValueKey('code-card-m1')), findsOneWidget);
+      expect(find.text('K7QM-4XRT-92H1'), findsWidgets);
+      expect(find.byKey(const ValueKey('code-copy-m1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('code-send-m1')), findsOneWidget);
+      // "New code" replaces it after a confirmation.
+      await tester.tap(find.byKey(const ValueKey('code-new-m1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('code-new-confirm')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('code:m1'));
+      expect(find.text('NEW2-CODE-XYZ9'), findsWidgets);
+    });
+
+    testWidgets('owner 2026-10-05: a role sets its accesses in one tap',
+        (tester) async {
+      // Owner 2026-10-22: a ready role shows only when it fits the admin's
+      // per-assistant limit (3 by default; here the admin allows 10).
+      repo.teamInfo = const TeamInfo(
+        members: [],
+        seats: 2,
+        used: 0,
+        plan: 'monthly',
+        maxDuties: 10,
+      );
+      await repo.addAssistant(name: 'Sam');
+      await pump(tester, const TeamScreen());
+      await tester.tap(find.text('Sam').first);
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('role-paralegal')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('role-paralegal')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('role-paralegal')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('liability-check')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('liability-check')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('liability-accept')));
+      await tester.pumpAndSettle();
+      final chip = tester.widget<ChoiceChip>(
+        find.byKey(const ValueKey('role-paralegal')),
+      );
+      expect(chip.selected, isTrue);
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('member-save')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.byKey(const ValueKey('member-save')));
+      await tester.pumpAndSettle();
+      final update = repo.calls.lastWhere((c) => c.startsWith('update:'));
+      for (final d in AssistantRole.paralegal.duties) {
+        expect(update, contains(d.wire));
+      }
+      expect(update, isNot(contains('publish')));
+      expect(update, endsWith(':true'));
+    });
+
+    testWidgets('audit 2026-10-04: liability is asked once per edit',
+        (tester) async {
+      await repo.addAssistant(name: 'Sam');
+      await pump(tester, const TeamScreen());
+      await tester.tap(find.text('Sam').first);
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('duty-calls')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      // Owner 2026-10-22: the limit note may push the switches lower.
+      await tester.ensureVisible(find.byKey(const ValueKey('duty-calls')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('duty-calls')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('liability-check')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('liability-check')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('liability-accept')));
+      await tester.pumpAndSettle();
+      await tester.dragUntilVisible(
+        find.byKey(const ValueKey('duty-files')),
+        find.byType(ListView).last,
+        const Offset(0, -200),
+      );
+      await tester.tap(find.byKey(const ValueKey('duty-files')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('liability-check')), findsNothing);
     });
 
     testWidgets('requests: approve publishes, reject asks for a note',
@@ -420,7 +449,9 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('request-reject-r2')));
       await tester.pumpAndSettle();
       await tester.enterText(
-          find.byKey(const ValueKey('reject-note')), 'Not now');
+        find.byKey(const ValueKey('reject-note')),
+        'Not now',
+      );
       await tester.tap(find.byKey(const ValueKey('reject-confirm')));
       await tester.pumpAndSettle();
       expect(repo.calls, contains('reject:r2:Not now'));
@@ -436,20 +467,27 @@ void main() {
       );
       await pump(tester, const AssistantJoinScreen(), assistant: true);
       expect(
-          find.text('Ada Counsel added you as an assistant'), findsOneWidget);
+        find.text('Ada Counsel added you as an assistant'),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('join-accept')), findsOneWidget);
     });
 
-    testWidgets("not added: the attorney's phone gets a code", (tester) async {
+    testWidgets("not added: joins with the attorney's code, no SMS",
+        (tester) async {
       await pump(tester, const AssistantJoinScreen(), assistant: true);
+      expect(find.byKey(const ValueKey('join-phone')), findsNothing);
       await tester.enterText(
-          find.byKey(const ValueKey('join-phone')), '+13125550101');
-      await tester.tap(find.byKey(const ValueKey('join-send')));
+        find.byKey(const ValueKey('join-code')),
+        'k7qm4xrt92hd',
+      );
+      await tester.pump();
+      // Typed in any case, dashes added as it is typed.
+      expect(find.text('K7QM-4XRT-92HD'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('join-verify')));
       await tester.pump();
       await tester.pump();
-      expect(repo.calls, contains('code:+13125550101'));
-      expect(find.textContaining("The code went to the attorney's phone"),
-          findsOneWidget);
+      expect(repo.calls, contains('join:K7QM-4XRT-92HD'));
     });
   });
 }

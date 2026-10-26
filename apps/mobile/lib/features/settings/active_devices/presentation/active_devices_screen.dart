@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,8 +8,10 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
 import 'package:lawbid/features/settings/active_devices/application/active_devices_controller.dart';
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -45,8 +48,8 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
     final t = ref.read(translatorProvider);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (dialogContext) => AppAlertDialog(
+        backgroundColor: colors.sheet,
         title: Text(title),
         content: Text(body),
         actions: [
@@ -112,7 +115,9 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
       // Rows stay on screen; just say why they didn't update.
       if (mounted) {
         showAppSnackBar(
-            context, errorText(ref.read(translatorProvider), error));
+          context,
+          errorText(ref.read(translatorProvider), error),
+        );
       }
     }
   }
@@ -144,7 +149,9 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
         ),
       ),
       body: AnimatedSwitcher(
-        duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+        // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+        // swap at once (Instagram), no cross-fade.
+        duration: Duration.zero,
         child: switch (async) {
           AsyncData(:final value) => _DevicesList(
               key: const ValueKey('devices-data'),
@@ -221,7 +228,7 @@ class _DevicesList extends StatelessWidget {
     if (list.items.isEmpty && !list.hasMore) {
       return RefreshIndicator(
         color: colors.gold,
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         onRefresh: onRefresh,
         child: AppEmptyState(
           icon: AppIcons.devicesRounded,
@@ -264,11 +271,28 @@ class _DevicesList extends StatelessWidget {
       ),
       footer: Padding(
         padding: const EdgeInsets.only(top: AppSpacing.sm),
-        child: AppButton(
-          label: t.t('devices.logoutAll'),
-          icon: AppIcons.logoutRounded,
-          variant: AppButtonVariant.secondary,
-          onPressed: onLogoutAll,
+        child: Column(
+          children: [
+            // Owner 2026-10-22 (checklist §1): the account's passkeys.
+            const PasskeysSection(),
+            // Owner 2026-10-20: sign in on the website by scanning its QR
+            // code (the phone only; the website shows the code).
+            if (!kIsWeb) ...[
+              AppButton(
+                key: const ValueKey('devices-scan-web'),
+                label: t.t('devices.scanWeb'),
+                icon: AppIcons.qrCode,
+                onPressed: () => context.push(AppRoutes.qrScan),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ],
+            AppButton(
+              label: t.t('devices.logoutAll'),
+              icon: AppIcons.logoutRounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: onLogoutAll,
+            ),
+          ],
         ),
       ),
     );
@@ -288,7 +312,7 @@ class _DevicesLoading extends StatelessWidget {
       ),
       children: const [
         FractionallySizedBox(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           widthFactor: 0.6,
           child: AppSkeleton(),
         ),

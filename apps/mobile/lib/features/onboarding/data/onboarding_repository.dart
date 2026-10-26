@@ -29,14 +29,18 @@ abstract interface class OnboardingRepository {
   /// me is returned either way.
   Future<CurrentUser> setRole(UserRole role);
 
-  Future<CurrentUser> saveStep(OnboardingStepId step,
-      [Map<String, dynamic>? data]);
+  Future<CurrentUser> saveStep(
+    OnboardingStepId step, [
+    Map<String, dynamic>? data,
+  ]);
 
   /// Profile step (docs/01 §11 3A/3B): names + structured profile +
   /// moving to [next], in ONE server transaction. Throws
   /// `VALIDATION_ERROR` (400) for an unknown state / language etc.
   Future<CurrentUser> saveProfileStep(
-      OnboardingStepId next, ProfileInput profile);
+    OnboardingStepId next,
+    ProfileInput profile,
+  );
 
   /// Throws `CLIENT_CONTACTS_INCOMPLETE` / `ONBOARDING_INCOMPLETE` (403,
   /// `details.missing`) when the server's hard requirements don't hold.
@@ -47,8 +51,10 @@ abstract interface class OnboardingRepository {
   /// `POST /auth/otp/request` to one of the account's VERIFIED contacts —
   /// the first half of `POST /auth/reauth` (the server verifies it with the
   /// 'login' OTP purpose, see AuthService.reauth).
-  Future<void> requestReauthCode(
-      {required String channel, required String identifier});
+  Future<void> requestReauthCode({
+    required String channel,
+    required String identifier,
+  });
 
   /// `POST /auth/reauth` → single-use `reauthToken` (5 min).
   Future<String> reauth({required String identifier, required String code});
@@ -111,8 +117,10 @@ class ApiOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<CurrentUser> saveStep(OnboardingStepId step,
-          [Map<String, dynamic>? data]) async =>
+  Future<CurrentUser> saveStep(
+    OnboardingStepId step, [
+    Map<String, dynamic>? data,
+  ]) async =>
       CurrentUserMapper.fromDto(
         await _users.saveOnboardingStep(
           api.SaveOnboardingStepDto(currentStep: _step(step), data: data),
@@ -121,7 +129,9 @@ class ApiOnboardingRepository implements OnboardingRepository {
 
   @override
   Future<CurrentUser> saveProfileStep(
-          OnboardingStepId next, ProfileInput profile) async =>
+    OnboardingStepId next,
+    ProfileInput profile,
+  ) async =>
       CurrentUserMapper.fromDto(
         await _users.saveProfileStep(_step(next), profile.toJson()),
       );
@@ -145,8 +155,10 @@ class ApiOnboardingRepository implements OnboardingRepository {
       );
 
   @override
-  Future<void> requestReauthCode(
-          {required String channel, required String identifier}) =>
+  Future<void> requestReauthCode({
+    required String channel,
+    required String identifier,
+  }) =>
       _auth.requestOtp(channel: channel, identifier: identifier);
 
   @override

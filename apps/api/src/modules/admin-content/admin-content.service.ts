@@ -1,18 +1,24 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma, UserRole } from '@prisma/client';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { caseIdsByTitle, postIdsMatching } from './admin-text-search';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { maxAssistantSeats } from '../billing/seat-limit';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   type ContentAction,
   ModerationService,
 } from '../moderation/moderation.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { classifyPost } from '../posts/content-filter.service';
 import type {
+  AdminBulkResultDto,
   AdminBidRowDto,
   AdminCommentRowDto,
   AdminOverviewDto,
@@ -24,6 +30,13 @@ import type {
   CreatePracticeAreaDto,
   UpdatePracticeAreaDto,
 } from './admin-content.dto';
+import {
+  effectiveSeats,
+  paidSeats,
+} from '../subscriptions/contract-grant.util';
+import { liveSubscriptionWhere } from '../admin/subscription-metrics';
+import { broadcastAudienceWhere } from './broadcast-audience';
+import { BroadcastFanoutRunner } from './broadcast-fanout.runner';
 
 const PAGE = 50;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -42,6 +55,25 @@ function keyset(cursor?: string) {
         ],
       }
     : {};
+}
+
+/** Owner 2026-10-04 (bulk moderation): author + time window of a list. */
+export interface ContentFilter {
+  authorId?: string;
+  /** Owner 2026-10-05: legal or general posts only. */
+  contentClass?: 'legal' | 'general';
+  from?: string;
+  to?: string;
+}
+
+export function createdWindow(f: ContentFilter = {}) {
+  if (!f.from && !f.to) return {};
+  return {
+    created_at: {
+      ...(f.from ? { gte: new Date(f.from) } : {}),
+      ...(f.to ? { lt: new Date(f.to) } : {}),
+    },
+  };
 }
 
 function page<T extends { id: string; created_at: Date }, R>(
@@ -80,6 +112,9 @@ export class AdminContentService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly moderation: ModerationService,
+    private readonly fanout: BroadcastFanoutRunner,
+    @Optional() private readonly settings?: AppSettingsService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   /** Audit 2026-10-01: the admin's content actions go through the
@@ -118,25 +153,46 @@ export class AdminContentService {
     q?: string,
     kind?: 'post' | 'news',
     cursor?: string,
+    onlyVideo = false,
+    filter: ContentFilter = {},
   ): Promise<Page<AdminPostRowDto>> {
+    // Owner 2026-10-23: the text search goes through the title / full-text
+    // indexes (see admin-text-search.ts), not ILIKE over every post.
+    const matched = q?.trim()
+      ? await postIdsMatching(this.prisma, q.trim())
+      : null;
+    if (matched && matched.length === 0) return { items: [], nextCursor: null };
+    // `null` with a search term = a word in very many posts: the plain
+    // newest-first scan finds the first page of such matches at once.
+    const common = !!q?.trim() && matched === null;
     const rows = await this.prisma.post.findMany({
       where: {
+        ...(matched ? { id: { in: matched } } : {}),
         ...(kind ? { kind } : {}),
-        ...(q
-          ? {
-              OR: [
-                { title: { contains: q, mode: 'insensitive' } },
-                { body: { contains: q, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-        ...keyset(cursor),
+        ...(onlyVideo ? { video_asset_id: { not: null } } : {}),
+        ...(filter.contentClass ? { content_class: filter.contentClass } : {}),
+        ...(filter.authorId ? { author_id: filter.authorId } : {}),
+        ...createdWindow(filter),
+        // Search and paging both need an OR: AND keeps them from
+        // overwriting each other.
+        AND: [
+          common && q
+            ? {
+                OR: [
+                  { title: { contains: q.trim(), mode: 'insensitive' } },
+                  { body: { contains: q.trim(), mode: 'insensitive' } },
+                ],
+              }
+            : {},
+          keyset(cursor),
+        ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
       include: {
         author: { select: { first_name: true, last_name: true } },
         practice_area: { select: { name_en: true } },
+        _count: { select: { attachments: true, media: true } },
       },
     });
     return page(rows, (p) => ({
@@ -148,11 +204,55 @@ export class AdminContentService {
       authorName: nameOf(p.author),
       practice: p.practice_area?.name_en ?? null,
       status: p.status,
+      contentClass: p.content_class === 'legal' ? 'legal' : 'general',
+      contentClassLocked: p.content_class_locked,
       likes: p.like_count,
       comments: p.comment_count,
       deleted: p.deleted_at !== null,
+      archived: p.archived_at !== null,
+      hasVideo: p.video_asset_id !== null,
+      attachments: p._count.attachments,
+      photos: p._count.media,
       createdAt: p.created_at.toISOString(),
     }));
+  }
+
+  /** Owner 2026-10-05: moderation reclassifies posts as legal / general
+   * (kept through the author's edits) or back to the topic rule (auto). */
+  async classifyPosts(
+    ids: string[],
+    action: 'legal' | 'general' | 'auto',
+  ): Promise<AdminBulkResultDto> {
+    const rows = await this.prisma.post.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, practice_area_id: true, kind: true },
+    });
+    const found = new Set(rows.map((r) => r.id));
+    if (action === 'auto') {
+      for (const r of rows) {
+        await this.prisma.post.update({
+          where: { id: r.id },
+          data: {
+            content_class_locked: false,
+            content_class: classifyPost({
+              hasPractice: r.practice_area_id !== null,
+              kind: r.kind,
+            }),
+          },
+        });
+      }
+    } else if (rows.length > 0) {
+      await this.prisma.post.updateMany({
+        where: { id: { in: [...found] } },
+        data: { content_class: action, content_class_locked: true },
+      });
+    }
+    return {
+      done: ids.filter((id) => found.has(id)),
+      skipped: ids
+        .filter((id) => !found.has(id))
+        .map((id) => ({ id, reason: 'not_found' })),
+    };
   }
 
   async removePost(id: string, reason: string): Promise<void> {
@@ -177,9 +277,12 @@ export class AdminContentService {
     thread: 'post' | 'case',
     q?: string,
     cursor?: string,
+    filter: ContentFilter = {},
   ): Promise<Page<AdminCommentRowDto>> {
     const where = {
       ...(q ? { body: { contains: q, mode: 'insensitive' as const } } : {}),
+      ...(filter.authorId ? { author_id: filter.authorId } : {}),
+      ...createdWindow(filter),
       ...keyset(cursor),
     };
     if (thread === 'case') {
@@ -241,9 +344,19 @@ export class AdminContentService {
     if (authorId) await this.tellAuthor(authorId, reason, { commentId: id });
   }
 
-  async reviews(cursor?: string): Promise<Page<AdminReviewRowDto>> {
+  async reviews(
+    cursor?: string,
+    q?: string,
+    filter: ContentFilter = {},
+  ): Promise<Page<AdminReviewRowDto>> {
     const rows = await this.prisma.review.findMany({
-      where: keyset(cursor),
+      // Audit 2026-10-02: `q` was accepted but ignored. The author of a
+      // review of an attorney is its client.
+      where: {
+        ...(filter.authorId ? { client_id: filter.authorId } : {}),
+        ...createdWindow(filter),
+        AND: [reviewSearch(q), keyset(cursor)],
+      },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
       include: {
@@ -256,7 +369,9 @@ export class AdminContentService {
       id: r.id,
       rating: r.rating,
       body: r.body,
+      attorneyId: r.attorney_id,
       attorneyName: nameOf(r.attorney),
+      clientId: r.client_id,
       clientName: nameOf(r.client),
       // Owner 2026-10-01: open reviews have no case.
       caseTitle: r.case?.title ?? null,
@@ -288,12 +403,21 @@ export class AdminContentService {
     q?: string,
     cursor?: string,
   ): Promise<Page<AdminBidRowDto>> {
+    // Owner 2026-10-23: the case-title search reads the trigram index.
+    const caseIds = q?.trim()
+      ? await caseIdsByTitle(this.prisma, q.trim())
+      : null;
+    if (caseIds && caseIds.length === 0) return { items: [], nextCursor: null };
+    const commonTitle = !!q?.trim() && caseIds === null;
     const rows = await this.prisma.bid.findMany({
       where: {
         ...(status
           ? { status: status as Prisma.EnumBidStatusFilter['equals'] }
           : {}),
-        ...(q ? { case: { title: { contains: q, mode: 'insensitive' } } } : {}),
+        ...(caseIds ? { case_id: { in: caseIds } } : {}),
+        ...(commonTitle && q
+          ? { case: { title: { contains: q.trim(), mode: 'insensitive' } } }
+          : {}),
         ...keyset(cursor),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -393,68 +517,49 @@ export class AdminContentService {
       body: b.body,
       audience: b.audience,
       stateCode: b.state_code,
+      stateCodes: b.state_codes.length
+        ? b.state_codes
+        : b.state_code
+          ? [b.state_code]
+          : [],
       recipients: Number(b.recipients),
       createdAt: b.created_at.toISOString(),
     }));
   }
 
   /** Every active user of the audience gets an in-app notification and a
-   * push (the "system" category, which the app always shows). */
+   * push (the "system" category, which the app always shows). Audit
+   * 2026-10-02: the request stores the broadcast with the audience size
+   * and queues the fan-out (BroadcastFanoutRunner, batches of 500). */
   async broadcast(
     adminId: string,
     dto: CreateBroadcastDto,
   ): Promise<BroadcastDto> {
-    const role: Record<string, UserRole | undefined> = {
-      attorneys: 'attorney',
-      clients: 'client',
-      assistants: 'assistant',
-    };
-    const where: Prisma.UserWhereInput = {
-      status: 'active',
-      deleted_at: null,
-      role: role[dto.audience] ?? { in: ['client', 'attorney', 'assistant'] },
-      ...(dto.stateCode
-        ? {
-            OR: [
-              { client_profile: { state_code: dto.stateCode } },
-              {
-                attorney_profile: {
-                  licenses: { some: { state_code: dto.stateCode } },
-                },
-              },
-            ],
-          }
-        : {}),
-    };
-    let sent = 0;
-    let after: string | undefined;
-    for (;;) {
-      const batch = await this.prisma.user.findMany({
-        where: { ...where, ...(after ? { id: { gt: after } } : {}) },
-        orderBy: { id: 'asc' },
-        take: 500,
-        select: { id: true },
-      });
-      if (batch.length === 0) break;
-      for (const u of batch) {
-        await this.notifications.emit({
-          type: 'admin_broadcast',
-          recipientId: u.id,
-          payload: { title: dto.title, body: dto.body },
-        });
-      }
-      sent += batch.length;
-      after = batch[batch.length - 1].id;
-    }
+    // stateCodes wins; a lone stateCode (older clients) still works.
+    const states = [
+      ...new Set(dto.stateCodes ?? (dto.stateCode ? [dto.stateCode] : [])),
+    ];
+    const recipients = await this.prisma.user.count({
+      where: broadcastAudienceWhere(dto.audience, states),
+    });
     const b = await this.prisma.adminBroadcast.create({
       data: {
         admin_id: adminId,
         title: dto.title,
         body: dto.body,
         audience: dto.audience,
-        state_code: dto.stateCode ?? null,
-        recipients: sent,
+        state_code: states[0] ?? null,
+        state_codes: states,
+        recipients,
       },
+    });
+    await this.fanout.start({
+      broadcastId: b.id,
+      title: dto.title,
+      body: dto.body,
+      audience: dto.audience,
+      stateCode: states[0] ?? null,
+      stateCodes: states,
     });
     return {
       id: b.id,
@@ -462,7 +567,8 @@ export class AdminContentService {
       body: b.body,
       audience: b.audience,
       stateCode: b.state_code,
-      recipients: sent,
+      stateCodes: states,
+      recipients,
       createdAt: b.created_at.toISOString(),
     };
   }
@@ -588,6 +694,54 @@ export class AdminContentService {
         p.failure_code,
         p.created_at.toISOString(),
       ]);
+    } else if (entity === 'case_payments') {
+      // Owner 2026-10-05: client → attorney payments (Stripe Connect).
+      const ps = await this.prisma.casePayment.findMany({
+        take: LIMIT,
+        orderBy: { created_at: 'desc' },
+      });
+      header = [
+        'id',
+        'case_id',
+        'client_id',
+        'attorney_id',
+        'kind',
+        'status',
+        'amount_cents',
+        'platform_fee_cents',
+        'processing_fee_cents',
+        'client_total_cents',
+        'attorney_net_cents',
+        'refunded_cents',
+        'fee_type',
+        'fee_payer',
+        'currency',
+        'dispute_status',
+        'stripe_payment_intent_id',
+        'paid_at',
+        'created_at',
+      ];
+      rows = ps.map((p) => [
+        p.id,
+        p.case_id,
+        p.client_id,
+        p.attorney_id,
+        p.kind,
+        p.status,
+        p.amount_cents,
+        p.platform_fee_cents,
+        p.processing_fee_cents,
+        p.client_total_cents,
+        p.attorney_net_cents,
+        p.refunded_cents,
+        p.fee_type,
+        p.fee_payer,
+        p.currency,
+        p.dispute_status,
+        p.stripe_payment_intent_id,
+        p.paid_at?.toISOString(),
+        p.created_at.toISOString(),
+      ]);
     } else if (entity === 'posts') {
       const ps = await this.prisma.post.findMany({
         take: LIMIT,
@@ -650,14 +804,22 @@ export class AdminContentService {
 
   // --- overview -----------------------------------------------------------------
 
+  /** Owner 2026-10-23 (admin economy pass): 17 counts over the big tables
+   * (messages, calls, cases, bids, posts of the last 7 days…) — recounted
+   * once per 5 minutes for the whole team, not on every open. */
   async overview(): Promise<AdminOverviewDto> {
+    if (!this.summary) return this.computeOverview();
+    return (
+      await this.summary.get('overview', () => this.computeOverview(), 300)
+    ).data;
+  }
+
+  private async computeOverview(): Promise<AdminOverviewDto> {
     const d7 = new Date(Date.now() - 7 * 86400000);
     const d30 = new Date(Date.now() - 30 * 86400000);
-    const live = {
-      in: ['trialing', 'active', 'past_due'] as (
-        'trialing' | 'active' | 'past_due'
-      )[],
-    };
+    // Audit 2026-10-02: the gate's rule (past_due only while in grace),
+    // shared with the dashboard tiles — see subscription-metrics.ts.
+    const live = liveSubscriptionWhere(new Date());
     const [
       clients,
       attorneys,
@@ -684,13 +846,13 @@ export class AdminContentService {
       }),
       this.prisma.assistantMembership.count({ where: { status: 'active' } }),
       this.prisma.subscription.count({
-        where: { status: live, plan: 'monthly' },
+        where: { ...live, plan: 'monthly' },
       }),
       this.prisma.subscription.count({
-        where: { status: live, plan: 'yearly' },
+        where: { ...live, plan: 'yearly' },
       }),
       this.prisma.subscription.aggregate({
-        where: { status: live, plan: 'monthly' },
+        where: { ...live, plan: 'monthly' },
         _sum: { assistant_seats: true },
       }),
       this.prisma.payment.aggregate({
@@ -720,7 +882,10 @@ export class AdminContentService {
       assistants,
       subscriptionsMonthly: monthly,
       subscriptionsYearly: yearly,
-      assistantSeats: (seats._sum.assistant_seats ?? 0) + yearly * 6,
+      assistantSeats:
+        (seats._sum.assistant_seats ?? 0) +
+        yearly * 6 +
+        (await this.extraGrantSeats(live)),
       revenue30dCents: revenue._sum.amount_cents ?? 0,
       cases7d,
       bids7d,
@@ -733,6 +898,56 @@ export class AdminContentService {
       requestsPending,
     };
   }
+
+  /** Owner 2026-10-02: seats an active contract grant adds on top of the
+   * paid ones (per attorney: max(paid, grant) − paid). */
+  private async extraGrantSeats(
+    live: Prisma.SubscriptionWhereInput,
+  ): Promise<number> {
+    const now = new Date();
+    const grants = await this.prisma.contractGrant.findMany({
+      where: {
+        revoked_at: null,
+        starts_at: { lte: now },
+        ends_at: { gt: now },
+        assistant_seats: { gt: 0 },
+      },
+      select: { user_id: true, assistant_seats: true },
+    });
+    if (grants.length === 0) return 0;
+    const byUser = new Map<string, number>();
+    for (const g of grants) {
+      byUser.set(
+        g.user_id,
+        Math.max(byUser.get(g.user_id) ?? 0, g.assistant_seats),
+      );
+    }
+    const subs = await this.prisma.subscription.findMany({
+      where: { ...live, user_id: { in: [...byUser.keys()] } },
+      select: { user_id: true, plan: true, assistant_seats: true },
+    });
+    const maxSeats = await maxAssistantSeats(this.settings);
+    const paid = new Map(subs.map((x) => [x.user_id, paidSeats(x, maxSeats)]));
+    let extra = 0;
+    for (const [userId, g] of byUser) {
+      const p = paid.get(userId) ?? 0;
+      extra += effectiveSeats(p, g) - p;
+    }
+    return extra;
+  }
+}
+
+/** Review text or either person's name (attorney + client reviews). */
+export function reviewSearch(q?: string): {
+  OR?: Prisma.ReviewWhereInput[];
+} {
+  const term = q?.trim();
+  if (!term) return {};
+  const like = { contains: term, mode: 'insensitive' as const };
+  const person = { OR: [{ first_name: like }, { last_name: like }] };
+  return {
+    OR: [{ body: like }, { attorney: person }, { client: person }],
+  };
 }
 
 function notFound(message = 'Not found.') {

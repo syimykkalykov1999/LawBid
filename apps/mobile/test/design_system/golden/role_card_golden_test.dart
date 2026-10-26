@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 
@@ -8,12 +9,13 @@ import 'package:lawbid/core/design_system/design_system.dart';
 void main() {
   for (final brightness in [Brightness.light, Brightness.dark]) {
     final name = brightness == Brightness.light ? 'light' : 'dark';
-    final theme = brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
+    final theme =
+        brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
 
     testGoldens('RoleCard client - $name', (tester) async {
       await tester.pumpWidgetBuilder(
-        Padding(
-          padding: const EdgeInsets.all(16),
+        const Padding(
+          padding: EdgeInsets.all(16),
           child: RoleCard(
             icon: AppIcons.personOutline,
             title: 'Клиент',
@@ -30,12 +32,13 @@ void main() {
 
     testGoldens('RoleCard attorney - $name', (tester) async {
       await tester.pumpWidgetBuilder(
-        Padding(
-          padding: const EdgeInsets.all(16),
+        const Padding(
+          padding: EdgeInsets.all(16),
           child: RoleCard(
             icon: AppIcons.gavel,
             title: 'Адвокат',
-            description: 'Лицензированный юрист: находите клиентов по своей практике и штату.',
+            description:
+                'Лицензированный юрист: находите клиентов по своей практике и штату.',
             isSelected: false,
             isAttorneyFixedStyle: true,
             showProBadge: true,

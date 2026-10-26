@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -11,13 +12,14 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/feed/application/news_flag.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
-import 'package:lawbid/features/profile/data/profile_mappers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
+import 'package:lawbid/features/profile/data/profile_mappers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
@@ -28,7 +30,6 @@ import 'package:lawbid/features/profile/presentation/screens/verification_requir
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
-
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 import 'profile_fakes.dart';
@@ -62,7 +63,8 @@ void main() {
   setUpAll(initializeDateFormatting);
 
   group('attorney profile (docs/03 §4.2)', () {
-    testWidgets('someone else\'s profile: header, blue check, rating counter, chips, Follow + Share',
+    testWidgets(
+        "someone else's profile: header, no check, rating counter, chips, Follow + Share",
         (tester) async {
       await _pumpScreen(
         tester,
@@ -71,19 +73,22 @@ void main() {
         overrides: profileOverrides(),
       );
       expect(find.textContaining('@jane.doe'), findsOneWidget);
-      expect(find.byType(VerifiedBadge), findsOneWidget);
       expect(find.text('Jane Doe'), findsOneWidget);
       // Owner 2026-09-30: the "★ 4.5 · 12 reviews" line under the avatar is
       // gone; the rating lives on the Reviews tab.
       // Owner 2026-09-29: the "@username · Attorney" caption is gone; the
       // handle is the centered title (asserted above).
-      expect(find.textContaining('Family and immigration attorney'), findsOneWidget);
+      expect(
+        find.textContaining('Family and immigration attorney'),
+        findsOneWidget,
+      );
       expect(find.text('Doe & Partners LLP'), findsOneWidget);
       // Two picked leaves of one category are grouped; a single one isn't.
       expect(find.text('Family Law · 2'), findsOneWidget);
       expect(find.text('Work Visas'), findsOneWidget);
       expect(find.text('New York'), findsOneWidget);
-      expect(find.text('1.2K'), findsOneWidget);
+      // Owner 2026-10-21 (Instagram): up to 9 999 the number is shown whole.
+      expect(find.text('1,280'), findsOneWidget);
       expect(find.text('Follow'), findsOneWidget);
       expect(find.bySemanticsLabel('Share'), findsOneWidget);
       expect(find.text('Edit'), findsNothing);
@@ -92,16 +97,21 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('header shows the attorney photo from GET /attorneys/:username, not initials', (tester) async {
+    testWidgets(
+        'header shows the attorney photo from GET /attorneys/:username, not initials',
+        (tester) async {
       await _pumpScreen(
         tester,
         const AttorneyProfileScreen(username: 'jane.doe'),
         user: clientMe(),
         overrides: profileOverrides(
-          attorneys: FakeAttorneyRepo(profile: attorneyProfile(avatarUrl: 'https://media.test/jane_w256')),
+          attorneys: FakeAttorneyRepo(
+            profile: attorneyProfile(avatarUrl: 'https://media.test/jane_w256'),
+          ),
         ),
       );
-      final header = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar).first);
+      final header =
+          tester.widget<ProfileAvatar>(find.byType(ProfileAvatar).first);
       expect(header.url, 'https://media.test/jane_w256');
       // The test binding answers every HTTP request with 400; the failed
       // image load is expected here.
@@ -110,7 +120,9 @@ void main() {
       tester.takeException();
     });
 
-    test('public profile mapper prefers the 256 px variant, falls back to the main photo', () {
+    test(
+        'public profile mapper uses the full avatar (owner 2026-10-18: sharp header), else the 256 px variant',
+        () {
       Map<String, Object?> json(String? main, String? small) => {
             'id': 'att-1',
             'username': 'jane.doe',
@@ -123,58 +135,166 @@ void main() {
             'avatarUrl256': small,
             'languages': ['en'],
             'verifiedBadge': true,
+            'trustLevel': 1,
             'licensedStates': <Object?>[],
             'practiceAreas': <Object?>[],
             'rating': {'avg': 0, 'count': 0},
+            'qa': {'answers': 0, 'best': 0},
             'counters': {'posts': 0, 'followers': 0, 'following': 0},
             'isSelf': false,
             'isFollowing': false,
+            'consultationEnabled': false,
             'isBlocked': false,
             'hasBlockedMe': false,
+            'advertisingLabel': false,
+            'publicUrl': 'https://lawbid.dev/attorneys/jane.doe/',
           };
       PublicAttorneyProfile map(String? main, String? small) =>
-          ProfileMappers.publicProfile(api.PublicAttorneyProfileDto.fromJson(json(main, small)));
-      expect(map('https://m/a', 'https://m/a_w256').avatarUrl, 'https://m/a_w256');
+          ProfileMappers.publicProfile(
+            api.PublicAttorneyProfileDto.fromJson(json(main, small)),
+          );
+      expect(
+        map('https://m/a', 'https://m/a_w256').avatarUrl,
+        'https://m/a',
+      );
+      expect(map(null, 'https://m/a_w256').avatarUrl, 'https://m/a_w256');
       expect(map('https://m/a', null).avatarUrl, 'https://m/a');
       expect(map(null, null).avatarUrl, isNull);
     });
 
-    testWidgets('own profile shows Edit + Share instead of Follow', (tester) async {
+    testWidgets('own profile shows Edit + Share instead of Follow',
+        (tester) async {
       await _pumpScreen(
         tester,
         const AttorneyProfileScreen(username: 'jane.doe'),
         user: attorneyMe(),
-        overrides: profileOverrides(attorneys: FakeAttorneyRepo(profile: attorneyProfile(isSelf: true))),
+        overrides: profileOverrides(
+          attorneys: FakeAttorneyRepo(profile: attorneyProfile(isSelf: true)),
+        ),
       );
       expect(find.text('Edit'), findsOneWidget);
-      expect(find.bySemanticsLabel('Share'), findsOneWidget);
+      expect(find.bySemanticsLabel('Share profile'), findsOneWidget);
       expect(find.text('Follow'), findsNothing);
       await _teardown(tester);
     });
 
-    testWidgets('"New — no reviews": dash instead of the number, empty reviews tab',
+    testWidgets(
+        '"New — no reviews": dash instead of the number, empty reviews tab',
         (tester) async {
       await _pumpScreen(
         tester,
         const AttorneyProfileScreen(username: 'jane.doe'),
         user: clientMe(),
         overrides: profileOverrides(
-          attorneys: FakeAttorneyRepo(profile: attorneyProfile(withReviews: false, verified: false)),
+          attorneys: FakeAttorneyRepo(
+            profile: attorneyProfile(withReviews: false, verified: false),
+          ),
         ),
       );
       // Owner 2026-09-30: no "★ — · New" line under the avatar any more.
       expect(find.text('—'), findsNothing);
-      // unverified → no blue check (docs/03 §6.3)
-      expect(find.byType(VerifiedBadge), findsNothing);
       // the Reviews tab (star icon) shows the empty state
       await tester.tap(find.bySemanticsLabel('Reviews'));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('This attorney has no reviews yet.'), 300, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(
+        find.text('This attorney has no reviews yet.'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('This attorney has no reviews yet.'), findsOneWidget);
       await _teardown(tester);
     });
 
-    testWidgets('reviews tab: "Anna K." cards, summary distribution, cursor pagination', (tester) async {
+    // Owner 2026-10-18: Posts | Briefs & reposts | Reviews — no separate
+    // Threads («Текст») tab.
+    Set<String> tabKeys(WidgetTester tester) => {
+          for (final e in find
+              .byWidgetPredicate(
+                (w) =>
+                    w.key is ValueKey<String> &&
+                    (w.key! as ValueKey<String>)
+                        .value
+                        .startsWith('profile-tab-'),
+              )
+              .evaluate())
+            (e.widget.key! as ValueKey<String>).value,
+        };
+
+    testWidgets('four tabs: Posts, Reels, Briefs & reposts, Reviews',
+        (tester) async {
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileScreen(username: 'jane.doe'),
+        user: clientMe(),
+        overrides: [
+          ...profileOverrides(),
+          newsEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      expect(tabKeys(tester), {
+        'profile-tab-posts',
+        'profile-tab-reels',
+        'profile-tab-reposts',
+        'profile-tab-reviews',
+      });
+      expect(find.bySemanticsLabel('Reels'), findsOneWidget);
+      expect(find.bySemanticsLabel('Briefs & reposts'), findsOneWidget);
+      expect(find.bySemanticsLabel('Text'), findsNothing);
+      await _teardown(tester);
+    });
+
+    testWidgets('with News on, News is one more tab', (tester) async {
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileScreen(username: 'jane.doe'),
+        user: clientMe(),
+        overrides: [
+          ...profileOverrides(),
+          newsEnabledProvider.overrideWithValue(true),
+        ],
+      );
+      expect(tabKeys(tester), {
+        'profile-tab-posts',
+        'profile-tab-reels',
+        'profile-tab-reposts',
+        'profile-tab-news',
+        'profile-tab-reviews',
+      });
+      await _teardown(tester);
+    });
+
+    testWidgets('opening the old Threads tab lands on Briefs & reposts',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileScreen(
+          username: 'jane.doe',
+          initialTab: AttorneyProfileTab.threads,
+        ),
+        user: clientMe(),
+        overrides: [
+          ...profileOverrides(),
+          newsEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Briefs & reposts')),
+        matchesSemantics(
+          label: 'Briefs & reposts',
+          isButton: true,
+          isSelected: true,
+          hasSelectedState: true,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+      await _teardown(tester);
+    });
+
+    testWidgets(
+        'reviews tab: "Anna K." cards, summary distribution, cursor pagination',
+        (tester) async {
       final reviews = FakeReviewsRepo(
         pages: [
           [for (var i = 0; i < 3; i++) review(i, edited: i == 0)],
@@ -188,34 +308,46 @@ void main() {
         user: clientMe(),
         overrides: profileOverrides(reviews: reviews),
       );
-      await tester.ensureVisible(find.byKey(const ValueKey('profile-tab-reviews')));
+      await tester
+          .ensureVisible(find.byKey(const ValueKey('profile-tab-reviews')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('profile-tab-reviews')));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.byType(ReviewCard).first, 300, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(
+        find.byType(ReviewCard).first,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.byType(ReviewSummaryPanel), findsOneWidget);
       expect(find.text('Anna K.'), findsWidgets);
       expect(find.text('Edited'), findsOneWidget);
-      await tester.drag(find.byType(ListView).first, const Offset(0, -4000));
+      // Owner 2026-10-19: the tabs are pages (Instagram) — the reviews
+      // page scrolls under the sticky tab row.
+      await tester.drag(find.byType(ReviewCard).first, const Offset(0, -4000));
       await tester.pumpAndSettle();
       expect(reviews.listCursors, [null, '1']);
       expect(find.text("That's all the reviews"), findsOneWidget);
       await _teardown(tester);
     });
 
-    testWidgets('404 (unknown, suspended, or a client) → friendly "Profile unavailable"', (tester) async {
+    testWidgets(
+        '404 (unknown, suspended, or a client) → friendly "Profile unavailable"',
+        (tester) async {
       await _pumpScreen(
         tester,
         const AttorneyProfileScreen(username: 'some.client'),
         user: clientMe(),
-        overrides: profileOverrides(attorneys: FakeAttorneyRepo(error: notFound)),
+        overrides:
+            profileOverrides(attorneys: FakeAttorneyRepo(error: notFound)),
       );
       expect(find.text('Profile unavailable'), findsOneWidget);
       expect(find.text('Back'), findsWidgets);
       await _teardown(tester);
     });
 
-    testWidgets('offline → offline state; other errors → error + Retry that reloads', (tester) async {
+    testWidgets(
+        'offline → offline state; other errors → error + Retry that reloads',
+        (tester) async {
       final repo = FakeAttorneyRepo(error: offline);
       await _pumpScreen(
         tester,
@@ -234,8 +366,13 @@ void main() {
     });
 
     testWidgets('loading shows the skeleton', (tester) async {
-      final wrap = await profileWrapper(AppTheme.light(), user: clientMe(), overrides: profileOverrides());
-      await tester.pumpWidget(wrap(const AttorneyProfileScreen(username: 'jane.doe')));
+      final wrap = await profileWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        overrides: profileOverrides(),
+      );
+      await tester
+          .pumpWidget(wrap(const AttorneyProfileScreen(username: 'jane.doe')));
       expect(find.byType(AttorneyProfileSkeleton), findsOneWidget);
       await tester.pumpAndSettle();
       await _teardown(tester);
@@ -274,27 +411,40 @@ void main() {
         expect(
           AppRouterGuard.redirect(
             AppRoutes.create,
-            GuardSnapshot(startup: StartupStatus.ready, hasSession: true, user: CurrentUserState.ready(user)),
+            GuardSnapshot(
+              startup: StartupStatus.ready,
+              hasSession: true,
+              user: CurrentUserState.ready(user),
+            ),
           ),
           isNull,
         );
       }
     });
 
-    testWidgets('Cases tab shows "Complete verification" for a pending attorney', (tester) async {
-      await _pumpScreen(tester, const MineScreen(), user: attorneyMe(status: 'pending'));
+    testWidgets(
+        'Cases tab shows "Complete verification" for a pending attorney',
+        (tester) async {
+      await _pumpScreen(
+        tester,
+        const MineScreen(),
+        user: attorneyMe(status: 'pending'),
+      );
       expect(find.byType(VerificationRequiredView), findsOneWidget);
       expect(find.text('Complete verification'), findsWidgets);
       await _teardown(tester);
     });
 
-    testWidgets('Cases tab is not gated for a verified attorney', (tester) async {
+    testWidgets('Cases tab is not gated for a verified attorney',
+        (tester) async {
       await _pumpScreen(tester, const MineScreen(), user: attorneyMe());
       expect(find.byType(VerificationRequiredView), findsNothing);
       await _teardown(tester);
     });
 
-    testWidgets('unverified attorney cannot pick practices (locked, nothing fetched)', (tester) async {
+    testWidgets(
+        'unverified attorney cannot pick practices (locked, nothing fetched)',
+        (tester) async {
       final practices = FakePracticesRepo();
       await _pumpScreen(
         tester,
@@ -310,14 +460,30 @@ void main() {
   });
 
   group('practices (docs/03 §3.2)', () {
-    testWidgets('select all in a category, chips on top, save replaces the full set', (tester) async {
+    testWidgets(
+        'select all in a category, count on top, save replaces the full set',
+        (tester) async {
       final practices = FakePracticesRepo(
         selected: const [
-          SelectedPractice(id: 'l-vis', i18nKey: 'practice.imm.visas', nameEn: 'Work Visas', categoryId: 'cat-imm', categoryI18nKey: 'practice.imm'),
+          SelectedPractice(
+            id: 'l-vis',
+            i18nKey: 'practice.imm.visas',
+            nameEn: 'Work Visas',
+            categoryId: 'cat-imm',
+            categoryI18nKey: 'practice.imm',
+          ),
         ],
       );
-      await _pumpScreen(tester, const PracticesScreen(), user: attorneyMe(), overrides: profileOverrides(practices: practices));
+      await _pumpScreen(
+        tester,
+        const PracticesScreen(),
+        user: attorneyMe(),
+        overrides: profileOverrides(practices: practices),
+      );
       expect(find.text('Selected (1)'), findsOneWidget);
+      // Picked practices live only inside their (collapsed) category card,
+      // not as a chip list under the counter.
+      expect(find.text('Work Visas'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('category-cat-family')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('select-all-cat-family')));
@@ -325,13 +491,21 @@ void main() {
       expect(find.text('Selected (4)'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('practices-save')));
       await tester.pumpAndSettle();
-      expect(practices.replaced.single.toSet(), {'l-vis', 'l-div', 'l-cus', 'l-adp'});
+      expect(
+        practices.replaced.single.toSet(),
+        {'l-vis', 'l-div', 'l-cus', 'l-adp'},
+      );
       expect(find.text('Practices saved.'), findsOneWidget);
       await _teardown(tester);
     });
 
     testWidgets('search filters leaves and shows "no results"', (tester) async {
-      await _pumpScreen(tester, const PracticesScreen(), user: attorneyMe(), overrides: profileOverrides());
+      await _pumpScreen(
+        tester,
+        const PracticesScreen(),
+        user: attorneyMe(),
+        overrides: profileOverrides(),
+      );
       await tester.enterText(find.byType(TextField).first, 'asyl');
       await tester.pumpAndSettle();
       expect(find.text('Asylum'), findsOneWidget);
@@ -344,7 +518,9 @@ void main() {
   });
 
   group('review form (docs/03 §7)', () {
-    testWidgets('submit: rating required, then published as "Anna K." with Edit (14 days)', (tester) async {
+    testWidgets(
+        'submit: rating required, then published as "Anna K." with Edit (14 days)',
+        (tester) async {
       final reviews = FakeReviewsRepo();
       await _pumpScreen(
         tester,
@@ -352,14 +528,23 @@ void main() {
         user: clientMe(),
         overrides: profileOverrides(reviews: reviews),
       );
-      expect(find.text('A review can\'t be deleted. You can edit it within 14 days.'), findsOneWidget);
+      expect(
+        find.text(
+          "A review can't be deleted. You can edit it within 14 days.",
+        ),
+        findsOneWidget,
+      );
+      // Owner 2026-10-11: grey and inert until a rating is chosen.
       await tester.tap(find.byKey(const ValueKey('review-submit')));
       await tester.pumpAndSettle();
-      expect(find.text('Please choose a rating'), findsOneWidget);
       expect(reviews.created, isEmpty);
 
       await tester.tap(find.byKey(const ValueKey('star-input-4')));
-      await tester.enterText(find.byKey(const ValueKey('review-body')).first, 'Great work');
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('review-body')).first,
+        'Great work',
+      );
       await tester.tap(find.byKey(const ValueKey('review-submit')));
       await tester.pumpAndSettle();
       expect(reviews.created.single, ('case-1', 4, 'Great work'));
@@ -377,7 +562,9 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('opened without the review, it loads GET /cases/:caseId/review and edits it', (tester) async {
+    testWidgets(
+        'opened without the review, it loads GET /cases/:caseId/review and edits it',
+        (tester) async {
       final reviews = FakeReviewsRepo()
         ..own = Review(
           id: 'r-own',
@@ -400,7 +587,10 @@ void main() {
       await tester.pumpAndSettle();
       // The form is prefilled with the stored review.
       final field = tester.widget<EditableText>(
-        find.descendant(of: find.byKey(const ValueKey('review-body')).first, matching: find.byType(EditableText)),
+        find.descendant(
+          of: find.byKey(const ValueKey('review-body')).first,
+          matching: find.byType(EditableText),
+        ),
       );
       expect(field.controller.text, 'Good start');
       await tester.tap(find.byKey(const ValueKey('star-input-5')));
@@ -411,7 +601,8 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('a review the server marks not editable is read-only', (tester) async {
+    testWidgets('a review the server marks not editable is read-only',
+        (tester) async {
       final reviews = FakeReviewsRepo()
         ..own = Review(
           id: 'r-hidden',
@@ -433,7 +624,8 @@ void main() {
       await _teardown(tester);
     });
 
-    testWidgets('loading the own review failed → error + Retry reloads it', (tester) async {
+    testWidgets('loading the own review failed → error + Retry reloads it',
+        (tester) async {
       final reviews = FakeReviewsRepo()..ownError = offline;
       await _pumpScreen(
         tester,
@@ -452,7 +644,8 @@ void main() {
 
     // Owner 2026-10-01 (Google-style): the author edits any time; only a
     // moderated review is locked.
-    testWidgets('editable after 14 days; locked once moderated', (tester) async {
+    testWidgets('editable after 14 days; locked once moderated',
+        (tester) async {
       final old = Review(
         id: 'r-old',
         rating: 3,
@@ -494,6 +687,7 @@ void main() {
         overrides: profileOverrides(reviews: reviews),
       );
       await tester.tap(find.byKey(const ValueKey('star-input-5')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('review-submit')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('review-error')), findsOneWidget);
@@ -503,20 +697,58 @@ void main() {
 
   group('client profile (docs/03 §5)', () {
     // OQ-038: Instagram-like client profile — counters, Posts / Reviews.
-    testWidgets('own profile: name, state, counters, Posts and Reviews tabs', (tester) async {
-      await _pumpScreen(tester, const ProfileScreen(), user: clientMe(), overrides: profileOverrides());
+    testWidgets(
+        'own profile: name, state, counters and the four tabs '
+        'Posts | Reels | Briefs & reposts | Reviews', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpScreen(
+        tester,
+        const ProfileScreen(),
+        user: clientMe(),
+        overrides: profileOverrides(),
+      );
       expect(find.text('Anna Kowalski'), findsOneWidget);
-      expect(find.textContaining('California'), findsOneWidget);
+      // Owner 2026-10-15: a client profile shows no role and no state.
+      expect(find.textContaining('California'), findsNothing);
       expect(find.text('Followers'), findsOneWidget);
       expect(find.text('Following'), findsOneWidget);
-      expect(find.text('Reviews'), findsOneWidget);
       expect(find.text('Edit'), findsOneWidget);
+      // Owner 2026-10-18: Instagram's icon tabs, as on an attorney's profile.
+      expect(
+        {
+          for (final e in find
+              .byWidgetPredicate(
+                (w) =>
+                    w.key is ValueKey<String> &&
+                    (w.key! as ValueKey<String>)
+                        .value
+                        .startsWith('client-tab-'),
+              )
+              .evaluate())
+            (e.widget.key! as ValueKey<String>).value,
+        },
+        {
+          'client-tab-posts',
+          'client-tab-reels',
+          'client-tab-reposts',
+          'client-tab-reviews',
+        },
+      );
+      for (final label in ['Posts', 'Reels', 'Briefs & reposts', 'Reviews']) {
+        expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+      }
+      handle.dispose();
       await _teardown(tester);
     });
 
     testWidgets('error state with retry', (tester) async {
       final clients = FakeClientRepo(error: Exception('boom'));
-      await _pumpScreen(tester, const ProfileScreen(), user: clientMe(), overrides: profileOverrides(clients: clients));
+      await _pumpScreen(
+        tester,
+        const ProfileScreen(),
+        user: clientMe(),
+        overrides: profileOverrides(clients: clients),
+      );
       expect(find.byType(AppErrorState), findsOneWidget);
       clients.error = null;
       await tester.tap(find.text('Retry'));
@@ -537,11 +769,26 @@ void main() {
           usernameNextChangeAt: next,
         );
 
-    testWidgets('username availability: taken is shown, available is saved', (tester) async {
+    testWidgets('username availability: taken is shown, available is saved',
+        (tester) async {
       final repo = FakeAttorneyRepo(profile: attorneyProfile(), own: own())
-        ..availability = {'taken.name': const UsernameCheck(username: 'taken.name', available: false, issue: UsernameIssue.taken)};
-      await _pumpScreen(tester, const AttorneyProfileEditScreen(), user: attorneyMe(), overrides: profileOverrides(attorneys: repo));
-      final field = find.descendant(of: find.byKey(const ValueKey('username-field')), matching: find.byType(TextField));
+        ..availability = {
+          'taken.name': const UsernameCheck(
+            username: 'taken.name',
+            available: false,
+            issue: UsernameIssue.taken,
+          ),
+        };
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileEditScreen(),
+        user: attorneyMe(),
+        overrides: profileOverrides(attorneys: repo),
+      );
+      final field = find.descendant(
+        of: find.byKey(const ValueKey('username-field')),
+        matching: find.byType(TextField),
+      );
       await tester.enterText(field, 'taken.name');
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pumpAndSettle();
@@ -557,9 +804,20 @@ void main() {
     });
 
     testWidgets('30-day cooldown locks the username field', (tester) async {
-      final repo = FakeAttorneyRepo(profile: attorneyProfile(), own: own(next: kNow.add(const Duration(days: 10))));
-      await _pumpScreen(tester, const AttorneyProfileEditScreen(), user: attorneyMe(), overrides: profileOverrides(attorneys: repo));
-      expect(find.textContaining('You can change your @username again on'), findsOneWidget);
+      final repo = FakeAttorneyRepo(
+        profile: attorneyProfile(),
+        own: own(next: kNow.add(const Duration(days: 10))),
+      );
+      await _pumpScreen(
+        tester,
+        const AttorneyProfileEditScreen(),
+        user: attorneyMe(),
+        overrides: profileOverrides(attorneys: repo),
+      );
+      expect(
+        find.textContaining('You can change your @username again on'),
+        findsOneWidget,
+      );
       await _teardown(tester);
     });
   });
@@ -568,20 +826,31 @@ void main() {
     final jpeg = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4]);
 
     test('happy path attaches the file and refreshes me', () async {
-      final repo = FakeAvatarRepo(me: attorneyMe(avatarUrl: 'https://cdn.test/a.jpg'));
+      final repo =
+          FakeAvatarRepo(me: attorneyMe(avatarUrl: 'https://cdn.test/a.jpg'));
       final c = ProviderContainer(
         overrides: [
           avatarUploadRepositoryProvider.overrideWithValue(repo),
-          currentUserControllerProvider.overrideWith(() => FixedController(attorneyMe())),
+          currentUserControllerProvider
+              .overrideWith(() => FixedController(attorneyMe())),
         ],
       );
       addTearDown(c.dispose);
       final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
       addTearDown(sub.close);
       await c.read(avatarUploadControllerProvider.notifier).start(jpeg);
-      expect(repo.steps, ['presign:image/jpeg:8', 'upload', 'confirm', 'attach:f1']);
-      expect(c.read(avatarUploadControllerProvider).stage, AvatarUploadStage.done);
-      expect(c.read(currentUserControllerProvider).user?.avatarUrl, 'https://cdn.test/a.jpg');
+      expect(
+        repo.steps,
+        ['presign:image/jpeg:8', 'upload', 'confirm', 'attach:f1'],
+      );
+      expect(
+        c.read(avatarUploadControllerProvider).stage,
+        AvatarUploadStage.done,
+      );
+      expect(
+        c.read(currentUserControllerProvider).user?.avatarUrl,
+        'https://cdn.test/a.jpg',
+      );
     });
 
     test('a failed upload can be retried with the same photo', () async {
@@ -589,27 +858,41 @@ void main() {
       final c = ProviderContainer(
         overrides: [
           avatarUploadRepositoryProvider.overrideWithValue(repo),
-          currentUserControllerProvider.overrideWith(() => FixedController(attorneyMe())),
+          currentUserControllerProvider
+              .overrideWith(() => FixedController(attorneyMe())),
         ],
       );
       addTearDown(c.dispose);
       final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
       addTearDown(sub.close);
       await c.read(avatarUploadControllerProvider.notifier).start(jpeg);
-      expect(c.read(avatarUploadControllerProvider).stage, AvatarUploadStage.failed);
+      expect(
+        c.read(avatarUploadControllerProvider).stage,
+        AvatarUploadStage.failed,
+      );
       await c.read(avatarUploadControllerProvider.notifier).retry();
-      expect(c.read(avatarUploadControllerProvider).stage, AvatarUploadStage.done);
+      expect(
+        c.read(avatarUploadControllerProvider).stage,
+        AvatarUploadStage.done,
+      );
       expect(repo.steps.where((s) => s == 'upload'), hasLength(2));
     });
 
-    test('leaving the screen cancels the in-flight upload and stops the pipeline', () async {
+    test(
+        'leaving the screen cancels the in-flight upload and stops the pipeline',
+        () async {
       final repo = FakeAvatarRepo(me: attorneyMe())..holdUpload = true;
-      final c = ProviderContainer(overrides: [avatarUploadRepositoryProvider.overrideWithValue(repo)]);
+      final c = ProviderContainer(
+        overrides: [avatarUploadRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(c.dispose);
       final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
       final run = c.read(avatarUploadControllerProvider.notifier).start(jpeg);
       await pumpEventQueue();
-      expect(c.read(avatarUploadControllerProvider).stage, AvatarUploadStage.uploading);
+      expect(
+        c.read(avatarUploadControllerProvider).stage,
+        AvatarUploadStage.uploading,
+      );
       expect(repo.lastCancellation?.isCancelled, isFalse);
 
       sub.close(); // autoDispose → ref.onDispose cancels
@@ -621,41 +904,78 @@ void main() {
 
     test('rejects non-images before any network call', () async {
       final repo = FakeAvatarRepo(me: attorneyMe());
-      final c = ProviderContainer(overrides: [avatarUploadRepositoryProvider.overrideWithValue(repo)]);
+      final c = ProviderContainer(
+        overrides: [avatarUploadRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(c.dispose);
       final sub = c.listen(avatarUploadControllerProvider, (_, __) {});
       addTearDown(sub.close);
-      await c.read(avatarUploadControllerProvider.notifier).start(Uint8List.fromList([1, 2, 3, 4]));
-      expect(c.read(avatarUploadControllerProvider).stage, AvatarUploadStage.failed);
+      await c
+          .read(avatarUploadControllerProvider.notifier)
+          .start(Uint8List.fromList([1, 2, 3, 4]));
+      expect(
+        c.read(avatarUploadControllerProvider).stage,
+        AvatarUploadStage.failed,
+      );
       expect(repo.steps, isEmpty);
     });
 
     test('sniffs JPEG / PNG / HEIC', () {
       expect(sniffImageMime(jpeg), 'image/jpeg');
-      expect(sniffImageMime(Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])), 'image/png');
       expect(
-        sniffImageMime(Uint8List.fromList([0, 0, 0, 0x18, ...'ftypheic'.codeUnits])),
+        sniffImageMime(
+          Uint8List.fromList(
+            [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+          ),
+        ),
+        'image/png',
+      );
+      expect(
+        sniffImageMime(
+          Uint8List.fromList([0, 0, 0, 0x18, ...'ftypheic'.codeUnits]),
+        ),
         'image/heic',
+      );
+      expect(
+        sniffImageMime(
+          Uint8List.fromList(
+            [...'RIFF'.codeUnits, 0, 0, 0, 0, ...'WEBPVP8 '.codeUnits],
+          ),
+        ),
+        'image/webp',
+      );
+      expect(
+        sniffImageMime(Uint8List.fromList('GIF89a'.codeUnits)),
+        'image/gif',
       );
     });
   });
 
-  testWidgets('deep link lawbid.app/lawyer/:username opens the public profile', (tester) async {
+  testWidgets('deep link lawbid.dev/lawyer/:username opens the public profile',
+      (tester) async {
     final router = GoRouter(
       initialLocation: '/feed',
       routes: [
-        GoRoute(path: '/feed', builder: (_, __) => const Scaffold(body: Text('FEED'))),
+        GoRoute(
+          path: '/feed',
+          builder: (_, __) => const Scaffold(body: Text('FEED')),
+        ),
         ...deepLinkRoutes(),
       ],
     );
     addTearDown(router.dispose);
-    final wrap = await profileWrapper(AppTheme.light(), user: clientMe(), overrides: profileOverrides());
+    final wrap = await profileWrapper(
+      AppTheme.light(),
+      user: clientMe(),
+      overrides: profileOverrides(),
+    );
     // Reuse the wrapper's ProviderScope around a router app.
     final scoped = wrap(const SizedBox.shrink()) as ProviderScope;
     await tester.pumpWidget(
       ProviderScope(
         overrides: scoped.overrides,
-        child: MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
+        child:
+            MaterialApp.router(theme: AppTheme.light(), routerConfig: router),
       ),
     );
     router.go('/lawyer/jane.doe');

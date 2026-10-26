@@ -3,13 +3,24 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import type { Notification } from '@prisma/client';
+import { Prisma, type Notification } from '@prisma/client';
+import {
+  allWordsSql,
+  nameMatchSql,
+  typedWords,
+} from '../../common/search/name-match.sql';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { isValidTimeZone } from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  parseUpdatedSince,
+  syncedAt,
+  type SyncPage,
+} from '../../common/sync/sync.util';
 import { clientDisplayName } from '../comments/comments.service';
 import { FilesService } from '../files/files.service';
 import { BadgesService } from './badges.service';
@@ -18,11 +29,15 @@ import {
   CATEGORIES,
   type CategorySettingDto,
   type NotificationDto,
+  type NotificationGroup,
   type NotificationSettingsDto,
   type QuietHoursDto,
+  type TopicSettingDto,
   NewCaseAlertsDto,
   UpdateNewCaseAlertsDto,
 } from './notifications-api.dto';
+import { TOPICS, TOPIC_BY_KEY, readTopics } from './notification-topics';
+import { notificationTypesOf } from './notifications.service';
 
 const PAGE = 20;
 
@@ -55,13 +70,54 @@ export class NotificationsApiService {
   async list(
     userId: string,
     cursor?: string,
-  ): Promise<{ items: NotificationDto[]; nextCursor: string | null }> {
+    group?: NotificationGroup,
+    q?: string,
+    updatedSince?: string,
+  ): Promise<SyncPage<NotificationDto>> {
+    // Owner 2026-10-22 (client economy plan, package F): the delta — rows
+    // created or read since (an unread pill flipped on another device
+    // comes back too); nothing is paged, the cap keeps it bounded.
+    const since = parseUpdatedSince(updatedSince);
+    if (since) {
+      const rows = await this.prisma.notification.findMany({
+        where: {
+          user_id: userId,
+          updated_at: { gte: since },
+          type: group
+            ? {
+                in: notificationTypesOf(group === 'important').filter(
+                  (t) => t !== 'new_message',
+                ),
+              }
+            : { not: 'new_message' },
+        },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: 500,
+      });
+      return {
+        items: await this.present(rows),
+        nextCursor: null,
+        deletedIds: [],
+        syncedAt: syncedAt(
+          rows.map((r) => r.updated_at),
+          since,
+        ),
+      };
+    }
     const c = cursor ? decodeCursor(cursor) : undefined;
+    const matching = q ? await this.matchingIds(userId, q) : undefined;
     const rows = await this.prisma.notification.findMany({
       where: {
         user_id: userId,
+        ...(matching ? { id: { in: matching } } : {}),
         // new_message is never stored; guard old rows anyway (§9.2).
-        type: { not: 'new_message' },
+        type: group
+          ? {
+              in: notificationTypesOf(group === 'important').filter(
+                (t) => t !== 'new_message',
+              ),
+            }
+          : { not: 'new_message' },
         ...(c
           ? {
               OR: [
@@ -85,31 +141,71 @@ export class NotificationsApiService {
     };
   }
 
+  /**
+   * Owner 2026-10-18: the user's notifications whose stored text (title,
+   * body, reason, note) has every typed word, or whose actor — an attorney;
+   * a client stays anonymous (§5.2) — matches the typed name.
+   * Owner 2026-10-18 (speed): the actor is joined as a uuid (guarded by a
+   * uuid-shape check) so the users primary key is used, not a text cast
+   * of every user id.
+   */
+  private async matchingIds(userId: string, q: string): Promise<string[]> {
+    const words = typedWords(q);
+    if (!words.length) return [];
+    const text = Prisma.sql`concat_ws(' ', n.payload->>'title', n.payload->>'body', n.payload->>'reason', n.payload->>'note')`;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT n.id::TEXT AS id
+      FROM notifications n
+      LEFT JOIN users a
+        ON a.role::TEXT = 'attorney'
+       AND a.id = CASE
+             WHEN lower(n.payload->>'actorId') ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+             THEN lower(n.payload->>'actorId')::UUID
+           END
+      WHERE n.user_id = ${userId}::UUID
+        AND (${allWordsSql(text, words)}
+             OR (a.id IS NOT NULL
+                 AND ${nameMatchSql(q, Prisma.sql`a.full_name_lower`)}))
+      LIMIT 2000`;
+    return rows.map((r) => r.id);
+  }
+
   async read(
     userId: string,
     input: { ids?: string[]; all?: boolean },
-  ): Promise<{ updated: number }> {
+  ): Promise<{ updated: number; readIds: string[] }> {
     if (!input.all && (!input.ids || input.ids.length === 0)) {
       throw invalid('ids', 'Pass ids or all: true.');
     }
-    const { count } = await this.prisma.notification.updateMany({
+    // Owner 2026-10-22 (package F): the answer names the rows that flipped,
+    // so the app edits exactly those instead of reloading the list.
+    const unread = await this.prisma.notification.findMany({
       where: {
         user_id: userId,
         read_at: null,
         ...(input.all ? {} : { id: { in: input.ids } }),
       },
+      select: { id: true },
+      take: 1000,
+    });
+    const readIds = unread.map((r) => r.id);
+    if (readIds.length === 0) return { updated: 0, readIds };
+    const { count } = await this.prisma.notification.updateMany({
+      where: { user_id: userId, read_at: null, id: { in: readIds } },
       data: { read_at: new Date() },
     });
     if (count > 0) await this.badges.notificationsChanged(userId);
-    return { updated: count };
+    return { updated: count, readIds };
   }
 
   async settings(userId: string): Promise<NotificationSettingsDto> {
-    const [rows, qh] = await Promise.all([
+    const [rows, qh, iconBadge, switches] = await Promise.all([
       this.prisma.notificationSetting.findMany({ where: { user_id: userId } }),
       this.prisma.notificationQuietHours.findUnique({
         where: { user_id: userId },
       }),
+      this.badges.iconBadgeOn(userId),
+      this.badges.topicSwitches(userId),
     ]);
     const byCat = new Map(rows.map((r) => [r.category, r]));
     return {
@@ -132,7 +228,80 @@ export class NotificationsApiService {
             timezone: qh.timezone,
           }
         : null,
+      iconBadge,
+      // Owner 2026-10-21 (inbox 30): the parent switch's own value, so the
+      // nested ones keep theirs while it is off.
+      topics: TOPICS.map((d) => ({
+        topic: d.key,
+        block: d.block,
+        pushEnabled: switches.own(d.key),
+        locked: d.locked === true,
+        attorneyOnly: d.attorneyOnly === true,
+        ...(d.parent ? { parent: d.parent } : {}),
+      })),
     };
+  }
+
+  /** Owner 2026-10-21 (inbox 30): turn kinds of notifications on / off.
+   * A topic of an old category writes that category's switch (email kept);
+   * the rest live in users.notif_topics. */
+  async updateTopics(
+    userId: string,
+    items: TopicSettingDto[],
+  ): Promise<NotificationSettingsDto> {
+    for (const item of items) {
+      if (TOPIC_BY_KEY.get(item.topic)?.locked && !item.pushEnabled) {
+        throw invalid('items', 'System notifications can not be turned off.');
+      }
+    }
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notif_topics: true },
+    });
+    const topics = readTopics(u?.notif_topics);
+    let changed = false;
+    for (const item of items) {
+      const def = TOPIC_BY_KEY.get(item.topic);
+      if (!def || def.locked) continue;
+      if (def.category) {
+        await this.prisma.notificationSetting.upsert({
+          where: {
+            user_id_category: { user_id: userId, category: def.category },
+          },
+          create: {
+            user_id: userId,
+            category: def.category,
+            push_enabled: item.pushEnabled,
+          },
+          update: { push_enabled: item.pushEnabled },
+        });
+      } else {
+        topics[item.topic] = item.pushEnabled;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { notif_topics: topics },
+      });
+    }
+    await this.badges.settingsChanged(userId);
+    return this.settings(userId);
+  }
+
+  /** Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню» on/off; the
+   * user's devices get `badge:update` with the switch at once. */
+  async setIconBadge(
+    userId: string,
+    enabled: boolean,
+  ): Promise<NotificationSettingsDto> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { notif_icon_badge: enabled },
+    });
+    await this.badges.settingsChanged(userId);
+    return this.settings(userId);
   }
 
   async updateSettings(
@@ -168,6 +337,19 @@ export class NotificationsApiService {
     // Owner 2026-10-02: a switched-off category leaves the badges at once.
     await this.badges.settingsChanged(userId);
     return this.settings(userId);
+  }
+
+  /** Owner 2026-10-20: the person's time zone (IANA). */
+  async setTimezone(userId: string, timezone: string): Promise<void> {
+    if (!isValidTimeZone(timezone))
+      throw invalid('timezone', 'Unknown time zone.');
+    await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        OR: [{ timezone: null }, { timezone: { not: timezone } }],
+      },
+      data: { timezone },
+    });
   }
 
   async setQuietHours(
@@ -270,6 +452,7 @@ export class NotificationsApiService {
       where: { user_id: userId },
       select: {
         new_case_alerts_custom: true,
+        new_case_alerts_urgent_only: true,
         practice_areas: { select: { practice_area_id: true } },
         new_case_alert_practices: { select: { practice_area_id: true } },
       },
@@ -286,6 +469,7 @@ export class NotificationsApiService {
         (x) => x.practice_area_id,
       ),
       profilePracticeAreaIds: p.practice_areas.map((x) => x.practice_area_id),
+      urgentOnly: p.new_case_alerts_urgent_only,
     };
   }
 
@@ -309,7 +493,12 @@ export class NotificationsApiService {
     await this.prisma.$transaction([
       this.prisma.attorneyProfile.update({
         where: { user_id: userId },
-        data: { new_case_alerts_custom: !dto.useProfile },
+        data: {
+          new_case_alerts_custom: !dto.useProfile,
+          ...(dto.urgentOnly === undefined
+            ? {}
+            : { new_case_alerts_urgent_only: dto.urgentOnly }),
+        },
       }),
       // The custom list is kept even while "as in my profile" is on, so
       // switching back restores it.

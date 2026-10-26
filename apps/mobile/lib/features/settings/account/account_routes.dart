@@ -1,10 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/settings/account/presentation/screens/account_contact_flow_screen.dart';
-import 'package:lawbid/features/settings/account/presentation/screens/account_screen.dart';
+import 'package:lawbid/features/settings/account/presentation/screens/account_screen.dart'
+    deferred as d_account_screen;
 
 /// Settings → Account paths (docs/01 §10.3). Kept in this feature (not
 /// `AppRoutes`) so the Account screens stay self-contained.
@@ -20,14 +21,21 @@ abstract final class AccountRoutes {
 
 /// Pushed on the ROOT navigator (same reasoning as `AppRoutes
 /// .profileSettings`: full-screen settings pages cover the bottom nav).
-List<RouteBase> accountRoutes(
-        {GlobalKey<NavigatorState>? parentNavigatorKey}) =>
+List<RouteBase> accountRoutes({
+  GlobalKey<NavigatorState>? parentNavigatorKey,
+}) =>
     [
       GoRoute(
         path: AccountRoutes.account,
         parentNavigatorKey: parentNavigatorKey,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const AccountScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'account_screen',
+            load: d_account_screen.loadLibrary,
+            builder: (_) => d_account_screen.AccountScreen(),
+          ),
+        ),
       ),
       GoRoute(
         path: AccountRoutes.contactPattern,

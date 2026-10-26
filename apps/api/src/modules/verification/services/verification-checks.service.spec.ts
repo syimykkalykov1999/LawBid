@@ -2,13 +2,20 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import type { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { PrismaService } from '../../../prisma/prisma.service';
+import type { NotificationsService } from '../../notifications/notifications.service';
 import type { VerificationProviderSelector } from '../providers/verification-provider.selector';
-import { VerificationChecksService } from './verification-checks.service';
+import type { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
+import {
+  registryFlagFor,
+  SELF_ATTESTED_NOTE,
+  VerificationChecksService,
+} from './verification-checks.service';
 
 const logger = {
   setContext: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
+  info: jest.fn(),
 } as unknown as PinoLogger;
 
 function setup(opts: {
@@ -16,14 +23,20 @@ function setup(opts: {
   idProvider: 'manual' | 'stripe_identity';
   verify?: () => Promise<unknown>;
   docs?: string[];
+  lookupResult?: 'pass' | 'fail' | 'manual_review';
+  consume?: () => Promise<void>;
 }) {
   const checkCreate = jest.fn().mockResolvedValue({});
   const licenseUpdate = jest.fn().mockResolvedValue({});
   const requestUpdate = jest.fn().mockResolvedValue({});
+  const licenseUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+  const profileUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+  const emit = jest.fn().mockResolvedValue(undefined);
   const prisma = {
     verificationRequest: {
       findUnique: jest.fn().mockResolvedValue({
         id: 'r1',
+        status: 'submitted',
         attorney_id: 'a1',
         documents: (opts.docs ?? ['passport', 'selfie']).map((doc_type) => ({
           doc_type,
@@ -36,16 +49,32 @@ function setup(opts: {
       update: requestUpdate,
     },
     verificationCheck: { create: checkCreate },
-    attorneyLicense: { update: licenseUpdate },
+    attorneyLicense: { update: licenseUpdate, updateMany: licenseUpdateMany },
+    attorneyProfile: { updateMany: profileUpdateMany },
+    user: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ first_name: 'Kim', last_name: 'Wexler' }),
+    },
   } as unknown as PrismaService;
-  const lookup = jest
-    .fn()
-    .mockResolvedValue({ result: 'pass', details: { found: true } });
+  (prisma as unknown as { $transaction: unknown }).$transaction = (
+    fn: (tx: PrismaService) => Promise<unknown>,
+  ) => fn(prisma);
+  const lookup = jest.fn().mockResolvedValue({
+    result: opts.lookupResult ?? 'pass',
+    details: { found: true },
+  });
   const matchFace = jest
     .fn()
     .mockResolvedValue({ result: 'pass', details: {} });
   const selector = {
-    barLookup: () => Promise.resolve({ name: opts.barName, lookup }),
+    // 'manual' = no state registry enabled for NY (owner 2026-10-05).
+    barLookup: () =>
+      Promise.resolve({
+        name: 'auto',
+        lookup,
+        supports: () => Promise.resolve(opts.barName === 'auto'),
+      }),
     idVerification: () =>
       Promise.resolve({
         provider: opts.idProvider,
@@ -58,8 +87,18 @@ function setup(opts: {
       }),
   } as unknown as VerificationProviderSelector;
   return {
-    service: new VerificationChecksService(prisma, selector, logger),
+    service: new VerificationChecksService(
+      prisma,
+      selector,
+      { emit } as unknown as NotificationsService,
+      { recompute: jest.fn() } as unknown as AttorneyTrustService,
+      logger,
+      undefined,
+      { consume: opts.consume ?? (() => Promise.resolve()) } as never,
+    ),
     checkCreate,
+    licenseUpdateMany,
+    emit,
     licenseUpdate,
     requestUpdate,
     lookup,
@@ -131,6 +170,48 @@ describe('VerificationChecksService (docs/03 §2.4)', () => {
     expect(s.matchFace).not.toHaveBeenCalled();
   });
 
+  // 2026-10-24 (abuse batch B, item 13): the call site enforces the daily
+  // id_check cap before the paid provider is touched.
+  it('the daily id_check cap refuses before the provider is called', async () => {
+    const verify = jest.fn().mockResolvedValue({ result: 'pass', details: {} });
+    const consume = jest
+      .fn()
+      .mockRejectedValue(
+        new HttpException(
+          { code: ErrorCode.PROVIDER_BUDGET_EXCEEDED },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        ),
+      );
+    const s = setup({
+      barName: 'manual',
+      idProvider: 'stripe_identity',
+      verify,
+      consume,
+    });
+    await s.service.runOnSubmit('r1');
+    expect(consume).toHaveBeenCalledWith('id_check');
+    expect(verify).not.toHaveBeenCalled();
+    expect(s.matchFace).not.toHaveBeenCalled();
+    expect(s.checkCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        check_type: 'id_check',
+        result: 'manual_review',
+      }) as unknown,
+    });
+  });
+
+  it('a manual ID check never touches the paid budget', async () => {
+    const consume = jest.fn();
+    const s = setup({
+      barName: 'auto',
+      idProvider: 'manual',
+      docs: ['passport', 'selfie'],
+      consume,
+    });
+    await s.service.runOnSubmit('r1');
+    expect(consume).not.toHaveBeenCalled();
+  });
+
   it('no identity document (verified attorney adding a state) → no ID check', async () => {
     const s = setup({
       barName: 'manual',
@@ -140,5 +221,122 @@ describe('VerificationChecksService (docs/03 §2.4)', () => {
     await s.service.runOnSubmit('r1');
     expect(s.checkCreate).not.toHaveBeenCalled();
     expect(s.requestUpdate).not.toHaveBeenCalled();
+  });
+
+  describe('auto-approval (owner 2026-10-04, "только номер")', () => {
+    it('registry match and no ID documents → approved without a verifier', async () => {
+      const s = setup({ barName: 'auto', idProvider: 'manual', docs: [] });
+      await s.service.runOnSubmit('r1');
+      expect(s.licenseUpdateMany).toHaveBeenCalledWith({
+        where: { attorney_id: 'a1', license_status: 'pending' },
+        data: expect.objectContaining({
+          license_status: 'verified',
+        }) as unknown,
+      });
+      expect(s.requestUpdate).toHaveBeenCalledWith({
+        where: { id: 'r1' },
+        data: expect.objectContaining({ status: 'approved' }) as unknown,
+      });
+      expect(s.emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'verification_update',
+          payload: expect.objectContaining({ kind: 'approved' }) as unknown,
+        }),
+        expect.anything(),
+      );
+    });
+
+    it.each(['fail', 'manual_review'] as const)(
+      'registry %s → stays in the queue',
+      async (lookupResult) => {
+        const s = setup({
+          barName: 'auto',
+          idProvider: 'manual',
+          docs: [],
+          lookupResult,
+        });
+        await s.service.runOnSubmit('r1');
+        expect(s.licenseUpdateMany).not.toHaveBeenCalled();
+        expect(s.emit).not.toHaveBeenCalled();
+      },
+    );
+
+    it('ID documents nobody checked automatically → stays in the queue', async () => {
+      const s = setup({ barName: 'auto', idProvider: 'manual' });
+      await s.service.runOnSubmit('r1');
+      expect(s.licenseUpdateMany).not.toHaveBeenCalled();
+    });
+
+    it('registry match + passed ID check → approved', async () => {
+      const s = setup({ barName: 'auto', idProvider: 'stripe_identity' });
+      await s.service.runOnSubmit('r1');
+      expect(s.licenseUpdateMany).toHaveBeenCalled();
+    });
+  });
+
+  describe('self-attestation + state registry (owner 2026-10-05)', () => {
+    it('approves at once, then a matching registry clears the flag', async () => {
+      const s = setup({ barName: 'auto', idProvider: 'manual' });
+      await s.service.approveSelfAttested('r1');
+      expect(s.requestUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'approved',
+            admin_note: SELF_ATTESTED_NOTE,
+          }) as unknown,
+        }),
+      );
+      expect(s.lookup).toHaveBeenCalledTimes(1);
+      expect(s.licenseUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'l1' },
+          data: { registry_flag: null, registry_flagged_at: null },
+        }),
+      );
+    });
+
+    it('a registry difference flags the license, never rejects', async () => {
+      const s = setup({
+        barName: 'auto',
+        idProvider: 'manual',
+        lookupResult: 'fail',
+      });
+      await s.service.approveSelfAttested('r1');
+      expect(s.licenseUpdateMany).toHaveBeenCalled();
+      expect(s.licenseUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'l1' },
+          data: {
+            registry_flag: 'not_found',
+            registry_flagged_at: expect.any(Date) as unknown,
+          },
+        }),
+      );
+    });
+
+    it('a state without a registry: approved, nothing looked up', async () => {
+      const s = setup({ barName: 'manual', idProvider: 'manual' });
+      await s.service.approveSelfAttested('r1');
+      expect(s.licenseUpdateMany).toHaveBeenCalled();
+      expect(s.lookup).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [{ result: 'pass', details: {} }, null],
+      [{ result: 'fail', details: { reason: 'not_active' } }, 'not_active'],
+      [{ result: 'fail', details: { reason: 'not_found' } }, 'not_found'],
+      [
+        { result: 'manual_review', details: { reason: 'name_mismatch' } },
+        'name_mismatch',
+      ],
+      [
+        { result: 'manual_review', details: { reason: 'provider_error' } },
+        undefined,
+      ],
+    ] as const)('registryFlagFor(%j) → %s', (outcome, flag) => {
+      expect(
+        registryFlagFor({ result: outcome.result, details: outcome.details }),
+      ).toBe(flag);
+    });
   });
 });

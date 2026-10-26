@@ -3,7 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
+    show showConfirmSheet;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 
@@ -29,95 +33,145 @@ class ChatFolderPills extends ConsumerWidget {
     int? countOf(ChatListFolder f) => switch (f) {
           ChatListFolder.waiting => counts?.waiting,
           ChatListFolder.requests => counts?.requests,
+          // Owner 2026-10-21: how many case chats wait for my answer.
+          ChatListFolder.cases => counts?.cases,
           _ => null,
         };
+    // Owner 2026-10-22 (Instagram DM tabs): the pills share the whole row in
+    // equal widths with small gaps; the label shrinks to fit a long language.
+    // «Requests» ends with a chevron.
+    // "General" tab is hidden: it meant the same as "All".
+    // Owner 2026-10-19: «Основные» (primary) is hidden too; its
+    // filter stays in the code.
+    final shown = [
+      for (final f in ChatListFolder.values)
+        if (f != ChatListFolder.general &&
+            f != ChatListFolder.primary &&
+            f != ChatListFolder.archive)
+          f,
+    ];
     return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-        children: [
-          for (final f in ChatListFolder.values) ...[
-            Semantics(
-              selected: f == value,
-              button: true,
-              child: GestureDetector(
-                key: ValueKey('chat-folder-${f.name}'),
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onChanged(f);
-                },
-                child: AnimatedContainer(
-                  duration: dur,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: f == value ? colors.navy : colors.surface,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                    border: Border.all(
-                      color: f == value ? colors.gold : colors.border,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        t.t('chat.folder.${f.name}'),
-                        style: type.bodySmall.copyWith(
-                          color: f == value ? AppColorsDark.text : colors.text,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if ((countOf(f) ?? 0) > 0) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: colors.gold,
-                            borderRadius: BorderRadius.circular(AppRadii.pill),
-                          ),
-                          child: Text(
-                            '${countOf(f)}',
-                            style: type.caption.copyWith(
-                              color: AppColorsLight.navy,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+      height: 32,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
+        child: Row(
+          children: [
+            for (var i = 0; i < shown.length; i++) ...[
+              if (i > 0) const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: _pill(
+                  context,
+                  shown[i],
+                  t: t,
+                  colors: colors,
+                  type: type,
+                  dur: dur,
+                  count: countOf(shown[i]) ?? 0,
                 ),
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
+            ],
           ],
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _pill(
+    BuildContext context,
+    ChatListFolder f, {
+    required Translator t,
+    required AppColorTokens colors,
+    required AppTypographyTokens type,
+    required Duration dur,
+    required int count,
+  }) {
+    final selected = f == value;
+    final fg = selected ? AppColorsDark.text : colors.text;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: GestureDetector(
+        key: ValueKey('chat-folder-${f.name}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onChanged(f);
+        },
+        child: AnimatedContainer(
+          duration: dur,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? colors.navy : colors.surface,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(color: selected ? colors.gold : colors.border),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  t.t('chat.folder.${f.name}'),
+                  maxLines: 1,
+                  style: type.bodySmall.copyWith(
+                    color: fg,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (count > 0) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colors.gold,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      context.digits(count),
+                      style: type.caption.copyWith(
+                        color: AppColorsLight.navy,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+                if (f == ChatListFolder.requests)
+                  AppIcon(AppIcons.chevronRightRounded, size: 16, color: fg),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
 /// Owner 2026-10-01: the chat's own menu (the button at its top right) —
-/// pin to the top, move to Primary / General, "waiting for my answer"
+/// pin to the top, move to «Waiting», "waiting for my answer"
 /// with a note that shows right in the list ("send him the documents").
 Future<void> showChatOrganizeSheet(
   BuildContext context,
   WidgetRef ref,
-  Conversation c,
-) =>
+  Conversation c, {
+  bool inArchive = false,
+}) =>
     showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _OrganizeSheet(conversation: c),
+      builder: (_) => _OrganizeSheet(conversation: c, inArchive: inArchive),
     );
 
 class _OrganizeSheet extends ConsumerStatefulWidget {
-  const _OrganizeSheet({required this.conversation});
+  const _OrganizeSheet({required this.conversation, required this.inArchive});
 
   final Conversation conversation;
+
+  /// Opened from the Archive screen: «Unarchive» instead of «Archive».
+  final bool inArchive;
 
   @override
   ConsumerState<_OrganizeSheet> createState() => _OrganizeSheetState();
@@ -142,6 +196,15 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     setState(() => _busy = true);
     try {
       await call();
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        showAppSnackBar(context, errorText(t, e));
+      }
+      return;
+    }
+    // The write is done: a failing re-read must not look like a failed one.
+    try {
       refreshChatFolders(ref);
       if (!mounted) return;
       final messenger = ScaffoldMessenger.maybeOf(context);
@@ -149,11 +212,8 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
       if (done != null && messenger != null && messenger.mounted) {
         showAppSnackBar(messenger.context, t.t(done));
       }
-    } on Object catch (e) {
-      if (mounted) {
-        setState(() => _busy = false);
-        showAppSnackBar(context, errorText(t, e));
-      }
+    } on Object {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -164,9 +224,6 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = widget.conversation;
     final repo = ref.read(chatRepositoryProvider);
-    final other = c.folder == ChatFolder.primary
-        ? ChatFolder.general
-        : ChatFolder.primary;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -195,31 +252,90 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                             : 'chat.organize.pinned',
                       ),
             ),
+            // Owner 2026-10-20: the long-press menu has the usual quick
+            // actions — mute, mark read, delete.
             AppListRow(
-              key: const ValueKey('organize-move'),
-              icon: other == ChatFolder.primary
-                  ? AppIcons.starOutlineRounded
-                  : AppIcons.inboxOutlined,
-              label: t.t('chat.organize.moveTo', {
-                'folder': t.t('chat.folder.${other.name}'),
-              }),
-              subtitle: c.folderAuto ? t.t('chat.organize.autoHint') : null,
+              key: const ValueKey('organize-mute'),
+              icon: AppIcons.notificationsOffOutlined,
+              label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
               onTap: _busy
                   ? null
                   : () => _run(
-                        () => repo.organize(c.id, folder: other),
-                        done: 'chat.organize.moved',
+                        () => repo.mute(
+                          c.id,
+                          c.muted
+                              ? null
+                              : DateTime.now().add(const Duration(days: 3650)),
+                        ),
+                        done: c.muted
+                            ? 'chat.select.unmuted'
+                            : 'chat.select.muted',
                       ),
             ),
-            if (!c.folderAuto)
+            if (c.unreadCount > 0 && c.lastMessage != null)
               AppListRow(
-                key: const ValueKey('organize-auto'),
-                icon: AppIcons.autoModeRounded,
-                label: t.t('chat.organize.auto'),
+                key: const ValueKey('organize-read'),
+                icon: AppIcons.doneAllRounded,
+                label: t.t('notif.markAllRead'),
+                onTap: _busy
+                    ? null
+                    : () => _run(() async {
+                          await repo.read(c.id, c.lastMessage!.id);
+                          return c;
+                        }),
+              ),
+            AppListRow(
+              key: const ValueKey('organize-archive'),
+              icon: widget.inArchive
+                  ? AppIcons.unarchiveOutlined
+                  : AppIcons.inventory2Outlined,
+              label: t.t(
+                widget.inArchive ? 'chat.unarchive' : 'tasks.bulk.archive',
+              ),
+              onTap: _busy
+                  ? null
+                  : () => _run(
+                        () => repo.organize(c.id, archived: !widget.inArchive),
+                        done: widget.inArchive
+                            ? 'chat.unarchive'
+                            : 'tasks.bulk.archive',
+                      ),
+            ),
+            AppListRow(
+              key: const ValueKey('organize-delete'),
+              icon: AppIcons.deleteOutlineRounded,
+              label: t.t('chat.select.delete'),
+              onTap: _busy
+                  ? null
+                  : () async {
+                      final ok = await showConfirmSheet(
+                        context,
+                        t: t,
+                        title: t.t('chat.select.deleteTitle', {'count': '1'}),
+                        message: t.t('chat.select.deleteMessage'),
+                        confirmLabel: t.t('chat.select.delete'),
+                        destructive: true,
+                      );
+                      if (!ok || !mounted) return;
+                      await _run(
+                        () => repo.organize(c.id, hidden: true),
+                        done: 'chat.select.deleted',
+                      );
+                    },
+            ),
+            // Owner 2026-10-21: no «Primary» any more; the chat moves to the
+            // folders that exist. «Cases» holds the case chats by itself.
+            if (!c.waiting)
+              AppListRow(
+                key: const ValueKey('organize-move'),
+                icon: AppIcons.hourglassEmptyRounded,
+                label: t.t('chat.organize.moveTo', {
+                  'folder': t.t('chat.folder.waiting'),
+                }),
                 onTap: _busy
                     ? null
                     : () => _run(
-                          () => repo.organize(c.id, resetFolder: true),
+                          () => repo.organize(c.id, waiting: true),
                           done: 'chat.organize.moved',
                         ),
               ),
@@ -259,9 +375,14 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       hintText: t.t('chat.organize.noteHint'),
                       semanticLabel: t.t('chat.organize.noteHint'),
                       maxLength: 280,
-                      maxLines: 3,
-                      leading: AppIcon(AppIcons.stickyNote2Outlined,
-                          color: colors.goldDark),
+                      // Owner 2026-10-19: the field grows with the text
+                      // (about 220 characters on screen), then scrolls.
+                      maxLines: 8,
+                      keyboardType: TextInputType.multiline,
+                      leading: AppIcon(
+                        AppIcons.stickyNote2Outlined,
+                        color: colors.iconTint,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     AppButton(

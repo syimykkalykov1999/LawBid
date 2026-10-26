@@ -18,6 +18,8 @@ export class PushTokensService {
     sessionChainId: string,
     token: string,
     platform: string,
+    localReminders = false,
+    chatStyle = false,
   ): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: {
@@ -36,11 +38,15 @@ export class PushTokensService {
         session_id: session.id,
         fcm_token: token,
         platform,
+        local_reminders: localReminders,
+        chat_style: chatStyle,
       },
       update: {
         user_id: userId,
         session_id: session.id,
         platform,
+        local_reminders: localReminders,
+        chat_style: chatStyle,
         last_seen_at: new Date(),
       },
     });
@@ -89,6 +95,65 @@ export class PushTokensService {
       });
     }
     return rows.filter((r) => r.alive).map((r) => r.token);
+  }
+
+  /** Browser tokens: a browser push must show something, so silent
+   * pushes (call_ended) skip them. */
+  async webTokens(userId: string): Promise<string[]> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'web' },
+      select: { fcm_token: true },
+    });
+    return rows.map((r) => r.fcm_token);
+  }
+
+  /** Android devices whose app keeps the planner reminders itself and
+   * shows the reminder push under its own id (data-only message). An iPhone
+   * always gets the visible push too: iOS does not wake a swiped-away app
+   * for a silent one, so a task made elsewhere would otherwise be missed. */
+  async localReminderTokens(userId: string): Promise<string[]> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: {
+        user_id: userId,
+        platform: { in: ['android', 'ios'] },
+        local_reminders: true,
+      },
+      select: { fcm_token: true },
+    });
+    return rows.map((r) => r.fcm_token);
+  }
+
+  /** Owner 2026-10-22: Android devices whose app draws chat notifications
+   * itself (WhatsApp-style, with the sender's photo) from a data-only push.
+   * Older app versions never set it and keep the normal alert. */
+  async chatStyleTokens(userId: string): Promise<string[]> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'android', chat_style: true },
+      select: { fcm_token: true },
+    });
+    return rows.map((r) => r.fcm_token);
+  }
+
+  /** The reminders an iPhone has armed itself (it reports after each
+   * change); a replace, newest list wins. */
+  async setArmedReminders(
+    userId: string,
+    token: string,
+    ids: string[],
+  ): Promise<void> {
+    await this.prisma.pushToken.updateMany({
+      where: { user_id: userId, fcm_token: token },
+      data: { armed_reminders: ids },
+    });
+  }
+
+  /** token → armed reminder keys, for the user's iPhones. */
+  async armedReminders(userId: string): Promise<Map<string, Set<string>>> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'ios' },
+      select: { fcm_token: true, armed_reminders: true },
+    });
+    return new Map(rows.map((r) => [r.fcm_token, new Set(r.armed_reminders)]));
   }
 
   /** FCM said UNREGISTERED / invalid (§9.5). */

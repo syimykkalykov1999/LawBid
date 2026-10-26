@@ -10,7 +10,14 @@ import type { EmailProvider } from '../auth/providers/email/email-provider.inter
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
-import { DATA_EXPORT_LINK_TTL_SEC } from './privacy.constants';
+import {
+  DATA_EXPORT_LINK_TTL_SEC,
+  DATA_EXPORT_STALE_PROCESSING_MS,
+} from './privacy.constants';
+import { privateDetailsAad } from '../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { emailFlowsOn } from '../feature-flags/email-flows';
 
 /** JSON with BigInt/Date friendly to `JSON.stringify`. */
 function toJson(value: unknown): string {
@@ -38,6 +45,8 @@ export class DataExportService {
     @Inject(NOTIFICATION_EMAIL) private readonly email: EmailProvider,
     private readonly logger: PinoLogger,
     @Optional() private readonly costGuard?: CostGuardService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {
     this.logger.setContext(DataExportService.name);
   }
@@ -49,6 +58,7 @@ export class DataExportService {
       clientProfile,
       attorneyProfile,
       consents,
+      privacySettings,
       sessions,
       cases,
       bids,
@@ -83,6 +93,7 @@ export class DataExportService {
         include: { licenses: true, practice_areas: true },
       }),
       p.userConsent.findMany({ where: { user_id: userId } }),
+      p.userPrivacySettings.findUnique({ where: { user_id: userId } }),
       p.session.findMany({
         where: { user_id: userId },
         select: {
@@ -125,8 +136,28 @@ export class DataExportService {
     return {
       'profile.json': { user, clientProfile, attorneyProfile },
       'consents.json': consents,
+      // Owner 2026-10-22 (CCPA): the audience settings and the current
+      // «Do not sell or share» answer (the history is in consents.json).
+      'privacy.json': {
+        settings: privacySettings,
+        doNotSell:
+          [...consents]
+            .filter((c) => c.consent_type === 'do_not_sell')
+            .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())[0]
+            ?.granted ?? false,
+      },
       'devices.json': sessions,
-      'cases.json': cases,
+      // S3-5: the private details are stored sealed; the owner gets plain text.
+      'cases.json': cases.map((c) => ({
+        ...c,
+        private_details:
+          c.private_details === null
+            ? null
+            : (this.cipher?.openField(
+                c.private_details,
+                privateDetailsAad(c.id),
+              ) ?? c.private_details),
+      })),
       'bids.json': bids,
       'posts.json': posts,
       'comments.json': { posts: comments, cases: caseComments },
@@ -135,7 +166,11 @@ export class DataExportService {
         comments: commentLikes,
         caseComments: caseCommentLikes,
       },
-      'messages.json': messages,
+      'messages.json': messages.map((m) => ({
+        ...m,
+        body_original:
+          this.cipher?.open(m.body_original, m.id) ?? m.body_original,
+      })),
     };
   }
 
@@ -166,21 +201,48 @@ export class DataExportService {
     return Buffer.concat(chunks);
   }
 
-  /** The worker body: builds, stores, records and notifies. */
-  async process(exportId: string): Promise<{ bytes: number }> {
+  /**
+   * The worker body: builds, stores, records and notifies.
+   *
+   * S10-3 (crash safety): the claim is `queued -> processing`, but a job
+   * that BullMQ hands out AGAIN (the worker was Spot-killed or stalled
+   * mid-build: `retry`) may take over a `processing` row, and so may any
+   * call that finds the row untouched for DATA_EXPORT_STALE_PROCESSING_MS.
+   * Before, a retry saw `processing`, "succeeded" with 0 bytes and the
+   * export stayed `processing` for good. Research: Temporal/Cadence
+   * activity heartbeat-timeout + retry and the SQS visibility-timeout
+   * redelivery — a redelivery must resume the work, not no-op. `ready`
+   * and `failed` rows are still left alone (the job already finished).
+   */
+  async process(
+    exportId: string,
+    opts: { retry?: boolean } = {},
+  ): Promise<{ bytes: number }> {
     const job = await this.prisma.dataExportJob.findUnique({
       where: { id: exportId },
       include: {
         user: {
-          select: { email: true, email_verified_at: true, status: true },
+          select: {
+            email: true,
+            email_verified_at: true,
+            status: true,
+            ui_language: true,
+          },
         },
       },
     });
     if (!job || job.type !== 'user_data') return { bytes: 0 };
-    // Atomic claim: the BullMQ worker and a manual/retry call never build
-    // the same export twice (unique s3_key).
+    const stale = new Date(Date.now() - DATA_EXPORT_STALE_PROCESSING_MS);
     const { count } = await this.prisma.dataExportJob.updateMany({
-      where: { id: exportId, status: 'queued' },
+      where: {
+        id: exportId,
+        OR: [
+          { status: 'queued' },
+          opts.retry
+            ? { status: 'processing' }
+            : { status: 'processing', updated_at: { lt: stale } },
+        ],
+      },
       data: { status: 'processing' },
     });
     if (count === 0) return { bytes: 0 };
@@ -190,18 +252,33 @@ export class DataExportService {
     const key = `exports/user-data/${job.user_id}/${exportId}.zip`;
     await this.storage.put(bucket, key, zip, 'application/zip');
     const expiresAt = new Date(now.getTime() + DATA_EXPORT_LINK_TTL_SEC * 1000);
-    const file = await this.prisma.file.create({
-      data: {
+    const fileData = {
+      owner_user_id: job.user_id,
+      purpose: 'data_export' as const,
+      s3_bucket: bucket,
+      s3_key: key,
+      mime: 'application/zip',
+      size_bytes: BigInt(zip.length),
+      sha256: createHash('sha256').update(zip).digest('hex'),
+      scan_status: 'clean' as const,
+    };
+    // A takeover after a crash may find the row of the first run (same
+    // key): reuse it instead of leaving a second row for one object.
+    const earlier = await this.prisma.file.findFirst({
+      where: {
         owner_user_id: job.user_id,
         purpose: 'data_export',
         s3_bucket: bucket,
         s3_key: key,
-        mime: 'application/zip',
-        size_bytes: BigInt(zip.length),
-        sha256: createHash('sha256').update(zip).digest('hex'),
-        scan_status: 'clean',
       },
+      select: { id: true },
     });
+    const file = earlier
+      ? await this.prisma.file.update({
+          where: { id: earlier.id },
+          data: fileData,
+        })
+      : await this.prisma.file.create({ data: fileData });
     await this.prisma.dataExportJob.update({
       where: { id: exportId },
       data: { status: 'ready', file_id: file.id, expires_at: expiresAt },
@@ -214,7 +291,9 @@ export class DataExportService {
     if (
       job.user.email &&
       job.user.email_verified_at &&
-      job.user.status === 'active'
+      job.user.status === 'active' &&
+      // Admin «Вход и письма по почте» off: the link is in the app only.
+      (await emailFlowsOn(this.flags))
     ) {
       try {
         const url = await this.storage.signedGetUrl(
@@ -230,6 +309,7 @@ export class DataExportService {
             url,
             expiresAt,
             appLinkBaseUrl: this.config.get<string>('APP_LINK_BASE_URL'),
+            locale: job.user.ui_language,
           }),
         );
       } catch (error) {

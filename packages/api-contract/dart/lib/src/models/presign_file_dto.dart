@@ -15,6 +15,7 @@ class PresignFileDto {
     required this.mime,
     required this.sizeBytes,
     required this.sha256,
+    this.supportsPut,
   });
 
   factory PresignFileDto.fromJson(Map<String, Object?> json) =>
@@ -22,7 +23,7 @@ class PresignFileDto {
 
   final FilePurpose purpose;
 
-  /// One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4, image/webp, image/gif, application/msword, application/vnd.ms-excel, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.oasis.opendocument.text, application/vnd.oasis.opendocument.spreadsheet, application/vnd.oasis.opendocument.presentation, application/rtf, text/plain, text/csv (allowed set depends on purpose).
+  /// One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4, audio/webm, image/webp, image/gif, application/msword, application/vnd.ms-excel, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.oasis.opendocument.text, application/vnd.oasis.opendocument.spreadsheet, application/vnd.oasis.opendocument.presentation, application/rtf, text/plain, text/csv, video/mp4, video/quicktime, video/webm (allowed set depends on purpose).
   final String mime;
 
   /// Exact size of the file in bytes.
@@ -30,6 +31,9 @@ class PresignFileDto {
 
   /// Lowercase hex SHA-256 of the file.
   final String sha256;
+
+  /// True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST.
+  final bool? supportsPut;
 
   Map<String, Object?> toJson() => _$PresignFileDtoToJson(this);
 }

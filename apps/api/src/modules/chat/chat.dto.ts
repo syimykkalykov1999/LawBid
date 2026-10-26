@@ -1,4 +1,6 @@
 import { StickerDto } from '../stickers/stickers.dto';
+import { GiftSendDto } from '../stars/stars.dto';
+import { SharedPostCardDto } from '../posts/shared-post-cards.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
@@ -10,6 +12,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -40,12 +43,39 @@ export class MessageIdParamDto {
   messageId!: string;
 }
 
+/** Owner 2026-10-04: the language to translate a chat message into. */
+export class TranslateMessageDto {
+  @ApiProperty({
+    description: 'Target language, ISO 639-1 (or zh-CN / zh-TW), e.g. "ru".',
+    example: 'ru',
+  })
+  @Matches(/^[a-z]{2,3}(-[A-Z]{2})?$/)
+  target!: string;
+}
+
+export class MessageTranslationDto {
+  @ApiProperty({ description: 'The translated text.' })
+  text!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Detected language of the original.',
+  })
+  sourceLanguage!: string | null;
+
+  @ApiProperty()
+  targetLanguage!: string;
+}
+
 export const CONVERSATION_FOLDERS = [
   'all',
   'primary',
   'general',
   'waiting',
   'requests',
+  'cases',
+  'archive',
 ] as const;
 export type ConversationFolderName = (typeof CONVERSATION_FOLDERS)[number];
 
@@ -69,11 +99,25 @@ export class ConversationsQueryDto {
     enumName: 'ConversationFolder',
     default: 'all',
     description:
-      'Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me).',
+      'Owner 2026-10-01: all · primary (case chats by default) · general · waiting (marked "waiting for my answer") · requests (OQ-043, message requests sent to me) · cases (Owner 2026-10-21: only the chats tied to a case) · archive (Owner 2026-10-20: my archived chats; every other folder leaves them out).',
   })
   @IsOptional()
   @IsIn(CONVERSATION_FOLDERS)
   folder?: ConversationFolderName;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description:
+      "Owner 2026-10-18: search my chats — the other person's name (any alphabet, typos, word order) or @username, the case title, or the words of any message. Items then carry matchedMessage.",
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  q?: string;
 }
 
 /** Owner 2026-10-01: my own organisation of a chat. */
@@ -109,11 +153,33 @@ export class OrganizeConversationDto {
   @IsOptional()
   @IsBoolean()
   pinned?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Remove the chat from my list only; a new message revives it.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  hidden?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-20: move the chat to my Archive (true) or back (false); a new message does not bring it back.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  archived?: boolean;
 }
 
 export class ChatFolderCountsDto {
   @ApiProperty() waiting!: number;
   @ApiProperty() requests!: number;
+  @ApiProperty({
+    description:
+      'Owner 2026-10-21: case chats whose last message is the other side’s (waiting for my answer).',
+  })
+  cases!: number;
+  @ApiProperty({ description: 'Chats and groups in my Archive.' })
+  archived!: number;
 }
 
 export class MessagesQueryDto {
@@ -139,6 +205,22 @@ export class MessagesQueryDto {
   only?: 'attachment';
 }
 
+/** Owner 2026-10-05: what the chat's files take (the "Files" screen
+ * header) — like Telegram's "shared media" counts. */
+export class ChatStorageDto {
+  @ApiProperty() photos!: number;
+  @ApiProperty() documents!: number;
+  @ApiProperty() voice!: number;
+  @ApiProperty({ description: 'Bytes of every file sent in the chat.' })
+  usedBytes!: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'The per-chat cap in bytes; null = no cap.',
+  })
+  quotaBytes!: number | null;
+}
+
 export class SendMessageDto {
   @ApiProperty({ description: 'App-generated id (UUID), idempotency key.' })
   @IsString()
@@ -147,13 +229,59 @@ export class SendMessageDto {
   clientMessageId!: string;
 
   @ApiPropertyOptional({
-    enum: ['text', 'voice', 'attachment', 'sticker'],
+    enum: [
+      'text',
+      'voice',
+      'attachment',
+      'sticker',
+      'gift',
+      'contact',
+      'place',
+      'post',
+    ],
     enumName: 'SendMessageType',
     default: 'text',
   })
   @IsOptional()
-  @IsIn(['text', 'voice', 'attachment', 'sticker'])
-  type?: 'text' | 'voice' | 'attachment' | 'sticker';
+  @IsIn([
+    'text',
+    'voice',
+    'attachment',
+    'sticker',
+    'gift',
+    'contact',
+    'place',
+    'post',
+  ])
+  type?:
+    | 'text'
+    | 'voice'
+    | 'attachment'
+    | 'sticker'
+    | 'gift'
+    | 'contact'
+    | 'place'
+    | 'post';
+
+  /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
+   * the optional note (≤200). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  giftId?: string;
+
+  /** Owner 2026-10-20: the attorney whose card is shared (type=contact). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  contactUserId?: string;
+
+  /** Owner 2026-10-21 (Instagram «Поделиться»): the post sent as a card
+   * (type=post). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  postId?: string;
 
   /** Owner 2026-10-01: a sticker message (type=sticker). */
   @ApiPropertyOptional({ format: 'uuid' })
@@ -167,6 +295,29 @@ export class SendMessageDto {
   @IsString()
   @MaxLength(255)
   fileName?: string;
+
+  /** Owner 2026-10-20: a reply quotes this message of the same chat. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  replyToId?: string;
+
+  /**
+   * Owner 2026-10-20: forward this message (any chat of mine): the server
+   * copies its text / sticker and, for a voice note or a file, a new file
+   * row over the same stored object (no upload). Replaces the content
+   * fields of the request.
+   */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  forwardFromId?: string;
+
+  /** Owner 2026-10-20: a forwarded message ("Forwarded" label). */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  forwarded?: boolean;
 
   @ApiPropertyOptional({
     maxLength: MESSAGE_MAX_CHARS,
@@ -218,6 +369,31 @@ export class ReadConversationDto {
   lastReadMessageId!: string;
 }
 
+export class DeliveredConversationDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  lastDeliveredMessageId!: string;
+}
+
+export class DeliveredResultDto {
+  @ApiProperty({ type: String, nullable: true, format: 'uuid' })
+  lastDeliveredMessageId!: string | null;
+}
+
+export class SetDisappearingDto {
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    enum: [86400, 604800, 7776000],
+    description:
+      'Seconds a new message lives: 86400 (24 h), 604800 (7 d) or 7776000 (90 d); absent or null = off.',
+  })
+  // Absent or null = off (generated clients drop null fields).
+  @IsOptional()
+  @IsIn([86_400, 604_800, 7_776_000])
+  afterS?: number | null;
+}
+
 export class MuteConversationDto {
   @ApiPropertyOptional({
     type: String,
@@ -228,6 +404,12 @@ export class MuteConversationDto {
   @IsOptional()
   @IsISO8601()
   until?: string | null;
+}
+
+export class MuteCallsDto {
+  @ApiProperty({ description: 'Calls of this chat ring silently for me.' })
+  @IsBoolean()
+  muted!: boolean;
 }
 
 /** OQ-040: the audio of a voice message. */
@@ -299,6 +481,118 @@ export class CallLogDto {
   durationSec!: number;
 }
 
+/** Owner 2026-10-20: an attorney shared in a chat — only what the public
+ * profile already shows (never a phone, e-mail or a client's identity). */
+export class ContactCardDto {
+  @ApiProperty({ format: 'uuid' })
+  userId!: string;
+
+  @ApiProperty({ example: 'anna.lee' })
+  username!: string;
+
+  @ApiProperty()
+  displayName!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  avatarUrl!: string | null;
+
+  @ApiProperty({ description: 'The blue check.' })
+  verifiedBadge!: boolean;
+
+  @ApiProperty({ type: [String], description: 'Firm names.' })
+  firmNames!: string[];
+
+  @ApiProperty({
+    type: [String],
+    description: 'Translation keys of the practice areas (≤6).',
+  })
+  practiceKeys!: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['CA', 'NY'],
+    description: 'States of verified licenses.',
+  })
+  licensedStates!: string[];
+}
+
+/** Owner 2026-10-20: the quoted message of a reply. */
+export class ReplyPreviewDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  senderId!: string | null;
+
+  @ApiProperty({
+    enum: ['text', 'system', 'voice', 'call', 'attachment', 'sticker'],
+  })
+  type!: 'text' | 'system' | 'voice' | 'call' | 'attachment' | 'sticker';
+
+  @ApiProperty({ description: 'First 120 characters; empty for media.' })
+  snippet!: string;
+
+  @ApiProperty({ description: 'The quoted message was deleted for everyone.' })
+  revoked!: boolean;
+}
+
+/** Owner 2026-10-20: one emoji with how many people chose it. */
+export class ReactionDto {
+  @ApiProperty()
+  emoji!: string;
+
+  @ApiProperty({ type: 'integer' })
+  count!: number;
+
+  @ApiProperty({ description: 'The viewer chose this one.' })
+  mine!: boolean;
+}
+
+export class EditMessageDto {
+  @ApiProperty({ maxLength: MESSAGE_MAX_CHARS })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(MESSAGE_MAX_CHARS * 4)
+  body!: string;
+}
+
+export class DeleteMessageQueryDto {
+  @ApiProperty({
+    enum: ['me', 'all'],
+    enumName: 'DeleteScope',
+    description: 'me: only for the viewer; all: for everyone (time window).',
+  })
+  @IsIn(['me', 'all'])
+  scope!: 'me' | 'all';
+}
+
+export class ReactMessageDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: 16,
+    description: 'One emoji; null removes the reaction.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  emoji?: string | null;
+}
+
+export class PinsDto {
+  @ApiProperty({ type: () => [MessageDto] })
+  items!: MessageDto[];
+
+  @ApiProperty({ description: 'Minutes a text message can be edited.' })
+  editWindowMin!: number;
+
+  @ApiProperty({ description: 'Hours a message can be deleted for everyone.' })
+  deleteForAllHours!: number;
+
+  @ApiProperty({ description: 'Pins allowed per chat.' })
+  maxPins!: number;
+}
+
 export class MessageDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -318,9 +612,42 @@ export class MessageDto {
   sentByAssistant!: string | null;
 
   @ApiProperty({
-    enum: ['text', 'system', 'voice', 'call', 'attachment', 'sticker'],
+    enum: [
+      'text',
+      'system',
+      'voice',
+      'call',
+      'attachment',
+      'sticker',
+      'gift',
+      'contact',
+      'place',
+      'post',
+    ],
   })
-  type!: 'text' | 'system' | 'voice' | 'call' | 'attachment' | 'sticker';
+  type!:
+    | 'text'
+    | 'system'
+    | 'voice'
+    | 'call'
+    | 'attachment'
+    | 'sticker'
+    | 'gift'
+    | 'contact'
+    | 'place'
+    | 'post';
+
+  /** Owner 2026-10-20: the gift of a gift message. */
+  @ApiPropertyOptional({ type: () => GiftSendDto, nullable: true })
+  gift!: GiftSendDto | null;
+
+  /** Owner 2026-10-20: the attorney card of a `contact` message. */
+  @ApiPropertyOptional({ type: () => ContactCardDto, nullable: true })
+  contact!: ContactCardDto | null;
+
+  /** Owner 2026-10-21 (Instagram): the post card of a `post` message. */
+  @ApiPropertyOptional({ type: () => SharedPostCardDto, nullable: true })
+  post!: SharedPostCardDto | null;
 
   /** Owner 2026-10-01: the sticker of a sticker message. */
   @ApiPropertyOptional({ type: () => StickerDto, nullable: true })
@@ -353,6 +680,42 @@ export class MessageDto {
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description:
+      'Disappearing messages: when the message goes; the app hides it from this time on. Null = stays.',
+  })
+  expiresAt!: Date | null;
+
+  @ApiPropertyOptional({ type: Date, nullable: true })
+  editedAt!: Date | null;
+
+  @ApiProperty({
+    description:
+      'Deleted for everyone: the app shows "Message deleted"; body and media are empty.',
+  })
+  revoked!: boolean;
+
+  @ApiProperty()
+  forwarded!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Telegram-style "Forwarded from": the first author\'s name.',
+  })
+  forwardedFrom!: string | null;
+
+  @ApiPropertyOptional({ type: () => ReplyPreviewDto, nullable: true })
+  replyTo!: ReplyPreviewDto | null;
+
+  @ApiProperty({ type: () => [ReactionDto] })
+  reactions!: ReactionDto[];
+
+  @ApiProperty()
+  pinned!: boolean;
 }
 
 export class ConversationCounterpartDto {
@@ -375,6 +738,13 @@ export class ConversationCounterpartDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   avatarUrl!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Owner 2026-10-18: the full-size photo (full-screen view).',
+  })
+  avatarFullUrl!: string | null;
 
   @ApiProperty()
   verifiedBadge!: boolean;
@@ -424,8 +794,19 @@ export class ConversationDto {
   @ApiProperty()
   unreadCount!: number;
 
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.',
+  })
+  disappearAfterS!: number | null;
+
   @ApiPropertyOptional({ type: Date, nullable: true })
   mutedUntil!: Date | null;
+
+  @ApiProperty({ description: 'Calls of this chat ring silently for me.' })
+  callsMuted!: boolean;
 
   @ApiPropertyOptional({
     type: String,
@@ -434,6 +815,23 @@ export class ConversationDto {
     description: 'For "Seen" on own messages (§8.2).',
   })
   counterpartLastReadMessageId!: string | null;
+
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description:
+      'When the other side last read; "read at" for every message up to it.',
+  })
+  counterpartLastReadAt!: Date | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description:
+      "Newest message that reached the other side's device (two grey ticks).",
+  })
+  counterpartLastDeliveredMessageId!: string | null;
 
   @ApiProperty()
   updatedAt!: Date;
@@ -444,6 +842,14 @@ export class ConversationDto {
 
   @ApiProperty({ description: 'true = the folder is chosen automatically.' })
   folderAuto!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Owner 2026-10-18: only with GET /chats?q=… — a ~80-char snippet around the first message hit; null when the name / @username / case title matched.',
+  })
+  matchedMessage?: string | null;
 
   @ApiPropertyOptional({ type: Date, nullable: true })
   waitingSince!: Date | null;
@@ -469,6 +875,12 @@ export class ConversationDto {
 
   @ApiProperty({ description: 'The viewer sent this message request.' })
   requestedByMe!: boolean;
+
+  @ApiProperty({
+    description:
+      'Either side blocked the other. Messages and calls still work in a case chat while the accepted case is not closed.',
+  })
+  blocked!: boolean;
 }
 
 /** POST /conversations/direct (OQ-043). */

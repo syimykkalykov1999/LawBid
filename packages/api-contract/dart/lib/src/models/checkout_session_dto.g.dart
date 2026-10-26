@@ -13,6 +13,9 @@ CheckoutSessionDto _$CheckoutSessionDtoFromJson(Map<String, dynamic> json) =>
       trialEligible: json['trialEligible'] as bool,
       priceCents: (json['priceCents'] as num).toInt(),
       trialDays: (json['trialDays'] as num).toInt(),
+      promo: json['promo'] == null
+          ? null
+          : CheckoutPromoDto.fromJson(json['promo'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$CheckoutSessionDtoToJson(CheckoutSessionDto instance) =>
@@ -22,4 +25,5 @@ Map<String, dynamic> _$CheckoutSessionDtoToJson(CheckoutSessionDto instance) =>
       'trialEligible': instance.trialEligible,
       'priceCents': instance.priceCents,
       'trialDays': instance.trialDays,
+      'promo': ?instance.promo?.toJson(),
     };

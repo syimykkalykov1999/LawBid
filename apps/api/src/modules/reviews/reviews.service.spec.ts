@@ -38,10 +38,13 @@ function setup() {
     case: { findUnique: jest.fn() },
     review: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
     report: { findFirst: jest.fn(), create: jest.fn() },
+    reviewHelpfulVote: { deleteMany: jest.fn() },
+    auditLog: { findFirst: jest.fn(() => Promise.resolve(null)) },
     $queryRaw: jest.fn(() =>
       Promise.resolve([{ rating_avg: '4.50', rating_count: 2n }]),
     ),
@@ -50,12 +53,36 @@ function setup() {
     $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
     review: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
       groupBy: jest.fn((): Promise<unknown[]> => Promise.resolve([])),
     },
     // Owner 2026-10-01: the author's review count and "Helpful" votes.
     clientReview: { groupBy: jest.fn(() => Promise.resolve([])) },
     reviewHelpfulVote: { findMany: jest.fn(() => Promise.resolve([])) },
+    // Owner 2026-10-06: the client's completed cases with the attorney.
+    case: { findMany: jest.fn((): Promise<unknown[]> => Promise.resolve([])) },
+    userBlock: { findFirst: jest.fn(() => Promise.resolve(null)) },
+    user: {
+      // Shard-ready step 6: names come from the user directory (one batch).
+      findMany: jest.fn((args: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(
+          args.where.id.in.map((id) => ({
+            id,
+            first_name: 'Anna',
+            last_name: 'Kowalski',
+          })),
+        ),
+      ),
+      findUnique: jest.fn(() =>
+        Promise.resolve({
+          status: 'active',
+          role: 'client',
+          phone_verified_at: new Date(),
+          attorney_profile: null,
+        }),
+      ),
+    },
     attorneyProfile: {
       findUnique: jest.fn(() =>
         Promise.resolve({
@@ -172,6 +199,36 @@ describe('ReviewsService.create (docs/03 §7.1)', () => {
     );
   });
 
+  it("revives the case's review its author deleted", async () => {
+    const { tx, service } = setup();
+    tx.case.findUnique.mockResolvedValue(closedCase);
+    tx.review.findUnique.mockResolvedValue({ id: 'r0', status: 'removed' });
+    tx.review.update.mockResolvedValue(review({ id: 'r0' }));
+    const dto = await service.create(CLIENT, 'case-1', { rating: 4 });
+    expect(dto.status).toBe('published');
+    expect(tx.review.create).not.toHaveBeenCalled();
+    expect(tx.review.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'r0' },
+        data: expect.objectContaining({ status: 'published', rating: 4 }),
+      }),
+    );
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1); // rating recalculated
+  });
+
+  it('keeps a review removed by moderation removed', async () => {
+    const { tx, service } = setup();
+    tx.case.findUnique.mockResolvedValue(closedCase);
+    tx.review.findUnique.mockResolvedValue({ id: 'r0', status: 'removed' });
+    tx.auditLog.findFirst.mockResolvedValue({
+      after: { status: 'removed' },
+    } as never);
+    expect(await codeOf(service.create(CLIENT, 'case-1', { rating: 4 }))).toBe(
+      'REVIEW_ALREADY_EXISTS',
+    );
+    expect(tx.review.update).not.toHaveBeenCalled();
+  });
+
   it('maps a concurrent unique violation to REVIEW_ALREADY_EXISTS', async () => {
     const { tx, service } = setup();
     tx.case.findUnique.mockResolvedValue(closedCase);
@@ -240,6 +297,11 @@ describe('ReviewsService.getForCase (own review for editing, §7.2)', () => {
       await codeOf(service.getForCase({ ...CLIENT, sub: 'other' }, 'case-1')),
     ).toBe('NOT_FOUND');
     prisma.review.findUnique.mockResolvedValue(null);
+    expect(await codeOf(service.getForCase(CLIENT, 'case-1'))).toBe(
+      'NOT_FOUND',
+    );
+    // A deleted review is absent (the client can write a new one).
+    prisma.review.findUnique.mockResolvedValue(withCase({ status: 'removed' }));
     expect(await codeOf(service.getForCase(CLIENT, 'case-1'))).toBe(
       'NOT_FOUND',
     );
@@ -465,5 +527,124 @@ describe('ReviewsService.requestReview (§7.3, for file 04)', () => {
       },
       undefined,
     );
+    // ...and the attorney, to review the client.
+    expect(notifications.emit).toHaveBeenCalledWith(
+      {
+        type: 'review_requested',
+        recipientId: 'att-1',
+        payload: {
+          caseId: 'c1',
+          clientId: 'client-1',
+          clientReview: true,
+          reminder: false,
+        },
+      },
+      undefined,
+    );
+  });
+});
+
+describe('ReviewsService.upsertOpen / mineFor (owner 2026-10-06)', () => {
+  const ATTORNEY: RequestUser = { ...CLIENT, sub: 'att-2', role: 'attorney' };
+
+  it('refuses a client who never completed a case with the attorney', async () => {
+    const { service, tx } = setup();
+    expect(
+      await codeOf(service.upsertOpen(CLIENT, 'att-1', { rating: 5 })),
+    ).toBe('REVIEW_CASE_NOT_CLOSED');
+    expect(tx.review.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses attorneys and assistants: only clients who worked with them', async () => {
+    const { service, prisma } = setup();
+    prisma.case.findMany.mockResolvedValue([{ id: 'case-1' }]);
+    expect(
+      await codeOf(service.upsertOpen(ATTORNEY, 'att-1', { rating: 5 })),
+    ).toBe('REVIEW_CASE_NOT_CLOSED');
+    expect(prisma.case.findMany).not.toHaveBeenCalled();
+  });
+
+  it('looks only at closed cases where the attorney’s bid was accepted', async () => {
+    const { service, prisma } = setup();
+    await codeOf(service.upsertOpen(CLIENT, 'att-1', { rating: 5 }));
+    expect(prisma.case.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          client_id: 'client-1',
+          status: 'closed',
+          accepted_bid: { is: { attorney_id: 'att-1', status: 'accepted' } },
+        },
+      }),
+    );
+  });
+
+  it('ties a new review to the completed case, recalculates and notifies', async () => {
+    const { service, prisma, tx, notifications } = setup();
+    prisma.case.findMany.mockResolvedValue([{ id: 'case-9' }]);
+    tx.review.findFirst.mockResolvedValue(null);
+    tx.review.findUnique.mockResolvedValue(null);
+    tx.review.create.mockResolvedValue(review({ case_id: 'case-9' }));
+
+    await service.upsertOpen(CLIENT, 'att-1', { rating: 4, body: 'Ok' });
+
+    expect(tx.review.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          case_id: 'case-9',
+          client_id: 'client-1',
+          attorney_id: 'att-1',
+          rating: 4,
+        }),
+      }),
+    );
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(notifications.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'review_received',
+        recipientId: 'att-1',
+        payload: expect.objectContaining({ caseId: 'case-9' }),
+      }),
+      tx,
+    );
+  });
+
+  it('edits the existing review instead of adding a second one', async () => {
+    const { service, prisma, tx, notifications } = setup();
+    prisma.case.findMany.mockResolvedValue([{ id: 'case-1' }]);
+    tx.review.findFirst.mockResolvedValue({ id: 'r1' });
+    tx.review.update.mockResolvedValue(review({ edited_at: new Date() }));
+
+    await service.upsertOpen(CLIENT, 'att-1', { rating: 3 });
+
+    expect(tx.review.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'r1' } }),
+    );
+    expect(tx.review.create).not.toHaveBeenCalled();
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(notifications.emit).not.toHaveBeenCalled();
+  });
+
+  it('keeps a review removed by moderation removed', async () => {
+    const { service, prisma, tx } = setup();
+    prisma.case.findMany.mockResolvedValue([{ id: 'case-1' }]);
+    tx.review.findFirst.mockResolvedValue(null);
+    tx.review.findUnique.mockResolvedValue({ id: 'r1', status: 'removed' });
+    tx.auditLog.findFirst.mockResolvedValue({
+      after: { status: 'removed' },
+    } as never);
+
+    expect(
+      await codeOf(service.upsertOpen(CLIENT, 'att-1', { rating: 5 })),
+    ).toBe('REVIEW_ALREADY_EXISTS');
+  });
+
+  it('mineFor: 403 for someone who never worked with the attorney, null when eligible', async () => {
+    const { service, prisma } = setup();
+    prisma.review.findFirst.mockResolvedValue(null);
+    expect(await codeOf(service.mineFor(CLIENT, 'att-1'))).toBe(
+      'REVIEW_CASE_NOT_CLOSED',
+    );
+    prisma.case.findMany.mockResolvedValue([{ id: 'case-1' }]);
+    await expect(service.mineFor(CLIENT, 'att-1')).resolves.toBeNull();
   });
 });

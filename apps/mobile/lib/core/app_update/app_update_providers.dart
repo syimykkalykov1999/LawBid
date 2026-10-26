@@ -1,11 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../config/app_environment.dart';
-import '../feature_flags/feature_flags_providers.dart';
-import '../feature_flags/semver.dart';
-import '../network/headers_interceptor.dart';
-import '../persistence/persistence_providers.dart';
-import 'app_version.dart';
+import 'package:lawbid/core/app_update/app_version.dart';
+import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/feature_flags/semver.dart';
+import 'package:lawbid/core/network/headers_interceptor.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 
 /// What the update gate (app_update_gate.dart) shows
 /// (docs/01_FOUNDATION_AUTH.md §7, §12 "принудительное и мягкое
@@ -25,7 +24,7 @@ enum AppUpdateStatus {
   updateRequired,
 }
 
-/// Flipped to true by [AppUpdateInterceptor] the moment ANY request is
+/// Flipped to true by `AppUpdateInterceptor` the moment ANY request is
 /// answered with `426 APP_UPDATE_REQUIRED` (the server's `AppVersionGuard`
 /// is authoritative — the bootstrap `min_app_version_*` self-check only
 /// covers what the client already knew at startup). Never flips back for
@@ -49,27 +48,35 @@ const _kSoftDismissedKey = 'app_update.soft_dismissed_version';
 /// only when the server announces a NEWER soft version.
 class SoftUpdateDismissalController extends Notifier<String?> {
   @override
-  String? build() => ref.read(localKvStoreProvider).getString(_kSoftDismissedKey);
+  String? build() =>
+      ref.read(localKvStoreProvider).getString(_kSoftDismissedKey);
 
   Future<void> dismiss(String softVersion) async {
     state = softVersion;
-    await ref.read(localKvStoreProvider).setString(_kSoftDismissedKey, softVersion);
+    await ref
+        .read(localKvStoreProvider)
+        .setString(_kSoftDismissedKey, softVersion);
   }
 }
 
 final softUpdateDismissalProvider =
-    NotifierProvider<SoftUpdateDismissalController, String?>(SoftUpdateDismissalController.new);
+    NotifierProvider<SoftUpdateDismissalController, String?>(
+  SoftUpdateDismissalController.new,
+);
 
 /// `soft_update_version_{platform}` from the last `/config/bootstrap`, or
 /// null when absent.
 final softUpdateVersionProvider = Provider<String?>((ref) {
-  final config = ref.watch(featureFlagsControllerProvider.select((s) => s.appConfig));
-  final value = config['soft_update_version_${HeadersInterceptor.platformName}']?.trim();
+  final config =
+      ref.watch(featureFlagsControllerProvider.select((s) => s.appConfig));
+  final value =
+      config['soft_update_version_${HeadersInterceptor.platformName}']?.trim();
   return (value == null || value.isEmpty) ? null : value;
 });
 
 final appUpdateStatusProvider = Provider<AppUpdateStatus>((ref) {
-  if (ref.watch(forcedUpdateProvider) || ref.watch(isAppUpdateRequiredProvider)) {
+  if (ref.watch(forcedUpdateProvider) ||
+      ref.watch(isAppUpdateRequiredProvider)) {
     return AppUpdateStatus.updateRequired;
   }
   final soft = ref.watch(softUpdateVersionProvider);
@@ -93,17 +100,24 @@ final appUpdateStatusProvider = Provider<AppUpdateStatus>((ref) {
 /// opening a dead link.
 final storeUrlProvider = Provider<Uri?>((ref) {
   final platform = HeadersInterceptor.platformName;
-  final config = ref.watch(featureFlagsControllerProvider.select((s) => s.appConfig));
+  final config =
+      ref.watch(featureFlagsControllerProvider.select((s) => s.appConfig));
   final configured = Uri.tryParse(config['store_url_$platform']?.trim() ?? '');
   // https only: the value is admin-configured, but the app must never
   // launch another scheme from server data (defense in depth).
-  if (configured != null && configured.scheme == 'https' && configured.host.isNotEmpty) {
+  if (configured != null &&
+      configured.scheme == 'https' &&
+      configured.host.isNotEmpty) {
     return configured;
   }
   if (platform == 'android') {
-    final packageName =
-        AppVersion.packageName ?? _defaultPackageName(ref.watch(appEnvironmentProvider));
-    return Uri.https('play.google.com', '/store/apps/details', {'id': packageName});
+    final packageName = AppVersion.packageName ??
+        _defaultPackageName(ref.watch(appEnvironmentProvider));
+    return Uri.https(
+      'play.google.com',
+      '/store/apps/details',
+      {'id': packageName},
+    );
   }
   const appStoreId = String.fromEnvironment('APP_STORE_ID');
   if (appStoreId.isEmpty) return null;

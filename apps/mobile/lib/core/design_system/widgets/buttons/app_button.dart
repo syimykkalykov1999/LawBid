@@ -5,12 +5,13 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.dart'
     show GavelStrikeButton;
+import 'package:lawbid/core/design_system/widgets/feedback/app_snackbar.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
 
 enum AppButtonVariant {
   primary,
@@ -32,11 +33,10 @@ enum AppButtonVariant {
 ///
 /// Height defaults to 50 (the welcome screen uses 48 explicitly per file 07
 /// §6.1 — pass `height: 48` there). Full width, icon 8px left of the label.
-/// Disabled buttons stay visually active and simply error on tap per spec
-/// ("кнопка остаётся активной и отвечает ошибкой при попытке") — `isEnabled`
-/// controls whether [onPressed] actually fires, not the button's appearance,
-/// except where [isEnabled] is false AND [onPressed] is null (truly inert,
-/// e.g. a golden-test fixture).
+/// Owner 2026-10-07 (phone test): a button whose conditions are not met
+/// looks inactive (dimmed, [dimWhenDisabled] on by default) and, when
+/// tapped anyway, says what is missing ([disabledHint]) instead of doing
+/// nothing silently.
 ///
 /// [onTapDown] is a pass-through hook (not used by AppButton itself) so
 /// [GavelStrikeButton] can learn the tap position without a side-channel
@@ -51,9 +51,10 @@ class AppButton extends StatefulWidget {
     this.icon,
     this.isLoading = false,
     this.isEnabled = true,
-    this.height = 50,
+    this.height = AppSizes.buttonHeight,
     this.onTapDown,
-    this.dimWhenDisabled = false,
+    this.dimWhenDisabled = true,
+    this.disabledHint,
   });
 
   final String label;
@@ -65,10 +66,13 @@ class AppButton extends StatefulWidget {
   final double height;
   final ValueChanged<TapDownDetails>? onTapDown;
 
-  /// Opt-in (UI modernization pass, 2026-09-27): render at reduced opacity
-  /// while not interactive. Off by default so the spec'd "stays visually
-  /// active" behavior above (and every existing golden) is unchanged.
+  /// Render at reduced opacity while not interactive (not while loading).
+  /// On by default since 2026-10-07: an inactive button must look inactive.
   final bool dimWhenDisabled;
+
+  /// Owner 2026-10-07: what to do first (e.g. «Выберите видео»), shown
+  /// when the inactive button is tapped. Null = the tap does nothing.
+  final String? disabledHint;
 
   @override
   State<AppButton> createState() => _AppButtonState();
@@ -79,6 +83,14 @@ class _AppButtonState extends State<AppButton> {
 
   bool get _interactive =>
       widget.isEnabled && !widget.isLoading && widget.onPressed != null;
+
+  void _disabledTap() {
+    final hint = widget.disabledHint;
+    if (_interactive || widget.isLoading || hint == null || hint.isEmpty) {
+      return;
+    }
+    showAppSnackBar(context, hint);
+  }
 
   void _setPressed(bool value) {
     if (!_interactive) return;
@@ -123,10 +135,7 @@ class _AppButtonState extends State<AppButton> {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (widget.icon != null) ...[
-                AppIcon(widget.icon, size: 20, color: foreground),
-                const SizedBox(width: AppSpacing.sm),
-              ],
+              // Owner 2026-10-13: no icon inside buttons — text only.
               Flexible(
                 child: Text(
                   widget.label,
@@ -155,7 +164,7 @@ class _AppButtonState extends State<AppButton> {
           },
           onTapUp: (_) => _setPressed(false),
           onTapCancel: () => _setPressed(false),
-          onTap: _interactive ? widget.onPressed : null,
+          onTap: _interactive ? widget.onPressed : _disabledTap,
           child: _maybeDim(
             AnimatedScale(
               scale: _pressed && !context.reduceMotion
@@ -163,10 +172,23 @@ class _AppButtonState extends State<AppButton> {
                   : 1.0,
               duration: AppMotion.pressScale,
               child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: widget.height),
+                constraints: BoxConstraints(
+                  // An explicit smaller height (profile rows: 32) is kept;
+                  // the legacy 40-48 values collapse to the 36 token.
+                  minHeight: widget.height < AppSizes.buttonHeight
+                      ? widget.height
+                      : (widget.height <= AppSizes.hitTarget
+                          ? AppSizes.buttonHeight
+                          : widget.height),
+                ),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  // Horizontal inset keeps long (translated) labels off the
+                  // rounded edges when they wrap.
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: AppSpacing.md,
+                  ),
                   decoration: BoxDecoration(
                     color: background,
                     borderRadius: BorderRadius.circular(AppRadii.button),

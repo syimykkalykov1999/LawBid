@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_counts_envelope.dart';
 import '../models/dashboard_envelope.dart';
 
 part 'admin_dashboard_client.g.dart';
@@ -17,6 +18,18 @@ abstract class AdminDashboardClient {
   /// Operational numbers (cached ≤ 60 s)
   @GET('/admin/dashboard')
   Future<DashboardEnvelope> getDashboard({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Recount user totals now (max once per 10 min)
+  @POST('/admin/dashboard/totals/refresh')
+  Future<DashboardEnvelope> refreshTotals({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Sidebar badges: verification queue, open reports, support unread, trust queue, approvals (ETag → 304)
+  @GET('/admin/counts')
+  Future<AdminCountsEnvelope> getCounts({
     @Extras() Map<String, dynamic>? extras,
   });
 }

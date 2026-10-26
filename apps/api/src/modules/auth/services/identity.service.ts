@@ -1,5 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+import { isKnownCountry } from '../../../common/reference-data/countries';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import type { Prisma, PrismaClient, User } from '@prisma/client';
+import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withDeleted } from '../../../prisma/soft-delete.extension';
 
@@ -33,7 +37,11 @@ export interface CollisionResult {
  */
 @Injectable()
 export class IdentityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Owner 2026-10-22 (audit #4 §7): the signups SLO counter.
+    @Optional() private readonly slo?: SloMetricsService,
+  ) {}
 
   async findByIdentifier(
     provider: IdentityProvider,
@@ -68,12 +76,39 @@ export class IdentityService {
       return { user: existing.user, isNewUser: false };
     }
 
+    // Audit 2026-10-02: the phone/email already belongs to an account that
+    // signs in another way (e.g. Google/Apple, or set on the profile) —
+    // linking happens only while signed in (class doc), so say which way
+    // to sign in instead of a 500 from the unique index.
+    const owner = await client.user.findFirst({
+      where:
+        channel === 'phone'
+          ? { phone_e164: normalizedIdentifier }
+          : { email: normalizedIdentifier },
+      select: { id: true, identifiers: { select: { provider: true } } },
+    });
+    if (owner) {
+      throw new ConflictException({
+        code: ErrorCode.ACCOUNT_EXISTS_USE_OTHER_METHOD,
+        message: 'This account signs in another way.',
+        details: {
+          availableMethods: [
+            ...new Set(owner.identifiers.map((i) => i.provider)),
+          ],
+        },
+      });
+    }
+
     const now = new Date();
+    this.slo?.count('signup');
     const user = await client.user.create({
       data: {
         status: 'active',
         [channel === 'phone' ? 'phone_e164' : 'email']: normalizedIdentifier,
         [channel === 'phone' ? 'phone_verified_at' : 'email_verified_at']: now,
+        // Owner 2026-10-05: a phone sign-up starts in the number's country
+        // (a profile's state/province moves it later).
+        ...(channel === 'phone' ? phoneCountry(normalizedIdentifier) : {}),
         identifiers: {
           create: {
             provider: channel,
@@ -126,6 +161,7 @@ export class IdentityService {
     }
 
     const now = new Date();
+    this.slo?.count('signup');
     const user = await this.prisma.user.create({
       data: {
         status: 'active',
@@ -200,4 +236,11 @@ function maskEmail(email: string): string {
       ? domainName
       : domainName[0] + '*'.repeat(domainName.length - 1);
   return `${maskedLocal}@${[maskedDomain, ...rest].join('.')}`;
+}
+
+/** `{country_code}` for a number whose country we list, else nothing
+ * (the column default, US). */
+function phoneCountry(e164: string): { country_code?: string } {
+  const code = parsePhoneNumberFromString(e164)?.country;
+  return code && isKnownCountry(code) ? { country_code: code } : {};
 }

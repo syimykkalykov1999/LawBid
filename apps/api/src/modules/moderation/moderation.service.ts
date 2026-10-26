@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import type { Prisma, ReportTargetType } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { FilesService } from '../files/files.service';
@@ -10,6 +10,8 @@ import {
   profileEntity,
 } from '../counters/counter-aggregator.service';
 import { recalcAttorneyRating } from '../reviews/review-rating';
+import { fileNameAad } from '../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -51,6 +53,7 @@ export class ModerationService {
     private readonly counters: CounterAggregator,
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   async resolve(
@@ -158,6 +161,7 @@ export class ModerationService {
           },
         });
         if (!m) return null;
+        const body = this.cipher?.open(m.body_display, id) ?? m.body_display;
         // OQ-040: a reported voice note — the moderator gets a short
         // signed link to listen (outside transactions only).
         const voiceUrl =
@@ -179,8 +183,13 @@ export class ModerationService {
             m.type === 'voice'
               ? `[voice message, ${Math.round((m.duration_ms ?? 0) / 1000)} s]`
               : m.type === 'attachment'
-                ? `[file: ${m.file_name ?? 'file'}] ${m.body_display}`.trim()
-                : m.body_display,
+                ? `[file: ${
+                    (m.file_name === null
+                      ? null
+                      : (this.cipher?.openField(m.file_name, fileNameAad(id)) ??
+                        m.file_name)) || 'file'
+                  }] ${body}`.trim()
+                : body,
           context: {
             conversationId: m.conversation_id,
             ...(m.type === 'voice' ? { voiceUrl } : {}),
@@ -210,6 +219,164 @@ export class ModerationService {
               text: `★${r.rating}${r.body ? ` — ${r.body}` : ''}`,
               context: { attorneyId: r.attorney_id },
               createdAt: r.created_at,
+            }
+          : null;
+      }
+      case 'legal_question': {
+        const q = await db.legalQuestion.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            author_id: true,
+            title: true,
+            body: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return q
+          ? {
+              type,
+              id,
+              authorId: q.author_id,
+              status: q.deleted_at ? 'removed' : q.status,
+              text: `${q.title}\n${q.body}`,
+              context: {},
+              createdAt: q.created_at,
+            }
+          : null;
+      }
+      case 'legal_answer': {
+        const a = await db.legalAnswer.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            attorney_id: true,
+            question_id: true,
+            body: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return a
+          ? {
+              type,
+              id,
+              authorId: a.attorney_id,
+              status: a.deleted_at ? 'removed' : a.status,
+              text: a.body,
+              context: { questionId: a.question_id },
+              createdAt: a.created_at,
+            }
+          : null;
+      }
+      case 'sticker_pack': {
+        const pk = await db.stickerPack.findUnique({
+          where: { id },
+          select: {
+            owner_user_id: true,
+            title: true,
+            short_name: true,
+            status: true,
+            created_at: true,
+          },
+        });
+        return pk && pk.owner_user_id
+          ? {
+              type,
+              id,
+              authorId: pk.owner_user_id,
+              status: pk.status === 'active' ? 'published' : pk.status,
+              text: `${pk.title} (${pk.short_name})`,
+              context: {},
+              createdAt: pk.created_at,
+            }
+          : null;
+      }
+      case 'story': {
+        const st = await db.story.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            author_id: true,
+            kind: true,
+            text: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return st
+          ? {
+              type,
+              id,
+              authorId: st.author_id,
+              status: st.deleted_at
+                ? 'removed'
+                : st.status === 'active'
+                  ? 'published'
+                  : 'removed',
+              text: `[${st.kind} story] ${st.text ?? ''}`.trim(),
+              context: {},
+              createdAt: st.created_at,
+            }
+          : null;
+      }
+      case 'channel': {
+        const ch = await db.channel.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            owner_id: true,
+            title: true,
+            username: true,
+            description: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+          },
+        });
+        return ch
+          ? {
+              type,
+              id,
+              authorId: ch.owner_id,
+              status: ch.deleted_at
+                ? 'removed'
+                : ch.status === 'active'
+                  ? 'published'
+                  : ch.status === 'banned'
+                    ? 'removed'
+                    : 'hidden',
+              text: `${ch.title} (@${ch.username}) ${ch.description ?? ''}`.trim(),
+              context: {},
+              createdAt: ch.created_at,
+            }
+          : null;
+      }
+      case 'channel_post': {
+        const cp = await db.channelPost.findUnique({
+          where: withDeleted({ id }),
+          select: {
+            author_id: true,
+            body: true,
+            status: true,
+            deleted_at: true,
+            created_at: true,
+            channel_id: true,
+          },
+        });
+        return cp
+          ? {
+              type,
+              id,
+              authorId: cp.author_id,
+              status: cp.deleted_at
+                ? 'removed'
+                : cp.status === 'active'
+                  ? 'published'
+                  : cp.status,
+              text: cp.body,
+              context: { channelId: cp.channel_id },
+              createdAt: cp.created_at,
             }
           : null;
       }
@@ -306,15 +473,22 @@ export class ModerationService {
     switch (target.type) {
       case 'post': {
         if (target.status === 'removed' && action !== 'restore') return null;
-        await tx.post.update({
+        const row = await tx.post.update({
           where: { id: target.id },
           data: {
             status: next,
             ...(action === 'restore' ? { deleted_at: null } : {}),
           },
+          select: { archived_at: true },
         });
-        const delta =
-          target.status === 'published' ? -1 : next === 'published' ? 1 : 0;
+        // Owner 2026-10-18: an archived post is out of the count already.
+        const delta = row.archived_at
+          ? 0
+          : target.status === 'published'
+            ? -1
+            : next === 'published'
+              ? 1
+              : 0;
         if (delta && target.authorId) {
           const authorId = target.authorId;
           after.push(() =>
@@ -399,6 +573,107 @@ export class ModerationService {
         });
         const attorneyId = target.context.attorneyId;
         if (attorneyId) await recalcAttorneyRating(tx, attorneyId);
+        return target.status;
+      }
+      case 'legal_question': {
+        if (target.status === 'removed' && action !== 'restore') return null;
+        await tx.legalQuestion.update({
+          where: { id: target.id },
+          data: {
+            status: next,
+            ...(action === 'restore' ? { deleted_at: null } : {}),
+          },
+        });
+        return target.status;
+      }
+      case 'legal_answer': {
+        if (target.status === 'removed' && action !== 'restore') return null;
+        const row = await tx.legalAnswer.update({
+          where: { id: target.id },
+          data: {
+            status: next,
+            ...(action === 'restore' ? { deleted_at: null } : {}),
+          },
+          select: { question_id: true, is_best: true },
+        });
+        const delta =
+          target.status === 'published' ? -1 : next === 'published' ? 1 : 0;
+        if (delta) {
+          await tx.legalQuestion.updateMany({
+            where: withDeleted({ id: row.question_id }),
+            data: { answer_count: { increment: delta } },
+          });
+        }
+        // A hidden best answer stops being "best".
+        if (next !== 'published' && row.is_best) {
+          await tx.legalAnswer.update({
+            where: { id: target.id },
+            data: { is_best: false },
+          });
+          await tx.legalQuestion.updateMany({
+            where: withDeleted({
+              id: row.question_id,
+              best_answer_id: target.id,
+            }),
+            data: { best_answer_id: null },
+          });
+        }
+        return target.status;
+      }
+      case 'sticker_pack': {
+        // A hidden pack can't be installed or sent; remove hides it too.
+        await tx.stickerPack.update({
+          where: { id: target.id },
+          data: { status: next === 'published' ? 'active' : 'hidden' },
+        });
+        return target.status;
+      }
+      case 'story': {
+        // A story has two states: shown or removed (hide = remove).
+        await tx.story.update({
+          where: { id: target.id },
+          data: { status: action === 'restore' ? 'active' : 'removed' },
+        });
+        return target.status;
+      }
+      case 'channel': {
+        // hide: out of search and lists; remove: closed (banned).
+        await tx.channel.update({
+          where: { id: target.id },
+          data: {
+            status:
+              action === 'restore'
+                ? 'active'
+                : action === 'hide'
+                  ? 'hidden'
+                  : 'banned',
+          },
+        });
+        return target.status;
+      }
+      case 'channel_post': {
+        if (target.status === 'removed' && action !== 'restore') return null;
+        const status =
+          action === 'restore'
+            ? 'active'
+            : action === 'hide'
+              ? 'hidden'
+              : 'removed';
+        await tx.channelPost.update({
+          where: { id: target.id },
+          data: {
+            status,
+            ...(action === 'restore' ? { deleted_at: null } : {}),
+          },
+        });
+        const delta =
+          target.status === 'published' ? -1 : next === 'published' ? 1 : 0;
+        if (delta && target.context.channelId) {
+          await tx.channel.update({
+            where: { id: target.context.channelId },
+            data: { post_count: { increment: delta } },
+          });
+        }
         return target.status;
       }
       case 'client_review': {

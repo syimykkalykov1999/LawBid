@@ -27,7 +27,7 @@ bool isVersionBelow(String version, String minVersion) {
 }
 
 List<int>? _parse(String raw) {
-  final core = raw.split(RegExp(r'[+-]')).first;
+  final core = raw.split(RegExp('[+-]')).first;
   final segments = core.split('.');
   if (segments.isEmpty) return null;
   final parts = <int>[];

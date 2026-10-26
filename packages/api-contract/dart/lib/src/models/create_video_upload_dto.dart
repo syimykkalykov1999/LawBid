@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'create_video_upload_dto_kind.dart';
+
 part 'create_video_upload_dto.g.dart';
 
 @JsonSerializable()
@@ -11,7 +13,12 @@ class CreateVideoUploadDto {
   const CreateVideoUploadDto({
     required this.sizeBytes,
     required this.durationSec,
+    this.kind = CreateVideoUploadDtoKind.reel,
     this.title,
+    this.trimStartMs,
+    this.trimEndMs,
+    this.coverTimeMs,
+    this.coverFileId,
   });
 
   factory CreateVideoUploadDto.fromJson(Map<String, Object?> json) =>
@@ -23,6 +30,21 @@ class CreateVideoUploadDto {
   /// Seconds.
   final int durationSec;
   final String? title;
+
+  /// Owner 2026-10-05: the part of the video the reel plays (trim).
+  final int? trimStartMs;
+  final int? trimEndMs;
+
+  /// Owner 2026-10-05: the cover = the frame at this moment.
+  final int? coverTimeMs;
+
+  /// Owner 2026-10-15: or a cover picked from the gallery (the id of the.
+  /// owner's uploaded `post_image` file). Wins over [coverTimeMs].
+  final String? coverFileId;
+
+  /// Owner 2026-10-23: `reel` (default, up to `video.reel_max_duration_sec`).
+  /// or `post` (a longer video post, up to `video.post_max_duration_sec`).
+  final CreateVideoUploadDtoKind kind;
 
   Map<String, Object?> toJson() => _$CreateVideoUploadDtoToJson(this);
 }

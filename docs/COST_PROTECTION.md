@@ -130,6 +130,8 @@
 | Email: в минуту / сутки / месяц | 100 / 2000 / 30000 | `budget.email.*` |
 | Проверки личности: минута / сутки / месяц | 5 / 20 / 200 | `budget.id_check.*` |
 | Загрузки файлов в S3 (выдача ссылок): минута / сутки / месяц | 120 / 5000 / 100000 | `budget.storage.*` |
+| Перевод сообщений чата (Google Translate): минута / сутки / месяц | 60 / 5000 / 50000 | `budget.translate.*` |
+| Загрузки видео (Bunny Stream): минута / сутки / месяц | 30 / 1000 / 10000 | `budget.video.*` |
 | Загрузки файлов с одного пользователя | 60 в час | env `FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR` |
 | Страны для SMS | только США (`["US"]`) | `sms.allowed_country_codes` |
 | Premium / toll-free номера | всегда запрещены | — (код) |
@@ -152,11 +154,45 @@
 - Счётчики считают *попытки отправки*: если провайдер вернул ошибку,
   единица всё равно списана (консервативно).
 
+### Режим «Авто» (по умолчанию, с 2026-10-05)
+
+Админка → Система → Настройки → карточка **«Лимиты расходов»**. Для
+каждого сервиса (SMS, письма, проверка личности, загрузки файлов,
+перевод, видео) и каждого окна (в минуту / в день / в месяц) есть
+переключатель **Авто / Вручную**.
+
+- **Авто** — раз в час (и через ~20 секунд после запуска сервера)
+  лимит пересчитывается по реальной нагрузке:
+  - в день = 2 × самый загруженный день за последние 7 дней;
+  - в месяц = 1,5 × больше из «прошлый месяц» и «прогноз этого месяца»
+    (и не меньше дневного);
+  - в минуту = 30 × средняя скорость самого загруженного дня (запас
+    на всплески).
+  Лимит **никогда не опускается ниже «Минимума»** (по умолчанию —
+  значения из таблицы выше) и **не поднимается выше «Потолка»** (по
+  умолчанию — минимум × 10). Нагрузка выросла — лимит растёт; упала —
+  снижается обратно, но не ниже минимума.
+- Если автоматический лимит хочет вырасти выше потолка, в логах один
+  раз в сутки появляется `alert: 'cost_budget_ceiling'`, и приходит
+  письмо «упёрлись в потолок». Рост настоящий — поднимите «Потолок»;
+  роста не было — это может быть злоупотребление, и потолок вас защищает.
+- **Вручную** — лимит равен введённому «Значению» и сам не меняется;
+  `0` — выключить сервис. Сервис, который был выключен (лимит `0`) до
+  появления режима «Авто», остаётся выключенным в ручном режиме.
+- Настройки режима хранятся в `app_config` ключом `budget.autoscale`;
+  итоговый лимит пишется в обычные ключи `budget.<сервис>.*`, поэтому
+  защита работает так же, как раньше. История расхода по дням — в Redis
+  (`budget:{<сервис>}:hist`, 40 дней). Изменения админа пишутся в журнал
+  действий; автоматические изменения — в логи
+  (`event: 'cost_budget_autoscaled'`).
+
 ### Как изменить лимит
 
 Лимиты хранятся в таблице `app_config` и применяются без передеплоя
-(в течение ~30 секунд). Пока админки нет — попросите разработчика
-выполнить, например:
+(в течение ~30 секунд). Проще всего — в карточке «Лимиты расходов»
+(режим «Вручную» или «Минимум»/«Потолок» в режиме «Авто»). Без админки
+разработчик может выполнить, например (в режиме «Авто» такой лимит
+перезапишется при следующем пересчёте):
 
 ```sql
 UPDATE app_config SET value = '500' WHERE key = 'budget.sms.daily_max';
@@ -173,3 +209,50 @@ UPDATE app_config SET value = '["US","PR"]' WHERE key = 'sms.allowed_country_cod
 Прикидка стоимости: SMS в США ≈ $0.008–0.01 за сообщение + сборы
 операторов, т. е. 300 SMS/сутки ≈ $3–5 в сутки, 5000/месяц ≈ $50–80.
 Уточните актуальные цены в кабинете Twilio.
+
+
+## Economy guard (owner 2026-10-16)
+
+The per-provider caps above stop one abuser; the **economy guard** stops the
+sum. Admin → Система → Экономика shows revenue (last 30 days) against the
+projected third-party spend and applies one rule: spend ≤ X % of revenue, not
+below $Y (defaults 50 % and $150). Over the rule the `economy.guard` job cuts
+every cap to its floor, pauses new video uploads, keeps SMS for sign-in and
+password reset only and holds autoscaling at the minimum; it lets go by itself
+below 90 % of the allowance. The switch `economy_guard` (Функции) turns the
+whole thing off and restores everything it changed.
+
+## Логи запросов (owner 2026-10-22)
+
+CloudWatch Logs стоит $0.50 за ГБ. Раньше API писал строку на **каждый**
+запрос с полным объектом запроса (заголовки и т. п.) — при миллионе
+пользователей в день это терабайты и ~$3 000 в месяц. Теперь
+(`apps/api/src/common/logging/http-log-policy.ts`):
+
+| Что | Пишется | Где меняется |
+|---|---|---|
+| Ошибки (код ответа ≥ 500 или исключение) | всегда, уровень `error` | — |
+| Ответы 4xx | всегда, уровень `warn` | — |
+| Медленные запросы | всегда, уровень `warn` | env `HTTP_LOG_SLOW_MS` (по умолчанию 1000 мс) |
+| Остальные (быстрые и успешные) | случайная выборка | env `HTTP_LOG_SAMPLE_PERCENT` (по умолчанию 1 %) |
+
+Строка короткая: метод, адрес (значения параметров после `?` и секретные
+части пути — токен вебхука Bunny, приглашение админа, код вступления в
+группу — убраны), код ответа, время ответа, id запроса и id пользователя.
+Заголовков и тела запроса нет. Чтобы на время разбора проблемы видеть все
+запросы, поставьте `HTTP_LOG_SAMPLE_PERCENT=100` и перезапустите API.
+
+## Money caps (owner 2026-10-22, audit #4 §6)
+
+The call caps above count calls; a translation of 5 000 characters and an SMS to Kazakhstan cost far more than one "unit". On top of them every guarded call now reserves its **estimated price** (millicents, `apps/api/src/common/cost-guard/cost-prices.ts`) in three daily counters before the call caps run:
+
+| Counter | Cap (US cents / day) | Default | Over the cap |
+|---|---|---|---|
+| All paid services | `budget.money.global_daily_cents` → `BUDGET_GLOBAL_DAILY_CENTS` | 50 000 ($500) | 503 `PROVIDER_BUDGET_EXCEEDED` |
+| One provider | `budget.<provider>.daily_cents` → `BUDGET_<PROVIDER>_DAILY_CENTS` → the call cap × nominal price | e.g. 300 SMS × $0.0115 | 503 |
+| One person (translate, uploads, video) | `budget.money.user_daily_cents` → `BUDGET_USER_DAILY_CENTS` | 500 ($5) | 429 `PROVIDER_BUDGET_EXCEEDED` (`details.scope = user`) |
+
+- Prices: translate per character ($20 / 1 M), SMS per destination country (Twilio tiers: US/CA $0.0115, tier B ~$0.08, expensive routes ~$0.30, unknown $0.10), e-mail $0.0001, identity check $1.50, upload $0.00005, video per minute $0.005, image moderation $0.001.
+- The old `BUDGET_<P>_*_MAX` call caps keep working unchanged (spike breaker) and, when no money cap is set for a provider, are converted into one.
+- 80 % of any money cap logs `alert: cost_budget, stage: threshold_80, money: true` once a day (the same CloudWatch metric filter as the call caps); exhaustion logs `stage: exhausted`.
+- 0 = no money cap for that counter. Edit live in Админка → Настройки (`budget.money.*`, `budget.<p>.daily_cents`).

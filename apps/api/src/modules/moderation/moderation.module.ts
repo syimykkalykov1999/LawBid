@@ -6,6 +6,12 @@ import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AdminModerationController } from './admin-moderation.controller';
 import { AdminModerationService } from './admin-moderation.service';
+import {
+  AdminAppealsController,
+  ModerationNoticesController,
+  MyReportsController,
+} from './moderation-appeals.controller';
+import { ModerationAppealsService } from './moderation-appeals.service';
 import { CONTENT_MODERATION_HOOK } from './content-moderation.hook';
 import { ModerationService } from './moderation.service';
 import { RuleBasedModerationHook } from './rule-based-moderation.hook';
@@ -25,12 +31,20 @@ import { RuleBasedModerationHook } from './rule-based-moderation.hook';
     NotificationsModule,
     AdminUsersModule,
   ],
-  controllers: [AdminModerationController],
+  controllers: [
+    AdminModerationController,
+    AdminAppealsController,
+    ModerationNoticesController,
+    MyReportsController,
+  ],
   providers: [
     { provide: CONTENT_MODERATION_HOOK, useClass: RuleBasedModerationHook },
     ModerationService,
     AdminModerationService,
+    ModerationAppealsService,
   ],
-  exports: [CONTENT_MODERATION_HOOK, ModerationService],
+  // Owner 2026-10-05 (legal): the DMCA decision removes / restores content
+  // through the same audited, notified moderation action.
+  exports: [CONTENT_MODERATION_HOOK, ModerationService, AdminModerationService],
 })
 export class ModerationModule {}

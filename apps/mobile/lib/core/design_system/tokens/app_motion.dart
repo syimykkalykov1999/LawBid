@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // Motion durations/curves used across the design system (file 07 §4, §5.2, §7.3).
 // Plain const class — durations/curves don't vary by theme.
 import 'package:flutter/animation.dart';

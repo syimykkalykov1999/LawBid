@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/team/team_routes.dart';
-import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
-import 'package:lawbid/features/team/presentation/task_editor_screen.dart'
-    show normalizeTaskPhone;
+import 'package:lawbid/features/team/presentation/action_group.dart';
+import 'package:lawbid/features/team/presentation/task_links.dart';
+import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Opens a task: everything about it and — for the attorney — take /
@@ -48,14 +52,14 @@ Future<DateTime?> pickDateTime(
 }) async {
   final now = DateTime.now();
   final base = initial ?? now.add(const Duration(hours: 1));
-  final date = await showDatePicker(
+  final date = await showAppDatePicker(
     context: context,
     initialDate: base.isBefore(now) ? now : base,
     firstDate: DateTime(now.year - 1),
     lastDate: DateTime(now.year + 5),
   );
   if (date == null || !context.mounted) return null;
-  final time = await showTimePicker(
+  final time = await showAppTimePicker(
     context: context,
     initialTime: TimeOfDay.fromDateTime(base),
   );
@@ -146,8 +150,13 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    Widget field(String key, TextEditingController c, String hint,
-            {TextInputType? type, IconData? icon}) =>
+    Widget field(
+      String key,
+      TextEditingController c,
+      String hint, {
+      TextInputType? type,
+      IconData? icon,
+    }) =>
         Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
           child: AppTextField(
@@ -183,7 +192,8 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
                 children: [
                   for (final k in TaskKind.values)
                     Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.sm),
                       child: AppChip(
                         key: ValueKey('step-kind-${k.wire}'),
                         label: taskKindLabel(t, k),
@@ -195,30 +205,50 @@ class _StepEditorSheetState extends ConsumerState<StepEditorSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            field('step-title', _title, t.t('tasks.steps.titleHint'),
-                icon: AppIcons.shortTextRounded),
+            field(
+              'step-title',
+              _title,
+              t.t('tasks.steps.titleHint'),
+              icon: AppIcons.shortTextRounded,
+            ),
             AppListRow(
               key: const ValueKey('step-when'),
               icon: AppIcons.scheduleRounded,
               label: _at == null
                   ? t.t('tasks.steps.pickTime')
                   : formats.dateTime(_at!),
-              showChevron: true,
               onTap: () async {
                 final at = await pickDateTime(context, initial: _at);
                 if (at != null && mounted) setState(() => _at = at);
               },
             ),
             const SizedBox(height: AppSpacing.sm),
-            field('step-place', _place, t.t('tasks.steps.placeHint'),
-                icon: AppIcons.placeOutlined),
-            field('step-name', _name, t.t('tasks.steps.whoHint'),
-                icon: AppIcons.personOutlineRounded),
-            field('step-phone', _phone, '+1 312 555 0123',
-                type: TextInputType.phone, icon: AppIcons.callOutlined),
-            field('step-email', _email, 'name@example.com',
-                type: TextInputType.emailAddress,
-                icon: AppIcons.mailOutlineRounded),
+            field(
+              'step-place',
+              _place,
+              t.t('tasks.steps.placeHint'),
+              icon: AppIcons.placeOutlined,
+            ),
+            field(
+              'step-name',
+              _name,
+              t.t('tasks.steps.whoHint'),
+              icon: AppIcons.personOutlineRounded,
+            ),
+            field(
+              'step-phone',
+              _phone,
+              t.t('tasks.field.contactPhone'),
+              type: TextInputType.phone,
+              icon: AppIcons.callOutlined,
+            ),
+            field(
+              'step-email',
+              _email,
+              t.t('tasks.f.email'),
+              type: TextInputType.emailAddress,
+              icon: AppIcons.mailOutlineRounded,
+            ),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -301,11 +331,13 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     }
   }
 
-  Future<void> _toggle(TaskStep step) => _stepOp(() => _ctrl.checkStep(
-        _task,
-        step,
-        step.checked ? TaskStatus.open : TaskStatus.done,
-      ));
+  Future<void> _toggle(TaskStep step) => _stepOp(
+        () => _ctrl.checkStep(
+          _task,
+          step,
+          step.checked ? TaskStatus.open : TaskStatus.done,
+        ),
+      );
 
   Future<void> _addStep() async {
     final d = await showStepEditor(context, taskKind: _task.kind);
@@ -317,11 +349,11 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
   /// write / map / remove.
   Future<void> _stepMenu(TaskStep step, {required bool canPlan}) async {
     final t = ref.read(translatorProvider);
-    final assistant = ref.read(isAssistantProvider);
     final active = _task.status.active;
-    // Checkmarks also on a finished task (taking one back reopens it).
-    final checkable = _task.status != TaskStatus.cancelled;
-    final hasAny = (!assistant && checkable) ||
+    // Checkmarks also on a finished task (taking one back reopens it);
+    // the attorney and the assistant the task is given to.
+    final checkable = _task.canComplete && _task.status != TaskStatus.cancelled;
+    final hasAny = checkable ||
         (canPlan && active) ||
         (step.contactPhone?.isNotEmpty ?? false) ||
         (step.contactEmail?.isNotEmpty ?? false) ||
@@ -331,61 +363,63 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final choice = await showAppBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!assistant && checkable) ...[
-              AppListRow(
-                key: const ValueKey('step-act-done'),
-                icon: step.status == TaskStatus.done
-                    ? AppIcons.undoRounded
-                    : AppIcons.checkRounded,
-                label: step.status == TaskStatus.done
-                    ? t.t('tasks.steps.reopen')
-                    : t.t('tasks.done'),
-                onTap: () => Navigator.of(ctx).pop('done'),
-              ),
-              if (step.status != TaskStatus.notDone)
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (checkable) ...[
                 AppListRow(
-                  key: const ValueKey('step-act-not'),
-                  icon: AppIcons.closeRounded,
-                  label: t.t('tasks.notDone'),
-                  onTap: () => Navigator.of(ctx).pop('not'),
+                  key: const ValueKey('step-act-done'),
+                  icon: step.status == TaskStatus.done
+                      ? AppIcons.undoRounded
+                      : AppIcons.checkRounded,
+                  label: step.status == TaskStatus.done
+                      ? t.t('tasks.steps.reopen')
+                      : t.t('tasks.done'),
+                  onTap: () => Navigator.of(ctx).pop('done'),
+                ),
+                if (step.status != TaskStatus.notDone)
+                  AppListRow(
+                    key: const ValueKey('step-act-not'),
+                    icon: AppIcons.closeRounded,
+                    label: t.t('tasks.notDone'),
+                    onTap: () => Navigator.of(ctx).pop('not'),
+                  ),
+              ],
+              if (canPlan && active && !step.checked)
+                AppListRow(
+                  key: const ValueKey('step-act-move'),
+                  icon: AppIcons.scheduleRounded,
+                  label: t.t('tasks.steps.move'),
+                  onTap: () => Navigator.of(ctx).pop('move'),
+                ),
+              if (step.contactPhone?.isNotEmpty ?? false)
+                AppListRow(
+                  icon: AppIcons.callOutlined,
+                  label: '${t.t('tasks.call')} · ${step.contactPhone}',
+                  onTap: () => Navigator.of(ctx).pop('call'),
+                ),
+              if (step.contactEmail?.isNotEmpty ?? false)
+                AppListRow(
+                  icon: AppIcons.mailOutlineRounded,
+                  label: '${t.t('tasks.write')} · ${step.contactEmail}',
+                  onTap: () => Navigator.of(ctx).pop('mail'),
+                ),
+              if (step.location?.isNotEmpty ?? false)
+                AppListRow(
+                  icon: AppIcons.mapOutlined,
+                  label: t.t('tasks.map'),
+                  onTap: () => Navigator.of(ctx).pop('map'),
+                ),
+              if (canPlan && active)
+                AppListRow(
+                  key: const ValueKey('step-act-remove'),
+                  icon: AppIcons.deleteOutlineRounded,
+                  label: t.t('tasks.steps.remove'),
+                  onTap: () => Navigator.of(ctx).pop('remove'),
                 ),
             ],
-            if (canPlan && active && !step.checked)
-              AppListRow(
-                key: const ValueKey('step-act-move'),
-                icon: AppIcons.scheduleRounded,
-                label: t.t('tasks.steps.move'),
-                onTap: () => Navigator.of(ctx).pop('move'),
-              ),
-            if (step.contactPhone?.isNotEmpty ?? false)
-              AppListRow(
-                icon: AppIcons.callOutlined,
-                label: '${t.t('tasks.call')} · ${step.contactPhone}',
-                onTap: () => Navigator.of(ctx).pop('call'),
-              ),
-            if (step.contactEmail?.isNotEmpty ?? false)
-              AppListRow(
-                icon: AppIcons.mailOutlineRounded,
-                label: '${t.t('tasks.write')} · ${step.contactEmail}',
-                onTap: () => Navigator.of(ctx).pop('mail'),
-              ),
-            if (step.location?.isNotEmpty ?? false)
-              AppListRow(
-                icon: AppIcons.mapOutlined,
-                label: t.t('tasks.map'),
-                onTap: () => Navigator.of(ctx).pop('map'),
-              ),
-            if (canPlan && active)
-              AppListRow(
-                key: const ValueKey('step-act-remove'),
-                icon: AppIcons.deleteOutlineRounded,
-                label: t.t('tasks.steps.remove'),
-                onTap: () => Navigator.of(ctx).pop('remove'),
-              ),
-          ],
+          ),
         ),
       ),
     );
@@ -397,27 +431,29 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
         final r = await askTaskOutcome(context, t, done: false);
         if (r == null || !mounted) return;
         final to = r.rescheduleTo;
-        await _stepOp(() => to == null
-            ? _ctrl.checkStep(_task, step, TaskStatus.notDone, note: r.note)
-            // "Not done, move it": one request, the step stays open.
-            : _ctrl.rescheduleStep(_task, step, to, note: r.note));
+        await _stepOp(
+          () => to == null
+              ? _ctrl.checkStep(_task, step, TaskStatus.notDone, note: r.note)
+              // "Not done, move it": one request, the step stays open.
+              : _ctrl.rescheduleStep(_task, step, to, note: r.note),
+        );
       case 'move':
         final at = await pickDateTime(context, initial: step.dueAt);
         if (at != null && mounted) {
           await _stepOp(() => _ctrl.moveStep(_task, step, at));
         }
       case 'call':
-        await launchUrl(Uri(scheme: 'tel', path: step.contactPhone));
+        await TaskLinks.open(TaskLinks.call(step.contactPhone!));
       case 'mail':
-        await launchUrl(Uri(
-          scheme: 'mailto',
-          path: step.contactEmail,
-          queryParameters: {'subject': step.title},
-        ));
+        await TaskLinks.open(
+          TaskLinks.mail(step.contactEmail!, subject: step.title),
+        );
       case 'map':
-        await launchUrl(
-          Uri.https('maps.google.com', '/', {'q': step.location!}),
-          mode: LaunchMode.externalApplication,
+        if (!mounted) return;
+        await showPlaceActions(
+          context,
+          t,
+          TaskPlace(address: step.location!),
         );
       case 'remove':
         await _stepOp(() => _ctrl.removeStep(_task, step));
@@ -428,7 +464,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final t = ref.read(translatorProvider);
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(t.t('tasks.delete.title')),
         content: Text(t.t('tasks.delete.body')),
         actions: [
@@ -448,12 +484,42 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     setState(() => _busy = true);
     try {
       await ref.read(teamRepositoryProvider).deleteTask(_task.id);
-      ref
-        ..invalidate(tasksProvider((done: false, mine: false)))
-        ..invalidate(tasksProvider((done: true, mine: false)));
+      invalidateAllTasks(ref);
       if (!mounted) return;
       Navigator.of(context).pop();
       showAppSnackBar(context, t.t('tasks.deleted'));
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        showAppSnackBar(context, errorText(t, e));
+      }
+    }
+  }
+
+  /// Owner 2026-10-05: "keep forever" — the yearly archive cleanup
+  /// leaves this task alone; and "back from the archive".
+  Future<void> _archiveOp(TaskBulkAction action) async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await ref.read(teamRepositoryProvider).bulkTasks([_task.id], action);
+      invalidateAllTasks(ref);
+      final updated = await ref.read(teamRepositoryProvider).task(_task.id);
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _task = updated;
+      });
+      showAppSnackBar(
+        context,
+        t.t(
+          switch (action) {
+            TaskBulkAction.keep => 'tasks.keep.on',
+            TaskBulkAction.unkeep => 'tasks.keep.off',
+            _ => 'tasks.reopened',
+          },
+        ),
+      );
     } on Object catch (e) {
       if (mounted) {
         setState(() => _busy = false);
@@ -484,11 +550,12 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final assistant = ref.watch(isAssistantProvider);
     final canPlan = ref.watch(canDoProvider(AssistantDuty.tasks));
     final task = _task;
     final active = task.status.active;
-    final now = DateTime.now();
+    final canComplete = task.canComplete;
+    final now = ref.watch(localNowProvider);
+    final remind = task.dueAt == null ? null : task.remindBeforeMin;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.75,
@@ -539,46 +606,69 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             _InfoRow(
               icon: AppIcons.eventOutlined,
               text: formats.dateTime(task.dueAt!),
-              danger: task.isOverdue(DateTime.now()),
+              danger: task.isOverdue(now),
             ),
-          if (task.location?.isNotEmpty ?? false)
+          if (task.dueAt != null && remind != null)
             _InfoRow(
-              icon: AppIcons.placeOutlined,
-              text: task.location!,
-              action: t.t('tasks.map'),
-              onAction: () => launchUrl(
-                Uri.https('maps.google.com', '/', {'q': task.location!}),
-                mode: LaunchMode.externalApplication,
-              ),
+              icon: AppIcons.notificationsActiveOutlined,
+              text: taskRemindLabel(t, remind),
             ),
-          if ((task.contactName?.isNotEmpty ?? false) ||
-              (task.contactPhone?.isNotEmpty ?? false))
+          if (task.repeat != TaskRepeat.none)
             _InfoRow(
-              icon: AppIcons.personOutlineRounded,
-              text: [task.contactName, task.contactPhone]
-                  .whereType<String>()
-                  .where((s) => s.isNotEmpty)
-                  .join(' · '),
-              action: (task.contactPhone?.isNotEmpty ?? false)
-                  ? t.t('tasks.call')
-                  : null,
-              onAction: (task.contactPhone?.isNotEmpty ?? false)
-                  ? () => launchUrl(Uri(scheme: 'tel', path: task.contactPhone))
-                  : null,
+              icon: AppIcons.eventRepeatRounded,
+              text: task.repeatUntil == null
+                  ? taskRepeatLabel(t, task.repeat)
+                  : '${taskRepeatLabel(t, task.repeat)} · '
+                      '${t.t('tasks.repeat.until', {
+                          'date': formats.dateLong(task.repeatUntil!),
+                        })}',
             ),
-          if (task.contactEmail?.isNotEmpty ?? false)
+          if (task.priority != TaskPriority.normal)
             _InfoRow(
-              icon: AppIcons.mailOutlineRounded,
-              text: task.contactEmail!,
-              action: t.t('tasks.write'),
-              onAction: () => launchUrl(
-                Uri(
-                  scheme: 'mailto',
-                  path: task.contactEmail,
-                  queryParameters: {'subject': task.title},
-                ),
-              ),
+              icon: AppIcons.flagOutlined,
+              text: taskPriorityLabel(t, task.priority),
+              danger: task.priority == TaskPriority.urgent,
             ),
+          if (task.assigneeName != null)
+            _InfoRow(
+              icon: AppIcons.personAddAlt1Rounded,
+              text: t.t('tasks.assignee.to', {
+                'name': task.assignedToMe
+                    ? t.t('tasks.assignee.you')
+                    : task.assigneeName!,
+              }),
+            ),
+          // Owner 2026-10-05: every address opens in the maps; every
+          // person — a call, an email, the chat.
+          if (task.places.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _SheetSection(
+              title: t.t('tasks.places.title'),
+              children: [
+                for (final (i, p) in task.places.indexed)
+                  _PlaceTile(
+                    key: ValueKey('sheet-place-$i'),
+                    place: p,
+                    t: t,
+                  ),
+              ],
+            ),
+          ],
+          if (task.people.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _SheetSection(
+              title: t.t('tasks.people.title'),
+              children: [
+                for (final (i, p) in task.people.indexed)
+                  _PersonTile(
+                    key: ValueKey('sheet-person-$i'),
+                    person: p,
+                    subject: task.title,
+                    t: t,
+                  ),
+              ],
+            ),
+          ],
           if (task.caseTitle?.isNotEmpty ?? false)
             _InfoRow(icon: AppIcons.workOutlineRounded, text: task.caseTitle!),
           if (task.notes?.isNotEmpty ?? false) ...[
@@ -604,14 +694,22 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                   ),
                 ),
                 if (canPlan && active)
-                  TextButton.icon(
-                    key: const ValueKey('task-step-add'),
-                    onPressed: _addStep,
-                    icon: AppIcon(AppIcons.addRounded,
-                        size: 18, color: colors.goldDark),
-                    label: Text(
-                      t.t('tasks.steps.add'),
-                      style: TextStyle(color: colors.goldDark),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 180),
+                    child: TextButton.icon(
+                      key: const ValueKey('task-step-add'),
+                      onPressed: _addStep,
+                      icon: AppIcon(
+                        AppIcons.addRounded,
+                        size: 18,
+                        color: colors.iconTint,
+                      ),
+                      label: Text(
+                        t.t('tasks.steps.add'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: colors.goldDark),
+                      ),
                     ),
                   ),
               ],
@@ -643,7 +741,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                         now: now,
                         // Finished tasks too: unchecking reopens them.
                         onCheck:
-                            assistant || task.status == TaskStatus.cancelled
+                            !canComplete || task.status == TaskStatus.cancelled
                                 ? null
                                 : () => _toggle(step),
                         onTap: () => _stepMenu(step, canPlan: canPlan),
@@ -669,13 +767,26 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final (i, f) in task.files.indexed)
-                  _FileTile(file: f, index: i + 1),
-              ],
+            // Owner 2026-10-07: three to a row across the whole width (no
+            // empty strip on the right).
+            LayoutBuilder(
+              builder: (context, box) {
+                final side = (box.maxWidth - AppSpacing.sm * 2) / 3;
+                return Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final (i, f) in task.files.indexed)
+                      _FileTile(
+                        file: f,
+                        index: i + 1,
+                        side: side,
+                        photos: task.files,
+                        closeLabel: t.t('common.close'),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
           if (task.outcomeNote?.isNotEmpty ?? false) ...[
@@ -684,8 +795,11 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  AppIcon(AppIcons.chatBubbleOutlineRounded,
-                      size: AppSizes.iconSm, color: colors.gold),
+                  AppIcon(
+                    AppIcons.chatBubbleOutlineRounded,
+                    size: AppSizes.iconSm,
+                    color: colors.iconTint,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
@@ -705,49 +819,64 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
             style: typography.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.xl),
-          if (active && !assistant) ...[
-            if (task.status == TaskStatus.open) ...[
-              AppButton(
-                key: const ValueKey('task-take'),
-                label: t.t('tasks.take'),
-                icon: AppIcons.playArrowRounded,
-                variant: AppButtonVariant.secondary,
-                isLoading: _busy,
-                onPressed: () => _set(TaskStatus.taken),
+          // Owner 2026-10-05: the archive — when it goes, keep forever.
+          if (task.archived) ...[
+            _ArchiveCard(
+              t: t,
+              task: task,
+              formats: formats,
+              busy: _busy,
+              canKeep: task.canEdit,
+              onKeep: (keep) => _archiveOp(
+                keep ? TaskBulkAction.keep : TaskBulkAction.unkeep,
               ),
-              const SizedBox(height: AppSpacing.sm),
-            ],
-            AppButton(
-              key: const ValueKey('task-done'),
-              label: t.t('tasks.done'),
-              icon: AppIcons.checkRounded,
-              isLoading: _busy,
-              onPressed: () => _finish(true),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              key: const ValueKey('task-not-done'),
-              label: t.t('tasks.notDone'),
-              icon: AppIcons.closeRounded,
-              variant: AppButtonVariant.secondary,
-              isLoading: _busy,
-              onPressed: () => _finish(false),
-            ),
+            const SizedBox(height: AppSpacing.md),
           ],
+          // Owner 2026-10-20: grouped rows, not one full-width line each.
+          if (active && canComplete)
+            ActionGroup(
+              actions: [
+                if (task.status == TaskStatus.open)
+                  GroupAction(
+                    keyName: 'task-take',
+                    label: t.t('tasks.take'),
+                    isLoading: _busy,
+                    onPressed: () => _set(TaskStatus.taken),
+                  ),
+                GroupAction(
+                  keyName: 'task-done',
+                  label: t.t('tasks.done'),
+                  variant: AppButtonVariant.primary,
+                  isLoading: _busy,
+                  onPressed: () => _finish(true),
+                ),
+                GroupAction(
+                  keyName: 'task-not-done',
+                  label: t.t('tasks.notDone'),
+                  isLoading: _busy,
+                  onPressed: () => _finish(false),
+                ),
+              ],
+            ),
           // Owner 2026-10-01: every card is editable and deletable — the
           // owner any; an assistant edits with the tasks duty and deletes
           // only the tasks they set.
-          if (canPlan && task.status != TaskStatus.cancelled)
+          if ((task.canEdit &&
+                  canPlan &&
+                  task.status != TaskStatus.cancelled) ||
+              task.canDelete ||
+              (active && canComplete))
             Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      key: const ValueKey('task-edit'),
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: ActionGroup(
+                actions: [
+                  if (task.canEdit &&
+                      canPlan &&
+                      task.status != TaskStatus.cancelled)
+                    GroupAction(
+                      keyName: 'task-edit',
                       label: t.t('tasks.edit'),
-                      icon: AppIcons.editOutlined,
-                      variant: AppButtonVariant.secondary,
                       onPressed: _busy
                           ? null
                           : () async {
@@ -758,24 +887,26 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
                               );
                             },
                     ),
-                  ),
-                  if (task.canDelete) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: AppButton(
-                        key: const ValueKey('task-delete'),
-                        label: t.t('tasks.delete'),
-                        icon: AppIcons.deleteOutlineRounded,
-                        variant: AppButtonVariant.secondary,
-                        onPressed: _busy ? null : _delete,
-                      ),
+                  if (task.canDelete)
+                    GroupAction(
+                      keyName: 'task-delete',
+                      label: t.t('tasks.delete'),
+                      onPressed: _busy ? null : _delete,
                     ),
-                  ],
+                  if (active && canComplete)
+                    GroupAction(
+                      keyName: 'task-cancel',
+                      label: t.t('tasks.cancel'),
+                      onPressed:
+                          _busy ? null : () => _set(TaskStatus.cancelled),
+                    ),
                 ],
               ),
             ),
           // Owner 2026-10-01: a task closed by mistake goes back to work.
-          if (!active && !assistant && task.status != TaskStatus.cancelled) ...[
+          if (!active &&
+              canComplete &&
+              task.status != TaskStatus.cancelled) ...[
             AppButton(
               key: const ValueKey('task-reopen'),
               label: t.t('tasks.reopen'),
@@ -785,17 +916,274 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
               onPressed: () => _set(TaskStatus.open),
             ),
           ],
-          if (active) ...[
+          // Put away while still open (or cancelled): back to the planner.
+          if (task.archived &&
+              (active || task.status == TaskStatus.cancelled) &&
+              (canComplete || task.canEdit)) ...[
             const SizedBox(height: AppSpacing.sm),
-            TextButton(
-              key: const ValueKey('task-cancel'),
-              onPressed: _busy ? null : () => _set(TaskStatus.cancelled),
-              child: Text(
-                t.t('tasks.cancel'),
-                style: TextStyle(color: colors.dangerText),
-              ),
+            AppButton(
+              key: const ValueKey('task-unarchive'),
+              label: t.t('tasks.bulk.return'),
+              icon: AppIcons.unarchiveOutlined,
+              variant: AppButtonVariant.secondary,
+              isLoading: _busy,
+              onPressed: () => _archiveOp(TaskBulkAction.unarchive),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetSection extends StatelessWidget {
+  const _SheetSection({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: typography.body.copyWith(
+            color: colors.text,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        AppCard(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          child: Column(
+            children: [
+              for (final (i, c) in children.indexed) ...[
+                if (i > 0) Divider(height: 1, color: colors.border),
+                c,
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// An address: tap — Google / Apple Maps, the round button — directions.
+class _PlaceTile extends StatelessWidget {
+  const _PlaceTile({required this.place, required this.t, super.key});
+
+  final TaskPlace place;
+  final Translator t;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return InkWell(
+      onTap: () => showPlaceActions(context, t, place),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
+        child: Row(
+          children: [
+            AppIcon(AppIcons.placeOutlined, color: colors.iconTint),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (place.label != null)
+                      Text(
+                        place.label!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.caption.copyWith(
+                          color: colors.goldDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    Text(
+                      place.address,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.body.copyWith(color: colors.text),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AppIconButton(
+              key: ValueKey('place-route-${place.address}'),
+              icon: AppIcon(
+                AppIcons.directionsCarOutlined,
+                color: colors.iconTint,
+              ),
+              semanticLabel: t.t('tasks.place.route'),
+              onPressed: () =>
+                  TaskLinks.open(TaskLinks.directions(place.address)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A person: their picture, name, role; call / write / chat buttons.
+class _PersonTile extends ConsumerWidget {
+  const _PersonTile({
+    required this.person,
+    required this.subject,
+    required this.t,
+    super.key,
+  });
+
+  final TaskPerson person;
+  final String subject;
+  final Translator t;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final p = person;
+    final sub = [
+      p.role,
+      if (p.inApp && p.role == null)
+        t.t('tasks.people.inApp.${p.userRole ?? 'attorney'}'),
+      p.phone,
+      p.email,
+    ].whereType<String>().where((x) => x.isNotEmpty).join(' · ');
+    final actions = taskPersonActions(context, ref, t, p, subject: subject);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        children: [
+          TaskPersonAvatar(name: p.name, avatarUrl: p.avatarUrl),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: typography.body.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (sub.isNotEmpty)
+                  Text(
+                    sub,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+              ],
+            ),
+          ),
+          for (final a in actions)
+            AppIconButton(
+              key: ValueKey('person-${a.key}-${p.name}'),
+              icon: AppIcon(a.icon, color: colors.iconTint),
+              semanticLabel: '${a.label} · ${p.name}',
+              onPressed: a.run,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// In the archive: when the task is removed, and "keep forever".
+class _ArchiveCard extends StatelessWidget {
+  const _ArchiveCard({
+    required this.t,
+    required this.task,
+    required this.formats,
+    required this.busy,
+    required this.canKeep,
+    required this.onKeep,
+  });
+
+  final Translator t;
+  final TaskItem task;
+  final L10nFormats formats;
+  final bool busy;
+  final bool canKeep;
+  final ValueChanged<bool> onKeep;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final purge = task.purgeAt;
+    final text = task.keepForever
+        ? t.t('tasks.keep.kept')
+        : purge == null
+            ? t.t('tasks.keep.notRemoved')
+            : t.t('tasks.keep.removedOn', {'date': formats.dateLong(purge)});
+    return Container(
+      key: const ValueKey('task-archive-card'),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.iconTintFill,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              AppIcon(
+                task.keepForever
+                    ? AppIcons.bookmarkRounded
+                    : AppIcons.inventory2Outlined,
+                color: colors.iconTint,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  text,
+                  style: typography.bodySmall.copyWith(color: colors.text),
+                ),
+              ),
+            ],
+          ),
+          if (canKeep)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t.t('tasks.keep.toggle'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.body.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Switch.adaptive(
+                  key: const ValueKey('task-keep'),
+                  value: task.keepForever,
+                  activeTrackColor: colors.gold,
+                  onChanged: busy ? null : onKeep,
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -806,15 +1194,11 @@ class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.icon,
     required this.text,
-    this.action,
-    this.onAction,
     this.danger = false,
   });
 
   final IconData icon;
   final String text;
-  final String? action;
-  final VoidCallback? onAction;
   final bool danger;
 
   @override
@@ -825,9 +1209,11 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Row(
         children: [
-          AppIcon(icon,
-              size: AppSizes.iconSm,
-              color: danger ? colors.dangerText : colors.textSecondary),
+          AppIcon(
+            icon,
+            size: AppSizes.iconSm,
+            color: danger ? colors.dangerText : colors.textSecondary,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
@@ -836,8 +1222,6 @@ class _InfoRow extends StatelessWidget {
                   .copyWith(color: danger ? colors.dangerText : colors.text),
             ),
           ),
-          if (action != null)
-            TextButton(onPressed: onAction, child: Text(action!)),
         ],
       ),
     );
@@ -845,35 +1229,66 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _FileTile extends StatelessWidget {
-  const _FileTile({required this.file, required this.index});
+  const _FileTile({
+    required this.file,
+    required this.index,
+    required this.side,
+    required this.photos,
+    required this.closeLabel,
+  });
+
+  final String closeLabel;
 
   final TaskFile file;
   final int index;
+  final double side;
+
+  /// All files of the task: a photo opens the full-screen gallery of the
+  /// task's photos.
+  final List<TaskFile> photos;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final url = file.url;
+    final images = [
+      for (final p in photos)
+        if (p.isImage && p.url != null) p.url!,
+    ];
     return AppPressable(
       onTap: url == null
           ? null
-          : () =>
-              launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          : file.isImage
+              ? () => showPhotoGallery(
+                    context,
+                    urls: images,
+                    initial: images.indexOf(url).clamp(0, images.length - 1),
+                    closeLabel: closeLabel,
+                  )
+              : () => launchUrl(
+                    Uri.parse(url),
+                    mode: LaunchMode.externalApplication,
+                  ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadii.field),
         child: Container(
-          width: 84,
-          height: 84,
-          color: colors.goldTint,
+          width: side,
+          height: side,
+          color: colors.iconTintFill,
           child: file.isImage && url != null
-              ? Image.network(url, fit: BoxFit.cover)
+              ? Image(image: appNetworkImage(url, 600), fit: BoxFit.cover)
               : Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    AppIcon(AppIcons.descriptionOutlined, color: colors.gold),
+                    AppIcon(
+                      AppIcons.descriptionOutlined,
+                      color: colors.iconTint,
+                    ),
                     const SizedBox(height: 4),
-                    Text('#$index',
-                        style: TextStyle(color: colors.textSecondary)),
+                    Text(
+                      '#$index',
+                      style: TextStyle(color: colors.textSecondary),
+                    ),
                   ],
                 ),
         ),
@@ -934,6 +1349,7 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
             controller: _note,
             label: t.t('tasks.outcome'),
             hintText: t.t('tasks.outcome.hint'),
+            tapAnywhere: true,
             maxLines: 3,
             maxLength: 1000,
             textCapitalization: TextCapitalization.sentences,
@@ -958,13 +1374,34 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
           AppButton(
             key: const ValueKey('task-outcome-save'),
             label: t.t('common.save'),
-            onPressed: () => Navigator.of(context).pop((
-              note: _note.text.trim().isEmpty ? null : _note.text.trim(),
-              rescheduleTo: _move,
-            )),
+            onPressed: () => Navigator.of(context).pop(
+              (
+                note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+                rescheduleTo: _move,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Audit 2026-10-01: "312 555 0123" / "(312) 555-0123" / "1 312…" →
+/// +13125550123 (a US number); null when it isn't a phone number.
+String? normalizeTaskPhone(String input) {
+  final raw = input.trim();
+  if (raw.isEmpty) return '';
+  final digits = raw.replaceAll(RegExp('[^0-9]'), '');
+  final String e164;
+  if (raw.startsWith('+')) {
+    e164 = '+$digits';
+  } else if (digits.length == 10) {
+    e164 = '+1$digits';
+  } else if (digits.length == 11 && digits.startsWith('1')) {
+    e164 = '+$digits';
+  } else {
+    return null;
+  }
+  return RegExp(r'^\+[1-9][0-9]{7,14}$').hasMatch(e164) ? e164 : null;
 }

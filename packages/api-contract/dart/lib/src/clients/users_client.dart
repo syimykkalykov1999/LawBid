@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/app_session_envelope.dart';
 import '../models/consents_saved_envelope.dart';
 import '../models/contact_code_sent_envelope.dart';
 import '../models/contact_request_dto.dart';
@@ -67,11 +68,13 @@ abstract class UsersClient {
   });
 
   /// docs/01 §11 step 3A: "Изменить телефон/email можно только с повторной.
-  /// проверкой (reauth + код на новый контакт)". Adding the FIRST contact of.
-  /// a type during onboarding needs no reauth (it would cost an extra paid.
-  /// code per contact); replacing an already-verified one does.
+  /// проверкой (reauth + код на новый контакт)". Owner 2026-10-22 (security.
+  /// audit #3, finding 2): adding a contact needs reauth too — an e-mail.
+  /// added to an account without one receives the password-reset codes.
+  /// Onboarding stays one code long: a sign-in made minutes ago on this.
+  /// session counts as the reauth (ReauthVerifier.assertRecentAuthentication).
   ///
-  /// [xReauthToken] - Single-use token from POST /auth/reauth; required only when replacing an already verified contact of this type.
+  /// [xReauthToken] - Single-use token from POST /auth/reauth; required unless this session signed in within the last 10 minutes.
   @POST('/users/me/contacts/request')
   Future<ContactCodeSentEnvelope> requestContact({
     @Body() required ContactRequestDto body,
@@ -104,6 +107,12 @@ abstract class UsersClient {
   @GET('/users/me/data-export/{exportId}')
   Future<DataExportJobEnvelope> getDataExport({
     @Path('exportId') required String exportId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// App start in one answer: me + badges + flags + config version + support unread + ongoing calls (cheap ETag → 304)
+  @GET('/me/session')
+  Future<AppSessionEnvelope> getSession({
     @Extras() Map<String, dynamic>? extras,
   });
 }

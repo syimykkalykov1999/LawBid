@@ -1,13 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { FilesService } from '../../files/files.service';
+import { assertUploadCount } from '../../files/upload-limits';
 import type { CasePhotoDto } from '../dto/case-responses.dto';
 
 type Tx = Prisma.TransactionClient;
 
 /**
- * Owner decision 2026-09-30 (OQ-031): 0–9 photos per case. Files are
+ * Owner decision 2026-09-30 (OQ-031): photos per case (count: admin). Files are
  * `case_photo` (documents bucket, antivirus-clean, owned by the author).
  * Visibility: the case owner always; an attorney only once THEIR bid was
  * accepted. Other attorneys (feed, detail, bidding) see just the count.
@@ -17,16 +20,49 @@ export class CasePhotosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
+    // S3-5: private details are stored sealed.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
-  /** 404/409 for files that are not the author's clean case photos. */
-  async assertAttachable(userId: string, fileIds: string[]): Promise<void> {
+  /** 404/409 for files that are not the author's clean case photos.
+   * Owner 2026-10-07 (bug 17): count, formats and MB per file are the
+   * admin's «Кейсы» limits; files already on [caseId] stay as they are. */
+  async assertAttachable(
+    userId: string,
+    fileIds: string[],
+    caseId?: string,
+  ): Promise<void> {
+    const had = caseId
+      ? await this.prisma.casePhoto.findMany({
+          where: { case_id: caseId },
+          select: { file_id: true, file: { select: { mime: true } } },
+        })
+      : [];
+    const kept = new Set(had.map((p) => p.file_id));
+    const files = [];
     for (const id of fileIds) {
-      await this.files.assertAttachable(userId, id, [
+      const file = await this.files.assertAttachable(userId, id, [
         'case_photo',
         'case_attachment',
       ]);
+      if (!kept.has(id)) await this.files.assertFitsPlace('case', file);
+      files.push(file);
     }
+    // Owner 2026-10-19: photos and videos share one limit, documents
+    // have their own.
+    const isPhoto = (mime: string) =>
+      mime.startsWith('image/') || mime.startsWith('video/');
+    const limits = await this.files.uploadLimits();
+    const photos = files.filter((f) => isPhoto(f.mime)).length;
+    const hadPhotos = had.filter((p) => isPhoto(p.file.mime)).length;
+    assertUploadCount(limits, 'case', 'photos', photos, hadPhotos);
+    assertUploadCount(
+      limits,
+      'case',
+      'files',
+      files.length - photos,
+      had.length - hadPhotos,
+    );
   }
 
   async attach(tx: Tx, caseId: string, fileIds: string[]): Promise<void> {
@@ -75,22 +111,48 @@ export class CasePhotosService {
     return out;
   }
 
+  /** Owner 2026-10-05: photos and documents per case, counted for every
+   * viewer (the files themselves stay behind [forViewer]). */
+  async counts(
+    caseIds: string[],
+  ): Promise<Map<string, { images: number; documents: number }>> {
+    const out = new Map<string, { images: number; documents: number }>();
+    if (caseIds.length === 0) return out;
+    const rows = await this.prisma.casePhoto.findMany({
+      where: { case_id: { in: caseIds } },
+      select: { case_id: true, file: { select: { mime: true } } },
+    });
+    for (const r of rows) {
+      const c = out.get(r.case_id) ?? { images: 0, documents: 0 };
+      if (r.file.mime.startsWith('image/')) c.images += 1;
+      else c.documents += 1;
+      out.set(r.case_id, c);
+    }
+    return out;
+  }
+
   /** Photos for the owner or the accepted attorney; empty for anyone
    * else. `count` is always the real number (so a bidder knows photos
    * exist and will be shared after acceptance). */
   async forViewer(
     caseId: string,
     viewerId: string,
-  ): Promise<{ photos: CasePhotoDto[]; photosCount: number }> {
+  ): Promise<{
+    photos: CasePhotoDto[];
+    photosCount: number;
+    privateDetails: string | null;
+  }> {
     const kase = await this.prisma.case.findUnique({
       where: { id: caseId },
       select: {
+        id: true,
         client_id: true,
+        private_details: true,
         accepted_bid: { select: { attorney_id: true } },
         photos: { orderBy: { position: 'asc' }, select: { file_id: true } },
       },
     });
-    if (!kase) return { photos: [], photosCount: 0 };
+    if (!kase) return { photos: [], photosCount: 0, privateDetails: null };
     const allowed =
       kase.client_id === viewerId ||
       kase.accepted_bid?.attorney_id === viewerId;
@@ -98,6 +160,14 @@ export class CasePhotosService {
     return {
       photos: allowed ? await this.files.casePhotoUrls(ids) : [],
       photosCount: ids.length,
+      // Owner 2026-10-18: private details follow the same rule as the files.
+      privateDetails:
+        allowed && kase.private_details !== null
+          ? (this.cipher?.openField(
+              kase.private_details,
+              privateDetailsAad(kase.id),
+            ) ?? kase.private_details)
+          : null,
     };
   }
 }

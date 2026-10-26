@@ -4,12 +4,31 @@
 default_platform(:android)
 
 platform :android do
-  desc "Build the prod AAB (release). Env: ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, BUILD_NUMBER, DART_DEFINES_FILE"
+  desc "Build the prod AAB (release). Env: ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, BUILD_NUMBER (optional; unset = automatic), DART_DEFINES_FILE"
   lane :build do |options|
     flavor = options[:flavor] || "prod"
+    # Owner 2026-10-22 (audit #11): the Dart code is obfuscated and its
+    # symbols kept in build/symbols/android (never shipped) so Sentry
+    # can turn crash stacks back into readable ones. The R8 mapping of the
+    # Java/Kotlin code is uploaded by the Sentry Gradle plugin itself.
     sh("cd ../.. && flutter build appbundle --release --flavor #{flavor} -t lib/main_#{flavor}.dart " \
-       "--build-number=#{ENV.fetch('BUILD_NUMBER', '1')} " \
+       "--obfuscate --split-debug-info=build/symbols/android " \
+       "#{ENV['BUILD_NUMBER'] ? "--build-number=#{ENV['BUILD_NUMBER']} " : ''}" \
        "--dart-define-from-file=#{ENV.fetch('DART_DEFINES_FILE', "config/#{flavor}.json")}")
+    sentry_symbols if flavor == "prod"
+  end
+
+  desc "Upload the last prod build's symbols to Sentry (project lawbid-mobile): " \
+       "the Dart symbols of the obfuscated build and native debug files, via " \
+       "sentry_dart_plugin (pubspec.yaml `sentry:`). Needs SENTRY_AUTH_TOKEN and " \
+       "SENTRY_ORG; without them it warns and skips — never fails the release."
+  lane :sentry_symbols do
+    mobile = File.expand_path("../..", __dir__)
+    if ENV["SENTRY_AUTH_TOKEN"].to_s.empty? || ENV["SENTRY_ORG"].to_s.empty?
+      UI.important("SENTRY_AUTH_TOKEN / SENTRY_ORG not set - symbols not uploaded (docs/runbooks/STORE_RELEASE.md §6)")
+      next
+    end
+    sh("cd \"#{mobile}\" && dart run sentry_dart_plugin")
   end
 
   desc "Upload the prod AAB to Google Play Internal testing (docs/06 §11.2 closed beta). Owner decides when to run: workflow_dispatch with upload=true."
@@ -20,6 +39,19 @@ platform :android do
       aab: "../build/app/outputs/bundle/prodRelease/app-prod-release.aab",
       release_status: "draft",
       skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Upload the store listing in every language (fastlane/metadata/android/<locale>/*.txt). " \
+       "No bundle, no images. Needs PLAY_JSON_KEY_FILE and at least one uploaded build."
+  lane :metadata do
+    upload_to_play_store(
+      metadata_path: "./fastlane/metadata/android",
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_changelogs: true,
       skip_upload_images: true,
       skip_upload_screenshots: true,
     )

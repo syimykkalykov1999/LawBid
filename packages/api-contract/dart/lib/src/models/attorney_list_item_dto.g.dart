@@ -11,6 +11,7 @@ AttorneyListItemDto _$AttorneyListItemDtoFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       username: json['username'] as String,
       verifiedBadge: json['verifiedBadge'] as bool,
+      trustLevel: (json['trustLevel'] as num).toInt(),
       rating: RatingDto.fromJson(json['rating'] as Map<String, dynamic>),
       states: (json['states'] as List<dynamic>)
           .map((e) => e as String)
@@ -22,6 +23,10 @@ AttorneyListItemDto _$AttorneyListItemDtoFromJson(Map<String, dynamic> json) =>
       firstName: json['firstName'] as String?,
       lastName: json['lastName'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      identityRejected: json['identityRejected'] as bool?,
+      reason: json['reason'] == null
+          ? null
+          : AttorneyListItemDtoReason.fromJson(json['reason'] as String),
     );
 
 Map<String, dynamic> _$AttorneyListItemDtoToJson(
@@ -33,8 +38,11 @@ Map<String, dynamic> _$AttorneyListItemDtoToJson(
   'lastName': ?instance.lastName,
   'avatarUrl': ?instance.avatarUrl,
   'verifiedBadge': instance.verifiedBadge,
+  'trustLevel': instance.trustLevel,
+  'identityRejected': ?instance.identityRejected,
   'rating': instance.rating.toJson(),
   'states': instance.states,
   'practiceI18nKeys': instance.practiceI18nKeys,
   'isFollowing': instance.isFollowing,
+  'reason': ?instance.reason?.toJson(),
 };

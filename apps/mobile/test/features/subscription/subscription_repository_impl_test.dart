@@ -33,8 +33,49 @@ Map<String, dynamic> _me({Map<String, dynamic>? subscription}) => {
         'seatCents': 10000,
         'yearlyCents': 959000,
         'maxSeats': 6,
+        'trialDays': 7,
       },
+      // Owner 2026-10-05 (plan builder): the plan, the plans for sale, the
+      // entitlements and the seat summary come with the row.
+      'plan': subscription == null ? null : _teamPlan,
+      'plans': [_teamPlan],
+      'entitlements': subscription == null
+          ? <String, dynamic>{}
+          : _teamPlan['entitlements'],
+      'seats': subscription == null
+          ? null
+          : {'included': 1, 'extra': 2, 'total': 3, 'max': 5},
     };
+
+const _teamPlan = <String, dynamic>{
+  'id': '7a1b4e52-1c1e-4f1c-9a4a-6b7d2f0c1e11',
+  'code': 'team',
+  'audience': 'attorney',
+  'kind': 'paid',
+  'name': {'en': 'Team', 'ru': 'Команда'},
+  'tagline': {'en': 'For firms'},
+  'description': <String, dynamic>{},
+  'interval': 'month',
+  'currency': 'usd',
+  'amountCents': 59900,
+  'extraSeatCents': 10000,
+  'entitlements': {
+    'included_seats': 1,
+    'max_seats': 5,
+    'extra_seat_price_cents': 10000,
+    'bids_any_state': true,
+    'max_active_bids': 0,
+    'priority_search': true,
+    'calls': true,
+    'chat_translate': false,
+    'trial_days': 14,
+  },
+  'highlights': [
+    {'en': 'Best for firms', 'ru': 'Для фирм'},
+  ],
+  'isDefault': true,
+  'trialDays': 14,
+};
 
 void main() {
   late FakeHttpAdapter adapter;
@@ -71,8 +112,10 @@ void main() {
   test('an unknown future status does not crash the screen', () async {
     adapter.handler =
         (o) async => ok(_me(subscription: _subscription(status: 'paused')));
-    expect((await repo.overview()).subscription!.status,
-        SubscriptionStatus.unknown);
+    expect(
+      (await repo.overview()).subscription!.status,
+      SubscriptionStatus.unknown,
+    );
   });
 
   test('OQ-048: plan, seats and prices are mapped', () async {
@@ -83,6 +126,13 @@ void main() {
     expect(o.subscription!.assistantSeats, 2);
     expect(o.prices.yearlyCents, 959000);
     expect(o.prices.monthlyTotal(2), 59900);
+    // Owner 2026-10-05 (plan builder).
+    expect(o.plan?.code, 'team');
+    expect(o.plans.single.name.resolve('ru'), 'Команда');
+    expect(o.plans.single.extraSeatsAllowed, 4);
+    expect(o.entitlements.prioritySearch, isTrue);
+    expect(o.entitlements.maxActiveBids, 0);
+    expect(o.seats?.total, 3);
   });
 
   test('OQ-048: checkout sends the plan, seats and phones', () async {
@@ -130,15 +180,20 @@ void main() {
     expect(adapter.requests.last.data, {'setupIntentId': 'seti_1'});
 
     final o = await repo.confirm('seti_1', chargeNow: true);
-    expect(adapter.requests.last.data,
-        {'setupIntentId': 'seti_1', 'chargeNow': true});
+    expect(
+      adapter.requests.last.data,
+      {'setupIntentId': 'seti_1', 'chargeNow': true},
+    );
     expect(o.subscription!.status, SubscriptionStatus.active);
   });
 
   test('confirm: TRIAL_UNAVAILABLE surfaces as ApiException with details',
       () async {
     adapter.handler = (o) async => apiError(
-        409, 'SUBSCRIPTION_TRIAL_UNAVAILABLE', {'chargeNowCents': 39900});
+          409,
+          'SUBSCRIPTION_TRIAL_UNAVAILABLE',
+          {'chargeNowCents': 39900},
+        );
     try {
       await repo.confirm('seti_1');
       fail('expected ApiException');
@@ -158,6 +213,7 @@ void main() {
               'status': 'succeeded',
               'paidAt': '2026-10-06T12:00:00.000Z',
               'failureCode': null,
+              'kind': 'subscription',
               'createdAt': '2026-10-06T12:00:00.000Z',
             },
             {
@@ -167,6 +223,7 @@ void main() {
               'status': 'failed',
               'paidAt': null,
               'failureCode': 'card_declined',
+              'kind': 'subscription',
               'createdAt': '2026-11-06T12:00:00.000Z',
             },
           ],
@@ -174,8 +231,10 @@ void main() {
         });
     final page = await repo.payments(cursor: 'c1');
     expect(adapter.requests.single.uri.queryParameters['cursor'], 'c1');
-    expect(page.items.map((p) => p.status),
-        [PaymentStatus.succeeded, PaymentStatus.failed]);
+    expect(
+      page.items.map((p) => p.status),
+      [PaymentStatus.succeeded, PaymentStatus.failed],
+    );
     expect(page.items[1].failureCode, 'card_declined');
     expect(page.nextCursor, 'c2');
   });
@@ -190,9 +249,12 @@ void main() {
   });
 
   test('cancel posts and returns the updated overview', () async {
-    adapter.handler = (o) async => ok(_me(
-        subscription: _subscription(status: 'active')
-          ..['cancelAtPeriodEnd'] = true));
+    adapter.handler = (o) async => ok(
+          _me(
+            subscription: _subscription(status: 'active')
+              ..['cancelAtPeriodEnd'] = true,
+          ),
+        );
     final o = await repo.cancel();
     expect(adapter.requests.single.path, '/subscriptions/cancel');
     expect(o.subscription!.cancelAtPeriodEnd, isTrue);

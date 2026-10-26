@@ -17,6 +17,7 @@ class CaseHistoryEventDto {
     required this.createdAt,
     required this.actorRole,
     this.amountCents,
+    this.percentBps,
     this.feeType,
     this.roundNo,
     this.reason,
@@ -30,6 +31,9 @@ class CaseHistoryEventDto {
   final String createdAt;
   final CaseHistoryEventDtoActorRole actorRole;
   final int? amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points.
+  final int? percentBps;
   final FeeType? feeType;
   final int? roundNo;
   final String? reason;

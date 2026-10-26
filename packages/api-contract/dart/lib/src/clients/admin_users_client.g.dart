@@ -25,7 +25,11 @@ class _AdminUsersClient implements AdminUsersClient {
     int? limit = 20,
     String? q,
     Role? role,
-    Status? status,
+    Status2? status,
+    String? stateCode,
+    String? countryCode,
+    DateTime? from,
+    DateTime? to,
     String? cursor,
     Map<String, dynamic>? extras,
   }) async {
@@ -36,6 +40,10 @@ class _AdminUsersClient implements AdminUsersClient {
       r'q': q,
       r'role': role?.toJson(),
       r'status': status?.toJson(),
+      r'stateCode': stateCode,
+      r'countryCode': countryCode,
+      r'from': from?.toIso8601String(),
+      r'to': to?.toIso8601String(),
       r'cursor': cursor,
     };
     queryParameters.removeWhere((k, v) => v == null);
@@ -129,6 +137,39 @@ class _AdminUsersClient implements AdminUsersClient {
   }
 
   @override
+  Future<AdminBulkResultEnvelope> bulk({
+    required AdminUsersBulkDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<AdminBulkResultEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/users/bulk',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late AdminBulkResultEnvelope _value;
+    try {
+      _value = AdminBulkResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
   Future<SanctionResultEnvelope> revokeUserSessions({
     required String id,
     Map<String, dynamic>? extras,
@@ -144,6 +185,38 @@ class _AdminUsersClient implements AdminUsersClient {
           .compose(
             _dio.options,
             '/admin/users/${id}/sessions/revoke',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late SanctionResultEnvelope _value;
+    try {
+      _value = SanctionResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<SanctionResultEnvelope> resetUserPassword({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<SanctionResultEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/admin/users/${id}/password/reset',
             queryParameters: queryParameters,
             data: _data,
           )

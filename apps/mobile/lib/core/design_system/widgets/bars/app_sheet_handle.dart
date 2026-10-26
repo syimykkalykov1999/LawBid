@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
+import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
 
 /// Drag handle at the top of modal bottom sheets (decorative).
 class AppSheetHandle extends StatelessWidget {
@@ -35,12 +36,20 @@ Future<T?> showAppBottomSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   bool isScrollControlled = false,
+  // Owner 2026-10-15: a long picker scrolls without closing — only its
+  // handle closes it.
+  bool closeByHandleOnly = false,
 }) {
   final colors = Theme.of(context).extension<AppColorTokens>()!;
   return showModalBottomSheet<T>(
     context: context,
+    // Owner 2026-10-15: every sheet opens over the floating nav bar, never
+    // under it (the last row of a menu was hidden behind it).
+    useRootNavigator: true,
     isScrollControlled: isScrollControlled,
-    backgroundColor: colors.surface,
+    constraints: contentColumnSheetConstraints(context),
+    backgroundColor: sheetRouteColor(context, colors.sheet),
+    elevation: sheetDrawnByColumn(context) ? 0 : null,
     showDragHandle: false,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
@@ -49,7 +58,13 @@ Future<T?> showAppBottomSheet<T>({
     ),
     // Owner 2026-10-01: every sheet closes with a swipe down — also when
     // its whole body scrolls (the list used to swallow the drag).
-    builder: (ctx) => PullDownToClose(child: builder(ctx)),
+    builder: (ctx) => ContentColumnFrame(
+      surface: colors.sheet,
+      radius: const BorderRadius.vertical(top: Radius.circular(AppRadii.sheet)),
+      child: closeByHandleOnly
+            ? builder(ctx)
+            : PullDownToClose(child: builder(ctx)),
+    ),
   );
 }
 

@@ -1,10 +1,12 @@
 import type { AddressInfo, Server } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { TokenService } from '../src/modules/auth/services/token.service';
 import { attachCleanAvatar } from './support/clean-avatar';
 
 /**
@@ -15,9 +17,9 @@ import { attachCleanAvatar } from './support/clean-avatar';
  * GET /users/me returns the profile, attorneys get a unique generated
  * username that skips reserved words. Plus Settings → Account (§10.3):
  * GET /users/me/identifiers and a reauth-gated phone change that retires
- * the old phone as a sign-in method. Real CockroachDB/Redis, fixed OTP.
+ * the old phone as a sign-in method. Real PostgreSQL/Redis, fixed OTP.
  */
-// Each scenario makes 10-20 round trips to a real (shared) CockroachDB;
+// Each scenario makes 10-20 round trips to a real (shared) PostgreSQL;
 // the 5 s default is too tight when parallel suites load the cluster.
 jest.setTimeout(30_000);
 
@@ -149,7 +151,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     const before = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect(before.body.data.profile).toBeNull();
     expect(before.body.data.missing).toEqual(
-      expect.arrayContaining(['name', 'email_verified', 'state']),
+      expect.arrayContaining(['name', 'email', 'state']),
     );
 
     const saved = await saveProfile(auth, {
@@ -171,7 +173,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
         contactNote: 'Weekday evenings after 6pm',
       },
     });
-    expect(saved.body.data.missing).toEqual(['email_verified']);
+    expect(saved.body.data.missing).toEqual(['email']);
 
     const row = await prisma.clientProfile.findUniqueOrThrow({
       where: { user_id: userId },
@@ -287,7 +289,8 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
 
   it('attorney: attorney_profiles with generated unique username, bio/firm/languages, licensed states', async () => {
     const first = await onboardedTo('attorney');
-    const bio = 'b'.repeat(300);
+    // Owner 2026-10-19: a bio is at most 150 characters (Instagram).
+    const bio = 'b'.repeat(150);
     const saved = await saveProfile(first.auth, {
       firstName: 'Avery',
       lastName: 'Quill',
@@ -307,7 +310,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       verificationStatus: 'unverified',
     });
     // docs/03 §4.1 / OQ-012: only the mandatory photo is still missing.
-    expect(saved.body.data.missing).toEqual(['photo']);
+    expect(saved.body.data.missing).toEqual(['email', 'photo']);
 
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: first.userId },
@@ -342,6 +345,10 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     }).expect(200);
     expect(dup.body.data.profile.username).toBe('avery.quill2');
 
+    await prisma.user.update({
+      where: { id: first.userId },
+      data: { email: 'avery.quill@example.com' },
+    });
     await attachCleanAvatar(prisma, first.userId);
     const done = await api()
       .post('/api/v1/users/me/onboarding/complete')
@@ -407,16 +414,17 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .set(auth)
       .expect(403);
     expect(res.body.error.code).toBe('ONBOARDING_INCOMPLETE');
-    expect(res.body.error.details.missing).toEqual([
-      'licensed_states',
-      'photo',
-    ]);
+    expect(res.body.error.details.missing).toEqual(['email', 'photo']);
     const row = await prisma.attorneyProfile.findUniqueOrThrow({
       where: { user_id: userId },
     });
     expect(row.username).toBe('nolic.ense');
 
     await saveProfile(auth, { licensedStates: ['TX'] }, 'tour').expect(200);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { email: 'nolic.ense@example.com' },
+    });
     await attachCleanAvatar(prisma, userId);
     await api()
       .post('/api/v1/users/me/onboarding/complete')
@@ -478,6 +486,42 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       }),
     ]);
 
+    // Owner 2026-10-22 (audit #3): the sign-in was an hour ago — a fresh
+    // sign-in would itself count as the reauth.
+    await prisma.session.updateMany({
+      where: { user_id: userId },
+      data: { created_at: new Date(Date.now() - 3_600_000) },
+    });
+    // An account older than its own sign-up: changes are announced.
+    await prisma.user.update({
+      where: { id: userId },
+      data: { created_at: new Date(Date.now() - 2 * 86_400_000) },
+    });
+    const notices = () =>
+      prisma.notification.count({
+        where: { user_id: userId, type: 'security_sign_in_changed' },
+      });
+    // A second session (the website, or a thief's): it ends on the change.
+    const otherChain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: userId,
+        session_chain_id: otherChain,
+        refresh_hash: `audit3-${otherChain}`,
+        platform: 'web',
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const otherAuth = {
+      Authorization: `Bearer ${app.get(TokenService).signAccessToken({
+        sub: userId,
+        role: 'client',
+        sid: otherChain,
+        verified: false,
+        subscriptionStatus: 'none',
+      })}`,
+    };
+    await api().get('/api/v1/users/me').set(otherAuth).expect(200);
     const newPhone = nextPhone();
     const noReauth = await api()
       .post('/api/v1/users/me/contacts/request')
@@ -521,6 +565,14 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
     ]);
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect(me.body.data.phone).toBe(newPhone);
+    // Owner 2026-10-22 (audit #3): the change is announced on every device,
+    // and every other session ends — this one stays signed in.
+    expect(await notices()).toBe(1);
+    const dropped = await api()
+      .get('/api/v1/users/me')
+      .set(otherAuth)
+      .expect(401);
+    expect(dropped.body.error.code).toBe('AUTH_SESSION_REVOKED');
 
     // Linking an ADDITIONAL phone sign-in method via POST /auth/identifiers
     // (email delivery isn't runnable here, see onboarding.e2e-spec.ts).
@@ -529,9 +581,31 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       .post('/api/v1/auth/otp/request')
       .send({ channel: 'phone', identifier: extra })
       .expect(200);
+    // Owner 2026-10-22 (audit #3): a new sign-in method always needs a
+    // reauth token, however fresh the session.
+    const refused = await api()
+      .post('/api/v1/auth/identifiers')
+      .set(auth)
+      .send({ provider: 'phone', identifier: extra, code: '000000' })
+      .expect(403);
+    expect(refused.body.error.code).toBe('REAUTH_REQUIRED');
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'phone', identifier: newPhone })
+      .expect(200);
+    const again = await api()
+      .post('/api/v1/auth/reauth')
+      .set(auth)
+      .send({ method: 'otp', identifier: newPhone, code: '000000' })
+      .expect(201);
+    await api()
+      .post('/api/v1/auth/otp/request')
+      .send({ channel: 'phone', identifier: extra })
+      .expect(200);
     await api()
       .post('/api/v1/auth/identifiers')
       .set(auth)
+      .set('X-Reauth-Token', again.body.data.reauthToken as string)
       .send({ provider: 'phone', identifier: extra, code: '000000' })
       .expect(201);
     const withExtra = await api()
@@ -542,5 +616,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       expect.objectContaining({ value: newPhone, isPrimaryContact: true }),
       expect.objectContaining({ value: extra, isPrimaryContact: false }),
     ]);
+    // ...and so is a new sign-in method.
+    expect(await notices()).toBe(2);
   });
 });

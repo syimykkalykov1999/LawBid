@@ -180,7 +180,7 @@ describe('Client profile: posts, follows, attorney reviews (e2e, OQ-038)', () =>
     expect(
       (await api().post(`/api/v1/attorneys/${cli.id}/follow`).set(att.auth))
         .status,
-    ).toBe(204);
+    ).toBe(200);
     const followers = await api()
       .get(`/api/v1/attorneys/${cli.id}/followers`)
       .set(att.auth);
@@ -226,6 +226,16 @@ describe('Client profile: posts, follows, attorney reviews (e2e, OQ-038)', () =>
     await prisma.case.update({
       where: { id: caseId },
       data: { accepted_bid_id: bid.id, status: 'in_progress' },
+    });
+    // Audit 2026-10-04: only once the case is closed (as client → attorney).
+    const inWork = await api()
+      .put(`/api/v1/cases/${caseId}/client-review`)
+      .set(att.auth)
+      .send({ rating: 4 });
+    expect(inWork.status).toBe(403);
+    await prisma.case.update({
+      where: { id: caseId },
+      data: { status: 'closed', closed_at: new Date() },
     });
     const ok = await api()
       .put(`/api/v1/cases/${caseId}/client-review`)

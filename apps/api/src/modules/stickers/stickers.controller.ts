@@ -3,14 +3,23 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
   Put,
+  Req,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
+import {
+  notModified,
+  timeBucket,
+  weakEtag,
+} from '../../common/sync/cheap-etag';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -35,6 +44,7 @@ import {
 import { StickersService } from './stickers.service';
 
 const E = ErrorCode;
+const FEATURED_ETAG_BUCKET_MS = 300_000;
 
 /** Owner 2026-10-01 — Telegram-style stickers. */
 @ApiTags('stickers')
@@ -44,7 +54,11 @@ const E = ErrorCode;
 export class StickersController {
   constructor(private readonly stickers: StickersService) {}
 
+  // Owner 2026-10-22 (client economy plan, package D): reference data —
+  // the browser (web build, admin) may keep it and revalidate in the
+  // background; `private` because the answer is per person.
   @Get()
+  @Header('Cache-Control', 'private, max-age=60, stale-while-revalidate=3600')
   @ApiOperation({
     summary: 'My sticker picker: recently used + installed packs',
   })
@@ -56,11 +70,23 @@ export class StickersController {
   }
 
   @Get('featured')
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'Official packs, most installed first' })
   @ApiEnvelopeResponse(StickerPackDto, { isArray: true })
-  listFeaturedStickerPacks(
+  async listFeaturedStickerPacks(
     @CurrentUser() user: RequestUser,
-  ): Promise<StickerPackDto[]> {
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StickerPackDto[] | undefined> {
+    // Delta audit P7: cheap ETag → 304. The bucket re-sends the answer
+    // before its presigned sticker URLs can age out.
+    const tag = weakEtag(
+      'stk-featured',
+      user.sub,
+      timeBucket(FEATURED_ETAG_BUCKET_MS),
+      ...(await this.stickers.featuredStamp(user.sub)),
+    );
+    if (notModified(req, res, tag)) return undefined;
     return this.stickers.featured(user.sub);
   }
 
@@ -86,6 +112,7 @@ export class StickersController {
   }
 
   @Get('packs/:ref')
+  @Header('Cache-Control', 'private, max-age=600, stale-while-revalidate=86400')
   @ApiOperation({ summary: 'A pack by id or short name' })
   @ApiEnvelopeResponse(StickerPackDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })

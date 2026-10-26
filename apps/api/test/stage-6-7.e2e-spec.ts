@@ -232,6 +232,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     expect((start.body as Body).data).toMatchObject({
       trialEligible: true,
       priceCents: 39_900,
+      // Owner 2026-10-16: the owner's plan says 7 days (was 14 in code).
       trialDays: 7,
     });
     expect(
@@ -512,19 +513,25 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     });
   });
 
-  it('admin: support views, finance extends by N days with a reason (audited), moderator is 403', async () => {
+  it('admin: support views, finance extends by N days with a reason (audited), moderator is 404', async () => {
     const a = await attorney();
     const { row } = await subscribe(a, `fp_${randomUUID().slice(0, 8)}`);
+    // Money is closed to every admin but the super admin, whatever the
+    // role label or toggles say (owner 2026-10-02).
     const support = await adminSession(baseUrl, prisma, 'support');
-    const finance = await adminSession(baseUrl, prisma, 'finance');
+    const finance = await adminSession(baseUrl, prisma, 'super_admin');
     const moderator = await adminSession(baseUrl, prisma, 'moderator');
     await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(moderator.auth)
-      .expect(403);
-    const view = await api()
+      .expect(404);
+    await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(support.auth)
+      .expect(404);
+    const view = await api()
+      .get(`/api/v1/admin/subscriptions/${a.id}`)
+      .set(finance.auth)
       .expect(200);
     expect((view.body as Body).data).toMatchObject({
       stripeSubscriptionId: row!.stripe_subscription_id,
@@ -534,7 +541,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       .post(`/api/v1/admin/subscriptions/${a.id}/extend`)
       .set(support.auth)
       .send({ days: 5, reason: 'x' })
-      .expect(403);
+      .expect(404);
     const before = row!.trial_ends_at!.getTime();
     const ext = await api()
       .post(`/api/v1/admin/subscriptions/${a.id}/extend`)
@@ -585,6 +592,10 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       .send({ sessionId: c.sessionId })
       .expect(200);
     expect((early.body as Body).data.isActive).toBe(false);
+    // Owner 2026-10-07: the unpaid checkout is not shown as a subscription
+    // («Подтверждаем карту» with no buttons), nor the baseline as a plan.
+    expect((early.body as Body).data.subscription).toBeNull();
+    expect((early.body as Body).data.plan).toBeNull();
 
     await fake.payCheckout(c.sessionId, {
       paymentMethodId: 'pm_web_1',
@@ -662,7 +673,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     expect(await access.isActive(a.id)).toBe(true);
   });
 
-  // OQ-048: plans — monthly + bought assistant seats, yearly with all six;
+  // OQ-048: plans — monthly + bought assistant seats, yearly with all seats (admin setting, default 10);
   // phones given at purchase join without a code.
   it('plans: yearly with assistant phones; monthly seats change later', async () => {
     const a = await attorney();
@@ -690,7 +701,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       plan: 'yearly',
     });
     const team = await api().get('/api/v1/team').set(a.auth).expect(200);
-    expect((team.body as Body).data).toMatchObject({ seats: 6, used: 1 });
+    expect((team.body as Body).data).toMatchObject({ seats: 10, used: 1 });
     expect(
       (
         (team.body as Body).data as {
@@ -724,15 +735,14 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
       .set(m.auth)
       .send({ sessionId: sm.sessionId })
       .expect(200);
+    // Owner 2026-10-22: seats are bought only after the first paid period
+    // — not during the trial this checkout started.
     const up = await api()
       .post('/api/v1/subscriptions/seats')
       .set(m.auth)
       .send({ seats: 3 })
-      .expect(200);
-    expect(
-      ((up.body as Body).data as { subscription: { assistantSeats: number } })
-        .subscription.assistantSeats,
-    ).toBe(3);
+      .expect(409);
+    expect((up.body as Body).error?.code).toBe('SEATS_TRIAL_NOT_ALLOWED');
   });
 
   // Owner 2026-10-01: an active monthly subscription moves to yearly Prime.
@@ -765,7 +775,7 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
           subscription: { plan: string; assistantSeats: number };
         }
       ).subscription,
-    ).toMatchObject({ plan: 'yearly', assistantSeats: 6 });
+    ).toMatchObject({ plan: 'yearly', assistantSeats: 10 });
     const again = await api()
       .post('/api/v1/subscriptions/plan/yearly')
       .set(a.auth);

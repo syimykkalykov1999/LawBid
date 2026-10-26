@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { jitterTtl, singleFlight } from '../../../common/cache/single-flight';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { bumpConfigVersion } from './config-version';
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
  * comment. app_config changes even less often than feature_flags in
@@ -10,6 +12,26 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
  * flags it's served alongside in the same bootstrap payload. */
 const APP_CONFIG_CACHE_TTL_SECONDS = 30;
 export const APP_CONFIG_CACHE_KEY = 'config:app_config';
+
+/** Owner 2026-10-18 (speed): the parsed map is also kept in this process
+ * for a few seconds, so the many AppSettingsService reads in one request
+ * do not each fetch and JSON.parse the whole config from Redis. Every
+ * admin write path clears it (clearAppConfigMemo); a write on another
+ * instance shows up within this TTL. Off under jest (NODE_ENV=test): the
+ * specs reset the Redis key directly and expect an immediate re-read. */
+const APP_CONFIG_MEMO_TTL_MS = 5_000;
+let appConfigMemo: { at: number; value: Record<string, unknown> } | null = null;
+
+export function clearAppConfigMemo(): void {
+  appConfigMemo = null;
+}
+
+/** Admin write paths: drop the in-process memo and the Redis copy. */
+export async function dropAppConfigCache(redis: Redis): Promise<void> {
+  clearAppConfigMemo();
+  await redis.del(APP_CONFIG_CACHE_KEY);
+  await bumpConfigVersion(redis);
+}
 
 /**
  * Reads the full `app_config` table as a flat `{key: value}` map
@@ -27,22 +49,38 @@ export class AppConfigService {
   ) {}
 
   async getConfig(): Promise<Record<string, unknown>> {
+    const memoOn = process.env.NODE_ENV !== 'test';
+    if (
+      memoOn &&
+      appConfigMemo &&
+      Date.now() - appConfigMemo.at < APP_CONFIG_MEMO_TTL_MS
+    ) {
+      return appConfigMemo.value;
+    }
+    const value = await this.loadConfig();
+    if (memoOn) appConfigMemo = { at: Date.now(), value };
+    return value;
+  }
+
+  private async loadConfig(): Promise<Record<string, unknown>> {
     const cached = await this.redis.get(APP_CONFIG_CACHE_KEY);
     if (cached !== null) return JSON.parse(cached) as Record<string, unknown>;
 
-    const rows = await this.prisma.appConfig.findMany({
-      select: { key: true, value: true },
-    });
-    const config: Record<string, unknown> = {};
-    for (const row of rows) config[row.key] = row.value;
+    return singleFlight(APP_CONFIG_CACHE_KEY, async () => {
+      const rows = await this.prisma.appConfig.findMany({
+        select: { key: true, value: true },
+      });
+      const config: Record<string, unknown> = {};
+      for (const row of rows) config[row.key] = row.value;
 
-    await this.redis.set(
-      APP_CONFIG_CACHE_KEY,
-      JSON.stringify(config),
-      'EX',
-      APP_CONFIG_CACHE_TTL_SECONDS,
-    );
-    return config;
+      await this.redis.set(
+        APP_CONFIG_CACHE_KEY,
+        JSON.stringify(config),
+        'EX',
+        jitterTtl(APP_CONFIG_CACHE_TTL_SECONDS),
+      );
+      return config;
+    });
   }
 
   /** Convenience read for [AppVersionGuard]: the min app version for one

@@ -1,4 +1,5 @@
 import { FilePurpose } from '@prisma/client';
+import { shardOf } from '../../sharding/shard-id';
 
 /** MIME types the upload pipeline understands (docs/03 §2.2, §4.1;
  * docs/05 §3.2). HEIC is converted to JPEG by the scan worker. */
@@ -12,6 +13,10 @@ export const FILE_MIME = {
   // Owner 2026-09-30 (OQ-040): voice messages — AAC in an MPEG-4 (.m4a)
   // container, what the app records on iOS and Android.
   m4a: 'audio/mp4',
+  // Voice messages recorded in a browser (MediaRecorder): Opus in a WebM
+  // container (Chrome, Firefox). Safari records audio/mp4 (the m4a type).
+  // Accepted for chat_voice only.
+  webm: 'audio/webm',
   // Owner 2026-09-30 (OQ-047): chat attachments after acceptance — every
   // common photo and office format.
   webp: 'image/webp',
@@ -27,6 +32,13 @@ export const FILE_MIME = {
   rtf: 'application/rtf',
   txt: 'text/plain',
   csv: 'text/csv',
+  // Owner 2026-10-17: videos in a chat (WhatsApp-like), compressed on the
+  // phone. Stored as uploaded — never decoded on the server.
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  // Owner 2026-10-19: a WebM video from a computer (the browser sends it
+  // as it is; phones can play it only in the web version).
+  webmVideo: 'video/webm',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -35,12 +47,12 @@ export type BucketKind = 'documents' | 'media';
 
 export interface PurposeRule {
   readonly mimes: readonly FileMime[];
-  /** app_config key holding the size limit in MB (docs/03 §9). */
-  readonly sizeSetting:
+  /** app_config key holding the size limit in MB (docs/03 §9). None for
+   * the purposes of upload-limits.ts (their MB come from there). */
+  readonly sizeSetting?:
     | 'files.max_size_mb'
-    | 'files.avatar_max_size_mb'
-    | 'files.chat_max_size_mb'
-    | 'files.sticker_max_size_mb';
+    | 'files.sticker_max_size_mb'
+    | 'files.document_template_max_size_mb';
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
   readonly bucket: BucketKind;
@@ -50,25 +62,43 @@ const IMAGES: readonly FileMime[] = [
   FILE_MIME.jpeg,
   FILE_MIME.png,
   FILE_MIME.heic,
+  // Owner 2026-10-07 (bug 17): may be turned on in «Загрузки и файлы».
+  FILE_MIME.webp,
+];
+
+/** Every document format (the admin picks which are on, bug 17). */
+const DOCS: readonly FileMime[] = [
+  FILE_MIME.pdf,
+  FILE_MIME.doc,
+  FILE_MIME.docx,
+  FILE_MIME.xls,
+  FILE_MIME.xlsx,
+  FILE_MIME.ppt,
+  FILE_MIME.pptx,
+  FILE_MIME.odt,
+  FILE_MIME.ods,
+  FILE_MIME.odp,
+  FILE_MIME.rtf,
+  FILE_MIME.txt,
+  FILE_MIME.csv,
 ];
 
 /**
- * Per-purpose rules:
- * - avatar: JPEG/PNG/HEIC up to files.avatar_max_size_mb (docs/03 §4.1);
- * - post_image: JPEG/PNG/HEIC up to 10 MB (docs/05 §3.2 = files.max_size_mb);
- * - verification_document: JPEG/PNG/HEIC/PDF (PDF for licenses) up to
- *   files.max_size_mb (docs/03 §2.2);
- * - verification_selfie: camera photo, JPEG/PNG/HEIC.
+ * Per-purpose rules. `mimes` is the widest safe set of a purpose; for the
+ * places of upload-limits.ts the admin's format choice narrows it.
+ * - avatar: photos (docs/03 §4.1);
+ * - post_image: photos (docs/05 §3.2);
+ * - verification_document: photos and PDF (PDF for licenses, docs/03 §2.2);
+ * - verification_selfie: camera photo.
  */
 export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
+  // Owner 2026-10-19: a GIF too (its first frame, like any photo).
   avatar: {
-    mimes: IMAGES,
-    sizeSetting: 'files.avatar_max_size_mb',
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   post_image: {
-    mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   // Owner 2026-10-01: sticker images — PNG/WebP with transparency, kept
@@ -80,85 +110,82 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   },
   // Owner 2026-10-01: photos in reviews — public like post photos.
   review_photo: {
-    mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
+    mimes: [...IMAGES, FILE_MIME.gif],
     bucket: 'media',
   },
   // OQ-031: private (documents bucket, short signed links, never the CDN).
   case_photo: {
     mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   // OQ-034: case documents — photos, PDF, Word; private like case photos
   // (only the owner and the attorney whose bid was accepted open them).
   case_attachment: {
-    mimes: [...IMAGES, FILE_MIME.pdf, FILE_MIME.docx],
-    sizeSetting: 'files.max_size_mb',
+    // Owner 2026-10-19: and videos (from the phone's gallery or a computer).
+    mimes: [...IMAGES, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
     bucket: 'documents',
   },
   // OQ-047: photos and documents in a chat once the bid is accepted;
-  // private, up to files.chat_max_size_mb each.
+  // private. Owner 2026-10-17: and videos.
   chat_attachment: {
     mimes: [
       ...IMAGES,
-      FILE_MIME.webp,
       FILE_MIME.gif,
-      FILE_MIME.pdf,
-      FILE_MIME.doc,
-      FILE_MIME.docx,
-      FILE_MIME.xls,
-      FILE_MIME.xlsx,
-      FILE_MIME.ppt,
-      FILE_MIME.pptx,
-      FILE_MIME.odt,
-      FILE_MIME.ods,
-      FILE_MIME.odp,
-      FILE_MIME.rtf,
-      FILE_MIME.txt,
-      FILE_MIME.csv,
+      ...DOCS,
+      FILE_MIME.mp4,
+      FILE_MIME.mov,
+      FILE_MIME.webmVideo,
     ],
-    sizeSetting: 'files.chat_max_size_mb',
+    bucket: 'documents',
+  },
+  // Owner 2026-10-18 (OQ-055): files in a support ticket, both ways —
+  // photos, documents and videos like a chat; private, opened only by the
+  // ticket's user and the support staff.
+  support_attachment: {
+    mimes: [
+      ...IMAGES,
+      FILE_MIME.gif,
+      ...DOCS,
+      FILE_MIME.mp4,
+      FILE_MIME.mov,
+      FILE_MIME.webmVideo,
+    ],
     bucket: 'documents',
   },
   // OQ-048: documents an assistant attaches to a task (same formats).
   task_attachment: {
-    mimes: [
-      ...IMAGES,
-      FILE_MIME.webp,
-      FILE_MIME.gif,
-      FILE_MIME.pdf,
-      FILE_MIME.doc,
-      FILE_MIME.docx,
-      FILE_MIME.xls,
-      FILE_MIME.xlsx,
-      FILE_MIME.ppt,
-      FILE_MIME.pptx,
-      FILE_MIME.odt,
-      FILE_MIME.ods,
-      FILE_MIME.odp,
-      FILE_MIME.rtf,
-      FILE_MIME.txt,
-      FILE_MIME.csv,
-    ],
-    sizeSetting: 'files.chat_max_size_mb',
+    mimes: [...IMAGES, FILE_MIME.gif, ...DOCS],
+    bucket: 'documents',
+  },
+  // Owner 2026-10-05: documents in a post or a reel's inner page — PDF,
+  // Word and plain text. Private bucket with short signed links (the
+  // post's viewers get one).
+  post_attachment: {
+    mimes: DOCS,
+    bucket: 'documents',
+  },
+  // Owner 2026-10-05: a document template (PDF, Word) the admin
+  // publishes; private bucket, short signed links on download.
+  document_template: {
+    mimes: [FILE_MIME.pdf, FILE_MIME.docx, FILE_MIME.doc],
+    sizeSetting: 'files.document_template_max_size_mb',
     bucket: 'documents',
   },
   // OQ-040: voice messages; private (only the two chat members get a
-  // short signed link).
+  // short signed link). AAC/MPEG-4 from the app (and Safari), Opus/WebM
+  // from Chrome/Firefox. Stored as uploaded — there is no server-side
+  // transcoding, so iOS (AVPlayer) cannot play a WebM note.
   chat_voice: {
-    mimes: [FILE_MIME.m4a],
+    mimes: [FILE_MIME.m4a, FILE_MIME.webm],
     sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   verification_document: {
     mimes: [...IMAGES, FILE_MIME.pdf],
-    sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   verification_selfie: {
     mimes: IMAGES,
-    sizeSetting: 'files.max_size_mb',
     bucket: 'documents',
   },
   // docs/05 §3.6: prepared, off behind the `video_posts` flag (presign
@@ -205,10 +232,58 @@ export const POST_IMAGE_VARIANT_PX: readonly number[] = [320, 1080];
  * phone photo or document scan (≈160 MB as raw RGBA). */
 export const MAX_INPUT_PIXELS = 40_000_000;
 
+/**
+ * Object key of a NEW upload (day-one foundations, 2026-10-24):
+ * `<purpose>/s<shard>/<yyyy>/<mm>/<fileId>`. The owner's user id is NOT in
+ * the key: who owns an object is the File row (owner_user_id), so a file
+ * can change hands or an account be merged without rewriting object names,
+ * and the key leaks nothing about the user. The logical shard of the owner
+ * (SHARDING_READY.md) is a coarse prefix so per-shard tools (inventory,
+ * lifecycle, a future per-shard bucket) can address a shard; the date makes
+ * lifecycle/inventory by age cheap. Old rows keep their stored
+ * `<purpose>/<userId>/<fileId>` key: every reader uses File.s3_key, none
+ * parses it. S3 needs no hash-randomised prefix since 2018 (per-prefix
+ * request rates scale automatically), so a readable layout is fine.
+ */
+export function newFileKey(input: {
+  purpose: string;
+  ownerId: string;
+  fileId: string;
+  now?: Date;
+}): string {
+  const now = input.now ?? new Date();
+  let shard = 0;
+  try {
+    shard = shardOf(input.ownerId);
+  } catch {
+    // not a uuid (tests, tools): shard 0
+  }
+  const yyyy = String(now.getUTCFullYear());
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${input.purpose}/s${shard}/${yyyy}/${mm}/${input.fileId}`;
+}
+
 /** `<key>_w256` — never `<key>/256`: MinIO forbids an object whose name
  * is a "directory" prefix of another object. */
 export function variantKey(key: string, px: number): string {
   return `${key}_w${px}`;
+}
+
+/** Owner 2026-10-25: the AVIF twin of an object (`<key>.avif`,
+ * `<key>_w1080.avif`) written next to the WebP/JPEG one when
+ * `images.avif_enabled` is on. Served only to clients that ask for it. */
+export const AVIF_PURPOSES: ReadonlySet<string> = new Set([
+  'avatar',
+  'post_image',
+  'review_photo',
+  'case_photo',
+  'case_attachment',
+  'chat_attachment',
+  'support_attachment',
+]);
+
+export function avifKey(key: string): string {
+  return `${key}.avif`;
 }
 
 export function isImageMime(mime: string): boolean {
@@ -223,3 +298,60 @@ export const IMAGE_MIMES: ReadonlySet<string> = new Set([
   FILE_MIME.webp,
   FILE_MIME.gif,
 ]);
+
+/** Every variant size the scan worker ever stores next to an object —
+ * removing a file removes these too (`<key>_w256`, `_w320`, `_w1080`). */
+export const ALL_VARIANT_PX: readonly number[] = [
+  ...new Set([...AVATAR_VARIANT_PX, ...POST_IMAGE_VARIANT_PX]),
+];
+
+/** Every object that may sit next to [key] (variants and AVIF twins) —
+ * removing a file removes all of them (missing keys are not an error). */
+export function derivedKeys(key: string): string[] {
+  const variants = ALL_VARIANT_PX.map((px) => variantKey(key, px));
+  return [...variants, avifKey(key), ...variants.map(avifKey)];
+}
+
+/**
+ * Owner 2026-10-05 (storage like Telegram): files that end up as the same
+ * stored object for the same bytes. An identical upload of a purpose in
+ * the same group and bucket reuses the stored object instead of keeping a
+ * second copy (FileScanProcessor). Identity documents, data exports and
+ * video are never shared.
+ * - avatar: square 1024 px + 256 px;
+ * - fitted: photos shrunk to 2048 px with 320 / 1080 px previews
+ *   (documents in these purposes pass through unchanged);
+ * - raw: stored as uploaded.
+ */
+export type DedupProfile = 'avatar' | 'fitted' | 'raw';
+export const DEDUP_PROFILE: Partial<Record<FilePurpose, DedupProfile>> = {
+  avatar: 'avatar',
+  post_image: 'fitted',
+  review_photo: 'fitted',
+  case_photo: 'fitted',
+  case_attachment: 'fitted',
+  chat_attachment: 'fitted',
+  support_attachment: 'fitted',
+  sticker: 'raw',
+  post_attachment: 'raw',
+  document_template: 'raw',
+  chat_voice: 'raw',
+  task_attachment: 'raw',
+};
+
+/** Purposes sharing [profile] (the dedup lookup searches all of them). */
+export function purposesOfProfile(profile: DedupProfile): FilePurpose[] {
+  return (Object.keys(DEDUP_PROFILE) as FilePurpose[]).filter(
+    (p) => DEDUP_PROFILE[p] === profile,
+  );
+}
+
+/** Purposes the orphan cleanup never touches: identity documents (kept
+ * for the verification history), data exports (their own expiry job) and
+ * video (Bunny's own sweep). */
+export const CLEANUP_EXEMPT_PURPOSES: readonly FilePurpose[] = [
+  'verification_document',
+  'verification_selfie',
+  'data_export',
+  'post_video',
+];

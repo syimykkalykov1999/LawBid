@@ -1,0 +1,8 @@
+# Accepted Trivy findings (container scan). Each needs a reason and a way out.
+
+# deepmerge-ts 7.1.5 is pulled in by the Prisma CLI (@prisma/config, every 6.x
+# release pins ^7.1.5). The stack exhaustion needs a recursive object graph
+# passed to deepmerge; Prisma only merges its own config file at CLI start
+# (the migrate task), never request data. Drop this line once Prisma ships a
+# release that depends on deepmerge-ts >= 8.
+CVE-2026-40345

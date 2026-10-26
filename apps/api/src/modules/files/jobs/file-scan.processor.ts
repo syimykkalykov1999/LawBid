@@ -1,4 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { videoDimensions } from '../processing/video-dimensions';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import type { File } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -6,10 +8,25 @@ import { S3StorageService } from '../storage/s3-storage.service';
 import { VIRUS_SCANNER, type VirusScanner } from '../scanning/virus-scanner';
 import { ImageProcessor } from '../processing/image-processor';
 import { detectMime } from '../magic-bytes';
-import { variantKey } from '../files.policy';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import {
+  DEDUP_PROFILE,
+  avifKey,
+  derivedKeys,
+  purposesOfProfile,
+  variantKey,
+  FILE_MIME,
+} from '../files.policy';
+import {
+  avifSince,
+  imageQuality,
+  type ImageFormat,
+} from '../processing/image-processor';
+import { MediaModerationQueue } from '../../media-moderation/media-moderation.queue';
 
 export type ScanOutcome =
   | 'clean'
+  | 'deduplicated'
   | 'infected'
   | 'failed'
   | 'skipped:not-pending'
@@ -37,6 +54,10 @@ export class FileScanProcessor {
     private readonly images: ImageProcessor,
     @Inject(VIRUS_SCANNER) private readonly scanner: VirusScanner | null,
     private readonly logger: PinoLogger,
+    @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-22 (audit #4 §5): clean public pictures go on to the
+    // image moderation check (post photos, avatars, review photos).
+    @Optional() private readonly moderation?: MediaModerationQueue,
   ) {
     this.logger.setContext(FileScanProcessor.name);
   }
@@ -44,6 +65,10 @@ export class FileScanProcessor {
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.scan_status !== 'pending') return 'skipped:not-pending';
+    if (await this.deduplicate(file)) {
+      await this.moderation?.enqueueFile(file.id, file.purpose);
+      return 'deduplicated';
+    }
     if (!this.scanner) {
       this.logger.warn(
         { fileId, alert: 'no_virus_scanner' },
@@ -89,7 +114,10 @@ export class FileScanProcessor {
           file.purpose === 'case_photo' ||
           file.purpose === 'case_attachment' ||
           // OQ-047: chat photos get previews; documents pass through.
-          file.purpose === 'chat_attachment',
+          file.purpose === 'chat_attachment' ||
+          file.purpose === 'support_attachment',
+        format: await this.imageFormat(),
+        quality: await imageQuality(this.settings),
       });
     } catch (err) {
       // Undecodable image: permanent, retrying won't help.
@@ -108,6 +136,7 @@ export class FileScanProcessor {
           img.mime,
         );
       }
+      await this.putAvifTwins(file, processed);
       const main = processed.main;
       if (main) {
         await this.storage.put(
@@ -121,8 +150,11 @@ export class FileScanProcessor {
         where: { id: fileId, scan_status: 'pending' },
         data: {
           scan_status: 'clean',
-          width: processed.width,
-          height: processed.height,
+          // Owner 2026-10-18: videos get their shown size too (the app
+          // draws the bubble at that shape before the video loads).
+          ...(mime === FILE_MIME.mp4 || mime === FILE_MIME.mov
+            ? (videoDimensions(data) ?? { width: null, height: null })
+            : { width: processed.width, height: processed.height }),
           ...(main
             ? {
                 mime: main.mime,
@@ -132,6 +164,7 @@ export class FileScanProcessor {
             : {}),
         },
       });
+      await this.moderation?.enqueueFile(fileId, file.purpose);
       return 'clean';
     } catch (err) {
       if (!finalAttempt) throw err;
@@ -139,6 +172,98 @@ export class FileScanProcessor {
       await this.setStatus(fileId, 'failed');
       return 'failed';
     }
+  }
+
+  /**
+   * Owner 2026-10-05 (storage like Telegram): the same bytes uploaded
+   * again (same bucket, same processing) reuse the object already stored
+   * and scanned — the new upload is removed and the row points at the
+   * existing object, its previews and its dimensions. `storage.dedup` off
+   * keeps every copy. Identity documents, exports and video never share.
+   */
+  private async deduplicate(file: File): Promise<boolean> {
+    const profile = DEDUP_PROFILE[file.purpose];
+    if (!profile || !file.source_sha256 || !this.settings) return false;
+    if (!(await this.settings.boolean('storage.dedup'))) return false;
+    // An object stored before AVIF was switched on has no AVIF twin; a
+    // new row sharing it would be served a missing file.
+    const since = await avifSince(this.settings);
+    const twin = await this.prisma.file.findFirst({
+      where: {
+        id: { not: file.id },
+        s3_bucket: file.s3_bucket,
+        source_sha256: file.source_sha256,
+        purpose: { in: purposesOfProfile(profile) },
+        scan_status: 'clean',
+        deleted_at: null,
+        s3_key: { not: file.s3_key },
+        ...(since ? { created_at: { gte: since } } : {}),
+      },
+      orderBy: { created_at: 'asc' },
+    });
+    if (!twin) return false;
+    const { count } = await this.prisma.file.updateMany({
+      where: { id: file.id, scan_status: 'pending' },
+      data: {
+        s3_key: twin.s3_key,
+        mime: twin.mime,
+        size_bytes: twin.size_bytes,
+        sha256: twin.sha256,
+        width: twin.width,
+        height: twin.height,
+        scan_status: 'clean',
+      },
+    });
+    if (count === 0) return false;
+    // The fresh upload is no longer used by anyone (its key was unique).
+    try {
+      await this.storage.remove(file.s3_bucket, [
+        file.s3_key,
+        ...derivedKeys(file.s3_key),
+      ]);
+    } catch (err) {
+      this.logger.warn(
+        { fileId: file.id, err },
+        'Duplicate upload not removed',
+      );
+    }
+    return true;
+  }
+
+  /** Owner 2026-10-25: the AVIF twins (`images.avif_enabled`). A failure
+   * only costs the smaller file — the WebP/JPEG stays what is served. */
+  private async putAvifTwins(
+    file: File,
+    processed: Awaited<ReturnType<ImageProcessor['process']>>,
+  ): Promise<void> {
+    try {
+      if (processed.main?.avif) {
+        await this.storage.put(
+          file.s3_bucket,
+          avifKey(file.s3_key),
+          processed.main.avif.data,
+          processed.main.avif.mime,
+        );
+      }
+      for (const [px, img] of processed.variants) {
+        if (!img.avif) continue;
+        await this.storage.put(
+          file.s3_bucket,
+          avifKey(variantKey(file.s3_key, px)),
+          img.avif.data,
+          img.avif.mime,
+        );
+      }
+    } catch (err) {
+      this.logger.warn({ fileId: file.id, err }, 'AVIF twins not stored');
+    }
+  }
+
+  private async imageFormat(): Promise<ImageFormat> {
+    if (!this.settings) return 'jpeg';
+    return (await this.settings.string('storage.image_format')) === 'jpeg'
+      ? 'jpeg'
+      : 'webp';
   }
 
   private async setStatus(

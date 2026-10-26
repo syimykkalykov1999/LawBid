@@ -14,6 +14,7 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       practiceArea: CasePracticeAreaDto.fromJson(
         json['practiceArea'] as Map<String, dynamic>,
       ),
+      extraPracticeCount: (json['extraPracticeCount'] as num).toInt(),
       primaryStateCode: json['primaryStateCode'] as String,
       additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>)
           .map((e) => e as String)
@@ -28,7 +29,31 @@ CaseFeedItemDto _$CaseFeedItemDtoFromJson(Map<String, dynamic> json) =>
       commentCount: (json['commentCount'] as num).toInt(),
       shareCount: (json['shareCount'] as num).toInt(),
       isSaved: json['isSaved'] as bool,
+      promoted: json['promoted'] as bool,
+      priorityClient: json['priorityClient'] as bool,
+      dossier: CaseDossierDto.fromJson(json['dossier'] as Map<String, dynamic>),
       city: json['city'] as String?,
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
+      urgencyLevel: json['urgencyLevel'] == null
+          ? null
+          : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
+      promotedUntil: json['promotedUntil'] == null
+          ? null
+          : DateTime.parse(json['promotedUntil'] as String),
+      clientActivity: json['clientActivity'] == null
+          ? null
+          : ClientActivityDto.fromJson(
+              json['clientActivity'] as Map<String, dynamic>,
+            ),
     );
 
 Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
@@ -37,11 +62,17 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'title': instance.title,
       'excerpt': instance.excerpt,
       'practiceArea': instance.practiceArea.toJson(),
+      'extraPracticeCount': instance.extraPracticeCount,
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCodes': instance.additionalStateCodes,
       'city': ?instance.city,
       'status': instance.status.toJson(),
       'budget': instance.budget.toJson(),
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
+      'urgencyLevel': ?instance.urgencyLevel?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
       'viewCount': instance.viewCount,
       'bidsCount': instance.bidsCount,
       'createdAt': instance.createdAt.toIso8601String(),
@@ -50,4 +81,9 @@ Map<String, dynamic> _$CaseFeedItemDtoToJson(CaseFeedItemDto instance) =>
       'commentCount': instance.commentCount,
       'shareCount': instance.shareCount,
       'isSaved': instance.isSaved,
+      'promoted': instance.promoted,
+      'promotedUntil': ?instance.promotedUntil?.toIso8601String(),
+      'priorityClient': instance.priorityClient,
+      'clientActivity': ?instance.clientActivity?.toJson(),
+      'dossier': instance.dossier.toJson(),
     };

@@ -1,0 +1,207 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:dio/dio.dart';
+import 'package:retrofit/retrofit.dart';
+
+import '../models/add_official_sticker_dto.dart';
+import '../models/admin_bulk_reason_dto.dart';
+import '../models/admin_bulk_result_envelope.dart';
+import '../models/admin_channel_envelope.dart';
+import '../models/admin_channel_post_action_dto.dart';
+import '../models/admin_channel_row_list_envelope.dart';
+import '../models/admin_channel_status.dart';
+import '../models/admin_channel_status_dto.dart';
+import '../models/admin_media_reason_dto.dart';
+import '../models/admin_sticker_pack_envelope.dart';
+import '../models/admin_sticker_pack_row_list_envelope.dart';
+import '../models/admin_sticker_upload_dto.dart';
+import '../models/admin_video_row_list_envelope.dart';
+import '../models/admin_video_stats_envelope.dart';
+import '../models/admin_video_status.dart';
+import '../models/create_official_sticker_pack_dto.dart';
+import '../models/file_envelope.dart';
+import '../models/kind2.dart';
+import '../models/presigned_file_envelope.dart';
+import '../models/set_sticker_pack_price_dto.dart';
+import '../models/status7.dart';
+
+part 'admin_media_client.g.dart';
+
+@RestApi()
+abstract class AdminMediaClient {
+  factory AdminMediaClient(Dio dio, {String? baseUrl}) = _AdminMediaClient;
+
+  /// Video assets (reels), newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [from] - Uploaded at or after (inclusive).
+  ///
+  /// [to] - Uploaded before (exclusive).
+  @GET('/admin/media/videos')
+  Future<AdminVideoRowListEnvelope> listAdminVideos({
+    @Query('cursor') String? cursor,
+    @Query('status') AdminVideoStatus? status,
+    @Query('ownerId') String? ownerId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Counts by status, storage, uploads in 7 days
+  @GET('/admin/media/videos/stats')
+  Future<AdminVideoStatsEnvelope> getAdminVideoStats({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Take a video down: its post is removed (author told why), the asset deleted
+  @POST('/admin/media/videos/{id}/takedown')
+  Future<void> takedownAdminVideo({
+    @Path('id') required String id,
+    @Body() required AdminMediaReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Take many videos down with one reason (posts removed, authors told why)
+  @POST('/admin/media/videos/bulk-takedown')
+  Future<AdminBulkResultEnvelope> bulkTakedownAdminVideos({
+    @Body() required AdminBulkReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Sticker packs (official and users), newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Title or short name.
+  @GET('/admin/media/sticker-packs')
+  Future<AdminStickerPackRowListEnvelope> listAdminStickerPacks({
+    @Query('cursor') String? cursor,
+    @Query('kind') Kind2? kind,
+    @Query('status') Status7? status,
+    @Query('q') String? q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create an official pack (shown in Featured)
+  @POST('/admin/media/sticker-packs')
+  Future<AdminStickerPackEnvelope> createAdminStickerPack({
+    @Body() required CreateOfficialStickerPackDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A pack with its stickers and image links
+  @GET('/admin/media/sticker-packs/{id}')
+  Future<AdminStickerPackEnvelope> getAdminStickerPack({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hide many packs with one reason (authors told why)
+  @POST('/admin/media/sticker-packs/bulk-hide')
+  Future<AdminBulkResultEnvelope> bulkHideAdminStickerPacks({
+    @Body() required AdminBulkReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Make many hidden packs available again
+  @POST('/admin/media/sticker-packs/bulk-unhide')
+  Future<AdminBulkResultEnvelope> bulkUnhideAdminStickerPacks({
+    @Body() required AdminBulkReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hide a pack (no installs or sends; the author is told why)
+  @POST('/admin/media/sticker-packs/{id}/hide')
+  Future<AdminStickerPackEnvelope> hideAdminStickerPack({
+    @Path('id') required String id,
+    @Body() required AdminMediaReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Make a hidden pack available again
+  @POST('/admin/media/sticker-packs/{id}/unhide')
+  Future<AdminStickerPackEnvelope> unhideAdminStickerPack({
+    @Path('id') required String id,
+    @Body() required AdminMediaReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the price in stars of an official pack
+  @POST('/admin/media/sticker-packs/{id}/price')
+  Future<AdminStickerPackEnvelope> setAdminStickerPackPrice({
+    @Path('id') required String id,
+    @Body() required SetStickerPackPriceDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add an uploaded (clean) image to an official pack
+  @POST('/admin/media/sticker-packs/{id}/stickers')
+  Future<AdminStickerPackEnvelope> addAdminSticker({
+    @Path('id') required String id,
+    @Body() required AddOfficialStickerDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a sticker from an official pack (soft)
+  @DELETE('/admin/media/sticker-packs/{id}/stickers/{stickerId}')
+  Future<AdminStickerPackEnvelope> removeAdminSticker({
+    @Path('id') required String id,
+    @Path('stickerId') required String stickerId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step 1 of a sticker image upload: presigned POST (then POST the file to S3)
+  @POST('/admin/media/sticker-uploads')
+  Future<PresignedFileEnvelope> presignAdminStickerUpload({
+    @Body() required AdminStickerUploadDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Step 2: verify the uploaded image; it is attachable once scanStatus = clean
+  @POST('/admin/media/sticker-uploads/{fileId}/confirm')
+  Future<FileEnvelope> confirmAdminStickerUpload({
+    @Path('fileId') required String fileId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Channels, newest first.
+  ///
+  /// [q] - Title or @username.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/media/channels')
+  Future<AdminChannelRowListEnvelope> listChannels({
+    @Query('status') AdminChannelStatus? status,
+    @Query('q') String? q,
+    @Query('cursor') String? cursor,
+    @Query('limit') num? limit,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A channel with its latest posts
+  @GET('/admin/media/channels/{id}')
+  Future<AdminChannelEnvelope> getChannel({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hide (out of search), close (banned) or reopen a channel
+  @POST('/admin/media/channels/{id}/status')
+  Future<AdminChannelEnvelope> setChannelStatus({
+    @Path('id') required String id,
+    @Body() required AdminChannelStatusDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove or restore one post of a channel
+  @POST('/admin/media/channels/{id}/posts/{postId}/moderate')
+  Future<AdminChannelEnvelope> moderateChannelPost({
+    @Path('id') required String id,
+    @Path('postId') required String postId,
+    @Body() required AdminChannelPostActionDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+}

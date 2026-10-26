@@ -1,5 +1,5 @@
 # Uncomment this line to define a global platform for your project
-# platform :ios, '15.0'
+platform :ios, '15.5'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -32,6 +32,15 @@ def flutter_root
 end
 
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+# ML Kit (translate) ships no arm64 simulator slice; the plugin's official
+# helper relabels it per build (README «Apple Silicon iOS Simulator»).
+# The plugin symlinks exist only after a Flutter build on this machine; CI's
+# own `pod install` runs before that, so the helper is optional.
+mlkit_simulator_helper = File.expand_path(
+  '.symlinks/plugins/google_mlkit_commons/ios/scripts/apple_silicon_simulator.rb',
+  __dir__,
+)
+require mlkit_simulator_helper if File.exist?(mlkit_simulator_helper)
 
 flutter_ios_podfile_setup
 
@@ -47,5 +56,8 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+  end
+  if defined?(mlkit_apple_silicon_simulator_patch)
+    mlkit_apple_silicon_simulator_patch(installer)
   end
 end

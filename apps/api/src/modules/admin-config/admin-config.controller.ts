@@ -20,8 +20,11 @@ import {
   CurrentAdmin,
   SkipAutoAudit,
   type AdminActor,
+  ALL_ADMIN_ROLES,
 } from '../admin-auth/admin-auth.decorators';
 import {
+  BudgetLimitDto,
+  BudgetLimitParamDto,
   ConfigEntryDto,
   ConfigKeyParamDto,
   CreateLegalDocumentDto,
@@ -31,22 +34,36 @@ import {
   LanguageCodeParamDto,
   LegalDocumentAdminDto,
   LegalDocumentIdParamDto,
+  UpdateBudgetLimitDto,
   UpdateConfigDto,
   UpdateFlagDto,
   UpdateLanguageDto,
 } from './admin-config.dto';
+import { AdminBudgetsService } from './admin-budgets.service';
 import { AdminConfigService } from './admin-config.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
+
+/** Settings whose change weakens a money control: a fresh 2FA code first
+ * (owner 2026-10-22, system audit #2 item 11). */
+export const STEP_UP_CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'billing.dual_approval_min_cents',
+  'admin.dual_control',
+]);
 
 const E = ErrorCode;
 
 /** docs/06 §2.3 items 7–10 — super_admin only (§2.2). The service writes
  * before/after audit rows itself. */
 @ApiTags('admin-config')
-@AdminEndpoint('super_admin')
+@AdminEndpoint(...ALL_ADMIN_ROLES)
 @SkipAutoAudit()
 @Controller('admin')
 export class AdminConfigController {
-  constructor(private readonly config: AdminConfigService) {}
+  constructor(
+    private readonly config: AdminConfigService,
+    private readonly budgets: AdminBudgetsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get('feature-flags')
   @ApiOperation({ summary: 'Feature flags with the paid-service key check' })
@@ -83,15 +100,44 @@ export class AdminConfigController {
     return this.config.listConfig();
   }
 
+  // Owner 2026-10-05 «Лимиты расходов»: declared before `config/:key`.
+  @Get('config/budgets')
+  @ApiOperation({
+    summary:
+      'Spend caps per provider and window: mode (auto/manual), floor, ceiling, cap in force, usage',
+  })
+  @ApiEnvelopeResponse(BudgetLimitDto, { isArray: true })
+  listBudgetLimits(): Promise<BudgetLimitDto[]> {
+    return this.budgets.list();
+  }
+
+  @Put('config/budgets/:provider/:window')
+  @ApiOperation({
+    summary:
+      'Auto: store floor/ceiling and recompute now; manual: set the cap (0 = off)',
+  })
+  @ApiEnvelopeResponse(BudgetLimitDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  updateBudgetLimit(
+    @CurrentAdmin() admin: AdminActor,
+    @Param() params: BudgetLimitParamDto,
+    @Body() dto: UpdateBudgetLimitDto,
+  ): Promise<BudgetLimitDto> {
+    return this.budgets.update(admin, params.provider, params.window, dto);
+  }
+
   @Put('config/:key')
   @ApiOperation({ summary: 'Set a value (validated against the key schema)' })
   @ApiEnvelopeResponse(ConfigEntryDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  updateAppConfig(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async updateAppConfig(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: ConfigKeyParamDto,
     @Body() dto: UpdateConfigDto,
   ): Promise<ConfigEntryDto> {
+    if (STEP_UP_CONFIG_KEYS.has(params.key)) {
+      await this.auth.assertStepUp(admin.sessionId);
+    }
     return this.config.updateConfig(admin, params.key, dto.value);
   }
 

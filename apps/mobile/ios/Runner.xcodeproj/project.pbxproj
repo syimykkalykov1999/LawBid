@@ -15,6 +15,7 @@
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
+		4C1A5E2F2EA0B00100D1A503 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4C1A5E2F2EA0B00100D1A502 /* PrivacyInfo.xcprivacy */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		99488391A1FD93CF00B2ABB0 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 90A07F760112487FBBA42643 /* Pods_RunnerTests.framework */; };
 		CB9866F985B1CA42FEB0753C /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7083BC2AE4D3C78DDD2C1480 /* Pods_Runner.framework */; };
@@ -75,6 +76,7 @@
 		97C146EE1CF9000F007C117D /* Runner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Runner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		97C146FB1CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4C1A5E2F2EA0B00100D1A502 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A84DE32B2B6523CE72FEDC56 /* Profile-prod.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Profile-prod.xcconfig"; path = "Flutter/Profile-prod.xcconfig"; sourceTree = "<group>"; };
@@ -202,6 +204,7 @@
 			children = (
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
+				4C1A5E2F2EA0B00100D1A502 /* PrivacyInfo.xcprivacy */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
 				97C147021CF9000F007C117D /* Info.plist */,
 				C8A3F2010000000000000001 /* InfoPlist.strings */,
@@ -247,6 +250,9 @@
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				4C1A5E2F2EA0B00100D1A501 /* Strip dev-only ATS (prod) */,
+				4C1A5E2F2EA0B00100D1A504 /* Auto build number */,
+				4C1A5E2F2EA0B00100D1A505 /* Bundle Firebase config if present */,
 				BD9BE40A1BF600A3555B1DCB /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
@@ -321,6 +327,7 @@
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 				C8A3F2010000000000000002 /* InfoPlist.strings in Resources */,
+				4C1A5E2F2EA0B00100D1A503 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,6 +426,53 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		4C1A5E2F2EA0B00100D1A504 /* Auto build number */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}",
+			);
+			name = "Auto build number";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# pubspec.yaml keeps `+1`, which means automatic: a build without an\n# explicit --build-number gets the minutes since 2026-01-01 UTC, so every\n# App Store upload is higher than the last one with nobody bumping it.\n# Same formula as android/app/build.gradle.kts autoBuildNumber().\nPLIST=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\nif [ \"$(/usr/libexec/PlistBuddy -c \"Print :CFBundleVersion\" \"$PLIST\" 2>/dev/null)\" = \"1\" ]; then\n  /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $(( ($(date -u +%s) - 1767225600) / 60 ))\" \"$PLIST\"\nfi\n";
+		};
+		4C1A5E2F2EA0B00100D1A501 /* Strip dev-only ATS (prod) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}",
+			);
+			name = "Strip dev-only ATS (prod)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Store release 2026-10-06: Info.plist allows plain http:// for the local\n# dev backend (NSAllowsArbitraryLoads). The prod flavor talks only to\n# https://api.lawbid.dev, so the exception is removed from its bundle.\ncase \"${CONFIGURATION}\" in\n  *-prod)\n    /usr/libexec/PlistBuddy -c \"Delete :NSAppTransportSecurity\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" 2>/dev/null || true\n    ;;\nesac\n";
+		};
+		4C1A5E2F2EA0B00100D1A505 /* Bundle Firebase config if present */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle Firebase config if present";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Push 2026-10-19: ios/Runner/GoogleService-Info.plist is git-ignored and\n# not a project file, so it is copied into the app here when it exists.\n# Without it the build still succeeds and push simply stays off.\nSRC=\"${SRCROOT}/Runner/GoogleService-Info.plist\"\nDST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$SRC\" ]; then\n  cp -f \"$SRC\" \"$DST\"\nelse\n  rm -f \"$DST\"\n  echo \"note: no Runner/GoogleService-Info.plist - FCM push is off in this build\"\nfi\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -488,6 +542,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.staging.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -538,14 +593,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = "Release-staging";
@@ -559,6 +614,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -575,6 +631,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.staging.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -633,12 +690,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = "Debug-dev";
 		};
@@ -657,6 +714,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.staging;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -709,12 +767,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = "Profile-prod";
@@ -762,12 +820,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = "Profile-dev";
@@ -781,6 +839,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.dev.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -805,6 +864,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -863,12 +923,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = "Debug-staging";
 		};
@@ -876,7 +936,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 313C1FC32383D7D17C07E85A /* Release-dev.xcconfig */;
 			buildSettings = {
-				APP_DISPLAY_NAME = "LawBid Dev";
+				APP_DISPLAY_NAME = LawBid;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
@@ -887,6 +947,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -910,6 +971,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -927,6 +989,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -983,12 +1046,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = "Debug-prod";
 		};
@@ -996,7 +1059,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 6FB40422094A6EF9F9B260CC /* Profile-dev.xcconfig */;
 			buildSettings = {
-				APP_DISPLAY_NAME = "LawBid Dev";
+				APP_DISPLAY_NAME = LawBid;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
@@ -1007,6 +1070,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -1030,6 +1094,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.staging;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -1047,6 +1112,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -1060,7 +1126,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7477B471418869FE1F36481D /* Debug-dev.xcconfig */;
 			buildSettings = {
-				APP_DISPLAY_NAME = "LawBid Dev";
+				APP_DISPLAY_NAME = LawBid;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;
@@ -1071,6 +1137,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -1095,6 +1162,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.staging;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -1118,6 +1186,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -1169,14 +1238,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = "Release-dev";
@@ -1224,14 +1293,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = "Release-prod";
@@ -1245,6 +1314,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.staging.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -1261,6 +1331,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.dev.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -1277,6 +1348,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 78T56RPM74;
 				PRODUCT_BUNDLE_IDENTIFIER = com.lawbid.lawbid.dev.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -1327,12 +1399,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.5;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = "Profile-staging";

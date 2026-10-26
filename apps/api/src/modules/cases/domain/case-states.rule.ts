@@ -8,7 +8,7 @@ export interface CaseStateInput {
 
 /** docs/02_DATABASE.md §4.D: 1 primary + up to 2 additional states, no
  * duplicates. The DB enforces "at most one primary" (partial UQ); the
- * count and "exactly one" live here because CockroachDB 24.1 has no
+ * count and "exactly one" live here because PostgreSQL 24.1 has no
  * triggers. Every case write path must call this before inserting
  * case_states (file 04, stage 4.2). */
 export function validateCaseStates(states: CaseStateInput[]): string {

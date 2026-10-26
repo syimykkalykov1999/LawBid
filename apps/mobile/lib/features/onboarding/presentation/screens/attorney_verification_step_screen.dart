@@ -3,73 +3,479 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart'
+    show myPracticesProvider;
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
+import 'package:lawbid/features/onboarding/domain/attorney_setup.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
+import 'package:lawbid/features/profile/presentation/screens/practices_screen.dart';
+import 'package:lawbid/features/subscription/application/subscription_providers.dart';
+import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
+import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
+import 'package:lawbid/features/subscription/presentation/subscription_offer.dart';
+import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 
 enum ChecklistStatus { done, next, locked }
 
-/// `/onboarding/verification` — «Верификация и подписка» (docs/01_
-/// FOUNDATION_AUTH.md §11 Шаг 4B): a status checklist (profile ✔ →
-/// license & identity verification → 7-day trial, which starts only AFTER
-/// verification is approved, card via Stripe SetupIntent). "Verify now"
-/// opens the verification entry (placeholder until file 03); "Later"
-/// continues — the attorney then gets Feed/Search/Profile, and the Mine tab
-/// shows a verification banner (guard row "attorney + unverified").
-class AttorneyVerificationStepScreen extends ConsumerWidget {
+/// `/onboarding/verification` — the attorney's setup (owner 2026-10-04,
+/// docs/onboarding-lawyer.md): ONE coordinator that shows exactly one stage
+/// at a time, decided by the server state ([attorneySetupStage]):
+/// licence → practice areas → subscription offer → (done) → tour.
+///
+/// Every stage is shown in place (no pushed screen to come back from), and
+/// the state is re-read from the server after each save, so a stage never
+/// repeats and "Back" never lands on the same step again.
+class AttorneyVerificationStepScreen extends ConsumerStatefulWidget {
   const AttorneyVerificationStepScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AttorneyVerificationStepScreen> createState() =>
+      _AttorneyVerificationStepScreenState();
+}
+
+class _AttorneyVerificationStepScreenState
+    extends ConsumerState<AttorneyVerificationStepScreen> {
+  bool _licenseOpened = false;
+
+  void _back() {
+    final role = ref.read(currentUserRoleProvider);
+    final previous = OnboardingStepId.verification.previousFor(role);
+    if (previous != null) context.go(OnboardingRoutes.forStep(previous));
+  }
+
+  void _advance() => ref
+      .read(onboardingActionsProvider.notifier)
+      .advance(OnboardingStepId.verification);
+
+  /// The licence form (state + bar number + sworn checkbox). Back here,
+  /// the verification state and the signed-in user (its verification
+  /// flag unlocks practices, cases and bids) are re-read from the server.
+  Future<void> _openLicense(VerificationView view) async {
+    await context.push(
+      view == VerificationView.needsMoreInfo ||
+              view == VerificationView.rejected
+          ? AppRoutes.verification
+          : AppRoutes.verificationWizard,
+    );
+    if (!mounted) return;
+    ref.invalidate(verificationOverviewProvider);
+    await ref.read(currentUserControllerProvider.notifier).load();
+  }
+
+  void _practicesSaved() {
+    ref
+      ..invalidate(myPracticesProvider)
+      ..invalidate(practicesEditorDataProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final action = ref.watch(onboardingActionsProvider);
+    final verification = ref.watch(verificationOverviewProvider);
 
-    return OnboardingScaffold(
-      step: OnboardingStepId.verification,
-      title: t.t('onboarding.verification.title'),
-      subtitle: t.t('onboarding.verification.subtitle'),
-      onBack: () => context.go(OnboardingRoutes.forStep(OnboardingStepId.push)),
-      error: action.error,
-      primaryLabel: t.t('onboarding.verification.verifyNow'),
-      onPrimary: () => context.push(AppRoutes.verification),
-      secondary: AppButton(
-        label: t.t('onboarding.verification.later'),
-        variant: AppButtonVariant.secondary,
-        isLoading: action.busy,
-        onPressed: () => ref
-            .read(onboardingActionsProvider.notifier)
-            .advance(OnboardingStepId.verification),
-      ),
-      children: [
-        VerificationChecklist(
-          items: [
-            (
-              t.t('onboarding.verification.item.profile'),
-              null,
-              ChecklistStatus.done
-            ),
-            (
-              t.t('onboarding.verification.item.license'),
-              t.t('onboarding.verification.item.license.desc'),
-              ChecklistStatus.next,
-            ),
-            (
-              t.t('onboarding.verification.item.subscription'),
-              t.t('onboarding.verification.item.subscription.desc'),
-              ChecklistStatus.locked,
+    // Each source is read only once the previous stage is complete.
+    final view = switch (verification) {
+      AsyncData(:final value) => viewOf(value),
+      _ => null,
+    };
+    final practices = view == VerificationView.verified
+        ? ref.watch(myPracticesProvider)
+        : null;
+    final hasPractices = practices?.value?.isNotEmpty;
+    final subscription =
+        hasPractices ?? false ? ref.watch(subscriptionOverviewProvider) : null;
+    final pendingError =
+        verification.error ?? practices?.error ?? subscription?.error;
+    final loading = view == null ||
+        (view == VerificationView.verified && hasPractices == null) ||
+        (hasPractices ?? false) && subscription?.value == null;
+
+    if (pendingError != null && loading) {
+      return OnboardingScaffold(
+        step: OnboardingStepId.verification,
+        title: t.t('onboarding.attorney.license.title'),
+        onBack: _back,
+        error: pendingError,
+        primaryLabel: t.t('error.retry'),
+        onPrimary: () => ref
+          ..invalidate(verificationOverviewProvider)
+          ..invalidate(myPracticesProvider)
+          ..invalidate(subscriptionOverviewProvider),
+        children: const [],
+      );
+    }
+    if (loading) {
+      return OnboardingScaffold(
+        key: const ValueKey('attorney-setup-loading'),
+        step: OnboardingStepId.verification,
+        title: t.t('onboarding.attorney.license.title'),
+        onBack: _back,
+        children: const [AppSkeletonCard()],
+      );
+    }
+
+    final stage = attorneySetupStage(
+      verification: view,
+      hasPractices: hasPractices,
+      subscriptionActive: subscription?.value?.isActive,
+      offerSkipped: ref.watch(subscriptionOfferSkippedProvider),
+    );
+    final progress = _progress(stage);
+
+    switch (stage) {
+      case AttorneySetupStage.license:
+        // Owner 2026-10-11: no intro screen — the licence form opens right
+        // after the profile; "Back" from it returns to the profile.
+        if (!_licenseOpened) {
+          _licenseOpened = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
+            await _openLicense(view);
+            if (!mounted) return;
+            VerificationView? latest;
+            try {
+              latest =
+                  viewOf(await ref.read(verificationOverviewProvider.future));
+            } on Object {
+              latest = null;
+            }
+            if (!mounted) return;
+            final stillLicense = latest == null ||
+                attorneySetupStage(verification: latest) ==
+                    AttorneySetupStage.license;
+            if (stillLicense) _back();
+          });
+        }
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-license'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.attorney.license.title'),
+          onBack: _back,
+          children: const [AppSkeletonCard()],
+        );
+      case AttorneySetupStage.licensePending:
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-pending'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.attorney.license.pending.title'),
+          subtitle: t.t('onboarding.attorney.license.pending.body'),
+          onBack: _back,
+          error: action.error,
+          primaryLabel: t.t('onboarding.verification.continue'),
+          primaryLoading: action.busy,
+          onPrimary: _advance,
+          children: const [],
+        );
+      case AttorneySetupStage.practices:
+        final data = ref.watch(practicesEditorDataProvider);
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-practices'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.attorney.practices.title'),
+          onBack: _back,
+          error: data.error,
+          body: switch (data) {
+            AsyncData(:final value) => PracticesEditor(
+                tree: value.tree,
+                initial: value.selected,
+                saveLabel: t.t('onboarding.attorney.practices.save'),
+                onSaved: _practicesSaved,
+              ),
+            _ => const Padding(
+                padding: EdgeInsets.all(AppSpacing.screenSide),
+                child: AppSkeletonCard(),
+              ),
+          },
+          children: const [],
+        );
+      case AttorneySetupStage.subscription:
+        return _SubscriptionStage(
+          overview: subscription!.requireValue,
+          progress: progress,
+          onBack: _back,
+          onDone: _advance,
+        );
+      case AttorneySetupStage.done:
+        return OnboardingScaffold(
+          key: const ValueKey('attorney-setup-done'),
+          step: OnboardingStepId.verification,
+          progress: progress,
+          title: t.t('onboarding.verification.title'),
+          onBack: _back,
+          error: action.error,
+          primaryLabel: t.t('onboarding.verification.continue'),
+          primaryLoading: action.busy,
+          onPrimary: _advance,
+          children: [
+            VerificationChecklist(
+              items: [
+                (
+                  t.t('onboarding.verification.item.license'),
+                  null,
+                  ChecklistStatus.done,
+                ),
+                (
+                  t.t('onboarding.attorney.practices.title'),
+                  null,
+                  ChecklistStatus.done,
+                ),
+                (
+                  t.t('onboarding.verification.item.subscription'),
+                  null,
+                  ChecklistStatus.done,
+                ),
+              ],
+              statusLabels: {
+                ChecklistStatus.done:
+                    t.t('onboarding.verification.status.done'),
+                ChecklistStatus.next:
+                    t.t('onboarding.verification.status.next'),
+                ChecklistStatus.locked:
+                    t.t('onboarding.verification.status.locked'),
+              },
             ),
           ],
-          statusLabels: {
-            ChecklistStatus.done: t.t('onboarding.verification.status.done'),
-            ChecklistStatus.next: t.t('onboarding.verification.status.next'),
-            ChecklistStatus.locked:
-                t.t('onboarding.verification.status.locked'),
-          },
-        ),
+        );
+    }
+  }
+
+  /// The overall onboarding bar with this step split into its three
+  /// stages (licence, practices, subscription).
+  (int, int) _progress(AttorneySetupStage stage) {
+    final order = OnboardingStepId.orderFor(ref.read(currentUserRoleProvider));
+    final index = order.indexOf(OnboardingStepId.verification);
+    const extra = AttorneySetupStage.segments - 1;
+    return (index + 1 + stage.segment, order.length + extra);
+  }
+}
+
+/// "Later" on the onboarding offer, kept for the session.
+final subscriptionOfferSkippedProvider =
+    NotifierProvider<SubscriptionOfferSkipped, bool>(
+  SubscriptionOfferSkipped.new,
+);
+
+class SubscriptionOfferSkipped extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void skip() => state = true;
+}
+
+/// "7 days free, a card at the start" — the same offer the bid button
+/// opens later (subscription_offer.dart). Owner 2026-10-13: Monthly /
+/// Yearly tabs; the trial button stays grey until a plan is picked, then
+/// pays on the card sheet and moves on once active; "Later" moves on
+/// without it.
+class _SubscriptionStage extends ConsumerStatefulWidget {
+  const _SubscriptionStage({
+    required this.overview,
+    required this.progress,
+    required this.onBack,
+    required this.onDone,
+  });
+
+  final SubscriptionOverview overview;
+  final (int, int) progress;
+  final VoidCallback onBack;
+  final VoidCallback onDone;
+
+  @override
+  ConsumerState<_SubscriptionStage> createState() => _SubscriptionStageState();
+}
+
+class _SubscriptionStageState extends ConsumerState<_SubscriptionStage> {
+  SubscriptionPlan? _plan;
+  SubscriptionPlan _tab = SubscriptionPlan.monthly;
+
+  @override
+  Widget build(BuildContext context) {
+    final overview = widget.overview;
+    final t = ref.watch(translatorProvider);
+    final formats = ref.watch(l10nFormatsProvider);
+    final action = ref.watch(onboardingActionsProvider);
+    final subscribe = ref.watch(subscribeControllerProvider);
+    final texts = offerTexts(t, overview, formats.currencyFromCents);
+    final kind = offerKindOf(overview);
+    final waiting = subscribe.phase == SubscribePhase.awaitingPayment;
+    final canPay = kind == OfferKind.trial || kind == OfferKind.paid;
+    return OnboardingScaffold(
+      key: const ValueKey('attorney-setup-subscription'),
+      step: OnboardingStepId.verification,
+      progress: widget.progress,
+      title: texts.title,
+      subtitle: texts.body,
+      onBack: widget.onBack,
+      error: action.error,
+      primaryLabel: canPay ? texts.cta : null,
+      primaryEnabled: _plan != null,
+      primaryLoading: subscribe.busy,
+      onPrimary: () async {
+        final plan = _plan;
+        if (plan == null) return;
+        if (await startSubscriptionFromOffer(context, ref, plan: plan)) {
+          widget.onDone();
+        }
+      },
+      footnote: waiting ? t.t('plans.waiting') : null,
+      secondary: AppButton(
+        key: const ValueKey('offer-later'),
+        label: waiting
+            ? t.t('plans.waiting.stop')
+            : t.t('subscription.offer.later'),
+        variant: AppButtonVariant.secondary,
+        isLoading: action.busy,
+        onPressed: waiting
+            ? () => ref.read(subscribeControllerProvider.notifier).stopWaiting()
+            : () {
+                ref.read(subscriptionOfferSkippedProvider.notifier).skip();
+                widget.onDone();
+              },
+      ),
+      children: [
+        if (canPay) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _PlanTab(
+                  key: const ValueKey('plan-tab-monthly'),
+                  title: t.t('subscription.tab.monthly'),
+                  selected: _tab == SubscriptionPlan.monthly,
+                  onTap: () => setState(() => _tab = SubscriptionPlan.monthly),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _PlanTab(
+                  key: const ValueKey('plan-tab-yearly'),
+                  title: t.t('subscription.tab.yearly'),
+                  selected: _tab == SubscriptionPlan.yearly,
+                  onTap: () => setState(() => _tab = SubscriptionPlan.yearly),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          // Owner 2026-10-13: the same big plan card as in Settings → Plans
+          // (one widget, not a copy), one per tab.
+          if (_tab == SubscriptionPlan.monthly)
+            PlanTierCard(
+              key: const ValueKey('plan-monthly'),
+              title: t.t('plans.monthly'),
+              price: formats.currencyFromCents(overview.prices.monthlyCents),
+              period: t.t('plans.perMonth'),
+              discount: overview.prices.monthlyDiscount,
+              formatCents: formats.currencyFromCents,
+              translator: t,
+              features: monthlyFeatures(
+                t,
+                formats.currencyFromCents(overview.prices.seatCents),
+              ),
+              status: _plan == SubscriptionPlan.monthly
+                  ? t.t('plans.status.selected')
+                  : null,
+              highlighted: _plan == SubscriptionPlan.monthly,
+              onTap: () => setState(() => _plan = SubscriptionPlan.monthly),
+            )
+          else
+            PlanTierCard(
+              key: const ValueKey('plan-yearly'),
+              icon: AppIcons.diamondOutlined,
+              title: t.t('plans.yearly'),
+              price: formats.currencyFromCents(overview.prices.yearlyCents),
+              period: t.t('plans.perYear'),
+              discount: overview.prices.yearlyDiscount,
+              formatCents: formats.currencyFromCents,
+              translator: t,
+              yearly: true,
+              features: yearlyFeatures(
+                t,
+                formats.currencyFromCents(overview.prices.yearlySavingsCents),
+                savingsCents: overview.prices.yearlySavingsCents,
+              ),
+              status: _plan == SubscriptionPlan.yearly
+                  ? t.t('plans.status.selected')
+                  : t.t('plans.yearly.badge'),
+              highlighted: _plan == SubscriptionPlan.yearly,
+              onTap: () => setState(() => _plan = SubscriptionPlan.yearly),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            t.t('subscription.offer.browseNote'),
+            style: Theme.of(context)
+                .extension<AppTypographyTokens>()!
+                .bodySmall
+                .copyWith(
+                  color: Theme.of(context)
+                      .extension<AppColorTokens>()!
+                      .textSecondary,
+                ),
+          ),
+        ] else
+          const SubscriptionOfferBenefits(),
       ],
+    );
+  }
+}
+
+/// One of the two plan tabs (Monthly / Yearly).
+class _PlanTab extends StatelessWidget {
+  const _PlanTab({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: title,
+      child: AppPressable(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: selected ? colors.goldTint : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            border: Border.all(
+              color: selected ? colors.gold : colors.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: ExcludeSemantics(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.body.copyWith(
+                color: selected ? colors.goldDark : colors.text,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -77,8 +483,11 @@ class AttorneyVerificationStepScreen extends ConsumerWidget {
 /// Vertical checklist with a connecting rail — also reused by the Mine
 /// tab's verification banner.
 class VerificationChecklist extends StatelessWidget {
-  const VerificationChecklist(
-      {required this.items, required this.statusLabels, super.key});
+  const VerificationChecklist({
+    required this.items,
+    required this.statusLabels,
+    super.key,
+  });
 
   final List<(String title, String? description, ChecklistStatus status)> items;
   final Map<ChecklistStatus, String> statusLabels;
@@ -105,7 +514,8 @@ class VerificationChecklist extends StatelessWidget {
                             child: Container(
                               width: 2,
                               margin: const EdgeInsets.symmetric(
-                                  vertical: AppSpacing.xs),
+                                vertical: AppSpacing.xs,
+                              ),
                               color: items[i].$3 == ChecklistStatus.done
                                   ? colors.gold
                                   : colors.border,
@@ -117,7 +527,8 @@ class VerificationChecklist extends StatelessWidget {
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(
-                            bottom: i < items.length - 1 ? AppSpacing.xl : 0),
+                          bottom: i < items.length - 1 ? AppSpacing.xl : 0,
+                        ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -177,21 +588,28 @@ class _StatusDot extends StatelessWidget {
       ChecklistStatus.done => (
           colors.gold,
           colors.gold,
-          AppIcon(AppIcons.checkRounded, size: AppSizes.iconSm, color: colors.navy)
-              as Widget,
+          AppIcon(
+            AppIcons.checkRounded,
+            size: AppSizes.iconSm,
+            color: colors.navy,
+          ) as Widget,
         ),
       ChecklistStatus.next => (
           colors.goldTint,
           colors.gold,
-          Text(index.toString(),
-                  style: typography.caption.copyWith(color: colors.goldDark))
-              as Widget,
+          Text(
+            index.toString(),
+            style: typography.caption.copyWith(color: colors.goldDark),
+          ) as Widget,
         ),
       ChecklistStatus.locked => (
           colors.surface,
           colors.border,
-          AppIcon(AppIcons.lockOutlineRounded,
-              size: AppSpacing.lg, color: colors.textSecondary) as Widget,
+          AppIcon(
+            AppIcons.lockOutlineRounded,
+            size: AppSpacing.lg,
+            color: colors.textSecondary,
+          ) as Widget,
         ),
     };
     return ExcludeSemantics(

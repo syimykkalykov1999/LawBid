@@ -22,7 +22,12 @@ export class AuditLogQueryService {
   async list(actor: AdminActor, q: AuditLogQueryDto): Promise<AuditLogPage> {
     const limit = q.limit ?? DEFAULT_LIMIT;
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
-    const adminId = actor.adminRole === 'super_admin' ? q.adminId : actor.id;
+    // Owner 2026-10-16: the audit log is a grantable area; with the toggle
+    // an admin reads everybody's rows, without it only their own.
+    const seesAll =
+      actor.adminRole === 'super_admin' ||
+      actor.permissions?.audit !== undefined;
+    const adminId = seesAll ? q.adminId : actor.id;
     const where: Prisma.AuditLogWhereInput = {
       ...(adminId ? { admin_id: adminId } : {}),
       ...(q.action ? { action: { startsWith: q.action } } : {}),

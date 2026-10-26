@@ -3,12 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/plans/domain/plan_models.dart';
+import 'package:lawbid/features/plans/presentation/plan_features.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
+import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
-
-final phoneE164 = RegExp(r'^\+[1-9][0-9]{7,14}$');
 
 /// What the monthly plan includes (owner 2026-10-01: listed on the card).
 List<String> monthlyFeatures(Translator t, String seatPrice) => [
@@ -22,10 +23,18 @@ List<String> monthlyFeatures(Translator t, String seatPrice) => [
     ];
 
 /// What yearly Prime includes.
-List<String> yearlyFeatures(Translator t, String save) => [
+///
+/// The «save» line only when yearly really is cheaper ([savingsCents] > 0):
+/// admin prices can make it equal or dearer, and «Save -$1,202» is wrong.
+List<String> yearlyFeatures(
+  Translator t,
+  String save, {
+  required int savingsCents,
+}) =>
+    [
       t.t('plans.f.everything'),
       t.t('plans.seats.included'),
-      t.t('plans.f.save', {'save': save}),
+      if (savingsCents > 0) t.t('plans.f.save', {'save': save}),
     ];
 
 /// What the attorney picked: the plan, monthly seats and the phones of
@@ -34,7 +43,17 @@ typedef PlanChoice = ({
   SubscriptionPlan plan,
   int seats,
   List<String> phones,
+  String? promoCode,
+
+  /// Owner 2026-10-05: a plan of the plan builder (null = legacy tiers);
+  /// [seats] are then the EXTRA seats beyond the included ones.
+  String? planCode,
 });
+
+/// Legacy monthly / yearly: what [SubscriptionPlan] a plan builder plan
+/// maps to (the server takes the interval from the code anyway).
+SubscriptionPlan legacyPlanOf(PlanOffer plan) =>
+    plan.yearly ? SubscriptionPlan.yearly : SubscriptionPlan.monthly;
 
 /// OQ-048 (owner 2026-09-30): two plans — monthly ($399 + $100 per
 /// assistant, chosen by default) and yearly below it (attorney + all six
@@ -48,6 +67,7 @@ class PlanPicker extends StatefulWidget {
     required this.verified,
     required this.state,
     required this.onPay,
+    required this.onValidatePromo,
     required this.onStopWaiting,
     required this.onGoVerify,
     super.key,
@@ -59,6 +79,10 @@ class PlanPicker extends StatefulWidget {
   final bool verified;
   final SubscribeState state;
   final ValueChanged<PlanChoice> onPay;
+
+  /// Owner 2026-10-02: checks a promo code for the chosen plan.
+  final Future<PromoCheck> Function(String code, SubscriptionPlan plan)
+      onValidatePromo;
   final VoidCallback onStopWaiting;
   final VoidCallback onGoVerify;
 
@@ -69,18 +93,61 @@ class PlanPicker extends StatefulWidget {
 class _PlanPickerState extends State<PlanPicker> {
   SubscriptionPlan _plan = SubscriptionPlan.monthly;
   int _seats = 0;
-  final List<TextEditingController> _phones = [];
-  bool _tried = false;
+
+  /// Owner 2026-10-02: a validated promo code (null = none).
+  String? _promo;
+
+  /// Owner 2026-10-05: the chosen plan of the plan builder (code).
+  String? _planCode;
 
   PlanPrices get _p => widget.overview.prices;
-  int get _seatLimit => _plan == SubscriptionPlan.yearly ? _p.maxSeats : _seats;
 
-  @override
-  void dispose() {
-    for (final c in _phones) {
-      c.dispose();
+  /// Plans of the plan builder that can be bought; empty → legacy tiers.
+  List<PlanOffer> get _offers => [
+        for (final p in widget.overview.plans)
+          if (p.purchasable) p,
+      ];
+  bool get _dynamic => _offers.isNotEmpty;
+
+  PlanOffer? get _offer {
+    final offers = _offers;
+    if (offers.isEmpty) return null;
+    for (final p in offers) {
+      if (p.code == _planCode) return p;
     }
-    super.dispose();
+    final current = widget.overview.currentPlan?.code;
+    for (final p in offers) {
+      if (p.code == current) return p;
+    }
+    for (final p in offers) {
+      if (p.isDefault) return p;
+    }
+    return offers.first;
+  }
+
+  /// Phone rows allowed: every seat (included + extra) of a plan builder
+  /// plan; the legacy rule otherwise.
+  int get _seatLimit {
+    final o = _offer;
+    if (o != null) return o.includedSeats + _seats;
+    return _plan == SubscriptionPlan.yearly ? _p.maxSeats : _seats;
+  }
+
+  void _setOffer(PlanOffer plan) {
+    if (plan.code == _offer?.code && _planCode != null) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _planCode = plan.code;
+      _plan = legacyPlanOf(plan);
+      _seats = _seats.clamp(0, plan.extraSeatsAllowed);
+    });
+  }
+
+  void _setExtraSeats(int seats) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _seats = seats.clamp(0, _offer?.extraSeatsAllowed ?? 0);
+    });
   }
 
   String _price(int cents) => subscriptionPrice(widget.formats, cents);
@@ -88,49 +155,122 @@ class _PlanPickerState extends State<PlanPicker> {
   void _setPlan(SubscriptionPlan plan) {
     if (plan == _plan) return;
     HapticFeedback.selectionClick();
-    setState(() {
-      _plan = plan;
-      _trimPhones();
-    });
+    setState(() => _plan = plan);
   }
 
   void _setSeats(int seats) {
     HapticFeedback.selectionClick();
-    setState(() {
-      _seats = seats.clamp(0, _p.maxSeats);
-      _trimPhones();
-    });
+    setState(() => _seats = seats.clamp(0, _p.maxSeats));
   }
 
-  /// Fewer seats than phone rows: empty rows go first.
-  void _trimPhones() {
-    while (_phones.length > _seatLimit) {
-      final i = _phones.lastIndexWhere((c) => c.text.trim().isEmpty);
-      _phones.removeAt(i >= 0 ? i : _phones.length - 1).dispose();
-    }
-  }
-
-  String? _phoneError(TextEditingController c) {
-    if (!_tried) return null;
-    final v = c.text.trim();
-    if (v.isEmpty) return null;
-    return phoneE164.hasMatch(v) ? null : widget.t.t('plans.phones.invalid');
-  }
-
+  /// Owner 2026-10-04: no assistant phones at checkout — each seat gets a
+  /// one-time code in Subscription → "Your assistants" after payment.
   void _pay() {
-    setState(() => _tried = true);
-    final phones = [
-      for (final c in _phones)
-        if (c.text.trim().isNotEmpty) c.text.trim(),
-    ];
-    if (phones.any((p) => !phoneE164.hasMatch(p))) return;
+    final offer = _offer;
+    if (offer != null) {
+      widget.onPay(
+        (
+          plan: legacyPlanOf(offer),
+          seats: _seats,
+          phones: const [],
+          promoCode: _promo,
+          planCode: offer.code,
+        ),
+      );
+      return;
+    }
     widget.onPay(
       (
         plan: _plan,
         seats: _plan == SubscriptionPlan.yearly ? _p.maxSeats : _seats,
-        phones: phones.toSet().toList(),
+        phones: const [],
+        promoCode: _promo,
+        planCode: null,
       ),
     );
+  }
+
+  /// Owner 2026-10-05: one card per plan of the plan builder — the name,
+  /// tagline, price per interval, highlights and the entitlement lines;
+  /// the extra-seat stepper inside the chosen card when the plan allows
+  /// seats beyond the included ones.
+  List<Widget> _planCards(BuildContext context) {
+    final t = widget.t;
+    final f = widget.formats;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final chosen = _offer;
+    final current = widget.overview.currentPlan?.code;
+    final cards = <Widget>[];
+    for (final (i, p) in _offers.indexed) {
+      final selected = p.code == chosen?.code;
+      final seatCents = p.extraSeatCents ?? _p.seatCents;
+      final canAddSeats = selected && p.extraSeatsAllowed > 0 && seatCents > 0;
+      final tagline = p.tagline.resolve(f.locale);
+      final seatPrice = PlanFeatures.price(f, seatCents, currency: p.currency);
+      final inside = <Widget>[
+        if (tagline.isNotEmpty)
+          Text(
+            tagline,
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
+        if (canAddSeats) ...[
+          if (tagline.isNotEmpty) const SizedBox(height: AppSpacing.md),
+          AssistantSeatsControl(
+            t: t,
+            seats: _seats,
+            max: p.extraSeatsAllowed,
+            seatPrice: seatPrice,
+            eachText: t.t('plan.seats.each', {'price': seatPrice}),
+            total: PlanFeatures.total(
+              t,
+              f,
+              p,
+              p.totalCents(_seats, fallbackSeatCents: _p.seatCents),
+            ),
+            onChanged: _setExtraSeats,
+          ),
+        ],
+      ];
+      if (i > 0) cards.add(const SizedBox(height: AppSpacing.md));
+      cards.add(
+        PlanTierCard(
+          key: ValueKey('plan-${p.code}'),
+          icon: p.yearly
+              ? AppIcons.diamondOutlined
+              : AppIcons.workspacePremiumOutlined,
+          title: p.name.resolve(f.locale),
+          price: PlanFeatures.amount(t, f, p),
+          period: PlanFeatures.period(t, p),
+          discount: p.discount,
+          formatCents: (c) => PlanFeatures.price(f, c, currency: p.currency),
+          translator: t,
+          yearly: p.yearly,
+          features: PlanFeatures.lines(
+            t,
+            f,
+            p,
+            language: f.locale,
+            fallbackSeatCents: _p.seatCents,
+          ),
+          status: p.code == current
+              ? t.t('plan.status.yours')
+              : selected
+                  ? t.t('plans.status.selected')
+                  : null,
+          statusFilled: p.code == current,
+          highlighted: selected,
+          onTap: () => _setOffer(p),
+          child: inside.isEmpty
+              ? null
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: inside,
+                ),
+        ),
+      );
+    }
+    return cards;
   }
 
   @override
@@ -139,10 +279,25 @@ class _PlanPickerState extends State<PlanPicker> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final o = widget.overview;
-    final yearly = _plan == SubscriptionPlan.yearly;
-    final total = yearly ? _p.yearlyCents : _p.monthlyTotal(_seats);
+    final offer = _offer;
+    final yearly = offer?.yearly ?? (_plan == SubscriptionPlan.yearly);
+    final total = offer != null
+        ? offer.totalCents(_seats, fallbackSeatCents: _p.seatCents)
+        : yearly
+            ? _p.yearlyCents
+            : _p.monthlyTotal(_seats);
     final waiting = widget.state.phase == SubscribePhase.awaitingPayment;
-    final trial = o.trialEligible && !(o.subscription?.ended ?? false);
+    final ended = o.subscription?.ended ?? false;
+    final trial = o.trialEligible && !ended && (offer?.trialDays ?? 1) > 0;
+    final payLabel = !trial
+        ? t.t('plans.pay')
+        : offer != null
+            ? t.t('plan.pay.trialDays', {
+                'n': widget.formats.number(offer.trialDays),
+              })
+            : t.t('plans.pay.trial', {
+                'days': t.plural('subscription.trial.days', _p.trialDays),
+              });
     final dur = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -152,43 +307,62 @@ class _PlanPickerState extends State<PlanPicker> {
           style: typography.titleMedium.copyWith(color: colors.text),
         ),
         const SizedBox(height: AppSpacing.md),
-        // Owner 2026-10-01: two plan cards, one under the other; the
-        // chosen one is marked at the top right, assistants inside.
-        PlanTierCard(
-          key: const ValueKey('plan-monthly'),
-          title: t.t('plans.monthly'),
-          price: _price(_p.monthlyCents),
-          period: t.t('plans.perMonth'),
-          features: monthlyFeatures(t, _price(_p.seatCents)),
-          status: yearly ? null : t.t('plans.status.selected'),
-          highlighted: !yearly,
-          onTap: () => _setPlan(SubscriptionPlan.monthly),
-          child: yearly
-              ? null
-              : AssistantSeatsControl(
-                  t: t,
-                  seats: _seats,
-                  max: _p.maxSeats,
-                  seatPrice: _price(_p.seatCents),
-                  total: t.t('plans.total.month',
-                      {'price': _price(_p.monthlyTotal(_seats))}),
-                  onChanged: _setSeats,
-                ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        PlanTierCard(
-          key: const ValueKey('plan-yearly'),
-          icon: AppIcons.diamondOutlined,
-          title: t.t('plans.yearly'),
-          price: _price(_p.yearlyCents),
-          period: t.t('plans.perYear'),
-          features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
-          status: yearly
-              ? t.t('plans.status.selected')
-              : t.t('plans.yearly.badge'),
-          highlighted: yearly,
-          onTap: () => _setPlan(SubscriptionPlan.yearly),
-        ),
+        // Owner 2026-10-05: the plans the admin built, when the server
+        // has them; the two legacy tiers otherwise.
+        if (_dynamic)
+          ..._planCards(context)
+        else ...[
+          // Owner 2026-10-01: two plan cards, one under the other; the
+          // chosen one is marked at the top right, assistants inside.
+          PlanTierCard(
+            key: const ValueKey('plan-monthly'),
+            title: t.t('plans.monthly'),
+            price: _price(_p.monthlyCents),
+            period: t.t('plans.perMonth'),
+            discount: _p.monthlyDiscount,
+            formatCents: _price,
+            translator: t,
+            features: monthlyFeatures(t, _price(_p.seatCents)),
+            status: yearly ? null : t.t('plans.status.selected'),
+            highlighted: !yearly,
+            onTap: () => _setPlan(SubscriptionPlan.monthly),
+            child: yearly
+                ? null
+                : AssistantSeatsControl(
+                    t: t,
+                    seats: _seats,
+                    max: _p.maxSeats,
+                    seatPrice: _price(_p.seatCents),
+                    total: t.t(
+                      'plans.total.month',
+                      {'price': _price(_p.monthlyTotal(_seats))},
+                    ),
+                    onChanged: _setSeats,
+                  ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          PlanTierCard(
+            key: const ValueKey('plan-yearly'),
+            icon: AppIcons.diamondOutlined,
+            title: t.t('plans.yearly'),
+            price: _price(_p.yearlyCents),
+            period: t.t('plans.perYear'),
+            discount: _p.yearlyDiscount,
+            formatCents: _price,
+            translator: t,
+            yearly: true,
+            features: yearlyFeatures(
+              t,
+              _price(_p.yearlySavingsCents),
+              savingsCents: _p.yearlySavingsCents,
+            ),
+            status: yearly
+                ? t.t('plans.status.selected')
+                : t.t('plans.yearly.badge'),
+            highlighted: yearly,
+            onTap: () => _setPlan(SubscriptionPlan.yearly),
+          ),
+        ],
         _Grow(
           duration: dur,
           curve: Curves.easeOutCubic,
@@ -196,30 +370,45 @@ class _PlanPickerState extends State<PlanPicker> {
           child: _seatLimit > 0
               ? Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.lg),
-                  child: _PhonesSection(
-                    t: t,
-                    controllers: _phones,
-                    limit: _seatLimit,
-                    errorOf: _phoneError,
-                    onAdd: () =>
-                        setState(() => _phones.add(TextEditingController())),
-                    onRemove: (i) =>
-                        setState(() => _phones.removeAt(i).dispose()),
+                  child: Text(
+                    t.t('plans.seatCodes.hint'),
+                    key: const ValueKey('plan-seat-codes'),
+                    style: Theme.of(context)
+                        .extension<AppTypographyTokens>()!
+                        .caption
+                        .copyWith(
+                          color: Theme.of(context)
+                              .extension<AppColorTokens>()!
+                              .textSecondary,
+                        ),
                   ),
                 )
               : const SizedBox(width: double.infinity),
         ),
         const SizedBox(height: AppSpacing.lg),
+        PromoCodeField(
+          t: t,
+          formats: widget.formats,
+          plan: offer == null ? _plan : legacyPlanOf(offer),
+          validate: widget.onValidatePromo,
+          onChanged: (code) => _promo = code,
+        ),
+        const SizedBox(height: AppSpacing.lg),
         AppButton(
           key: const ValueKey('subscribe-cta'),
-          label: '${t.t(trial ? 'plans.pay.trial' : 'plans.pay')} · '
+          label: '$payLabel · '
               '${t.t(yearly ? 'plans.total.year' : 'plans.total.month', {
-                'price': _price(total)
+                'price': offer == null
+                    ? _price(total)
+                    : PlanFeatures.price(
+                        widget.formats,
+                        total,
+                        currency: offer.currency,
+                      ),
               })}',
           icon: AppIcons.lockOutlineRounded,
           isLoading: widget.state.busy,
           isEnabled: o.canStart,
-          dimWhenDisabled: true,
           onPressed: o.canStart ? _pay : null,
         ),
         AnimatedSwitcher(
@@ -283,85 +472,6 @@ class _PlanPickerState extends State<PlanPicker> {
           textAlign: TextAlign.center,
           style: typography.caption.copyWith(color: colors.textSecondary),
         ),
-      ],
-    );
-  }
-}
-
-class _PhonesSection extends StatelessWidget {
-  const _PhonesSection({
-    required this.t,
-    required this.controllers,
-    required this.limit,
-    required this.errorOf,
-    required this.onAdd,
-    required this.onRemove,
-  });
-
-  final Translator t;
-  final List<TextEditingController> controllers;
-  final int limit;
-  final String? Function(TextEditingController) errorOf;
-  final VoidCallback onAdd;
-  final ValueChanged<int> onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          t.t('plans.phones'),
-          style: typography.body.copyWith(
-            color: colors.text,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          t.t('plans.phones.hint'),
-          style: typography.caption.copyWith(color: colors.textSecondary),
-        ),
-        for (final (i, c) in controllers.indexed) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: AppTextField(
-                  key: ValueKey('plan-phone-$i'),
-                  controller: c,
-                  hintText: '+13125550123',
-                  keyboardType: TextInputType.phone,
-                  errorText: errorOf(c),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[+0-9]')),
-                  ],
-                  leading: const AppIcon(AppIcons.phoneOutlined),
-                ),
-              ),
-              AppIconButton(
-                icon: const AppIcon(AppIcons.closeRounded),
-                semanticLabel: t.t('common.delete'),
-                onPressed: () => onRemove(i),
-              ),
-            ],
-          ),
-        ],
-        if (controllers.length < limit) ...[
-          const SizedBox(height: AppSpacing.xs),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              key: const ValueKey('plan-phone-add'),
-              onPressed: onAdd,
-              icon: const AppIcon(AppIcons.addRounded),
-              label: Text(t.t('plans.phones.add')),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -434,7 +544,8 @@ class _ActivePlansState extends State<ActivePlans> {
   void didUpdateWidget(ActivePlans old) {
     super.didUpdateWidget(old);
     // The server's answer arrived: the draft is the saved value now.
-    if (old.overview.subscription?.assistantSeats != _s.assistantSeats) {
+    if (old.overview.subscription?.assistantSeats != _s.assistantSeats ||
+        old.overview.seats?.extra != widget.overview.seats?.extra) {
       _draft = null;
     }
   }
@@ -446,6 +557,116 @@ class _ActivePlansState extends State<ActivePlans> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Owner 2026-10-05: the plan builder's cards — "Your plan" on the
+  /// current one with the extra-seat stepper (saved with one button) and
+  /// the Assistant team inside it; the other plans listed for reference.
+  List<Widget> _planCards(BuildContext context, Widget teamButton) {
+    final t = widget.t;
+    final f = widget.formats;
+    final o = widget.overview;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final current = o.currentPlan;
+    final plans = <PlanOffer>[
+      // Owner 2026-10-07: never the «Без подписки» baseline card.
+      if (current != null &&
+          !current.isBaseline &&
+          !o.plans.any((p) => p.code == current.code))
+        current,
+      for (final p in o.plans)
+        if (p.purchasable || p.code == current?.code) p,
+    ];
+    final extra = _draft ?? o.seats?.extra ?? _s.assistantSeats;
+    final savedExtra = o.seats?.extra ?? _s.assistantSeats;
+    final changed = extra != savedExtra;
+    final cards = <Widget>[];
+    var anyMine = false;
+    for (final (i, p) in plans.indexed) {
+      final mine = p.code == current?.code && o.isActive;
+      anyMine = anyMine || mine;
+      final seatCents = p.extraSeatCents ?? _p.seatCents;
+      final canAddSeats = mine && p.extraSeatsAllowed > 0 && seatCents > 0;
+      final seatPrice = PlanFeatures.price(f, seatCents, currency: p.currency);
+      final totalCents = p.totalCents(extra, fallbackSeatCents: _p.seatCents);
+      final tagline = p.tagline.resolve(f.locale);
+      if (i > 0) cards.add(const SizedBox(height: AppSpacing.md));
+      cards.add(
+        PlanTierCard(
+          key: ValueKey('plan-${p.code}'),
+          icon: p.yearly
+              ? AppIcons.diamondOutlined
+              : AppIcons.workspacePremiumOutlined,
+          title: p.name.resolve(f.locale),
+          price: PlanFeatures.amount(t, f, p),
+          period: PlanFeatures.period(t, p),
+          discount: p.discount,
+          formatCents: (c) => PlanFeatures.price(f, c, currency: p.currency),
+          translator: t,
+          yearly: p.yearly,
+          features: PlanFeatures.lines(
+            t,
+            f,
+            p,
+            language: f.locale,
+            fallbackSeatCents: _p.seatCents,
+          ),
+          status: mine ? t.t('plan.status.yours') : null,
+          statusFilled: true,
+          highlighted: mine,
+          child: !mine
+              ? (tagline.isEmpty
+                  ? null
+                  : Text(
+                      tagline,
+                      style: typography.bodySmall
+                          .copyWith(color: colors.textSecondary),
+                    ))
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (canAddSeats) ...[
+                      AssistantSeatsControl(
+                        t: t,
+                        seats: extra,
+                        max: p.extraSeatsAllowed,
+                        seatPrice: seatPrice,
+                        eachText: t.t('plan.seats.each', {'price': seatPrice}),
+                        total: PlanFeatures.total(t, f, p, totalCents),
+                        onChanged: (v) => setState(() => _draft = v),
+                      ),
+                      if (changed) ...[
+                        const SizedBox(height: AppSpacing.md),
+                        AppButton(
+                          key: const ValueKey('seats-save'),
+                          label: t.t('plans.seats.saveCta', {
+                            'price': PlanFeatures.price(
+                              f,
+                              totalCents,
+                              currency: p.currency,
+                            ),
+                          }),
+                          icon: AppIcons.checkRounded,
+                          isLoading: _saving,
+                          onPressed: () => _save(extra),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                    teamButton,
+                  ],
+                ),
+        ),
+      );
+    }
+    // A legacy subscription without a plan: the team is still reachable.
+    if (!anyMine && o.isActive) {
+      cards
+        ..add(const SizedBox(height: AppSpacing.md))
+        ..add(teamButton);
+    }
+    return cards;
   }
 
   @override
@@ -462,6 +683,13 @@ class _ActivePlansState extends State<ActivePlans> {
       variant: AppButtonVariant.secondary,
       onPressed: widget.onTeam,
     );
+    if (widget.overview.plans.isNotEmpty ||
+        widget.overview.currentPlan != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _planCards(context, teamButton),
+      );
+    }
     final activeLabel = t.t('plans.status.active');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -471,6 +699,9 @@ class _ActivePlansState extends State<ActivePlans> {
           title: t.t('plans.monthly'),
           price: _price(_p.monthlyCents),
           period: t.t('plans.perMonth'),
+          discount: _p.monthlyDiscount,
+          formatCents: _price,
+          translator: t,
           features: monthlyFeatures(t, _price(_p.seatCents)),
           status: monthly && active ? activeLabel : null,
           statusFilled: true,
@@ -485,8 +716,10 @@ class _ActivePlansState extends State<ActivePlans> {
                       seats: seats,
                       max: _p.maxSeats,
                       seatPrice: _price(_p.seatCents),
-                      total: t.t('plans.total.month',
-                          {'price': _price(_p.monthlyTotal(seats))}),
+                      total: t.t(
+                        'plans.total.month',
+                        {'price': _price(_p.monthlyTotal(seats))},
+                      ),
                       onChanged: (v) => setState(() => _draft = v),
                     ),
                     if (changed) ...[
@@ -513,10 +746,16 @@ class _ActivePlansState extends State<ActivePlans> {
           title: t.t('plans.yearly'),
           price: _price(_p.yearlyCents),
           period: t.t('plans.perYear'),
-          features: yearlyFeatures(t, _price(_p.yearlySavingsCents)),
-          status: !monthly && active
-              ? activeLabel
-              : t.t('plans.yearly.badge'),
+          discount: _p.yearlyDiscount,
+          formatCents: _price,
+          translator: t,
+          yearly: true,
+          features: yearlyFeatures(
+            t,
+            _price(_p.yearlySavingsCents),
+            savingsCents: _p.yearlySavingsCents,
+          ),
+          status: !monthly && active ? activeLabel : t.t('plans.yearly.badge'),
           statusFilled: !monthly && active,
           highlighted: !monthly && active,
           child: !active

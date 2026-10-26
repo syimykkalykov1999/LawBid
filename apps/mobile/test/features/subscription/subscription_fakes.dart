@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:lawbid/features/plans/domain/plan_models.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
+import 'package:lawbid/features/subscription/data/payment_confirmer.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -40,6 +42,9 @@ SubscriptionOverview makeOverview({
   bool? isActive,
   bool? canStart,
   bool trialEligible = true,
+  List<PlanOffer> plans = const [],
+  PlanOffer? plan,
+  SeatSummary? seats,
 }) =>
     SubscriptionOverview(
       subscription: subscription,
@@ -47,7 +52,52 @@ SubscriptionOverview makeOverview({
       canStart: canStart ?? !(subscription?.isActive ?? false),
       trialEligible: trialEligible,
       priceCents: 39900,
+      plans: plans,
+      plan: plan,
+      entitlements: plan?.entitlements ?? PlanEntitlements.none,
+      seats: seats,
     );
+
+/// Owner 2026-10-05 (plan builder): two attorney plans — Solo (no seats)
+/// and Team (2 included, up to 5, $100 per extra seat, 14-day trial).
+const soloPlan = PlanOffer(
+  id: 'p1',
+  code: 'solo',
+  audience: PlanAudience.attorney,
+  name: LocalizedText(en: 'Solo', ru: 'Соло'),
+  tagline: LocalizedText(en: 'For one attorney', ru: 'Для одного адвоката'),
+  amountCents: 29900,
+  entitlements: PlanEntitlements(
+    includedSeats: 0,
+    maxSeats: 0,
+    bidsAnyState: true,
+    maxActiveBids: 10,
+    calls: true,
+  ),
+  isDefault: true,
+  trialDays: 7,
+);
+
+const teamPlan = PlanOffer(
+  id: 'p2',
+  code: 'team',
+  audience: PlanAudience.attorney,
+  name: LocalizedText(en: 'Team', ru: 'Команда'),
+  amountCents: 59900,
+  extraSeatCents: 10000,
+  entitlements: PlanEntitlements(
+    includedSeats: 2,
+    maxSeats: 5,
+    extraSeatPriceCents: 10000,
+    bidsAnyState: true,
+    maxActiveBids: 0,
+    prioritySearch: true,
+    calls: true,
+    chatTranslate: true,
+  ),
+  highlights: [LocalizedText(en: 'Best for firms', ru: 'Для фирм')],
+  trialDays: 14,
+);
 
 PaymentRecord makePayment(
   String id, {
@@ -88,9 +138,19 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   Completer<void>? hold;
   Object? overviewError;
   Object? startError;
+
+  /// The order the last `start` call carried (owner 2026-10-11).
+  ({
+    SubscriptionPlan plan,
+    int seats,
+    List<String> phones,
+    String? promo,
+    String? planCode,
+  })? lastStartOrder;
   SubscriptionStart startResult = startFixture;
 
-  /// What `confirm` returns; the [chargeNow] flag is recorded in [calls].
+  /// What `confirm` returns; the `chargeNow` flag is recorded in [calls].
+  // ignore: avoid_positional_boolean_parameters
   SubscriptionOverview Function(bool chargeNow)? onConfirm;
   Object? confirmError;
   Uri portal = Uri.parse('https://billing.stripe.com/p/session_1');
@@ -99,6 +159,7 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   Future<SubscriptionOverview> overview() async {
     calls.add('overview');
     if (hold != null) await hold!.future;
+    // ignore: only_throw_errors
     if (overviewError != null) throw overviewError!;
     if (overviewQueue.isNotEmpty) return current = overviewQueue.removeAt(0);
     return current;
@@ -120,12 +181,19 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
   }) async {
     calls.add(
-      'checkout:${plan.name}:$assistantSeats:${assistantPhones.join(',')}',
+      'checkout:${plan.name}:$assistantSeats:${assistantPhones.join(',')}'
+      '${planCode == null ? '' : ':$planCode'}',
     );
     return checkoutResult;
   }
+
+  @override
+  Future<PromoCheck> validatePromo(String code, SubscriptionPlan plan) async =>
+      const PromoCheck(valid: false, reason: 'not_found');
 
   @override
   Future<SubscriptionOverview> completeCheckout(String sessionId) async {
@@ -133,13 +201,68 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     return current = onComplete?.call() ?? current;
   }
 
+  /// Owner 2026-10-22: what a seat purchase answers (a lower count is
+  /// always `scheduled` — removed at the period end).
+  SeatChangeStatus seatStatus = SeatChangeStatus.applied;
+  Object? previewError;
+
+  int get _extraSeats =>
+      current.seats?.extra ?? current.subscription?.assistantSeats ?? 0;
+
   @override
-  Future<SubscriptionOverview> setSeats(int seats) async {
+  Future<SeatPreview> previewSeats(int seats) async {
+    calls.add('preview:$seats');
+    // ignore: only_throw_errors
+    if (previewError != null) throw previewError!;
+    final add = seats - _extraSeats;
+    return SeatPreview(
+      seats: seats,
+      currentSeats: _extraSeats,
+      amountNowCents: add > 0 ? add * 5000 : 0,
+      currency: 'usd',
+      prorationDate: 1792656000,
+      periodEnd: day,
+      seatCents: 10000,
+      monthlyIncreaseCents: add * 10000,
+      nextChargeCents: 39900 + seats * 10000,
+    );
+  }
+
+  @override
+  Future<Uri> seatsCheckoutUrl(int seats) async {
+    calls.add('seatsCheckout:$seats');
+    return Uri.parse('https://lawbid.dev/pay.html#t=seats$seats');
+  }
+
+  @override
+  Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate}) async {
     calls.add('seats:$seats');
     final s = current.subscription!;
-    return current = makeOverview(
-      subscription: makeInfo(status: s.status, assistantSeats: seats),
-      trialEligible: false,
+    final status =
+        seats < _extraSeats ? SeatChangeStatus.scheduled : seatStatus;
+    if (status == SeatChangeStatus.applied) {
+      final had = current.seats;
+      current = makeOverview(
+        subscription: makeInfo(status: s.status, assistantSeats: seats),
+        trialEligible: false,
+        plans: current.plans,
+        plan: current.plan,
+        seats: had == null
+            ? null
+            : SeatSummary(
+                included: had.included,
+                extra: seats,
+                total: had.included + seats,
+                max: had.max,
+              ),
+      );
+    }
+    return SeatChangeOutcome(
+      status: status,
+      overview: current,
+      clientSecret:
+          status == SeatChangeStatus.requiresAction ? 'pi_secret' : null,
+      effectiveAt: status == SeatChangeStatus.scheduled ? day : null,
     );
   }
 
@@ -157,8 +280,22 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   }
 
   @override
-  Future<SubscriptionStart> start() async {
+  Future<SubscriptionStart> start({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
+  }) async {
     calls.add('start');
+    lastStartOrder = (
+      plan: plan,
+      seats: assistantSeats,
+      phones: assistantPhones,
+      promo: promoCode,
+      planCode: planCode,
+    );
+    // ignore: only_throw_errors
     if (startError != null) throw startError!;
     return startResult;
   }
@@ -172,6 +309,7 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
     if (confirmError != null) {
       final e = confirmError!;
       confirmError = null;
+      // ignore: only_throw_errors
       throw e;
     }
     return current = onConfirm?.call(chargeNow) ??
@@ -222,6 +360,19 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
   }
 }
 
+/// Owner 2026-10-22: the bank's 3-D Secure check, faked.
+class FakePaymentConfirmer implements PaymentConfirmer {
+  final List<String> secrets = [];
+  Object? error;
+
+  @override
+  Future<void> confirm(String clientSecret) async {
+    secrets.add(clientSecret);
+    // ignore: only_throw_errors
+    if (error != null) throw error!;
+  }
+}
+
 class FakeCardCollector implements CardCollector {
   final List<CardCollectionRequest> requests = [];
   Object? error;
@@ -229,6 +380,18 @@ class FakeCardCollector implements CardCollector {
   @override
   Future<void> collect(CardCollectionRequest request) async {
     requests.add(request);
+    // ignore: only_throw_errors
     if (error != null) throw error!;
   }
 }
+
+/// The attorney baseline («Без подписки») the server reports as the plan
+/// of an attorney without a subscription.
+const baselinePlan = PlanOffer(
+  id: 'p0',
+  code: 'attorney_free',
+  audience: PlanAudience.attorney,
+  isBaseline: true,
+  name: LocalizedText(en: 'No subscription', ru: 'Без подписки'),
+  entitlements: PlanEntitlements(calls: true, videoCalls: true),
+);

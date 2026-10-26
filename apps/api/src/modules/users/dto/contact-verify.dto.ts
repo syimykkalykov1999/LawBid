@@ -1,4 +1,4 @@
-import { IsIn, IsString, Matches } from 'class-validator';
+import { IsIn, IsString, Matches, MaxLength } from 'class-validator';
 import { IsIdentifierForChannel } from '../../auth/dto/validators';
 
 export class ContactVerifyDto {
@@ -7,6 +7,7 @@ export class ContactVerifyDto {
 
   @IsString()
   @IsIdentifierForChannel('type')
+  @MaxLength(254)
   value!: string;
 
   @IsString()

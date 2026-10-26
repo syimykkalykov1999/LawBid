@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <!-- Phone: full screen, no pinch-zoom; the app's SafeArea handles the
+       notch. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="LawBid">
+  <meta name="theme-color" content="#0B1A3C">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <title>LawBid (просмотр)</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #E9ECF2; overscroll-behavior: none; }
+    /* The app draws into #app: the whole screen on a phone, a phone-sized
+       frame in the middle on a wide screen (Mac). */
+    #app { position: fixed; inset: 0; }
+    @media (min-width: 600px) {
+      #app {
+        inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 402px; height: min(874px, calc(100vh - 32px));
+        border-radius: 36px; overflow: hidden;
+        box-shadow: 0 0 0 10px #10131A, 0 24px 60px rgba(11, 26, 60, .35);
+      }
+    }
+    @media (prefers-color-scheme: dark) { html, body { background: #0E1117; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

@@ -14,6 +14,8 @@ class VerificationOverviewDto {
   const VerificationOverviewDto({
     required this.verificationStatus,
     required this.identityRequired,
+    required this.barDocumentRequired,
+    required this.barAttemptsRetryAfterSeconds,
     required this.submissionsLast30Days,
     required this.maxSubmissions30Days,
     this.request,
@@ -27,8 +29,14 @@ class VerificationOverviewDto {
   /// The latest request, or null if none yet.
   final VerificationRequestDto? request;
 
-  /// Identity document and selfie are required (false for an already verified attorney adding a state, §2.1).
+  /// Identity document and selfie are required: off by default (owner 2026-10-04, setting verification.require_identity); always on for a verified attorney confirming a new name.
   final bool identityRequired;
+
+  /// A photo of the bar card is required per license (setting verification.require_bar_document, off by default).
+  final bool barDocumentRequired;
+
+  /// Owner 2026-10-18: seconds until a bar number can be added again after too many failed attempts (0 = not locked). The manual-review path stays open while locked.
+  final int barAttemptsRetryAfterSeconds;
   final int submissionsLast30Days;
   final int maxSubmissions30Days;
 

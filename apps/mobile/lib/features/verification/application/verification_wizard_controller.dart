@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
@@ -20,6 +21,7 @@ class UploadTask {
     this.progress = 0,
     this.fileId,
     this.error,
+    this.note,
   });
 
   final String localId;
@@ -29,6 +31,10 @@ class UploadTask {
   final double progress;
   final String? fileId;
   final Object? error;
+
+  /// Owner 2026-10-18: the attorney's note to the reviewer, sent with the
+  /// bar card of a number for manual review.
+  final String? note;
 
   bool get isActive =>
       phase == UploadPhase.uploading ||
@@ -49,6 +55,7 @@ class UploadTask {
         progress: progress ?? this.progress,
         fileId: fileId ?? this.fileId,
         error: error,
+        note: note,
       );
 }
 
@@ -68,10 +75,33 @@ class WizardState {
     required this.idType,
     this.uploads = const [],
     this.missing = const [],
+    this.barDocumentRequired = true,
+    this.maxFilesPerDocument = DocSlot.maxFiles,
+    this.barLockedUntil,
   });
+
+  /// Owner 2026-10-18: after 5 failed bar numbers the server locks adding a
+  /// number for an hour; until then «Добавить» is off (manual review stays
+  /// open). Null when not locked.
+  final DateTime? barLockedUntil;
+
+  /// Time left of the lock at [now], or null when there is none.
+  Duration? barLockLeft(DateTime now) {
+    final until = barLockedUntil;
+    if (until == null || !until.isAfter(now)) return null;
+    return until.difference(now);
+  }
+
+  /// Owner 2026-10-07 (bug 17): files per document — the admin's
+  /// «Проверка адвоката» limit (the server checks it too).
+  final int maxFilesPerDocument;
 
   final VerificationRequest request;
   final bool identityRequired;
+
+  /// Owner 2026-10-04 ("только номер"): a bar card photo only when the API
+  /// asks for it; otherwise state + bar number are enough.
+  final bool barDocumentRequired;
   final WizardStep step;
   final IdDocumentType idType;
   final List<UploadTask> uploads;
@@ -82,8 +112,13 @@ class WizardState {
   /// An answer to `needs_more_info` (no intro, only additions).
   bool get isSupplement => request.status == RequestStatus.needsMoreInfo;
 
+  /// Owner 2026-10-05 (audit): with no ID and no bar card required the
+  /// license is confirmed by the sworn statement alone, so there is no
+  /// intro screen and the last button says "Confirm".
+  bool get attestationOnly => !identityRequired && !barDocumentRequired;
+
   List<WizardStep> get steps => [
-        if (!isSupplement) WizardStep.intro,
+        if (!isSupplement && !attestationOnly) WizardStep.intro,
         WizardStep.licenses,
         if (identityRequired) ...[WizardStep.identity, WizardStep.selfie],
         WizardStep.review,
@@ -94,7 +129,7 @@ class WizardState {
   List<UploadTask> tasksFor(DocSlot slot) =>
       uploads.where((u) => u.slot == slot).toList();
 
-  /// Files counted against the 3-per-document limit (docs/03 §2.2).
+  /// Files counted against the per-document limit (docs/03 §2.2).
   int filesIn(DocSlot slot) =>
       request.docsFor(slot).length +
       tasksFor(slot).where((u) => u.phase != UploadPhase.infected).length;
@@ -102,7 +137,9 @@ class WizardState {
   /// In a draft each identity side/selfie takes one file (replace by
   /// removing); licenses and answers to an info request take up to 3.
   int capacityOf(DocSlot slot) =>
-      request.isDraft && slot.kind != DocKind.barLicense ? 1 : DocSlot.maxFiles;
+      request.isDraft && slot.kind != DocKind.barLicense
+          ? 1
+          : maxFilesPerDocument;
 
   bool canAddTo(DocSlot slot) => filesIn(slot) < capacityOf(slot);
 
@@ -120,8 +157,11 @@ class WizardState {
     final pending = request.pendingLicenses;
     if (pending.isEmpty) out.add(const MissingLicense());
     for (final l in pending) {
-      if (request.docsFor(DocSlot.barLicense(l.stateCode)).isEmpty) {
-        out.add(MissingBarDocument(l.stateCode));
+      // A license sent for manual review always needs its card.
+      if (barDocumentRequired || l.manualReview) {
+        if (request.docsFor(DocSlot.barLicense(l.stateCode)).isEmpty) {
+          out.add(MissingBarDocument(l.stateCode));
+        }
       }
     }
     if (identityRequired) {
@@ -141,10 +181,16 @@ class WizardState {
     IdDocumentType? idType,
     List<UploadTask>? uploads,
     List<MissingItem>? missing,
+    DateTime? barLockedUntil,
+    bool clearBarLock = false,
   }) =>
       WizardState(
         request: request ?? this.request,
         identityRequired: identityRequired,
+        barDocumentRequired: barDocumentRequired,
+        maxFilesPerDocument: maxFilesPerDocument,
+        barLockedUntil:
+            clearBarLock ? null : barLockedUntil ?? this.barLockedUntil,
         step: step ?? this.step,
         idType: idType ?? this.idType,
         uploads: uploads ?? this.uploads,
@@ -155,10 +201,20 @@ class WizardState {
 /// Where to reopen a saved draft (docs/03 §8: the draft lives on the
 /// server, so closing the app at any step resumes at the first step that
 /// is not complete yet).
-WizardStep resumeStep(VerificationRequest r, {required bool identityRequired}) {
+WizardStep resumeStep(
+  VerificationRequest r, {
+  required bool identityRequired,
+  bool barDocumentRequired = true,
+}) {
   if (r.status == RequestStatus.needsMoreInfo) return WizardStep.review;
-  if (r.pendingLicenses.isEmpty && r.documents.isEmpty) return WizardStep.intro;
-  if (!r.licensesComplete) return WizardStep.licenses;
+  if (r.pendingLicenses.isEmpty && r.documents.isEmpty) {
+    return identityRequired || barDocumentRequired
+        ? WizardStep.intro
+        : WizardStep.licenses;
+  }
+  if (!r.licensesReady(barDocumentRequired: barDocumentRequired)) {
+    return WizardStep.licenses;
+  }
   if (identityRequired && !r.identityComplete) return WizardStep.identity;
   if (identityRequired && !r.selfieComplete) return WizardStep.selfie;
   return WizardStep.review;
@@ -197,8 +253,19 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     return WizardState(
       request: request,
       identityRequired: overview.identityRequired,
-      step: resumeStep(request, identityRequired: overview.identityRequired),
+      barDocumentRequired: overview.barDocumentRequired,
+      maxFilesPerDocument:
+          ref.read(uploadLimitsProvider)[UploadPlace.verification].maxFiles,
+      step: resumeStep(
+        request,
+        identityRequired: overview.identityRequired,
+        barDocumentRequired: overview.barDocumentRequired,
+      ),
       idType: request.identityType ?? IdDocumentType.driversLicense,
+      barLockedUntil: overview.barAttemptsRetryAfterSeconds > 0
+          ? DateTime.now()
+              .add(Duration(seconds: overview.barAttemptsRetryAfterSeconds))
+          : null,
     );
   }
 
@@ -240,16 +307,92 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     required String stateCode,
     required String barNumber,
     DateTime? expiresAt,
+    bool manualReview = false,
   }) async {
     final s = _s;
     if (s == null) return;
-    final r = await _repo.addLicense(
-      s.request.id,
+    Future<VerificationRequest> add(String requestId) => _repo.addLicense(
+          requestId,
+          stateCode: stateCode,
+          barNumber: barNumber,
+          expiresAt: expiresAt,
+          manualReview: manualReview,
+        );
+    try {
+      try {
+        _setRequest(await add(s.request.id));
+      } on ApiException catch (e) {
+        if (e.code != ApiErrorCodes.verificationInvalidStatus) rethrow;
+        // The request was sent or decided meanwhile: continue on a new draft
+        // (the same number is put back to review there) instead of failing.
+        final fresh = await _repo.create();
+        _setRequest(fresh);
+        _setRequest(await add(fresh.id));
+      }
+      if (!manualReview) {
+        final latest = _s;
+        if (latest != null) _emit(latest.copyWith(clearBarLock: true));
+      }
+    } on ApiException catch (e) {
+      // Owner 2026-10-18: too many failed numbers — the server locks adding
+      // one; the sheet shows how long until it unlocks.
+      if (e.code == ApiErrorCodes.barAttemptsCooldown) {
+        final raw = e.details?['retryAfterSeconds'];
+        final seconds = raw is num ? raw.toInt() : 3600;
+        final latest = _s;
+        if (latest != null) {
+          _emit(
+            latest.copyWith(
+              barLockedUntil: DateTime.now().add(Duration(seconds: seconds)),
+            ),
+          );
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Owner 2026-10-18 («Мой номер верный — отправить на проверку»): the
+  /// number goes to a person with the bar card photo and an optional note.
+  /// Open while adding a number is locked. Too large a photo → throws
+  /// `FILE_TOO_LARGE` before anything is sent.
+  Future<void> addLicenseForManualReview({
+    required String stateCode,
+    required String barNumber,
+    required PickedDocument barCard,
+    DateTime? expiresAt,
+    String? note,
+  }) async {
+    final limit =
+        ref.read(uploadLimitsProvider)[UploadPlace.verification].fileBytes;
+    if (barCard.sizeBytes > limit) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'File too large.',
+      );
+    }
+    // Owner 2026-10-19: a format the admin has off is refused at once.
+    if (!ref
+        .read(uploadLimitsProvider)[UploadPlace.verification]
+        .allowsMime(barCard.mime)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'File type not allowed.',
+      );
+    }
+    await addLicense(
       stateCode: stateCode,
       barNumber: barNumber,
       expiresAt: expiresAt,
+      manualReview: true,
     );
-    _setRequest(r);
+    final trimmed = note?.trim();
+    upload(
+      DocSlot.barLicense(stateCode),
+      barCard,
+      maxBytes: limit,
+      note: trimmed == null || trimmed.isEmpty ? null : trimmed,
+    );
   }
 
   Future<void> removeLicense(VerificationLicense license) async {
@@ -259,7 +402,13 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     for (final t in s.tasksFor(slot)) {
       cancel(t.localId);
     }
-    _setRequest(await _repo.removeLicense(s.request.id, license.id));
+    try {
+      _setRequest(await _repo.removeLicense(s.request.id, license.id));
+    } on ApiException catch (e) {
+      // A licence of a closed request cannot be removed; saving the edited
+      // one reuses its row, so editing still works.
+      if (e.code != ApiErrorCodes.verificationInvalidStatus) rethrow;
+    }
   }
 
   Future<void> removeDocument(String documentId) async {
@@ -281,14 +430,29 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
 
   /// Starts uploading [document] into [slot]. Too large → throws an
   /// [ApiException] (`FILE_TOO_LARGE`) before any network call.
-  void upload(DocSlot slot, PickedDocument document,
-      {int maxBytes = _maxBytes}) {
+  void upload(
+    DocSlot slot,
+    PickedDocument document, {
+    int? maxBytes,
+    String? note,
+  }) {
     final s = _s;
     if (s == null) return;
-    if (document.sizeBytes > maxBytes) {
+    final limit = maxBytes ??
+        ref.read(uploadLimitsProvider)[UploadPlace.verification].fileBytes;
+    if (document.sizeBytes > limit) {
       throw const ApiException(
         code: ApiErrorCodes.fileTooLarge,
         message: 'File too large.',
+      );
+    }
+    // Owner 2026-10-19: a format the admin has off is refused at once.
+    if (!ref
+        .read(uploadLimitsProvider)[UploadPlace.verification]
+        .allowsMime(document.mime)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'File type not allowed.',
       );
     }
     final task = UploadTask(
@@ -296,13 +460,11 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       slot: slot,
       document: document,
       phase: UploadPhase.uploading,
+      note: note,
     );
     _emit(s.copyWith(uploads: [...s.uploads, task], missing: const []));
     _run(task);
   }
-
-  /// docs/03 §9 `files.max_size_mb` default (the API enforces the live one).
-  static const _maxBytes = 10 * 1024 * 1024;
 
   void retry(String localId) {
     final task = _task(localId);
@@ -323,11 +485,18 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
   }
 
   /// Null when the wizard has no loaded request (nothing was sent).
-  Future<VerificationRequest?> submit(String comment) async {
+  Future<VerificationRequest?> submit(
+    String comment, {
+    bool attestation = false,
+  }) async {
     final s = _s;
     if (s == null) return null;
     try {
-      final r = await _repo.submit(s.request.id, comment: comment);
+      final r = await _repo.submit(
+        s.request.id,
+        comment: comment,
+        attestation: attestation,
+      );
       _setRequest(r);
       return r;
     } on ApiException catch (e) {
@@ -363,9 +532,13 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       );
       if (cancellation.isCancelled) return;
       _patch(
-          id,
-          (t) => t.copyWith(
-              phase: UploadPhase.scanning, progress: 1, fileId: fileId));
+        id,
+        (t) => t.copyWith(
+          phase: UploadPhase.scanning,
+          progress: 1,
+          fileId: fileId,
+        ),
+      );
       var scan = await _files.confirm(fileId);
       var polls = 0;
       while (scan == ScanState.pending) {
@@ -383,8 +556,12 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
       _patch(id, (t) => t.copyWith(phase: UploadPhase.attaching));
       final s = _s;
       if (s == null) return;
-      final r =
-          await _repo.attach(s.request.id, fileId: fileId, slot: initial.slot);
+      final r = await _repo.attach(
+        s.request.id,
+        fileId: fileId,
+        slot: initial.slot,
+        note: initial.note,
+      );
       if (cancellation.isCancelled) return;
       _setRequest(r, dropTask: id);
     } on UploadCancelledException {
@@ -394,8 +571,9 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
         _patch(id, (t) => t.copyWith(phase: UploadPhase.failed, error: error));
       }
     } finally {
-      if (identical(_cancellations[id], cancellation))
+      if (identical(_cancellations[id], cancellation)) {
         _cancellations.remove(id);
+      }
     }
   }
 
@@ -417,6 +595,7 @@ class VerificationWizardController extends AsyncNotifier<WizardState> {
     _emit(
       s.copyWith(
         uploads: [
+          // ignore: prefer_if_elements_to_conditional_expressions
           for (final u in s.uploads) u.localId == task.localId ? task : u,
         ],
       ),

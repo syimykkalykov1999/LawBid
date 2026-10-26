@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'me_profile_dto.dart';
 import 'missing_requirement.dart';
 import 'onboarding_state_dto.dart';
+import 'pending_legal_document_dto.dart';
 import 'theme_pref.dart';
 import 'user_role.dart';
 import 'user_status.dart';
@@ -30,9 +31,14 @@ class MeDto {
     required this.avatarFileId,
     required this.avatarUrl,
     required this.requiredConsentsGranted,
+    required this.analyticsConsent,
+    required this.pendingLegalDocuments,
+    required this.passwordSet,
+    required this.passwordRequired,
     required this.onboarding,
     required this.profile,
     required this.missing,
+    this.hideLikeCounts = false,
   });
 
   factory MeDto.fromJson(Map<String, Object?> json) => _$MeDtoFromJson(json);
@@ -54,11 +60,24 @@ class MeDto {
   /// ISO 639-1 interface language.
   final String uiLanguage;
   final ThemePref theme;
+  final bool hideLikeCounts;
   final String? avatarFileId;
 
   /// Short-lived signed link to the avatar (1024 px JPEG).
   final String? avatarUrl;
   final bool requiredConsentsGranted;
+
+  /// Owner 2026-10-22 (audit #4 §5): my latest answer to the «analytics» consent; null = never asked. The app sends usage events only when this is true (the server drops them when it is false).
+  final bool? analyticsConsent;
+
+  /// Legal documents of my role I have not accepted at the current version (new or materially changed). Empty = nothing to accept. The app shows the acceptance screen; publishing a case and placing a bid answer LEGAL_REACCEPT_REQUIRED meanwhile.
+  final List<PendingLegalDocumentDto> pendingLegalDocuments;
+
+  /// The account has a sign-in password.
+  final bool passwordSet;
+
+  /// The account still signs in only with an SMS code and must set a password first (the app shows the set-password screen; POST /auth/password).
+  final bool passwordRequired;
   final OnboardingStateDto onboarding;
 
   /// Null before the profile step is saved (or without a role).

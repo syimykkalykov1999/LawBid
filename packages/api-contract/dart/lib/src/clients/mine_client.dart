@@ -22,7 +22,7 @@ abstract class MineClient {
 
   /// Saved cases (docs/04 §11.2 "Сохранённое").
   ///
-  /// [q] - Words of the case title.
+  /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
   ///
@@ -47,9 +47,11 @@ abstract class MineClient {
 
   /// "My bids" (attorney, docs/04 §11.2).
   ///
-  /// [q] - Words of the case title.
+  /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package E): only my bids changed since (ISO); meta.deletedIds = bids that left this tab; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/users/me/bids')
   Future<MyBidItemListEnvelope> listMyBids({
     @Query('limit') num? limit = 20,
@@ -58,14 +60,17 @@ abstract class MineClient {
     @Query('practice') String? practice,
     @Query('state') String? state,
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// "In progress" / "Completed" (attorney, §11.2).
   ///
-  /// [q] - Words of the case title.
+  /// [q] - Words of the case: title, description, city, state, topic (any language).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (client economy plan, package E): only the work rows (accepted bid or its case) changed since (ISO); meta.deletedIds = rows that left this tab (the case closed / reopened); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/users/me/work')
   Future<WorkItemListEnvelope> listMyWork({
     @Query('limit') num? limit = 20,
@@ -74,6 +79,7 @@ abstract class MineClient {
     @Query('practice') String? practice,
     @Query('state') String? state,
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -1,0 +1,1340 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { Prisma, type Channel, type ChannelPost } from '@prisma/client';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { isGuestId } from '../../common/viewer/guest';
+import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  decodeCursor,
+  encodeCursor,
+} from '../../common/pagination/cursor.util';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
+import {
+  RealtimePublisher,
+  channelRoom,
+} from '../realtime/realtime-publisher.service';
+import { ongoingCalls } from '../../common/calls/ongoing-call';
+import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { BlocksService } from '../blocks/blocks.service';
+import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
+import { FilesService } from '../files/files.service';
+import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
+import { RecommendationsService } from '../recommendations/recommendations.service';
+import { ChannelFanoutRunner } from './channel-fanout.runner';
+import { UserBriefService } from '../user-brief/user-brief.service';
+import type {
+  VideoUploadDto,
+  CreateVideoUploadDto,
+} from '../videos/videos.dto';
+import { VideosService } from '../videos/videos.service';
+import type {
+  AddChannelAdminDto,
+  ChannelAdminDto,
+  ChannelCommentDto,
+  ChannelDto,
+  ChannelPostDto,
+  ChannelRole,
+  ChannelStatus,
+  ChannelSubscriptionDto,
+  CreateChannelDto,
+  CreateChannelPostDto,
+  UpdateChannelDto,
+} from './channels.dto';
+import { CHANNEL_REACTIONS } from './channels.dto';
+import { UsernamePolicyService } from '../usernames/username-policy.service';
+import { ConfigService } from '@nestjs/config';
+import {
+  type ForwardContent,
+  contentProtected,
+  unsupportedInTarget,
+} from '../../common/forward/forward-content';
+
+export const CHANNELS_FLAG = 'channels';
+const PAGE = 20;
+const LIST_MAX = 100;
+
+export interface ChannelPage<T> {
+  items: T[];
+  nextCursor: string | null;
+  /** Owner 2026-10-22 (package F): with ?updatedSince. */
+  deletedIds?: string[];
+  syncedAt?: string;
+}
+
+const notFound = (what = 'Channel') =>
+  new NotFoundException({
+    code: ErrorCode.NOT_FOUND,
+    message: `${what} not found.`,
+  });
+
+const forbidden = (message: string) =>
+  new ForbiddenException({ code: ErrorCode.FORBIDDEN, message });
+
+/** Muted for good, or until a moment still ahead. */
+const isMutedNow = (
+  sub: { muted: boolean; muted_until: Date | null } | null | undefined,
+): boolean =>
+  !!sub && (sub.muted || (sub.muted_until?.getTime() ?? 0) > Date.now());
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Owner 2026-10-20 — channels like Telegram, for an attorney or a company:
+ * a title, an avatar, a description and an @username; only the owner and
+ * the admins they add post (text, photos, a video); subscribers read,
+ * react with one emoji and — when the channel allows — comment; every post
+ * counts its viewers once; a new post notifies the subscribers who did
+ * not mute the channel. Moderation: reports reach the shared moderation
+ * queue (channel / channel_post), the admin panel lists and closes channels.
+ */
+
+@Injectable()
+export class ChannelsService {
+  private readonly logger = new Logger(ChannelsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly files: FilesService,
+    private readonly videos: VideosService,
+    private readonly blocks: BlocksService,
+    private readonly settings: AppSettingsService,
+    private readonly limits: UsageLimitsService,
+    private readonly flags: FeatureFlagsService,
+    private readonly briefs: UserBriefService,
+    // Owner 2026-10-22 (server load audit, finding 7): subscribers are
+    // notified by the `channel-fanout` queue, not in this process.
+    private readonly fanout: ChannelFanoutRunner,
+    private readonly usernames: UsernamePolicyService,
+    private readonly reco: RecommendationsService,
+    private readonly config: ConfigService,
+    // Owner 2026-10-22 (client economy plan, package F): `channel:post` to
+    // the sockets that have the channel open.
+    @Optional() private readonly realtime?: RealtimePublisher,
+  ) {}
+
+  async assertEnabled(): Promise<void> {
+    if (!(await this.flags.isEnabled(CHANNELS_FLAG, true))) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Channels are not available yet.',
+      });
+    }
+  }
+
+  // ── channels ─────────────────────────────────────────────────────────
+
+  /** GET /channels?scope=&q= */
+  async list(
+    user: RequestUser,
+    scope: 'discover' | 'subscribed' | 'managed' = 'discover',
+    q?: string,
+    cursor?: string,
+    archived = false,
+    updatedSince?: string,
+  ): Promise<ChannelPage<ChannelDto>> {
+    await this.assertEnabled();
+    const me = user.sub;
+    // Owner 2026-10-22 (client economy plan, package F): the delta of the
+    // subscribed / managed list — channels whose row moved since (a post
+    // bumps updated_at); a banned / deleted one comes back as an id.
+    const since = parseUpdatedSince(updatedSince);
+    if (since && scope !== 'discover') {
+      const links =
+        scope === 'subscribed'
+          ? await this.prisma.channelSubscription.findMany({
+              where: { user_id: me, channel: { updated_at: { gte: since } } },
+              select: { channel: true },
+              take: LIST_MAX,
+            })
+          : await this.prisma.channelAdmin.findMany({
+              where: { user_id: me, channel: { updated_at: { gte: since } } },
+              select: { channel: true },
+              take: LIST_MAX,
+            });
+      const changed = links.map((l) => l.channel);
+      const alive = changed.filter(
+        (c) => c.status !== 'banned' && c.deleted_at === null,
+      );
+      const items = (await this.presentChannels(alive, me)).filter(
+        (c) => c.isArchived === archived,
+      );
+      return {
+        items,
+        nextCursor: null,
+        deletedIds: changed
+          .filter((c) => c.status === 'banned' || c.deleted_at !== null)
+          .map((c) => c.id),
+        syncedAt: syncedAt(
+          changed.map((c) => c.updated_at),
+          since,
+        ),
+      };
+    }
+    let rows: Channel[];
+    if (scope === 'subscribed') {
+      const subs = await this.prisma.channelSubscription.findMany({
+        where: { user_id: me, channel: { status: { not: 'banned' } } },
+        select: { channel: true },
+        take: LIST_MAX,
+      });
+      rows = subs.map((s) => s.channel);
+      rows.sort(
+        (a, b) =>
+          (b.last_post_at ?? b.created_at).getTime() -
+          (a.last_post_at ?? a.created_at).getTime(),
+      );
+    } else if (scope === 'managed') {
+      const adm = await this.prisma.channelAdmin.findMany({
+        where: { user_id: me },
+        select: { channel: true },
+        take: LIST_MAX,
+      });
+      rows = adm.map((a) => a.channel);
+      rows.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+    } else {
+      const term = (q ?? '').trim().replace(/^@/, '');
+      if (!term) return this.recommended(me, cursor);
+      const hidden = await this.blocks.hiddenIds(me);
+      rows = await this.prisma.channel.findMany({
+        where: {
+          status: 'active',
+          owner_id: { notIn: [...hidden] },
+          ...(term
+            ? {
+                OR: [
+                  { title: { contains: term, mode: 'insensitive' } },
+                  { username: { contains: term.toLowerCase() } },
+                ],
+              }
+            : { post_count: { gt: 0 } }),
+        },
+        orderBy: [{ subscriber_count: 'desc' }, { created_at: 'desc' }],
+        take: 30,
+      });
+    }
+    const items = await this.presentChannels(rows, me);
+    if (scope === 'discover') return { items, nextCursor: null };
+    // Owner 2026-10-21 (inbox 22c): the Archive is the channels' own; the
+    // pinned ones stay on top (the rest keeps its order).
+    const shown = items.filter((c) => c.isArchived === archived);
+    shown.sort((a, b) => Number(b.isPinned) - Number(a.isPinned));
+    return { items: shown, nextCursor: null };
+  }
+
+  /**
+   * «Discover» without a search: channels ranked for me (shared people,
+   * practice, region, activity), from the cached snapshot, paged by cursor.
+   */
+  private async recommended(
+    me: string,
+    cursor?: string,
+  ): Promise<ChannelPage<ChannelDto>> {
+    const ranked = await this.reco.communities(me, 'channel');
+    const start = decodeOffset(cursor);
+    const ids = ranked.slice(start, start + 30).map((r) => r.id);
+    const nextCursor =
+      start + 30 < ranked.length ? encodeOffset(start + 30) : null;
+    if (ids.length === 0) return { items: [], nextCursor };
+    const found = await this.prisma.channel.findMany({
+      where: { id: { in: ids }, status: 'active' },
+    });
+    const byId = new Map(found.map((c) => [c.id, c]));
+    const subscribed = new Set(
+      (
+        await this.prisma.channelSubscription.findMany({
+          where: { user_id: me, channel_id: { in: ids } },
+          select: { channel_id: true },
+        })
+      ).map((s) => s.channel_id),
+    );
+    const rows = ids.flatMap((id) => {
+      const c = byId.get(id);
+      return c && !subscribed.has(id) ? [c] : [];
+    });
+    return { items: await this.presentChannels(rows, me), nextCursor };
+  }
+
+  /** GET /channels/:ref — by id or @username. */
+  async get(user: RequestUser, ref: string): Promise<ChannelDto> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, ref);
+    const [dto] = await this.presentChannels([ch], user.sub);
+    return dto;
+  }
+
+  /** POST /channels */
+  async create(user: RequestUser, dto: CreateChannelDto): Promise<ChannelDto> {
+    await this.assertEnabled();
+    const me = user.sub;
+    await this.assertCanPublish(me);
+    const handle = await this.usernames.assertAvailable(
+      dto.username,
+      'channel',
+      { userId: me },
+      ErrorCode.CHANNEL_USERNAME_TAKEN,
+      { title: dto.title },
+    );
+    // Owner 2026-10-22 (audit #4 §6): generous caps again (2026-10-21
+    // removed them; spam and fan-out costs) — both set in the admin.
+    const max = await this.settings.number('channels.max_owned');
+    const owned = await this.prisma.channel.count({ where: { owner_id: me } });
+    if (max > 0 && owned >= max) {
+      throw new ConflictException({
+        code: ErrorCode.CHANNEL_LIMIT_REACHED,
+        message: 'You have the most channels allowed.',
+        details: { max },
+      });
+    }
+    if (dto.avatarFileId) {
+      await this.files.assertAttachable(me, dto.avatarFileId, ['avatar']);
+    }
+    await this.limits.consume('channel_create', me);
+    try {
+      const ch = await this.prisma.channel.create({
+        data: {
+          owner_id: me,
+          title: dto.title,
+          username: handle,
+          description: dto.description || null,
+          avatar_file_id: dto.avatarFileId ?? null,
+          comments_enabled: dto.commentsEnabled ?? true,
+          subscriber_count: 1,
+          admins: { create: { user_id: me, role: 'owner' } },
+          subscriptions: { create: { user_id: me } },
+        },
+      });
+      const [out] = await this.presentChannels([ch], me);
+      return out;
+    } catch (e) {
+      if (isUnique(e)) throw usernameTaken();
+      throw e;
+    }
+  }
+
+  /** PATCH /channels/:id */
+  async update(
+    user: RequestUser,
+    id: string,
+    dto: UpdateChannelDto,
+  ): Promise<ChannelDto> {
+    await this.assertEnabled();
+    const { channel, role } = await this.asAdmin(user.sub, id);
+    const data: Prisma.ChannelUpdateInput = {};
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.description !== undefined) {
+      data.description = dto.description || null;
+    }
+    if (dto.commentsEnabled !== undefined) {
+      data.comments_enabled = dto.commentsEnabled;
+    }
+    // Owner 2026-10-21 (Telegram): channels have no service posts, so the
+    // switch leaves no line in the feed.
+    if (dto.protectContent !== undefined) {
+      data.protect_content = dto.protectContent;
+    }
+    if (dto.username !== undefined && dto.username !== channel.username) {
+      if (role !== 'owner')
+        throw forbidden('Only the owner renames @username.');
+      const wait = await this.usernames.nextChangeAt(
+        channel.username_changed_at,
+      );
+      if (wait) {
+        throw new ConflictException({
+          code: ErrorCode.USERNAME_CHANGE_TOO_SOON,
+          message: 'The @username was changed recently.',
+          details: { nextChangeAt: wait.toISOString() },
+        });
+      }
+      data.username = await this.usernames.assertAvailable(
+        dto.username,
+        'channel',
+        { userId: user.sub, owner: { type: 'channel', id } },
+        ErrorCode.CHANNEL_USERNAME_TAKEN,
+        { title: dto.title ?? channel.title },
+      );
+      data.username_changed_at = new Date();
+    }
+    if (dto.avatarFileId) {
+      await this.files.assertAttachable(user.sub, dto.avatarFileId, ['avatar']);
+      data.avatar_file = { connect: { id: dto.avatarFileId } };
+    } else if (dto.removeAvatar) {
+      data.avatar_file = { disconnect: true };
+    }
+    try {
+      const ch = await this.prisma.channel.update({ where: { id }, data });
+      const [out] = await this.presentChannels([ch], user.sub);
+      return out;
+    } catch (e) {
+      if (isUnique(e)) throw usernameTaken();
+      throw e;
+    }
+  }
+
+  /** DELETE /channels/:id — the owner closes the channel for everyone. */
+  async remove(user: RequestUser, id: string): Promise<void> {
+    await this.assertEnabled();
+    const { role } = await this.asAdmin(user.sub, id);
+    if (role !== 'owner') throw forbidden('Only the owner deletes a channel.');
+    await this.prisma.channel.update({
+      where: { id },
+      data: { deleted_at: new Date() },
+    });
+  }
+
+  // ── subscription ─────────────────────────────────────────────────────
+
+  async subscribe(
+    user: RequestUser,
+    id: string,
+  ): Promise<ChannelSubscriptionDto> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    await this.blocks.assertNotBlocked(user.sub, ch.owner_id);
+    const { count } = await this.prisma.channelSubscription.createMany({
+      data: [{ channel_id: ch.id, user_id: user.sub }],
+      skipDuplicates: true,
+    });
+    if (count > 0) {
+      await this.prisma.channel.update({
+        where: { id: ch.id },
+        data: { subscriber_count: { increment: 1 } },
+      });
+    }
+    return this.subscription(ch.id, user.sub);
+  }
+
+  async unsubscribe(
+    user: RequestUser,
+    id: string,
+  ): Promise<ChannelSubscriptionDto> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const { count } = await this.prisma.channelSubscription.deleteMany({
+      where: { channel_id: ch.id, user_id: user.sub },
+    });
+    if (count > 0) {
+      await this.prisma.channel.update({
+        where: { id: ch.id },
+        data: { subscriber_count: { decrement: 1 } },
+      });
+    }
+    return this.subscription(ch.id, user.sub);
+  }
+
+  /**
+   * My own switches of a channel I follow: mute (forever, or until a
+   * moment; «unmute» clears both), pin and Archive.
+   */
+  async mute(
+    user: RequestUser,
+    id: string,
+    change: {
+      muted?: boolean;
+      mutedUntil?: string | null;
+      pinned?: boolean;
+      archived?: boolean;
+    },
+  ): Promise<ChannelSubscriptionDto> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const data: Prisma.ChannelSubscriptionUpdateManyMutationInput = {};
+    if (change.muted !== undefined) {
+      data.muted = change.muted;
+      if (!change.muted) data.muted_until = null;
+    }
+    if (change.mutedUntil) {
+      const until = new Date(change.mutedUntil);
+      data.muted = false;
+      data.muted_until = until;
+    }
+    if (change.pinned !== undefined) {
+      data.pinned_at = change.pinned ? new Date() : null;
+    }
+    if (change.archived !== undefined) {
+      data.archived_at = change.archived ? new Date() : null;
+    }
+    const { count } = await this.prisma.channelSubscription.updateMany({
+      where: { channel_id: ch.id, user_id: user.sub },
+      data,
+    });
+    if (count === 0) throw notFound('Subscription');
+    return this.subscription(ch.id, user.sub);
+  }
+
+  private async subscription(
+    channelId: string,
+    userId: string,
+  ): Promise<ChannelSubscriptionDto> {
+    const [sub, ch] = await Promise.all([
+      this.prisma.channelSubscription.findUnique({
+        where: {
+          channel_id_user_id: { channel_id: channelId, user_id: userId },
+        },
+      }),
+      this.prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { subscriber_count: true },
+      }),
+    ]);
+    return {
+      isSubscribed: sub !== null,
+      isMuted: isMutedNow(sub),
+      mutedUntil: sub?.muted_until?.toISOString() ?? null,
+      isPinned: sub?.pinned_at != null,
+      isArchived: sub?.archived_at != null,
+      subscriberCount: ch?.subscriber_count ?? 0,
+    };
+  }
+
+  // ── admins ───────────────────────────────────────────────────────────
+
+  async admins(user: RequestUser, id: string): Promise<ChannelAdminDto[]> {
+    await this.assertEnabled();
+    await this.asAdmin(user.sub, id);
+    const rows = await this.prisma.channelAdmin.findMany({
+      where: { channel_id: id },
+      orderBy: [{ role: 'desc' }, { created_at: 'asc' }],
+    });
+    const briefs = await this.briefs.many(rows.map((r) => r.user_id));
+    return rows.flatMap((r) => {
+      const u = briefs.get(r.user_id);
+      return u ? [{ user: u, role: r.role as ChannelRole }] : [];
+    });
+  }
+
+  async addAdmin(
+    user: RequestUser,
+    id: string,
+    dto: AddChannelAdminDto,
+  ): Promise<ChannelAdminDto[]> {
+    await this.assertEnabled();
+    const { role } = await this.asAdmin(user.sub, id);
+    if (role !== 'owner') throw forbidden('Only the owner adds admins.');
+    const name = dto.username.replace(/^@/, '').toLowerCase();
+    const target = await this.prisma.user.findFirst({
+      where: {
+        status: 'active',
+        OR: [
+          { attorney_profile: { username_lower: name } },
+          { client_profile: { username_lower: name } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (!target) throw notFound('User');
+    await this.blocks.assertNotBlocked(user.sub, target.id);
+    await this.assertCanPublish(target.id);
+    const max = await this.settings.number('channels.max_admins');
+    const count = await this.prisma.channelAdmin.count({
+      where: { channel_id: id },
+    });
+    if (count >= max) {
+      throw new ConflictException({
+        code: ErrorCode.CHANNEL_LIMIT_REACHED,
+        message: 'The channel has the most admins allowed.',
+        details: { max },
+      });
+    }
+    await this.prisma.channelAdmin.createMany({
+      data: [{ channel_id: id, user_id: target.id, role: 'admin' }],
+      skipDuplicates: true,
+    });
+    return this.admins(user, id);
+  }
+
+  /** The owner removes an admin; an admin may leave (userId = me). */
+  async removeAdmin(
+    user: RequestUser,
+    id: string,
+    userId: string,
+  ): Promise<void> {
+    await this.assertEnabled();
+    const { role } = await this.asAdmin(user.sub, id);
+    if (userId !== user.sub && role !== 'owner') {
+      throw forbidden('Only the owner removes admins.');
+    }
+    const target = await this.prisma.channelAdmin.findUnique({
+      where: { channel_id_user_id: { channel_id: id, user_id: userId } },
+    });
+    if (!target) throw notFound('Admin');
+    if (target.role === 'owner') throw forbidden('The owner stays an admin.');
+    await this.prisma.channelAdmin.delete({
+      where: { channel_id_user_id: { channel_id: id, user_id: userId } },
+    });
+  }
+
+  // ── posts ────────────────────────────────────────────────────────────
+
+  /** GET /channels/:id/posts — newest first. */
+  async posts(
+    user: RequestUser,
+    id: string,
+    cursor?: string,
+    limit = PAGE,
+  ): Promise<ChannelPage<ChannelPostDto>> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const c = cursor ? decodeCursor(cursor) : null;
+    const rows = await this.prisma.channelPost.findMany({
+      where: {
+        channel_id: ch.id,
+        status: 'active',
+        ...(c
+          ? {
+              OR: [
+                { created_at: { lt: c.createdAt } },
+                { created_at: c.createdAt, id: { lt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      items: await this.presentPosts(page, user.sub),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /** GET /channels/:id/posts/:postId */
+  async post(
+    user: RequestUser,
+    id: string,
+    postId: string,
+  ): Promise<ChannelPostDto> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const row = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: ch.id, status: 'active' },
+    });
+    if (!row) throw notFound('Post');
+    const [dto] = await this.presentPosts([row], user.sub);
+    return dto;
+  }
+
+  /** POST /channels/video-uploads — Bunny credentials for a channel video. */
+  async createVideoUpload(
+    user: RequestUser,
+    dto: CreateVideoUploadDto,
+  ): Promise<VideoUploadDto> {
+    await this.assertEnabled();
+    await this.assertCanPublish(user.sub);
+    return this.videos.createUpload(user.sub, dto, { skipEntitlement: true });
+  }
+
+  /** POST /channels/:id/posts — admins only; subscribers are notified. */
+  async createPost(
+    user: RequestUser,
+    id: string,
+    dto: CreateChannelPostDto,
+    opts: {
+      forwardedFromName?: string | null;
+      forwardKey?: string;
+      notify?: boolean;
+    } = {},
+  ): Promise<ChannelPostDto> {
+    await this.assertEnabled();
+    const me = user.sub;
+    const { channel } = await this.asAdmin(me, id);
+    if (channel.status !== 'active') {
+      throw forbidden('This channel is closed by moderation.');
+    }
+    await this.assertCanPublish(me);
+    // Owner 2026-10-21: a retried forward finds its post.
+    const again = opts.forwardKey
+      ? await this.byForwardKey(channel.id, me, opts.forwardKey)
+      : null;
+    if (again) return (await this.presentPosts([again], me))[0];
+    const body = (dto.body ?? '').trim();
+    const mediaIds = [...new Set(dto.mediaFileIds ?? [])];
+    const maxMedia = await this.settings.number('channels.max_post_media');
+    if (mediaIds.length > maxMedia) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `A post has up to ${maxMedia} photos.`,
+        details: { field: 'mediaFileIds' },
+      });
+    }
+    if (!body && mediaIds.length === 0 && !dto.videoAssetId) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Empty post.',
+        details: { field: 'body' },
+      });
+    }
+    for (const fid of mediaIds) {
+      await this.files.assertAttachable(me, fid, ['post_image']);
+    }
+    if (dto.videoAssetId) await this.videos.takeReady(me, dto.videoAssetId);
+    await this.limits.consume('channel_post', me);
+    const row = await this.prisma.$transaction(async (tx) => {
+      const p = await tx.channelPost.create({
+        data: {
+          channel_id: channel.id,
+          author_id: me,
+          body,
+          media_file_ids: mediaIds,
+          video_asset_id: dto.videoAssetId ?? null,
+          forwarded_from_name: opts.forwardedFromName ?? null,
+          forward_key: opts.forwardKey ?? null,
+        },
+      });
+      await tx.channel.update({
+        where: { id: channel.id },
+        data: { post_count: { increment: 1 }, last_post_at: p.created_at },
+      });
+      return p;
+    });
+    if (opts.notify !== false) {
+      void this.fanout
+        .start({
+          channelId: channel.id,
+          channelTitle: channel.title,
+          channelUsername: channel.username,
+          postId: row.id,
+          authorId: row.author_id,
+        })
+        .catch((e: unknown) =>
+          this.logger.warn(`channel fan-out failed: ${String(e)}`),
+        );
+    }
+    const [out] = await this.presentPosts([row], me);
+    // Owner 2026-10-22 (package F): the open channel sees the post at once
+    // (room channel:{id}, joined by `channel:watch`); the subscribers'
+    // rows move through `channel:update` from the fan-out queue.
+    this.realtime?.toRoom(channelRoom(channel.id), 'channel:post', {
+      channelId: channel.id,
+      post: out,
+    });
+    return out;
+  }
+
+  private byForwardKey(channelId: string, authorId: string, key: string) {
+    return this.prisma.channelPost.findUnique({
+      where: {
+        channel_id_author_id_forward_key: {
+          channel_id: channelId,
+          author_id: authorId,
+          forward_key: key,
+        },
+      },
+    });
+  }
+
+  /** `https://lawbid.dev/c/<username>` (`?post=<id>` for one post). */
+  private link(username: string, postId?: string): string {
+    const base = (
+      this.config.get<string>('WEB_APP_URL') ?? 'https://lawbid.dev'
+    ).replace(/\/+$/, '');
+    return `${base}/c/${username}${postId ? `?post=${postId}` : ''}`;
+  }
+
+  /**
+   * Owner 2026-10-21 (Telegram «Переслать»): a post of a channel I can
+   * open as forward content — «Forwarded from <channel>»; 403
+   * CONTENT_PROTECTED when the channel restricts saving content. A video
+   * is not a file: the post's link goes with the text.
+   */
+  async forwardSource(
+    user: RequestUser,
+    postId: string,
+  ): Promise<ForwardContent> {
+    await this.assertEnabled();
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, status: 'active', deleted_at: null },
+    });
+    if (!post) throw notFound('Post');
+    const ch = await this.findReadable(user.sub, post.channel_id);
+    if (ch.protect_content) throw contentProtected();
+    return {
+      kind: 'post',
+      text: post.body,
+      photoFileIds: post.media_file_ids,
+      postLink: post.video_asset_id
+        ? this.link(ch.username, post.id)
+        : undefined,
+      fromName: post.forwarded_from_name ?? ch.title.slice(0, 120),
+    };
+  }
+
+  /** Owner 2026-10-21: «Share» of a protected channel sends its link. */
+  async linkSource(
+    user: RequestUser,
+    channelId: string,
+  ): Promise<ForwardContent> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, channelId);
+    return {
+      kind: 'text',
+      text: `${ch.title}\n${this.link(ch.username)}`,
+      fromName: null,
+      own: true,
+    };
+  }
+
+  /**
+   * Owner 2026-10-21: [content] forwarded into channel [id] as a post
+   * through [createPost] (admins only, the publish bar, the post limit,
+   * subscribers notified). A channel holds text and photos: a document,
+   * a voice note, a sticker, a contact card or a gift is
+   * UNSUPPORTED_IN_TARGET. A retry with the same [forwardKey] is a no-op.
+   */
+  async sendForwarded(
+    user: RequestUser,
+    id: string,
+    forwardKey: string,
+    content: ForwardContent,
+    opts: { silent?: boolean } = {},
+  ): Promise<ChannelPostDto> {
+    const photos =
+      content.kind === 'post'
+        ? (content.photoFileIds ?? [])
+        : content.kind === 'attachment' &&
+            (content.mime ?? '').startsWith('image/')
+          ? [content.fileId!]
+          : [];
+    if (
+      !['text', 'place', 'post'].includes(content.kind) &&
+      photos.length === 0
+    ) {
+      throw unsupportedInTarget();
+    }
+    await this.assertEnabled();
+    const { channel } = await this.asAdmin(user.sub, id);
+    const again = await this.byForwardKey(channel.id, user.sub, forwardKey);
+    if (again) return (await this.presentPosts([again], user.sub))[0];
+    const mediaFileIds: string[] = [];
+    for (const fid of photos) {
+      mediaFileIds.push(
+        (await this.files.copyForUser(fid, user.sub, 'post_image')).id,
+      );
+    }
+    return this.createPost(
+      user,
+      id,
+      {
+        body: [content.text, content.postLink]
+          .filter(Boolean)
+          .join('\n')
+          .slice(0, 4000),
+        mediaFileIds,
+      },
+      {
+        forwardedFromName: content.fromName,
+        forwardKey,
+        notify: !opts.silent,
+      },
+    );
+  }
+
+  async editPost(
+    user: RequestUser,
+    id: string,
+    postId: string,
+    body: string,
+  ): Promise<ChannelPostDto> {
+    await this.assertEnabled();
+    await this.asAdmin(user.sub, id);
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: id, status: 'active' },
+    });
+    if (!post) throw notFound('Post');
+    const row = await this.prisma.channelPost.update({
+      where: { id: postId },
+      data: { body: body.trim(), edited_at: new Date() },
+    });
+    const [dto] = await this.presentPosts([row], user.sub);
+    return dto;
+  }
+
+  async removePost(
+    user: RequestUser,
+    id: string,
+    postId: string,
+  ): Promise<void> {
+    await this.assertEnabled();
+    await this.asAdmin(user.sub, id);
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: id },
+    });
+    if (!post) throw notFound('Post');
+    await this.prisma.$transaction([
+      this.prisma.channelPost.update({
+        where: { id: postId },
+        data: { deleted_at: new Date(), video_asset_id: null },
+      }),
+      ...(post.status === 'active'
+        ? [
+            this.prisma.channel.update({
+              where: { id },
+              data: { post_count: { decrement: 1 } },
+            }),
+          ]
+        : []),
+    ]);
+    if (post.video_asset_id)
+      await this.videos.markDeleted([post.video_asset_id]);
+  }
+
+  /** POST /channels/:id/views — each person counts once per post. */
+  async markViewed(
+    user: RequestUser,
+    id: string,
+    postIds: string[],
+  ): Promise<void> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    if (postIds.length === 0) return;
+    const role = await this.roleOf(user.sub, ch.id);
+    if (role) return; // admins reading their own channel are not views
+    const valid = await this.prisma.channelPost.findMany({
+      where: { id: { in: postIds }, channel_id: ch.id, status: 'active' },
+      select: { id: true },
+    });
+    if (valid.length === 0) return;
+    const fresh = await this.prisma.$queryRaw<{ post_id: string }[]>`
+      INSERT INTO channel_post_views (post_id, user_id)
+      SELECT unnest(${valid.map((v) => v.id)}::UUID[]), ${user.sub}::UUID
+      ON CONFLICT DO NOTHING
+      RETURNING post_id::TEXT AS post_id`;
+    if (fresh.length > 0) {
+      await this.prisma.channelPost.updateMany({
+        where: { id: { in: fresh.map((f) => f.post_id) } },
+        data: { view_count: { increment: 1 } },
+      });
+    }
+  }
+
+  /** POST /channels/:id/posts/:postId/share — one share per person and
+   * post per 24 h counts. */
+  async sharePost(
+    user: RequestUser,
+    id: string,
+    postId: string,
+  ): Promise<void> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: ch.id, status: 'active' },
+      select: { id: true },
+    });
+    if (!post) throw notFound('Post');
+    const since = new Date(Date.now() - 24 * 3600 * 1000);
+    const already = await this.prisma.channelPostShare.findFirst({
+      where: { post_id: post.id, user_id: user.sub, created_at: { gt: since } },
+      select: { id: true },
+    });
+    if (already) return;
+    await this.prisma.channelPostShare.create({
+      data: { post_id: post.id, user_id: user.sub },
+    });
+    await this.prisma.channelPost.update({
+      where: { id: post.id },
+      data: { share_count: { increment: 1 } },
+    });
+  }
+
+  async react(
+    user: RequestUser,
+    id: string,
+    postId: string,
+    emoji: string | null,
+  ): Promise<ChannelPostDto> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: ch.id, status: 'active' },
+    });
+    if (!post) throw notFound('Post');
+    if (emoji === null) {
+      await this.prisma.channelReaction.deleteMany({
+        where: { post_id: postId, user_id: user.sub },
+      });
+    } else {
+      await this.prisma.channelReaction.upsert({
+        where: { post_id_user_id: { post_id: postId, user_id: user.sub } },
+        create: { post_id: postId, user_id: user.sub, emoji },
+        update: { emoji },
+      });
+    }
+    const [dto] = await this.presentPosts([post], user.sub);
+    return dto;
+  }
+
+  // ── comments ─────────────────────────────────────────────────────────
+
+  async comments(
+    user: RequestUser,
+    id: string,
+    postId: string,
+    cursor?: string,
+    limit = 30,
+  ): Promise<ChannelPage<ChannelCommentDto>> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: ch.id, status: 'active' },
+      select: { id: true },
+    });
+    if (!post) throw notFound('Post');
+    const c = cursor ? decodeCursor(cursor) : null;
+    const hidden = await this.blocks.hiddenIds(user.sub);
+    const rows = await this.prisma.channelComment.findMany({
+      where: {
+        post_id: postId,
+        author_id: { notIn: [...hidden] },
+        ...(c
+          ? {
+              OR: [
+                { created_at: { gt: c.createdAt } },
+                { created_at: c.createdAt, id: { gt: c.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      take: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const role = await this.roleOf(user.sub, ch.id);
+    const briefs = await this.briefs.many(page.map((r) => r.author_id));
+    const last = page[page.length - 1];
+    return {
+      items: page.flatMap((r) => {
+        const author = briefs.get(r.author_id);
+        return author
+          ? [
+              {
+                id: r.id,
+                author,
+                body: r.body,
+                createdAt: r.created_at.toISOString(),
+                canDelete: role !== null || r.author_id === user.sub,
+              },
+            ]
+          : [];
+      }),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  async addComment(
+    user: RequestUser,
+    id: string,
+    postId: string,
+    body: string,
+  ): Promise<ChannelCommentDto> {
+    await this.assertEnabled();
+    const me = user.sub;
+    const ch = await this.findReadable(me, id);
+    if (!ch.comments_enabled) {
+      throw forbidden('Comments are off in this channel.');
+    }
+    if (ch.status !== 'active') throw forbidden('This channel is closed.');
+    await this.blocks.assertNotBlocked(me, ch.owner_id);
+    await this.assertCanPublish(me);
+    const post = await this.prisma.channelPost.findFirst({
+      where: { id: postId, channel_id: ch.id, status: 'active' },
+      select: { id: true },
+    });
+    if (!post) throw notFound('Post');
+    await this.limits.consume('channel_comment', me);
+    const row = await this.prisma.$transaction(async (tx) => {
+      const c = await tx.channelComment.create({
+        data: { post_id: postId, author_id: me, body },
+      });
+      await tx.channelPost.update({
+        where: { id: postId },
+        data: { comment_count: { increment: 1 } },
+      });
+      return c;
+    });
+    const briefs = await this.briefs.many([me]);
+    const author = briefs.get(me);
+    if (!author) throw notFound('User');
+    return {
+      id: row.id,
+      author,
+      body: row.body,
+      createdAt: row.created_at.toISOString(),
+      canDelete: true,
+    };
+  }
+
+  async removeComment(
+    user: RequestUser,
+    id: string,
+    postId: string,
+    commentId: string,
+  ): Promise<void> {
+    await this.assertEnabled();
+    const ch = await this.findReadable(user.sub, id);
+    const comment = await this.prisma.channelComment.findFirst({
+      where: { id: commentId, post_id: postId, post: { channel_id: ch.id } },
+    });
+    if (!comment) throw notFound('Comment');
+    const role = await this.roleOf(user.sub, ch.id);
+    if (!role && comment.author_id !== user.sub) {
+      throw forbidden('Not your comment.');
+    }
+    await this.prisma.$transaction([
+      this.prisma.channelComment.update({
+        where: { id: commentId },
+        data: { deleted_at: new Date() },
+      }),
+      this.prisma.channelPost.update({
+        where: { id: postId },
+        data: { comment_count: { decrement: 1 } },
+      }),
+    ]);
+  }
+
+  // ── helpers ──────────────────────────────────────────────────────────
+
+  /** A channel [userId] may open: not deleted, and not banned unless an
+   * admin of it. */
+  private async findReadable(userId: string, ref: string): Promise<Channel> {
+    const key = ref.replace(/^@/, '');
+    const ch = await this.prisma.channel.findFirst({
+      where: UUID.test(key) ? { id: key } : { username: key.toLowerCase() },
+    });
+    if (!ch) throw notFound();
+    // Owner 2026-10-22 (guest browsing): without an account only an active,
+    // not deleted channel is readable.
+    if (isGuestId(userId) && (ch.status !== 'active' || ch.deleted_at)) {
+      throw notFound();
+    }
+    if (ch.status === 'banned' && !(await this.roleOf(userId, ch.id))) {
+      throw notFound();
+    }
+    if (await this.blocks.isBlockedEitherWay(userId, ch.owner_id)) {
+      throw notFound();
+    }
+    return ch;
+  }
+
+  private async roleOf(
+    userId: string,
+    channelId: string,
+  ): Promise<ChannelRole | null> {
+    const row = await this.prisma.channelAdmin.findUnique({
+      where: { channel_id_user_id: { channel_id: channelId, user_id: userId } },
+      select: { role: true },
+    });
+    return (row?.role as ChannelRole | undefined) ?? null;
+  }
+
+  private async asAdmin(
+    userId: string,
+    id: string,
+  ): Promise<{ channel: Channel; role: ChannelRole }> {
+    const channel = await this.prisma.channel.findFirst({ where: { id } });
+    if (!channel) throw notFound();
+    const role = await this.roleOf(userId, id);
+    if (!role) {
+      // Do not reveal a banned channel to a stranger.
+      if (channel.status === 'banned') throw notFound();
+      throw forbidden('Only channel admins can do this.');
+    }
+    return { channel, role };
+  }
+
+  /** The same bar as a feed post: a verified attorney, or a client with a
+   * verified phone. */
+  private async assertCanPublish(userId: string): Promise<void> {
+    const me = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role: true,
+        status: true,
+        phone_verified_at: true,
+        attorney_profile: { select: { verification_status: true } },
+        client_profile: { select: { user_id: true } },
+      },
+    });
+    const attorneyOk =
+      me?.role === 'attorney' &&
+      me.attorney_profile?.verification_status === 'verified';
+    const clientOk =
+      me?.role === 'client' &&
+      me.phone_verified_at != null &&
+      me.client_profile != null;
+    if (me?.status !== 'active' || !(attorneyOk || clientOk)) {
+      throw new ForbiddenException({
+        code: ErrorCode.POST_NOT_ALLOWED,
+        message: 'Only verified accounts can publish.',
+      });
+    }
+  }
+
+  private async presentChannels(
+    rows: Channel[],
+    viewerId: string,
+  ): Promise<ChannelDto[]> {
+    if (rows.length === 0) return [];
+    const ids = rows.map((r) => r.id);
+    const [briefs, avatars, subs, roles] = await Promise.all([
+      this.briefs.many(rows.map((r) => r.owner_id)),
+      this.files.avatarUrlsMany(rows.map((r) => r.avatar_file_id)),
+      this.prisma.channelSubscription.findMany({
+        where: { user_id: viewerId, channel_id: { in: ids } },
+        select: {
+          channel_id: true,
+          muted: true,
+          muted_until: true,
+          pinned_at: true,
+          archived_at: true,
+        },
+      }),
+      this.prisma.channelAdmin.findMany({
+        where: { user_id: viewerId, channel_id: { in: ids } },
+        select: { channel_id: true, role: true },
+      }),
+    ]);
+    const subBy = new Map(subs.map((s) => [s.channel_id, s]));
+    const roleBy = new Map(roles.map((r) => [r.channel_id, r.role]));
+    // Inbox 20e: a running call shows to subscribers and admins only.
+    const calls = await ongoingCalls(
+      this.prisma,
+      (fileIds) => this.files.avatarUrlsMany(fileIds),
+      {
+        channelIds: ids.filter((id) => subBy.has(id) || roleBy.has(id)),
+      },
+    );
+    return rows.flatMap((r) => {
+      const owner = briefs.get(r.owner_id);
+      if (!owner) return [];
+      const role = (roleBy.get(r.id) as ChannelRole | undefined) ?? null;
+      return [
+        {
+          id: r.id,
+          title: r.title,
+          username: r.username,
+          description: r.description,
+          avatarUrl: r.avatar_file_id
+            ? (avatars.get(r.avatar_file_id)?.url256 ?? null)
+            : null,
+          avatarFullUrl: r.avatar_file_id
+            ? (avatars.get(r.avatar_file_id)?.url ?? null)
+            : null,
+          commentsEnabled: r.comments_enabled,
+          protectContent: r.protect_content,
+          // Moderation state is the admins' business only.
+          status: role ? (r.status as ChannelStatus) : 'active',
+          subscriberCount: r.subscriber_count,
+          postCount: r.post_count,
+          owner,
+          isSubscribed: subBy.has(r.id),
+          isMuted: isMutedNow(subBy.get(r.id)),
+          mutedUntil: subBy.get(r.id)?.muted_until?.toISOString() ?? null,
+          isPinned: subBy.get(r.id)?.pinned_at != null,
+          isArchived: subBy.get(r.id)?.archived_at != null,
+          myRole: role,
+          lastPostAt: r.last_post_at ? r.last_post_at.toISOString() : null,
+          createdAt: r.created_at.toISOString(),
+          ongoingCall: calls.get(r.id) ?? null,
+        },
+      ];
+    });
+  }
+
+  private async presentPosts(
+    rows: ChannelPost[],
+    viewerId: string,
+  ): Promise<ChannelPostDto[]> {
+    if (rows.length === 0) return [];
+    const ids = rows.map((r) => r.id);
+    const fileIds = rows.flatMap((r) => r.media_file_ids);
+    const assetIds = rows
+      .map((r) => r.video_asset_id)
+      .filter((x): x is string => !!x);
+    const [briefs, photos, assets, counts, mine] = await Promise.all([
+      this.briefs.many(rows.map((r) => r.author_id)),
+      this.files.postImageUrls(fileIds),
+      assetIds.length
+        ? this.prisma.videoAsset.findMany({ where: { id: { in: assetIds } } })
+        : Promise.resolve([]),
+      this.prisma.channelReaction.groupBy({
+        by: ['post_id', 'emoji'],
+        where: { post_id: { in: ids } },
+        _count: { _all: true },
+      }),
+      this.prisma.channelReaction.findMany({
+        where: { post_id: { in: ids }, user_id: viewerId },
+        select: { post_id: true, emoji: true },
+      }),
+    ]);
+    const videos = await this.videos.present(assets);
+    const mineBy = new Map(mine.map((m) => [m.post_id, m.emoji]));
+    const order = new Map<string, number>(
+      CHANNEL_REACTIONS.map((e, i) => [e as string, i]),
+    );
+    return rows.flatMap((r) => {
+      const author = briefs.get(r.author_id);
+      if (!author) return [];
+      return [
+        {
+          id: r.id,
+          channelId: r.channel_id,
+          author,
+          body: r.body,
+          media: r.media_file_ids.flatMap((fid) => {
+            const u = photos.get(fid);
+            return u
+              ? [{ fileId: fid, url: u.mediumUrl, previewUrl: u.previewUrl }]
+              : [];
+          }),
+          video: r.video_asset_id
+            ? (videos.get(r.video_asset_id) ?? null)
+            : null,
+          viewCount: r.view_count,
+          commentCount: r.comment_count,
+          shareCount: r.share_count,
+          reactions: counts
+            .filter((c) => c.post_id === r.id)
+            .map((c) => ({ emoji: c.emoji, count: c._count._all }))
+            .sort(
+              (a, b) =>
+                b.count - a.count ||
+                (order.get(a.emoji) ?? 9) - (order.get(b.emoji) ?? 9),
+            ),
+          myReaction: mineBy.get(r.id) ?? null,
+          createdAt: r.created_at.toISOString(),
+          editedAt: r.edited_at ? r.edited_at.toISOString() : null,
+          forwardedFrom: r.forwarded_from_name,
+        },
+      ];
+    });
+  }
+}
+
+function usernameTaken(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.CHANNEL_USERNAME_TAKEN,
+    message: 'This @username is taken.',
+  });
+}
+
+function isUnique(e: unknown): boolean {
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002'
+  );
+}

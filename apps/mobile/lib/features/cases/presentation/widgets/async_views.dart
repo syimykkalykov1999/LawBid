@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Full-screen error that tells "offline" apart from a server error
 /// (docs/01 §8.3), with Retry either way.
@@ -34,6 +37,12 @@ class CasesErrorView extends StatelessWidget {
           onPressed: onRetry,
         ),
       );
+    }
+    // Owner 2026-10-22 (guest browsing): the API wants an account for this
+    // one (or the guest switch is off) — «sign in», not a broken screen.
+    final e = error;
+    if (e is ApiException && e.guest && e.code == ApiErrorCodes.unauthorized) {
+      return GuestGateView(message: errorText(t, error));
     }
     return AppErrorState(
       message: errorText(t, error),
@@ -80,8 +89,13 @@ class PagedListBody<T> extends ConsumerWidget {
     this.skeleton,
     this.header,
     this.edgeToEdge = false,
+    this.prefetch,
     super.key,
   });
+
+  /// Owner 2026-10-15: called for the next few items while an item is
+  /// built (images get downloaded and decoded before they scroll in).
+  final void Function(BuildContext context, T item)? prefetch;
 
   /// Owner 2026-09-30: feed cards span the full screen width (Instagram
   /// style); the header keeps the usual side padding.
@@ -112,12 +126,12 @@ class PagedListBody<T> extends ConsumerWidget {
       }
     }
 
-    final Widget body = switch (value) {
+    final body = switch (value) {
       AsyncData(:final value) when value.items.isEmpty && !value.hasMore =>
         RefreshIndicator(
           key: const ValueKey('empty'),
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: pull,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -141,11 +155,21 @@ class PagedListBody<T> extends ConsumerWidget {
       AsyncData(:final value) => AppPaginatedListView<T>(
           key: const ValueKey('data'),
           items: value.items,
+          // Owner 2026-10-15: the last card clears the floating nav bar
+          // (the shell reports it as the bottom padding on the feed tab).
           padding: edgeToEdge
-              ? EdgeInsets.zero
-              : const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-                  AppSpacing.screenSide, AppSpacing.xxl),
+              ? EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom)
+              : const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.screenSide,
+                  AppSpacing.xxl,
+                ),
           itemKey: itemKey,
+          // Owner 2026-10-19 (smooth scroll, Instagram): screen-tall feed
+          // cards are built one screen ahead.
+          scrollCacheExtent:
+              edgeToEdge ? const ScrollCacheExtent.viewport(1) : null,
           status: value.loadMoreError != null
               ? AppPaginationStatus.error
               : value.isLoadingMore
@@ -160,6 +184,11 @@ class PagedListBody<T> extends ConsumerWidget {
             end: t.t('pagination.end'),
           ),
           onLoadMore: onLoadMore,
+          // Owner 2026-10-20 (speed, Instagram): the next page is asked for
+          // well before the end — about three screen-tall cards on a feed,
+          // five or six rows elsewhere — so the end of the list never waits.
+          loadMoreExtent:
+              edgeToEdge ? MediaQuery.sizeOf(context).height * 2 : 640,
           onRetry: onRetryMore,
           onRefresh: pull,
           // Edge-to-edge feeds: cards touch (hairline borders only).
@@ -175,10 +204,23 @@ class PagedListBody<T> extends ConsumerWidget {
                   ),
                   child: header,
                 ),
-          itemBuilder: (context, item, index) => AppEntrance(
-            index: index < 8 ? index + 1 : 0,
-            child: itemBuilder(context, item, index),
-          ),
+          itemBuilder: (context, item, index) {
+            if (prefetch != null) {
+              final items = value.items;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!context.mounted) return;
+                for (var k = index + 1;
+                    k <= index + 3 && k < items.length;
+                    k++) {
+                  prefetch!(context, items[k]);
+                }
+              });
+            }
+            return AppEntrance(
+              index: index < 8 ? index + 1 : 0,
+              child: itemBuilder(context, item, index),
+            );
+          },
         ),
       AsyncError(:final error) => KeyedSubtree(
           key: const ValueKey('error'),
@@ -190,7 +232,9 @@ class PagedListBody<T> extends ConsumerWidget {
         ),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: body,
     );
   }
@@ -226,7 +270,9 @@ class AsyncDetailBody<T> extends StatelessWidget {
       _ => const DetailSkeleton(key: ValueKey('loading')),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: body,
     );
   }

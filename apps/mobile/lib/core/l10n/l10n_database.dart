@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
+import 'package:lawbid/core/persistence/drift_web.dart';
 
 part 'l10n_database.g.dart';
 
@@ -53,7 +53,8 @@ class L10nDatabase extends _$L10nDatabase {
   /// `_$L10nDatabase(QueryExecutor)` superclass constructor, not a named
   /// `super.xxx` parameter, since the generated constructor's own
   /// parameter name isn't part of drift's public contract.
-  L10nDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
+  L10nDatabase([QueryExecutor? executor])
+      : super(executor ?? _openConnection());
 
   @override
   int get schemaVersion => 1;
@@ -64,13 +65,16 @@ class L10nDatabase extends _$L10nDatabase {
   /// fully loaded into memory before any `t()` call, rather than queried
   /// per-key.
   Future<Map<String, String>> loadLanguage(String lang) async {
-    final rows = await (select(l10nTranslations)..where((row) => row.lang.equals(lang))).get();
+    final rows = await (select(l10nTranslations)
+          ..where((row) => row.lang.equals(lang)))
+        .get();
     return {for (final row in rows) row.entryKey: row.value};
   }
 
   Future<int> getVersion(String lang) async {
-    final row =
-        await (select(l10nBundleMeta)..where((row) => row.lang.equals(lang))).getSingleOrNull();
+    final row = await (select(l10nBundleMeta)
+          ..where((row) => row.lang.equals(lang)))
+        .getSingleOrNull();
     return row?.version ?? 0;
   }
 
@@ -91,7 +95,11 @@ class L10nDatabase extends _$L10nDatabase {
       for (final entry in translations.entries) {
         b.insert(
           l10nTranslations,
-          L10nTranslationsCompanion.insert(lang: lang, entryKey: entry.key, value: entry.value),
+          L10nTranslationsCompanion.insert(
+            lang: lang,
+            entryKey: entry.key,
+            value: entry.value,
+          ),
           mode: InsertMode.insertOrReplace,
         );
       }
@@ -114,12 +122,15 @@ class L10nDatabase extends _$L10nDatabase {
   Future<void> seedIfEmpty(String lang, Map<String, String> seed) async {
     final existingVersion = await getVersion(lang);
     if (existingVersion > 0) return;
-    final hasRows = await (select(
-      l10nTranslations,
-    )..where((row) => row.lang.equals(lang))).get();
+    // Owner 2026-10-18 (speed): one row is enough to know the language is
+    // not empty (not the whole bundle read into memory).
+    final hasRows = await (select(l10nTranslations)
+          ..where((row) => row.lang.equals(lang))
+          ..limit(1))
+        .get();
     if (hasRows.isNotEmpty) return;
     await applyBundle(lang: lang, version: 0, translations: seed);
   }
 }
 
-QueryExecutor _openConnection() => driftDatabase(name: 'l10n_cache');
+QueryExecutor _openConnection() => appDriftDatabase('l10n_cache');

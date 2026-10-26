@@ -29,6 +29,7 @@ class StickerPack {
     required this.installed,
     required this.installCount,
     required this.stickers,
+    this.priceStars = 0,
   });
 
   final String id;
@@ -39,6 +40,11 @@ class StickerPack {
   final bool installed;
   final int installCount;
   final List<ChatSticker> stickers;
+
+  /// Owner 2026-10-20: stars to add the pack once; 0 = free.
+  final int priceStars;
+
+  bool get isPaid => priceStars > 0;
 
   ChatSticker? get cover => stickers.isEmpty ? null : stickers.first;
 }

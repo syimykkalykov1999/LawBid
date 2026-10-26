@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_spacing.dart';
-import '../motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/widgets/text/fit_text.dart';
 
 /// General-purpose pill chip (file 01 §15 component list). File 07 does not
 /// give this a standalone spec (only the phone screen's 52px-tall country
@@ -12,15 +13,24 @@ import '../motion/app_tap_target.dart';
 /// (feed/search, files 4-5) and here for that country selector.
 class AppChip extends StatelessWidget {
   const AppChip({
-    super.key,
     required this.label,
+    super.key,
     this.leading,
     this.trailing,
     this.onTap,
     this.selected = false,
-    this.height = 36,
+    this.height = 32,
     this.expand = false,
+    this.fitLabel = false,
+    this.horizontalPadding = AppSpacing.md,
   });
+
+  /// Side padding; a row that is short of room passes less.
+  final double horizontalPadding;
+
+  /// One line whose font shrinks to the width the chip gets, so a chip in
+  /// a fixed row keeps its place in long languages instead of wrapping.
+  final bool fitLabel;
 
   /// Fill the given width (a filter sharing a row evenly); the label is
   /// ellipsised and the trailing icon sits at the end.
@@ -51,19 +61,27 @@ class AppChip extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         child: Container(
           constraints: BoxConstraints(minHeight: height),
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(height / 2),
             border: Border.all(
-                color: selected ? colors.gold : colors.border,
-                width: selected ? 1.5 : 1),
+              color: selected ? colors.gold : colors.border,
+              width: selected ? 1.5 : 1,
+            ),
           ),
           child: Row(
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             children: [
               if (leading != null) ...[leading!, const SizedBox(width: 6)],
-              if (expand)
+              if (fitLabel)
+                Flexible(
+                  child: FitText(
+                    label,
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                  ),
+                )
+              else if (expand)
                 Expanded(
                   child: Text(
                     label,
@@ -73,8 +91,17 @@ class AppChip extends StatelessWidget {
                   ),
                 )
               else
-                Text(label,
-                    style: typography.bodySmall.copyWith(color: colors.text)),
+                // Owner 2026-10-04: a long label ("Приостановление и лишение
+                // водительских прав") wraps to two lines and then ends with
+                // an ellipsis instead of overflowing the chip.
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.bodySmall.copyWith(color: colors.text),
+                  ),
+                ),
               if (trailing != null) ...[const SizedBox(width: 6), trailing!],
             ],
           ),

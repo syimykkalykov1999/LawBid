@@ -1,4 +1,7 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 
 /// docs/05 §2.4 post author: an attorney's public identity.
 @immutable
@@ -12,7 +15,29 @@ class PostAuthor {
     this.avatarUrl,
     this.isFollowing = false,
     this.isClient = false,
+    this.location,
+    this.trustLevel = 0,
+    this.identityRejected = false,
+    this.practiceKeys = const [],
+    this.advertisingLabel = false,
   });
+
+  /// Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): show «Attorney
+  /// Advertising» on this author's posts; the server decides (never for
+  /// clients).
+  final bool advertisingLabel;
+
+  /// Owner 2026-10-13: Identity level 0..3 (the circle on the avatar).
+  final int trustLevel;
+
+  /// Verification rejected (a red circle on the avatar).
+  final bool identityRejected;
+
+  /// Up to three practice keys shown under the name.
+  final List<String> practiceKeys;
+
+  /// Owner 2026-10-13: an attorney's licensed states / a client's state.
+  final String? location;
 
   /// OQ-038: clients publish posts too (their profile is /client/:username).
   final bool isClient;
@@ -29,7 +54,7 @@ class PostAuthor {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 
   String get initials {
@@ -69,6 +94,11 @@ class PostMedia {
     // Instagram-like bounds: 4:5 portrait … 1.91:1 landscape.
     return (w / h).clamp(0.8, 1.91);
   }
+
+  /// Owner 2026-10-19 (as in Instagram, with the framing screen): a list
+  /// shows the photo in the shape its author framed it, 4:5 tall to 1.91:1
+  /// wide (it was at most square, cut to the centre, before).
+  double get listAspectRatio => aspectRatio;
 }
 
 /// OQ-042: a real person @mentioned in a post or comment.
@@ -111,26 +141,97 @@ class PostVideo {
   const PostVideo({
     required this.status,
     this.playbackUrl,
+    this.fallbackUrl,
     this.thumbnailUrl,
     this.durationSec,
     this.width,
     this.height,
+    this.trimStartMs,
+    this.trimEndMs,
   });
 
   /// `awaiting_upload` | `processing` | `ready` | `failed` | `rejected` | `deleted`.
   final String status;
   final String? playbackUrl;
+
+  /// Owner 2026-10-15 (web): the same video as a plain MP4; a browser plays
+  /// it without an HLS library. Null when there is none.
+  final String? fallbackUrl;
   final String? thumbnailUrl;
   final int? durationSec;
   final int? width;
   final int? height;
 
+  /// Owner 2026-10-05: the reel plays only this part of the video (trim);
+  /// null = from the start / to the end.
+  final int? trimStartMs;
+  final int? trimEndMs;
+
+  Duration get playStart => Duration(milliseconds: trimStartMs ?? 0);
+  Duration? get playEnd =>
+      trimEndMs == null ? null : Duration(milliseconds: trimEndMs!);
+
   bool get ready => status == 'ready' && playbackUrl != null;
+
+  /// What the player opens: in a browser the MP4 when there is one (Chrome
+  /// and Firefox cannot play HLS by themselves), else the HLS playlist.
+  String? playerUrl({required bool web}) =>
+      web ? (fallbackUrl ?? playbackUrl) : playbackUrl;
+
+  /// True when [playerUrl] is the MP4 copy, not the HLS playlist.
+  bool usesMp4({required bool web}) => web && fallbackUrl != null;
 
   /// Width / height; reels default to 9:16.
   double get aspectRatio => (width != null && height != null && height! > 0)
       ? width! / height!
       : 9 / 16;
+}
+
+/// Owner 2026-10-05: a document of a post (PDF, Word, text), downloaded
+/// by its signed [url] under its own [fileName].
+@immutable
+class PostAttachment {
+  const PostAttachment({
+    required this.fileId,
+    required this.fileName,
+    required this.mime,
+    required this.sizeBytes,
+    required this.url,
+  });
+
+  final String fileId;
+  final String fileName;
+  final String mime;
+  final int sizeBytes;
+  final String url;
+}
+
+/// Owner 2026-10-07: who reposted a post into the viewer's feed
+/// (Threads-style «{username} сделал(а) репост»).
+@immutable
+class PostReposter {
+  const PostReposter({
+    required this.id,
+    required this.username,
+    this.name = '',
+    this.isClient = false,
+    this.repostedAt,
+  });
+
+  final String id;
+  final String username;
+
+  /// Owner 2026-10-18: when this person made the repost — the profile's
+  /// «Брифы и репосты» tab orders a repost by it. Null while the API does
+  /// not send it (the tab then estimates it, see ProfileBriefsAndReposts).
+  final DateTime? repostedAt;
+
+  /// Display name ("First Last"); empty when the person has none.
+  final String name;
+  final bool isClient;
+
+  /// What the header shows: the name, else the @username.
+  String get label => name.isEmpty ? username : name;
 }
 
 class Post {
@@ -149,12 +250,69 @@ class Post {
     this.editedAt,
     this.status = 'published',
     this.shareCount = 0,
+    this.viewCount = 0,
     this.mentions = const [],
     this.title,
     this.isNews = false,
     this.practice,
     this.video,
+    this.locationName,
+    this.commentsEnabled = true,
+    this.likesHidden = false,
+    this.viewsHidden = false,
+    this.attachments = const [],
+    this.isGeneral = false,
+    this.promotionId,
+    this.promotionCta,
+    this.repostCount = 0,
+    this.repostedByMe = false,
+    this.repostedBy,
+    this.pinSlot,
+    this.archivedAt,
   });
+
+  /// Owner 2026-10-18: set while the author keeps the post in «Архив»
+  /// (only the author ever gets an archived post).
+  final DateTime? archivedAt;
+
+  bool get isArchived => archivedAt != null;
+
+  /// Owner 2026-10-07: Threads-style reposts — how many people reposted
+  /// the post, and whether the viewer did.
+  final int repostCount;
+  final bool repostedByMe;
+
+  /// Owner 2026-10-07: set when the post reached the feed as someone's
+  /// repost; null otherwise (and while the API does not send it).
+  final PostReposter? repostedBy;
+
+  /// Owner 2026-10-12: 1..3 when the author pinned it to the top of their
+  /// profile list.
+  final int? pinSlot;
+
+  /// Owner 2026-10-05: a general (personal) post rather than a legal one.
+  final bool isGeneral;
+
+  /// Owner 2026-10-05: set on a paid promoted post in the feed — the card
+  /// says «Реклама» and an open is reported for the owner's stats.
+  final String? promotionId;
+
+  /// Owner 2026-10-15: the button under a promoted post (null = none).
+  final PromotionCta? promotionCta;
+
+  /// Owner 2026-10-05: up to 9 documents readers download.
+  final List<PostAttachment> attachments;
+
+  /// Owner 2026-10-02: "Added location" under the author's name.
+  final String? locationName;
+
+  /// Owner 2026-10-02: false = the author turned comments off.
+  final bool commentsEnabled;
+
+  /// Owner 2026-10-15: the author hid the like / view counter (the server
+  /// sends 0 to everyone else, the real number to the author).
+  final bool likesHidden;
+  final bool viewsHidden;
 
   /// Owner 2026-10-01: a reel — the post's video instead of photos.
   final PostVideo? video;
@@ -171,6 +329,9 @@ class Post {
 
   /// OQ-037: completed shares.
   final int shareCount;
+
+  /// Owner 2026-10-12: views of a video post / reel.
+  final int viewCount;
 
   /// OQ-042: people @mentioned in [body] (links to their profiles).
   final List<Mention> mentions;
@@ -194,6 +355,10 @@ class Post {
 
   bool get pendingReview => isMine && status == 'hidden';
 
+  /// Owner 2026-10-15: no inner page any more — only documents have a place
+  /// to open (a sheet from below). Photos swipe in the card itself.
+  bool get hasInner => attachments.isNotEmpty;
+
   Post copyWith({
     String? title,
     PostPractice? practice,
@@ -205,6 +370,11 @@ class Post {
     bool? savedByMe,
     DateTime? editedAt,
     int? shareCount,
+    int? viewCount,
+    int? repostCount,
+    bool? repostedByMe,
+    int? pinSlot,
+    bool unpin = false,
   }) =>
       Post(
         id: id,
@@ -221,11 +391,25 @@ class Post {
         editedAt: editedAt ?? this.editedAt,
         status: status,
         shareCount: shareCount ?? this.shareCount,
+        viewCount: viewCount ?? this.viewCount,
         mentions: mentions,
         title: title ?? this.title,
         isNews: isNews,
         practice: practice ?? this.practice,
         video: video,
+        locationName: locationName,
+        commentsEnabled: commentsEnabled,
+        likesHidden: likesHidden,
+        viewsHidden: viewsHidden,
+        attachments: attachments,
+        isGeneral: isGeneral,
+        promotionId: promotionId,
+        promotionCta: promotionCta,
+        repostCount: repostCount ?? this.repostCount,
+        repostedByMe: repostedByMe ?? this.repostedByMe,
+        repostedBy: repostedBy,
+        pinSlot: unpin ? null : (pinSlot ?? this.pinSlot),
+        archivedAt: archivedAt,
       );
 }
 
@@ -315,9 +499,12 @@ class AttorneyRow {
     required this.states,
     required this.practiceKeys,
     required this.isFollowing,
+    this.trustLevel = 0,
+    this.identityRejected = false,
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.reason,
   });
 
   final String id;
@@ -326,6 +513,14 @@ class AttorneyRow {
   final String? lastName;
   final String? avatarUrl;
   final bool verified;
+
+  /// Why it is suggested, shown as a small caption: 'contacts' = in my
+  /// address book.
+  final String? reason;
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
+  final bool identityRejected;
   final double ratingAvg;
   final int ratingCount;
   final List<String> states;
@@ -334,7 +529,7 @@ class AttorneyRow {
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 
   AttorneyRow copyWith({bool? isFollowing}) => AttorneyRow(
@@ -349,6 +544,9 @@ class AttorneyRow {
         states: states,
         practiceKeys: practiceKeys,
         isFollowing: isFollowing ?? this.isFollowing,
+        trustLevel: trustLevel,
+        identityRejected: identityRejected,
+        reason: reason,
       );
 }
 
@@ -366,13 +564,16 @@ class SavedPost {
 /// docs/05 §7.5 hashtag; [postsCount] only for trending tags.
 @immutable
 class TagInfo {
-  const TagInfo({required this.tag, this.postsCount});
+  const TagInfo({required this.tag, this.postsCount, this.categoryCode});
 
   final String tag;
   final int? postsCount;
+
+  /// The practice category its posts mostly belong to (the topic cover).
+  final String? categoryCode;
 }
 
-enum TagSort { top, fresh }
+enum TagSort { top, fresh, video }
 
 /// `report_reason` (docs/02); the screen text is `report.reason.<name>`.
 enum ReportReason {
@@ -382,9 +583,30 @@ enum ReportReason {
   impersonation,
   inappropriate,
   other,
+
+  /// Owner 2026-10-05: a fake attorney — counts as a trust complaint.
+  fraud,
+
+  /// Owner 2026-10-05 (legal): copyright — the report sheet opens the DMCA
+  /// form (features/legal) instead of calling `POST /reports` directly.
+  copyright,
+
+  /// Owner 2026-10-20: media categories.
+  nudity,
+  violence,
+  selfHarm,
+  illegal,
 }
 
-enum ReportTarget { post, comment, message, user }
+enum ReportTarget {
+  post,
+  comment,
+  message,
+  user,
+  stickerPack,
+  legalQuestion,
+  legalAnswer,
+}
 
 /// A client in People search / followers (OQ-026): name, handle, avatar,
 /// state — never contacts.
@@ -398,6 +620,7 @@ class ClientRow {
     this.lastName,
     this.avatarUrl,
     this.verified = false,
+    this.isFollowing = false,
   });
 
   final String id;
@@ -407,12 +630,15 @@ class ClientRow {
   final String? avatarUrl;
   final String stateCode;
 
+  /// Does the viewer follow this client.
+  final bool isFollowing;
+
   /// OQ-029 final: blue check for a confirmed phone number.
   final bool verified;
 
   String get displayName {
     final name = [firstName, lastName].whereType<String>().join(' ').trim();
-    return name.isEmpty ? '@$username' : name;
+    return name.isEmpty ? atHandle(username) : name;
   }
 }
 
@@ -431,4 +657,14 @@ class PersonRow {
 
   String get id => attorney?.id ?? client!.id;
   String get username => attorney?.username ?? client!.username;
+}
+
+/// Owner 2026-10-22 (client economy plan, package D): what `POST / DELETE
+/// /attorneys/{id}/follow` answers — the profile is corrected locally
+/// instead of being re-read.
+class FollowState {
+  const FollowState({required this.following, required this.followersCount});
+
+  final bool following;
+  final int followersCount;
 }

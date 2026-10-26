@@ -43,6 +43,10 @@ export class ClientProfileDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
+  /** Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION). */
+  @ApiProperty({ type: 'integer' })
+  version!: number;
+
   @ApiProperty({ description: 'OQ-026: the client @username.' })
   username!: string;
 
@@ -100,6 +104,10 @@ export class ClientListItemDto {
   /** OQ-029 final: blue check = the client confirmed a phone number. */
   @ApiProperty()
   verifiedBadge!: boolean;
+
+  /** Does the viewer follow this client (false when not known). */
+  @ApiProperty()
+  isFollowing!: boolean;
 }
 
 /** GET /clients/:username — the public client mini-profile (OQ-026). */

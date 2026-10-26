@@ -1,3 +1,4 @@
+import { trialReminderJob } from './trial-reminder';
 import {
   BadRequestException,
   ConflictException,
@@ -6,11 +7,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  type OnModuleDestroy,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Payment, Subscription } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import type { Payment, PromoCode, Subscription } from '@prisma/client';
 import { Queue } from 'bullmq';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -25,15 +29,27 @@ import {
   PAYMENT_PROVIDER,
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_JOBS_QUEUE,
-  SUBSCRIPTION_PRICE_CENTS,
-  TRIAL_DAYS,
-  TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
-  ASSISTANT_SEAT_PRICE_CENTS,
-  MAX_ASSISTANT_SEATS,
-  YEARLY_PRICE_CENTS,
+  SEATS_HARD_CAP,
 } from './billing.constants';
+import {
+  type PlanAmounts,
+  PricingService,
+  seatPriceKind,
+} from './pricing.service';
+import type { Plan, Prisma as PrismaNs } from '@prisma/client';
+import { entitlementNumber } from '../plans/entitlement-catalog';
+import { EntitlementsService } from '../plans/entitlements.service';
+import { presentPlan } from '../plans/plans.controller';
+import { PlansService } from '../plans/plans.service';
 import { DEFAULT_DUTIES } from '../assistants/assistant-duties';
+import {
+  checkPromo,
+  ensurePromoCoupon,
+  promoDiscountCents,
+  type PromoDiscountType,
+  recordPromoRedemption,
+} from '../admin-billing/promo-rules';
 import type {
   CheckoutRequestDto,
   CheckoutSessionDto,
@@ -43,7 +59,11 @@ import type {
   SubscriptionDto,
   SubscriptionMeDto,
 } from './billing.dto';
-import type { PaymentProvider } from './payment-provider';
+import type {
+  PaymentProvider,
+  ProviderSetupIntent,
+  ProviderSubscription,
+} from './payment-provider';
 import { SubscriptionSyncService } from './subscription-sync.service';
 
 const PAYMENTS_PAGE = 20;
@@ -54,10 +74,29 @@ const PAYMENTS_PAGE = 20;
  * and per card fingerprint), me, payments, portal, cancel. Everything
  * after creation is driven by webhooks (SubscriptionSyncService).
  */
-import { SecretsService } from '../../common/secrets/secrets.service';
-import { refreshProvider } from './dynamic-payment.provider';
+import { ReferralsService } from '../referrals/referrals.service';
+import { bullOptions } from '../../redis/redis-connection';
+/** `sessionId` of a payment made on our own card page. */
+export const OWN_PAGE_SESSION_PREFIX = 'own:';
+
+/**
+ * Audit #15 (2026-10-22): the Stripe idempotency key of one checkout
+ * attempt — the client's Idempotency-Key header when it sent one, else the
+ * attempt id `start` kept on the SetupIntent, else the SetupIntent itself
+ * (older intents). Never time-based: a retry that crosses an hour used to
+ * create a second subscription.
+ */
+export function subscriptionAttemptKey(
+  si: Pick<ProviderSetupIntent, 'id' | 'metadata'>,
+  clientKey?: string,
+): string {
+  if (clientKey) return `client:${clientKey}`;
+  if (si.metadata?.attemptId) return `attempt:${si.metadata.attemptId}`;
+  return `setup:${si.id}`;
+}
+
 @Injectable()
-export class SubscriptionsService {
+export class SubscriptionsService implements OnModuleDestroy {
   private readonly logger = new Logger(SubscriptionsService.name);
 
   private readonly portalReturnUrl: string;
@@ -70,8 +109,14 @@ export class SubscriptionsService {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly access: SubscriptionAccessService,
     private readonly sync: SubscriptionSyncService,
-    private readonly config: ConfigService,
-    @Optional() private readonly secrets?: SecretsService,
+    config: ConfigService,
+    private readonly pricing: PricingService,
+    // Owner 2026-10-05 (plan builder).
+    private readonly plans: PlansService,
+    private readonly entitlements: EntitlementsService,
+    @Optional() private readonly referrals?: ReferralsService,
+    // Owner 2026-10-22 (Stripe Tax): the admin switch.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.portalReturnUrl =
       config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
@@ -80,30 +125,62 @@ export class SubscriptionsService {
       config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app';
     const url = config.get<string>('REDIS_URL');
     if (url)
-      this.queue = new Queue(SUBSCRIPTION_JOBS_QUEUE, { connection: { url } });
+      this.queue = new Queue(
+        SUBSCRIPTION_JOBS_QUEUE,
+        bullOptions(SUBSCRIPTION_JOBS_QUEUE, url),
+      );
   }
 
-  async start(user: RequestUser): Promise<StartSubscriptionResultDto> {
-    const attorney = await this.verifiedAttorney(user);
+  /** The queue keeps its own Redis connection: close it with the app (an
+   * open one kept every e2e suite's whole module graph in memory). */
+  async onModuleDestroy(): Promise<void> {
+    await this.queue?.close();
+  }
+
+  /**
+   * POST /subscriptions/start — the card sheet inside the app (owner
+   * 2026-10-11): the order (plan, seats, assistant phones, promo) is
+   * priced like a hosted checkout and kept on the SetupIntent; `confirm`
+   * creates the subscription from it once the card is saved.
+   */
+  async start(
+    user: RequestUser,
+    req: CheckoutRequestDto = {},
+  ): Promise<StartSubscriptionResultDto> {
     await this.assertConfigured();
-    const existing = await this.prisma.subscription.findUnique({
-      where: { user_id: user.sub },
-    });
-    if (existing && SubscriptionAccessService.rowIsActive(existing)) {
-      throw new ConflictException({
-        code: ErrorCode.SUBSCRIPTION_ALREADY_ACTIVE,
-        message: 'A subscription is already active.',
-      });
-    }
-    const customerId = await this.customerId(user.sub, attorney.email);
-    const si = await this.provider.createSetupIntent(customerId);
+    const o = await this.prepareOrder(user, req, false);
+    const meta: Record<string, string> = {
+      userId: user.sub,
+      // Audit #15: the checkout attempt; `confirm` derives the Stripe
+      // idempotency key from it when the client sends none.
+      attemptId: randomUUID(),
+      plan: o.plan,
+      planId: o.planRow.id,
+      planCode: o.planRow.code,
+      seats: String(o.seats),
+      priceCents: String(o.priceCents),
+      phones: o.phones.join(','),
+      items: o.lineItems.map((l) => `${l.priceId}:${l.quantity}`).join(','),
+      planTrialDays: String(o.planTrialDays),
+      ...(o.couponId ? { couponId: o.couponId } : {}),
+      ...(o.promo
+        ? {
+            promoId: o.promo.id,
+            promoFreeDays: String(o.promoDays),
+            promoOffCents: String(
+              promoDiscountCents(o.promo, o.priceCents) ?? '',
+            ),
+          }
+        : {}),
+    };
+    const si = await this.provider.createSetupIntent(o.customerId, meta);
     return {
       clientSecret: si.clientSecret,
       setupIntentId: si.id,
-      customerId,
-      trialEligible: await this.attorneyTrialEligible(user.sub),
-      priceCents: SUBSCRIPTION_PRICE_CENTS,
-      trialDays: TRIAL_DAYS,
+      customerId: o.customerId,
+      trialEligible: o.eligible,
+      priceCents: o.priceCents,
+      trialDays: o.planTrialDays,
     };
   }
 
@@ -117,28 +194,165 @@ export class SubscriptionsService {
     user: RequestUser,
     req: CheckoutRequestDto = {},
   ): Promise<CheckoutSessionDto> {
+    const o = await this.prepareOrder(user, req, true);
+    const {
+      customerId,
+      lineItems,
+      planRow,
+      plan,
+      seats,
+      phones,
+      priceCents,
+      planTrialDays,
+      eligible,
+      promo,
+      promoDays,
+      couponId,
+      trialDays,
+    } = o;
+    const base = this.checkoutReturnBase;
+    const session = await this.provider.createCheckoutSession({
+      customerId,
+      lineItems,
+      automaticTax: await this.stripeTaxEnabled(),
+      trialDays: trialDays > 0 ? trialDays : null,
+      successUrl: `${base}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${base}/subscription/cancel`,
+      metadata: {
+        userId: user.sub,
+        plan,
+        planId: planRow.id,
+        planCode: planRow.code,
+        seats: String(seats),
+        // Owner 2026-10-03: the amount the attorney saw, so the row keeps
+        // it even if the admin changes the price before the webhook.
+        priceCents: String(priceCents),
+        phones: phones.join(','),
+        ...(promo
+          ? {
+              promoId: promo.id,
+              promoFreeDays: String(promoDays),
+              promoOffCents: String(
+                promoDiscountCents(promo, priceCents) ?? '',
+              ),
+            }
+          : {}),
+      },
+      ...(couponId ? { couponId } : {}),
+    });
+    // Owner 2026-10-19: never hand the app an empty link (a pay tap that
+    // does nothing) — say the payment page is unavailable.
+    if (!session.url) {
+      throw new ServiceUnavailableException({
+        code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
+        message: 'The checkout page is not available.',
+      });
+    }
+    return {
+      url: session.url,
+      sessionId: session.id,
+      trialEligible: eligible,
+      priceCents,
+      trialDays: planTrialDays,
+      ...(promo
+        ? {
+            promo: {
+              code: promo.code,
+              discountType: promo.discount_type as PromoDiscountType,
+              discountCents: promoDiscountCents(promo, priceCents),
+              freeDays: promoDays || null,
+            },
+          }
+        : {}),
+    };
+  }
+
+  /** Owner 2026-10-16: price and trial of an order, for the link to our own
+   * card page (nothing is created at the provider). */
+  async quote(
+    user: RequestUser,
+    req: CheckoutRequestDto = {},
+  ): Promise<{
+    priceCents: number;
+    trialDays: number;
+    trialEligible: boolean;
+    promo: CheckoutSessionDto['promo'] | undefined;
+  }> {
+    const o = await this.prepareOrder(user, req, false);
+    return {
+      priceCents: o.priceCents,
+      trialDays: o.planTrialDays,
+      trialEligible: o.eligible,
+      promo: o.promo
+        ? {
+            code: o.promo.code,
+            discountType: o.promo.discount_type as PromoDiscountType,
+            discountCents: promoDiscountCents(o.promo, o.priceCents),
+            freeDays: o.promoDays || null,
+          }
+        : undefined,
+    };
+  }
+
+  /**
+   * Owner 2026-10-11 (in-app payment sheet): the order the attorney chose
+   * (plan, extra seats, assistant phones, promo code) turned into prices,
+   * trial and coupon — the same for the hosted page and for the card
+   * sheet. [placeholder] opens the `incomplete` row a hosted checkout
+   * keys its webhooks to.
+   */
+  private async prepareOrder(
+    user: RequestUser,
+    req: CheckoutRequestDto,
+    placeholder: boolean,
+  ) {
     const attorney = await this.verifiedAttorney(user);
-    const priceId = await this.assertConfigured();
-    const plan = req.plan ?? 'monthly';
-    const seats =
-      plan === 'yearly' ? MAX_ASSISTANT_SEATS : (req.assistantSeats ?? 0);
+    // Owner 2026-10-05 (plan builder): the plan chosen in the app; the
+    // legacy `plan` field picks the audience's default of that interval.
+    const planRow = await this.planFor(req);
+    const plan: 'monthly' | 'yearly' =
+      planRow.interval === 'year' ? 'yearly' : 'monthly';
+    const terms = await this.entitlements.forPlan(
+      planRow,
+      req.assistantSeats ?? 0,
+      user.sub,
+    );
+    if ((req.assistantSeats ?? 0) > terms.seats.extra) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'This plan does not allow that many extra assistants.',
+        details: {
+          field: 'assistantSeats',
+          max: terms.seats.max - terms.seats.included,
+        },
+      });
+    }
+    const seats = terms.seats.extra;
     const phones = [...new Set(req.assistantPhones ?? [])];
-    if (phones.length > seats) {
+    if (phones.length > terms.seats.total) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: 'More assistant phones than seats.',
-        details: { field: 'assistantPhones', max: seats },
+        details: { field: 'assistantPhones', max: terms.seats.total },
       });
     }
-    const lineItems =
-      plan === 'yearly'
-        ? [{ priceId: (await this.prices()).yearly, quantity: 1 }]
-        : [
-            { priceId, quantity: 1 },
-            ...(seats > 0
-              ? [{ priceId: (await this.prices()).seat, quantity: seats }]
-              : []),
-          ];
+    const planKind = planRow.price_kind ?? plan;
+    const priceId = await this.pricing.requirePriceId(planKind);
+    const seatKind =
+      typeof terms.values.extra_seat_price_cents === 'number'
+        ? seatPriceKind(planRow.code)
+        : 'seat';
+    const lineItems = [
+      { priceId, quantity: 1 },
+      ...(seats > 0
+        ? [
+            {
+              priceId: await this.pricing.requirePriceId(seatKind),
+              quantity: seats,
+            },
+          ]
+        : []),
+    ];
     const existing = await this.prisma.subscription.findUnique({
       where: { user_id: user.sub },
     });
@@ -149,40 +363,67 @@ export class SubscriptionsService {
       });
     }
     const customerId = await this.customerId(user.sub, attorney.email);
+    const planAmount =
+      (await this.pricing.amountOf(planKind)) ??
+      (await this.pricing.amount(plan));
+    const seatAmount =
+      seats > 0
+        ? ((await this.pricing.amountOf(seatKind)) ??
+          (await this.pricing.amount('seat')))
+        : 0;
+    const priceCents = planAmount + seats * seatAmount;
+    const snapshot = this.plans.entitlementsOf(
+      planRow,
+    ) as PrismaNs.InputJsonObject;
     // A row keyed to the customer, so the provider's webhooks find it.
-    if (!existing) {
+    if (placeholder && !existing) {
       await this.prisma.subscription.create({
         data: {
           user_id: user.sub,
           status: 'incomplete',
-          price_cents: SUBSCRIPTION_PRICE_CENTS,
+          price_cents: priceCents,
+          plan,
+          plan_id: planRow.id,
+          entitlements: snapshot,
         },
       });
     }
-    const eligible = await this.attorneyTrialEligible(user.sub);
-    const base = this.checkoutReturnBase;
-    const session = await this.provider.createCheckoutSession({
-      customerId,
-      lineItems,
-      trialDays: eligible ? TRIAL_DAYS : null,
-      successUrl: `${base}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${base}/subscription/cancel`,
-      metadata: {
-        userId: user.sub,
-        plan,
-        seats: String(seats),
-        phones: phones.join(','),
-      },
-    });
+    // Owner 2026-10-05: the plan's trial_days; billing.trial_days only
+    // when the plan leaves it unset.
+    const planTrialDays = await this.pricing.trialDaysFor(planRow);
+    const eligible = await this.attorneyTrialEligible(user.sub, planTrialDays);
+    // Owner 2026-10-02: an optional promo code — a coupon on the session,
+    // or free days added to the trial. Redeemed when the checkout is paid.
+    const promo = req.promoCode
+      ? await this.checkoutPromo(user, req.promoCode, plan)
+      : null;
+    const couponId = promo
+      ? await ensurePromoCoupon(
+          this.prisma,
+          this.provider,
+          promo,
+          SUBSCRIPTION_CURRENCY,
+        )
+      : await this.referralCoupon(user.sub);
+    const promoDays =
+      promo?.discount_type === 'free_days' ? (promo.free_days ?? 0) : 0;
+    const trialDays = (eligible ? planTrialDays : 0) + promoDays;
     return {
-      url: session.url ?? '',
-      sessionId: session.id,
-      trialEligible: eligible,
-      priceCents:
-        plan === 'yearly'
-          ? YEARLY_PRICE_CENTS
-          : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS,
-      trialDays: TRIAL_DAYS,
+      attorney,
+      customerId,
+      existing,
+      lineItems,
+      planRow,
+      plan,
+      seats,
+      phones,
+      priceCents,
+      planTrialDays,
+      eligible,
+      promo,
+      promoDays,
+      couponId,
+      trialDays,
     };
   }
 
@@ -198,7 +439,11 @@ export class SubscriptionsService {
     sessionId: string,
   ): Promise<SubscriptionMeDto> {
     await this.verifiedAttorney(user);
-    await this.applyCheckout(sessionId, user.sub);
+    // Owner 2026-10-16: our own card page confirms on the server itself; the
+    // app only asks for the result.
+    if (!sessionId.startsWith(OWN_PAGE_SESSION_PREFIX)) {
+      await this.applyCheckout(sessionId, user.sub);
+    }
     return this.me(user);
   }
 
@@ -215,10 +460,25 @@ export class SubscriptionsService {
     ) {
       return;
     }
-    let remote = await this.provider.retrieveSubscription(
+    const first = await this.provider.retrieveSubscription(
       session.subscriptionId,
     );
-    if (!remote) return;
+    if (!first) return;
+    await this.applyOrder(first, session.metadata, owner);
+  }
+
+  /**
+   * A paid subscription of [owner] — from a hosted checkout session or from
+   * the in-app card sheet (owner 2026-10-11) — becomes the row, the
+   * assistants joined at purchase and the redeemed promo. [meta] is the
+   * order the attorney chose (see [prepareOrder]).
+   */
+  private async applyOrder(
+    first: ProviderSubscription,
+    meta: Record<string, string>,
+    owner: string,
+  ): Promise<void> {
+    let remote = first;
     // Audit 2026-10-01: a second paid checkout (two devices, an old tab)
     // while a live subscription exists must not replace it — the first
     // would keep billing unseen. The newcomer is cancelled at once.
@@ -243,26 +503,51 @@ export class SubscriptionsService {
           remote.defaultPaymentMethodId,
         )
       : null;
+    const promoDays = Number(meta.promoFreeDays ?? 0) || 0;
     if (
       remote.status === 'trialing' &&
       !(await this.cardTrialEligible(fingerprint, owner))
     ) {
-      // §1.1: this card already had a trial elsewhere — charge now.
-      remote = await this.provider.endTrialNow(remote.id);
+      // §1.1: this card already had a trial elsewhere — charge now
+      // (owner 2026-10-02: a promo's free days are still given).
+      remote =
+        promoDays > 0
+          ? await this.provider.extendUntil(
+              remote.id,
+              Math.floor(Date.now() / 1000) + promoDays * 86_400,
+            )
+          : await this.provider.endTrialNow(remote.id);
     }
     const existing = await this.prisma.subscription.findUnique({
       where: { user_id: owner },
     });
     const trialing = remote.status === 'trialing';
-    const plan = session.metadata.plan === 'yearly' ? 'yearly' : 'monthly';
-    const seats = Math.min(
-      MAX_ASSISTANT_SEATS,
-      Math.max(0, Number(session.metadata.seats ?? 0) || 0),
-    );
+    const plan = meta.plan === 'yearly' ? 'yearly' : 'monthly';
+    // Owner 2026-10-05: the plan bought, its terms frozen on the row.
+    const planRow = meta.planId
+      ? await this.plans.byId(meta.planId).catch(() => null)
+      : null;
+    const seats = planRow
+      ? Math.max(0, Math.min(SEATS_HARD_CAP, Number(meta.seats ?? 0) || 0))
+      : Math.min(SEATS_HARD_CAP, Math.max(0, Number(meta.seats ?? 0) || 0));
+    const quoted = Number(meta.priceCents);
     const priceCents =
-      plan === 'yearly'
-        ? YEARLY_PRICE_CENTS
-        : SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS;
+      Number.isFinite(quoted) && quoted > 0
+        ? quoted
+        : planCents(await this.pricing.amounts(), plan, seats);
+    const planTerms = planRow ? this.plans.entitlementsOf(planRow) : null;
+    const planFields =
+      planRow && planTerms
+        ? {
+            plan_id: planRow.id,
+            entitlements: planTerms as PrismaNs.InputJsonObject,
+          }
+        : {};
+    // Every seat the attorney has: the plan's included ones + the extra
+    // bought (a legacy row stores the total in `seats`).
+    const totalSeats = planTerms
+      ? entitlementNumber(planTerms, 'included_seats') + seats
+      : seats;
     await this.prisma.subscription.upsert({
       where: { user_id: owner },
       create: {
@@ -274,11 +559,13 @@ export class SubscriptionsService {
         assistant_seats: seats,
         trial_started_at: trialing ? new Date() : null,
         card_fingerprint: fingerprint,
+        ...planFields,
       },
       update: {
         price_cents: priceCents,
         plan,
         assistant_seats: seats,
+        ...planFields,
         stripe_subscription_id: remote.id,
         trial_started_at: trialing
           ? (existing?.trial_started_at ?? new Date())
@@ -293,10 +580,10 @@ export class SubscriptionsService {
       await this.scheduleTrialReminder(row);
     }
     // OQ-048: assistants added at purchase join without the attorney's OTP.
-    const phones = (session.metadata.phones ?? '')
+    const phones = (meta.phones ?? '')
       .split(',')
       .filter((p) => /^\+[1-9][0-9]{7,14}$/.test(p))
-      .slice(0, seats);
+      .slice(0, totalSeats);
     for (const phone of phones) {
       // Audit 2026-10-01: the webhook and the app's call run at once —
       // check + create in one serializable transaction (no duplicates).
@@ -317,10 +604,68 @@ export class SubscriptionsService {
         });
       });
     }
+    // Owner 2026-10-02: the promo code is used once the checkout is paid
+    // (an abandoned page does not burn it). Idempotent per user.
+    if (meta.promoId) {
+      const off = Number(meta.promoOffCents);
+      await recordPromoRedemption(this.prisma, {
+        promoId: meta.promoId,
+        userId: owner,
+        amountOffCents: Number.isFinite(off) && off > 0 ? off : null,
+      });
+    }
     await this.access.invalidate(owner);
   }
 
-  /** OQ-048: monthly plan — change the number of assistant seats. */
+  /**
+   * Owner 2026-10-02: a referred attorney's first-invoice discount, as a
+   * one-use coupon. Only when no promo code was given (Stripe takes one
+   * discount per session). Never blocks the checkout.
+   */
+  private async referralCoupon(userId: string): Promise<string | null> {
+    if (!this.referrals || !this.provider.createCoupon) return null;
+    try {
+      const percent =
+        await this.referrals.pendingReferralDiscountPercent(userId);
+      if (percent <= 0) return null;
+      const coupon = await this.provider.createCoupon({
+        code: `REF${userId.replace(/-/g, '').slice(0, 10).toUpperCase()}${Date.now().toString(36).toUpperCase()}`,
+        percentOff: percent,
+        amountOffCents: null,
+        currency: SUBSCRIPTION_CURRENCY,
+        maxRedemptions: 1,
+        redeemBy: Math.floor(Date.now() / 1000) + 24 * 3600,
+        metadata: { kind: 'referral_discount', userId },
+      });
+      return coupon.couponId;
+    } catch (e) {
+      this.logger.warn(`referral coupon skipped: ${String(e)}`);
+      return null;
+    }
+  }
+
+  /** Owner 2026-10-02: a promo code given at checkout, or 400. */
+  private async checkoutPromo(
+    user: RequestUser,
+    code: string,
+    plan: 'monthly' | 'yearly',
+  ): Promise<PromoCode> {
+    const check = await checkPromo(this.prisma, {
+      code,
+      userId: user.sub,
+      role: user.role,
+      purchase: plan,
+    });
+    if (!check.valid) {
+      throw new BadRequestException({
+        code: ErrorCode.PROMO_CODE_INVALID,
+        message: 'This promo code cannot be used.',
+        details: { field: 'promoCode', reason: check.reason },
+      });
+    }
+    return check.promo;
+  }
+
   /** Owner 2026-10-01: monthly → yearly "Prime" (attorney + 6 assistants);
    * Stripe invoices the difference now. */
   async switchToYearly(user: RequestUser): Promise<SubscriptionMeDto> {
@@ -344,66 +689,32 @@ export class SubscriptionsService {
         message: 'Already on the yearly plan.',
       });
     }
+    // Owner 2026-10-05: the audience's default yearly plan, terms frozen.
+    const yearly = await this.plans.defaultFor('attorney', 'year');
+    const yearlyKind = yearly?.price_kind ?? 'yearly';
     await this.provider.switchToYearly(
       row.stripe_subscription_id,
-      (await this.prices()).yearly,
+      await this.pricing.requirePriceId(yearlyKind),
+      await this.stripeTaxEnabled(),
     );
     await this.prisma.subscription.update({
       where: { id: row.id },
       data: {
         plan: 'yearly',
-        assistant_seats: MAX_ASSISTANT_SEATS,
-        price_cents: YEARLY_PRICE_CENTS,
+        // With a plan the included seats come from it; none bought extra.
+        assistant_seats: yearly ? 0 : await this.pricing.maxSeats(user.sub),
+        price_cents:
+          (await this.pricing.amountOf(yearlyKind)) ??
+          (await this.pricing.amount('yearly')),
+        ...(yearly
+          ? {
+              plan_id: yearly.id,
+              entitlements: this.plans.entitlementsOf(yearly),
+            }
+          : {}),
       },
     });
     await this.access.invalidate(user.sub);
-    return this.me(user);
-  }
-
-  async setSeats(user: RequestUser, seats: number): Promise<SubscriptionMeDto> {
-    await this.verifiedAttorney(user);
-    const row = await this.prisma.subscription.findUnique({
-      where: { user_id: user.sub },
-    });
-    if (
-      !row ||
-      !SubscriptionAccessService.rowIsActive(row) ||
-      !row.stripe_subscription_id
-    ) {
-      throw new NotFoundException({
-        code: ErrorCode.SUBSCRIPTION_NOT_FOUND,
-        message: 'No active subscription.',
-      });
-    }
-    if (row.plan === 'yearly') {
-      throw new ConflictException({
-        code: ErrorCode.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
-        message: 'The yearly plan already includes 6 assistants.',
-      });
-    }
-    const live = await this.prisma.assistantMembership.count({
-      where: { attorney_id: user.sub, status: { not: 'removed' } },
-    });
-    if (seats < live) {
-      throw new ConflictException({
-        code: ErrorCode.ASSISTANT_SEATS_IN_USE,
-        message: 'Remove assistants before lowering the number of seats.',
-        details: { inUse: live },
-      });
-    }
-    await this.provider.setSeatQuantity(
-      row.stripe_subscription_id,
-      (await this.prices()).seat,
-      seats,
-    );
-    await this.prisma.subscription.update({
-      where: { id: row.id },
-      data: {
-        assistant_seats: seats,
-        price_cents:
-          SUBSCRIPTION_PRICE_CENTS + seats * ASSISTANT_SEAT_PRICE_CENTS,
-      },
-    });
     return this.me(user);
   }
 
@@ -411,6 +722,7 @@ export class SubscriptionsService {
     user: RequestUser,
     setupIntentId: string,
     chargeNow: boolean,
+    clientIdempotencyKey?: string,
   ): Promise<SubscriptionMeDto> {
     await this.verifiedAttorney(user);
     const priceId = await this.assertConfigured();
@@ -439,32 +751,46 @@ export class SubscriptionsService {
     const fingerprint = await this.provider.paymentMethodFingerprint(
       si.paymentMethodId,
     );
+    // Owner 2026-10-11: the order kept on the SetupIntent by `start`.
+    if (si.metadata?.planId && si.metadata.items) {
+      return this.confirmOrder(
+        user,
+        si,
+        fingerprint,
+        chargeNow,
+        customerId,
+        clientIdempotencyKey,
+      );
+    }
     const eligible =
       (await this.attorneyTrialEligible(user.sub)) &&
       (await this.cardTrialEligible(fingerprint, user.sub));
+    const monthlyCents = await this.pricing.amount('monthly');
     if (!eligible && !chargeNow) {
       // §1.1: the app shows "Пробный период недоступен, будет списано $399
       // сейчас" and repeats with chargeNow after an explicit confirmation.
       throw new ConflictException({
         code: ErrorCode.SUBSCRIPTION_TRIAL_UNAVAILABLE,
         message:
-          'No trial is available for this account or card; $399 will be charged now.',
-        details: { chargeNowCents: SUBSCRIPTION_PRICE_CENTS },
+          'No trial is available for this account or card; the price will be charged now.',
+        details: { chargeNowCents: monthlyCents },
       });
     }
     const remote = await this.provider.createSubscription({
       customerId,
       priceId,
       paymentMethodId: si.paymentMethodId,
-      trialDays: eligible ? TRIAL_DAYS : null,
+      trialDays: eligible ? await this.pricing.defaultTrialDays() : null,
       metadata: { userId: user.sub },
+      idempotencyKey: subscriptionAttemptKey(si, clientIdempotencyKey),
+      automaticTax: await this.stripeTaxEnabled(),
     });
     const now = new Date();
     await withTxRetry(this.prisma, async (tx) => {
       const data = {
         stripe_subscription_id: remote.id,
         status: 'incomplete' as const,
-        price_cents: SUBSCRIPTION_PRICE_CENTS,
+        price_cents: monthlyCents,
         // The trial mark survives a re-subscription: it is what makes the
         // attorney ineligible for a second trial (§1.1).
         trial_started_at: eligible ? now : (existing?.trial_started_at ?? null),
@@ -497,26 +823,134 @@ export class SubscriptionsService {
     return this.me(user);
   }
 
+  /** `confirm` for an order made by `start` (plan, seats, promo). */
+  private async confirmOrder(
+    user: RequestUser,
+    si: ProviderSetupIntent,
+    fingerprint: string | null,
+    chargeNow: boolean,
+    customerId: string,
+    clientIdempotencyKey?: string,
+  ): Promise<SubscriptionMeDto> {
+    const meta = si.metadata;
+    const lineItems = meta.items
+      .split(',')
+      .map((part) => {
+        const [priceId, qty] = part.split(':');
+        return { priceId, quantity: Math.max(1, Number(qty) || 1) };
+      })
+      .filter((l) => l.priceId);
+    if (lineItems.length === 0) {
+      throw new ConflictException({
+        code: ErrorCode.SUBSCRIPTION_SETUP_INCOMPLETE,
+        message: 'The order was not found for this card.',
+      });
+    }
+    const planTrialDays = Number(meta.planTrialDays ?? 0) || 0;
+    const promoDays = Number(meta.promoFreeDays ?? 0) || 0;
+    const eligible =
+      (await this.attorneyTrialEligible(user.sub, planTrialDays)) &&
+      (await this.cardTrialEligible(fingerprint, user.sub));
+    const priceCents = Number(meta.priceCents) || 0;
+    if (!eligible && promoDays === 0 && !chargeNow) {
+      // §1.1: no trial → the price is charged now, with the explicit OK.
+      throw new ConflictException({
+        code: ErrorCode.SUBSCRIPTION_TRIAL_UNAVAILABLE,
+        message:
+          'No trial is available for this account or card; the price will be charged now.',
+        details: { chargeNowCents: priceCents },
+      });
+    }
+    const trialDays = (eligible ? planTrialDays : 0) + promoDays;
+    const remote = await this.provider.createSubscription({
+      customerId,
+      priceId: lineItems[0].priceId,
+      lineItems,
+      couponId: meta.couponId ?? null,
+      paymentMethodId: si.paymentMethodId ?? '',
+      trialDays: trialDays > 0 ? trialDays : null,
+      metadata: { ...meta, userId: user.sub },
+      idempotencyKey: subscriptionAttemptKey(si, clientIdempotencyKey),
+      automaticTax: await this.stripeTaxEnabled(),
+    });
+    await this.applyOrder(remote, { ...meta, userId: user.sub }, user.sub);
+    return this.me(user);
+  }
+
   async me(user: RequestUser): Promise<SubscriptionMeDto> {
-    const [row, profile] = await Promise.all([
+    const [row, profile, grant] = await Promise.all([
       this.prisma.subscription.findUnique({ where: { user_id: user.sub } }),
       this.prisma.attorneyProfile.findUnique({
         where: { user_id: user.sub },
         select: { verification_status: true },
       }),
+      this.access.activeGrant(user.sub),
     ]);
-    const isActive = SubscriptionAccessService.rowIsActive(row);
+    // Owner 2026-10-02: a free subscription under a contract counts.
+    const isActive = SubscriptionAccessService.rowIsActive(row) || !!grant;
+    const amounts = await this.pricing.amounts();
+    // The checkout without a plan code charges the default monthly plan, so
+    // the headline monthly price is that plan's (the legacy `monthly` price
+    // only when the plan has no price row of its own).
+    const defaultMonthly = await this.plans.defaultFor('attorney', 'month');
+    const monthlyCents =
+      (defaultMonthly?.price_kind
+        ? await this.pricing.amountOf(defaultMonthly.price_kind)
+        : null) ?? amounts.monthly;
+    const defaultYearly = await this.plans.defaultFor('attorney', 'year');
+    const yearlyCents =
+      (defaultYearly?.price_kind
+        ? await this.pricing.amountOf(defaultYearly.price_kind)
+        : null) ?? amounts.yearly;
+    // Owner 2026-10-05 (plan builder).
+    const [resolved, forSale] = await Promise.all([
+      this.entitlements.forUser(user.sub),
+      this.plans.purchasable('attorney'),
+    ]);
+    // Owner 2026-10-07 (phone test): the baseline (no subscription) is not
+    // a plan to show on the paywall.
+    const resolvedPlan = resolved.planId
+      ? await this.plans.byId(resolved.planId).catch(() => null)
+      : null;
+    const currentPlan =
+      resolvedPlan && resolvedPlan.kind !== 'baseline' ? resolvedPlan : null;
+    // Owner 2026-10-07 (phone test): the placeholder row a checkout opens
+    // before payment (no provider subscription yet) is not a subscription —
+    // an abandoned checkout must leave the paywall as it was, not stuck on
+    // «Подтверждаем карту» without buttons.
+    const shown =
+      row && !(row.status === 'incomplete' && !row.stripe_subscription_id)
+        ? row
+        : null;
     return {
-      subscription: row ? presentSubscription(row) : null,
+      plan: currentPlan
+        ? await presentPlan(currentPlan, this.plans, this.pricing)
+        : null,
+      plans: await Promise.all(
+        forSale.map((p) => presentPlan(p, this.plans, this.pricing)),
+      ),
+      entitlements: resolved.values,
+      seats: resolved.seats,
+      subscription: shown ? presentSubscription(shown) : null,
+      contractGrant: grant
+        ? {
+            endsAt: grant.ends_at.toISOString(),
+            assistantSeats: grant.assistant_seats,
+          }
+        : null,
       isActive,
       canStart: profile?.verification_status === 'verified' && !isActive,
       trialEligible: await this.attorneyTrialEligible(user.sub),
-      priceCents: SUBSCRIPTION_PRICE_CENTS,
+      priceCents: monthlyCents,
       prices: {
-        monthlyCents: SUBSCRIPTION_PRICE_CENTS,
-        seatCents: ASSISTANT_SEAT_PRICE_CENTS,
-        yearlyCents: YEARLY_PRICE_CENTS,
-        maxSeats: MAX_ASSISTANT_SEATS,
+        monthlyCents,
+        seatCents: amounts.seat,
+        yearlyCents,
+        maxSeats: await this.pricing.maxSeats(user.sub),
+        trialDays: await this.pricing.defaultTrialDays(),
+        monthlyDiscount: await this.pricing.discount('monthly'),
+        seatDiscount: await this.pricing.discount('seat'),
+        yearlyDiscount: await this.pricing.discount('yearly'),
       },
     };
   }
@@ -540,8 +974,24 @@ export class SubscriptionsService {
     });
     const page = rows.slice(0, PAYMENTS_PAGE);
     const last = page[page.length - 1];
+    // Owner 2026-10-15: a Boost payment says so (target and days).
+    const boosts = page.length
+      ? await this.prisma.casePromotion.findMany({
+          where: { payment_id: { in: page.map((p) => p.id) } },
+          select: { payment_id: true, target_type: true, days: true },
+        })
+      : [];
+    const boostOf = new Map(boosts.map((b) => [b.payment_id, b]));
     return {
-      items: page.map(presentPayment),
+      items: page.map((p) => {
+        const b = boostOf.get(p.id);
+        return {
+          ...presentPayment(p),
+          kind: b ? 'boost' : 'subscription',
+          boostTarget: b?.target_type ?? null,
+          boostDays: b?.days ?? null,
+        };
+      }),
       nextCursor:
         rows.length > PAYMENTS_PAGE && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
@@ -613,16 +1063,14 @@ export class SubscriptionsService {
     row: Pick<Subscription, 'id' | 'trial_ends_at'>,
   ): Promise<void> {
     if (!this.queue || !row.trial_ends_at) return;
-    const at =
-      row.trial_ends_at.getTime() - TRIAL_REMINDER_DAYS_BEFORE * 86_400_000;
-    const delay = at - Date.now();
-    if (delay <= 0) return;
+    const job = trialReminderJob(row);
+    if (!job) return;
     await this.queue.add(
       TRIAL_REMINDER_JOB,
       { subscriptionId: row.id },
       {
-        jobId: `trial-${row.id}-${row.trial_ends_at.getTime()}`,
-        delay,
+        jobId: job.jobId,
+        delay: job.delay,
         removeOnComplete: true,
         removeOnFail: 100,
       },
@@ -630,6 +1078,13 @@ export class SubscriptionsService {
   }
 
   // ------------------------------------------------------------------
+
+  /** Owner 2026-10-22: admin switch billing.stripe_tax_enabled. */
+  async stripeTaxEnabled(): Promise<boolean> {
+    return (
+      (await this.settings?.boolean('billing.stripe_tax_enabled')) ?? false
+    );
+  }
 
   async customerId(userId: string, email: string | null): Promise<string> {
     const existing = await this.prisma.stripeCustomer.findUnique({
@@ -646,7 +1101,13 @@ export class SubscriptionsService {
   }
 
   /** §1.1: "только один раз на адвоката". */
-  private async attorneyTrialEligible(userId: string): Promise<boolean> {
+  private async attorneyTrialEligible(
+    userId: string,
+    days?: number,
+  ): Promise<boolean> {
+    // Owner 2026-10-05: 0 trial days (the plan's, else Деньги → Цены)
+    // means no trial.
+    if ((days ?? (await this.pricing.defaultTrialDays())) === 0) return false;
     const used = await this.prisma.subscription.findFirst({
       where: { user_id: userId, trial_started_at: { not: null } },
       select: { id: true },
@@ -669,6 +1130,12 @@ export class SubscriptionsService {
       select: { id: true },
     });
     return !used;
+  }
+
+  /** Owner 2026-10-22: the same check for SeatsService (seat changes
+   * moved there: charged now, removed at the period end). */
+  assertVerifiedAttorney(user: RequestUser): Promise<{ email: string | null }> {
+    return this.verifiedAttorney(user);
   }
 
   private async verifiedAttorney(
@@ -696,36 +1163,31 @@ export class SubscriptionsService {
     return { email: u.email };
   }
 
-  /**
-   * Owner 2026-10-01: price ids from the admin (Integrations → Stripe) or
-   * the env, read per call; fake ids while on the fake provider.
-   */
-  private async prices(): Promise<{
-    monthly: string | undefined;
-    seat: string;
-    yearly: string;
-  }> {
-    await refreshProvider(this.provider);
-    const f = (await this.secrets?.get('stripe'))?.fields ?? {};
-    const fake = this.provider.name === 'fake';
-    return {
-      monthly:
-        f.priceId ??
-        this.config.get<string>('STRIPE_PRICE_ID') ??
-        (fake ? 'price_fake_399' : undefined),
-      seat:
-        f.priceSeatId ??
-        this.config.get<string>('STRIPE_PRICE_SEAT_ID') ??
-        'price_fake_seat_100',
-      yearly:
-        f.priceYearlyId ??
-        this.config.get<string>('STRIPE_PRICE_YEARLY_ID') ??
-        'price_fake_yearly_9590',
-    };
+  /** Owner 2026-10-05: the plan a checkout buys — by code, else the
+   * audience's default of the requested interval. */
+  private async planFor(req: CheckoutRequestDto): Promise<Plan> {
+    const plan = req.planCode
+      ? await this.plans.byCode(req.planCode)
+      : await this.plans.defaultFor(
+          'attorney',
+          req.plan === 'yearly' ? 'year' : 'month',
+        );
+    if (
+      !plan ||
+      plan.audience !== 'attorney' ||
+      plan.kind !== 'paid' ||
+      plan.status !== 'active'
+    ) {
+      throw new ConflictException({
+        code: ErrorCode.PLAN_NOT_AVAILABLE,
+        message: 'This plan is not for sale.',
+      });
+    }
+    return plan;
   }
 
   private async assertConfigured(): Promise<string> {
-    const priceId = (await this.prices()).monthly;
+    const priceId = await this.pricing.priceId('monthly');
     if (!priceId) {
       throw new ServiceUnavailableException({
         code: ErrorCode.PAYMENTS_NOT_CONFIGURED,
@@ -736,6 +1198,24 @@ export class SubscriptionsService {
   }
 }
 
+/** What a plan costs per period at [amounts]. */
+export function planCents(
+  amounts: PlanAmounts,
+  plan: 'monthly' | 'yearly',
+  seats: number,
+): number {
+  return plan === 'yearly'
+    ? amounts.yearly
+    : amounts.monthly + seats * amounts.seat;
+}
+
+function includedSeatsOf(s: Subscription): number {
+  const snap = s.entitlements;
+  if (!snap || typeof snap !== 'object' || Array.isArray(snap)) return 0;
+  const v = (snap as Record<string, unknown>).included_seats;
+  return typeof v === 'number' && v > 0 ? Math.floor(v) : 0;
+}
+
 export function presentSubscription(s: Subscription): SubscriptionDto {
   return {
     id: s.id,
@@ -743,7 +1223,10 @@ export function presentSubscription(s: Subscription): SubscriptionDto {
     isActive: SubscriptionAccessService.rowIsActive(s),
     priceCents: s.price_cents,
     plan: s.plan,
-    assistantSeats: s.assistant_seats,
+    // Owner 2026-10-05 (plan builder): every seat the attorney has — the
+    // plan's included ones (frozen on the row) + the extra bought. A row
+    // from before plans stores the total in assistant_seats already.
+    assistantSeats: includedSeatsOf(s) + s.assistant_seats,
     trialEndsAt: s.trial_ends_at?.toISOString() ?? null,
     currentPeriodEnd: s.current_period_end?.toISOString() ?? null,
     cancelAtPeriodEnd: s.cancel_at_period_end,
@@ -757,10 +1240,13 @@ export function presentPayment(p: Payment): PaymentDto {
   return {
     id: p.id,
     amountCents: p.amount_cents,
+    taxCents: p.tax_cents ?? null,
+    subtotalCents: p.subtotal_cents ?? null,
     currency: p.currency || SUBSCRIPTION_CURRENCY,
     status: p.status,
     paidAt: p.paid_at?.toISOString() ?? null,
     failureCode: p.failure_code,
     createdAt: p.created_at.toISOString(),
+    kind: 'subscription',
   };
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Security research #5 (2026-10-22), B2: the store build talks https only
+     and trusts the system certificate store alone (no user-added CAs, so a
+     proxy certificate installed on the phone cannot read the traffic).
+     Overridden for the dev flavor (src/dev) and for debug builds (src/debug),
+     which talk to the Mac over plain http. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

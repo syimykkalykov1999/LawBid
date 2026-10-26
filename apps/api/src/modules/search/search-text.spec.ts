@@ -1,4 +1,4 @@
-import { escapeLike } from './cockroach-search.provider';
+import { escapeLike } from './postgres-search.provider';
 import { normalizeQuery } from './search.service';
 
 describe('search text helpers (docs/05 §7)', () => {

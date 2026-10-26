@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_user_license_dto.dart';
 import 'admin_user_subscription_dto.dart';
 
 part 'admin_attorney_card_dto.g.dart';
@@ -20,6 +21,8 @@ class AdminAttorneyCardDto {
     required this.followersCount,
     required this.postsCount,
     required this.licenses,
+    required this.licenseItems,
+    required this.practices,
     required this.subscription,
   });
 
@@ -37,6 +40,10 @@ class AdminAttorneyCardDto {
 
   /// `NY:verified`, …
   final List<String> licenses;
+  final List<AdminUserLicenseDto> licenseItems;
+
+  /// English names of the chosen practice areas.
+  final List<String> practices;
   final AdminUserSubscriptionDto? subscription;
 
   Map<String, Object?> toJson() => _$AdminAttorneyCardDtoToJson(this);

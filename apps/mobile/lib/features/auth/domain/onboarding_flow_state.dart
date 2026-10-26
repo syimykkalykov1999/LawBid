@@ -1,7 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-
-import '../../../shared/domain/user_role.dart';
-import 'onboarding_step.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 part 'onboarding_flow_state.freezed.dart';
 
@@ -32,6 +31,10 @@ abstract class OnboardingFlowState with _$OnboardingFlowState {
     UserRole? selectedRole,
     @Default(false) bool isSubmitting,
     String? errorMessage,
+
+    /// Owner 2026-10-05: the number belongs to a country LawBid is not
+    /// open in yet (ISO code) — the phone screen offers the waiting list.
+    String? closedCountry,
 
     /// A code that arrived by itself — Android SMS Retriever (§10.2 D) —
     /// shown prefilled on the code

@@ -13,6 +13,10 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
       description: json['description'] as String,
       primaryStateCode: json['primaryStateCode'] as String,
       budgetMode: BudgetMode.fromJson(json['budgetMode'] as String),
+      extraPracticeAreaIds: (json['extraPracticeAreaIds'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      privateDetails: json['privateDetails'] as String?,
       additionalStateCodes: (json['additionalStateCodes'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
@@ -21,19 +25,37 @@ CreateCaseDto _$CreateCaseDtoFromJson(Map<String, dynamic> json) =>
           ?.map((e) => e as String)
           .toList(),
       budgetAmountDollars: (json['budgetAmountDollars'] as num?)?.toInt(),
+      budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
       clientContactSharingConsent: json['clientContactSharingConsent'] as bool?,
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
     );
 
 Map<String, dynamic> _$CreateCaseDtoToJson(CreateCaseDto instance) =>
     <String, dynamic>{
       'practiceAreaId': instance.practiceAreaId,
+      'extraPracticeAreaIds': ?instance.extraPracticeAreaIds,
       'title': instance.title,
       'description': instance.description,
+      'privateDetails': ?instance.privateDetails,
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCodes': ?instance.additionalStateCodes,
       'city': ?instance.city,
       'budgetMode': instance.budgetMode.toJson(),
       'photoFileIds': ?instance.photoFileIds,
       'budgetAmountDollars': ?instance.budgetAmountDollars,
+      'budgetPercentBps': ?instance.budgetPercentBps,
       'clientContactSharingConsent': ?instance.clientContactSharingConsent,
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
     };

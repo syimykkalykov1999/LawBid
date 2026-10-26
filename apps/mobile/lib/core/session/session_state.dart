@@ -15,8 +15,6 @@ part 'session_state.freezed.dart';
 /// rather than a bare null check.
 @freezed
 abstract class SessionState with _$SessionState {
-  const SessionState._();
-
   const factory SessionState({
     required String accessToken,
     required String sub,
@@ -25,7 +23,13 @@ abstract class SessionState with _$SessionState {
     required bool verified,
     required String subscriptionStatus,
     required DateTime accessTokenExpiresAt,
+
+    /// Owner 2026-10-05 (docs/ops/demo-world.md): access-token claim `demo` —
+    /// this session lives in the separate demo database. Every request
+    /// then carries `X-LawBid-Demo: 1` (AuthInterceptor).
+    @Default(false) bool isDemo,
   }) = _SessionState;
+  const SessionState._();
 
   bool get isAuthenticated => true;
 }

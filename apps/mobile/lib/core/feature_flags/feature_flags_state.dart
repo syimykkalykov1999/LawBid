@@ -1,7 +1,7 @@
-import 'default_feature_flags.dart';
-import 'legal_document.dart';
+import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
+import 'package:lawbid/core/feature_flags/legal_document.dart';
 
-/// [FeatureFlagsController]'s state (feature_flags_providers.dart):
+/// `FeatureFlagsController`'s state (feature_flags_providers.dart):
 /// the last-known flag map and the `app_config` map `/config/bootstrap`
 /// returned alongside it (min/soft update versions — see
 /// `isAppUpdateRequiredProvider`). Bundled into one class (rather than
@@ -16,6 +16,10 @@ class FeatureFlagsState {
 
   final Map<String, bool> flags;
   final Map<String, String> appConfig;
+
+  /// A numeric app_config value the owner can change in the admin panel.
+  int configInt(String key, int fallback) =>
+      num.tryParse(appConfig[key] ?? '')?.toInt() ?? fallback;
 
   /// Current legal documents from the same bootstrap response (stage 1.7
   /// mobile: the consents step links Terms/Privacy/Disclaimer to these).

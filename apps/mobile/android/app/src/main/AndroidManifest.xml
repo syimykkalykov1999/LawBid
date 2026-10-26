@@ -1,4 +1,16 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Store release 2026-10-06: release builds must declare network
+         access themselves (the template only adds it to debug/profile). -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+: without it the system never asks and no push is shown. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Planner reminders: the local safety net is re-armed after a reboot
+         or an app update. Exact alarms (a reminder rings at its minute) when the
+         person allows them in the system screen; inexact until then. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Biometric reauth (Phase 4 of the auth networking work,
          docs/CHANGELOG.md): required by local_auth for
          BiometricPrompt/fingerprint on Android. -->
@@ -9,20 +21,58 @@
          The camera is optional hardware: devices without one can still
          upload license/ID files from storage. -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Video calls are off (flag), so the call service must not declare the
+         camera foreground-service type: Play asks for a demo video per type. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" tools:node="remove" />
+    <!-- Owner 2026-10-20: the ongoing-call service (phoneCall|microphone). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+    <!-- Incoming call over the lock screen (Android 14+ asks for it). -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Owner 2026-10-20: "Save" on the My QR code card writes a picture to
+         the gallery; Android 9 and older need this, newer ones do not. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <!-- OQ-040: voice messages; in-app calls. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- android:label comes from the flavor's resValue app_name
          (android/app/build.gradle.kts): "LawBid Dev" / "LawBid Staging" /
          "LawBid" (p12 leaf-1.4). -->
+    <!-- Security research #5 (2026-10-22), B2: https only in store builds,
+         system CAs only (res/xml/network_security_config.xml; the dev flavor
+         and debug builds override it with cleartext for the Mac). -->
+    <!-- Owner 2026-10-22 (checklist §27): backup rules for both Android
+         generations — tokens, Drift stores and caches never reach a cloud
+         backup or a device transfer (res/xml/backup_rules.xml,
+         res/xml/data_extraction_rules.xml). -->
     <application
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <receiver android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -56,11 +106,12 @@
                 <data android:scheme="lawbid" />
             </intent-filter>
             <!-- Android App Links (docs/01_FOUNDATION_AUTH.md §12):
-                 https://lawbid.app/case/:id, /lawyer/:username, /post/:id and
+                 https://lawbid.dev/case/:id, /lawyer/:username, /post/:id, /u/:username (profile QR), /q/:id
+                 (website sign-in QR), /g/:token (group invite) and
                  the magic sign-in link /auth/email-code. Verified against
                  https://<deepLinkHost>/.well-known/assetlinks.json (template:
                  docs/deeplinks/assetlinks.json). The host is the Gradle
-                 property lawbid.deepLinkHost (default lawbid.app). -->
+                 property lawbid.deepLinkHost (default lawbid.dev). -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -70,6 +121,11 @@
                 <data android:pathPrefix="/case/" />
                 <data android:pathPrefix="/lawyer/" />
                 <data android:pathPrefix="/post/" />
+                <data android:pathPrefix="/g/" />
+                <data android:pathPrefix="/c/" />
+                <data android:pathPrefix="/r/" />
+                <data android:pathPrefix="/u/" />
+                <data android:pathPrefix="/q/" />
                 <data android:path="/auth/email-code" />
             </intent-filter>
         </activity>
@@ -78,6 +134,28 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <receiver
+            android:name=".CallHangupReceiver"
+            android:exported="false" />
+        <!-- Owner 2026-10-22 (WhatsApp): a data-only chat push is drawn by the
+             app (sender's photo, one notification per chat). Same FCM
+             broadcast and permission as firebase_messaging's own receiver. -->
+        <receiver
+            android:name=".ChatPushReceiver"
+            android:exported="true"
+            android:permission="com.google.android.c2dm.permission.SEND">
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall|microphone" />
+        <service
+            android:name="com.hiennv.flutter_callkit_incoming.CallkitNotificationService"
+            android:foregroundServiceType="phoneCall|microphone"
+            tools:replace="android:foregroundServiceType" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

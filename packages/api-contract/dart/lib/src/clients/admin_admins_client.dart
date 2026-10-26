@@ -7,7 +7,16 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_account_envelope.dart';
 import '../models/admin_account_list_envelope.dart';
+import '../models/admin_invite_result_envelope.dart';
+import '../models/admin_preset_list_envelope.dart';
+import '../models/admin_role_template_envelope.dart';
+import '../models/admin_role_template_list_envelope.dart';
 import '../models/create_admin_dto.dart';
+import '../models/invite_admin_dto.dart';
+import '../models/save_admin_role_template_dto.dart';
+import '../models/set_admin_countries_dto.dart';
+import '../models/set_admin_credentials_dto.dart';
+import '../models/set_admin_permissions_dto.dart';
 import '../models/set_admin_role_dto.dart';
 
 part 'admin_admins_client.g.dart';
@@ -15,6 +24,34 @@ part 'admin_admins_client.g.dart';
 @RestApi()
 abstract class AdminAdminsClient {
   factory AdminAdminsClient(Dio dio, {String? baseUrl}) = _AdminAdminsClient;
+
+  /// Saved rights templates
+  @GET('/admin/admins/templates')
+  Future<AdminRoleTemplateListEnvelope> listTemplates({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save a named set of rights
+  @POST('/admin/admins/templates')
+  Future<AdminRoleTemplateEnvelope> createTemplate({
+    @Body() required SaveAdminRoleTemplateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Rename or change a template
+  @PATCH('/admin/admins/templates/{id}')
+  Future<AdminRoleTemplateEnvelope> updateTemplate({
+    @Path('id') required String id,
+    @Body() required SaveAdminRoleTemplateDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a template (admins keep their rights)
+  @DELETE('/admin/admins/templates/{id}')
+  Future<void> deleteTemplate({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// All administrator accounts
   @GET('/admin/admins')
@@ -29,11 +66,55 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Ready-made rights (owner, accountant, moderator, support, view-only) to start from
+  @GET('/admin/admins/presets')
+  Future<AdminPresetListEnvelope> listPresets({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Invite an administrator: creates the account with a preset’s rights and returns a one-time link (72 h) for the owner to send himself — no email is sent. Needs a fresh step-up.
+  @POST('/admin/admins/invites')
+  Future<AdminInviteResultEnvelope> inviteAdmin({
+    @Body() required InviteAdminDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A new one-time sign-up link (72 h) for an existing administrator; the old link stops working. Needs a fresh step-up.
+  @POST('/admin/admins/{id}/invite')
+  Future<AdminInviteResultEnvelope> reinviteAdmin({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Assign a role (ends the admin’s sessions)
   @PATCH('/admin/admins/{id}/role')
   Future<AdminAccountEnvelope> setAdminRole({
     @Path('id') required String id,
     @Body() required SetAdminRoleDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Toggle areas for an admin (view / manage), within what the caller holds. Keys, admin management and sessions cannot be granted; money, economy, budget limits and the audit log only by the super admin.
+  @PATCH('/admin/admins/{id}/permissions')
+  Future<AdminAccountEnvelope> setAdminPermissions({
+    @Path('id') required String id,
+    @Body() required SetAdminPermissionsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Countries an employee works with (owner 2026-10-05): their lists, queues and workspace show only people, cases and tickets of these countries. Empty = every country.
+  @PUT('/admin/admins/{id}/countries')
+  Future<AdminAccountEnvelope> setAdminCountries({
+    @Path('id') required String id,
+    @Body() required SetAdminCountriesDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set an admin’s login and/or password (needs a fresh step-up; their sessions end)
+  @PUT('/admin/admins/{id}/credentials')
+  Future<AdminAccountEnvelope> setAdminCredentials({
+    @Path('id') required String id,
+    @Body() required SetAdminCredentialsDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -51,7 +132,14 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Reset 2FA: the next sign-in binds a new authenticator
+  /// Remove an administrator: account closed, login and password wiped, sessions revoked
+  @DELETE('/admin/admins/{id}')
+  Future<void> removeAdmin({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Super admin: reset another admin’s authenticator (needs a fresh step-up); the next sign-in sets up a new one
   @POST('/admin/admins/{id}/reset-2fa')
   Future<AdminAccountEnvelope> resetAdminTotp({
     @Path('id') required String id,

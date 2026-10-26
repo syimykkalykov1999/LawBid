@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpStatus,
   Param,
@@ -8,6 +9,11 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../common/concurrency/optimistic-lock';
+import { RequireLegalAcceptance } from '../legal-documents/legal-acceptance.guard';
 import {
   ApiBearerAuth,
   ApiHeader,
@@ -26,7 +32,12 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
+import { FirmsService } from '../firms/firms.service';
 import { BidsService } from './bids.service';
+import {
+  ConflictCheckDto,
+  ConflictCheckService,
+} from './conflict/conflict-check.service';
 import {
   BidIdParamDto,
   CaseIdParamDto,
@@ -48,11 +59,51 @@ const E = ErrorCode;
 @ApiErrors(AUTHENTICATED_ERRORS)
 @Controller()
 export class BidsController {
-  constructor(private readonly bids: BidsService) {}
+  constructor(
+    private readonly bids: BidsService,
+    private readonly firms: FirmsService,
+    private readonly conflicts: ConflictCheckService,
+  ) {}
+
+  // Owner 2026-10-20: a conflict-of-interest warning before the bid.
+  @AttorneyOnly('bids')
+  @Get('cases/:caseId/conflict-check')
+  @ApiOperation({
+    summary:
+      'Attorney: does this case clash with a client or a case of yours? (a warning, never a block)',
+  })
+  @ApiEnvelopeResponse(ConflictCheckDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.USER_BLOCKED],
+    404: [E.CASE_NOT_FOUND],
+    429: [E.RATE_LIMITED],
+  })
+  async conflictCheck(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+  ): Promise<ConflictCheckDto> {
+    if (user.role !== 'attorney') {
+      throw new ForbiddenException({
+        code: E.FORBIDDEN,
+        message: 'Only attorneys can check a case for a conflict.',
+      });
+    }
+    // Owner 2026-10-22 (security audit #3, finding 7): only a case this
+    // attorney may open, and no block either way — before anything loads.
+    await this.conflicts.assertAllowed(user.sub, params.caseId);
+    await this.conflicts.assertQuota(user.sub);
+    const result = await this.conflicts.check(user.sub, params.caseId);
+    await this.conflicts
+      .record(user.sub, params.caseId, 'view', result)
+      .catch(() => undefined);
+    return result;
+  }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('bids')
   @Post('cases/:caseId/bids')
+  @RequireLegalAcceptance()
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Place a bid on an open case (attorney)' })
@@ -64,7 +115,7 @@ export class BidsController {
   @ApiEnvelopeResponse(BidDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.IDEMPOTENCY_KEY_REQUIRED],
-    403: [E.FORBIDDEN, E.SUBSCRIPTION_REQUIRED],
+    403: [E.FORBIDDEN, E.SUBSCRIPTION_REQUIRED, E.LEGAL_REACCEPT_REQUIRED],
     404: [E.CASE_NOT_FOUND],
     409: [
       E.CASE_INVALID_STATE,
@@ -72,23 +123,24 @@ export class BidsController {
       E.IDEMPOTENCY_KEY_CONFLICT,
     ],
   })
-  createBid(
+  async createBid(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
     @Body() dto: CreateBidDto,
   ): Promise<BidDto> {
-    return this.bids.create(user, params.caseId, dto);
-  }
-
-  @Get('bids/:id')
-  @ApiOperation({ summary: 'Bid details and full negotiation history' })
-  @ApiEnvelopeResponse(BidDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  getBid(
-    @CurrentUser() user: RequestUser,
-    @Param() params: BidIdParamDto,
-  ): Promise<BidDto> {
-    return this.bids.get(user, params.id);
+    const sender = dto.sendAsAttorneyId
+      ? await this.firms.resolveSender(
+          user.sub,
+          dto.sendAsAttorneyId,
+          params.caseId,
+        )
+      : null;
+    // The bid is the firm lawyer's: their licence, plan and limits.
+    return this.bids.create(
+      sender ? { ...user, sub: sender } : user,
+      params.caseId,
+      dto,
+    );
   }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).
@@ -132,6 +184,7 @@ export class BidsController {
   // OQ-049: or an assistant the attorney trusted (their responsibility).
   @AttorneyOnly('bids')
   @Post('bids/:id/counter')
+  @ApiIfMatchVersion()
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({
     summary: "Counter-offer, whichever party's turn it is (max 5 rounds)",
@@ -146,6 +199,7 @@ export class BidsController {
       E.BID_NOT_YOUR_TURN,
       E.BID_MAX_ROUNDS_REACHED,
       E.BID_COUNTER_NOT_ALLOWED,
+      E.STALE_VERSION,
       E.IDEMPOTENCY_KEY_CONFLICT,
     ],
   })
@@ -153,7 +207,8 @@ export class BidsController {
     @CurrentUser() user: RequestUser,
     @Param() params: BidIdParamDto,
     @Body() dto: CounterOfferDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<BidDto> {
-    return this.bids.counter(user, params.id, dto);
+    return this.bids.counter(user, params.id, dto, expectedVersion);
   }
 }

@@ -1,7 +1,11 @@
+import { Prisma, type UserRole } from '@prisma/client';
+import { escapeLike, nameMatchSql } from '../../common/search/name-match.sql';
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
@@ -12,7 +16,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
   CounterAggregator,
@@ -22,12 +26,15 @@ import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
+import { RecommendationsService } from '../recommendations/recommendations.service';
 import type {
   AttorneyListItemDto,
   AttorneyListPage,
+  FollowStateDto,
   PeoplePage,
   PersonItemDto,
 } from './follows.dto';
+import { userDirectory } from '../../sharding/user-directory';
 
 const PAGE = 20;
 /** Suggestions pool per client state, rebuilt at most every 10 minutes. */
@@ -51,6 +58,8 @@ const LISTABLE_ATTORNEY = {
  */
 @Injectable()
 export class FollowsService {
+  private readonly log = new Logger(FollowsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly limits: UsageLimitsService,
@@ -59,10 +68,12 @@ export class FollowsService {
     private readonly files: FilesService,
     private readonly clients: ClientProfilesService,
     private readonly blocks: BlocksService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-13: personal ranking of the suggestions.
+    @Optional() private readonly recommendations?: RecommendationsService,
   ) {}
 
-  async follow(user: RequestUser, attorneyId: string): Promise<void> {
+  async follow(user: RequestUser, attorneyId: string): Promise<FollowStateDto> {
     if (attorneyId === user.sub) throw notAllowed();
     const target = await this.prisma.user.findFirst({
       where: { id: attorneyId, deleted_at: null },
@@ -93,7 +104,7 @@ export class FollowsService {
       data: [{ follower_id: user.sub, followee_id: attorneyId }],
       skipDuplicates: true,
     });
-    if (count === 0) return;
+    if (count === 0) return this.state(attorneyId, target.role, true);
     await this.counters.bump(
       profileEntity(target.role),
       attorneyId,
@@ -116,17 +127,21 @@ export class FollowsService {
           ? { actorId: user.sub }
           : { actorKind: 'client' },
     });
+    return this.state(attorneyId, target.role, true);
   }
 
-  async unfollow(user: RequestUser, attorneyId: string): Promise<void> {
-    const { count } = await this.prisma.follow.deleteMany({
-      where: { follower_id: user.sub, followee_id: attorneyId },
-    });
-    if (count === 0) return;
+  async unfollow(
+    user: RequestUser,
+    attorneyId: string,
+  ): Promise<FollowStateDto> {
     const target = await this.prisma.user.findUnique({
       where: { id: attorneyId },
       select: { role: true },
     });
+    const { count } = await this.prisma.follow.deleteMany({
+      where: { follower_id: user.sub, followee_id: attorneyId },
+    });
+    if (count === 0) return this.state(attorneyId, target?.role, false);
     await this.counters.bump(
       profileEntity(target?.role),
       attorneyId,
@@ -139,6 +154,37 @@ export class FollowsService {
       'following_count',
       -1,
     );
+    return this.state(attorneyId, target?.role, false);
+  }
+
+  /** The follow state the app shows after the action (package D):
+   * followers = stored counter + pending deltas. */
+  private async state(
+    id: string,
+    role: UserRole | null | undefined,
+    following: boolean,
+  ): Promise<FollowStateDto> {
+    const entity = profileEntity(role);
+    const row =
+      entity === 'attorney'
+        ? await this.prisma.attorneyProfile.findUnique({
+            where: { user_id: id },
+            select: { followers_count: true },
+          })
+        : await this.prisma.clientProfile.findUnique({
+            where: { user_id: id },
+            select: { followers_count: true },
+          });
+    const pending = await this.counters.pending(entity, 'followers_count', [
+      id,
+    ]);
+    return {
+      following,
+      followersCount: Math.max(
+        0,
+        (row?.followers_count ?? 0) + (pending.get(id) ?? 0),
+      ),
+    };
   }
 
   /** GET /attorneys/:id/followers — attorney followers only (§6.2). */
@@ -149,8 +195,9 @@ export class FollowsService {
     viewerId: string,
     attorneyId: string,
     cursor?: string,
+    q?: string,
   ): Promise<PeoplePage> {
-    return this.people(viewerId, attorneyId, 'followers', cursor);
+    return this.people(viewerId, attorneyId, 'followers', cursor, q);
   }
 
   /** OQ-038: followers / following of any public profile (attorney or
@@ -160,14 +207,23 @@ export class FollowsService {
     userId: string,
     side: 'followers' | 'following',
     cursor?: string,
+    q?: string,
   ): Promise<PeoplePage> {
     await this.assertPublicAttorney(userId);
     const c = cursor ? decodeCursor(cursor) : undefined;
     const followers = side === 'followers';
     const other = followers ? 'follower_id' : 'followee_id';
+    const found = q
+      ? await this.matchingPeople(
+          userId,
+          followers ? 'followee_id' : 'follower_id',
+          q,
+        )
+      : null;
     const rows = await this.prisma.follow.findMany({
       where: {
         ...(followers ? { followee_id: userId } : { follower_id: userId }),
+        ...(found ? { [other]: { in: found } } : {}),
         [followers ? 'follower' : 'followee']: {
           status: 'active',
           deleted_at: null,
@@ -196,13 +252,15 @@ export class FollowsService {
         follower_id: true,
         followee_id: true,
         created_at: true,
-        follower: { select: { role: true } },
-        followee: { select: { role: true } },
       },
     });
+    const roles = await userDirectory(this.prisma).select(
+      rows.map((r) => (followers ? r.follower_id : r.followee_id)),
+      { role: true },
+    );
     const all = rows.map((r) => ({
       id: followers ? r.follower_id : r.followee_id,
-      role: (followers ? r.follower : r.followee).role,
+      role: roles.get(followers ? r.follower_id : r.followee_id)!.role,
       created_at: r.created_at,
     }));
     const page = all.slice(0, PAGE);
@@ -212,7 +270,7 @@ export class FollowsService {
     const clientIds = page.filter((r) => r.role === 'client').map((r) => r.id);
     const [attorneys, clients] = await Promise.all([
       this.present(attorneyIds, viewerId),
-      this.clients.presentMany(clientIds),
+      this.clients.presentMany(clientIds, viewerId),
     ]);
     const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
     const byClient = new Map(clients.map((x) => [x.id, x]));
@@ -233,13 +291,33 @@ export class FollowsService {
     };
   }
 
+  /** Mixed people rows (attorneys and clients) for [ids], in that order;
+   * unavailable ids drop out. Used by the reposters list. */
+  async peopleByIds(ids: string[], viewerId: string): Promise<PersonItemDto[]> {
+    const [attorneys, clients] = await Promise.all([
+      this.present(ids, viewerId),
+      this.clients.presentMany(ids, viewerId),
+    ]);
+    const byAttorney = new Map(attorneys.map((a) => [a.id, a]));
+    const byClient = new Map(clients.map((x) => [x.id, x]));
+    const items: PersonItemDto[] = [];
+    for (const id of ids) {
+      const a = byAttorney.get(id);
+      const x = byClient.get(id);
+      if (a) items.push({ role: 'attorney', attorney: a, client: null });
+      else if (x) items.push({ role: 'client', attorney: null, client: x });
+    }
+    return items;
+  }
+
   /** GET /attorneys/:id/following — public list of attorneys. */
   following(
     viewerId: string,
     attorneyId: string,
     cursor?: string,
+    q?: string,
   ): Promise<PeoplePage> {
-    return this.people(viewerId, attorneyId, 'following', cursor);
+    return this.people(viewerId, attorneyId, 'following', cursor, q);
   }
 
   /** The public lists exist for attorneys only: a client's follows are
@@ -269,19 +347,25 @@ export class FollowsService {
   }
 
   /** GET /users/me/following — the caller's own follows. */
-  mine(viewerId: string, cursor?: string): Promise<AttorneyListPage> {
-    return this.pageOf(viewerId, cursor, 'follower', viewerId);
+  mine(
+    viewerId: string,
+    cursor?: string,
+    q?: string,
+  ): Promise<AttorneyListPage> {
+    return this.pageOf(viewerId, cursor, 'follower', viewerId, q);
   }
 
   /**
    * GET /suggestions/attorneys (§6.3): verified attorneys the user does not
-   * follow, by rating and activity (posts in 30 days), a client's own state
-   * first. The ranked pool is cached per state for 10 minutes; the cursor is
-   * a position in it.
+   * follow. Owner 2026-10-13: ranked per viewer by RecommendationsService
+   * (state, practices, mutual follows, rating, activity, Identity…); the
+   * old rating/activity pool per state stays as the fallback. The pool is
+   * cached for 10 minutes; the cursor is a position in it.
    */
   async suggestions(
     user: RequestUser,
     cursor?: string,
+    limit = PAGE,
   ): Promise<AttorneyListPage> {
     const state =
       user.role === 'client'
@@ -292,7 +376,7 @@ export class FollowsService {
             })
           )?.state_code ?? null)
         : null;
-    const pool = await this.suggestionPool(state);
+    const pool = await this.suggestionIds(user.sub, state);
     const followed = new Set(
       (
         await this.prisma.follow.findMany({
@@ -311,7 +395,7 @@ export class FollowsService {
     const hidden = await this.blocks.hiddenIds(user.sub);
     const picked: string[] = [];
     let i = start;
-    for (; i < pool.length && picked.length < PAGE; i++) {
+    for (; i < pool.length && picked.length < limit; i++) {
       if (
         pool[i] !== user.sub &&
         !followed.has(pool[i]) &&
@@ -320,11 +404,39 @@ export class FollowsService {
         picked.push(pool[i]);
       }
     }
+    const items = await this.present(picked, user.sub);
+    // Owner 2026-10-13: people from my address book get a small caption.
+    const inContacts = new Set(
+      (
+        await this.prisma.contactMatch.findMany({
+          where: { owner_id: user.sub, matched_id: { in: picked } },
+          select: { matched_id: true },
+        })
+      ).map((m) => m.matched_id),
+    );
+    for (const item of items) {
+      if (inContacts.has(item.id)) item.reason = 'contacts';
+    }
     return {
-      items: await this.present(picked, user.sub),
+      items,
       nextCursor:
         i < pool.length ? Buffer.from(String(i)).toString('base64url') : null,
     };
+  }
+
+  /** The viewer's personal ranking, else the generic pool. */
+  private async suggestionIds(
+    viewerId: string,
+    state: string | null,
+  ): Promise<string[]> {
+    if (this.recommendations) {
+      try {
+        return await this.recommendations.peopleFor(viewerId);
+      } catch (err) {
+        this.log.warn(`personal suggestions failed: ${String(err)}`);
+      }
+    }
+    return this.suggestionPool(state);
   }
 
   private async suggestionPool(state: string | null): Promise<string[]> {
@@ -333,19 +445,20 @@ export class FollowsService {
     if (cached) return JSON.parse(cached) as string[];
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT a.user_id::STRING AS id
+      SELECT a.user_id::TEXT AS id
       FROM attorney_profiles AS a
       JOIN users AS u ON u.id = a.user_id AND u.status = 'active' AND u.deleted_at IS NULL
       WHERE a.verification_status = 'verified'
       ORDER BY
-        (${state}::STRING IS NOT NULL AND EXISTS (
+        (${state}::TEXT IS NOT NULL AND EXISTS (
           SELECT 1 FROM attorney_licenses l
-          WHERE l.attorney_id = a.user_id AND l.state_code = ${state}::STRING
+          WHERE l.attorney_id = a.user_id AND l.state_code = ${state}::TEXT
             AND l.license_status = 'verified')) DESC,
         a.rating_avg DESC,
         (SELECT count(*) FROM posts p
          WHERE p.author_id = a.user_id AND p.status = 'published'
-           AND p.deleted_at IS NULL AND p.created_at > ${since}) DESC,
+           AND p.deleted_at IS NULL AND p.archived_at IS NULL
+           AND p.created_at > ${since}) DESC,
         a.rating_count DESC,
         a.user_id
       LIMIT ${SUGGEST_POOL}`;
@@ -354,20 +467,56 @@ export class FollowsService {
     return ids;
   }
 
+  /**
+   * Owner 2026-10-18: search box of the followers / following lists — the
+   * ids among [userId]'s follows whose name (any alphabet, typo, word order)
+   * or @username prefix matches [q].
+   */
+  private async matchingPeople(
+    userId: string,
+    ownSide: 'followee_id' | 'follower_id',
+    q: string,
+  ): Promise<string[]> {
+    const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+    const edge =
+      ownSide === 'followee_id'
+        ? Prisma.sql`SELECT f.follower_id AS id FROM follows f WHERE f.followee_id = ${userId}::UUID`
+        : Prisma.sql`SELECT f.followee_id AS id FROM follows f WHERE f.follower_id = ${userId}::UUID`;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT u.id::TEXT AS id
+      FROM users u
+      LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+      LEFT JOIN client_profiles cp ON cp.user_id = u.id
+      WHERE u.id IN (${edge})
+        AND (${nameMatchSql(q, Prisma.sql`u.full_name_lower`)}
+             OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle})
+      LIMIT 5000`;
+    return rows.map((r) => r.id);
+  }
+
   /** Keyset over follows(created_at, other id), attorneys only. */
   private async pageOf(
     viewerId: string,
     cursor: string | undefined,
     side: 'followee' | 'follower',
     attorneyId: string,
+    q?: string,
   ): Promise<AttorneyListPage> {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const other = side === 'followee' ? 'follower_id' : 'followee_id';
+    const found = q
+      ? await this.matchingPeople(
+          attorneyId,
+          side === 'followee' ? 'followee_id' : 'follower_id',
+          q,
+        )
+      : null;
     const rows = await this.prisma.follow.findMany({
       where: {
         ...(side === 'followee'
           ? { followee_id: attorneyId }
           : { follower_id: attorneyId }),
+        ...(found ? { [other]: { in: found } } : {}),
         // Clients are counted, never listed (§6.2).
         [side === 'followee' ? 'follower' : 'followee']: LISTABLE_ATTORNEY,
         ...(c
@@ -418,6 +567,8 @@ export class FollowsService {
             select: {
               username: true,
               verification_status: true,
+              trust_level: true,
+              trust_badge: true,
               name_mismatch: true,
               rating_avg: true,
               rating_count: true,
@@ -458,10 +609,9 @@ export class FollowsService {
         avatarUrl: u.avatar_file_id
           ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
           : null,
-        verifiedBadge:
-          p.verification_status === 'verified' &&
-          !p.name_mismatch &&
-          p.licenses.length > 0,
+        verifiedBadge: p.trust_badge,
+        trustLevel: p.trust_level,
+        identityRejected: p.verification_status === 'rejected',
         rating: { avg: Number(p.rating_avg), count: p.rating_count },
         states: p.licenses.map((l) => l.state_code),
         practiceI18nKeys: p.practice_areas.map((x) => x.practice_area.i18n_key),

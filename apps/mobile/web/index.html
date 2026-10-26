@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <!-- Owner 2026-10-22 (audit #7): no inline scripts (strict CSP). -->
+  <script src="boot_head.js"></script>
+  <meta name="description" content="LawBid: post your legal matter, licensed attorneys respond with offers, you choose. Find a lawyer by state and practice area.">
+  <!-- Search engines: the address / and the public pages (scripts/seo) are
+       indexed; every other address of the app answers with an
+       `X-Robots-Tag: noindex` header (infra/modules/web). -->
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0B0B0D" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="LawBid">
+  <meta property="og:title" content="LawBid: find a licensed lawyer, compare offers">
+  <meta property="og:description" content="Post your legal matter and licensed attorneys in your state respond with offers. You choose.">
+  <!-- Owner 2026-10-22 (audit #4 §9): Open Graph needs an absolute
+       address (ogp.me); a relative one shows no picture in chats. -->
+  <meta property="og:image" content="https://lawbid.dev/icons/Icon-512.png">
+  <meta property="og:image:width" content="512">
+  <meta property="og:image:height" content="512">
+  <meta name="twitter:card" content="summary">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="LawBid">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <!-- Owner 2026-10-23 (web speed pass): the TLS handshake with the API is
+       done while the app downloads, so the first request does not wait for
+       it. (The host is the production API; a preview build just wastes one
+       idle connection.) -->
+  <link rel="preconnect" href="https://api.lawbid.dev" crossorigin>
+
+  <title>LawBid: find a licensed lawyer, compare offers</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    /* Owner 2026-10-15: something is on screen the moment the page opens,
+       while the app downloads; it goes away with the first frame.
+       2026-10-23: the colours are the app's own theme tokens (light:
+       AppColorsLight.bg / gold, dark: AppColorsDark.bg / gold), so the
+       hand-over to the first Flutter frame does not flash. */
+    :root { --boot-bg: #fff; --boot-fg: #0B1330; --boot-dim: #5B6784; --boot-ring: #C8A765; --boot-track: #DDE2EE; }
+    @media (prefers-color-scheme: dark) { :root { --boot-bg: #0B0B0D; --boot-fg: #F3EFE3; --boot-dim: #9A9AA6; --boot-ring: #D8BC84; --boot-track: #2A2A31; } }
+    html, body { margin: 0; height: 100%; background: var(--boot-bg); }
+    #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; background: var(--boot-bg); z-index: 1; pointer-events: none; transition: opacity .25s; }
+    #boot img { width: 96px; height: 96px; border-radius: 22px; animation: boot-pulse 1.4s ease-in-out infinite; }
+    #boot i { width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--boot-track); border-top-color: var(--boot-ring); animation: boot-spin .9s linear infinite; }
+    #boot p { margin: 0; max-width: 280px; text-align: center; font: 500 14px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--boot-dim); }
+    #boot button { margin-top: 12px; pointer-events: auto; border: 0; border-radius: 12px; padding: 12px 22px; font: 600 15px/1 -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--boot-ring); color: var(--boot-btn, #0B0B0D); cursor: pointer; }
+    /* Owner 2026-10-24: a thin bar that moves while the app arrives and stands still when it stops. */
+    #boot s { display: block; width: 120px; height: 3px; border-radius: 2px; background: var(--boot-track); overflow: hidden; position: relative; margin-top: -8px; }
+    #boot s::after { content: ''; position: absolute; top: 0; bottom: 0; width: 40%; border-radius: 2px; background: var(--boot-ring); animation: boot-bar 1.3s ease-in-out infinite; }
+    #boot.stalled s::after { animation-play-state: paused; }
+    @keyframes boot-bar { 0% { left: -40%; } 100% { left: 100%; } }
+    @media (prefers-reduced-motion: reduce) { #boot s::after { animation-duration: 3s; } }
+    #boot.gone { opacity: 0; pointer-events: none; }
+    @keyframes boot-pulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.06); opacity: 1; } }
+    @keyframes boot-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { #boot img { animation: none; } #boot i { animation-duration: 3s; } }
+    /* Text for search engines and readers without the app; not drawn. */
+    #seo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div id="boot" role="status" aria-label="LawBid">
+  <!-- The logo is inline (a data: image of icons/Icon-192.png): the first paint
+       needs no second request, which the app's download would delay. -->
+  <img src="data:image/png;base64,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" alt="LawBid" width="96" height="96"><i aria-hidden="true"></i></div>
+  <main id="seo">
+    <h1>LawBid: find a licensed lawyer and compare offers</h1>
+    <p>Post your legal matter. Licensed attorneys in your state respond with offers, and you choose who to talk to.</p>
+    <nav>
+      <a href="/lawyers/">Find a lawyer by state</a>
+      <a href="/practice-areas/family-law/">Family law</a>
+      <a href="/practice-areas/immigration/">Immigration</a>
+      <a href="/practice-areas/criminal-defense/">Criminal defense</a>
+      <a href="/practice-areas/personal-injury/">Personal injury</a>
+      <a href="/about/">About LawBid</a>
+      <a href="/pricing/">Pricing</a>
+      <a href="/faq/">FAQ</a>
+      <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
+    </nav>
+  </main>
+  <noscript>LawBid needs JavaScript. You can still browse <a href="/lawyers/">lawyers by state and practice area</a>.</noscript>
+  <!--
+    You can customize the "flutter_bootstrap.js" script.
+    This is useful to provide a custom configuration to the Flutter loader
+    or to give the user feedback during the initialization process.
+
+    For more details:
+    * https://docs.flutter.dev/platform-integration/web/initialization
+  -->
+  <!-- Owner 2026-10-22 (passkeys, checklist §1): the WebAuthn bridge of the
+       `passkeys` plugin (corbado) is a third-party script. 2026-10-23: it is
+       no longer a blocking script here (it delayed every start by a download
+       from github.com, and with the page's strict CSP it was refused anyway,
+       which used to stop the app from starting): boot_end.js adds it after
+       the first frame. -->
+  <script src="boot_end.js" defer></script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

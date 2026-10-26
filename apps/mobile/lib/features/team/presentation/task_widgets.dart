@@ -94,8 +94,17 @@ class TaskRow extends StatelessWidget {
     this.onCheck,
     this.onStepCheck,
     this.onMarkTap,
+    this.onLongPress,
+    this.selected,
     super.key,
   });
+
+  /// Owner 2026-10-05: a long press starts choosing several tasks.
+  final VoidCallback? onLongPress;
+
+  /// Null = not choosing; true / false = picked or not (a gold ring and a
+  /// check on the card).
+  final bool? selected;
 
   /// The status mark is a button (owner 2026-10-01): done ⇄ open again, so
   /// a checkmark set by mistake can be taken back. Null = display only.
@@ -128,7 +137,7 @@ class TaskRow extends StatelessWidget {
           padding: const EdgeInsets.only(top: 6),
           child: Row(
             children: [
-              AppIcon(icon, size: 15, color: colors.goldDark),
+              AppIcon(icon, size: 15, color: colors.iconTint),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -142,22 +151,40 @@ class TaskRow extends StatelessWidget {
             ],
           ),
         );
-    final contact = [task.contactName, task.contactPhone]
-        .whereType<String>()
-        .where((x) => x.isNotEmpty)
-        .join(' · ');
+    String more(int n) => n > 1 ? ' +${n - 1}' : '';
+    final place = task.places.isEmpty
+        ? null
+        : '${task.places.first.label ?? task.places.first.address}'
+            '${more(task.places.length)}';
+    final person = task.people.isEmpty
+        ? null
+        : '${[
+            task.people.first.name,
+            task.people.first.phone,
+          ].whereType<String>().where((x) => x.isNotEmpty).join(' · ')}'
+            '${more(task.people.length)}';
+    final picked = selected ?? false;
+    final urgent = task.priority == TaskPriority.high ||
+        task.priority == TaskPriority.urgent;
     return Semantics(
       container: true,
       button: true,
       label: '${taskKindLabel(t, task.kind)}. ${task.title}. '
           '${steps.isEmpty ? '' : '${task.checkedSteps}/${steps.length}. '}'
           '${taskStatusLabel(t, task.status)}',
+      selected: selected,
       child: GestureDetector(
         onDoubleTap: onCheck == null
             ? null
             : () {
                 HapticFeedback.mediumImpact();
                 onCheck!();
+              },
+        onLongPress: onLongPress == null
+            ? null
+            : () {
+                HapticFeedback.mediumImpact();
+                onLongPress!();
               },
         child: AppPressable(
           onTap: onTap,
@@ -173,9 +200,12 @@ class TaskRow extends StatelessWidget {
                 AppSpacing.md,
               ),
               decoration: BoxDecoration(
-                color: colors.surface,
+                color: picked ? colors.goldTint : colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.card),
-                border: Border.all(color: colors.border),
+                border: Border.all(
+                  color: picked ? colors.gold : colors.border,
+                  width: picked ? 1.6 : 1,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: colors.shadow,
@@ -189,7 +219,10 @@ class TaskRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      TaskKindMedallion(kind: task.kind),
+                      if (selected != null)
+                        _PickCircle(picked: picked)
+                      else
+                        TaskKindMedallion(kind: task.kind),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
@@ -205,9 +238,15 @@ class TaskRow extends StatelessWidget {
                                 letterSpacing: 1.1,
                               ),
                             ),
-                            if (overdue)
+                            if (overdue || urgent)
                               Text(
-                                t.t('tasks.overdue'),
+                                [
+                                  if (overdue) t.t('tasks.overdue'),
+                                  if (urgent)
+                                    t.t('tasks.priority.${task.priority.wire}'),
+                                ].join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: typography.caption.copyWith(
                                   color: colors.dangerText,
                                   fontWeight: FontWeight.w600,
@@ -216,12 +255,30 @@ class TaskRow extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (task.repeat != TaskRepeat.none)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 4),
+                          child: AppIcon(
+                            AppIcons.eventRepeatRounded,
+                            size: 16,
+                            color: colors.textSecondary,
+                          ),
+                        ),
+                      if (task.keepForever)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 4),
+                          child: AppIcon(
+                            AppIcons.bookmarkRounded,
+                            size: 16,
+                            color: colors.iconTint,
+                          ),
+                        ),
                       if (due != null)
                         Text(
                           formats.time(due),
                           style: typography.titleLarge.copyWith(
                             color: overdue ? colors.dangerText : colors.text,
-                            fontSize: 22,
+                            fontSize: 18,
                             height: 1.1,
                           ),
                         ),
@@ -269,32 +326,37 @@ class TaskRow extends StatelessWidget {
                       ),
                     if (steps.length > _visibleSteps)
                       Padding(
-                        padding: const EdgeInsets.only(left: 34, top: 2),
+                        padding: const EdgeInsetsDirectional.only(
+                          start: 34,
+                          top: 2,
+                        ),
                         child: Text(
-                          t.t('tasks.steps.more',
-                              {'n': '${steps.length - _visibleSteps}'}),
+                          t.t(
+                            'tasks.steps.more',
+                            {'n': '${steps.length - _visibleSteps}'},
+                          ),
                           style: typography.caption.copyWith(
                             color: colors.goldDark,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                  ] else ...[
-                    if (task.location?.isNotEmpty ?? false)
-                      line(AppIcons.placeOutlined, task.location!),
-                    if (contact.isNotEmpty)
-                      line(AppIcons.personOutlineRounded, contact),
-                    if (task.contactEmail?.isNotEmpty ?? false)
-                      line(AppIcons.mailOutlineRounded, task.contactEmail!),
                   ],
+                  if (place != null) line(AppIcons.placeOutlined, place),
+                  if (person != null)
+                    line(AppIcons.personOutlineRounded, person),
                   if (task.caseTitle?.isNotEmpty ?? false)
                     line(AppIcons.workOutlineRounded, task.caseTitle!),
                   if (task.outcomeNote?.isNotEmpty ?? false) ...[
                     const SizedBox(height: AppSpacing.sm),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.sm,
+                        AppSpacing.sm,
+                      ),
                       decoration: BoxDecoration(
                         color: colors.goldTint,
                         borderRadius: BorderRadius.circular(AppRadii.field),
@@ -328,9 +390,18 @@ class TaskRow extends StatelessWidget {
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
-                          task.createdByName == null
-                              ? t.t('tasks.byMe')
-                              : t.t('tasks.by', {'name': task.createdByName!}),
+                          task.assigneeName != null
+                              ? t.t('tasks.assignee.to', {
+                                  'name': task.assignedToMe
+                                      ? t.t('tasks.assignee.you')
+                                      : task.assigneeName!,
+                                })
+                              : task.createdByName == null
+                                  ? t.t('tasks.byMe')
+                                  : t.t(
+                                      'tasks.by',
+                                      {'name': task.createdByName!},
+                                    ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: typography.caption
@@ -338,20 +409,28 @@ class TaskRow extends StatelessWidget {
                         ),
                       ),
                       if (task.files.isNotEmpty) ...[
-                        AppIcon(AppIcons.attachFileRounded,
-                            size: 14, color: colors.textSecondary),
+                        AppIcon(
+                          AppIcons.attachFileRounded,
+                          size: 14,
+                          color: colors.textSecondary,
+                        ),
                         Text(
-                          '${task.files.length}',
+                          context.digits(task.files.length),
                           style: typography.caption
                               .copyWith(color: colors.textSecondary),
                         ),
                         const SizedBox(width: AppSpacing.sm),
                       ],
-                      TaskMark(
-                        key: ValueKey('task-check-${task.id}'),
-                        status: task.status,
-                        label: taskStatusLabel(t, task.status),
-                        onTap: onMarkTap,
+                      // Capped so a long status word can't push out the
+                      // "set by" line.
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 160),
+                        child: TaskMark(
+                          key: ValueKey('task-check-${task.id}'),
+                          status: task.status,
+                          label: taskStatusLabel(t, task.status),
+                          onTap: onMarkTap,
+                        ),
                       ),
                     ],
                   ),
@@ -361,6 +440,38 @@ class TaskRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A picked / not picked circle in place of the medallion while choosing.
+class _PickCircle extends StatelessWidget {
+  const _PickCircle({required this.picked});
+
+  final bool picked;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    return AnimatedContainer(
+      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: picked ? colors.gold : Colors.transparent,
+        border: Border.all(
+          color: picked ? colors.gold : colors.goldDark.withValues(alpha: 0.7),
+          width: 1.8,
+        ),
+      ),
+      child: picked
+          ? const AppIcon(
+              AppIcons.checkRounded,
+              size: 22,
+              color: AppColorsLight.navy,
+            )
+          : null,
     );
   }
 }
@@ -383,7 +494,8 @@ class TaskKindMedallion extends StatelessWidget {
         borderRadius: BorderRadius.circular(size * 0.3),
         border: Border.all(color: colors.gold.withValues(alpha: 0.55)),
       ),
-      child: AppIcon(taskKindIcon(kind), size: size * 0.5, color: colors.gold),
+      child:
+          AppIcon(taskKindIcon(kind), size: size * 0.5, color: colors.iconTint),
     );
   }
 }
@@ -413,9 +525,8 @@ class TaskProgress extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.pill),
             child: TweenAnimationBuilder<double>(
               tween: Tween(end: value),
-              duration: context.reduceMotion
-                  ? Duration.zero
-                  : AppMotion.stateChange,
+              duration:
+                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
               curve: Curves.easeOutCubic,
               builder: (_, v, __) => LinearProgressIndicator(
                 value: v,
@@ -427,11 +538,15 @@ class TaskProgress extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.sm),
-        Text(
-          label,
-          style: typography.caption.copyWith(
-            color: colors.goldDark,
-            fontWeight: FontWeight.w700,
+        AppTrailingCap(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: typography.caption.copyWith(
+              color: colors.goldDark,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ],
@@ -603,11 +718,19 @@ class TaskStepCheck extends StatelessWidget {
         duration: dur,
         transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
         child: done
-            ? const AppIcon(AppIcons.checkRounded,
-                key: ValueKey('d'), size: 16, color: AppColorsLight.navy)
+            ? const AppIcon(
+                AppIcons.checkRounded,
+                key: ValueKey('d'),
+                size: 16,
+                color: AppColorsLight.navy,
+              )
             : notDone
-                ? AppIcon(AppIcons.closeRounded,
-                    key: const ValueKey('n'), size: 15, color: colors.surface)
+                ? AppIcon(
+                    AppIcons.closeRounded,
+                    key: const ValueKey('n'),
+                    size: 15,
+                    color: colors.surface,
+                  )
                 : const SizedBox.shrink(key: ValueKey('o')),
       ),
     );
@@ -625,11 +748,11 @@ class TaskStepCheck extends StatelessWidget {
               },
         child: Padding(
           // The visual box is small; the tap area stays generous.
-          padding: const EdgeInsets.fromLTRB(0, 0, 4, 0),
+          padding: const EdgeInsetsDirectional.fromSTEB(0, 0, 4, 0),
           child: SizedBox(
             width: 26,
             height: 26,
-            child: Align(alignment: Alignment.topLeft, child: box),
+            child: Align(alignment: AlignmentDirectional.topStart, child: box),
           ),
         ),
       ),
@@ -664,20 +787,32 @@ class TaskMark extends StatelessWidget {
       TaskStatus.done => (
           colors.gold,
           colors.gold,
-          const AppIcon(AppIcons.checkRounded,
-              key: ValueKey('done'), size: 16, color: AppColorsLight.navy),
+          const AppIcon(
+            AppIcons.checkRounded,
+            key: ValueKey('done'),
+            size: 16,
+            color: AppColorsLight.navy,
+          ),
         ),
       TaskStatus.notDone => (
           colors.text,
           colors.text,
-          AppIcon(AppIcons.closeRounded,
-              key: const ValueKey('not'), size: 15, color: colors.surface),
+          AppIcon(
+            AppIcons.closeRounded,
+            key: const ValueKey('not'),
+            size: 15,
+            color: colors.surface,
+          ),
         ),
       TaskStatus.cancelled => (
           colors.textSecondary,
           Colors.transparent,
-          AppIcon(AppIcons.removeRounded,
-              key: const ValueKey('x'), size: 15, color: colors.textSecondary),
+          AppIcon(
+            AppIcons.removeRounded,
+            key: const ValueKey('x'),
+            size: 15,
+            color: colors.textSecondary,
+          ),
         ),
       TaskStatus.taken => (
           colors.text,
@@ -699,13 +834,17 @@ class TaskMark extends StatelessWidget {
     final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: typography.caption.copyWith(
-            color: status == TaskStatus.done
-                ? colors.goldDark
-                : colors.textSecondary,
-            fontWeight: FontWeight.w600,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: typography.caption.copyWith(
+              color: status == TaskStatus.done
+                  ? colors.goldDark
+                  : colors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(width: 6),
@@ -743,7 +882,7 @@ class TaskMark extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: AppSizes.touchTarget),
           child: Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.sm),
+            padding: const EdgeInsetsDirectional.only(start: AppSpacing.sm),
             child: row,
           ),
         ),

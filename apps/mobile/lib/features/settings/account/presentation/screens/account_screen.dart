@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -18,7 +19,7 @@ import 'package:lawbid/features/settings/account/presentation/widgets/account_ti
 
 /// Settings → Account (docs/01 §10.3): the account's phone/email contact
 /// (change = reauth + code on the new contact, §11 3A), every linked
-/// sign-in method, and linking another phone / email / Apple / Google via
+/// sign-in method, and linking another phone / email via
 /// `POST /auth/identifiers`.
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -28,27 +29,6 @@ class AccountScreen extends ConsumerStatefulWidget {
 }
 
 class _AccountScreenState extends ConsumerState<AccountScreen> {
-  /// Apple/Google linking in flight (native sheet + POST).
-  IdentifierProvider? _linking;
-
-  Future<void> _linkSocial(Translator t, IdentifierProvider provider) async {
-    if (_linking != null) return;
-    setState(() => _linking = provider);
-    try {
-      final outcome = await ref
-          .read(accountIdentifiersProvider.notifier)
-          .linkSocial(provider);
-      if (!mounted) return;
-      if (outcome == SocialLinkOutcome.linked) {
-        showAppSnackBar(context, t.t('account.link.success'));
-      }
-    } catch (e) {
-      if (mounted) showAppSnackBar(context, errorText(t, e));
-    } finally {
-      if (mounted) setState(() => _linking = null);
-    }
-  }
-
   Future<void> _openFlow(ContactType type, AccountContactMode mode) async {
     await context.push<void>(AccountRoutes.contact(type, mode));
     if (mounted) {
@@ -104,9 +84,8 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
             t: t,
             user: user,
             identifiers: items,
-            linking: _linking,
+            emailFlows: ref.watch(emailFlowsEnabledProvider),
             onContact: _openFlow,
-            onLinkSocial: (p) => _linkSocial(t, p),
           ),
         ),
       ),
@@ -119,19 +98,19 @@ class _AccountBody extends StatelessWidget {
     required this.t,
     required this.user,
     required this.identifiers,
-    required this.linking,
+    required this.emailFlows,
     required this.onContact,
-    required this.onLinkSocial,
   });
 
   final Translator t;
   final CurrentUser? user;
   final List<AccountIdentifier> identifiers;
-  final IdentifierProvider? linking;
-  final void Function(ContactType, AccountContactMode) onContact;
-  final void Function(IdentifierProvider) onLinkSocial;
 
-  bool _has(IdentifierProvider p) => identifiers.any((i) => i.provider == p);
+  /// Admin «Вход и письма по почте»: off → no e-mail add / change / link
+  /// (the code could not be delivered); an e-mail already on the account
+  /// is still shown, read-only.
+  final bool emailFlows;
+  final void Function(ContactType, AccountContactMode) onContact;
 
   @override
   Widget build(BuildContext context) {
@@ -139,12 +118,12 @@ class _AccountBody extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final phoneVerified = user?.phoneVerified ?? false;
     final emailVerified = user?.emailVerified ?? false;
-    final busy = linking != null;
 
     Widget contactTile(ContactType type) {
       final isPhone = type == ContactType.phone;
       final value = isPhone ? user?.phone : user?.email;
       final verified = isPhone ? phoneVerified : emailVerified;
+      final editable = isPhone || emailFlows;
       final shown = value == null
           ? t.t('account.contact.notSet')
           : (isPhone ? UsPhone.format(value) : value);
@@ -157,16 +136,20 @@ class _AccountBody extends StatelessWidget {
         badge: value == null
             ? null
             : AccountBadge(
-                label: t.t(verified
-                    ? 'account.identifier.verified'
-                    : 'account.contact.unverified'),
+                label: t.t(
+                  verified
+                      ? 'account.identifier.verified'
+                      : 'account.contact.unverified',
+                ),
                 tone: verified
                     ? AccountBadgeTone.success
                     : AccountBadgeTone.warning,
               ),
-        actionLabel:
-            t.t(verified ? 'account.contact.change' : 'account.contact.add'),
-        onTap: busy ? null : () => onContact(type, AccountContactMode.primary),
+        actionLabel: editable
+            ? t.t(verified ? 'account.contact.change' : 'account.contact.add')
+            : null,
+        onTap:
+            editable ? () => onContact(type, AccountContactMode.primary) : null,
       );
     }
 
@@ -179,7 +162,7 @@ class _AccountBody extends StatelessWidget {
         title: t.t('account.section.contacts'),
         children: [
           contactTile(ContactType.phone),
-          contactTile(ContactType.email),
+          if (emailFlows || user?.email != null) contactTile(ContactType.email),
         ],
       ),
       Padding(
@@ -187,8 +170,11 @@ class _AccountBody extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(AppIcons.lockOutlineRounded,
-                size: AppSpacing.lg, color: colors.textSecondary),
+            AppIcon(
+              AppIcons.lockOutlineRounded,
+              size: AppSpacing.lg,
+              color: colors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -225,7 +211,7 @@ class _AccountBody extends StatelessWidget {
               ]
             : [
                 for (final i in identifiers)
-                  _IdentifierTile(t: t, identifier: i)
+                  _IdentifierTile(t: t, identifier: i),
               ],
       ),
       AppListSection(
@@ -234,41 +220,23 @@ class _AccountBody extends StatelessWidget {
           AccountTile(
             icon: AppIcons.addCall,
             title: t.t('account.link.phone'),
-            onTap: busy
-                ? null
-                : () => onContact(
-                      ContactType.phone,
-                      phoneVerified
-                          ? AccountContactMode.link
-                          : AccountContactMode.primary,
-                    ),
-          ),
-          AccountTile(
-            icon: AppIcons.markEmailUnreadOutlined,
-            title: t.t('account.link.email'),
-            onTap: busy
-                ? null
-                : () => onContact(
-                      ContactType.email,
-                      emailVerified
-                          ? AccountContactMode.link
-                          : AccountContactMode.primary,
-                    ),
-          ),
-          if (!_has(IdentifierProvider.apple))
-            AccountTile(
-              glyph: const AppleGlyph(),
-              title: t.t('account.link.apple'),
-              loading: linking == IdentifierProvider.apple,
-              onTap: busy ? null : () => onLinkSocial(IdentifierProvider.apple),
+            onTap: () => onContact(
+              ContactType.phone,
+              phoneVerified
+                  ? AccountContactMode.link
+                  : AccountContactMode.primary,
             ),
-          if (!_has(IdentifierProvider.google))
+          ),
+          if (emailFlows)
             AccountTile(
-              glyph: const GoogleGlyph(),
-              title: t.t('account.link.google'),
-              loading: linking == IdentifierProvider.google,
-              onTap:
-                  busy ? null : () => onLinkSocial(IdentifierProvider.google),
+              icon: AppIcons.markEmailUnreadOutlined,
+              title: t.t('account.link.email'),
+              onTap: () => onContact(
+                ContactType.email,
+                emailVerified
+                    ? AccountContactMode.link
+                    : AccountContactMode.primary,
+              ),
             ),
         ],
       ),
@@ -324,11 +292,13 @@ class _IdentifierTile extends StatelessWidget {
       badge: i.isPrimaryContact
           ? AccountBadge(
               label: t.t('account.identifier.primary'),
-              tone: AccountBadgeTone.gold)
+              tone: AccountBadgeTone.gold,
+            )
           : (i.verified
               ? AccountBadge(
                   label: t.t('account.identifier.verified'),
-                  tone: AccountBadgeTone.success)
+                  tone: AccountBadgeTone.success,
+                )
               : null),
     );
   }
@@ -348,7 +318,7 @@ class _AccountLoading extends ConsumerWidget {
         ),
         children: const [
           FractionallySizedBox(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             widthFactor: 0.7,
             child: AppSkeleton(),
           ),

@@ -5,6 +5,29 @@ import { PinoLogger } from 'nestjs-pino';
 import Twilio from 'twilio';
 import type { SmsProvider } from './sms-provider.interface';
 import { otpSmsText } from './otp-sms-text';
+import {
+  CallTimeoutError,
+  CircuitBreaker,
+  withRetry,
+  withTimeout,
+} from '../../../../common/resilience/resilience';
+
+/** A failure on Twilio's side or the network (worth a retry, counts toward
+ * the breaker); a 4xx (bad number, blocked country) is the caller's. */
+export function isTwilioServiceFault(error: unknown): boolean {
+  if (error instanceof CallTimeoutError) return true;
+  const status = (error as { status?: number } | null)?.status;
+  return status === undefined || status >= 500 || status === 429;
+}
+
+/** One per process, shared by every provider rebuild (key changes). */
+export const twilioBreaker = new CircuitBreaker('twilio', {
+  threshold: 5,
+  openMs: 60_000,
+});
+
+/** Owner 2026-10-15: a hung Twilio must not hang the sign-in. */
+const SEND_TIMEOUT_MS = 8_000;
 
 /**
  * Real provider, selected by config/provider-selection.ts when every
@@ -32,7 +55,9 @@ export class TwilioSmsProvider implements SmsProvider {
     private readonly logger: PinoLogger,
     private readonly androidAppHash?: string,
   ) {
-    this.client = Twilio(creds.accountSid, creds.authToken);
+    this.client = Twilio(creds.accountSid, creds.authToken, {
+      timeout: SEND_TIMEOUT_MS + 2_000,
+    });
     if (creds.messagingServiceSid) {
       this.sender = { messagingServiceSid: creds.messagingServiceSid };
     } else if (creds.fromNumber) {
@@ -43,11 +68,27 @@ export class TwilioSmsProvider implements SmsProvider {
   }
 
   async send(toE164: string, code: string): Promise<void> {
-    await this.client.messages.create({
-      to: toE164,
-      ...this.sender,
-      body: otpSmsText(code, this.androidAppHash || undefined),
-    });
+    // Time limit, one more try after a brief failure, and a one-minute
+    // pause once Twilio keeps failing (the sign-in then answers fast).
+    await twilioBreaker.run(
+      () =>
+        withRetry(
+          () =>
+            withTimeout('twilio', SEND_TIMEOUT_MS, () =>
+              this.client.messages.create({
+                to: toE164,
+                ...this.sender,
+                body: otpSmsText(code, this.androidAppHash || undefined),
+              }),
+            ),
+          {
+            attempts: 2,
+            baseDelayMs: 400,
+            retryable: isTwilioServiceFault,
+          },
+        ),
+      isTwilioServiceFault,
+    );
     this.logger.info({ toE164Suffix: toE164.slice(-4) }, 'Twilio SMS OTP sent');
   }
 }

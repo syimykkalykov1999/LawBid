@@ -13,7 +13,7 @@ import { PRACTICE_TREE_CACHE_KEY } from '../src/modules/profiles/services/practi
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stages 3.5 (practices, license
- * expiry) and 3.6 (profiles API), against real CockroachDB + Redis.
+ * expiry) and 3.6 (profiles API), against real PostgreSQL + Redis.
  *
  * Acceptance 3.5: practices before `verified` -> ATTORNEY_NOT_VERIFIED;
  * the last license expiring makes the profile `unverified`; the §5.4
@@ -174,8 +174,22 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         verification_status: opts.status ?? 'unverified',
         bio: 'Traffic lawyer',
         languages: ['en'],
+        // Owner 2026-10-05: the blue check follows the anti-fraud clearance;
+        // a fixture that is "verified" stands for an attorney staff cleared.
+        trust_badge: opts.status === 'verified',
+        trust_level: opts.status === 'verified' ? 1 : 0,
       },
     });
+    if (opts.status === 'verified') {
+      await prisma.attorneyTrust.create({
+        data: {
+          attorney_id: userId,
+          level: 1,
+          staff_cleared_at: new Date(),
+          staff_cleared_note: 'e2e fixture',
+        },
+      });
+    }
     const barNumbers: string[] = [];
     for (const l of opts.licenses ?? []) {
       const bar = `BAR-${randomUUID()}`;
@@ -273,6 +287,12 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
             .details.invalidIds,
         ).toEqual([bad]);
       }
+      // Owner 2026-10-05 (audit): an empty set is refused.
+      await api()
+        .put('/api/v1/attorneys/me/practice-areas')
+        .set(a.auth)
+        .send({ practiceAreaIds: [] })
+        .expect(400);
       await api()
         .put('/api/v1/attorneys/me/practice-areas')
         .set(a.auth)
@@ -367,7 +387,8 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         const a = await attorney({
           status: 'verified',
           licenses: [
-            { state: 'NJ', expires: today },
+            // Past the 14-day grace (verification.license_expiry_grace_days).
+            { state: 'NJ', expires: new Date(today.getTime() - 15 * DAY) },
             { state: 'NY', expires: new Date(today.getTime() + 100 * DAY) },
           ],
         });
@@ -405,7 +426,8 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         // Last verified license expires -> unverified + notification.
         await prisma.attorneyLicense.updateMany({
           where: { attorney_id: a.userId, state_code: 'NY' },
-          data: { expires_at: new Date(today.getTime() - DAY) },
+          // Past the 14-day grace, so it now counts as expired.
+          data: { expires_at: new Date(today.getTime() - 15 * DAY) },
         });
         await job.run();
         profile = await prisma.attorneyProfile.findUniqueOrThrow({
@@ -455,7 +477,8 @@ describe('Profiles and practices (e2e) — docs/03 stages 3.5–3.6', () => {
         const b = await attorney({
           status: 'verified',
           licenses: [
-            { state: 'CA', expires: new Date(today.getTime() + 60 * DAY) },
+            // Beyond the farthest reminder (60 days).
+            { state: 'CA', expires: new Date(today.getTime() + 100 * DAY) },
           ],
         });
         const job = app.get(LicenseExpiryJob);

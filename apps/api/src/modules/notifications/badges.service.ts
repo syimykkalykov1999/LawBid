@@ -1,15 +1,26 @@
+import { unreadMessagesSql } from '../groups/group-unread.sql';
 import { Inject, Injectable } from '@nestjs/common';
-import type { NotificationCategory } from '@prisma/client';
-import { DEFAULT_PUSH, LOCKED_CATEGORIES } from './notification-rules';
+import type { NotificationCategory, NotificationType } from '@prisma/client';
+import {
+  ALWAYS_PUSH,
+  DEFAULT_PUSH,
+  LOCKED_CATEGORIES,
+} from './notification-rules';
+import { TYPE_TOPIC, readTopics, topicOn } from './notification-topics';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { pipeline } from '../../redis/redis-cluster-safe';
 
 export interface Badges {
   chatsUnread: number;
   notificationsUnread: number;
   total: number;
+  /** Owner 2026-10-21 (inbox 29): the «Счётчик на иконке в меню» switch;
+   * false = the app keeps its icon clear. Sent with GET /badges and
+   * `badge:update` only. */
+  iconBadge?: boolean;
 }
 
 const key = (userId: string) => `badge:${userId}`;
@@ -64,6 +75,37 @@ export class BadgesService {
     return shape(chats.chatsUnread, mine.notificationsUnread);
   }
 
+  /** Owner 2026-10-21 (inbox 29): the «Счётчик на иконке в меню» switch
+   * (default on). */
+  async iconBadgeOn(userId: string): Promise<boolean> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notif_icon_badge: true },
+    });
+    return u?.notif_icon_badge ?? true;
+  }
+
+  /** The number a push puts on the app icon: the total, or 0 while the
+   * switch is off (0 also clears an older number, like Telegram). */
+  async forIcon(userId: string): Promise<number> {
+    return (await this.iconFor(userId)).badge;
+  }
+
+  /** [forIcon] plus the switch itself: off also sends the Android alert
+   * through a channel without a launcher badge (PushMessage.iconBadge). */
+  async iconFor(userId: string): Promise<{ badge: number; on: boolean }> {
+    const [b, on] = await Promise.all([
+      this.get(userId),
+      this.iconBadgeOn(userId),
+    ]);
+    return { badge: on ? b.total : 0, on };
+  }
+
+  /** [b] plus the [ownerId]'s icon switch (GET /badges, `badge:update`). */
+  async withIcon(ownerId: string, b: Badges): Promise<Badges> {
+    return { ...b, iconBadge: await this.iconBadgeOn(ownerId) };
+  }
+
   /** A notification row was written (maybe not committed yet): drop the
    * cached count so the next read recounts; the delivery job recounts
    * and publishes after commit. */
@@ -73,6 +115,80 @@ export class BadgesService {
     } catch {
       // Redis down: the daily TTL still bounds the staleness.
     }
+  }
+
+  /** Owner 2026-10-22: [invalidateNotifications] for many people, one
+   * round trip. */
+  async invalidateNotificationsMany(userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+    try {
+      const p = pipeline(this.redis);
+      for (const id of userIds) p.hdel(key(id), 'notifs');
+      await p.exec();
+    } catch {
+      // Redis down: the daily TTL still bounds the staleness.
+    }
+  }
+
+  /**
+   * Owner 2026-10-22 (server load audit, finding 7): [messageArrived] for
+   * every member a group message reached, batched — one settings query,
+   * one icon-switch query, a Redis pipeline for the counters and the reads,
+   * then one `badge:update` each. A member counted for [messageId] once is
+   * never counted again (a retried fan-out job).
+   */
+  async messagesArrived(userIds: string[], messageId: string): Promise<void> {
+    const ids = [...new Set(userIds)];
+    if (ids.length === 0) return;
+    const doneKey = `badge:msg:${messageId}`;
+    const claim = pipeline(this.redis);
+    for (const id of ids) claim.sadd(doneKey, id);
+    claim.expire(doneKey, TTL_SEC);
+    const claimed = (await claim.exec()) ?? [];
+    const fresh = ids.filter((_, i) => Number(claimed[i]?.[1] ?? 0) === 1);
+    if (fresh.length === 0) return;
+    const [settings, users] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: { user_id: { in: fresh }, category: 'messages' },
+        select: { user_id: true, push_enabled: true },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: fresh } },
+        select: { id: true, notif_icon_badge: true },
+      }),
+    ]);
+    // The same rule as [mutedCategories] for `messages`.
+    const setting = new Map(settings.map((s) => [s.user_id, s.push_enabled]));
+    const muted = new Set(
+      fresh.filter((id) => !(setting.get(id) ?? DEFAULT_PUSH.messages)),
+    );
+    const bump = pipeline(this.redis);
+    for (const id of fresh) {
+      if (muted.has(id)) continue;
+      bump.eval(
+        "if redis.call('HEXISTS', KEYS[1], 'chats') == 1 then return redis.call('HINCRBY', KEYS[1], 'chats', 1) end return 0",
+        1,
+        key(id),
+      );
+    }
+    for (const id of fresh) bump.hgetall(key(id));
+    const res = (await bump.exec()) ?? [];
+    const reads = res.slice(res.length - fresh.length);
+    const icon = new Map(users.map((u) => [u.id, u.notif_icon_badge]));
+    await Promise.all(
+      fresh.map(async (id, i) => {
+        const h = (reads[i]?.[1] ?? {}) as Record<string, string>;
+        // A missing or half hash is rebuilt the usual way (rare: expired).
+        const b =
+          h.chats !== undefined && h.notifs !== undefined
+            ? shape(Number(h.chats), Number(h.notifs))
+            : await this.get(id);
+        this.realtime.toUsers([id], 'badge:update', {
+          ...b,
+          iconBadge: icon.get(id) ?? true,
+        });
+      }),
+    );
   }
 
   /**
@@ -93,6 +209,46 @@ export class BadgesService {
       if (!(set.get(c) ?? DEFAULT_PUSH[c])) muted.add(c);
     }
     return muted;
+  }
+
+  /**
+   * Owner 2026-10-21 (inbox 30): the user's switches per kind of
+   * notification. `on(topic)` — the effective value (a finer switch not set
+   * yet follows its old category); `raw` — only what the user set.
+   */
+  async topicSwitches(userId: string): Promise<{
+    on: (topic: string) => boolean;
+    /** The switch itself, whatever its parent says. */
+    own: (topic: string) => boolean;
+    raw: Record<string, boolean>;
+  }> {
+    const [rows, u] = await Promise.all([
+      this.prisma.notificationSetting.findMany({
+        where: { user_id: userId },
+        select: { category: true, push_enabled: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { notif_topics: true },
+      }),
+    ]);
+    const set = new Map(rows.map((r) => [r.category, r.push_enabled]));
+    const categoryOn = (c: NotificationCategory) =>
+      LOCKED_CATEGORIES.has(c) || (set.get(c) ?? DEFAULT_PUSH[c]);
+    const raw = readTopics(u?.notif_topics);
+    return {
+      on: (t) => topicOn(t, raw, categoryOn),
+      own: (t) => topicOn(t, raw, categoryOn, true),
+      raw,
+    };
+  }
+
+  /** Types switched off (never counted on a badge, never pushed). */
+  private async mutedTypes(userId: string): Promise<string[]> {
+    const { on } = await this.topicSwitches(userId);
+    return (Object.keys(TYPE_TOPIC) as NotificationType[]).filter(
+      (t) => !ALWAYS_PUSH.has(t) && !on(TYPE_TOPIC[t]),
+    );
   }
 
   /** Settings → Notifications changed: recount both badges. */
@@ -136,7 +292,11 @@ export class BadgesService {
   }
 
   private async publish(userId: string): Promise<void> {
-    this.realtime.toUsers([userId], 'badge:update', await this.get(userId));
+    this.realtime.toUsers(
+      [userId],
+      'badge:update',
+      await this.withIcon(userId, await this.get(userId)),
+    );
   }
 
   private async rebuild(userId: string): Promise<Badges> {
@@ -154,12 +314,13 @@ export class BadgesService {
 
   /** Partial index notifications_user_unread_idx; stops at the cap. */
   private async countNotifications(userId: string): Promise<number> {
-    const muted = [...(await this.mutedCategories(userId))].map(String);
+    // Owner 2026-10-21 (inbox 30): per kind of notification.
+    const muted = await this.mutedTypes(userId);
     const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM (
         SELECT 1 FROM notifications
         WHERE user_id = ${userId}::UUID AND read_at IS NULL
-          AND NOT (category::STRING = ANY(${muted}::STRING[]))
+          AND NOT (type::TEXT = ANY(${muted}::TEXT[]))
         LIMIT ${NOTIFS_CAP}) x`;
     return Number(row?.n ?? 0);
   }
@@ -175,6 +336,7 @@ export class BadgesService {
           WHERE m.conversation_id = cp.conversation_id
             AND m.deleted_at IS NULL
             AND (m.sender_id IS NULL OR m.sender_id <> ${userId}::UUID)
+            AND (lr.id IS NULL OR m.created_at >= lr.created_at)
             AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))
           ORDER BY m.created_at DESC
           LIMIT ${UNREAD_CAP}) x)), 0)::INT8 AS n
@@ -182,11 +344,25 @@ export class BadgesService {
       JOIN conversations c ON c.id = cp.conversation_id
       LEFT JOIN messages lr ON lr.id = cp.last_read_message_id
       WHERE cp.user_id = ${userId}::UUID
+        -- A chat I hid doesn't count (a new message unhides it).
+        AND cp.hidden_at IS NULL
         -- Message requests sent to me (pending or declined) never count:
         -- the same rule as the "All" folder (OQ-043).
-        AND (c.request_status::STRING IN ('none', 'accepted')
+        AND (c.request_status::TEXT IN ('none', 'accepted')
              OR c.requested_by = ${userId}::UUID)`;
-    return Number(row?.n ?? 0);
+    // Owner 2026-10-20: group chats count the same way.
+    const [groups] = await this.prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT coalesce(sum((
+        SELECT count(*) FROM (
+          SELECT 1 FROM ${unreadMessagesSql(userId)}
+          ORDER BY m.created_at DESC
+          LIMIT ${UNREAD_CAP}) x)), 0)::INT8 AS n
+      FROM chat_group_members gm
+      JOIN chat_groups g ON g.id = gm.group_id AND g.deleted_at IS NULL
+      WHERE gm.user_id = ${userId}::UUID
+        AND gm.left_at IS NULL
+        AND gm.hidden_at IS NULL`;
+    return Number(row?.n ?? 0) + Number(groups?.n ?? 0);
   }
 }
 

@@ -1,8 +1,10 @@
 import {
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
+  Optional,
 } from '@nestjs/common';
 import type { Comment } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -12,6 +14,7 @@ import {
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { MentionsService } from '../mentions/mentions.service';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
@@ -21,6 +24,10 @@ import {
   type ContentModerationHook,
 } from '../moderation/content-moderation.hook';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  RealtimePublisher,
+  postRoom,
+} from '../realtime/realtime-publisher.service';
 import { VISIBLE_POST_WHERE } from '../posts/post-presenter.service';
 import { postNotFound } from '../posts/posts.service';
 import {
@@ -65,6 +72,11 @@ export class CommentsService {
     @Inject(CONTENT_MODERATION_HOOK)
     private readonly moderation: ContentModerationHook,
     private readonly mentions: MentionsService,
+    // Owner 2026-10-22 (client economy plan, package F): a new comment
+    // reaches the sockets that have the post open (`post:watch`).
+    @Optional() private readonly realtime?: RealtimePublisher,
+    // DB-ops S5-6: comment lists read the replica (tight 3 s budget).
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   async create(
@@ -75,9 +87,15 @@ export class CommentsService {
   ): Promise<CommentDto> {
     const post = await this.prisma.post.findFirst({
       where: { ...VISIBLE_POST_WHERE, id: postId },
-      select: { id: true, author_id: true },
+      select: { id: true, author_id: true, comments_enabled: true },
     });
     if (!post) throw postNotFound();
+    if (!post.comments_enabled) {
+      throw new ForbiddenException({
+        code: ErrorCode.COMMENTS_DISABLED,
+        message: 'The author turned comments off for this post.',
+      });
+    }
     await assertNoBlock(this.prisma, userId, post.author_id);
     await this.limits.consume('comment', userId);
     const verdict = await this.moderation.check(body, {
@@ -152,7 +170,15 @@ export class CommentsService {
         });
       }
     }
-    return (await this.present([created], userId, post.author_id))[0];
+    const [dto] = await this.present([created], userId, post.author_id);
+    if (created.status === 'published') {
+      this.realtime?.toRoom(postRoom(postId), 'comment:new', {
+        postId,
+        comment: { ...dto, liked: false },
+        parentCommentId: parent?.id ?? null,
+      });
+    }
+    return dto;
   }
 
   /** GET /posts/:id/comments — top level, newest first. */
@@ -161,11 +187,19 @@ export class CommentsService {
     postId: string,
     cursor?: string,
   ): Promise<CommentPage> {
+    // Owner 2026-10-18: the author also reads the comments of an own
+    // archived post (Settings → «Архив»).
     const post = await this.prisma.post.findFirst({
-      where: { ...VISIBLE_POST_WHERE, id: postId },
-      select: { author_id: true },
+      where: {
+        id: postId,
+        OR: [VISIBLE_POST_WHERE, { author_id: userId, deleted_at: null }],
+      },
+      select: { author_id: true, comments_enabled: true },
     });
     if (!post) throw postNotFound();
+    // Owner 2026-10-18: comments turned off are hidden, not deleted
+    // (Instagram) — they come back when the author turns them on.
+    if (!post.comments_enabled) return { items: [], nextCursor: null };
     return this.page(
       userId,
       post.author_id,
@@ -182,9 +216,13 @@ export class CommentsService {
   ): Promise<CommentPage> {
     const parent = await this.prisma.comment.findFirst({
       where: { id: commentId, ...LIVE, post: VISIBLE_POST_WHERE },
-      select: { id: true, post: { select: { author_id: true } } },
+      select: {
+        id: true,
+        post: { select: { author_id: true, comments_enabled: true } },
+      },
     });
     if (!parent) throw commentNotFound();
+    if (!parent.post.comments_enabled) return { items: [], nextCursor: null };
     return this.page(
       userId,
       parent.post.author_id,
@@ -298,12 +336,20 @@ export class CommentsService {
         ),
       ),
     ];
-    const rows = await this.prisma.comment.findMany({
+    // DB-ops S5-6: the list itself may be a few seconds old (budget 3 s). The
+    // viewer's likes and own relations stay on the primary, and so do the
+    // viewer's own comments of the last 30 s on the first page (a reload
+    // right after commenting must still show it: read-your-writes).
+    const reader = this.read?.readDb({ maxStalenessMs: 3000 }) ?? this.prisma;
+    const filter = {
+      ...where,
+      ...LIVE,
+      author: { status: 'active' as const },
+      ...(hidden.length ? { author_id: { notIn: hidden } } : {}),
+    };
+    let rows = await reader.comment.findMany({
       where: {
-        ...where,
-        ...LIVE,
-        author: { status: 'active' },
-        ...(hidden.length ? { author_id: { notIn: hidden } } : {}),
+        ...filter,
         ...(c
           ? {
               OR: [
@@ -316,6 +362,28 @@ export class CommentsService {
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: COMMENTS_PAGE + 1,
     });
+    if (reader !== this.prisma && !c) {
+      const own = await this.prisma.comment.findMany({
+        where: {
+          ...filter,
+          author_id: { equals: userId },
+          created_at: { gte: new Date(Date.now() - 30_000) },
+        },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        take: 10,
+      });
+      const have = new Set(rows.map((r) => r.id));
+      const extra = own.filter((r) => !have.has(r.id));
+      if (extra.length) {
+        rows = [...rows, ...extra]
+          .sort(
+            (a, b) =>
+              b.created_at.getTime() - a.created_at.getTime() ||
+              (a.id < b.id ? 1 : -1),
+          )
+          .slice(0, COMMENTS_PAGE + 1);
+      }
+    }
     const page = rows.slice(0, COMMENTS_PAGE);
     const last = page[page.length - 1];
     return {
@@ -348,6 +416,7 @@ export class CommentsService {
               username: true,
               verification_status: true,
               name_mismatch: true,
+              trust_badge: true,
               licenses: {
                 where: { license_status: 'verified' },
                 select: { id: true },
@@ -394,10 +463,7 @@ export class CommentsService {
                 [a.first_name, a.last_name].filter(Boolean).join(' ') ||
                 `@${prof?.username ?? ''}`,
               avatarUrl: avatar.get(r.author_id) ?? null,
-              verifiedBadge:
-                prof?.verification_status === 'verified' &&
-                !prof.name_mismatch &&
-                (prof.licenses.length ?? 0) > 0,
+              verifiedBadge: prof?.trust_badge ?? false,
             }
           : {
               kind: 'client' as const,

@@ -145,6 +145,12 @@ const _newsKey = 'feed.topics.news.v1';
 /// Owner 2026-09-30: the "News" topic in the slider (not a practice code).
 const kNewsTopic = '@news';
 
+/// Owner 2026-10-05: the "Posts" topic (general posts). Owner 2026-10-07:
+/// removed everywhere; a list saved with it simply drops it on load.
+const kGeneralPostsTopic = '@posts';
+
+bool _isSpecialTopic(String c) => c == kNewsTopic;
+
 /// Owner 2026-10-01: cases whose client wasn't sure of the qualification
 /// (the wizard's "Not sure" choice). A real practice code: the case feed
 /// filters by it like any qualification; every attorney may see them.
@@ -165,7 +171,7 @@ class FeedTopicsNotifier extends Notifier<List<String>> {
         // picked.
         final list = [
           for (final c in saved)
-            if (c == kNewsTopic || _codeShape.hasMatch(c)) c,
+            if (_isSpecialTopic(c) || _codeShape.hasMatch(c)) c,
         ];
         // Owner 2026-09-30: News joined the picker checked by default —
         // add it once to a list saved before it existed.
@@ -188,7 +194,8 @@ class FeedTopicsNotifier extends Notifier<List<String>> {
       for (final c in state)
         if (codes.contains(c)) c,
       for (final c in codes)
-        if (!state.contains(c) && (c == kNewsTopic || _codeShape.hasMatch(c)))
+        if (!state.contains(c) &&
+            (_isSpecialTopic(c) || _codeShape.hasMatch(c)))
           c,
     ];
     // News stays first when picked.

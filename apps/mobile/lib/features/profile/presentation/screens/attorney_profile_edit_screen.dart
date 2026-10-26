@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -18,12 +18,11 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/profile/presentation/widgets/username_suggestions.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
-/// docs/03 §4.1 limits (the server enforces the same).
-const kAttorneyNameMax = 50;
-const kAttorneyBioMax = 300;
+int get kAttorneyBioMax => TextLimits.of(TextLimit.bio);
 const kAttorneyFirmMax = 80;
 
 /// OQ-030: firms per attorney profile.
@@ -63,8 +62,9 @@ class AttorneyProfileEditScreen extends ConsumerWidget {
       appBar: AppTopBar(
         title: Text(t.t('profile.edit.title')),
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => Navigator.of(context).maybePop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: own.when(
         loading: () => const _EditSkeleton(),
@@ -83,7 +83,8 @@ class AttorneyProfileEditScreen extends ConsumerWidget {
             : AppErrorState(
                 message: t.t('profile.error'),
                 retryLabel: t.t('error.retry'),
-                onRetry: retry),
+                onRetry: retry,
+              ),
         data: (p) => _AttorneyEditForm(profile: p),
       ),
     );
@@ -111,11 +112,15 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         ? widget.profile.firms
         : [
             if ((widget.profile.firmName ?? '').trim().isNotEmpty)
-              widget.profile.firmName!
+              widget.profile.firmName!,
           ]),
   ];
   late Set<String> _languages = widget.profile.languages.toSet();
   UsernameStatus _usernameStatus = UsernameStatus.unchanged;
+
+  /// Owner 2026-10-18 («как в инсте»): free handles when the typed one
+  /// is not.
+  List<String> _suggestions = const [];
   Timer? _debounce;
   int _checkSeq = 0;
   bool _saving = false;
@@ -136,11 +141,17 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     _debounce?.cancel();
     final u = value.trim();
     if (u.toLowerCase() == p.username.toLowerCase()) {
-      setState(() => _usernameStatus = UsernameStatus.unchanged);
+      setState(() {
+        _usernameStatus = UsernameStatus.unchanged;
+        _suggestions = const [];
+      });
       return;
     }
     if (!usernamePattern.hasMatch(u)) {
-      setState(() => _usernameStatus = UsernameStatus.invalid);
+      setState(() {
+        _usernameStatus = UsernameStatus.invalid;
+        _suggestions = const [];
+      });
       return;
     }
     setState(() => _usernameStatus = UsernameStatus.checking);
@@ -148,9 +159,14 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
     _debounce = Timer(const Duration(milliseconds: 450), () async {
       try {
         final r =
-            await ref.read(attorneyProfileRepositoryProvider).checkUsername(u);
+            await ref.read(attorneyProfileRepositoryProvider).checkUsername(
+                  u,
+                  firstName: _first.text,
+                  lastName: _last.text,
+                );
         if (!mounted || seq != _checkSeq) return;
         setState(() {
+          _suggestions = r.suggestions;
           _usernameStatus = r.available
               ? UsernameStatus.available
               : switch (r.issue) {
@@ -160,8 +176,9 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                 };
         });
       } catch (_) {
-        if (mounted && seq == _checkSeq)
+        if (mounted && seq == _checkSeq) {
           setState(() => _usernameStatus = UsernameStatus.error);
+        }
       }
     });
   }
@@ -197,7 +214,7 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       UsernameStatus.checking,
       UsernameStatus.taken,
       UsernameStatus.reserved,
-      UsernameStatus.invalid
+      UsernameStatus.invalid,
     }.contains(_usernameStatus)) {
       return;
     }
@@ -276,8 +293,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         switch (_usernameStatus) {
       UsernameStatus.unchanged => (
           usernameLocked
-              ? t.t('profile.username.cooldown',
-                  {'date': formats.date(p.usernameNextChangeAt!)})
+              ? t.t(
+                  'profile.username.cooldown',
+                  {'date': formats.date(p.usernameNextChangeAt!)},
+                )
               : t.t('profile.username.hint'),
           null,
         ),
@@ -308,7 +327,9 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         label: t.t('onboarding.profile.firstName'),
         errorText: required(_first),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
       AppTextField(
@@ -316,23 +337,39 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
         label: t.t('onboarding.profile.lastName'),
         errorText: required(_last),
         textCapitalization: TextCapitalization.words,
-        inputFormatters: [LengthLimitingTextInputFormatter(kAttorneyNameMax)],
+        inputFormatters: [
+          LengthLimitingTextInputFormatter(TextLimits.of(TextLimit.name)),
+        ],
         onChanged: (_) => setState(() {}),
       ),
-      AppTextField(
-        key: const ValueKey('username-field'),
-        controller: _username,
-        label: t.t('profile.username.label'),
-        enabled: !usernameLocked,
-        leading: Text('@',
-            style: typography.body.copyWith(color: colors.textSecondary)),
-        helperText: usernameHelper,
-        errorText: usernameError,
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
-          LengthLimitingTextInputFormatter(30),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppTextField(
+            key: const ValueKey('username-field'),
+            controller: _username,
+            label: t.t('profile.username.label'),
+            enabled: !usernameLocked,
+            leading: Text(
+              '@',
+              style: typography.body.copyWith(color: colors.textSecondary),
+            ),
+            helperText: usernameHelper,
+            errorText: usernameError,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9._]')),
+              LengthLimitingTextInputFormatter(30),
+            ],
+            onChanged: _onUsernameChanged,
+          ),
+          UsernameSuggestions(
+            suggestions: _suggestions,
+            onPick: (v) {
+              _username.text = v;
+              _onUsernameChanged(v);
+            },
+          ),
         ],
-        onChanged: _onUsernameChanged,
       ),
       AppTextField(
         controller: _bio,
@@ -354,8 +391,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                 for (final f in _firms)
                   AppChip(
                     label: f,
-                    trailing:
-                        const AppIcon(AppIcons.closeRounded, size: AppSizes.iconSm),
+                    trailing: const AppIcon(
+                      AppIcons.closeRounded,
+                      size: AppSizes.iconSm,
+                    ),
                     onTap: () =>
                         setState(() => _firms = [..._firms]..remove(f)),
                   ),
@@ -388,8 +427,10 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
                   child: AppTextField(
                     controller: _firm,
                     semanticLabel: t.t('onboarding.profile.firm'),
-                    helperText: t.t('profile.edit.firms.helper',
-                        {'max': '$kAttorneyFirmsMax'}),
+                    helperText: t.t(
+                      'profile.edit.firms.helper',
+                      {'max': '$kAttorneyFirmsMax'},
+                    ),
                     maxLength: kAttorneyFirmMax,
                     textCapitalization: TextCapitalization.words,
                     textInputAction: TextInputAction.done,
@@ -424,10 +465,11 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
             options: [
               for (final l in kLanguageCatalog)
                 PickerOption(
-                    value: l.code,
-                    label: l.nativeName,
-                    sublabel:
-                        l.englishName == l.nativeName ? null : l.englishName),
+                  value: l.code,
+                  label: l.nativeName,
+                  sublabel:
+                      l.englishName == l.nativeName ? null : l.englishName,
+                ),
             ],
             initial: _languages,
             multi: true,
@@ -459,8 +501,12 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                AppSpacing.sm, AppSpacing.screenSide, AppSpacing.xxl),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              AppSpacing.xxl,
+            ),
             children: [
               for (var i = 0; i < fields.length; i++) ...[
                 if (i > 0) const SizedBox(height: AppSpacing.lg),
@@ -470,17 +516,29 @@ class _AttorneyEditFormState extends ConsumerState<_AttorneyEditForm> {
           ),
         ),
         _SaveBar(
-            label: t.t('profile.edit.save'),
-            loading: _saving,
-            onPressed: () => _save(t)),
+          label: t.t('profile.edit.save'),
+          loading: _saving,
+          enabled: _first.text.trim().isNotEmpty &&
+              _last.text.trim().isNotEmpty &&
+              !const {
+                UsernameStatus.checking,
+                UsernameStatus.taken,
+                UsernameStatus.reserved,
+                UsernameStatus.invalid,
+              }.contains(_usernameStatus),
+          onPressed: () => _save(t),
+        ),
       ],
     );
   }
 }
 
 class _Licenses extends StatelessWidget {
-  const _Licenses(
-      {required this.licenses, required this.t, required this.onAddState});
+  const _Licenses({
+    required this.licenses,
+    required this.t,
+    required this.onAddState,
+  });
 
   final List<AttorneyLicense> licenses;
   final Translator t;
@@ -501,29 +559,44 @@ class _Licenses extends StatelessWidget {
         for (final l in licenses)
           Padding(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
             child: Row(
               children: [
-                AppIcon(AppIcons.accountBalanceOutlined,
-                    size: AppSizes.iconSm, color: colors.goldStroke),
+                AppIcon(
+                  AppIcons.accountBalanceOutlined,
+                  size: AppSizes.iconSm,
+                  color: colors.iconTint,
+                ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                    child: Text(l.state.name,
-                        style: typography.body.copyWith(color: colors.text))),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm, vertical: AppSpacing.xs / 2),
-                  decoration: BoxDecoration(
-                    color: switch (l.status) {
-                      LicenseState.verified => colors.successTint,
-                      LicenseState.pending => colors.goldTint,
-                      _ => colors.dangerTint,
-                    },
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
                   child: Text(
-                    t.t('profile.license.${l.status.name}'),
-                    style: typography.badge.copyWith(color: colors.text),
+                    l.state.name,
+                    style: typography.body.copyWith(color: colors.text),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                AppTrailingCap(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs / 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: switch (l.status) {
+                        LicenseState.verified => colors.successTint,
+                        LicenseState.pending => colors.goldTint,
+                        _ => colors.dangerTint,
+                      },
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      t.t('profile.license.${l.status.name}'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.badge.copyWith(color: colors.text),
+                    ),
                   ),
                 ),
               ],
@@ -535,30 +608,42 @@ class _Licenses extends StatelessWidget {
 }
 
 class _SaveBar extends StatelessWidget {
-  const _SaveBar(
-      {required this.label, required this.loading, required this.onPressed});
+  const _SaveBar({
+    required this.label,
+    required this.loading,
+    required this.onPressed,
+    this.enabled = true,
+  });
 
   final String label;
   final bool loading;
   final VoidCallback onPressed;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     return DecoratedBox(
       decoration: BoxDecoration(
-          color: colors.surface,
-          border: Border(top: BorderSide(color: colors.border))),
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.md, AppSpacing.screenSide, AppSpacing.md),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.screenSide,
+            AppSpacing.md,
+          ),
           child: AppButton(
-              key: const ValueKey('profile-save'),
-              label: label,
-              isLoading: loading,
-              onPressed: onPressed),
+            key: const ValueKey('profile-save'),
+            label: label,
+            isLoading: loading,
+            isEnabled: enabled,
+            onPressed: onPressed,
+          ),
         ),
       ),
     );
@@ -567,19 +652,28 @@ class _SaveBar extends StatelessWidget {
 
 /// Save bar shared with the client editor.
 class ProfileSaveBar extends StatelessWidget {
-  const ProfileSaveBar(
-      {required this.label,
-      required this.loading,
-      required this.onPressed,
-      super.key});
+  const ProfileSaveBar({
+    required this.label,
+    required this.loading,
+    required this.onPressed,
+    super.key,
+    this.enabled = true,
+  });
 
   final String label;
   final bool loading;
   final VoidCallback onPressed;
 
+  /// Grey and inert while the required fields are not valid.
+  final bool enabled;
+
   @override
-  Widget build(BuildContext context) =>
-      _SaveBar(label: label, loading: loading, onPressed: onPressed);
+  Widget build(BuildContext context) => _SaveBar(
+        label: label,
+        loading: loading,
+        onPressed: onPressed,
+        enabled: enabled,
+      );
 }
 
 class _EditSkeleton extends StatelessWidget {
@@ -588,8 +682,12 @@ class _EditSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-            AppSpacing.screenSide, AppSpacing.xxl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.sm,
+          AppSpacing.screenSide,
+          AppSpacing.xxl,
+        ),
         children: [
           const AppSkeletonCard(),
           for (var i = 0; i < 5; i++) ...[

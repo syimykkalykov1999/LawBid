@@ -1,15 +1,34 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import type { Post } from '@prisma/client';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
+import type { Post, Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import {
+  decodeCursor as decodeKeyset,
+  encodeCursor as encodeKeyset,
+} from '../../common/pagination/cursor.util';
+import { GUEST_USER_ID } from '../../common/viewer/guest';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { cachedBlockSet } from '../blocks/block-set.cache';
 import type { PostPage } from '../posts/dto/posts.dto';
+import {
+  ContentFilterService,
+  contentModeWhere,
+  type FeedContentMode,
+} from '../posts/content-filter.service';
 import {
   PostPresenter,
   VISIBLE_POST_WHERE,
 } from '../posts/post-presenter.service';
+import type { PostReposterDto } from '../posts/dto/posts.dto';
 import {
   decodeFeedCursor,
   encodeFeedCursor,
@@ -18,12 +37,14 @@ import {
   type FeedCursor,
 } from './feed-mixer';
 import type { FeedProvider } from './feed.provider';
+import { PromotionDeliveryService } from '../promotions/promotion-delivery.service';
+import { ck } from '../../redis/redis-cluster-safe';
 
-export const RECO_CURRENT_KEY = 'feed:reco:current';
-export const recoKey = (version: string) => `feed:reco:${version}`;
+export const recoCurrentKey = () => ck('reco', 'feed:reco:current');
+export const recoKey = (version: string) => ck('reco', `feed:reco:${version}`);
 const seenKey = (uid: string) => `feed:seen:${uid}`;
-const firstPageKey = (uid: string, limit: number) =>
-  `feed:first:${uid}:${limit}`;
+const firstPageKey = (uid: string, limit: number, mode: FeedContentMode) =>
+  `feed:first:${uid}:${limit}:${mode}`;
 /** §2.2.4: last 500 shown recommendations, kept 3 days. */
 const SEEN_MAX = 500;
 const SEEN_TTL_SEC = 3 * 24 * 3600;
@@ -52,13 +73,141 @@ function badCursor(): BadRequestException {
  */
 @Injectable()
 export class FeedService implements FeedProvider {
+  private readonly log = new Logger(FeedService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly presenter: PostPresenter,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly contentFilter: ContentFilterService,
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
+    // DB-ops S5-6: the guest feed (no viewer, no writes) reads the replica.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
+  /** The organic page plus paid promoted posts (owner 2026-10-05):
+   * one after every N-th post, marked with their promotionId. */
   async page(
+    viewer: RequestUser,
+    rawCursor: string | undefined,
+    limit: number,
+  ): Promise<PostPage> {
+    if (viewer.guest) return this.guestPage(rawCursor, limit);
+    const organic = await this.organicPage(viewer, rawCursor, limit);
+    return this.withPromoted(viewer, organic);
+  }
+
+  private async withPromoted(
+    viewer: RequestUser,
+    page: PostPage,
+  ): Promise<PostPage> {
+    const delivery = this.promoDelivery;
+    if (!delivery || page.items.length === 0) return page;
+    try {
+      const settings = await delivery.settings();
+      if (!settings.postsEnabled) return page;
+      const every = settings.feedEveryN;
+      const slots = Math.floor(page.items.length / (every - 1));
+      if (slots < 1) return page;
+      const candidates = await delivery.eligible('post', viewer.sub, {
+        excludeUserIds: await this.blockedAuthors(viewer),
+      });
+      const onPage = new Set(page.items.map((p) => p.id));
+      const wanted = candidates
+        .filter((c) => c.postId && !onPage.has(c.postId))
+        .slice(0, slots * 2);
+      if (wanted.length === 0) return page;
+      // A "Legal only" viewer gets no promoted general posts either.
+      const only = contentModeWhere(
+        await this.contentFilter.modeOf(viewer.sub),
+      );
+      const rows = await this.prisma.post.findMany({
+        where: {
+          ...VISIBLE_POST_WHERE,
+          ...only,
+          // Videos have their own counter in the reels.
+          video_asset_id: null,
+          id: { in: wanted.map((c) => c.postId!) },
+        },
+      });
+      const byId = new Map(rows.map((p) => [p.id, p]));
+      const picked = wanted.filter((c) => byId.has(c.postId!)).slice(0, slots);
+      if (picked.length === 0) return page;
+      const presented = await this.presenter.present(
+        picked.map((c) => byId.get(c.postId!)!),
+        viewer.sub,
+      );
+      const ads = presented.map((dto, i) => ({
+        ...dto,
+        promotionId: picked[i].id,
+        promotionCta: picked[i].ctaType
+          ? { type: picked[i].ctaType, value: picked[i].ctaValue }
+          : null,
+      }));
+      const items = [...page.items];
+      ads.forEach((ad, i) => {
+        items.splice(Math.min(items.length, (i + 1) * every - 1), 0, ad);
+      });
+      delivery.recordImpressions(
+        viewer.sub,
+        picked.map((c) => c.id),
+      );
+      return { ...page, items };
+    } catch (e) {
+      // Promoted posts are best effort; say why one did not come.
+      this.log.warn({ err: String(e) }, 'promoted posts skipped');
+      return page;
+    }
+  }
+
+  /**
+   * Owner 2026-10-22 (guest browsing): what someone without an account
+   * sees on the feed's public tab: the newest posts of active attorneys, no
+   * follows, no "seen" memory, no paid slots. Same PostDto as the signed-in
+   * feed; every viewer field (liked, saved, following) comes out false.
+   */
+  private async guestPage(
+    rawCursor: string | undefined,
+    limit: number,
+  ): Promise<PostPage> {
+    let c: { createdAt: Date; id: string } | undefined;
+    if (rawCursor) {
+      try {
+        c = decodeKeyset(rawCursor);
+      } catch {
+        throw badCursor();
+      }
+    }
+    const rows = await (this.read?.db ?? this.prisma).post.findMany({
+      where: {
+        AND: [
+          VISIBLE_POST_WHERE,
+          { author: { role: 'attorney' } },
+          c
+            ? {
+                OR: [
+                  { created_at: { lt: c.createdAt } },
+                  { created_at: c.createdAt, id: { lt: c.id } },
+                ],
+              }
+            : {},
+        ],
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    });
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    return {
+      items: await this.presenter.present(page, GUEST_USER_ID),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeKeyset({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  private async organicPage(
     viewer: RequestUser,
     rawCursor: string | undefined,
     limit: number,
@@ -70,12 +219,22 @@ export class FeedService implements FeedProvider {
       if (!decoded) throw badCursor();
       cursor = decoded;
     }
+    // Owner 2026-10-05: "Legal only" hides general (personal) posts.
+    const mode = await this.contentFilter.modeOf(viewer.sub);
+    const only = contentModeWhere(mode);
     if (first) {
-      const cached = await this.redis.get(firstPageKey(viewer.sub, limit));
+      const cached = await this.redis.get(
+        firstPageKey(viewer.sub, limit, mode),
+      );
       if (cached) {
         return this.fromIds(
           viewer,
-          JSON.parse(cached) as { ids: string[]; next: string | null },
+          JSON.parse(cached) as {
+            ids: string[];
+            next: string | null;
+            rep?: Record<string, PostReposterDto>;
+          },
+          only,
         );
       }
     }
@@ -93,6 +252,33 @@ export class FeedService implements FeedProvider {
     const authorIds = followees.map((f) => f.followee_id);
     if (viewer.role === 'attorney') authorIds.push(viewer.sub);
 
+    // Once the "everything else" tail has started, the followed stream and
+    // the recommendations were already exhausted: keep paging the tail.
+    if (!first && cursor.l) {
+      const tail = await this.latestTail(
+        viewer,
+        authorIds,
+        cursor.v,
+        cursor.l,
+        [],
+        limit,
+        only,
+      );
+      const last = tail[tail.length - 1];
+      return {
+        items: await this.presenter.present(tail, viewer.sub),
+        nextCursor:
+          tail.length < limit || !last
+            ? null
+            : encodeFeedCursor({
+                f: null,
+                r: cursor.r,
+                v: cursor.v,
+                l: { t: last.created_at.toISOString(), id: last.id },
+              }),
+      };
+    }
+
     // Followed stream (+ own posts): from the top on the first page, after
     // cursor.f later; cursor.f === null on a later page = exhausted.
     const streamOpen = authorIds.length > 0 && (first || cursor.f !== null);
@@ -101,6 +287,7 @@ export class FeedService implements FeedProvider {
       ? await this.prisma.post.findMany({
           where: {
             ...VISIBLE_POST_WHERE,
+            ...only,
             author_id: { in: authorIds },
             ...(after
               ? {
@@ -120,13 +307,34 @@ export class FeedService implements FeedProvider {
     // the followed stream can't fill it.
     const recoNeed =
       following.length > limit ? recoSlotsFor(limit, hasFollows) : limit;
-    const reco = await this.recommendations(
+    let reco = await this.recommendations(
       viewer,
       authorIds,
       first ? 0 : cursor.r,
       first ? null : cursor.v,
       recoNeed,
+      only,
     );
+    // Owner 2026-10-02: a viewer who has already been shown every
+    // recommendation (a small catalog, or someone who follows nobody) must
+    // not open on "Your feed is empty" — start the rotation over.
+    // An attorney's own posts count as "followed" here, so test `hasFollows`
+    // as well: with no follows the own posts must not stop the rotation.
+    if (
+      first &&
+      reco.posts.length === 0 &&
+      (following.length === 0 || !hasFollows)
+    ) {
+      await this.redis.del(seenKey(viewer.sub));
+      reco = await this.recommendations(
+        viewer,
+        authorIds,
+        0,
+        null,
+        recoNeed,
+        only,
+      );
+    }
 
     const page = mixPage(
       following.slice(0, limit),
@@ -137,7 +345,27 @@ export class FeedService implements FeedProvider {
     const followingIds = new Set(following.map((p) => p.id));
     const usedFollowing = page.filter((p) => followingIds.has(p.id));
     const usedReco = page.filter((p) => !followingIds.has(p.id));
+    // Owner 2026-10-05: "All" must show every post, also to a brand-new
+    // account that follows nobody. Recommendations only cover the last 14
+    // days and only exist once FeedRecoJob has run, so when followed posts
+    // and recommendations can't fill the page, every other visible post
+    // follows, newest first (the same posts the topic filters list).
+    const tail =
+      page.length < limit
+        ? await this.latestTail(
+            viewer,
+            authorIds,
+            reco.version,
+            null,
+            page.map((p) => p.id),
+            limit - page.length,
+            only,
+          )
+        : [];
+    page.push(...tail);
+    const lastL = tail[tail.length - 1];
     const lastF = usedFollowing[usedFollowing.length - 1];
+    const moreFollowed = !!lastF && following.length > usedFollowing.length;
     const next: FeedCursor = {
       // More followed posts exist only if some fetched ones were not used.
       f:
@@ -146,8 +374,43 @@ export class FeedService implements FeedProvider {
           : null,
       r: reco.next(usedReco.length),
       v: reco.version,
+      l: lastL ? { t: lastL.created_at.toISOString(), id: lastL.id } : null,
     };
     const nextCursor = page.length < limit ? null : encodeFeedCursor(next);
+
+    // Owner 2026-10-12 (Threads): what the people I follow reposted, in the
+    // time window this page covers — "reposted by @name" over the card.
+    const reposters = new Map<string, PostReposterDto>();
+    if (streamOpen) {
+      const reposts = await this.repostsInWindow(
+        viewer,
+        authorIds,
+        after ? new Date(after.t) : null,
+        moreFollowed && lastF ? lastF.created_at : null,
+        only,
+        new Set(page.map((p) => p.id)),
+      );
+      const names = await this.presenter.reposterNames(
+        reposts.map((r) => r.userId),
+      );
+      for (const r of reposts) {
+        let i = page.findIndex(
+          (p) => followingIds.has(p.id) && p.created_at < r.at,
+        );
+        if (i < 0) i = page.length;
+        page.splice(i, 0, r.post);
+        const who = names.get(r.userId);
+        if (who) reposters.set(r.post.id, who);
+      }
+      // Owner 2026-10-18: a post that is already on the page is shown once,
+      // with the header of the most recent reposter the viewer follows.
+      const heads = await this.reposterHeaders(
+        viewer,
+        authorIds,
+        page.map((p) => p.id).filter((id) => !reposters.has(id)),
+      );
+      for (const [postId, who] of heads) reposters.set(postId, who);
+    }
 
     await this.markSeen(
       viewer.sub,
@@ -155,16 +418,92 @@ export class FeedService implements FeedProvider {
     );
     if (first) {
       await this.redis.set(
-        firstPageKey(viewer.sub, limit),
-        JSON.stringify({ ids: page.map((p) => p.id), next: nextCursor }),
+        firstPageKey(viewer.sub, limit, mode),
+        JSON.stringify({
+          ids: page.map((p) => p.id),
+          next: nextCursor,
+          rep: Object.fromEntries(reposters),
+        }),
         'EX',
         FIRST_PAGE_TTL_SEC,
       );
     }
     return {
-      items: await this.presenter.present(page, viewer.sub),
+      items: await this.presenter.present(page, viewer.sub, reposters),
       nextCursor,
     };
+  }
+
+  /** postId → the most recent repost by someone the viewer follows, for
+   * posts already on the page (no new items are added). */
+  private async reposterHeaders(
+    viewer: RequestUser,
+    authorIds: string[],
+    postIds: string[],
+  ): Promise<Map<string, PostReposterDto>> {
+    const out = new Map<string, PostReposterDto>();
+    const followed = authorIds.filter((id) => id !== viewer.sub);
+    if (postIds.length === 0 || followed.length === 0) return out;
+    const blocked = await this.blockedAuthors(viewer);
+    const rows = await this.prisma.postRepost.findMany({
+      where: {
+        post_id: { in: postIds },
+        user_id: {
+          in: followed.filter((id) => !blocked.includes(id)),
+        },
+      },
+      select: { post_id: true, user_id: true },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    });
+    const names = await this.presenter.reposterNames(
+      rows.map((r) => r.user_id),
+    );
+    for (const r of rows) {
+      const who = names.get(r.user_id);
+      if (who && !out.has(r.post_id)) out.set(r.post_id, who);
+    }
+    return out;
+  }
+
+  /** Reposts by [authorIds] made inside (lower, upper): newest first, at
+   * most a handful per page; not of blocked people, not already on the
+   * page, one per post. */
+  private async repostsInWindow(
+    viewer: RequestUser,
+    authorIds: string[],
+    upper: Date | null,
+    lower: Date | null,
+    only: Prisma.PostWhereInput,
+    onPage: Set<string>,
+  ): Promise<{ post: Post; userId: string; at: Date }[]> {
+    const blocked = await this.blockedAuthors(viewer);
+    const rows = await this.prisma.postRepost.findMany({
+      where: {
+        user_id: { in: authorIds.filter((id) => id !== viewer.sub) },
+        created_at: {
+          ...(upper ? { lt: upper } : {}),
+          ...(lower ? { gt: lower } : {}),
+        },
+        post: {
+          AND: [
+            VISIBLE_POST_WHERE,
+            only,
+            ...(blocked.length > 0 ? [{ author_id: { notIn: blocked } }] : []),
+          ],
+        },
+      },
+      include: { post: true },
+      orderBy: { created_at: 'desc' },
+      take: 10,
+    });
+    const seen = new Set(onPage);
+    const out: { post: Post; userId: string; at: Date }[] = [];
+    for (const r of rows) {
+      if (seen.has(r.post_id) || blocked.includes(r.user_id)) continue;
+      seen.add(r.post_id);
+      out.push({ post: r.post, userId: r.user_id, at: r.created_at });
+    }
+    return out;
   }
 
   /** Walks the pinned snapshot from [offset], skipping followed/own
@@ -176,12 +515,13 @@ export class FeedService implements FeedProvider {
     offset: number,
     pinned: string | null,
     need: number,
+    only: Prisma.PostWhereInput = {},
   ): Promise<{
     posts: Post[];
     next: (used: number) => number;
     version: string | null;
   }> {
-    const current = await this.redis.get(RECO_CURRENT_KEY);
+    const current = await this.redis.get(recoCurrentKey());
     let version = pinned;
     if (!version || !(await this.redis.exists(recoKey(version)))) {
       version = current;
@@ -200,17 +540,11 @@ export class FeedService implements FeedProvider {
     const seen = new Set(ids.filter((_, i) => scores[i] !== null));
     const exclude = new Set(excludeAuthors);
     // Audit 2026-10-01: no recommended posts of people blocked either way.
-    const blocks = await this.prisma.userBlock.findMany({
-      where: { OR: [{ blocker_id: viewer.sub }, { blocked_id: viewer.sub }] },
-      select: { blocker_id: true, blocked_id: true },
-      take: 5000,
-    });
-    for (const b of blocks) {
-      exclude.add(b.blocker_id === viewer.sub ? b.blocked_id : b.blocker_id);
-    }
+    for (const id of await this.blockedAuthors(viewer)) exclude.add(id);
     const rows = await this.prisma.post.findMany({
       where: {
         ...VISIBLE_POST_WHERE,
+        ...only,
         id: { in: ids.filter((id) => !seen.has(id)) },
       },
     });
@@ -234,6 +568,57 @@ export class FeedService implements FeedProvider {
     };
   }
 
+  /** Every other visible post, newest first, after [after]: not by a
+   * followed/own author (their stream already ran out), not in the
+   * recommendation snapshot (served there), not on this page and not by
+   * anyone blocked either way. */
+  private async latestTail(
+    viewer: RequestUser,
+    excludeAuthors: string[],
+    version: string | null,
+    after: { t: string; id: string } | null,
+    excludeIds: string[],
+    take: number,
+    only: Prisma.PostWhereInput = {},
+  ): Promise<Post[]> {
+    if (take <= 0) return [];
+    const authors = new Set(excludeAuthors);
+    for (const id of await this.blockedAuthors(viewer)) authors.add(id);
+    const ids = new Set(excludeIds);
+    if (version) {
+      const snapshot = await this.redis.zrevrange(recoKey(version), 0, -1);
+      for (const id of snapshot) ids.add(id);
+    }
+    return this.prisma.post.findMany({
+      where: {
+        AND: [
+          VISIBLE_POST_WHERE,
+          only,
+          ...(authors.size > 0 ? [{ author_id: { notIn: [...authors] } }] : []),
+          ...(ids.size > 0 ? [{ id: { notIn: [...ids] } }] : []),
+          ...(after
+            ? [
+                {
+                  OR: [
+                    { created_at: { lt: new Date(after.t) } },
+                    { created_at: new Date(after.t), id: { lt: after.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take,
+    });
+  }
+
+  private async blockedAuthors(viewer: RequestUser): Promise<string[]> {
+    // Owner 2026-10-18 (speed): one cached block set per viewer (see
+    // block-set.cache.ts), not a query up to three times per page.
+    return cachedBlockSet(this.prisma, this.redis, viewer.sub);
+  }
+
   private async markSeen(uid: string, ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     const now = Date.now();
@@ -246,17 +631,26 @@ export class FeedService implements FeedProvider {
 
   private async fromIds(
     viewer: RequestUser,
-    cached: { ids: string[]; next: string | null },
+    cached: {
+      ids: string[];
+      next: string | null;
+      rep?: Record<string, PostReposterDto>;
+    },
+    only: Prisma.PostWhereInput,
   ): Promise<PostPage> {
     const rows = await this.prisma.post.findMany({
-      where: { ...VISIBLE_POST_WHERE, id: { in: cached.ids } },
+      where: { ...VISIBLE_POST_WHERE, ...only, id: { in: cached.ids } },
     });
     const byId = new Map(rows.map((p) => [p.id, p]));
     const ordered = cached.ids.flatMap((id) =>
       byId.has(id) ? [byId.get(id)!] : [],
     );
     return {
-      items: await this.presenter.present(ordered, viewer.sub),
+      items: await this.presenter.present(
+        ordered,
+        viewer.sub,
+        new Map(Object.entries(cached.rep ?? {})),
+      ),
       nextCursor: cached.next,
     };
   }

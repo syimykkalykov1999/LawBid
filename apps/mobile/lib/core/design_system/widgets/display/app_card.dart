@@ -47,6 +47,9 @@ class AppCard extends StatelessWidget {
       ),
       child: child,
     );
+    // Owner 2026-10-18 (speed): no backdrop blur per card — in lists every
+    // card blurred the screen behind it and scrolling froze on Glass. The
+    // see-through `surface` fill stays; the bars and sheets keep the blur.
     if (onTap == null) return card;
     return AppPressable(onTap: onTap, child: card);
   }

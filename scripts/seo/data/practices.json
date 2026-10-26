@@ -1,0 +1,212 @@
+[
+  {
+    "key": "family law", "slug": "family-law", "name": "Family Law", "code": "family_law",
+    "intro": "Family law covers the legal side of family relationships: marriage and divorce, children, support, and the agreements between spouses and parents.",
+    "situations": ["Ending a marriage or legal separation", "Deciding where children live and how time is shared", "Setting or changing child or spousal support", "Adoption, paternity and name changes"],
+    "faq": [
+      ["Do I need a lawyer for a family matter?", "You can represent yourself in many family courts, but rules, deadlines and forms differ by state. A lawyer licensed in your state can explain your options and handle filings and hearings."],
+      ["How long does a family case take?", "It depends on the state, the court's calendar and whether the parties agree. Agreed matters are usually faster than contested ones."],
+      ["Which state's law applies?", "Generally the state where you or your spouse live and where the children reside. Ask a lawyer licensed there."]
+    ]
+  },
+  {
+    "key": "divorce", "slug": "divorce", "name": "Divorce", "code": "family_law.divorce",
+    "intro": "A divorce ends a marriage and settles property, debts, support and, when there are children, custody and parenting time.",
+    "situations": ["An uncontested divorce where both spouses agree", "A contested divorce with disputes over property or children", "Dividing a home, retirement accounts or a business", "Military or international divorce"],
+    "faq": [
+      ["How long do I have to live in a state before I can file?", "Every state sets its own residency period before a divorce can be filed. A lawyer licensed in your state can tell you the current rule."],
+      ["Can we use one lawyer for both spouses?", "Usually not: a lawyer cannot represent both sides in a contested matter. Each spouse can have their own lawyer."],
+      ["Is mediation an option?", "Many courts encourage mediation. It can be quicker and cheaper when both sides want to settle."]
+    ]
+  },
+  {
+    "key": "child custody", "slug": "child-custody", "name": "Child Custody", "code": "family_law.child_custody",
+    "intro": "Custody decisions set who makes important decisions for a child and where the child lives. Courts decide based on the child's best interests.",
+    "situations": ["First custody order after a separation", "Changing an existing order after a move or job change", "Enforcing a parenting-time schedule", "Relocating with a child"],
+    "faq": [
+      ["What does 'best interests of the child' mean?", "It is the standard courts use. Factors vary by state and often include the child's needs, each parent's ability to care for them and stability."],
+      ["Can a custody order be changed?", "Often yes, when circumstances change significantly. The process and the standard depend on the state."],
+      ["Does a parent need a lawyer?", "Not always, but custody orders affect years of a child's life, so many parents consult a lawyer licensed in their state."]
+    ]
+  },
+  {
+    "key": "DUI", "slug": "dui-dwi", "name": "DUI / DWI", "code": "dui_and_dwi",
+    "intro": "A DUI or DWI charge can lead to both a criminal case and a separate driver's license process. Deadlines after an arrest are short and differ by state.",
+    "situations": ["A first DUI arrest", "A refused chemical test", "A license suspension hearing at the motor vehicle department", "A repeat or commercial-driver DUI"],
+    "faq": [
+      ["What should I do after a DUI arrest?", "Note the deadlines on any paperwork you received, especially for a license hearing, and speak with a lawyer licensed in your state as soon as you can."],
+      ["Is a DUI case only about the license?", "No. There is usually a criminal case in court and an administrative license process, each with its own rules."],
+      ["Can a DUI be reduced or dismissed?", "Outcomes depend on the facts and the state. A lawyer can review the evidence and explain what is realistic. No lawyer can promise a result."]
+    ]
+  },
+  {
+    "key": "personal injury", "slug": "personal-injury", "name": "Personal Injury", "code": "personal_injury",
+    "intro": "Personal injury law helps people who were hurt because of someone else's carelessness or wrongdoing to seek compensation for medical bills, lost income and other harm.",
+    "situations": ["Car, truck and motorcycle accidents", "Slip and fall on someone's property", "Dog bites and product injuries", "Wrongful death claims"],
+    "faq": [
+      ["Is there a deadline to bring a claim?", "Yes. Each state has a statute of limitations, often a few years, and some claims have much shorter notice deadlines."],
+      ["How do lawyers get paid in injury cases?", "Many handle injury cases on a contingency fee, taking a percentage only if there is a recovery. Always read the fee agreement."],
+      ["Should I talk to the other side's insurer?", "You can ask a lawyer before giving a recorded statement or signing anything."]
+    ]
+  },
+  {
+    "key": "car accident", "slug": "car-accident", "name": "Car Accident", "code": "personal_injury.car_accident",
+    "intro": "After a car accident, injured people often deal with insurance companies, medical bills and lost work at the same time. A lawyer can explain the claim process in your state.",
+    "situations": ["Injuries from a collision", "Disputes with an insurer over fault or value", "Hit-and-run or uninsured driver", "Rideshare and truck accidents"],
+    "faq": [
+      ["What should I keep after an accident?", "Photos, the police report number, medical records, repair estimates and the names of witnesses."],
+      ["Does fault matter?", "In most states yes. Some states reduce a claim by your share of fault, and a few bar a claim above a limit."],
+      ["How soon should I talk to a lawyer?", "Soon. Evidence fades and filing deadlines apply."]
+    ]
+  },
+  {
+    "key": "criminal defense", "slug": "criminal-defense", "name": "Criminal Defense", "code": "criminal_defense",
+    "intro": "Criminal defense lawyers represent people accused of crimes, from misdemeanors to felonies, and protect their rights at every stage.",
+    "situations": ["A felony or misdemeanor charge", "Drug, theft, assault or weapons charges", "A probation or parole violation", "Expungement and record sealing"],
+    "faq": [
+      ["What if I cannot afford a lawyer?", "If you face jail time, the court can appoint a public defender. You can also hire a private criminal defense lawyer."],
+      ["Should I talk to the police without a lawyer?", "You have the right to remain silent and to ask for a lawyer."],
+      ["Can a record be cleared?", "Many states allow expungement or sealing for some offences after a waiting period."]
+    ]
+  },
+  {
+    "key": "immigration", "slug": "immigration", "name": "Immigration", "code": "immigration",
+    "intro": "Immigration law covers visas, green cards, citizenship, asylum and defense against deportation. Rules are federal, and mistakes in an application can be costly.",
+    "situations": ["Family-based petitions and green cards", "Work and student visas", "Naturalization and citizenship", "Removal (deportation) defense and asylum"],
+    "faq": [
+      ["Does the state matter for immigration?", "Immigration law is federal, so an immigration lawyer licensed in any state can usually help, but local court experience can matter."],
+      ["Beware of 'notarios'.", "Only a licensed attorney or an accredited representative may give immigration legal advice."],
+      ["How long does it take?", "Processing times change often and depend on the type of case. Official agencies publish current estimates."]
+    ]
+  },
+  {
+    "key": "green card", "slug": "green-card", "name": "Green Card", "code": "immigration.green_card",
+    "intro": "A green card gives permanent resident status. The route depends on family, employment or other grounds, and each route has its own forms and evidence.",
+    "situations": ["Green card through a spouse or relative", "Employment-based green cards", "Adjustment of status inside the U.S.", "Replacing or renewing a card"],
+    "faq": [
+      ["Can I work while my application is pending?", "Sometimes, with a work permit. Eligibility depends on your category."],
+      ["What if my application is denied?", "Options may include a motion, an appeal or a new filing. A lawyer can explain which fits your case."],
+      ["Do I need a lawyer?", "Many people file alone, but errors cause delays or denials. A lawyer can review your case first."]
+    ]
+  },
+  {
+    "key": "workers compensation", "slug": "workers-compensation", "name": "Workers' Compensation", "code": "workers_compensation",
+    "intro": "Workers' compensation pays medical costs and part of lost wages for people hurt at work, whoever was at fault. Claims have strict reporting deadlines.",
+    "situations": ["A workplace injury or illness", "A denied or delayed claim", "Return-to-work disputes", "A permanent disability rating"],
+    "faq": [
+      ["Do I need to report an injury quickly?", "Yes. Most states require notice to your employer within days or weeks."],
+      ["Can I be fired for filing a claim?", "Retaliation for filing is unlawful in most states."],
+      ["What if the claim is denied?", "There is usually an appeal process with its own deadlines."]
+    ]
+  },
+  {
+    "key": "bankruptcy", "slug": "bankruptcy", "name": "Bankruptcy & Debt", "code": "bankruptcy_and_debt",
+    "intro": "Bankruptcy and debt lawyers help people and businesses facing creditors, wage garnishment or repossession understand their options for relief.",
+    "situations": ["Chapter 7 or Chapter 13 bankruptcy", "Stopping wage garnishment or collection calls", "Repossession and judgments", "Debt settlement"],
+    "faq": [
+      ["Will bankruptcy erase all debt?", "No. Some debts, such as most child support and many student loans, usually are not discharged."],
+      ["How does it affect credit?", "A bankruptcy stays on a credit report for years, but many people rebuild afterward."],
+      ["Which chapter is right for me?", "It depends on income, assets and goals. A lawyer can compare them for your case."]
+    ]
+  },
+  {
+    "key": "estate planning", "slug": "estate-planning", "name": "Estate Planning & Probate", "code": "estate_planning_and_probate",
+    "intro": "Estate planning sets out who inherits what and who decides if you cannot. Probate is the court process of settling an estate after death.",
+    "situations": ["Wills, trusts and powers of attorney", "Healthcare directives", "Settling an estate through probate", "Disputes between beneficiaries"],
+    "faq": [
+      ["Do I need a will?", "Without one, state law decides who inherits, which may not match your wishes."],
+      ["What is the difference between a will and a trust?", "A will takes effect through probate. A trust can avoid probate for the assets placed in it."],
+      ["Do I need a lawyer to probate an estate?", "Rules and complexity vary by state and estate."]
+    ]
+  },
+  {
+    "key": "wills and trusts", "slug": "wills-and-trusts", "name": "Wills & Trusts", "code": "estate_planning_and_probate",
+    "intro": "A will and a trust each say what happens to your property. Which one fits depends on your assets, family and the state where you live.",
+    "situations": ["Making or updating a will", "Setting up a living trust", "Naming a guardian for children", "Planning for a family member with special needs"],
+    "faq": [
+      ["How often should I update a will?", "After big life events such as marriage, divorce, a birth or a move to another state."],
+      ["Are online forms enough?", "Simple situations may work, but errors can invalidate a will. A lawyer can review it."],
+      ["Does a trust save taxes?", "Not automatically. A lawyer or tax advisor can explain how it applies to you."]
+    ]
+  },
+  {
+    "key": "employment", "slug": "employment", "name": "Employment & Labor", "code": "employment_and_labor",
+    "intro": "Employment lawyers help employees and employers with workplace rights, from pay and leave to discrimination and termination.",
+    "situations": ["Wrongful termination", "Discrimination or harassment at work", "Unpaid wages and overtime", "Severance and non-compete agreements"],
+    "faq": [
+      ["Can I be fired for any reason?", "In most states employment is 'at will', but firing for discrimination or retaliation is unlawful."],
+      ["Is there a deadline to file a complaint?", "Yes, often short. Some complaints must first go to a government agency."],
+      ["Should I sign a severance agreement right away?", "You can ask a lawyer to review it first."]
+    ]
+  },
+  {
+    "key": "real estate", "slug": "real-estate", "name": "Real Estate", "code": "real_estate",
+    "intro": "Real estate lawyers help with buying and selling property, title and closing issues, disputes and foreclosure.",
+    "situations": ["Buying or selling a home", "Title and boundary disputes", "Foreclosure defense", "HOA and zoning issues"],
+    "faq": [
+      ["Do I need a lawyer to buy a house?", "Some states require one at closing; in others it is optional but common."],
+      ["What if there is a problem with the title?", "A lawyer can help resolve liens or claims against the property."],
+      ["Can foreclosure be stopped?", "Options depend on the state and the loan. Talk to a lawyer early."]
+    ]
+  },
+  {
+    "key": "eviction", "slug": "eviction", "name": "Landlord & Tenant (Eviction)", "code": "landlord_and_tenant",
+    "intro": "Eviction and landlord-tenant law covers notices, rent disputes, deposits and the court process of removing a tenant. Strict procedures protect both sides.",
+    "situations": ["A tenant who received an eviction notice", "A landlord with unpaid rent", "Security deposit disputes", "Repairs and habitability"],
+    "faq": [
+      ["Can a landlord just lock me out?", "In most states a landlord must use the court process. A self-help eviction is usually unlawful."],
+      ["How long do I have to respond to an eviction notice?", "Deadlines are short and set by state law. Check the notice and act quickly."],
+      ["Do tenants get a lawyer?", "Some areas offer free legal aid for tenants; you can also hire a lawyer."]
+    ]
+  },
+  {
+    "key": "traffic ticket", "slug": "traffic-tickets", "name": "Traffic Tickets", "code": "traffic_tickets",
+    "intro": "A traffic ticket can mean fines, points on your license and higher insurance. A lawyer can explain whether contesting the ticket makes sense.",
+    "situations": ["Speeding and moving violations", "Reckless driving", "Driving without a license or insurance", "Commercial driver violations"],
+    "faq": [
+      ["Is it worth fighting a ticket?", "Sometimes, particularly when points or your license are at stake."],
+      ["Do I have to go to court?", "Many tickets can be handled by mail or by a lawyer appearing for you, depending on the state."],
+      ["Will points raise my insurance?", "They can. Ask your insurer how it treats violations."]
+    ]
+  },
+  {
+    "key": "medical malpractice", "slug": "medical-malpractice", "name": "Medical Malpractice", "code": "medical_malpractice",
+    "intro": "Medical malpractice claims arise when a healthcare provider's care falls below accepted standards and a patient is harmed. These cases need medical experts and strict procedure.",
+    "situations": ["Surgical or anesthesia errors", "Misdiagnosis or delayed diagnosis", "Medication errors", "Birth injuries"],
+    "faq": [
+      ["Is a bad outcome always malpractice?", "No. The question is whether care fell below the accepted standard."],
+      ["Are there special deadlines?", "Yes. Many states have shorter deadlines and pre-suit steps for malpractice claims."],
+      ["How are these cases paid for?", "Many malpractice lawyers work on contingency; confirm in the fee agreement."]
+    ]
+  },
+  {
+    "key": "social security disability", "slug": "social-security-disability", "name": "Social Security Disability", "code": "social_security_disability",
+    "intro": "Social Security Disability (SSDI) and Supplemental Security Income (SSI) support people who cannot work because of a long-term medical condition. Initial denials are common and can be appealed.",
+    "situations": ["Applying for SSDI or SSI", "Appealing a denial", "A disability hearing", "A continuing disability review"],
+    "faq": [
+      ["Why are so many applications denied at first?", "Many need more medical evidence or fall short at the first review. An appeal can follow."],
+      ["How do disability lawyers get paid?", "Fees are set by federal rules and are paid from past-due benefits, if you win."],
+      ["Is there a deadline to appeal?", "Yes, usually 60 days from the decision letter."]
+    ]
+  },
+  {
+    "key": "business", "slug": "business-law", "name": "Business & Corporate", "code": "business_and_corporate",
+    "intro": "Business lawyers help founders and companies form entities, write contracts, resolve disputes and stay compliant.",
+    "situations": ["Forming an LLC or corporation", "Contracts and partnership agreements", "Buying or selling a business", "Shareholder and commercial disputes"],
+    "faq": [
+      ["Which entity should I choose?", "It depends on liability, taxes and ownership. A lawyer and an accountant can compare them."],
+      ["Do I need a written contract?", "A written agreement is almost always safer than a handshake."],
+      ["Can a lawyer help a startup raise money?", "Yes, with documents and securities rules."]
+    ]
+  },
+  {
+    "key": "tax", "slug": "tax-law", "name": "Tax Law", "code": "tax_law",
+    "intro": "Tax lawyers help with IRS and state tax problems such as audits, back taxes, liens and payment plans, and with tax planning.",
+    "situations": ["An IRS or state audit", "Back taxes and payment plans", "Tax liens and levies", "Business and international tax planning"],
+    "faq": [
+      ["Should I respond to an IRS notice?", "Yes, and by the deadline it states. A lawyer can respond for you."],
+      ["Can I settle my tax debt for less?", "In some cases, yes. Eligibility is strict."],
+      ["What is the difference between a CPA and a tax lawyer?", "Lawyers can represent you in tax court and their advice is privileged."]
+    ]
+  }
+]

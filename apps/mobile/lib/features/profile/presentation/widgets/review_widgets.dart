@@ -1,20 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
 /// "4.5" in the interface language, or "—" when there are no reviews
 /// (docs/03 §4.2 "вместо числа прочерк").
 String ratingNumber(L10nFormats f, Translator t, double? average) =>
     average == null
         ? t.t('profile.rating.none')
-        : f.number(double.parse(average.toStringAsFixed(1)));
+        : f.number1(double.parse(average.toStringAsFixed(1)));
 
 /// One review (docs/03 §7.4): "Anna K.", stars, date, text, "Edited".
 /// No reviewer avatar — a neutral quote seal instead (client privacy).
@@ -28,7 +30,12 @@ class ReviewCard extends ConsumerWidget {
     this.onDelete,
     this.onReply,
     this.onDeleteReply,
+    this.flat = false,
   });
+
+  /// Owner 2026-10-20 (Instagram): edge to edge, a full-width divider, no
+  /// frame or corners (the profile's rating tab).
+  final bool flat;
 
   final Review review;
 
@@ -55,6 +62,7 @@ class ReviewCard extends ConsumerWidget {
         (onReply != null && review.reply == null);
     // Owner 2026-10-01: laid out like a Google Maps review.
     return MapsReviewTile(
+      flat: flat,
       id: review.id,
       authorName: review.authorDisplayName ?? t.t('reviews.author.anonymous'),
       authorAvatarUrl: review.authorAvatarUrl,
@@ -63,12 +71,14 @@ class ReviewCard extends ConsumerWidget {
       createdAt: review.createdAt,
       edited: review.isEdited,
       body: review.body,
+      // Owner 2026-10-05: «Перевести» on other people's reviews.
+      translatable: onEdit == null,
       photos: review.photos,
       badges: [
         if (review.fromCase)
           ReviewBadge(
             label: t.t('reviews.badge.case'),
-            icon: AppIcons.verifiedRounded,
+            icon: AppIcons.verifiedUserOutlined,
           ),
         ReviewBadge(label: t.t('reviews.role.${review.authorRole}')),
       ],
@@ -83,7 +93,6 @@ class ReviewCard extends ConsumerWidget {
       onMenu: hasMenu ? () => _menu(context, t) : null,
     );
   }
-
 }
 
 extension on ReviewCard {
@@ -122,6 +131,7 @@ extension on ReviewCard {
                 key: const ValueKey('review-act-report'),
                 icon: AppIcons.flagOutlined,
                 label: t.t('reviews.report.action'),
+                destructive: true,
                 onTap: () => Navigator.of(sheet).pop('report'),
               ),
             const SizedBox(height: AppSpacing.md),
@@ -150,118 +160,6 @@ class ReviewCardSkeleton extends StatelessWidget {
   Widget build(BuildContext context) => const AppContentCardSkeleton();
 }
 
-/// Gold rating card (docs/03 §4.2 item 2): full name, stars, number of
-/// reviews, rating as a number. Without reviews: empty stars, "New — no
-/// reviews", a dash instead of the number. Tap opens the Reviews tab.
-class RatingCard extends ConsumerWidget {
-  const RatingCard({
-    required this.name,
-    required this.rating,
-    super.key,
-    this.onTap,
-  });
-
-  final String name;
-  final RatingInfo rating;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
-    final isNew = rating.isNew;
-    final number = ratingNumber(formats, t, isNew ? null : rating.average);
-    final countText = isNew
-        ? t.t('profile.rating.new')
-        : SocialFormat.plural(t, formats, 'profile.rating.count', rating.count);
-    final ink = colors.navy;
-
-    final card = Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.goldLight, colors.gold, colors.goldStroke],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow,
-            blurRadius: AppSizes.cardShadowBlur,
-            offset: const Offset(0, AppSizes.cardShadowOffsetY),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: typography.titleWelcome.copyWith(color: ink),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                StarRatingDisplay(
-                  value: isNew ? 0 : rating.average ?? 0,
-                  size: AppSizes.iconMd,
-                  color: ink,
-                  emptyColor: ink.withValues(alpha: 0.45),
-                  animate: true,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  countText,
-                  style: typography.bodySmall
-                      .copyWith(color: ink, fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Container(
-            constraints: const BoxConstraints(
-                minWidth: AppSizes.stateMedallion - AppSpacing.lg),
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: ink,
-              borderRadius: BorderRadius.circular(AppRadii.card),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(number,
-                    style: typography.titleLarge
-                        .copyWith(color: colors.goldLight)),
-                Text(
-                  t.t('profile.rating.outOf'),
-                  style: typography.caption.copyWith(color: colors.goldLight),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    return Semantics(
-      button: onTap != null,
-      label: isNew
-          ? '$name. ${t.t('profile.rating.new')}'
-          : '$name. ${t.t('reviews.average.label', {
-                  'rating': number
-                })}. $countText',
-      onTap: onTap,
-      excludeSemantics: true,
-      child: onTap == null ? card : AppPressable(onTap: onTap, child: card),
-    );
-  }
-}
-
 /// Reviews tab header (docs/03 §7.4): average, count, distribution 5 → 1
 /// with bars that grow in (instant under reduce-motion).
 class ReviewSummaryPanel extends ConsumerWidget {
@@ -272,7 +170,11 @@ class ReviewSummaryPanel extends ConsumerWidget {
     this.onStarsTap,
     this.sort = ReviewsSort.newest,
     this.onSort,
+    this.flat = false,
   });
+
+  /// Owner 2026-10-20: edge to edge with a full-width divider.
+  final bool flat;
 
   final ReviewSummary summary;
 
@@ -292,167 +194,130 @@ class ReviewSummaryPanel extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
-    final reduce = context.reduceMotion;
     final total = summary.count;
 
-    return AppCard(
-      child: Row(
-        // The average starts level with the "5" bar; the filter icon sits
-        // under it, part of the left column (owner request).
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Semantics(
-                label: summary.isNew
-                    ? t.t('profile.rating.new')
-                    : t.t('reviews.average.label',
-                        {'rating': ratingNumber(formats, t, summary.average)}),
-                excludeSemantics: true,
-                child: Column(
-                  children: [
-                    Text(
-                      ratingNumber(formats, t, summary.average),
-                      style: typography.titleLarge
-                          .copyWith(color: colors.text, height: 1),
+    // Owner 2026-10-20: compact — the average and the count on the left, the
+    // sort icon on the right, then ONE row of five star chips (5 … 1) with
+    // the number of reviews; a tap filters by that grade, a second clears it.
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Semantics(
+              label: summary.isNew
+                  ? t.t('profile.rating.new')
+                  : t.t(
+                      'reviews.average.label',
+                      {'rating': ratingNumber(formats, t, summary.average)},
                     ),
-                    StarRatingDisplay(
-                        value: summary.average ?? 0, size: AppSpacing.md + 2),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      summary.isNew
-                          ? t.t('profile.rating.new')
-                          : SocialFormat.plural(
-                              t, formats, 'profile.rating.count', total),
-                      style: typography.caption
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
+              excludeSemantics: true,
+              child: Text(
+                ratingNumber(formats, t, summary.average),
+                style: typography.titleWelcome.copyWith(
+                  color: colors.text,
+                  fontSize: typography.titleWelcome.fontSize! * 1.7,
+                  height: 1,
                 ),
               ),
-              if (onSort != null)
-                Semantics(
-                  button: true,
-                  label: t.t('reviews.sort.label'),
-                  excludeSemantics: true,
-                  child: AppTapTarget(
-                    child: AppPressable(
-                      onTap: () => _pickSort(context, t),
-                      child: SizedBox(
-                        height: AppSizes.touchTarget - AppSpacing.sm,
-                        width: AppSizes.touchTarget,
-                        child: AppIcon(
-                          AppIcons.tuneRounded,
-                          size: AppSizes.iconSm,
-                          color: sort == ReviewsSort.newest
-                              ? colors.textSecondary
-                              : colors.goldDark,
-                        ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StarRatingDisplay(
+                    value: summary.average ?? 0,
+                    size: AppSpacing.md + 2,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    summary.isNew
+                        ? t.t('profile.rating.new')
+                        : SocialFormat.plural(
+                            t,
+                            formats,
+                            'profile.rating.count',
+                            total,
+                          ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            if (onSort != null)
+              Semantics(
+                button: true,
+                label: t.t('reviews.sort.label'),
+                excludeSemantics: true,
+                child: AppTapTarget(
+                  child: AppPressable(
+                    onTap: () => _pickSort(context, t),
+                    child: SizedBox(
+                      height: AppSizes.touchTarget - AppSpacing.sm,
+                      width: AppSizes.touchTarget,
+                      child: AppIcon(
+                        AppIcons.tuneRounded,
+                        size: AppSizes.iconSm,
+                        color: sort == ReviewsSort.newest
+                            ? colors.textSecondary
+                            : colors.iconTint,
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(width: AppSpacing.lg),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  for (var stars = 5; stars >= 1; stars--)
-                    Semantics(
-                      label: t.t('reviews.distribution.row', {
-                        'stars': '$stars',
-                        'count': '${summary.distribution[stars] ?? 0}',
-                      }),
-                      button: onStarsTap != null,
-                      selected: selectedStars == stars,
-                      excludeSemantics: true,
-                      child: AppPressable(
-                        onTap: onStarsTap == null
-                            ? () {}
-                            : () => onStarsTap!(stars),
-                        child: AnimatedOpacity(
-                          duration:
-                              reduce ? Duration.zero : AppMotion.stateChange,
-                          opacity:
-                              selectedStars == null || selectedStars == stars
-                                  ? 1
-                                  : 0.4,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: AppSpacing.xs + 1),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: AppSpacing.md,
-                                  child: Text(
-                                    '$stars',
-                                    textScaler: TextScaler.noScaling,
-                                    style: typography.caption
-                                        .copyWith(color: colors.textSecondary),
-                                  ),
-                                ),
-                                AppIcon(AppIcons.starRounded,
-                                    size: AppSpacing.md, color: colors.gold),
-                                const SizedBox(width: AppSpacing.sm),
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadii.pill),
-                                    child: Container(
-                                      height: AppSpacing.sm,
-                                      color: colors.skeletonBase,
-                                      alignment: Alignment.centerLeft,
-                                      child: TweenAnimationBuilder<double>(
-                                        tween: Tween(
-                                          begin: reduce ? _share(stars) : 0,
-                                          end: _share(stars),
-                                        ),
-                                        duration: reduce
-                                            ? Duration.zero
-                                            : AppMotion.entrance * 2,
-                                        curve: AppMotion.enterCurve,
-                                        builder: (context, v, _) =>
-                                            FractionallySizedBox(
-                                          widthFactor: v,
-                                          child: Container(color: colors.gold),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.sm),
-                                SizedBox(
-                                  width: AppSpacing.xl,
-                                  child: Text(
-                                    SocialFormat.count(formats,
-                                        summary.distribution[stars] ?? 0),
-                                    textAlign: TextAlign.end,
-                                    textScaler: TextScaler.noScaling,
-                                    style: typography.caption.copyWith(
-                                      color: selectedStars == stars
-                                          ? colors.text
-                                          : colors.textSecondary,
-                                      fontWeight: selectedStars == stars
-                                          ? FontWeight.w700
-                                          : null,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
               ),
-            ),
-          ),
-        ],
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            // Owner 2026-10-21: «All» first — the way back from a grade
+            // (a second tap on the grade still clears it too).
+            if (onStarsTap != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: _AllChip(
+                  selected: selectedStars == null,
+                  onTap: selectedStars == null
+                      ? null
+                      : () => onStarsTap!(selectedStars!),
+                ),
+              ),
+            for (var stars = 5; stars >= 1; stars--)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _StarChip(
+                    stars: stars,
+                    count: summary.distribution[stars] ?? 0,
+                    selected: selectedStars == stars,
+                    dimmed: selectedStars != null && selectedStars != stars,
+                    onTap: onStarsTap == null ? null : () => onStarsTap!(stars),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+    if (!flat) {
+      return AppCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: body,
+      );
+    }
+    final colors2 = colors;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors2.border)),
       ),
+      child: body,
     );
   }
 
@@ -463,50 +328,56 @@ class ReviewSummaryPanel extends ConsumerWidget {
         final colors = Theme.of(sheet).extension<AppColorTokens>()!;
         final typography = Theme.of(sheet).extension<AppTypographyTokens>()!;
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                    AppSpacing.sm, AppSpacing.screenSide, AppSpacing.md),
-                child: Text(t.t('reviews.sort.label'),
-                    style: typography.titleMedium.copyWith(color: colors.text)),
-              ),
-              for (final v in ReviewsSort.values)
-                AppListRow(
-                  key: ValueKey('reviews-sort-${v.name}'),
-                  icon: switch (v) {
-                    ReviewsSort.relevant => AppIcons.autoAwesomeOutlined,
-                    ReviewsSort.newest => AppIcons.arrowDownwardRounded,
-                    ReviewsSort.oldest => AppIcons.arrowUpwardRounded,
-                    ReviewsSort.highest => AppIcons.starRounded,
-                    ReviewsSort.lowest => AppIcons.starOutlineRounded,
-                    ReviewsSort.helpful => AppIcons.thumbUpAltOutlined,
-                  },
-                  label: t.t('reviews.sort.${v.name}'),
-                  selected: v == sort,
-                  showChevron: false,
-                  onTap: () => Navigator.of(sheet).pop(v),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.screenSide,
+                    AppSpacing.md,
+                  ),
+                  child: Text(
+                    t.t('reviews.sort.label'),
+                    style: typography.titleMedium.copyWith(color: colors.text),
+                  ),
                 ),
-              const SizedBox(height: AppSpacing.md),
-            ],
+                for (final v in ReviewsSort.values)
+                  AppListRow(
+                    key: ValueKey('reviews-sort-${v.name}'),
+                    icon: switch (v) {
+                      ReviewsSort.relevant => AppIcons.autoAwesomeOutlined,
+                      ReviewsSort.newest => AppIcons.arrowDownwardRounded,
+                      ReviewsSort.oldest => AppIcons.arrowUpwardRounded,
+                      ReviewsSort.highest => AppIcons.starRounded,
+                      ReviewsSort.lowest => AppIcons.starOutlineRounded,
+                      ReviewsSort.helpful => AppIcons.thumbUpAltOutlined,
+                    },
+                    label: t.t('reviews.sort.${v.name}'),
+                    selected: v == sort,
+                    showChevron: false,
+                    onTap: () => Navigator.of(sheet).pop(v),
+                  ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+            ),
           ),
         );
       },
     );
     if (picked != null) onSort?.call(picked);
   }
-
-  double _share(int stars) => summary.count == 0
-      ? 0
-      : (summary.distribution[stars] ?? 0) / summary.count;
 }
 
 /// "Report review" reasons sheet (docs/03 §7.2, `report_reason`).
 Future<ReviewReportReason?> showReportReasonSheet(
-    BuildContext context, Translator t) {
+  BuildContext context,
+  Translator t,
+) {
   return showAppBottomSheet<ReviewReportReason>(
     context: context,
     builder: (sheetContext) {
@@ -582,16 +453,29 @@ class ReviewHelpfulButton extends ConsumerWidget {
     final color = mine ? colors.goldDark : colors.textSecondary;
     final child = Padding(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AppIcon(mine ? AppIcons.thumbUpAltRounded : AppIcons.thumbUpAltOutlined,
-              size: 16, color: color),
+          AppIcon(
+            mine ? AppIcons.thumbUpAltRounded : AppIcons.thumbUpAltOutlined,
+            size: 16,
+            color: color,
+          ),
           const SizedBox(width: 6),
-          Text(label,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: type.caption.copyWith(
-                  color: color, fontWeight: FontWeight.w600)),
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -644,8 +528,12 @@ class ReviewReplyBlock extends ConsumerWidget {
       key: const ValueKey('review-reply'),
       width: double.infinity,
       margin: const EdgeInsets.only(top: AppSpacing.md),
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: colors.goldTint,
         borderRadius: BorderRadius.circular(AppRadii.field),
@@ -656,7 +544,7 @@ class ReviewReplyBlock extends ConsumerWidget {
         children: [
           Row(
             children: [
-              AppIcon(AppIcons.replyRounded, size: 16, color: colors.goldDark),
+              AppIcon(AppIcons.replyRounded, size: 16, color: colors.iconTint),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -672,9 +560,11 @@ class ReviewReplyBlock extends ConsumerWidget {
               ),
               if (onEdit != null)
                 AppIconButton(
-                  plain: true,
-                  icon: AppIcon(AppIcons.moreHorizRounded,
-                      color: colors.textSecondary, size: 18),
+                  icon: AppIcon(
+                    AppIcons.moreHorizRounded,
+                    color: colors.textSecondary,
+                    size: 18,
+                  ),
                   semanticLabel: t.t('reviews.reply.menu'),
                   onPressed: () async {
                     final choice = await showAppBottomSheet<String>(
@@ -750,20 +640,25 @@ class _ReplySheetState extends ConsumerState<_ReplySheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Padding(
       padding: EdgeInsets.fromLTRB(
-          AppSpacing.screenSide,
-          AppSpacing.md,
-          AppSpacing.screenSide,
-          AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom),
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        AppSpacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const AppSheetHandle(),
-          Text(t.t('reviews.reply.title'),
-              style: type.titleMedium.copyWith(color: colors.text)),
+          Text(
+            t.t('reviews.reply.title'),
+            style: type.titleMedium.copyWith(color: colors.text),
+          ),
           const SizedBox(height: AppSpacing.xs),
-          Text(t.t('reviews.reply.hint'),
-              style: type.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            t.t('reviews.reply.hint'),
+            style: type.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.md),
           AppTextField(
             key: const ValueKey('review-reply-field'),
@@ -800,19 +695,27 @@ class ReviewBadge extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
+      padding:
+          const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 2),
       decoration: BoxDecoration(
-        color: colors.goldTint,
+        color: colors.iconTintFill,
         borderRadius: BorderRadius.circular(AppRadii.pill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            AppIcon(icon, size: 12, color: colors.goldDark),
+            AppIcon(icon, size: 12, color: colors.iconTint),
             const SizedBox(width: 3),
           ],
-          Text(label, style: type.badge.copyWith(color: colors.goldDark)),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: type.badge.copyWith(color: colors.goldDark),
+            ),
+          ),
         ],
       ),
     );
@@ -835,6 +738,7 @@ class MapsReviewTile extends ConsumerStatefulWidget {
     this.badges = const [],
     this.edited = false,
     this.body,
+    this.translatable = false,
     this.photos = const [],
     this.helpfulCount = 0,
     this.helpfulByMe = false,
@@ -846,8 +750,10 @@ class MapsReviewTile extends ConsumerStatefulWidget {
     this.onDeleteReply,
     this.onMenu,
     this.onAuthor,
+    this.flat = false,
   });
 
+  final bool flat;
   final String id;
   final String authorName;
   final String? authorAvatarUrl;
@@ -857,6 +763,10 @@ class MapsReviewTile extends ConsumerStatefulWidget {
   final DateTime createdAt;
   final bool edited;
   final String? body;
+
+  /// Owner 2026-10-05: shows «Перевести» (reviews zone); [id] is then a
+  /// review id.
+  final bool translatable;
   final List<ReviewPhoto> photos;
   final int helpfulCount;
   final bool helpfulByMe;
@@ -878,38 +788,14 @@ class MapsReviewTile extends ConsumerStatefulWidget {
 class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
   bool _expanded = false;
 
-  void _openPhoto(int index) {
-    final photos = widget.photos;
-    showGeneralDialog<void>(
-      context: context,
-      barrierColor: Colors.black,
-      barrierDismissible: true,
-      barrierLabel: 'photo',
-      pageBuilder: (ctx, _, __) => SafeArea(
-        child: Stack(
-          children: [
-            PageView.builder(
-              controller: PageController(initialPage: index),
-              itemCount: photos.length,
-              itemBuilder: (_, i) => InteractiveViewer(
-                child: Center(
-                  child: Image.network(photos[i].url, fit: BoxFit.contain),
-                ),
-              ),
-            ),
-            Positioned(
-              top: AppSpacing.sm,
-              right: AppSpacing.sm,
-              child: IconButton(
-                icon: const AppIcon(AppIcons.closeRounded, color: Colors.white),
-                onPressed: () => Navigator.of(ctx).pop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  /// Owner 2026-10-07: the app's one photo viewer (zoom, double tap,
+  /// swipe down to close).
+  void _openPhoto(int index) => showPhotoGallery(
+        context,
+        urls: [for (final p in widget.photos) p.url],
+        initial: index,
+        closeLabel: ref.read(translatorProvider).t('common.close'),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -927,12 +813,18 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
           }).join();
     return Container(
       key: ValueKey('maps-review-${w.id}'),
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.lg, AppSpacing.md, AppSpacing.sm, AppSpacing.sm),
+      padding: const EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: colors.border),
+        borderRadius: w.flat ? null : BorderRadius.circular(AppRadii.card),
+        border: w.flat
+            ? Border(bottom: BorderSide(color: colors.border))
+            : Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -950,16 +842,19 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                     image: w.authorAvatarUrl == null
                         ? null
                         : DecorationImage(
-                            image: NetworkImage(w.authorAvatarUrl!),
+                            image: appNetworkImage(w.authorAvatarUrl!, 120),
                             fit: BoxFit.cover,
                           ),
                   ),
                   alignment: Alignment.center,
                   child: w.authorAvatarUrl == null
-                      ? Text(initials,
+                      ? Text(
+                          initials,
                           style: type.bodySmall.copyWith(
-                              color: colors.gold,
-                              fontWeight: FontWeight.w700))
+                            color: colors.gold,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        )
                       : null,
                 ),
               ),
@@ -981,8 +876,14 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                       ),
                       if (w.authorReviewCount > 0)
                         Text(
-                          SocialFormat.plural(t, f, 'reviews.authorCount',
-                              w.authorReviewCount),
+                          SocialFormat.plural(
+                            t,
+                            f,
+                            'reviews.authorCount',
+                            w.authorReviewCount,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: type.caption
                               .copyWith(color: colors.textSecondary),
                         ),
@@ -994,8 +895,10 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                 IconButton(
                   key: ValueKey('review-menu-${w.id}'),
                   tooltip: t.t('reviews.menu'),
-                  icon: AppIcon(AppIcons.moreVertRounded,
-                      color: colors.textSecondary),
+                  icon: AppIcon(
+                    AppIcons.moreVertRounded,
+                    color: colors.textSecondary,
+                  ),
                   onPressed: w.onMenu,
                 ),
             ],
@@ -1012,22 +915,29 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                 style: type.caption.copyWith(color: colors.textSecondary),
               ),
               if (w.edited)
-                Text(t.t('reviews.edited'),
-                    style:
-                        type.caption.copyWith(color: colors.textSecondary)),
+                Text(
+                  t.t('reviews.edited'),
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
               ...w.badges,
             ],
           ),
           if (body.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
-              child: Text(
-                body,
-                maxLines: _expanded ? null : 5,
-                overflow:
-                    _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                style: type.body.copyWith(color: colors.text, height: 1.4),
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
+              child: TranslatableText(
+                kind: TranslatableKind.review,
+                id: w.id,
+                text: body,
+                enabled: w.translatable,
+                builder: (context, text) => Text(
+                  text,
+                  maxLines: _expanded ? null : 5,
+                  overflow:
+                      _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                  style: type.body.copyWith(color: colors.text, height: 1.4),
+                ),
               ),
             ),
             if (long && !_expanded)
@@ -1035,10 +945,13 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                 onTap: () => setState(() => _expanded = true),
                 child: Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Text(t.t('reviews.more'),
-                      style: type.bodySmall.copyWith(
-                          color: colors.goldDark,
-                          fontWeight: FontWeight.w700)),
+                  child: Text(
+                    t.t('reviews.more'),
+                    style: type.bodySmall.copyWith(
+                      color: colors.goldDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -1056,13 +969,16 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
                   onTap: () => _openPhoto(i),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadii.field),
-                    child: Image.network(
-                      w.photos[i].previewUrl,
+                    child: Image(
+                      image: appNetworkImage(w.photos[i].previewUrl, 288),
                       width: 96,
                       height: 96,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
-                          width: 96, height: 96, color: colors.goldTint),
+                        width: 96,
+                        height: 96,
+                        color: colors.goldTint,
+                      ),
                     ),
                   ),
                 ),
@@ -1070,7 +986,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
             ),
           ],
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: ReviewHelpfulButton(
               key: ValueKey('review-helpful-${w.id}'),
               count: w.helpfulCount,
@@ -1080,7 +996,7 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
           ),
           if (w.reply != null)
             Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
               child: ReviewReplyBlock(
                 reply: w.reply!,
                 replyAt: w.replyAt,
@@ -1091,6 +1007,131 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
             ),
           const SizedBox(height: AppSpacing.xs),
         ],
+      ),
+    );
+  }
+}
+
+/// «All» in front of the five grade chips: lit while no grade is picked.
+class _AllChip extends ConsumerWidget {
+  const _AllChip({required this.selected, required this.onTap});
+
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final t = ref.watch(translatorProvider);
+    return Semantics(
+      button: onTap != null,
+      selected: selected,
+      label: t.t('reviews.filter.all'),
+      excludeSemantics: true,
+      child: AppPressable(
+        key: const ValueKey('reviews-filter-all'),
+        onTap: onTap ?? () {},
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.chip),
+            color: selected ? colors.gold.withValues(alpha: 0.16) : null,
+            border: Border.all(color: selected ? colors.gold : colors.border),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 56),
+            child: Text(
+              t.t('reviews.filter.all'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textScaler: TextScaler.noScaling,
+              style: typography.caption.copyWith(
+                color: selected ? colors.text : colors.textSecondary,
+                fontWeight: selected ? FontWeight.w700 : null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One of the five filter chips of the rating block: «★ 5» over the number
+/// of such reviews.
+class _StarChip extends ConsumerWidget {
+  const _StarChip({
+    required this.stars,
+    required this.count,
+    required this.selected,
+    required this.dimmed,
+    required this.onTap,
+  });
+
+  final int stars;
+  final int count;
+  final bool selected;
+  final bool dimmed;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final t = ref.watch(translatorProvider);
+    final formats = ref.watch(l10nFormatsProvider);
+    return Semantics(
+      label: t.t('reviews.distribution.row', {
+        'stars': '$stars',
+        'count': '$count',
+      }),
+      button: onTap != null,
+      selected: selected,
+      excludeSemantics: true,
+      child: AppPressable(
+        onTap: onTap ?? () {},
+        child: AnimatedOpacity(
+          duration:
+              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+          opacity: dimmed ? 0.4 : 1,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadii.chip),
+              color: selected ? colors.gold.withValues(alpha: 0.16) : null,
+              border: Border.all(
+                color: selected ? colors.gold : colors.border,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AppIcon(
+                  AppIcons.starRounded,
+                  size: AppSpacing.md,
+                  color: colors.gold,
+                ),
+                Flexible(
+                  child: Text(
+                    '${context.digits(stars)} · '
+                    '${SocialFormat.count(formats, count)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textScaler: TextScaler.noScaling,
+                    style: typography.caption.copyWith(
+                      color: selected ? colors.text : colors.textSecondary,
+                      fontWeight: selected ? FontWeight.w700 : null,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

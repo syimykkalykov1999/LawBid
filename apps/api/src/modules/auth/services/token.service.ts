@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, TokenExpiredError } from '@nestjs/jwt';
-import { randomBytes, createHash } from 'node:crypto';
+import {
+  randomBytes,
+  createHash,
+  createSecretKey,
+  type KeyObject,
+} from 'node:crypto';
 import { parseJwtKeys } from './jwt-keys.util';
+import { readKey } from '../../../common/secrets/key-holder';
+import { demoContext } from '../../../common/demo/demo-context';
 
 export interface AccessTokenClaims {
   sub: string;
@@ -14,6 +21,13 @@ export interface AccessTokenClaims {
   sid: string; // session_chain_id, stable across refresh rotation
   verified: boolean;
   subscriptionStatus: string;
+  /** Owner 2026-10-05: the session belongs to a demo account that lives in
+   * the demo database (src/common/demo). Signed into the token, and every
+   * request with it must carry `X-LawBid-Demo: 1` (JwtAuthGuard). */
+  demo?: boolean;
+  /** Owner 2026-10-22: set by JwtAuthGuard (never signed into a token) for
+   * a token-less request on an `@OptionalAuth()` route. */
+  guest?: boolean;
   /** OQ-048: set by JwtAuthGuard (never signed into a token) when an
    * assistant acts inside the attorney's account — `sub` is then the
    * attorney. */
@@ -73,6 +87,10 @@ export class TokenVerifyInvalidError extends Error {}
 @Injectable()
 export class TokenService {
   private readonly keys: Map<string, string>;
+  /** Load audit 6: jsonwebtoken tries createPublicKey(secret) first when it is
+   * handed a string and falls back to an HMAC key after an exception - on every
+   * request. A ready KeyObject skips that (about 4x faster verify). */
+  private readonly keyObjects = new Map<string, KeyObject>();
   private readonly activeKid: string;
   private readonly accessTtlSeconds: number;
   private readonly refreshTtlDays: number;
@@ -82,7 +100,13 @@ export class TokenService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {
-    this.keys = parseJwtKeys(this.config.getOrThrow<string>('JWT_KEYS'));
+    this.keys = parseJwtKeys(
+      readKey('JWT_KEYS', () => this.config.getOrThrow<string>('JWT_KEYS')) ??
+        '',
+    );
+    for (const [kid, secret] of this.keys) {
+      this.keyObjects.set(kid, createSecretKey(Buffer.from(secret)));
+    }
     this.activeKid = this.config.getOrThrow<string>('JWT_ACTIVE_KID');
     this.accessTtlSeconds = this.config.getOrThrow<number>(
       'JWT_ACCESS_TTL_SECONDS',
@@ -97,8 +121,12 @@ export class TokenService {
 
   signAccessToken(claims: AccessTokenClaims): string {
     const secret = this.activeSecret();
+    // Owner 2026-10-05 (demo mode): a token minted while serving a demo
+    // request (sign-in into a demo account, refresh with the demo header)
+    // is a demo token; the guard then requires the header on every use.
+    const demo = claims.demo ?? (demoContext.isDemo() ? true : undefined);
     return this.jwt.sign(
-      { ...claims, typ: 'access' },
+      { ...claims, ...(demo ? { demo: true } : {}), typ: 'access' },
       {
         secret,
         keyid: this.activeKid,
@@ -119,6 +147,10 @@ export class TokenService {
       sid: claims.sid as string,
       verified: claims.verified as boolean,
       subscriptionStatus: claims.subscriptionStatus as string,
+      // The demo flag must survive verification: the guard compares it with
+      // the X-LawBid-Demo header, and without it every demo session (store
+      // reviewers' code) was refused on its first request.
+      ...(claims.demo === true ? { demo: true } : {}),
     };
   }
 
@@ -239,7 +271,7 @@ export class TokenService {
     const audience = AUDIENCE[expectedTyp];
     try {
       const claims = this.jwt.verify<Record<string, unknown>>(token, {
-        secret,
+        secret: (this.keyObjects.get(kid as string) ?? secret) as string,
         algorithms: ['HS256'],
         issuer: 'lawbid',
         audience,

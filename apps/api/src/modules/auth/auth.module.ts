@@ -1,3 +1,4 @@
+import { AccountBansModule } from '../account-bans/account-bans.module';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
@@ -17,8 +18,17 @@ import { SessionRevocationService } from './services/session-revocation.service'
 import { AuthEventService } from './services/auth-event.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AssistantContextService } from './assistant/assistant-context';
+import { AssistantCodeService } from './assistant/assistant-code.service';
+import { QrLoginService } from './services/qr-login.service';
+import { PasskeyController } from './passkeys/passkey.controller';
+import { PasskeyService } from './passkeys/passkey.service';
+import { WebAuthnConfig } from './passkeys/webauthn-config';
+import { WebSessionCookies } from './web-session-cookie';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { ReauthGuard } from './guards/reauth.guard';
+import { AppCheckGuard } from './app-check/app-check.guard';
+import { AppCheckService } from './app-check/app-check.service';
+import { TurnstileService } from './turnstile/turnstile.service';
 import { ReauthVerifier } from './services/reauth-verifier.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
 import type { SmsProvider } from './providers/sms/sms-provider.interface';
@@ -26,25 +36,23 @@ import { MockSmsProvider } from './providers/sms/mock-sms.provider';
 import { DynamicSmsProvider } from './providers/sms/twilio-sms.provider';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { createEmailProvider } from './providers/email/email-provider.factory';
+import { PrismaService } from '../../prisma/prisma.service';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PasswordAuthService } from './password-auth.service';
+import { PasswordService } from './services/password.service';
 import { LoginMethodPolicy } from './services/login-method-policy.service';
 import { NewDeviceNotifier } from './notifications/new-device-notifier.service';
+import { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 import { EmailLoginNotificationChannel } from './notifications/email-login-notification.channel';
 import { PushLoginNotificationChannel } from './notifications/push-login-notification.channel';
 import {
   LOGIN_NOTIFICATION_CHANNELS,
   type LoginNotificationChannel,
 } from './notifications/login-notification-channel';
-import {
-  APP_ATTEST_VERIFIER,
-  PLAY_INTEGRITY_VERIFIER,
-} from './attestation/attestation-verifier.interface';
-import { UnconfiguredAttestationVerifier } from './attestation/unconfigured-attestation.verifier';
-import { DeviceAttestationService } from './attestation/device-attestation.service';
-import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
 import type { AppEnv } from '../../config/env.schema';
 import { resolveSmsProvider } from '../../config/provider-selection';
+import { demoNoop } from '../../common/demo/demo-guards';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §15 stage 1.4. Registers JwtAuthGuard as the
@@ -82,13 +90,19 @@ import { resolveSmsProvider } from '../../config/provider-selection';
   // allow-list (app_config `sms.allowed_country_codes`).
   imports: [
     JwtModule.register({}),
+    AccountBansModule,
     FeatureFlagsModule,
     NotificationsModule,
     SubscriptionsModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, PasskeyController],
   providers: [
     AuthService,
+    // Owner 2026-10-22: passkeys (WebAuthn) for the app and the admin.
+    WebAuthnConfig,
+    PasskeyService,
+    PasswordAuthService,
+    PasswordService,
     SocialAuthService,
     GoogleTokenVerifier,
     AppleTokenVerifier,
@@ -101,7 +115,15 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     AuthEventService,
     ReauthGuard,
     ReauthVerifier,
+    // Security research #5 (2026-10-22), A4: Firebase App Check.
+    AppCheckService,
+    TurnstileService,
+    AppCheckGuard,
     LoginMethodPolicy,
+    AssistantCodeService,
+    QrLoginService,
+    // Owner 2026-10-22 (audit #7): the website's refresh-token cookie.
+    WebSessionCookies,
     // docs/01 §10.6 new-device alert: one entry per delivery channel.
     EmailLoginNotificationChannel,
     PushLoginNotificationChannel,
@@ -114,19 +136,8 @@ import { resolveSmsProvider } from '../../config/provider-selection';
       inject: [EmailLoginNotificationChannel, PushLoginNotificationChannel],
     },
     NewDeviceNotifier,
-    // docs/01 §10.6 device integrity, behind flag `device_attestation`.
-    // Both verifiers reject everything until real App Attest / Play
-    // Integrity implementations (owner keys) replace these providers.
-    {
-      provide: APP_ATTEST_VERIFIER,
-      useValue: new UnconfiguredAttestationVerifier('ios'),
-    },
-    {
-      provide: PLAY_INTEGRITY_VERIFIER,
-      useValue: new UnconfiguredAttestationVerifier('android'),
-    },
-    DeviceAttestationService,
-    DeviceAttestationGuard,
+    // Owner 2026-10-22 (security audit #3): "your sign-in settings changed".
+    SignInChangeNotifier,
     AssistantContextService,
     {
       provide: SMS_PROVIDER,
@@ -149,11 +160,15 @@ import { resolveSmsProvider } from '../../config/provider-selection';
           ),
         });
         logger.info({ provider, missing }, 'SMS provider selected at boot');
-        return new DynamicSmsProvider(
-          config,
-          logger,
-          secrets,
-          new MockSmsProvider(logger),
+        // Demo accounts never send SMS (src/common/demo).
+        return demoNoop(
+          new DynamicSmsProvider(
+            config,
+            logger,
+            secrets,
+            new MockSmsProvider(logger),
+          ),
+          ['send'],
         );
       },
       inject: [ConfigService, PinoLogger, SecretsService],
@@ -161,7 +176,7 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     {
       provide: EMAIL_PROVIDER,
       useFactory: createEmailProvider,
-      inject: [ConfigService, PinoLogger, SecretsService],
+      inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
@@ -173,10 +188,22 @@ import { resolveSmsProvider } from '../../config/provider-selection';
     OtpService,
     IdentityService,
     AuthEventService,
+    // Owner 2026-10-13: admin «Сбросить пароль».
+    PasswordAuthService,
+    PasswordService,
     // ContactsService: per-user/per-identifier limits on contact OTPs.
     RateLimitService,
+    // Owner 2026-10-22: the admin's passkey second factor / step-up.
+    PasskeyService,
+    // ContactsService: the notice on a contact change (audit #3).
+    SignInChangeNotifier,
     // OQ-048: the assistant module drops the cache on team changes.
     AssistantContextService,
+    // Owner 2026-10-04: joining a team with the attorney's code.
+    AssistantCodeService,
+    // Owner 2026-10-05: support SLA alerts e-mail the team directly, and
+    // the trust module mails the firm e-mail code.
+    EMAIL_PROVIDER,
   ],
 })
 export class AuthModule {}

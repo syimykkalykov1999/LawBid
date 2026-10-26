@@ -2,23 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/negotiation_timeline.dart';
+import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
 /// docs/04 §5.2 bid detail + §6 negotiation, for both parties. Actions are
 /// offered only to the side whose turn it is (§6.3); the server re-checks.
@@ -39,9 +45,7 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
   bool _busy = false;
 
   PartyRole get _viewer =>
-      ref.read(actsAsAttorneyProvider)
-          ? PartyRole.attorney
-          : PartyRole.client;
+      ref.read(actsAsAttorneyProvider) ? PartyRole.attorney : PartyRole.client;
 
   Future<void> _act(Future<Object?> Function() action, String doneKey) async {
     if (_busy) return;
@@ -61,6 +65,11 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
     }
   }
 
+  /// Trust level 0: the attorney's licence is self-declared, not checked
+  /// (the bid row's attorney summary, or the one from GET /bids/:id).
+  bool _unverifiedAttorney(CaseBid bid) =>
+      (widget.listed?.attorney ?? bid.attorney)?.trustLevel == 0;
+
   Future<void> _accept(CaseBid bid) async {
     final t = ref.read(translatorProvider);
     final client = _viewer == PartyRole.client;
@@ -68,15 +77,34 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       context,
       t: t,
       title: t.t(
-          client ? 'cases.accept.clientTitle' : 'cases.accept.attorneyTitle'),
-      message: t.t(client
-          ? 'cases.accept.clientMessage'
-          : 'cases.accept.attorneyMessage'),
+        client ? 'cases.accept.clientTitle' : 'cases.accept.attorneyTitle',
+      ),
+      // Owner 2026-10-04: the client accepts knowingly — the bid's state /
+      // practice mismatch is repeated right in the confirmation.
+      message: [
+        t.t(
+          client
+              ? 'cases.accept.clientMessage'
+              : 'cases.accept.attorneyMessage',
+        ),
+        if (client && (bid.outsideLicensedStates || bid.outsidePractice)) ...[
+          t.t('cases.accept.mismatchIntro'),
+          if (bid.outsideLicensedStates)
+            t.t('cases.outsideStates.clientNoList'),
+          if (bid.outsidePractice) t.t('cases.outsidePractice.client'),
+        ],
+        // Owner 2026-10-05 (legal): a self-declared licence is repeated in
+        // the confirmation so the client accepts knowingly.
+        if (client && _unverifiedAttorney(bid))
+          t.t('cases.accept.unverifiedLine'),
+      ].join('\n\n'),
       confirmLabel: t.t('cases.accept.confirm'),
     );
     if (ok) {
       await _act(
-          () => ref.read(caseActionsProvider).accept(bid), 'cases.accept.done');
+        () => ref.read(caseActionsProvider).accept(bid),
+        'cases.accept.done',
+      );
     }
   }
 
@@ -110,8 +138,10 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       destructive: true,
     );
     if (ok) {
-      await _act(() => ref.read(caseActionsProvider).decline(bid),
-          'cases.decline.done');
+      await _act(
+        () => ref.read(caseActionsProvider).decline(bid),
+        'cases.decline.done',
+      );
     }
   }
 
@@ -126,8 +156,10 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
       destructive: true,
     );
     if (ok) {
-      await _act(() => ref.read(caseActionsProvider).withdraw(bid),
-          'cases.withdraw.done');
+      await _act(
+        () => ref.read(caseActionsProvider).withdraw(bid),
+        'cases.withdraw.done',
+      );
     }
   }
 
@@ -156,17 +188,24 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
         onRetry: () => ref.invalidate(bidProvider(widget.bidId)),
         builder: (b) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: () async {
             ref.invalidate(bidProvider(widget.bidId));
             await ref.read(bidProvider(widget.bidId).future);
           },
           child: _BidBody(
             bid: b,
-            attorney: widget.listed?.attorney,
+            attorney: widget.listed?.attorney ?? b.attorney,
             viewer: viewer,
             t: t,
             formats: formats,
+            // Owner 2026-10-05 (legal): warn the client before accepting
+            // an unverified attorney's bid.
+            unverifiedNotice: viewer == PartyRole.client &&
+                    b.isActive &&
+                    _unverifiedAttorney(b)
+                ? ref.watch(legalTextsProvider).attorneyUnverified
+                : null,
           ),
         ),
       ),
@@ -176,6 +215,11 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
 
   Widget? _actions(CaseBid bid, PartyRole viewer, Translator t) {
     if (!bid.isActive) return null;
+    // Audit 2026-10-02: an assistant negotiates only with "bids".
+    if (viewer == PartyRole.attorney &&
+        !ref.read(canDoProvider(AssistantDuty.bids))) {
+      return null;
+    }
     final myTurn = bid.isTurnOf(viewer);
     final children = <Widget>[
       if (myTurn)
@@ -198,7 +242,6 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
             label: t.t('cases.counter.button'),
             variant: AppButtonVariant.secondary,
             isEnabled: myTurn && bid.canCounter,
-            dimWhenDisabled: true,
             onPressed: _busy ? null : () => _counter(bid),
           ),
         ),
@@ -213,7 +256,6 @@ class _BidDetailScreenState extends ConsumerState<BidDetailScreen> {
             label: t.t('cases.counter.button'),
             variant: AppButtonVariant.secondary,
             isEnabled: myTurn && bid.canCounter,
-            dimWhenDisabled: true,
             onPressed: _busy ? null : () => _counter(bid),
           ),
         ),
@@ -229,6 +271,7 @@ class _BidBody extends StatelessWidget {
     required this.viewer,
     required this.t,
     required this.formats,
+    this.unverifiedNotice,
   });
 
   final CaseBid bid;
@@ -236,6 +279,10 @@ class _BidBody extends StatelessWidget {
   final PartyRole viewer;
   final Translator t;
   final L10nFormats formats;
+
+  /// Shown above the accept button when the attorney's licence is
+  /// self-declared (trust level 0); null otherwise.
+  final String? unverifiedNotice;
 
   @override
   Widget build(BuildContext context) {
@@ -260,14 +307,19 @@ class _BidBody extends StatelessWidget {
         if (viewer == PartyRole.attorney)
           AppEntrance(
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
                 onPressed: () => context.push(AppRoutes.caseDetail(bid.caseId)),
-                icon: AppIcon(AppIcons.descriptionOutlined, color: colors.goldDark),
+                icon: AppIcon(
+                  AppIcons.descriptionOutlined,
+                  color: colors.iconTint,
+                ),
                 label: Text(
                   t.t('cases.bid.openCase'),
                   style: typography.bodySmall.copyWith(
-                      color: colors.goldDark, fontWeight: FontWeight.w600),
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -289,22 +341,39 @@ class _BidBody extends StatelessWidget {
                             .copyWith(color: colors.textSecondary),
                       ),
                     ),
-                    BidStatusPill(bid: bid, viewer: viewer, t: t),
+                    const SizedBox(width: AppSpacing.sm),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: BidStatusPill(bid: bid, viewer: viewer, t: t),
+                    ),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 MoneyText(
-                    CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
-                    large: true),
+                  CaseFormat.terms(
+                    t,
+                    formats,
+                    bid.feeType,
+                    bid.amountCents,
+                    percentBps: bid.percentBps,
+                  ),
+                  large: true,
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   [
                     CaseFormat.feeTypeLabel(t, bid.feeType),
                     CaseFormat.startLabel(
-                        t, formats, bid.startAvailability, bid.startDate),
+                      t,
+                      formats,
+                      bid.startAvailability,
+                      bid.startDate,
+                    ),
                     if (bid.estimatedDurationDays != null)
-                      t.t('cases.bid.duration',
-                          {'days': '${bid.estimatedDurationDays}'}),
+                      t.t(
+                        'cases.bid.duration',
+                        {'days': '${bid.estimatedDurationDays}'},
+                      ),
                   ].join(' · '),
                   style: typography.bodySmall
                       .copyWith(color: colors.textSecondary),
@@ -323,14 +392,19 @@ class _BidBody extends StatelessWidget {
             index: 2,
             child: Row(
               children: [
-                AppIcon(AppIcons.scheduleRounded,
-                    size: AppSpacing.lg, color: colors.info),
+                AppIcon(
+                  AppIcons.scheduleRounded,
+                  size: AppSpacing.lg,
+                  color: colors.info,
+                ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    t.t(viewer == PartyRole.client
-                        ? 'cases.bid.waitingAttorney'
-                        : 'cases.bid.waitingClient'),
+                    t.t(
+                      viewer == PartyRole.client
+                          ? 'cases.bid.waitingAttorney'
+                          : 'cases.bid.waitingClient',
+                    ),
                     style: typography.bodySmall
                         .copyWith(color: colors.textSecondary),
                   ),
@@ -339,22 +413,53 @@ class _BidBody extends StatelessWidget {
             ),
           ),
         ],
+        if (bid.outsideLicensedStates)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.md),
+            child: OutsideStatesNote(
+              t: t,
+              forClient: viewer == PartyRole.client,
+            ),
+          ),
         if (bid.outsidePractice)
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpacing.md),
             child: OutsidePracticeNote(
-                t: t, forClient: viewer == PartyRole.client),
+              t: t,
+              forClient: viewer == PartyRole.client,
+            ),
           ),
         DetailSection(
           title: t.t('cases.bid.message'),
-          child: Text(bid.message,
-              style: typography.body.copyWith(color: colors.text)),
+          // Owner 2026-10-05: «Перевести» for the client (cases zone).
+          child: TranslatableText(
+            kind: TranslatableKind.bid,
+            id: bid.id,
+            text: bid.message,
+            enabled: viewer == PartyRole.client,
+            builder: (context, text) => Text(
+              text,
+              style: typography.body.copyWith(color: colors.text),
+            ),
+          ),
         ),
         DetailSection(
           title: t.t('cases.bid.history'),
           child: NegotiationTimeline(
-              bid: bid, viewer: viewer, t: t, formats: formats),
+            bid: bid,
+            viewer: viewer,
+            t: t,
+            formats: formats,
+          ),
         ),
+        if (unverifiedNotice != null) ...[
+          const SizedBox(height: AppSpacing.md),
+          NoticeCard(
+            key: const ValueKey('bid-unverified-notice'),
+            icon: AppIcons.warningAmberRounded,
+            message: unverifiedNotice!,
+          ),
+        ],
       ],
     );
   }
@@ -363,8 +468,11 @@ class _BidBody extends StatelessWidget {
 /// §6.1 counter-offer: new amount (the fee type never changes) and an
 /// optional message up to 500 chars. The client's counter is binding.
 class _CounterSheet extends StatefulWidget {
-  const _CounterSheet(
-      {required this.t, required this.bid, required this.warnBinding});
+  const _CounterSheet({
+    required this.t,
+    required this.bid,
+    required this.warnBinding,
+  });
 
   final Translator t;
   final CaseBid bid;
@@ -375,11 +483,18 @@ class _CounterSheet extends StatefulWidget {
 }
 
 class _CounterSheetState extends State<_CounterSheet> {
-  static const _messageMax = 500;
+  static int get _messageMax => TextLimits.of(TextLimit.counterMessage);
   final _amount = TextEditingController();
   final _message = TextEditingController();
 
+  bool get _percent => widget.bid.feeType == FeeType.contingency;
+
+  /// Cents, or basis points for a contingency bid (owner 2026-10-17).
   int? get _cents {
+    if (_percent) {
+      return const ContingencyRules(maxBps: 10000, blocked: [])
+          .parse(_amount.text);
+    }
     final n = int.tryParse(_amount.text);
     return n == null || n <= 0 ? null : n * 100;
   }
@@ -412,8 +527,10 @@ class _CounterSheetState extends State<_CounterSheet> {
             children: [
               const AppSheetHandle(),
               const SizedBox(height: AppSpacing.lg),
-              Text(t.t('cases.counter.title'),
-                  style: typography.titleMedium.copyWith(color: colors.text)),
+              Text(
+                t.t('cases.counter.title'),
+                style: typography.titleMedium.copyWith(color: colors.text),
+              ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 t.t('cases.counter.remaining', {'n': '$remaining'}),
@@ -424,16 +541,25 @@ class _CounterSheetState extends State<_CounterSheet> {
               AppTextField(
                 controller: _amount,
                 autofocus: true,
-                label: widget.bid.feeType == FeeType.hourly
-                    ? t.t('cases.counter.amountHourly')
-                    : t.t('cases.counter.amount'),
-                leading: Text('\$',
-                    style: typography.titleMedium
-                        .copyWith(color: colors.goldDark)),
-                keyboardType: TextInputType.number,
+                label: _percent
+                    ? t.t('cases.counter.percent')
+                    : widget.bid.feeType == FeeType.hourly
+                        ? t.t('cases.counter.amountHourly')
+                        : t.t('cases.counter.amount'),
+                leading: Text(
+                  _percent ? '%' : r'$',
+                  style:
+                      typography.titleMedium.copyWith(color: colors.goldDark),
+                ),
+                keyboardType: _percent
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.number,
                 inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(8),
+                  if (_percent)
+                    FilteringTextInputFormatter.allow(RegExp('[0-9.,]'))
+                  else
+                    FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(_percent ? 6 : 8),
                 ],
                 onChanged: (_) => setState(() {}),
               ),
@@ -441,6 +567,7 @@ class _CounterSheetState extends State<_CounterSheet> {
               AppTextField(
                 controller: _message,
                 label: t.t('cases.counter.message'),
+                tapAnywhere: true,
                 maxLines: 3,
                 maxLength: _messageMax,
                 textCapitalization: TextCapitalization.sentences,
@@ -450,14 +577,17 @@ class _CounterSheetState extends State<_CounterSheet> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
-                    color: colors.goldTint,
+                    color: colors.iconTintFill,
                     borderRadius: BorderRadius.circular(AppRadii.field),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      AppIcon(AppIcons.gavelRounded,
-                          size: AppSizes.iconSm, color: colors.goldDark),
+                      AppIcon(
+                        AppIcons.gavelRounded,
+                        size: AppSizes.iconSm,
+                        color: colors.iconTint,
+                      ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
@@ -473,8 +603,8 @@ class _CounterSheetState extends State<_CounterSheet> {
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: t.t('cases.counter.send'),
+                disabledHint: t.t('form.disabled.required'),
                 isEnabled: _cents != null,
-                dimWhenDisabled: true,
                 onPressed: () =>
                     Navigator.of(context).pop((_cents!, _message.text)),
               ),

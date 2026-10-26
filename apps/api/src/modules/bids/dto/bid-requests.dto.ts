@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { FeeType, StartAvailability } from '@prisma/client';
+import { PERCENT_BPS_MAX, PERCENT_BPS_MIN } from '../../cases/cases.public';
 import { Transform } from 'class-transformer';
 import {
   IsDateString,
@@ -9,11 +10,11 @@ import {
   IsString,
   IsUUID,
   Max,
-  MaxLength,
   Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 
 /** docs/04_CASES_BIDS.md §3.2 / §5.1: money in cents, up to $10,000,000. */
 export const BID_AMOUNT_MAX_CENTS = 1_000_000_000;
@@ -47,6 +48,15 @@ const trimToNull = ({ value }: { value: unknown }): unknown => {
  * decorator combination that also rejects a stray value cleanly.
  */
 export class CreateBidDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Firm lawyer who sends the bid (must hold a matching verified licence); default: the caller.',
+  })
+  @IsOptional()
+  @IsUUID()
+  sendAsAttorneyId?: string;
+
   @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
   @IsEnum(FeeType)
   feeType!: FeeType;
@@ -64,10 +74,23 @@ export class CreateBidDto {
   @Max(BID_AMOUNT_MAX_CENTS)
   amountCents?: number;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: PERCENT_BPS_MIN,
+    maximum: PERCENT_BPS_MAX,
+    description:
+      'Owner 2026-10-17: required for contingency — basis points (3300 = 33 %), capped by `fees.contingency_max_percent`.',
+  })
+  @ValidateIf((o: CreateBidDto) => o.feeType === 'contingency')
+  @IsInt()
+  @Min(PERCENT_BPS_MIN)
+  @Max(PERCENT_BPS_MAX)
+  percentBps?: number;
+
   @ApiProperty({ minLength: BID_MESSAGE_MIN, maxLength: BID_MESSAGE_MAX })
   @IsString()
   @MinLength(BID_MESSAGE_MIN)
-  @MaxLength(BID_MESSAGE_MAX)
+  @MaxTextChars('limits.bid_message_chars')
   message!: string;
 
   @ApiProperty({ enum: StartAvailability, enumName: 'StartAvailability' })
@@ -95,13 +118,32 @@ export class CreateBidDto {
 }
 
 /** POST /bids/:id/counter (§6.3). The fee type never changes in a
- * counter-offer — only the amount is negotiated (§6.1). */
+ * counter-offer — only the amount (or, for contingency, the percent) is
+ * negotiated (§6.1). */
 export class CounterOfferDto {
-  @ApiProperty({ type: 'integer', minimum: 1, maximum: BID_AMOUNT_MAX_CENTS })
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: BID_AMOUNT_MAX_CENTS,
+    description: 'Required unless the bid is contingency.',
+  })
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(BID_AMOUNT_MAX_CENTS)
-  amountCents!: number;
+  amountCents?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: PERCENT_BPS_MIN,
+    maximum: PERCENT_BPS_MAX,
+    description: 'Owner 2026-10-17: required for a contingency bid.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(PERCENT_BPS_MIN)
+  @Max(PERCENT_BPS_MAX)
+  percentBps?: number;
 
   @ApiPropertyOptional({
     type: String,
@@ -111,6 +153,6 @@ export class CounterOfferDto {
   @IsOptional()
   @Transform(trimToNull)
   @IsString()
-  @MaxLength(COUNTER_MESSAGE_MAX)
+  @MaxTextChars('limits.counter_message_chars')
   message?: string | null;
 }

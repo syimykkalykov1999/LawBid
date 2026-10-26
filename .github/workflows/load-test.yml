@@ -1,0 +1,469 @@
+# LOAD TEST on AWS - one approved click, never money for nothing.
+# Plain-language manual for the owner: docs/runbooks/LOAD_TEST.md
+#
+# Owner rules and where they are enforced
+#   staged        profile smoke first; m1 / m10 need a green smoke (plan job, "gate"),
+#                 calls-full needs a green calls-smoke. Step 1 (local, free) is loadtest/run-local.sh.
+#   abort         k6 thresholds + loadtest/scripts/guard.py: error rate > 5 % or p95 > 2 s
+#                 over the last 60 s -> the load stops, results are collected, the stack is destroyed.
+#   hard caps     2 h wall time (profiles.json limits + timeout-minutes below), max ECS tasks
+#                 (variable validation api_max_tasks <= 48), max generators (<= 6), checked by
+#                 loadtest/scripts/check-profiles.mjs against infra/envs/loadtest/profiles.
+#   nothing left  every resource tagged Project=lawbid-loadtest + CreatedAt; the destroy step
+#                 below runs with `if: always()` (success, failure, cancel); the hourly
+#                 load-test-watchdog.yml destroys anything older than 4 h; the last step prints
+#                 proof that no tagged resource remains.
+#   never prod    own Terraform state + own VPC + names lawbid-loadtest-*; the workflow, the
+#                 generator script, k6 and Terraform validation each refuse a production host.
+#   approval      the `run` job uses the GitHub environment `load-test` (required reviewers).
+#   cost          the `plan` job prints the estimate for the profile first and stops when it is
+#                 above the amount typed in `confirm_cost`.
+name: Load test
+
+run-name: Load test ${{ inputs.profile }} (max $${{ inputs.confirm_cost }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "smoke (~$1, 10 min) | m1 (1M daily users) | m10 (10M daily users) | calls-smoke | calls-full. Local runs on the Mac, not here."
+        type: choice
+        required: true
+        options: [smoke, m1, m10, calls-smoke, calls-full]
+      confirm_cost:
+        description: "The most you accept to pay for this run, in US dollars (whole number). The run stops before creating anything if the estimate's upper bound is higher."
+        type: string
+        required: true
+      image_tag:
+        description: "API image tag from ECR to test (empty = the newest image)"
+        type: string
+        required: false
+      gameday:
+        description: "GameDay (AWS FIS, docs/runbooks/GAMEDAY.md): break something DURING the load. none | ecs (stop half of the API tasks) | redis (Redis failover) | rds (database failover, makes the DB Multi-AZ = about double DB price) | all. Only smoke and m1."
+        type: choice
+        required: false
+        default: none
+        options: [none, ecs, redis, rds, all]
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+# Two load tests never run at once (two stacks = double money).
+concurrency:
+  group: load-test
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  TF_VERSION: "1.9.8"
+  PROFILE: ${{ inputs.profile }}
+  GAMEDAY: ${{ inputs.gameday || 'none' }}
+
+jobs:
+  # ---------------------------------------------------------------- 1. estimate
+  plan:
+    name: Estimate cost and check the rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      estimate: ${{ steps.est.outputs.estimate }}
+      upper: ${{ steps.est.outputs.upper }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Profile is allowed on AWS and caps are consistent
+        run: |
+          case "$PROFILE" in smoke|m1|m10|calls-smoke|calls-full) ;; *) echo "::error::profile $PROFILE cannot run here (local = loadtest/run-local.sh on the Mac)"; exit 1;; esac
+          node loadtest/scripts/check-profiles.mjs
+          case "$GAMEDAY" in none) ;; ecs|redis|rds|all)
+            [ "$PROFILE" = smoke ] && [ "$GAMEDAY" = all ] && { echo "::error::smoke is too short for gameday=all (one experiment at a time on smoke; use m1 for all)"; exit 1; }
+            case "$PROFILE" in smoke|m1) echo "GameDay \`$GAMEDAY\` on $PROFILE: the database is Multi-AZ for this run (about double the DB price, included in the upper bound below as +30 %)." | tee -a "$GITHUB_STEP_SUMMARY";;
+              *) echo "::error::GameDay runs only on smoke or m1"; exit 1;; esac;;
+            *) echo "::error::unknown gameday $GAMEDAY"; exit 1;; esac
+          for f in loadtest/scripts/*.sh loadtest/scripts/box/*.sh; do bash -n "$f"; done
+      - name: Estimated cost
+        id: est
+        env:
+          CONFIRM: ${{ inputs.confirm_cost }}
+        run: |
+          node loadtest/scripts/estimate-cost.mjs "$PROFILE" | tee -a "$GITHUB_STEP_SUMMARY"
+          json="$(node loadtest/scripts/estimate-cost.mjs "$PROFILE" --json)"
+          est="$(jq -r .estimate_usd <<<"$json")"; upper="$(jq -r .upper_bound_usd <<<"$json")"
+          echo "estimate=$est" >>"$GITHUB_OUTPUT"; echo "upper=$upper" >>"$GITHUB_OUTPUT"
+          if [ "$GAMEDAY" != none ]; then upper="$(awk "BEGIN{printf \"%.2f\", $upper * 1.3}")"; fi
+          if ! [[ "$CONFIRM" =~ ^[0-9]+$ ]]; then echo "::error::confirm_cost must be a whole number of dollars"; exit 1; fi
+          if awk "BEGIN{exit !($upper > $CONFIRM)}"; then
+            echo "::error::estimate \$$est (upper bound \$$upper) is above the \$$CONFIRM you accepted. Nothing was created."
+            exit 1
+          fi
+          echo "You accepted up to \$$CONFIRM; estimate \$$est (upper bound \$$upper). The next job waits for the reviewer's approval." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Gate - a full run needs a green smoke first
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          need=""
+          case "$PROFILE" in m1|m10) need="smoke";; calls-full) need="calls-smoke";; esac
+          [ -z "$need" ] && { echo "no gate for $PROFILE"; exit 0; }
+          since="$(date -u -d '3 days ago' +%FT%TZ)"
+          n="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow load-test.yml --status success --limit 50 --json displayTitle,createdAt \
+                --jq "[.[] | select(.createdAt > \"$since\") | select(.displayTitle | startswith(\"Load test $need \"))] | length")"
+          if [ "${n:-0}" -lt 1 ]; then
+            echo "::error::$PROFILE needs a green \`$need\` run of this workflow in the last 3 days (none found). Run $need first."
+            exit 1
+          fi
+          echo "gate ok: a green $need run exists" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------- 2. run
+  run:
+    name: Create stack, load, collect, destroy
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: load-test # required reviewers = the owner's approval
+    # Backstop for everything below: 2 h of work + create + destroy. Each long
+    # step has its own, shorter timeout; the watchdog covers a killed runner.
+    timeout-minutes: 240
+    env:
+      RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      WALL_START: ${{ github.run_started_at }}
+      TF_DIR: infra/envs/loadtest
+      TF_STATE_BUCKET: lawbid-prod-tfstate
+      TF_LOCK_TABLE: lawbid-prod-tflock
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_LOADTEST_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-duration-seconds: 14400
+
+      - name: Install Terraform ${{ env.TF_VERSION }}
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+          curl -fsSLO "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_SHA256SUMS"
+          grep "linux_amd64.zip" "terraform_${TF_VERSION}_SHA256SUMS" | sha256sum -c -
+          unzip -qo "terraform_${TF_VERSION}_linux_amd64.zip" terraform && sudo install terraform /usr/local/bin/terraform
+          terraform version
+
+      - name: Never production - refuse a prod target, refuse if a stack already exists
+        run: |
+          # the stack's names are fixed in infra/envs/loadtest (api_host must contain "loadtest";
+          # Terraform refuses a production host) - check the file is still that way
+          grep -q 'default *= *"api.lawbid-loadtest.invalid"' infra/envs/loadtest/variables.tf || { echo "::error::infra/envs/loadtest api_host default changed: refusing"; exit 1; }
+          grep -q 'REFUSING: api_host must contain' infra/envs/loadtest/variables.tf || { echo "::error::the production-host check is missing from infra/envs/loadtest/variables.tf"; exit 1; }
+          WAIT=0 loadtest/scripts/verify-clean.sh || { echo "::error::resources tagged lawbid-loadtest already exist (another run, or a leftover). Wait for the watchdog (hourly) or clean up first: docs/runbooks/LOAD_TEST.md"; exit 1; }
+
+      - name: Pick the API image
+        id: img
+        env:
+          TAG_IN: ${{ inputs.image_tag }}
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+        run: |
+          tag="$TAG_IN"
+          if [ -z "$tag" ]; then
+            tag="$(aws ecr describe-images --repository-name lawbid-api --query 'sort_by(imageDetails,&imagePushedAt)[-1].imageTags[0]' --output text)"
+          fi
+          for r in lawbid-api lawbid-admin; do aws ecr describe-images --repository-name "$r" --image-ids imageTag="$tag" >/dev/null || { echo "::error::$r:$tag not in ECR"; exit 1; }; done
+          echo "api_image=$ECR_REGISTRY/lawbid-api:$tag" >>"$GITHUB_OUTPUT"
+          echo "admin_image=$ECR_REGISTRY/lawbid-admin:$tag" >>"$GITHUB_OUTPUT"
+          echo "clamav_image=$ECR_REGISTRY/lawbid-clamav:1.4" >>"$GITHUB_OUTPUT"
+          # Our own PgBouncer (docs/architecture/DB_POOLER.md): the load test runs
+          # THROUGH it. Build it first: Actions -> "Build PgBouncer".
+          aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag=1.24.0-1 >/dev/null || { echo "::error::lawbid-pgbouncer:1.24.0-1 not in ECR - run the Build PgBouncer workflow first"; exit 1; }
+          echo "pgbouncer_image=$ECR_REGISTRY/lawbid-pgbouncer:1.24.0-1" >>"$GITHUB_OUTPUT"
+          echo "Testing image tag \`$tag\`" >>"$GITHUB_STEP_SUMMARY"
+
+      # ---- everything from here on is cleaned up by the always() steps at the end ----
+      - name: Create the stack (Terraform, tagged Project=lawbid-loadtest)
+        id: create
+        timeout-minutes: 60
+        env:
+          CERT: ${{ secrets.LOADTEST_CERTIFICATE_ARN }}
+        run: |
+          echo "created_at=$(date -u +%FT%TZ)" >>"$GITHUB_OUTPUT"
+          created="$(date -u +%FT%TZ)"
+          echo "CREATED_AT=$created" >>"$GITHUB_ENV"
+          cd "$TF_DIR"
+          terraform init -input=false -backend-config="bucket=$TF_STATE_BUCKET" -backend-config="key=loadtest/$RUN_ID/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION" -backend-config="dynamodb_table=$TF_LOCK_TABLE" -backend-config="encrypt=true"
+          echo "TF_INITIALIZED=1" >>"$GITHUB_ENV"
+          gd=false; [ "$GAMEDAY" != none ] && gd=true
+          terraform apply -input=false -auto-approve -lock-timeout=5m \
+            -var-file="profiles/$PROFILE.tfvars" -var "gameday_enabled=$gd" \
+            -var "run_id=$RUN_ID" -var "created_at=$created" -var "profile=$PROFILE" \
+            -var "certificate_arn=$CERT" \
+            -var "api_image=${{ steps.img.outputs.api_image }}" -var "admin_image=${{ steps.img.outputs.admin_image }}" \
+            -var "clamav_image=${{ steps.img.outputs.clamav_image }}" \
+            -var "pgbouncer_image=${{ steps.img.outputs.pgbouncer_image }}"
+          terraform output -json stack >"$RUNNER_TEMP/stack.json"
+          terraform output -json generator_instance_ids >"$RUNNER_TEMP/gens.json"
+          terraform output -json gameday_templates >"$RUNNER_TEMP/gameday-templates.json" || echo null >"$RUNNER_TEMP/gameday-templates.json"
+          echo "Stack created: $(jq -r .alb_dns_name "$RUNNER_TEMP/stack.json")" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Load outputs
+        id: out
+        run: |
+          s="$RUNNER_TEMP/stack.json"
+          g() { jq -r ".$1 // empty" "$s"; }
+          {
+            echo "alb=$(g alb_dns_name)"
+            echo "cluster=$(g cluster_name)"
+            echo "name=$(g name)"
+            echo "web_bucket=$(g web_bucket)"
+            echo "web_cdn=$(g web_cdn_domain)"
+            echo "docs_bucket=$(g documents_bucket)"
+            echo "db_secret=$(g rds_endpoint_secret_arn)"
+            echo "redis_secret=$(g redis_url_secret_arn)"
+            echo "migrate_td=$(g migrate_task_definition_arn)"
+            echo "sg=$(g task_security_group_id)"
+            echo "subnets=$(jq -r '.private_subnet_ids | join(",")' "$s")"
+            echo "api_service=$(g api_service_name)"
+            echo "worker_service=$(g worker_service_name)"
+            echo "pgbouncer_service=$(g pgbouncer_service_name)"
+            echo "turn_ip=$(g turn_public_ip)"
+            echo "turn_param=$(g turn_secret_parameter)"
+            echo "livekit_id=$(g livekit_instance_id)"
+            echo "gens=$(jq -r 'join(" ")' "$RUNNER_TEMP/gens.json")"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Secret values (random, throw-away) and database login
+        env:
+          NAME: ${{ steps.out.outputs.name }}
+          DB_SECRET: ${{ steps.out.outputs.db_secret }}
+        run: |
+          rnd() { openssl rand -hex 32; }
+          jwt="$(rnd)"
+          echo "::add-mask::$jwt"
+          echo "JWT_SECRET_VALUE=$jwt" >>"$GITHUB_ENV"
+          j="$(aws secretsmanager get-secret-value --secret-id "$DB_SECRET" --query SecretString --output text)"
+          url="postgresql://$(jq -r .username <<<"$j"):$(jq -r .password <<<"$j")@$(jq -r .host <<<"$j"):5432/$(jq -r .dbname <<<"$j")?sslmode=require"
+          echo "::add-mask::$(jq -r .password <<<"$j")"
+          put() { aws secretsmanager put-secret-value --secret-id "$NAME/$1" --secret-string "$2" >/dev/null; }
+          # one login (the database owner) for every role: a throw-away database, no role split
+          for k in DATABASE_URL RETENTION_DATABASE_URL DEMO_DATABASE_URL MIGRATOR_DATABASE_URL; do put "$k" "$url"; done
+          put JWT_KEYS "j1:$jwt"
+          for k in OTP_CODE_SECRET OTP_KEY_PEPPER AUTH_EVENT_PEPPER ADMIN_TOTP_ENC_KEY; do put "$k" "$(rnd)"; done
+          put SECRETS_MASTER_KEYS "k1:$(rnd)"
+          put MESSAGE_ENC_KEYS "m1:$(rnd)"
+          put SEARCH_INDEX_KEY "$(rnd)"
+          echo "secrets filled"
+
+      - name: Migrate the database (one-off ECS task, like deploy.yml)
+        timeout-minutes: 20
+        env:
+          CLUSTER: ${{ steps.out.outputs.cluster }}
+          TD: ${{ steps.out.outputs.migrate_td }}
+          SUBNETS: ${{ steps.out.outputs.subnets }}
+          SG: ${{ steps.out.outputs.sg }}
+        run: |
+          arn="$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-definition "$TD" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG],assignPublicIp=DISABLED}" \
+            --query 'tasks[0].taskArn' --output text)"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$arn"
+          code="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$arn" --query 'tasks[0].containers[0].exitCode' --output text)"
+          echo "migrate exit code: $code"
+          [ "$code" = 0 ]
+
+      - name: Start the services with the real secrets and wait until healthy
+        timeout-minutes: 25
+        env:
+          CLUSTER: ${{ steps.out.outputs.cluster }}
+          API: ${{ steps.out.outputs.api_service }}
+          WORKER: ${{ steps.out.outputs.worker_service }}
+          PGB: ${{ steps.out.outputs.pgbouncer_service }}
+          ALB: ${{ steps.out.outputs.alb }}
+        run: |
+          # The pooler first: it reads DATABASE_URL (now filled) at start; the API and
+          # worker reach the database through it (db_pooler_enabled in infra/envs/loadtest).
+          if [ -n "$PGB" ]; then
+            aws ecs update-service --cluster "$CLUSTER" --service "$PGB" --force-new-deployment >/dev/null
+            aws ecs wait services-stable --cluster "$CLUSTER" --services "$PGB"
+            echo "pgbouncer is up"
+          fi
+          for s in "$API" "$WORKER"; do aws ecs update-service --cluster "$CLUSTER" --service "$s" --force-new-deployment >/dev/null; done
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$API" "$WORKER"
+          for i in $(seq 1 60); do
+            code="$(curl -ks -o /dev/null -w '%{http_code}' -H 'Host: api.lawbid-loadtest.invalid' "https://$ALB/health/live" || true)"
+            [ "$code" = 200 ] && { echo "API answers 200 through the ALB"; exit 0; }
+            sleep 10
+          done
+          echo "::error::the API did not become healthy"; exit 1
+
+      - name: Pack the scripts, mint test tokens (seeded accounts only)
+        id: pack
+        env:
+          DOCS: ${{ steps.out.outputs.docs_bucket }}
+        run: |
+          tar czf "$RUNNER_TEMP/pack.tgz" loadtest scripts/ops
+          S3="s3://$DOCS/loadtest/$RUN_ID"
+          aws s3 cp "$RUNNER_TEMP/pack.tgz" "$S3/pack.tgz" --only-show-errors
+          cl="$(jq -r ".profiles[\"$PROFILE\"].tokens.clients" loadtest/profiles.json)"
+          at="$(jq -r ".profiles[\"$PROFILE\"].tokens.attorneys" loadtest/profiles.json)"
+          JWT_SECRET="$JWT_SECRET_VALUE" JWT_KID=j1 node loadtest/scripts/mint.mjs "$RUNNER_TEMP/tokens.json" "$cl" "$at" 10
+          aws s3 cp "$RUNNER_TEMP/tokens.json" "$S3/tokens.json" --only-show-errors
+          aws s3 cp "$RUNNER_TEMP/tokens.json.admin-sessions.txt" "$S3/tokens.json.admin-sessions.txt" --only-show-errors
+
+      - name: Seed data (100 000 people, posts, chats...) from inside the VPC
+        timeout-minutes: 40
+        env:
+          DOCS: ${{ steps.out.outputs.docs_bucket }}
+          WEB: ${{ steps.out.outputs.web_bucket }}
+          DB_SECRET: ${{ steps.out.outputs.db_secret }}
+          REDIS_SECRET: ${{ steps.out.outputs.redis_secret }}
+        run: |
+          gen0="$(cut -d' ' -f1 <<<"${{ steps.out.outputs.gens }}")"
+          pre="RUN_ID=$RUN_ID ARTIFACTS_BUCKET=$DOCS AWS_REGION=$AWS_REGION"
+          loadtest/scripts/ssm-run.sh "$gen0" 2400 "$pre DB_SECRET_ARN=$DB_SECRET REDIS_SECRET_ARN=$REDIS_SECRET bash /opt/lt/loadtest/scripts/box/seed.sh"
+          if [ "$(jq -r ".profiles[\"$PROFILE\"].assets" loadtest/profiles.json)" = true ]; then
+            loadtest/scripts/ssm-run.sh "$gen0" 600 "$pre WEB_BUCKET=$WEB bash /opt/lt/loadtest/scripts/box/assets.sh"
+          fi
+
+      - name: Find ids through the API (fixtures)
+        env:
+          DOCS: ${{ steps.out.outputs.docs_bucket }}
+          ALB: ${{ steps.out.outputs.alb }}
+          NODE_TLS_REJECT_UNAUTHORIZED: "0" # the ALB is addressed by its AWS name; this is our own throw-away stack
+        run: |
+          assets=0; [ "$(jq -r ".profiles[\"$PROFILE\"].assets" loadtest/profiles.json)" = true ] && assets=200
+          API_URL="https://$ALB/api/v1" HOST_HEADER=api.lawbid-loadtest.invalid JWT_SECRET="$JWT_SECRET_VALUE" JWT_KID=j1 \
+            node loadtest/scripts/discover.mjs "$RUNNER_TEMP/fixtures.json" 3000 "$assets"
+          aws s3 cp "$RUNNER_TEMP/fixtures.json" "s3://$DOCS/loadtest/$RUN_ID/fixtures.json" --only-show-errors
+
+      - name: LOAD (generators on EC2 Spot; the guard stops them on error rate > 5 % or p95 > 2 s for 60 s)
+        id: load
+        timeout-minutes: 120
+        env:
+          DOCS: ${{ steps.out.outputs.docs_bucket }}
+          ALB: ${{ steps.out.outputs.alb }}
+          CDN: ${{ steps.out.outputs.web_cdn }}
+          TURN_IP: ${{ steps.out.outputs.turn_ip }}
+          TURN_PARAM: ${{ steps.out.outputs.turn_param }}
+          LIVEKIT_ID: ${{ steps.out.outputs.livekit_id }}
+        run: |
+          echo "LOAD_START=$(date -u -d '2 minutes ago' +%FT%TZ)" >>"$GITHUB_ENV"
+          set +e
+          read -ra G <<<"${{ steps.out.outputs.gens }}"
+          shards="${#G[@]}"
+          prof() { jq -r ".profiles[\"$PROFILE\"].$1" loadtest/profiles.json; }
+          kind="$(prof kind)"
+          # HARD CAP: 2 h of wall time from the start of the run, create + seed + load together
+          cap=$(( $(jq -r .limits.max_wall_minutes loadtest/profiles.json) * 60 ))
+          used=$(( $(date +%s) - $(date -d "$WALL_START" +%s) ))
+          max_s=$(( cap - used ))
+          echo "wall time used $((used / 60)) min of $((cap / 60)); the load may run at most $((max_s / 60)) min"
+          if [ "$max_s" -lt 300 ]; then echo "::error::less than 5 minutes of the 2 h cap left: not starting the load"; echo "load_rc=1" >>"$GITHUB_OUTPUT"; exit 0; fi
+          pre="RUN_ID=$RUN_ID ARTIFACTS_BUCKET=$DOCS AWS_REGION=$AWS_REGION"
+          mkdir -p "$RUNNER_TEMP/logs"; rc_all=0
+          pids=()
+          # GameDay: AWS FIS experiments in the middle of the load (loadtest/scripts/gameday.sh)
+          if [ "$GAMEDAY" != none ] && [ "$(cat "$RUNNER_TEMP/gameday-templates.json")" != null ]; then
+            mkdir -p "$RUNNER_TEMP/results"
+            ( ALB="$ALB" HOST_HEADER=api.lawbid-loadtest.invalid DELAY_SECONDS="$([ "$PROFILE" = smoke ] && echo 90 || echo 900)" GAP_SECONDS="$([ "$PROFILE" = smoke ] && echo 90 || echo 300)" \
+                loadtest/scripts/gameday.sh "$GAMEDAY" "$RUNNER_TEMP/gameday-templates.json" "$RUNNER_TEMP/results" >"$RUNNER_TEMP/logs/gameday.log" 2>&1 ) &
+            pids+=($!)
+          fi
+          for i in "${!G[@]}"; do
+            ( loadtest/scripts/ssm-run.sh "${G[$i]}" "$max_s" "$pre PROFILE=$PROFILE SHARD=$i SHARDS=$shards API_URL=https://$ALB/api/v1 WS_URL=wss://$ALB HOST_HEADER=api.lawbid-loadtest.invalid CDN_URL=$([ -n "$CDN" ] && [ "$(prof assets)" = true ] && echo "https://$CDN") MAX_WALL_SECONDS=$max_s PROD_HOSTS=api.lawbid.dev,api.lawbid.app,lawbid.dev,lawbid.app bash /opt/lt/loadtest/scripts/box/k6.sh" >"$RUNNER_TEMP/logs/k6-$i.log" 2>&1; echo $? >"$RUNNER_TEMP/logs/k6-$i.rc" ) &
+            pids+=($!)
+          done
+          if [ "$kind" = calls ]; then
+            for i in "${!G[@]}"; do
+              ( loadtest/scripts/ssm-run.sh "${G[$i]}" 1800 "$pre SHARD=$i TURN_HOST=$TURN_IP TURN_SECRET_PARAM=$TURN_PARAM CLIENTS=$(( $(prof turn_clients) / shards )) SECONDS_RUN=$(prof turn_seconds) bash /opt/lt/loadtest/scripts/box/turn.sh" >"$RUNNER_TEMP/logs/turn-$i.log" 2>&1 ) &
+              pids+=($!)
+            done
+            if [ -n "$LIVEKIT_ID" ]; then
+              lkip="$(aws ec2 describe-instances --instance-ids "$LIVEKIT_ID" --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)"
+              for i in "${!G[@]}"; do
+                ( loadtest/scripts/ssm-run.sh "${G[$i]}" 1800 "$pre SHARD=$i LIVEKIT_PRIVATE_URL=ws://$lkip:7880 LIVEKIT_KEY_SECRET=${{ steps.out.outputs.name }}/LIVEKIT_API_KEY LIVEKIT_SECRET_SECRET=${{ steps.out.outputs.name }}/LIVEKIT_API_SECRET ROOMS=$(( $(prof livekit_rooms) / shards )) PUBLISHERS=$(prof livekit_publishers) SECONDS_RUN=$(prof livekit_seconds) bash /opt/lt/loadtest/scripts/box/livekit.sh" >"$RUNNER_TEMP/logs/livekit-$i.log" 2>&1 ) &
+                pids+=($!)
+              done
+            else
+              echo "LiveKit is not part of this stack: the calls test stops at TURN + call signalling" | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          for p in "${pids[@]}"; do wait "$p"; done
+          echo "LOAD_END=$(date -u -d '1 minute' +%FT%TZ)" >>"$GITHUB_ENV"
+          for i in "${!G[@]}"; do echo "--- generator $i"; tail -n 25 "$RUNNER_TEMP/logs/k6-$i.log"; [ "$(cat "$RUNNER_TEMP/logs/k6-$i.rc")" = 0 ] || rc_all=1; done
+          echo "load_rc=$rc_all" >>"$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Collect results and write the report
+        id: report
+        if: always() && env.TF_INITIALIZED == '1'
+        timeout-minutes: 15
+        env:
+          DOCS: ${{ steps.out.outputs.docs_bucket }}
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/results"
+          [ -n "$DOCS" ] && aws s3 cp "s3://$DOCS/loadtest/$RUN_ID/results/" "$RUNNER_TEMP/results/" --recursive --only-show-errors
+          if [ -f "$RUNNER_TEMP/stack.json" ] && [ -n "$LOAD_START" ]; then
+            jq '.' "$RUNNER_TEMP/stack.json" >/dev/null 2>&1 && python3 loadtest/scripts/collect-cw.py "$RUNNER_TEMP/stack.json" "$LOAD_START" "${LOAD_END:-$(date -u +%FT%TZ)}" "$RUNNER_TEMP/results"
+          fi
+          node loadtest/scripts/estimate-cost.mjs "$PROFILE" --json >"$RUNNER_TEMP/results/cost.json" 2>/dev/null
+          cp -r "$RUNNER_TEMP/logs" "$RUNNER_TEMP/results/ssm-logs" 2>/dev/null
+          node loadtest/scripts/report.mjs --profile "$PROFILE" --dir "$RUNNER_TEMP/results" >"$RUNNER_TEMP/results/report.md"
+          cat "$RUNNER_TEMP/results/report.md" >>"$GITHUB_STEP_SUMMARY"
+          # budget gates: one red annotation per missed budget (loadtest/profiles.json "gates")
+          grep -E '^\| .* \| FAIL \|$' "$RUNNER_TEMP/results/report.md" | while IFS='|' read -r _ gate budget got _; do
+            echo "::error title=Load-test gate missed::${gate// /} budget${budget} measured${got}"
+          done
+          grep -E '^\| (api_stop_tasks|rds_failover|redis_failover) \|.*\| NO \|' "$RUNNER_TEMP/results/report.md" | while IFS='|' read -r _ name _; do
+            echo "::error title=GameDay::${name// /}: the API did not come back within 5 minutes"
+          done
+          if grep -q "^\*\*Verdict: ABORTED" "$RUNNER_TEMP/results/report.md"; then echo "verdict=aborted" >>"$GITHUB_OUTPUT";
+          elif grep -q "ALL TARGETS MET" "$RUNNER_TEMP/results/report.md"; then echo "verdict=green" >>"$GITHUB_OUTPUT";
+          else echo "verdict=missed" >>"$GITHUB_OUTPUT"; fi
+          exit 0
+
+      - name: Upload the report and raw results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: load-test-${{ inputs.profile }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/results
+          if-no-files-found: ignore
+          retention-days: 90
+
+      # ---------------------------------------------------------------- ALWAYS
+      # Success, failure, cancel: the stack is destroyed. Three tries (a
+      # destroy can hit a transient AWS error); then the sweep by tag; the
+      # watchdog is the next safety net.
+      - name: DESTROY the stack (always)
+        if: always() && env.TF_INITIALIZED == '1'
+        timeout-minutes: 75
+        env:
+          CERT: ${{ secrets.LOADTEST_CERTIFICATE_ARN }}
+        run: |
+          cd "$TF_DIR"
+          ok=0
+          for try in 1 2 3; do
+            if terraform destroy -input=false -auto-approve -lock-timeout=10m -var-file="profiles/$PROFILE.tfvars" -var "run_id=$RUN_ID" -var "profile=$PROFILE" -var "certificate_arn=$CERT"; then ok=1; break; fi
+            echo "::warning::destroy attempt $try failed, retrying in 60 s"; sleep 60
+          done
+          if [ $ok = 1 ]; then
+            aws s3 rm "s3://$TF_STATE_BUCKET/loadtest/$RUN_ID/terraform.tfstate" || true
+            echo "Terraform destroy finished." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::terraform destroy failed 3 times: sweeping by tag, the watchdog retries hourly"
+            "$GITHUB_WORKSPACE/loadtest/scripts/sweep.sh" "$RUN_ID" || true
+          fi
+
+      - name: PROOF - nothing tagged lawbid-loadtest is left (always)
+        if: always()
+        run: loadtest/scripts/verify-clean.sh
+
+      - name: Final verdict
+        if: always()
+        run: |
+          v="${{ steps.report.outputs.verdict }}"
+          echo "verdict: ${v:-none}"
+          [ "$v" = green ]

@@ -13,11 +13,25 @@ CreatePostDto _$CreatePostDtoFromJson(Map<String, dynamic> json) =>
       kind: json['kind'] == null
           ? PostKind.post
           : PostKind.fromJson(json['kind'] as String),
+      commentsEnabled: json['commentsEnabled'] as bool? ?? true,
+      hideLikes: json['hideLikes'] as bool? ?? false,
+      hideViews: json['hideViews'] as bool? ?? false,
       practiceCode: json['practiceCode'] as String?,
+      contentClass: json['contentClass'] == null
+          ? null
+          : PostContentClass.fromJson(json['contentClass'] as String),
       mediaFileIds: (json['mediaFileIds'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      attachments: (json['attachments'] as List<dynamic>?)
+          ?.map(
+            (e) => PostAttachmentInputDto.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
       videoAssetId: json['videoAssetId'] as String?,
+      location: json['location'] == null
+          ? null
+          : PostLocationDto.fromJson(json['location'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$CreatePostDtoToJson(CreatePostDto instance) =>
@@ -25,7 +39,13 @@ Map<String, dynamic> _$CreatePostDtoToJson(CreatePostDto instance) =>
       'title': instance.title,
       'practiceCode': ?instance.practiceCode,
       'kind': instance.kind.toJson(),
+      'contentClass': ?instance.contentClass?.toJson(),
       'body': instance.body,
       'mediaFileIds': ?instance.mediaFileIds,
+      'attachments': ?instance.attachments?.map((e) => e.toJson()).toList(),
       'videoAssetId': ?instance.videoAssetId,
+      'location': ?instance.location?.toJson(),
+      'commentsEnabled': instance.commentsEnabled,
+      'hideLikes': instance.hideLikes,
+      'hideViews': instance.hideViews,
     };

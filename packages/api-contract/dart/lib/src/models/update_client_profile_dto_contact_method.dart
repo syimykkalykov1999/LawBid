@@ -6,10 +6,10 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum UpdateClientProfileDtoContactMethod {
-  @JsonValue('email')
-  email('email'),
   @JsonValue('call')
   call('call'),
+  @JsonValue('email')
+  email('email'),
   @JsonValue('sms')
   sms('sms'),
   @JsonValue('in_app_chat')

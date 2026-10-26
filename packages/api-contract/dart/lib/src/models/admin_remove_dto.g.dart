@@ -7,7 +7,7 @@ part of 'admin_remove_dto.dart';
 // **************************************************************************
 
 AdminRemoveDto _$AdminRemoveDtoFromJson(Map<String, dynamic> json) =>
-    AdminRemoveDto(reason: json['reason'] as String);
+    AdminRemoveDto(reason: json['reason'] as String? ?? '');
 
 Map<String, dynamic> _$AdminRemoveDtoToJson(AdminRemoveDto instance) =>
     <String, dynamic>{'reason': instance.reason};

@@ -1,12 +1,16 @@
 # tx-retries — spike of serialization retries (SQLSTATE 40001)
 
+> **Для владельца:** Ничего не делать: система повторяет запросы и ставит тяжёлые задачи на паузу сама. Каждый день — напишите Claude. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 `withTxRetry` logs `transaction retried` per retry (docs/02 §1.1: up to 5
 attempts with jitter). Some retries are normal; a spike means two hot
 paths touch the same rows (bid accept on one case, counters).
 
 **Check.** Logs Insights on the api group:
 `filter msg = "transaction retried" | stats count() by bin(1m)` and the
-CockroachDB Console → Transactions (contention, retries by statement).
+the database side: `pg_stat_activity` (who waits on which lock,
+`wait_event_type = 'Lock'`), `pg_locks`, and `pg_stat_statements` if the
+provider enables it (or the provider's query insights page).
 
 **Act.** Usually no immediate action; if the retry budget is exhausted the
 request fails with 409/500 and shows on the 5xx board. Long-term: move the

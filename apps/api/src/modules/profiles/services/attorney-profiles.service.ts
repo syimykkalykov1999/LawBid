@@ -1,9 +1,32 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { attorneyPublicUrl } from '../../../common/utils/public-urls';
+import { AttorneyAdvertisingService } from '../../countries/attorney-advertising.service';
+import { UsernamePolicyService } from '../../usernames/username-policy.service';
+import { AttorneyStatsDto } from '../dto/attorney-stats.dto';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  OnApplicationShutdown,
+  Optional,
+} from '@nestjs/common';
+import { WriteBehindCounter } from '../../../common/batch/write-behind-counter';
+import { PrivacySettingsService } from '../../privacy-settings/privacy-settings.service';
+import { ConsultationsService } from '../../consultations/consultations.service';
 import { Prisma } from '@prisma/client';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaReadService } from '../../../prisma/prisma-read.service';
+import { weakEtag } from '../../../common/sync/cheap-etag';
+
+/** The public profile ETag rotates at least this often (see publicEtag). */
+export const PUBLIC_PROFILE_ETAG_BUCKET_MS = 600_000;
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { startNameRecheckIfVerified } from '../../users/services/attorney-name-recheck';
 import { isValidUsername } from '../../users/services/username.util';
@@ -70,7 +93,7 @@ const LICENSE_SELECT = {
  * it, so they cannot leak through a later refactor of the DTO.
  */
 @Injectable()
-export class AttorneyProfilesService {
+export class AttorneyProfilesService implements OnApplicationShutdown {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
@@ -79,7 +102,29 @@ export class AttorneyProfilesService {
     private readonly counters: CounterAggregator,
     private readonly usernames: UsernameRegistry,
     private readonly blocks: BlocksService,
+    // Owner 2026-10-20: who sees my photo and "about".
+    @Optional() private readonly privacy?: PrivacySettingsService,
+    @Optional() private readonly consultations?: ConsultationsService,
+    private readonly policy: UsernamePolicyService = undefined as never,
+    // Owner 2026-10-22 (audit #4 §5, §9): the advertising label and the
+    // canonical public link.
+    @Optional() private readonly advertising?: AttorneyAdvertisingService,
+    @Optional() private readonly config?: ConfigService,
+    // DB-ops S5-6: the public profile row may be a few seconds old.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
+
+  /** «Attorney Advertising» for an attorney licensed in [stateCodes]. */
+  private async labelFor(stateCodes: Iterable<string>): Promise<boolean> {
+    return (await this.advertising?.requiresLabel(stateCodes)) ?? false;
+  }
+
+  private publicUrl(username: string): string {
+    return attorneyPublicUrl(
+      username,
+      this.config?.get<string>('APP_LINK_BASE_URL'),
+    );
+  }
 
   async getOwn(
     userId: string,
@@ -98,8 +143,19 @@ export class AttorneyProfilesService {
       'profile.username_change_cooldown_days',
     );
     const next = nextUsernameChangeAt(row.username_changed_at, cooldown, now);
+    // Owner 2026-10-07: the own profile showed «1 Посты» next to three
+    // posts — it read the stored counters only. Like the public profile,
+    // add the deltas not yet flushed (docs/05 §4–§6).
+    const [pPosts, pFollowers, pFollowing] = await Promise.all([
+      this.counters.pending('attorney', 'posts_count', [userId]),
+      this.counters.pending('attorney', 'followers_count', [userId]),
+      this.counters.pending('attorney', 'following_count', [userId]),
+    ]);
+    const plus = (base: number, m: Map<string, number>) =>
+      Math.max(0, base + (m.get(userId) ?? 0));
     return {
       id: row.user_id,
+      version: row.version,
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
@@ -108,10 +164,16 @@ export class AttorneyProfilesService {
       firms: firmsOf(row),
       languages: row.languages,
       verificationStatus: row.verification_status,
-      verifiedBadge:
-        row.verification_status === 'verified' &&
-        !row.name_mismatch &&
-        row.licenses.some((l) => l.license_status === 'verified'),
+      // Owner 2026-10-05: the blue check follows the trust level
+      // (AttorneyTrustService keeps attorney_profiles.trust_badge).
+      verifiedBadge: row.trust_badge,
+      advertisingLabel: await this.labelFor(
+        row.licenses
+          .filter((l) => l.license_status === 'verified')
+          .map((l) => l.state_code),
+      ),
+      publicUrl: this.publicUrl(row.username),
+      trustLevel: row.trust_level,
       nameMismatch: row.name_mismatch,
       usernameChangedAt: row.username_changed_at?.toISOString() ?? null,
       usernameNextChangeAt: next?.toISOString() ?? null,
@@ -125,9 +187,9 @@ export class AttorneyProfilesService {
       })),
       rating: { avg: Number(row.rating_avg), count: row.rating_count },
       counters: {
-        posts: row.posts_count,
-        followers: row.followers_count,
-        following: row.following_count,
+        posts: plus(row.posts_count, pPosts),
+        followers: plus(row.followers_count, pFollowers),
+        following: plus(row.following_count, pFollowing),
       },
     };
   }
@@ -145,13 +207,12 @@ export class AttorneyProfilesService {
     userId: string,
     dto: UpdateAttorneyProfileDto,
     now = new Date(),
+    expectedVersion?: number,
   ): Promise<OwnAttorneyProfileDto> {
     await requireOwnAttorney(this.prisma, userId);
-    const [cooldownDays, reservedList] = await Promise.all([
-      this.settings.number('profile.username_change_cooldown_days'),
-      this.settings.stringList('profile.reserved_usernames'),
-    ]);
-    const reserved = new Set(reservedList.map((r) => r.toLowerCase()));
+    const cooldownDays = await this.settings.number(
+      'profile.username_change_cooldown_days',
+    );
 
     try {
       await withTxRetry(this.prisma, async (tx) => {
@@ -160,6 +221,7 @@ export class AttorneyProfilesService {
           include: { user: { select: { first_name: true, last_name: true } } },
         });
         if (!current) throw notFound();
+        assertExpectedVersion(current.version, expectedVersion);
 
         const data: Prisma.AttorneyProfileUpdateInput = {
           ...(dto.bio !== undefined && { bio: dto.bio || null }),
@@ -191,7 +253,7 @@ export class AttorneyProfilesService {
               { nextChangeAt: next.toISOString(), cooldownDays },
             );
           }
-          if (reserved.has(lower)) {
+          if (await this.usernames.isReserved(lower)) {
             throw usernameError(
               ErrorCode.USERNAME_RESERVED,
               HttpStatus.BAD_REQUEST,
@@ -202,6 +264,14 @@ export class AttorneyProfilesService {
           if (
             lower !== current.username_lower &&
             (await this.usernames.isTaken(tx, lower, userId))
+          ) {
+            throw usernameTaken();
+          }
+          // Owner 2026-10-20: freed lately by someone else, or reads like a
+          // known handle.
+          if (
+            lower !== current.username_lower &&
+            (await this.usernames.blocker(tx, lower, userId))
           ) {
             throw usernameTaken();
           }
@@ -219,10 +289,12 @@ export class AttorneyProfilesService {
           await startNameRecheckIfVerified(tx, userId, current.user, after);
         }
 
-        if (Object.keys(data).length > 0) {
+        const nameChanged =
+          dto.firstName !== undefined || dto.lastName !== undefined;
+        if (Object.keys(data).length > 0 || nameChanged) {
           await tx.attorneyProfile.update({
             where: { user_id: userId },
-            data,
+            data: { ...data, ...BUMP_VERSION },
           });
         }
       });
@@ -247,12 +319,137 @@ export class AttorneyProfilesService {
    * never be reached here. Unverified/pending/rejected profiles are shown
    * without the blue check.
    */
-  async getPublic(
+  /**
+   * Load audit 6: one more open of the profile today (statistics only; never
+   * blocks). Added up in memory and written as ONE multi-row upsert every
+   * 10 s - a profile opened 1 000 times used to be 1 000 writes on one row.
+   */
+  private readonly views = new WriteBehindCounter(
+    async (batch) => {
+      const keys = [...batch.keys()].sort();
+      const ids: string[] = [];
+      const days: string[] = [];
+      const counts: number[] = [];
+      for (const k of keys) {
+        const [id, day] = k.split('|');
+        ids.push(id);
+        days.push(day);
+        counts.push(batch.get(k) ?? 0);
+      }
+      await this.prisma.$executeRaw`
+        INSERT INTO attorney_profile_views (attorney_id, day, views)
+        SELECT t.a, t.d::date, t.v
+        FROM unnest(${ids}::uuid[], ${days}::text[], ${counts}::int[]) AS t(a, d, v)
+        ON CONFLICT (attorney_id, day)
+        DO UPDATE SET views = attorney_profile_views.views + EXCLUDED.views`;
+    },
+    { intervalMs: 10_000 },
+  );
+
+  private recordView(attorneyId: string): void {
+    this.views.add(`${attorneyId}|${new Date().toISOString().slice(0, 10)}`);
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    await this.views.stop();
+  }
+
+  /** The attorney's own numbers for the last 30 days (+ clients all time). */
+  async stats(attorneyId: string): Promise<AttorneyStatsDto> {
+    // Views are counted write-behind (one batch per 10 s); the owner asking
+    // for their own numbers is rare, so write the waiting batch first and
+    // the answer is exact.
+    await this.views.flush();
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+    const [views, sent, accepted, clients] = await Promise.all([
+      this.prisma.attorneyProfileView.aggregate({
+        where: { attorney_id: attorneyId, day: { gte: since } },
+        _sum: { views: true },
+      }),
+      this.prisma.bid.count({
+        where: { attorney_id: attorneyId, created_at: { gte: since } },
+      }),
+      this.prisma.bid.count({
+        where: {
+          attorney_id: attorneyId,
+          status: 'accepted',
+          updated_at: { gte: since },
+        },
+      }),
+      this.prisma.case.groupBy({
+        by: ['client_id'],
+        where: { accepted_bid: { attorney_id: attorneyId } },
+      }),
+    ]);
+    return {
+      profileViews30d: views._sum.views ?? 0,
+      bidsSent30d: sent,
+      bidsAccepted30d: accepted,
+      clientsTotal: clients.length,
+    };
+  }
+
+  /**
+   * Owner 2026-10-22 (client economy plan, package D): the cheap ETag of
+   * GET /attorneys/:username — one indexed read of the stamps and counters
+   * that move when the public profile moves (profile and user rows,
+   * counters incl. pending deltas, the viewer's follow), plus a 10-minute
+   * bucket as a safety net for inputs outside those rows (a block, a
+   * boost, the trust badge). Null when there is no such attorney (the
+   * normal path answers 404).
+   */
+  async publicEtag(
     username: string,
     viewerId: string,
-  ): Promise<PublicAttorneyProfileDto> {
-    if (!isValidUsername(username)) throw notFound();
-    const row = await this.prisma.attorneyProfile.findUnique({
+    now: number = Date.now(),
+  ): Promise<string | null> {
+    if (!isValidUsername(username)) return null;
+    const rows = await this.prisma.$queryRaw<
+      {
+        user_id: string;
+        updated_at: Date;
+        user_updated_at: Date;
+        posts_count: number;
+        followers_count: number;
+        rating_count: number;
+        verification_status: string;
+        trust_level: string | null;
+        following: boolean;
+      }[]
+    >`
+      SELECT ap.user_id, ap.updated_at, u.updated_at AS user_updated_at,
+             ap.posts_count, ap.followers_count, ap.rating_count,
+             ap.verification_status::TEXT AS verification_status,
+             ap.trust_level::TEXT AS trust_level,
+             EXISTS (SELECT 1 FROM follows f
+                     WHERE f.follower_id = ${viewerId}::UUID
+                       AND f.followee_id = ap.user_id) AS following
+      FROM attorney_profiles ap
+      JOIN users u ON u.id = ap.user_id
+      WHERE ap.username_lower = ${username.toLowerCase()}
+      LIMIT 1`;
+    const r = rows[0];
+    if (!r) return null;
+    const [posts, followers] = await Promise.all([
+      this.counters.pending('attorney', 'posts_count', [r.user_id]),
+      this.counters.pending('attorney', 'followers_count', [r.user_id]),
+    ]);
+    return weakEtag(
+      'att',
+      r.updated_at,
+      r.user_updated_at,
+      r.posts_count + (posts.get(r.user_id) ?? 0),
+      r.followers_count + (followers.get(r.user_id) ?? 0),
+      r.rating_count,
+      r.verification_status,
+      r.trust_level,
+      r.following ? 1 : 0,
+      Math.floor(now / PUBLIC_PROFILE_ETAG_BUCKET_MS),
+    );
+  }
+
+  private publicRow(db: PrismaService, username: string) {
+    return db.attorneyProfile.findUnique({
       where: { username_lower: username.toLowerCase() },
       select: {
         user_id: true,
@@ -263,6 +460,8 @@ export class AttorneyProfilesService {
         languages: true,
         verification_status: true,
         name_mismatch: true,
+        trust_level: true,
+        trust_badge: true,
         rating_avg: true,
         rating_count: true,
         posts_count: true,
@@ -285,6 +484,23 @@ export class AttorneyProfilesService {
         },
       },
     });
+  }
+
+  async getPublic(
+    username: string,
+    viewerId: string,
+  ): Promise<PublicAttorneyProfileDto> {
+    if (!isValidUsername(username)) throw notFound();
+    // DB-ops S5-6: the profile row itself tolerates a few seconds of replica
+    // lag (the counters shown are stale by their flush interval anyway). The
+    // viewer's own relations below stay on the primary, and so does the
+    // viewer's own profile (read-your-writes after an edit).
+    const reader = this.read?.db ?? this.prisma;
+    let row = await this.publicRow(reader, username);
+    // A miss may only be lag (a profile created seconds ago): ask the primary.
+    if (reader !== this.prisma && (!row || row.user_id === viewerId)) {
+      row = await this.publicRow(this.prisma, username);
+    }
     if (
       !row ||
       row.verification_status === 'suspended' ||
@@ -294,46 +510,66 @@ export class AttorneyProfilesService {
     ) {
       throw notFound('Profile is unavailable.');
     }
+    if (row.user_id !== viewerId) this.recordView(row.user_id);
     const states = new Map<string, string>();
     for (const l of row.licenses) states.set(l.state.code, l.state.name);
     // Public photo only (a clean `avatar` file); documents never.
-    const [avatar, practiceAreas, follow, pPosts, pFollowers, pFollowing] =
-      await Promise.all([
-        this.files.avatarUrls(row.user.avatar_file_id),
-        this.practices.selectedOf(row.user_id),
-        this.prisma.follow.findUnique({
-          where: {
-            follower_id_followee_id: {
-              follower_id: viewerId,
-              followee_id: row.user_id,
-            },
+    const [
+      avatar,
+      practiceAreas,
+      follow,
+      pPosts,
+      pFollowers,
+      pFollowing,
+      membership,
+    ] = await Promise.all([
+      this.files.avatarUrls(row.user.avatar_file_id),
+      this.practices.selectedOf(row.user_id),
+      this.prisma.follow.findUnique({
+        where: {
+          follower_id_followee_id: {
+            follower_id: viewerId,
+            followee_id: row.user_id,
           },
-          select: { follower_id: true },
-        }),
-        // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
-        this.counters.pending('attorney', 'posts_count', [row.user_id]),
-        this.counters.pending('attorney', 'followers_count', [row.user_id]),
-        this.counters.pending('attorney', 'following_count', [row.user_id]),
-      ]);
+        },
+        select: { follower_id: true },
+      }),
+      // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
+      this.counters.pending('attorney', 'posts_count', [row.user_id]),
+      this.counters.pending('attorney', 'followers_count', [row.user_id]),
+      this.counters.pending('attorney', 'following_count', [row.user_id]),
+      this.prisma.firmMember.findFirst({
+        where: { attorney_id: row.user_id, status: 'active' },
+        select: { firm: { select: { id: true, name: true } } },
+      }),
+    ]);
     const plus = (base: number, m: Map<string, number>) =>
       Math.max(0, base + (m.get(row.user_id) ?? 0));
+    const [photoOk, aboutOk] = this.privacy
+      ? await Promise.all([
+          this.privacy.visibleTo(viewerId, [row.user_id], 'photo_from'),
+          this.privacy.visibleTo(viewerId, [row.user_id], 'about_from'),
+        ])
+      : [new Set([row.user_id]), new Set([row.user_id])];
     return {
       id: row.user_id,
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
-      bio: row.bio,
+      bio: aboutOk.has(row.user_id) ? row.bio : null,
       firmName: row.firm_name,
       firms: firmsOf(row),
-      avatarUrl: avatar.url,
-      avatarUrl256: avatar.url256,
+      firm: membership?.firm ?? null,
+      avatarUrl: photoOk.has(row.user_id) ? avatar.url : null,
+      avatarUrl256: photoOk.has(row.user_id) ? avatar.url256 : null,
       languages: row.languages,
-      verifiedBadge:
-        row.verification_status === 'verified' &&
-        !row.name_mismatch &&
-        row.licenses.length > 0,
+      verifiedBadge: row.trust_badge,
+      advertisingLabel: await this.labelFor(states.keys()),
+      publicUrl: this.publicUrl(row.username),
+      trustLevel: row.trust_level,
       licensedStates: [...states].map(([code, name]) => ({ code, name })),
       practiceAreas,
+      qa: await this.qaStats(row.user_id),
       rating: { avg: Number(row.rating_avg), count: row.rating_count },
       counters: {
         posts: plus(row.posts_count, pPosts),
@@ -342,36 +578,73 @@ export class AttorneyProfilesService {
       },
       isSelf: row.user_id === viewerId,
       isFollowing: follow !== null,
+      consultationEnabled:
+        row.user_id !== viewerId &&
+        ((await this.consultations?.isBookable(row.user_id)) ?? false),
       ...(await this.blocks.relation(viewerId, row.user_id)),
     };
   }
 
-  /** GET /attorneys/username-available?u= — format, reserved list and
-   * case-insensitive uniqueness. The caller's own current username is
-   * reported available. Reveals nothing but "is this handle free". */
+  /** Owner 2026-10-20: «Ответов / лучших» in «Вопрос юристу». */
+  private async qaStats(
+    attorneyId: string,
+  ): Promise<{ answers: number; best: number }> {
+    const where = {
+      attorney_id: attorneyId,
+      status: 'published' as const,
+      deleted_at: null,
+    };
+    const [answers, best] = await Promise.all([
+      this.prisma.legalAnswer.count({ where }),
+      this.prisma.legalAnswer.count({ where: { ...where, is_best: true } }),
+    ]);
+    return { answers, best };
+  }
+
+  /** GET /attorneys/username-available?u= — the shared @username verdict
+   * (format, reserved and brand look-alikes, one namespace with clients,
+   * channels and groups, held, look-alikes). The caller's own current
+   * username is reported available. Reveals nothing but "is this handle
+   * free". */
   async availability(
     username: string,
     viewerId: string,
+    name: { first?: string; last?: string } = {},
   ): Promise<UsernameAvailabilityDto> {
-    const result = (
-      reason: UsernameAvailabilityDto['reason'],
-    ): UsernameAvailabilityDto => ({
+    const verdict = await this.policy.check(
       username,
-      available: reason === null,
-      reason,
-    });
-    if (!isValidUsername(username)) return result('invalid');
-    const lower = username.toLowerCase();
-    const reserved = await this.settings.stringList(
-      'profile.reserved_usernames',
+      'user',
+      { userId: viewerId },
+      { firstName: name.first, lastName: name.last },
     );
-    if (reserved.some((r) => r.toLowerCase() === lower)) {
-      return result('reserved');
+    return {
+      username,
+      available: verdict.available,
+      reason: verdict.reason,
+      suggestions: verdict.suggestions,
+    };
+  }
+
+  /** GET /attorneys/username-suggestions — up to 5 free handles from the
+   * typed text and the name (the saved name when the form sends none). */
+  async suggestions(
+    viewerId: string,
+    seeds: { first?: string; last?: string; typed?: string },
+  ): Promise<string[]> {
+    let { first, last } = seeds;
+    if (!first && !last) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: viewerId },
+        select: { first_name: true, last_name: true },
+      });
+      first = user?.first_name ?? undefined;
+      last = user?.last_name ?? undefined;
     }
-    // OQ-026: taken by anyone of either role (the caller's own handle is
-    // reported available).
-    const taken = await this.usernames.isTaken(this.prisma, lower, viewerId);
-    return result(taken ? 'taken' : null);
+    return this.usernames.suggest(
+      this.prisma,
+      { firstName: first, lastName: last, typed: seeds.typed },
+      viewerId,
+    );
   }
 }
 

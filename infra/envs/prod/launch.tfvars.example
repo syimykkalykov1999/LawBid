@@ -1,0 +1,158 @@
+# Launch size for prod: the real day-1 bill is ≈ $277–287/month (AWS ≈ $265 + vendors and
+# accounts ≈ $12-22; us-east-1 list prices, 2026-10-25). The old "≈ $150" forgot the public
+# IPv4 addresses ($11), both WAFs ($19), alarms and logs ($18), the Multi-AZ database copy and
+# the SMS number. Every line with price, switch and alarm: docs/runbooks/COST_LADDER.md.
+# Copy to terraform.tfvars and fill the REPLACE values. To grow, raise the
+# numbers below (or delete a line to fall back to the full-size default in
+# variables.tf) and run `terraform apply`; no code change is needed.
+
+domain            = "lawbid.dev"
+api_host          = "api.lawbid.dev"
+admin_host        = "admin.lawbid.dev"
+app_link_base_url = "https://lawbid.dev"
+certificate_arn   = "arn:aws:acm:us-east-1:047754151252:certificate/REPLACE"
+hosted_zone_id    = null # DNS stays at Namecheap; add `terraform output ses_dns` there
+dmarc_rua         = "support@lawbid.dev"
+ses_from_address  = "no-reply@lawbid.dev"
+api_image         = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:REPLACE"
+admin_image       = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-admin:REPLACE"
+clamav_image      = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-clamav:1.4"
+# Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md, runbook
+# docs/runbooks/DB_POOLER.md). Order: apply infra/bootstrap (ECR repo) -> run
+# the "Build PgBouncer" workflow -> set the two lines below -> terraform apply.
+# Rollback: db_pooler_enabled = false -> terraform apply.
+db_pooler_enabled = false # true after the image exists
+pgbouncer_image   = "047754151252.dkr.ecr.us-east-1.amazonaws.com/lawbid-pgbouncer:1.24.0-1"
+alert_emails      = ["REPLACE@gmail.com"] # a mailbox the owner reads (lawbid.dev has no inbox yet)
+# Subscription prices and all third-party keys are set in the admin.
+
+# --- size (full-size default → launch) -----------------------------------
+turn_enabled     = false # owner 2026-10-24: calls use Cloudflare TURN (admin → Integrations → cloudflare_turn); our own coturn is removed (bring it back: docs/runbooks/TURN.md)
+min_tasks        = 1    # 2 → 1: one api + one worker task; autoscaling adds more
+# api_max_tasks / worker_max_tasks are the HARD cap the app never exceeds.
+# The real ceiling is set by the app itself every 5 minutes from the
+# economy rule (admin → Система → Экономика): it rises with revenue and
+# falls to the minimum when third-party spend passes the rule, so nobody
+# edits this number as traffic grows. The Fargate vCPU quota of the AWS
+# account must cover it: 50 API × 0.5 + 20 worker × 0.5 = 35 vCPU
+# (a new account starts at 6 — request an increase in Service Quotas →
+# Fargate On-Demand vCPU before a big launch; docs/runbooks/ecs-capacity.md).
+api_max_tasks    = 50   # 4 → 50 (hard cap)
+worker_max_tasks = 20   # 2 → 20 (hard cap)
+api_cpu          = 512  # 1024 → 512 (0.5 vCPU)
+api_memory       = 1024 # 2048 → 1024
+worker_cpu       = 512
+worker_memory    = 4096 # worker ≈ 1 GB + ClamAV sidecar ≈ 2.5 GB (≈ +$10/month)
+admin_tasks      = 1    # 2 → 1
+
+# Owner 2026-10-20 (cost): the first api and worker task stay on regular
+# Fargate (always up); tasks that autoscaling adds under load run on Spot
+# (up to −70 %). A Spot stop gives 2 minutes: the ALB drains it, the queue
+# retries the job, the app reconnects through the other tasks.
+worker_spot = true
+api_spot    = true
+
+redis_node_type = "cache.t4g.micro" # cache.r7g.large → t4g.micro (≈ $12)
+redis_replicas  = 1                 # owner 2026-10-23: failover replica in the other AZ (+ ≈ $12)
+
+nat_per_az = false # one NAT gateway instead of one per AZ (≈ $33 saved)
+# Owner 2026-10-22: image pulls, logs and secrets go through VPC endpoints,
+# not the NAT (S3 gateway endpoint is always on and free). In the first AZ
+# only, the same AZ as the single NAT: 4 × $7.3 ≈ $29/month.
+interface_endpoints    = ["ecr.api", "ecr.dkr", "logs", "secretsmanager"]
+interface_endpoint_azs = 1
+
+# --- Multi-AZ egress + api redundancy (audit S4-2 / S4-11, 2026-10-25) -----
+# Accepted risk today (docs/runbooks/nat-endpoints.md): one NAT, all interface
+# endpoints and a single api task. Lose that AZ and new tasks cannot reach
+# Stripe/FCM/SES, pull images or read secrets. When DAU justifies about
+# +$33 (NAT) + +$29 (endpoints) + about $18 (second api task) per month,
+# make this ONE tfvars change and apply (about 10 minutes, no downtime):
+#   nat_per_az             = true
+#   interface_endpoint_azs = 2
+#   api_min_tasks          = 2   # worker may stay at min_tasks = 1
+
+# --- backups and the database (owner 2026-10-22, docs/runbooks/backups.md)
+# The prod RDS was created outside Terraform; name it here so AWS Backup
+# copies it daily to us-west-2 and `terraform plan` warns when Multi-AZ /
+# retention are off. By default Terraform never modifies it.
+existing_database_identifier = "lawbid-prod-postgres"
+# S4-3: adopt it into Terraform (import block in imports.tf) so the daily drift
+# check sees Multi-AZ / retention / deletion-protection changes. First apply
+# only imports; review `plan` first (docs/runbooks/infra-hardening.md).
+# adopt_existing_database = true
+# After the Sunday Multi-AZ switch in the console also set:
+# database_multi_az = true
+# S4-6: RDS cross-Region automated backups (PITR in us-west-2, RPO minutes):
+# rds_cross_region_backups = true
+backup_enabled               = true
+backup_retention_days        = 35
+# backup_copy_account_id     = "123456789012" # optional separate backup account (vault created there first)
+
+# Worker autoscaling: one more worker for every 50 waiting jobs (CPU 60 % stays).
+worker_jobs_per_task = 50
+
+# --- money (zero maintenance) ----------------------------------------------
+# 200 → 350 (2026-10-22): the launch size is ≈ $150–170; the Redis replica,
+# second TURN and LiveKit below add ≈ $65–110, and at 100 % of the budget
+# autoscaling is held at the minimum, so a budget set right at the bill would
+# throttle growth. E-mails at $175 / $280 / $350.
+monthly_budget_usd = 350
+
+# --- optional extras (owner 2026-10-22, all OFF = today's cost) ----------------
+# Each is a separate `terraform apply`; steps and prices: docs/runbooks/DEPLOY_PROD.md
+# «Отказоустойчивость и звонки».
+turn_second_enabled = false # owner 2026-10-24: calls use Cloudflare TURN; the second coturn is removed too (was ≈ +$9)
+# Owner 2026-10-23: prod TURN is t4g.small (quota 500 allocations ≈ 250 relayed calls per server;
+# the variable default is the same). ≈ +$9/month per server vs t4g.nano ($12.3 vs $3.1, us-east-1
+# on-demand list price, approximate), ≈ +$18 for the pair. Ladder: docs/runbooks/TURN.md.
+turn_instance_type = "t4g.small"
+# livekit_enabled     = true # own LiveKit SFU for group calls (+ ≈ $35 + traffic)
+uptime_check        = "route53" # owner 2026-10-23: external probe ≈ $2 instead of ≈ $10
+# cpu_architecture    = "ARM64"   # Fargate Graviton ≈ −20 %: ONLY after a deploy
+#                                 # built by the multi-arch deploy.yml is the tag
+#                                 # in api_image / admin_image / clamav_image
+
+# Web on lawbid.dev (docs/runbooks/WEB_LAUNCH.md): Terraform asks ACM for the
+# certificate itself; the validation records are added by hand in Namecheap.
+web_host               = "lawbid.dev"
+web_extra_hosts        = ["www.lawbid.dev"]
+web_create_certificate = true
+
+# --- private media through CloudFront (owner 2026-10-22, optional) ---------
+# Chat photos/voice/files, case files and documents are served through a
+# CloudFront distribution with signed URLs once the owner creates a signing
+# key pair (DEPLOY_PROD.md «CloudFront для приватных файлов»). Leave both
+# lines out and the API keeps presigned S3 links.
+# documents_cdn_public_key_pem = file("cloudfront-signing.pub.pem")
+# extra_secrets                = ["CLOUDFRONT_PRIVATE_KEY_PEM"]
+
+# --- database autoscale (owner 2026-10-24, docs/runbooks/db-autoscale.md) ------
+# On by default for the database named in existing_database_identifier. Idle
+# until Multi-AZ is on (a pending modification pauses it). Optional:
+# db_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# db_autoscale_max_class = "db.r7g.xlarge"    # ceiling, about $698/month with Multi-AZ
+# db_autoscale_min_class = "db.t4g.micro"
+# db_autoscale_enabled   = false              # switch the whole thing off
+
+# --- Redis autoscale (owner 2026-10-24, docs/runbooks/redis-autoscale.md) ------
+# On by default for lawbid-prod-redis. Idle until the replica has automatic
+# failover on (a pending modification pauses it). Optional:
+# redis_autoscale_mode      = "dry-run"          # first days: e-mails only, changes nothing
+# redis_autoscale_max_class = "cache.r7g.large"  # ceiling, about $320/month with one replica
+# redis_autoscale_min_class = "cache.t4g.micro"
+# redis_autoscale_enabled   = false              # switch the whole thing off
+
+# --- Batch A (2026-10-24, docs/runbooks/batch-a-owner.md): all additive, none applied yet ---
+# pagerduty_https_endpoint = "https://events.pagerduty.com/integration/REPLACE/enqueue" # secret: only in the Secrets Manager tfvars
+# backup_age_missing_data  = "notBreaching" # until the first backup job is COMPLETED, then "breaching"
+# backup_vault_lock_mode   = "governance"   # "compliance" only after a passing restore drill
+# audit_logs_enabled       = true           # keep audit_logs_object_lock = false (S3 server access logs cannot go to an Object Lock bucket)
+# documents_data_events    = true
+# waf_bot_control_enabled  = true           # count mode; waf_bot_control_block stays false for 1-2 weeks
+# budget_forecast_thresholds   = [80, 100]
+# create_anomaly_monitor       = false
+# anomaly_existing_monitor_arn = "arn:aws:ce::047754151252:anomalymonitor/22314789-2e8e-43a5-8360-f93611944718"
+# anomaly_extra_emails         = ["REPLACE@gmail.com"]
+# redis_memory_alarm_percent   = 70   # default
+# nat_traffic_alarm_gb_per_day = 20  # default; 0 = off

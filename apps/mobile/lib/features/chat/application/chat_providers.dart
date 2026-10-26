@@ -1,65 +1,269 @@
-import 'package:flutter/services.dart' show HapticFeedback;
-import 'package:lawbid/features/stickers/application/stickers_providers.dart';
-import 'package:lawbid/features/stickers/domain/sticker_models.dart';
-import 'dart:typed_data';
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/cache/cache_limits.dart';
+import 'package:lawbid/core/cache/cache_providers.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/media/image_size.dart';
+import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/platform/chat_notifications_channel.dart';
+import 'package:lawbid/core/uploads/upload_queue.dart';
+import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/chat_counts_refresh.dart';
+import 'package:lawbid/features/chat/application/chat_list_delta.dart';
+import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
+import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
-import 'package:lawbid/features/chat/data/voice_files.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
+import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/notifications/application/call_mute.dart';
+import 'package:lawbid/features/notifications/application/notifications_providers.dart';
+import 'package:lawbid/features/notifications/data/notifications_repository.dart'
+    show NotifCategory;
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
+import 'package:lawbid/features/stars/application/stars_providers.dart';
+import 'package:lawbid/features/stickers/domain/sticker_models.dart';
+import 'package:lawbid/features/templates/application/templates_providers.dart';
+import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
-import 'package:lawbid/features/notifications/application/notifications_providers.dart';
-import 'package:lawbid/features/notifications/data/notifications_repository.dart' show NotifCategory;
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 Duration? _noRetry(int retryCount, Object error) => null;
+
+/// Owner 2026-10-20 (speed): the chat list's saved first page, per account.
+final chatListCacheProvider = Provider<ChatListCache>(
+  (ref) => ChatListCache(ref.watch(savedJsonProvider)),
+);
+
+/// Owner 2026-10-22 (package C): this account's chat history on the phone
+/// (null signed out). The web keeps it in the tab's memory (plan §5).
+final messageStoreProvider = Provider<MessageStore?>((ref) {
+  final owner = ref.watch(currentUserIdProvider);
+  if (owner == null) return null;
+  return MessageStore(
+    ref.watch(cacheDatabaseProvider),
+    owner,
+    limitBytes: () =>
+        ref.read(cacheLimitsProvider).limitBytes(CacheStore.messages),
+  );
+});
 
 final chatRepositoryProvider = Provider<ChatRepository>(
   (ref) => ApiChatRepository(
     ref.watch(dioProvider),
     storageDio: ref.watch(storageDioProvider),
+    listCache: ref.watch(chatListCacheProvider),
+    messageStore: ref.watch(messageStoreProvider),
   ),
 );
 
 // --- Conversations list (docs/05 §8.1) ---------------------------------------
 
+/// Owner 2026-10-22 (load audit finding 2): chat-list events made on this
+/// phone (I read a chat) — the lists apply them at once, before the server's
+/// `conversation:read` echo arrives (or when the socket is down).
+final localChatEventsProvider = Provider<StreamController<RealtimeEvent>>(
+  (ref) {
+    final c = StreamController<RealtimeEvent>.broadcast();
+    ref.onDispose(c.close);
+    return c;
+  },
+);
+
 class ConversationsNotifier extends PagedNotifier<Conversation> {
   Timer? _debounce;
+  Timer? _pullTimer;
+
+  /// The earliest change a pending catch-up must cover.
+  DateTime? _pullSince;
+
+  /// Chats a message arrived in that this list does not hold: the next
+  /// catch-up looks for them.
+  final Set<String> _asked = {};
+
+  /// Chats asked for that are not in this list (archived, another folder):
+  /// their next messages do not ask again until a reconnect / refresh.
+  final Set<String> _outside = {};
+
+  // Owner 2026-10-18 (speed): kept for 5 minutes after the screen leaves
+  // (see PagedNotifier.keepAliveFor).
+  @override
+  Duration? get keepAliveFor => const Duration(minutes: 5);
+
+  /// Owner 2026-10-22: whether this list catches up with `updatedSince`
+  /// (a search does not: it re-reads after a reconnect, as before).
+  bool get catchesUp => true;
+
+  /// The rows of this list changed since [since] (server time).
+  Future<CursorPage<Conversation>> fetchChangedSince(DateTime since) =>
+      ref.read(chatRepositoryProvider).conversations(updatedSince: since);
 
   @override
   Future<PaginatedList<Conversation>> build() {
-    // New messages, closed chats, a reconnect: re-read the first page
-    // (debounced, so a burst of events is one request).
-    final sub = ref.watch(realtimeEventsProvider).listen((e) {
-      if (e.name == 'message:new' ||
-          e.name == 'conversation:update' ||
-          e.name == 'message:read' ||
-          e.name == RealtimeEvent.reconnected) {
-        _debounce?.cancel();
-        _debounce = Timer(const Duration(milliseconds: 600), () {
-          if (!ref.mounted) return;
-          // Offline / 5xx while events arrive: keep what is shown.
-          unawaited(refresh().catchError((Object _) {}));
-        });
+    _outside.clear();
+    _asked.clear();
+    _pullSince = null;
+    // Owner 2026-10-21: remember which chats have their calls muted.
+    listenSelf((_, AsyncValue<PaginatedList<Conversation>> next) {
+      for (final c in next.value?.items ?? const <Conversation>[]) {
+        ref
+            .read(callMutedChatsProvider.notifier)
+            .mark(c.id, muted: c.callsMuted);
       }
     });
+    // Owner 2026-10-22 (load audit finding 2, Telegram): every event is
+    // applied to the rows held here; the server is asked only after a
+    // socket gap (`updatedSince`) or for a chat this list does not hold.
+    final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
+    final local = ref.watch(localChatEventsProvider).stream.listen(_onEvent);
     ref.onDispose(() {
       sub.cancel();
+      local.cancel();
       _debounce?.cancel();
+      _pullTimer?.cancel();
     });
     return super.build();
   }
+
+  void _onEvent(RealtimeEvent e) {
+    final data = e.data;
+    switch (e.name) {
+      case 'message:new':
+        final m = ChatMappers.fromEvent(data);
+        if (m == null) return;
+        final me = ref.read(currentUserIdProvider);
+        if (_edit((items) => applyNewMessage(items, m, me: me))) return;
+        // Not held here: a new chat, one further down, or one outside.
+        if (!catchesUp || _outside.contains(m.conversationId)) return;
+        _asked.add(m.conversationId);
+        _catchUp(m.createdAt.subtract(const Duration(seconds: 2)));
+      case 'message:updated':
+        if (data is Map && data['hiddenForMe'] == true) {
+          final cid = data['conversationId'];
+          final mid = data['messageId'];
+          final shown = state.value?.items.where((c) => c.id == cid);
+          // The preview I hid: the chat's row comes again from the server.
+          if (cid is String && shown?.firstOrNull?.lastMessage?.id == mid) {
+            unawaited(_reloadRow(cid));
+          }
+          return;
+        }
+        final m = ChatMappers.fromEvent(data);
+        if (m != null) _edit((items) => applyUpdatedMessage(items, m));
+      case 'message:read':
+        if (data is! Map) return;
+        final cid = data['conversationId'];
+        final last = data['lastReadMessageId'];
+        if (cid is! String || last is! String) return;
+        final at = DateTime.tryParse('${data['readAt']}') ?? DateTime.now();
+        _edit(
+          (items) => applyReceipts(items, cid, readId: last, readAt: at),
+        );
+      case 'conversation:read':
+        final cid = data is Map ? data['conversationId'] : null;
+        if (cid is String) _edit((items) => applyReadByMe(items, cid));
+      case 'conversation:update':
+        // Closed, unlocked, a request answered (it may change folders):
+        // rare — the first page is read again, debounced.
+        _refreshSoon();
+      case RealtimeEvent.reconnected:
+        _outside.clear();
+        final since = catchUpSince(state.value?.items ?? const []);
+        if (!catchesUp || since == null) {
+          _refreshSoon();
+        } else {
+          _catchUp(since);
+        }
+    }
+  }
+
+  /// Applies [change] to the rows held; false when it did not find the
+  /// chat. Nothing loaded yet: the first page in flight will have it.
+  bool _edit(List<Conversation>? Function(List<Conversation>) change) {
+    final current = state.value;
+    if (current == null) return true;
+    final next = change(current.items);
+    if (next == null) return false;
+    if (!identical(next, current.items)) setItems(next);
+    return true;
+  }
+
+  void _refreshSoon() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (!ref.mounted) return;
+      // Offline / 5xx while events arrive: keep what is shown.
+      unawaited(refresh().catchError((Object _) {}));
+    });
+  }
+
+  /// One `updatedSince` request for everything since [since] (debounced:
+  /// a burst of events is one request).
+  void _catchUp(DateTime since) {
+    final pending = _pullSince;
+    _pullSince = pending == null || since.isBefore(pending) ? since : pending;
+    _pullTimer?.cancel();
+    _pullTimer = Timer(
+      const Duration(milliseconds: 600),
+      () => unawaited(_pull()),
+    );
+  }
+
+  Future<void> _pull() async {
+    final since = _pullSince;
+    final asked = {..._asked};
+    _pullSince = null;
+    _asked.clear();
+    if (since == null || !ref.mounted) return;
+    try {
+      final page = await fetchChangedSince(since);
+      if (!ref.mounted) return;
+      // More changed than one page: one plain reload is cheaper.
+      if (page.nextCursor != null) {
+        await refresh();
+        return;
+      }
+      final current = state.value;
+      if (current == null) return;
+      setItems(mergeChanged(current.items, page.items));
+      final found = {for (final c in page.items) c.id};
+      _outside.addAll(asked.difference(found));
+    } on Object {
+      // Offline / 5xx: the next reconnect catches up again.
+    }
+  }
+
+  Future<void> _reloadRow(String id) async {
+    try {
+      final fresh = await ref.read(chatRepositoryProvider).conversation(id);
+      final current = state.value;
+      if (!ref.mounted || current == null) return;
+      setItems([
+        for (final c in current.items)
+          if (c.id == id) fresh else c,
+      ]);
+    } on Object {
+      // Keep what is shown.
+    }
+  }
+
+  // Owner 2026-10-20 (speed, Telegram): the inbox opens on the list saved by
+  // the last visit and refreshes in the background (see PagedNotifier).
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() =>
+      ref.read(chatListCacheProvider).read();
 
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) =>
@@ -79,10 +283,19 @@ final conversationsProvider = AsyncNotifierProvider.autoDispose<
 
 /// Requests sent to me (the "Requests" folder).
 class MessageRequestsNotifier extends ConversationsNotifier {
+  // A different list: the saved copy is the plain inbox only.
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() async => null;
+
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
       .read(chatRepositoryProvider)
       .conversations(cursor: cursor, requests: true);
+
+  @override
+  Future<CursorPage<Conversation>> fetchChangedSince(DateTime since) => ref
+      .read(chatRepositoryProvider)
+      .conversations(updatedSince: since, requests: true);
 }
 
 final messageRequestsProvider = AsyncNotifierProvider.autoDispose<
@@ -97,30 +310,92 @@ class FolderConversationsNotifier extends ConversationsNotifier {
 
   final ChatListFolder folder;
 
+  // Only the "All" folder is the saved list.
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() async =>
+      folder == ChatListFolder.all ? super.cachedFirstPage() : null;
+
   @override
   Future<CursorPage<Conversation>> fetch(String? cursor) => ref
       .read(chatRepositoryProvider)
       .conversations(cursor: cursor, folder: folder);
+
+  @override
+  Future<CursorPage<Conversation>> fetchChangedSince(DateTime since) => ref
+      .read(chatRepositoryProvider)
+      .conversations(updatedSince: since, folder: folder);
 }
 
-final folderConversationsProvider = AsyncNotifierProvider.autoDispose
-    .family<FolderConversationsNotifier, PaginatedList<Conversation>,
-        ChatListFolder>(
+final folderConversationsProvider = AsyncNotifierProvider.autoDispose.family<
+    FolderConversationsNotifier, PaginatedList<Conversation>, ChatListFolder>(
   FolderConversationsNotifier.new,
   retry: _noRetry,
 );
 
+/// Owner 2026-10-18: the chats of a folder matching a search (`q` is sent
+/// to the server: names, @username, case title, message text).
+typedef ChatSearchKey = ({ChatListFolder folder, String q});
+
+class SearchConversationsNotifier extends ConversationsNotifier {
+  SearchConversationsNotifier(this.key);
+
+  final ChatSearchKey key;
+
+  @override
+  bool get catchesUp => false;
+
+  @override
+  Future<CursorPage<Conversation>?> cachedFirstPage() async => null;
+
+  @override
+  Future<CursorPage<Conversation>> fetch(String? cursor) =>
+      ref.read(chatRepositoryProvider).conversations(
+            cursor: cursor,
+            folder: key.folder,
+            requests: key.folder == ChatListFolder.requests,
+            q: key.q,
+          );
+}
+
+final searchConversationsProvider = AsyncNotifierProvider.autoDispose.family<
+    SearchConversationsNotifier, PaginatedList<Conversation>, ChatSearchKey>(
+  SearchConversationsNotifier.new,
+  retry: _noRetry,
+);
+
+/// One gate per badge, kept across the provider's own re-reads (a gate built
+/// inside the provider would forget the chats seen and ask again each time).
+final _waitingGateProvider = Provider.autoDispose<ChatCountsGate>(
+  (ref) => ChatCountsGate(me: () => ref.read(currentUserIdProvider)),
+);
+final _requestsGateProvider = Provider.autoDispose<ChatCountsGate>(
+  (ref) => ChatCountsGate(me: () => ref.read(currentUserIdProvider)),
+);
+
 /// Waiting / Requests badges; re-read on chat events.
-final chatFolderCountsProvider =
-    FutureProvider.autoDispose<({int waiting, int requests})>((ref) {
-  final sub = ref.watch(realtimeEventsProvider).listen((e) {
-    if (e.name == 'message:new' || e.name == 'conversation:update') {
-      ref.invalidateSelf();
-    }
-  });
-  ref.onDispose(sub.cancel);
-  return ref.watch(chatRepositoryProvider).folderCounts();
-}, retry: _noRetry);
+final chatFolderCountsProvider = FutureProvider.autoDispose<
+    ({int waiting, int requests, int cases, int archived})>(
+  (ref) {
+    // Debounced; a message only asks when it flips a chat's side (see
+    // chat_counts_refresh.dart).
+    final debounce = CountsDebouncer(ref.invalidateSelf);
+    final gate = ref.watch(_waitingGateProvider);
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'message:new') {
+        if (gate.onMessage(e).waiting) debounce.poke();
+      } else if (e.name == 'conversation:update' ||
+          e.name == 'group:invite') {
+        debounce.poke();
+      }
+    });
+    ref.onDispose(() {
+      sub.cancel();
+      debounce.dispose();
+    });
+    return ref.watch(chatRepositoryProvider).folderCounts();
+  },
+  retry: _noRetry,
+);
 
 /// After organizing a chat every folder list and the badges reload.
 void refreshChatFolders(WidgetRef ref) {
@@ -132,15 +407,26 @@ void refreshChatFolders(WidgetRef ref) {
 
 /// How many requests wait for me — the "Requests · N" row; re-read on new
 /// messages and chat updates.
-final messageRequestsCountProvider = FutureProvider.autoDispose<int>((ref) {
-  final sub = ref.watch(realtimeEventsProvider).listen((e) {
-    if (e.name == 'message:new' || e.name == 'conversation:update') {
-      ref.invalidateSelf();
-    }
-  });
-  ref.onDispose(sub.cancel);
-  return ref.watch(chatRepositoryProvider).requestsCount();
-}, retry: _noRetry);
+final messageRequestsCountProvider = FutureProvider.autoDispose<int>(
+  (ref) {
+    final debounce = CountsDebouncer(ref.invalidateSelf);
+    final gate = ref.watch(_requestsGateProvider);
+    final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'message:new') {
+        if (gate.onMessage(e).requests) debounce.poke();
+      } else if (e.name == 'conversation:update' ||
+          e.name == 'group:invite') {
+        debounce.poke();
+      }
+    });
+    ref.onDispose(() {
+      sub.cancel();
+      debounce.dispose();
+    });
+    return ref.watch(chatRepositoryProvider).requestsCount();
+  },
+  retry: _noRetry,
+);
 
 // --- Outbox (docs/05 §8.4) --------------------------------------------------
 
@@ -148,31 +434,83 @@ final messageRequestsCountProvider = FutureProvider.autoDispose<int>((ref) {
 /// clientMessageId (the server's UQ makes a retry a no-op, so a message is
 /// never delivered twice). Drains after each new message, when the
 /// connection comes back and after a socket reconnect.
-class OutboxSender {
+class OutboxSender with WidgetsBindingObserver {
   OutboxSender(this._ref) {
+    // Telegram/WhatsApp: coming back to the app flushes the queue at once.
+    WidgetsBinding.instance.addObserver(this);
     _ref
       ..listen(connectivityStatusProvider, (prev, next) {
         if (next.offlineReason == null && prev?.offlineReason != null) {
           unawaited(drain());
         }
       })
-      ..listen(realtimeEventsProvider, (_, stream) {
+      ..listen(
+        realtimeEventsProvider,
+        (_, stream) {
+          _sub?.cancel();
+          _sub = stream.listen((e) {
+            if (e.name == RealtimeEvent.reconnected) unawaited(drain());
+          });
+        },
+        fireImmediately: true,
+      )
+      ..onDispose(() {
         _sub?.cancel();
-        _sub = stream.listen((e) {
-          if (e.name == RealtimeEvent.reconnected) unawaited(drain());
-        });
-      }, fireImmediately: true)
-      ..onDispose(() => _sub?.cancel());
+        _retry?.cancel();
+        WidgetsBinding.instance.removeObserver(this);
+      });
   }
 
   final Ref _ref;
   StreamSubscription<RealtimeEvent>? _sub;
   Future<void>? _running;
   bool _again = false;
+
+  /// A temporary failure schedules the next pass itself (a wait that grows
+  /// 1 → 2 → 4 … 30 s): without it a message stuck on one timeout would sit
+  /// at "sending" until the user wrote another one.
+  Timer? _retry;
+  int _failures = 0;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(drain());
+  }
+
+  /// The wait before retry number [failures] (1-based).
+  @visibleForTesting
+  static Duration backoff(int failures) {
+    return ClientTuning.outboxBackoff(failures);
+  }
+
+  void _scheduleRetry() {
+    _failures++;
+    _retry?.cancel();
+    _retry = Timer(backoff(_failures), () => unawaited(drain()));
+  }
+
+  /// Whether [e] is worth repeating as it is: no connection, a server that
+  /// is down or busy, a token that is being renewed or a request that timed
+  /// out. Anything else is a refusal the user has to see.
+  static bool _temporary(ApiException e) {
+    final c = e.statusCode ?? 500;
+    return e.isNetworkError ||
+        c == 401 ||
+        c == 408 ||
+        c == 425 ||
+        c == 429 ||
+        c >= 500;
+  }
+
   final _sent = StreamController<ChatMessage>.broadcast();
 
   /// Messages the server accepted (for threads whose socket is down).
   Stream<ChatMessage> get sent => _sent.stream;
+
+  /// Owner 2026-10-22: the media queue's sends join the same stream.
+  void announceSent(ChatMessage m) {
+    if (!_sent.isClosed) _sent.add(m);
+  }
 
   /// Set when the server said "renew your subscription" (§8.4).
   final subscriptionRequired = ValueNotifier<bool>(false);
@@ -204,28 +542,49 @@ class OutboxSender {
     if (owner == null) return;
     final db = _ref.read(socialLocalDatabaseProvider);
     final repo = _ref.read(chatRepositoryProvider);
+    // A conversation whose message just failed temporarily keeps its order
+    // (nothing behind it goes first) but does not hold the other chats.
+    final waiting = <String>{};
+    var temporaryFailure = false;
     for (final row in await db.pending(owner)) {
       if (row.failedCode != null) continue;
+      if (waiting.contains(row.conversationId)) continue;
       try {
-        final m =
-            await repo.send(row.conversationId, row.clientMessageId, row.body);
+        final m = await repo.send(
+          row.conversationId,
+          row.clientMessageId,
+          row.body,
+          replyToId: row.replyToId,
+          forwarded: row.forwarded,
+        );
         // Merge into the thread before the outbox row disappears, so the
         // bubble never blinks out.
         _sent.add(m);
         await db.sent(row.clientMessageId);
       } on ApiException catch (e) {
-        if (e.isNetworkError ||
-            e.statusCode == 429 ||
-            (e.statusCode ?? 500) >= 500) {
-          // Temporary: keep it and stop; the next trigger retries in order.
+        if (_temporary(e)) {
           await db.attempted(row.clientMessageId);
-          return;
+          waiting.add(row.conversationId);
+          temporaryFailure = true;
+          continue;
         }
         if (e.code == ApiErrorCodes.subscriptionRequired) {
           subscriptionRequired.value = true;
         }
         await db.attempted(row.clientMessageId, failedCode: e.code);
+      } on Object {
+        // Not an API answer at all (a dropped socket, a parse error): the
+        // message is still safe in the queue, try again later.
+        await db.attempted(row.clientMessageId);
+        waiting.add(row.conversationId);
+        temporaryFailure = true;
       }
+    }
+    if (temporaryFailure) {
+      _scheduleRetry();
+    } else {
+      _failures = 0;
+      _retry?.cancel();
     }
   }
 }
@@ -235,6 +594,66 @@ final outboxSenderProvider = Provider<OutboxSender>((ref) {
   ref.onDispose(sender._sent.close);
   return sender;
 });
+
+// --- Delivery receipts (WhatsApp's two grey ticks) ---------------------------
+
+/// Tells the server that this device has received the other side's messages:
+/// the newest one of each chat, shortly after it arrives. A device that was
+/// offline gets the same from the server when the chat list is pulled.
+class DeliveryAcker {
+  DeliveryAcker(this._ref) {
+    _ref.listen(
+      realtimeEventsProvider,
+      (_, stream) {
+        _sub?.cancel();
+        _sub = stream.listen(_onEvent);
+      },
+      fireImmediately: true,
+    );
+    _ref.onDispose(() {
+      _sub?.cancel();
+      for (final t in _timers.values) {
+        t.cancel();
+      }
+    });
+  }
+
+  final Ref _ref;
+  StreamSubscription<RealtimeEvent>? _sub;
+  final _timers = <String, Timer>{};
+  final _newest = <String, String>{};
+  final _acked = <String, String>{};
+
+  void _onEvent(RealtimeEvent e) {
+    if (e.name != 'message:new') return;
+    final m = ChatMappers.fromEvent(e.data);
+    final me = _ref.read(currentUserIdProvider);
+    if (m == null || me == null || m.senderId == me || m.senderId == null) {
+      return;
+    }
+    if (m.kind == MessageKind.call) return;
+    _newest[m.conversationId] = m.id;
+    _timers[m.conversationId]?.cancel();
+    // Owner 2026-10-22 (package K): a burst of messages is one `delivered`.
+    _timers[m.conversationId] = Timer(
+      const Duration(seconds: 1),
+      () => unawaited(_send(m.conversationId)),
+    );
+  }
+
+  Future<void> _send(String conversationId) async {
+    final id = _newest[conversationId];
+    if (id == null || _acked[conversationId] == id) return;
+    try {
+      await _ref.read(chatRepositoryProvider).delivered(conversationId, id);
+      _acked[conversationId] = id;
+    } on Object {
+      // The server marks it when this device next pulls the chat list.
+    }
+  }
+}
+
+final deliveryAckerProvider = Provider<DeliveryAcker>(DeliveryAcker.new);
 
 // --- One conversation (docs/05 §8.2) -----------------------------------------
 
@@ -250,10 +669,29 @@ class ChatThreadState {
     this.error,
     this.loadMoreFailed = false,
     this.typing = false,
+    this.typingVoice = false,
     this.voiceOutbox = const [],
+    this.pins = const [],
+    this.editWindowMin = 15,
+    this.deleteForAllHours = 48,
+    this.maxPins = 3,
+    this.unreadFromId,
+    this.unreadCount = 0,
   });
 
   final Conversation? conversation;
+
+  /// Owner 2026-10-20: pinned messages (newest pin first) and the rules the
+  /// server reports (admin-editable): edit window, delete-for-all window.
+  final List<ChatMessage> pins;
+  final int editWindowMin;
+  final int deleteForAllHours;
+  final int maxPins;
+
+  /// Owner 2026-10-20: the oldest message that was unread when the chat was
+  /// opened ("N unread messages" divider above it); fixed for the visit.
+  final String? unreadFromId;
+  final int unreadCount;
 
   /// Server messages, newest first.
   final List<ChatMessage> messages;
@@ -270,6 +708,9 @@ class ChatThreadState {
   final bool loadMoreFailed;
   final bool typing;
 
+  /// Owner 2026-10-20: the other side is recording a voice message.
+  final bool typingVoice;
+
   /// OQ-040: voice notes being uploaded/sent (or failed), oldest first.
   final List<ChatMessage> voiceOutbox;
 
@@ -277,7 +718,13 @@ class ChatThreadState {
   List<ChatMessage> get all {
     final pending = [...outbox, ...voiceOutbox]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return [...pending, ...messages];
+    // Owner 2026-10-21: disappearing messages vanish by the clock, before
+    // the server's sweep (and from a cached page) reaches the device.
+    final now = DateTime.now();
+    return [
+      ...pending,
+      ...messages.where((m) => !m.isExpired(now)),
+    ];
   }
 
   ChatThreadState copyWith({
@@ -292,9 +739,22 @@ class ChatThreadState {
     bool clearError = false,
     bool? loadMoreFailed,
     bool? typing,
+    bool? typingVoice,
     List<ChatMessage>? voiceOutbox,
+    List<ChatMessage>? pins,
+    int? editWindowMin,
+    int? deleteForAllHours,
+    int? maxPins,
+    String? unreadFromId,
+    int? unreadCount,
   }) =>
       ChatThreadState(
+        unreadFromId: unreadFromId ?? this.unreadFromId,
+        unreadCount: unreadCount ?? this.unreadCount,
+        pins: pins ?? this.pins,
+        editWindowMin: editWindowMin ?? this.editWindowMin,
+        deleteForAllHours: deleteForAllHours ?? this.deleteForAllHours,
+        maxPins: maxPins ?? this.maxPins,
         conversation: conversation ?? this.conversation,
         messages: messages ?? this.messages,
         outbox: outbox ?? this.outbox,
@@ -304,6 +764,7 @@ class ChatThreadState {
         error: clearError ? null : (error ?? this.error),
         loadMoreFailed: loadMoreFailed ?? this.loadMoreFailed,
         typing: typing ?? this.typing,
+        typingVoice: typingVoice ?? this.typingVoice,
         voiceOutbox: voiceOutbox ?? this.voiceOutbox,
       );
 }
@@ -313,6 +774,7 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   final String id;
   Timer? _typingOff;
+  Timer? _expiryTimer;
   String? _lastReadSent;
   DateTime _lastTypingSent = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -323,7 +785,10 @@ class ChatThread extends Notifier<ChatThreadState> {
     final owner = ref.watch(currentUserIdProvider);
     final realtime = ref.watch(realtimeClientProvider);
     realtime?.join(id);
+    // Owner 2026-10-22: the chat is open — its notification goes.
+    unawaited(chatNotificationsChannel.clearChat(id));
 
+    final media = ref.read(chatMediaOutboxProvider);
     final subs = <StreamSubscription<Object?>>[
       ref.watch(realtimeEventsProvider).listen(_onEvent),
       ref.read(outboxSenderProvider).sent.listen((m) {
@@ -334,19 +799,99 @@ class ChatThread extends Notifier<ChatThreadState> {
             .read(socialLocalDatabaseProvider)
             .watchPending(owner, id)
             .listen(_onOutbox),
+      // Owner 2026-10-22 (audit #4 §3): this chat's queued media.
+      if (media.ownerId != null)
+        media.db
+            .watchTarget(media.ownerId!, id, kindPrefix: ChatMediaKind.prefix)
+            .listen((rows) => unawaited(_onMediaJobs(rows))),
+      media.progress.listen(_onUploadProgress),
     ];
     ref.onDispose(() {
       for (final s in subs) {
         s.cancel();
       }
       _typingOff?.cancel();
+      _expiryTimer?.cancel();
       realtime?.leave(id);
+    });
+    // Owner 2026-10-21: wake up at the next message that runs out.
+    listenSelf((prev, next) {
+      if (!identical(prev?.messages, next.messages)) _armExpiry();
     });
     unawaited(Future.microtask(load));
     return const ChatThreadState();
   }
 
+  /// Owner 2026-10-21: one timer for the soonest expiring message; when it
+  /// fires the expired ones leave the state and the next one is armed.
+  void _armExpiry() {
+    _expiryTimer?.cancel();
+    DateTime? soonest;
+    for (final m in state.messages) {
+      final at = m.expiresAt;
+      if (at != null && (soonest == null || at.isBefore(soonest))) {
+        soonest = at;
+      }
+    }
+    if (soonest == null) return;
+    final wait = soonest.difference(DateTime.now());
+    _expiryTimer = Timer(
+      wait.isNegative ? Duration.zero : wait + const Duration(milliseconds: 50),
+      () {
+        if (!ref.mounted) return;
+        final now = DateTime.now();
+        state = state.copyWith(
+          messages: [
+            for (final m in state.messages)
+              if (!m.isExpired(now)) m,
+          ],
+        );
+      },
+    );
+  }
+
+  /// Owner 2026-10-21: switch the disappearing-messages timer (null = off).
+  Future<void> setDisappearing(int? afterS) async {
+    final updated = await _repo.setDisappearing(id, afterS);
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
+  }
+
+  MessageStore? get _store => ref.read(messageStoreProvider);
+
+  /// The marker cursor while older pages still come from the phone.
+  static const localCursor = 'local';
+
+  /// Owner 2026-10-22 (package C, WhatsApp): the chat opens on the phone's
+  /// copy at once, the server is asked only for what came after the newest
+  /// message on the phone; a chat without a copy reads its first page.
   Future<void> load() async {
+    final store = _store;
+    if (store != null) {
+      final local = await store.page(id);
+      if (!ref.mounted) return;
+      if (local.isNotEmpty) {
+        unawaited(store.touch(id));
+        state = state.copyWith(
+          messages: local.map(ChatMappers.message).toList(),
+          nextCursor: localCursor,
+          loading: false,
+          clearError: true,
+        );
+        unawaited(_refreshConversation());
+        unawaited(_catchUp());
+        unawaited(ref.read(outboxSenderProvider).drain());
+        unawaited(loadPins());
+        return;
+      }
+    }
+    await _loadPage();
+  }
+
+  Future<void> _loadPage() async {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final results = await Future.wait([
@@ -355,16 +900,47 @@ class ChatThread extends Notifier<ChatThreadState> {
       ]);
       if (!ref.mounted) return;
       final page = results[1] as CursorPage<ChatMessage>;
+      final conv = results[0] as Conversation;
+      final me = ref.read(currentUserIdProvider);
+      String? firstUnread;
+      if (state.unreadFromId == null && conv.unreadCount > 0) {
+        // Newest first: the unread ones are the newest from the other side.
+        var left = conv.unreadCount;
+        for (final m in page.items) {
+          if (m.senderId == me || m.isLocal) continue;
+          firstUnread = m.id;
+          if (--left == 0) break;
+        }
+      }
       state = state.copyWith(
-        conversation: results[0] as Conversation,
+        conversation: conv,
+        unreadFromId: firstUnread,
+        unreadCount: firstUnread == null ? null : conv.unreadCount,
         messages: page.items,
         nextCursor: page.nextCursor,
         clearCursor: page.nextCursor == null,
         loading: false,
       );
       unawaited(ref.read(outboxSenderProvider).drain());
+      unawaited(loadPins());
     } on Object catch (e) {
       if (ref.mounted) state = state.copyWith(loading: false, error: e);
+    }
+  }
+
+  /// Pinned messages plus the edit/delete windows (all server-side rules).
+  Future<void> loadPins() async {
+    try {
+      final info = await _repo.pins(id);
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        pins: info.items,
+        editWindowMin: info.editWindowMin,
+        deleteForAllHours: info.deleteForAllHours,
+        maxPins: info.maxPins,
+      );
+    } on Object {
+      // Keep the defaults; the server still enforces the rules.
     }
   }
 
@@ -372,6 +948,10 @@ class ChatThread extends Notifier<ChatThreadState> {
     final cursor = state.nextCursor;
     if (cursor == null || state.loadingMore) return;
     state = state.copyWith(loadingMore: true, loadMoreFailed: false);
+    if (cursor == localCursor) {
+      await _loadMoreLocal();
+      return;
+    }
     try {
       final page = await _repo.messages(id, cursor: cursor);
       if (!ref.mounted) return;
@@ -388,8 +968,46 @@ class ChatThread extends Notifier<ChatThreadState> {
     }
   }
 
+  /// Older messages from the phone; when it has no more, the server's page
+  /// after the oldest one on the phone (its cursor was saved with it).
+  Future<void> _loadMoreLocal() async {
+    final store = _store;
+    final oldest = state.messages.where((m) => !m.isLocal).lastOrNull;
+    final older = store == null || oldest == null
+        ? const <api.MessageDto>[]
+        : await store.page(id, before: oldest.createdAt);
+    if (!ref.mounted) return;
+    if (older.isNotEmpty) {
+      _merge(older.map(ChatMappers.message).toList());
+      state = state.copyWith(loadingMore: false);
+      return;
+    }
+    final history = await store?.history(id);
+    if (!ref.mounted) return;
+    if (history != null && history.complete) {
+      state = state.copyWith(loadingMore: false, clearCursor: true);
+      return;
+    }
+    try {
+      // No saved cursor (the copy grew from events only): the first page
+      // again — it merges by id and brings the cursor for the rest.
+      final page = await _repo.messages(id, cursor: history?.nextCursor);
+      if (!ref.mounted) return;
+      _merge(page.items);
+      state = state.copyWith(
+        nextCursor: page.nextCursor,
+        clearCursor: page.nextCursor == null,
+        loadingMore: false,
+      );
+    } on Object {
+      if (ref.mounted) {
+        state = state.copyWith(loadingMore: false, loadMoreFailed: true);
+      }
+    }
+  }
+
   /// Written → shown at once as "отправляется" → sent by the outbox.
-  Future<void> send(String text) async {
+  Future<void> send(String text, {String? replyToId}) async {
     final body = text.trim();
     final owner = ref.read(currentUserIdProvider);
     if (body.isEmpty || owner == null) return;
@@ -398,6 +1016,7 @@ class ChatThread extends Notifier<ChatThreadState> {
           ownerId: owner,
           conversationId: id,
           body: body,
+          replyToId: replyToId,
         );
     // OQ-044: a quick "sent" pop, like Telegram.
     unawaited(ref.read(appSoundsProvider).messageOut());
@@ -405,84 +1024,160 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   /// OQ-040: a recorded note → a local "sending" bubble → upload → send.
-  /// A failure keeps the bubble with Retry (the file stays on the device).
+  /// Owner 2026-10-22 (audit #4 §3): the note is a job of the persistent
+  /// upload queue (core/uploads) — moved into the queue's folder, it
+  /// survives the app being closed and goes out when the network is back.
+  /// A refusal keeps the bubble with Retry / Delete.
   Future<void> sendVoice({
     required String path,
     required int durationMs,
     required List<int> waveform,
   }) async {
-    final owner = ref.read(currentUserIdProvider);
-    if (owner == null) return;
+    final queue = ref.read(chatMediaOutboxProvider);
+    if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
-    final local = ChatMessage(
-      id: 'local:$cmid',
-      conversationId: id,
-      senderId: owner,
-      kind: MessageKind.voice,
-      body: '',
-      clientMessageId: cmid,
-      createdAt: DateTime.now(),
-      delivery: DeliveryState.sending,
-      voice: VoiceNote(
-        localPath: path,
-        durationMs: durationMs,
-        waveform: waveform,
-        listened: false,
-      ),
-    );
-    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
+    final ext = path.toLowerCase().endsWith('.webm') || kIsWeb ? 'webm' : 'm4a';
+    final name = await ref
+        .read(uploadFilesProvider)
+        .keep('$cmid.$ext', fromPath: path, move: true);
     unawaited(ref.read(appSoundsProvider).messageOut());
-    await _uploadVoice(local);
-  }
-
-  Future<void> _uploadVoice(ChatMessage local) async {
-    final v = local.voice!;
-    try {
-      final bytes = await readVoiceFile(v.localPath!);
-      final fileId = await _repo.uploadVoice(bytes);
-      final sent = await _repo.sendVoice(
-        id,
-        local.clientMessageId!,
-        fileId: fileId,
-        durationMs: v.durationMs,
-        waveform: v.waveform,
-      );
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      _merge([sent]);
-    } on ApiException catch (e) {
-      if (e.code == ApiErrorCodes.subscriptionRequired) {
-        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
-      }
-      _markVoice(local, DeliveryState.failed, e.code);
-    } on Object {
-      _markVoice(local, DeliveryState.failed, null);
-    }
+    await queue.enqueue(
+      id: cmid,
+      kind: ChatMediaKind.voice,
+      target: id,
+      payload: {'durationMs': durationMs, 'waveform': waveform},
+      fileName: name,
+    );
   }
 
   void _markVoice(ChatMessage local, DeliveryState d, String? code) {
     if (!ref.mounted) return;
-    state = state.copyWith(voiceOutbox: [
-      for (final m in state.voiceOutbox)
-        if (m.clientMessageId == local.clientMessageId)
-          m.copyWith(delivery: d, failedCode: code)
-        else
-          m,
-    ]);
+    state = state.copyWith(
+      voiceOutbox: [
+        for (final m in state.voiceOutbox)
+          if (m.clientMessageId == local.clientMessageId)
+            m.copyWith(delivery: d, failedCode: code)
+          else
+            m,
+      ],
+    );
   }
 
   /// OQ-047: a picked photo or document → a local bubble with progress →
-  /// upload → send. A failure keeps the bubble with Retry.
+  /// upload → send. Owner 2026-10-22 (audit #4 §3): a persistent queue
+  /// job (see [sendVoice]).
   Future<void> sendAttachment({
     required Uint8List bytes,
     required String name,
     required String mime,
     String? caption,
+
+    /// Owner 2026-10-19 (albums): files picked together keep the picked
+    /// order — this one is queued after `after` (the previous file's
+    /// call); the queue uploads them at once and sends them in order.
+    Future<void>? after,
   }) async {
+    final queue = ref.read(chatMediaOutboxProvider);
+    if (queue.ownerId == null) return;
+    final cmid = newClientMessageId();
+    final isImage = mime.startsWith('image/');
+    final px = isImage
+        ? await imageSizeOf(bytes)
+        : (mime.startsWith('video/') ? videoSizeOf(bytes) : null);
+    _previewBytes[cmid] = bytes;
+    final file = await ref.read(uploadFilesProvider).keep(
+          '$cmid.bin',
+          bytes: bytes,
+        );
+    if (after != null) {
+      try {
+        await after;
+      } on Object {
+        // The previous file's own failure is shown on its bubble.
+      }
+    }
+    await queue.enqueue(
+      id: cmid,
+      kind: ChatMediaKind.attachment,
+      target: id,
+      payload: {
+        'name': name,
+        'caption': caption?.trim() ?? '',
+        'size': bytes.length,
+        if (px != null) 'width': px.width.round(),
+        if (px != null) 'height': px.height.round(),
+      },
+      fileName: file,
+      mime: mime,
+    );
+  }
+
+  /// Local previews of queued photos (the bytes the picker gave), by
+  /// clientMessageId; after a restart the queued file is read once.
+  final _previewBytes = <String, Uint8List>{};
+  final _localPaths = <String, String?>{};
+  final _progress = <String, double>{};
+  List<UploadJob> _mediaJobs = const [];
+
+  /// The queue's chat jobs of this conversation → local bubbles.
+  Future<void> _onMediaJobs(List<UploadJobRow> rows) async {
+    final files = ref.read(uploadFilesProvider);
+    final jobs = [for (final r in rows) UploadJob.fromRow(r)];
+    for (final j in jobs) {
+      final n = j.fileName;
+      if (n == null) continue;
+      if (j.kind == ChatMediaKind.voice && !_localPaths.containsKey(j.id)) {
+        _localPaths[j.id] = await files.pathOf(n);
+      }
+      if (j.kind == ChatMediaKind.attachment &&
+          (j.mime ?? '').startsWith('image/') &&
+          !_previewBytes.containsKey(j.id)) {
+        final b = await files.read(n);
+        if (b != null) _previewBytes[j.id] = b;
+      }
+    }
+    final live = {for (final j in jobs) j.id};
+    _previewBytes.removeWhere((k, _) => !live.contains(k));
+    _localPaths.removeWhere((k, _) => !live.contains(k));
+    _progress.removeWhere((k, _) => !live.contains(k));
+    _mediaJobs = jobs;
+    _showMedia();
+  }
+
+  void _showMedia() {
+    if (!ref.mounted) return;
+    final me = ref.read(currentUserIdProvider);
+    final sentIds = {
+      for (final m in state.messages)
+        if (m.clientMessageId != null) m.clientMessageId,
+    };
+    state = state.copyWith(
+      voiceOutbox: [
+        // Template copies are not queue jobs (nothing to upload).
+        for (final m in state.voiceOutbox)
+          if (_templateOf.containsKey(m.clientMessageId)) m,
+        for (final j in _mediaJobs)
+          if (!sentIds.contains(j.id))
+            chatMessageOfJob(
+              j,
+              senderId: me,
+              localPath: _localPaths[j.id],
+              previewBytes: _previewBytes[j.id],
+              progress: _progress[j.id] ?? 0,
+            ),
+      ],
+    );
+  }
+
+  void _onUploadProgress(UploadProgress p) {
+    if (!_mediaJobs.any((j) => j.id == p.id)) return;
+    _progress[p.id] = p.value;
+    _showMedia();
+  }
+
+  /// Owner 2026-10-05: a document template — a local bubble, then the
+  /// server's own copy is sent (no upload from the phone); Retry repeats.
+  Future<void> sendTemplate(DocTemplate tpl, {String? caption}) async {
     final owner = ref.read(currentUserIdProvider);
     if (owner == null) return;
     final cmid = newClientMessageId();
@@ -497,85 +1192,38 @@ class ChatThread extends Notifier<ChatThreadState> {
       delivery: DeliveryState.sending,
       attachment: ChatAttachment(
         fileId: '',
-        name: name,
-        isImage: mime.startsWith('image/'),
-        mime: mime,
-        sizeBytes: bytes.length,
-        localBytes: bytes,
+        name: tpl.fileName,
+        isImage: false,
+        mime: tpl.mime,
+        sizeBytes: tpl.sizeBytes,
       ),
     );
+    _templateOf[cmid] = tpl.id;
     state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
-    await _uploadAttachment(local);
+    await _sendTemplateCopy(local);
   }
 
-  /// Owner 2026-10-01: a sticker — shown at once, sent in the background,
-  /// Retry on failure like a voice note.
-  Future<void> sendSticker(ChatSticker sticker) async {
-    final owner = ref.read(currentUserIdProvider);
-    if (owner == null) return;
-    final cmid = newClientMessageId();
-    final local = ChatMessage(
-      id: 'local:$cmid',
-      conversationId: id,
-      senderId: owner,
-      kind: MessageKind.sticker,
-      body: '',
-      clientMessageId: cmid,
-      createdAt: DateTime.now(),
-      delivery: DeliveryState.sending,
-      sticker: sticker,
-    );
-    state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
-    HapticFeedback.selectionClick();
-    await _sendSticker(local);
-  }
+  /// Local template bubbles → the template they send (for Retry).
+  final _templateOf = <String, String>{};
 
-  Future<void> _sendSticker(ChatMessage local) async {
+  Future<void> _sendTemplateCopy(ChatMessage local) async {
+    final cmid = local.clientMessageId!;
     try {
-      final sent = await _repo.sendSticker(
-        id,
-        local.clientMessageId!,
-        stickerId: local.sticker!.id,
-      );
-      if (!ref.mounted) return;
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      unawaited(ref.read(appSoundsProvider).messageOut());
-      _merge([sent]);
-      ref.invalidate(stickerLibraryProvider);
-    } on ApiException catch (e) {
-      if (e.code == ApiErrorCodes.subscriptionRequired) {
-        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
-      }
-      _markVoice(local, DeliveryState.failed, e.code);
-    } on Object {
-      _markVoice(local, DeliveryState.failed, null);
-    }
-  }
-
-  Future<void> _uploadAttachment(ChatMessage local) async {
-    final a = local.attachment!;
-    try {
-      final fileId = await _repo.uploadAttachment(
-        a.localBytes!,
-        a.mime!,
-        onProgress: (p) => _setProgress(local, p),
-      );
+      final fileId = await ref
+          .read(templatesRepositoryProvider)
+          .copy(_templateOf[cmid]!, TemplateTarget.chat);
       final sent = await _repo.sendAttachment(
         id,
-        local.clientMessageId!,
+        cmid,
         fileId: fileId,
-        fileName: a.name,
+        fileName: local.attachment!.name,
         caption: local.body.isEmpty ? null : local.body,
       );
       if (!ref.mounted) return;
+      _templateOf.remove(cmid);
       state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
+        voiceOutbox:
+            state.voiceOutbox.where((m) => m.clientMessageId != cmid).toList(),
       );
       unawaited(ref.read(appSoundsProvider).messageOut());
       _merge([sent]);
@@ -589,15 +1237,67 @@ class ChatThread extends Notifier<ChatThreadState> {
     }
   }
 
-  void _setProgress(ChatMessage local, double p) {
+  /// Owner 2026-10-20: an attorney's card ([contactUserId]) or a place
+  /// ([place], an address). Sent at once; a refusal goes to the caller.
+  Future<void> sendCard({String? contactUserId, String? place}) async {
+    assert(
+      (contactUserId == null) != (place == null),
+      'a card is either a contact or a place',
+    );
+    final repo = ref.read(chatExtrasRepositoryProvider);
+    final cmid = newClientMessageId();
+    try {
+      final sent = contactUserId != null
+          ? await repo.sendContact(id, cmid, contactUserId)
+          : await repo.sendPlace(id, cmid, place!);
+      if (!ref.mounted) return;
+      unawaited(ref.read(appSoundsProvider).messageOut());
+      _merge([sent]);
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.subscriptionRequired) {
+        ref.read(outboxSenderProvider).subscriptionRequired.value = true;
+      }
+      rethrow;
+    }
+  }
+
+  /// Owner 2026-10-01: a sticker — shown at once, sent in the background,
+  /// Retry on failure like a voice note. Owner 2026-10-22: a persistent
+  /// queue job too (nothing to upload, the send waits for the network).
+  Future<void> sendSticker(ChatSticker sticker) async {
+    final queue = ref.read(chatMediaOutboxProvider);
+    if (queue.ownerId == null) return;
+    // ignore: unawaited_futures
+    HapticFeedback.selectionClick();
+    await queue.enqueue(
+      id: newClientMessageId(),
+      kind: ChatMediaKind.sticker,
+      target: id,
+      payload: {
+        'stickerId': sticker.id,
+        'packId': sticker.packId,
+        'emoji': sticker.emoji,
+        if (sticker.url != null) 'url': sticker.url,
+      },
+    );
+  }
+
+  /// Owner 2026-10-20: a gift paid in stars. Not shown before the server
+  /// has charged it; throws like an API call (INSUFFICIENT_STARS …) so the
+  /// gift sheet can answer. The same [clientMessageId] never charges twice.
+  Future<void> sendGift(
+    String giftId, {
+    required String clientMessageId,
+    String? note,
+  }) async {
+    final sent = ChatMappers.message(
+      await ref
+          .read(starsRepositoryProvider)
+          .sendInChat(id, clientMessageId, giftId, note: note),
+    );
     if (!ref.mounted) return;
-    state = state.copyWith(voiceOutbox: [
-      for (final m in state.voiceOutbox)
-        if (m.clientMessageId == local.clientMessageId && m.attachment != null)
-          m.copyWith(attachment: m.attachment!.copyWith(progress: p))
-        else
-          m,
-    ]);
+    unawaited(ref.read(appSoundsProvider).messageOut());
+    _merge([sent]);
   }
 
   /// OQ-040: the recipient played a note — tell the server once.
@@ -615,29 +1315,29 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   void _setListened(String messageId) {
     if (!ref.mounted) return;
-    state = state.copyWith(messages: [
-      for (final m in state.messages)
-        if (m.id == messageId && m.voice != null)
-          m.copyWith(voice: m.voice!.copyWith(listened: true))
-        else
-          m,
-    ]);
+    state = state.copyWith(
+      messages: [
+        for (final m in state.messages)
+          if (m.id == messageId && m.voice != null)
+            m.copyWith(voice: m.voice!.copyWith(listened: true))
+          else
+            m,
+      ],
+    );
   }
 
   Future<void> retry(ChatMessage local) async {
-    if (local.kind == MessageKind.sticker) {
+    if (local.kind == MessageKind.attachment &&
+        _templateOf.containsKey(local.clientMessageId)) {
       _markVoice(local, DeliveryState.sending, null);
-      await _sendSticker(local.copyWith(delivery: DeliveryState.sending));
+      await _sendTemplateCopy(local.copyWith(delivery: DeliveryState.sending));
       return;
     }
-    if (local.kind == MessageKind.attachment) {
-      _markVoice(local, DeliveryState.sending, null);
-      await _uploadAttachment(local.copyWith(delivery: DeliveryState.sending));
-      return;
-    }
-    if (local.kind == MessageKind.voice) {
-      _markVoice(local, DeliveryState.sending, null);
-      await _uploadVoice(local.copyWith(delivery: DeliveryState.sending));
+    if (local.kind == MessageKind.attachment ||
+        local.kind == MessageKind.voice ||
+        local.kind == MessageKind.sticker) {
+      final cmid = local.clientMessageId;
+      if (cmid != null) await ref.read(chatMediaOutboxProvider).retry(cmid);
       return;
     }
     final owner = ref.read(currentUserIdProvider);
@@ -646,33 +1346,109 @@ class ChatThread extends Notifier<ChatThreadState> {
     final db = ref.read(socialLocalDatabaseProvider);
     await db.sent(cmid);
     await db.enqueue(
-        clientMessageId: cmid,
-        ownerId: owner,
-        conversationId: id,
-        body: local.body);
+      clientMessageId: cmid,
+      ownerId: owner,
+      conversationId: id,
+      body: local.body,
+      replyToId: local.replyTo?.id,
+      forwarded: local.forwarded,
+    );
     unawaited(ref.read(outboxSenderProvider).drain());
   }
 
+  // --- Owner 2026-10-20: what you can do with a message -------------------
+
+  /// Whether [m] is mine, a text, and still inside the edit window.
+  bool canEdit(ChatMessage m) =>
+      !m.isLocal &&
+      !m.revoked &&
+      m.kind == MessageKind.text &&
+      m.senderId == ref.read(currentUserIdProvider) &&
+      DateTime.now().difference(m.createdAt) <
+          Duration(minutes: state.editWindowMin);
+
+  /// Whether [m] is mine and can still be deleted for everyone.
+  bool canDeleteForAll(ChatMessage m) =>
+      !m.isLocal &&
+      !m.revoked &&
+      m.kind != MessageKind.system &&
+      m.kind != MessageKind.call &&
+      m.senderId == ref.read(currentUserIdProvider) &&
+      DateTime.now().difference(m.createdAt) <
+          Duration(hours: state.deleteForAllHours);
+
+  Future<void> edit(ChatMessage m, String body) async {
+    final sent = await _repo.editMessage(id, m.id, body.trim());
+    _apply(sent);
+  }
+
+  /// Throws the API error (the screen maps the code to a message).
+  Future<void> delete(ChatMessage m, {required bool all}) async {
+    await _repo.deleteMessage(id, m.id, all: all);
+    if (all) {
+      _apply(
+        m.copyWith(revoked: true, body: '', reactions: const [], pinned: false),
+      );
+    } else {
+      _drop(m.id);
+    }
+  }
+
+  Future<void> react(ChatMessage m, String? emoji) async {
+    final sent = await _repo.react(id, m.id, emoji);
+    _apply(sent);
+  }
+
+  Future<void> setPinned(ChatMessage m, {required bool pinned}) async {
+    final sent = await _repo.setPinned(id, m.id, pinned: pinned);
+    _apply(sent);
+  }
+
+  void _drop(String messageId) {
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      messages: state.messages.where((x) => x.id != messageId).toList(),
+      pins: state.pins.where((x) => x.id != messageId).toList(),
+    );
+  }
+
+  /// A changed message (edit, reaction, pin, revoke): replace it in place and
+  /// keep the pinned list in step.
+  void _apply(ChatMessage m) {
+    if (!ref.mounted) return;
+    final known = state.messages.any((x) => x.id == m.id);
+    final pins = [
+      for (final p in state.pins)
+        if (p.id != m.id) p,
+    ];
+    if (m.pinned && !m.revoked) pins.insert(0, m);
+    state = state.copyWith(
+      messages: [
+        for (final x in state.messages)
+          if (x.id == m.id) m else x,
+      ],
+      pins: pins,
+    );
+    if (!known) _merge([m]);
+  }
+
   Future<void> discard(ChatMessage local) async {
-    if (local.kind == MessageKind.attachment ||
-        local.kind == MessageKind.sticker) {
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      return;
-    }
-    if (local.kind == MessageKind.voice) {
-      state = state.copyWith(
-        voiceOutbox: state.voiceOutbox
-            .where((m) => m.clientMessageId != local.clientMessageId)
-            .toList(),
-      );
-      await deleteVoiceFile(local.voice?.localPath);
-      return;
-    }
     final cmid = local.clientMessageId;
+    if (_templateOf.containsKey(cmid)) {
+      _templateOf.remove(cmid);
+      state = state.copyWith(
+        voiceOutbox:
+            state.voiceOutbox.where((m) => m.clientMessageId != cmid).toList(),
+      );
+      return;
+    }
+    if (local.kind == MessageKind.attachment ||
+        local.kind == MessageKind.voice ||
+        local.kind == MessageKind.sticker) {
+      // The queue removes the job and its file.
+      if (cmid != null) await ref.read(chatMediaOutboxProvider).discard(cmid);
+      return;
+    }
     if (cmid != null) await ref.read(socialLocalDatabaseProvider).sent(cmid);
   }
 
@@ -685,13 +1461,23 @@ class ChatThread extends Notifier<ChatThreadState> {
     _lastReadSent = newest.id;
     try {
       await _repo.read(id, newest.id);
+      // Audit 2026-10-02: the chat list and its folders drop this pill now.
+      // Owner 2026-10-22 (load audit finding 2): on the rows they hold,
+      // without reloading them.
+      ref.read(localChatEventsProvider).add(
+            RealtimeEvent('conversation:read', {
+              'conversationId': id,
+              'lastReadMessageId': newest.id,
+            }),
+          );
     } on Object {
       _lastReadSent = null;
     }
   }
 
   /// "печатает…" for the other side, at most every 2 s.
-  void typing(bool active) {
+  // ignore: avoid_positional_boolean_parameters
+  void typing(bool active, {bool voice = false}) {
     final rt = ref.read(realtimeClientProvider);
     if (rt == null) return;
     final now = DateTime.now();
@@ -700,7 +1486,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       return;
     }
     _lastTypingSent = active ? now : DateTime.fromMillisecondsSinceEpoch(0);
-    rt.typing(id, active: active);
+    rt.typing(id, active: active, voice: voice);
   }
 
   /// OQ-043: accept or delete a message request sent to me.
@@ -711,13 +1497,51 @@ class ChatThread extends Notifier<ChatThreadState> {
     ref
       ..invalidate(messageRequestsProvider)
       ..invalidate(messageRequestsCountProvider)
-      ..invalidate(conversationsProvider);
+      ..invalidate(conversationsProvider)
+      // Audit 2026-10-02: folders and their counts follow at once.
+      ..invalidate(folderConversationsProvider)
+      ..invalidate(chatFolderCountsProvider);
   }
 
+  // ignore: avoid_positional_boolean_parameters
   Future<void> setMuted(bool muted) async {
     final updated = await _repo.mute(
-        id, muted ? DateTime.now().add(const Duration(days: 3650)) : null);
-    if (ref.mounted) state = state.copyWith(conversation: updated);
+      id,
+      muted ? DateTime.now().add(const Duration(days: 3650)) : null,
+    );
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    // Audit 2026-10-04: the lists show the mute mark at once.
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
+  }
+
+  /// Owner 2026-10-21 (WhatsApp): mute for an hour, 8 hours, a week, always.
+  Future<void> setMutedUntil(DateTime? until) async {
+    final updated = await _repo.mute(id, until);
+    if (!ref.mounted) return;
+    state = state.copyWith(conversation: updated);
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
+  }
+
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setCallsMuted(bool muted) async {
+    final updated = await _repo.muteCalls(id, muted: muted);
+    if (!ref.mounted) return;
+    ref.read(callMutedChatsProvider.notifier).mark(id, muted: muted);
+    state = state.copyWith(conversation: updated);
+    ref
+      ..invalidate(conversationsProvider)
+      ..invalidate(folderConversationsProvider);
+  }
+
+  ReplyPreview? _previewOf(String? messageId) {
+    if (messageId == null) return null;
+    final m = state.messages.where((x) => x.id == messageId).firstOrNull;
+    return m == null ? null : ReplyPreview.of(m);
   }
 
   void _onOutbox(List<OutboxRow> rows) {
@@ -726,23 +1550,27 @@ class ChatThread extends Notifier<ChatThreadState> {
       for (final m in state.messages)
         if (m.clientMessageId != null) m.clientMessageId,
     };
-    state = state.copyWith(outbox: [
-      for (final r in rows)
-        if (!sentIds.contains(r.clientMessageId))
-          ChatMessage(
-            id: 'local:${r.clientMessageId}',
-            conversationId: id,
-            senderId: ref.read(currentUserIdProvider),
-            kind: MessageKind.text,
-            body: r.body,
-            clientMessageId: r.clientMessageId,
-            createdAt: r.createdAt,
-            delivery: r.failedCode == null
-                ? DeliveryState.sending
-                : DeliveryState.failed,
-            failedCode: r.failedCode,
-          ),
-    ]);
+    state = state.copyWith(
+      outbox: [
+        for (final r in rows)
+          if (!sentIds.contains(r.clientMessageId))
+            ChatMessage(
+              id: 'local:${r.clientMessageId}',
+              conversationId: id,
+              senderId: ref.read(currentUserIdProvider),
+              kind: MessageKind.text,
+              body: r.body,
+              clientMessageId: r.clientMessageId,
+              createdAt: r.createdAt,
+              forwarded: r.forwarded,
+              replyTo: _previewOf(r.replyToId),
+              delivery: r.failedCode == null
+                  ? DeliveryState.sending
+                  : DeliveryState.failed,
+              failedCode: r.failedCode,
+            ),
+      ],
+    );
   }
 
   void _merge(List<ChatMessage> incoming) {
@@ -770,6 +1598,9 @@ class ChatThread extends Notifier<ChatThreadState> {
       case 'message:new':
         final m = ChatMappers.fromEvent(data);
         if (m != null && m.conversationId == id) {
+          unawaited(
+            _store?.putRaw(id, (data! as Map)['message']) ?? Future.value(),
+          );
           // OQ-044: a soft chime for the other side's message in an open,
           // unmuted chat (not for our own echo or call entries).
           final mine = m.senderId == ref.read(currentUserIdProvider);
@@ -785,29 +1616,45 @@ class ChatThread extends Notifier<ChatThreadState> {
           _merge([m]);
           if (state.typing) state = state.copyWith(typing: false);
         }
+      case 'message:updated':
+        if (data is Map && data['conversationId'] == id) {
+          final gone = data['messageId'];
+          if (data['hiddenForMe'] == true && gone is String) {
+            unawaited(_store?.remove(id, gone) ?? Future.value());
+            _drop(gone);
+          }
+        } else {
+          final m = ChatMappers.fromEvent(data);
+          if (m != null && m.conversationId == id) {
+            unawaited(
+              _store?.putRaw(id, (data! as Map)['message']) ?? Future.value(),
+            );
+            _apply(m);
+          }
+        }
       case 'message:read':
         if (data is Map && data['conversationId'] == id) {
           final c = state.conversation;
           final last = data['lastReadMessageId'];
           if (c != null && last is String) {
             state = state.copyWith(
-              conversation: Conversation(
-                id: c.id,
-                caseId: c.caseId,
-                caseTitle: c.caseTitle,
-                status: c.status,
-                contactsUnlocked: c.contactsUnlocked,
-                counterpart: c.counterpart,
-                lastMessage: c.lastMessage,
-                lastMessageAt: c.lastMessageAt,
-                unreadCount: c.unreadCount,
-                mutedUntil: c.mutedUntil,
-                counterpartLastReadId: last,
-                updatedAt: c.updatedAt,
-                isDirect: c.isDirect,
-                request: c.request,
-                requestedByMe: c.requestedByMe,
+              conversation: c.withReceipts(
+                readId: last,
+                readAt:
+                    DateTime.tryParse('${data['readAt']}') ?? DateTime.now(),
+                // Reading it means it got there.
+                deliveredId: last,
               ),
+            );
+          }
+        }
+      case 'message:delivered':
+        if (data is Map && data['conversationId'] == id) {
+          final c = state.conversation;
+          final last = data['lastDeliveredMessageId'];
+          if (c != null && last is String) {
+            state = state.copyWith(
+              conversation: c.withReceipts(deliveredId: last),
             );
           }
         }
@@ -819,7 +1666,10 @@ class ChatThread extends Notifier<ChatThreadState> {
       case 'typing':
         if (data is Map && data['conversationId'] == id) {
           final on = data['typing'] == true;
-          state = state.copyWith(typing: on);
+          state = state.copyWith(
+            typing: on,
+            typingVoice: on && data['kind'] == 'voice',
+          );
           _typingOff?.cancel();
           // §8.5: typing lives 5 s without a new event.
           if (on) {
@@ -848,12 +1698,19 @@ class ChatThread extends Notifier<ChatThreadState> {
     }
   }
 
-  /// §8.5: after a drop, fetch everything after the newest known message.
+  /// §8.5: after a drop (or an open from the phone's copy), fetch
+  /// everything after the newest known message. Too much missed
+  /// (`409 SYNC_TOO_OLD`): the copy is dropped and the first page read.
   Future<void> _catchUp() async {
     final newest = state.messages.where((m) => !m.isLocal).firstOrNull;
-    if (newest == null) return load();
+    if (newest == null) return _loadPage();
     try {
       _merge(await _repo.messagesAfter(id, newest.id));
+    } on ApiException catch (e) {
+      if (e.code == ApiErrorCodes.syncTooOld) {
+        await _store?.forget(id);
+        if (ref.mounted) await _loadPage();
+      }
     } on Object {
       // Next reconnect or open retries.
     }

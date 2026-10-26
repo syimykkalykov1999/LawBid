@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,8 @@ import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
+import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/onboarding_routes.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// `/onboarding/role` (file 07 §6.4 — **"Этот экран не менять"**: layout
@@ -32,24 +35,38 @@ class RoleScreen extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
-    final serverRole = ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
-    final selectedRole = serverRole ?? flowState.selectedRole ?? UserRole.client;
+    final serverRole =
+        ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
+    final onboardingDone = ref.watch(
+      currentUserControllerProvider
+          .select((s) => s.user?.onboarding.isCompleted ?? false),
+    );
+    // Owner 2026-10-15: until onboarding is finished the role can be chosen
+    // again (someone who looked at the lawyer side and went back); after it,
+    // the role is final.
+    final locked = serverRole != null && onboardingDone;
+    final selectedRole = locked
+        ? serverRole
+        : flowState.selectedRole ?? serverRole ?? UserRole.client;
     final action = ref.watch(onboardingActionsProvider);
-    final attorneySide =
-        selectedRole == UserRole.attorney || selectedRole == UserRole.assistant;
+    // Owner 2026-10-11: an assistant signs in only with an invite code, not
+    // through this screen — here the choice is client or attorney.
+    final attorneySide = selectedRole == UserRole.attorney;
 
     void select(UserRole role) {
-      if (serverRole != null) return;
+      if (locked) return;
       ref.read(onboardingFlowProvider.notifier).selectRole(role);
     }
 
     Future<void> handleContinue() async {
       final user = ref.read(currentUserControllerProvider).user;
-      if (serverRole != null && user != null) {
+      if (serverRole != null && user != null && selectedRole == serverRole) {
         context.go(AppRouterGuard.forwardRoute(user));
         return;
       }
-      final ok = await ref.read(onboardingActionsProvider.notifier).chooseRole(selectedRole);
+      final ok = await ref
+          .read(onboardingActionsProvider.notifier)
+          .chooseRole(selectedRole);
       if (!ok && context.mounted) {
         final error = ref.read(onboardingActionsProvider).error;
         if (error != null) showAppSnackBar(context, errorText(t, error));
@@ -58,7 +75,7 @@ class RoleScreen extends ConsumerWidget {
 
     /// The card of the role that can no longer be picked: dimmed, inert.
     Widget lockable(UserRole role, Widget card) {
-      if (serverRole == null || serverRole == role) return card;
+      if (!locked || serverRole == role) return card;
       return Semantics(
         enabled: false,
         child: IgnorePointer(
@@ -68,218 +85,102 @@ class RoleScreen extends ConsumerWidget {
       );
     }
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    // Staggered entrance (UI pass
-                    // 2026-09-27); same final
-                    // layout, none on reduce-
-                    // motion.
-                    children: staggeredEntrance([
-                      const SizedBox(height: 8),
-                      Text(
-                        t.t('onboarding.role.title'),
-                        style: typography.titleMedium.copyWith(color: colors.text),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-                      lockable(
-                        UserRole.client,
-                        RoleCard(
-                          icon: AppIcons.personOutline,
-                          title: t.t('onboarding.role.client.title'),
-                          description: t.t('onboarding.role.client.desc'),
-                          isSelected: selectedRole == UserRole.client,
-                          onTap: () => select(UserRole.client),
+    void back() =>
+        context.go(OnboardingRoutes.forStep(OnboardingStepId.consents));
+
+    return StepBackGesture(
+      onBack: back,
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenSide,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      // Staggered entrance (UI pass
+                      // 2026-09-27); same final
+                      // layout, none on reduce-
+                      // motion.
+                      children: staggeredEntrance([
+                        // Owner 2026-10-15: one step back, to the consents
+                        // (never to the phone / SMS).
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: AppBackButton(
+                            semanticLabel: t.t('common.back'),
+                            onPressed: back,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: AppSpacing.roleCardGap),
-                      // Owner 2026-10-01: the assistant role lives inside
-                      // the attorney role — pick "Attorney", then who you
-                      // are in the practice.
-                      lockable(
-                        attorneySide ? selectedRole : UserRole.attorney,
-                        RoleCard(
-                          icon: AppIcons.gavel,
-                          title: t.t('onboarding.role.attorney.title'),
-                          description: t.t('onboarding.role.attorney.desc'),
-                          isSelected: attorneySide,
-                          isAttorneyFixedStyle: true,
-                          showProBadge: true,
-                          proBadgeLabel: t.t('onboarding.role.attorney.badge'),
-                          onTap: () {
-                            if (!attorneySide) select(UserRole.attorney);
-                          },
-                        ),
-                      ),
-                      AnimatedSize(
-                        duration: context.reduceMotion
-                            ? Duration.zero
-                            : AppMotion.stateChange,
-                        curve: Curves.easeOutCubic,
-                        child: !attorneySide
-                            ? const SizedBox(width: double.infinity)
-                            : Padding(
-                                padding: const EdgeInsets.only(
-                                  top: AppSpacing.sm,
-                                  left: AppSpacing.lg,
-                                ),
-                                child: Column(
-                                  children: [
-                                    for (final (role, icon, title, body) in [
-                                      (
-                                        UserRole.attorney,
-                                        AppIcons.balanceRounded,
-                                        t.t('onboarding.role.sub.attorney'),
-                                        t.t('onboarding.role.sub.attorney.body'),
-                                      ),
-                                      (
-                                        UserRole.assistant,
-                                        AppIcons.supportAgentRounded,
-                                        t.t('onboarding.role.assistant.title'),
-                                        t.t('onboarding.role.assistant.body'),
-                                      ),
-                                    ])
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                            bottom: AppSpacing.sm),
-                                        child: lockable(
-                                          role,
-                                          _SubRole(
-                                            key: ValueKey(role ==
-                                                    UserRole.assistant
-                                                ? 'role-card-assistant'
-                                                : 'role-sub-attorney'),
-                                            icon: icon,
-                                            title: title,
-                                            body: body,
-                                            selected: selectedRole == role,
-                                            onTap: () => select(role),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                      ),
-                      if (serverRole != null) ...[
-                        const SizedBox(height: AppSpacing.md),
                         Text(
-                          t.t('onboarding.role.locked'),
-                          key: const ValueKey('role-locked-note'),
-                          style: typography.caption.copyWith(color: colors.textSecondary),
+                          t.t('onboarding.role.title'),
+                          style: typography.titleMedium
+                              .copyWith(color: colors.text),
                         ),
-                      ],
-                      const Spacer(),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 22),
-                        child: Column(
-                          children: [
-                            GavelStrikeButton(
-                              label: t.t('onboarding.role.continue'),
-                              isLoading: action.busy,
-                              onPressed: handleContinue,
-                            ),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text(
-                              t.t('onboarding.role.warning'),
-                              textAlign: TextAlign.center,
-                              style: typography.caption.copyWith(color: colors.textSecondary),
-                            ),
-                          ],
+                        const SizedBox(height: AppSpacing.lg),
+                        lockable(
+                          UserRole.client,
+                          RoleCard(
+                            icon: AppIcons.personOutline,
+                            title: t.t('onboarding.role.client.title'),
+                            description: t.t('onboarding.role.client.desc'),
+                            isSelected: selectedRole == UserRole.client,
+                            onTap: () => select(UserRole.client),
+                          ),
                         ),
-                      ),
-                    ]),
+                        const SizedBox(height: AppSpacing.roleCardGap),
+                        // Owner 2026-10-01: the assistant role lives inside
+                        // the attorney role — pick "Attorney", then who you
+                        // are in the practice.
+                        lockable(
+                          attorneySide ? selectedRole : UserRole.attorney,
+                          RoleCard(
+                            icon: AppIcons.gavel,
+                            title: t.t('onboarding.role.attorney.title'),
+                            description: t.t('onboarding.role.attorney.desc'),
+                            isSelected: attorneySide,
+                            isAttorneyFixedStyle: true,
+                            showProBadge: true,
+                            proBadgeLabel:
+                                t.t('onboarding.role.attorney.badge'),
+                            onTap: () {
+                              if (!attorneySide) select(UserRole.attorney);
+                            },
+                          ),
+                        ),
+                        if (locked) ...[
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            t.t('onboarding.role.locked'),
+                            key: const ValueKey('role-locked-note'),
+                            style: typography.caption
+                                .copyWith(color: colors.textSecondary),
+                          ),
+                        ],
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16, bottom: 22),
+                          child: Column(
+                            children: [
+                              GavelStrikeButton(
+                                label: t.t('onboarding.role.continue'),
+                                isLoading: action.busy,
+                                onPressed: handleContinue,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ]),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-/// A choice inside the attorney card: the attorney or their assistant.
-class _SubRole extends StatelessWidget {
-  const _SubRole({
-    required this.icon,
-    required this.title,
-    required this.body,
-    required this.selected,
-    required this.onTap,
-    super.key,
-  });
-
-  final IconData icon;
-  final String title;
-  final String body;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Semantics(
-      selected: selected,
-      button: true,
-      label: title,
-      child: AppPressable(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          padding: const EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: selected ? colors.goldTint : colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.card),
-            border: Border.all(
-              color: selected ? colors.gold : colors.border,
-              width: selected ? 1.6 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              AppIcon(icon, color: colors.goldDark),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: typography.body.copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      body,
-                      style: typography.bodySmall
-                          .copyWith(color: colors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              AppIcon(
-                selected
-                    ? AppIcons.radioButtonCheckedRounded
-                    : AppIcons.radioButtonUncheckedRounded,
-                color: selected ? colors.goldDark : colors.textSecondary,
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:lawbid/features/team/data/seat_limit_repository.dart';
 import 'package:lawbid/features/team/data/team_repository.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -15,9 +16,31 @@ TaskItem makeTask(
   bool canDelete = true,
   String? note,
   List<TaskStep> steps = const [],
+  List<TaskPlace> places = const [],
+  TaskPriority priority = TaskPriority.normal,
+  DateTime? archivedAt,
+  DateTime? purgeAt,
+  bool keepForever = false,
+  String? assigneeName,
+  String? caseId,
+  String? caseTitle,
+  bool canComplete = true,
+  List<TaskFile> files = const [],
 }) =>
     TaskItem(
+      files: files,
       steps: steps,
+      places: places,
+      people: const [TaskPerson(name: 'John Brown', phone: '+13125550199')],
+      priority: priority,
+      archivedAt: archivedAt,
+      purgeAt: purgeAt,
+      keepForever: keepForever,
+      assigneeName: assigneeName,
+      assigneeMembershipId: assigneeName == null ? null : 'm-$assigneeName',
+      caseId: caseId,
+      caseTitle: caseTitle,
+      canComplete: canComplete,
       id: id,
       kind: kind,
       title: 'Task $id',
@@ -31,8 +54,10 @@ TaskItem makeTask(
       createdAt: _now,
     );
 
-AssistantRequest makeRequest(String id,
-        {RequestStatus status = RequestStatus.pending}) =>
+AssistantRequest makeRequest(
+  String id, {
+  RequestStatus status = RequestStatus.pending,
+}) =>
     AssistantRequest(
       id: id,
       membershipId: 'm1',
@@ -76,12 +101,8 @@ class FakeTeamRepository implements TeamRepository {
   }
 
   @override
-  Future<void> requestJoinCode(String attorneyPhone) async =>
-      calls.add('code:$attorneyPhone');
-
-  @override
-  Future<AssistantMe> verifyJoinCode(String attorneyPhone, String code) async {
-    calls.add('verify:$attorneyPhone:$code');
+  Future<AssistantMe> joinWithCode(String code) async {
+    calls.add('join:$code');
     return me = const AssistantMe(
       state: AssistantState.active,
       duties: {AssistantDuty.tasks},
@@ -93,20 +114,21 @@ class FakeTeamRepository implements TeamRepository {
   Future<TeamInfo> team() async => teamInfo;
 
   @override
-  Future<TeamInfo> addAssistant(
-    String phone, {
+  Future<TeamInfo> addAssistant({
     String? name,
     Set<AssistantDuty>? duties,
     bool acceptLiability = false,
   }) async {
-    calls.add('add:$phone:$name');
+    calls.add('add:$name');
+    final n = teamInfo.members.length + 1;
     return teamInfo = TeamInfo(
       members: [
         ...teamInfo.members,
         TeamMember(
-          id: 'm${teamInfo.members.length + 1}',
-          phone: phone,
+          id: 'm$n',
           name: name,
+          joinCode: 'K7QM-4XRT-92H$n',
+          joinCodeExpiresAt: _now.add(const Duration(days: 7)),
           status: MemberStatus.invited,
           approval: 'attorney_added',
           duties: const {AssistantDuty.chats, AssistantDuty.tasks},
@@ -116,6 +138,7 @@ class FakeTeamRepository implements TeamRepository {
       seats: teamInfo.seats,
       used: teamInfo.used + 1,
       plan: teamInfo.plan,
+      maxDuties: teamInfo.maxDuties,
     );
   }
 
@@ -129,7 +152,59 @@ class FakeTeamRepository implements TeamRepository {
     calls.add(
       'update:$id:${duties?.map((d) => d.wire).join(',')}:$acceptLiability',
     );
-    return teamInfo;
+    if (duties == null) return teamInfo;
+    // Owner 2026-10-22: the roles screen shows the new switches.
+    return teamInfo = TeamInfo(
+      members: [
+        for (final m in teamInfo.members)
+          if (m.id == id)
+            TeamMember(
+              id: m.id,
+              name: m.name,
+              phone: m.phone,
+              status: m.status,
+              approval: m.approval,
+              duties: duties,
+              createdAt: m.createdAt,
+              joinedAt: m.joinedAt,
+              joinCode: m.joinCode,
+              joinCodeExpiresAt: m.joinCodeExpiresAt,
+            )
+          else
+            m,
+      ],
+      seats: teamInfo.seats,
+      used: teamInfo.used,
+      plan: teamInfo.plan,
+      maxDuties: teamInfo.maxDuties,
+    );
+  }
+
+  @override
+  Future<TeamInfo> regenerateCode(String id) async {
+    calls.add('code:$id');
+    return teamInfo = TeamInfo(
+      members: [
+        for (final m in teamInfo.members)
+          if (m.id == id)
+            TeamMember(
+              id: m.id,
+              name: m.name,
+              status: m.status,
+              approval: m.approval,
+              duties: m.duties,
+              createdAt: m.createdAt,
+              joinedAt: m.joinedAt,
+              joinCode: 'NEW2-CODE-XYZ9',
+              joinCodeExpiresAt: _now.add(const Duration(days: 7)),
+            )
+          else
+            m,
+      ],
+      seats: teamInfo.seats,
+      used: teamInfo.used,
+      plan: teamInfo.plan,
+    );
   }
 
   @override
@@ -187,6 +262,7 @@ class FakeTeamRepository implements TeamRepository {
 
   @override
   Future<TaskItem> createTask(TaskDraft draft) async {
+    lastDraft = draft;
     calls.add('create:${draft.kind.name}:${draft.title}');
     if (draft.steps.isNotEmpty) {
       calls.add('steps:${draft.steps.map((s) => s.title).join('|')}');
@@ -207,11 +283,11 @@ class FakeTeamRepository implements TeamRepository {
     final updated = makeTask(id, status: status, note: note);
     active = [
       for (final t in active)
-        if (t.id != id) t
+        if (t.id != id) t,
     ];
     done = [
       for (final t in done)
-        if (t.id != id) t
+        if (t.id != id) t,
     ];
     if (status.active) {
       active = [...active, updated];
@@ -252,25 +328,71 @@ class FakeTeamRepository implements TeamRepository {
   @override
   Future<TaskItem> updateTask(String id, TaskDraft draft) async {
     calls.add('update:$id:${draft.title}');
+    lastDraft = draft;
     final t = makeTask(id, kind: draft.kind, by: null);
+    // ignore: prefer_if_elements_to_conditional_expressions
     active = [for (final x in active) x.id == id ? t : x];
     return t;
   }
 
   @override
+  Future<TaskItem> moveTask(String id, DateTime dueAt) async {
+    calls.add('move:$id');
+    return [...active, ...done].firstWhere((t) => t.id == id);
+  }
+
+  TaskDraft? lastDraft;
+  List<TaskPersonSuggestion> peopleList = [];
+
+  @override
+  Future<List<TaskPersonSuggestion>> taskPeople([String? q]) async =>
+      peopleList;
+
+  @override
+  Future<({int affected, int skipped})> bulkTasks(
+    List<String> ids,
+    TaskBulkAction action, {
+    TaskStatus? status,
+    TaskPriority? priority,
+    String? assigneeMembershipId,
+  }) async {
+    calls.add('bulk:${action.name}:${ids.join(',')}');
+    if (action == TaskBulkAction.delete) {
+      active = [
+        for (final x in active)
+          if (!ids.contains(x.id)) x,
+      ];
+      done = [
+        for (final x in done)
+          if (!ids.contains(x.id)) x,
+      ];
+    }
+    return (affected: ids.length, skipped: 0);
+  }
+
+  @override
   Future<void> deleteTask(String id) async {
     calls.add('delete:$id');
-    active = [for (final x in active) if (x.id != id) x];
-    done = [for (final x in done) if (x.id != id) x];
+    active = [
+      for (final x in active)
+        if (x.id != id) x,
+    ];
+    done = [
+      for (final x in done)
+        if (x.id != id) x,
+    ];
   }
 
   @override
   Future<TaskItem> addTaskStep(String taskId, TaskStepDraft step) async {
     calls.add('step+:$taskId:${step.title}');
-    return _replace(taskId, (s) => [
-          ...s,
-          TaskStep(id: 's${s.length + 1}', title: step.title, dueAt: step.dueAt),
-        ]);
+    return _replace(
+      taskId,
+      (s) => [
+        ...s,
+        TaskStep(id: 's${s.length + 1}', title: step.title, dueAt: step.dueAt),
+      ],
+    );
   }
 
   @override
@@ -282,27 +404,34 @@ class FakeTeamRepository implements TeamRepository {
     DateTime? dueAt,
   }) async {
     calls.add('step:$taskId:$stepId:${status?.wire}:$note');
-    return _replace(taskId, (s) => [
-          for (final x in s)
-            x.id == stepId
-                ? TaskStep(
-                    id: x.id,
-                    title: x.title,
-                    status: status ?? x.status,
-                    dueAt: dueAt ?? x.dueAt,
-                    note: note ?? x.note,
-                  )
-                : x,
-        ]);
+    return _replace(
+      taskId,
+      (s) => [
+        for (final x in s)
+          // ignore: prefer_if_elements_to_conditional_expressions
+          x.id == stepId
+              ? TaskStep(
+                  id: x.id,
+                  title: x.title,
+                  status: status ?? x.status,
+                  dueAt: dueAt ?? x.dueAt,
+                  note: note ?? x.note,
+                )
+              : x,
+      ],
+    );
   }
 
   @override
   Future<TaskItem> removeTaskStep(String taskId, String stepId) async {
     calls.add('step-:$taskId:$stepId');
-    return _replace(taskId, (s) => [
-          for (final x in s)
-            if (x.id != stepId) x,
-        ]);
+    return _replace(
+      taskId,
+      (s) => [
+        for (final x in s)
+          if (x.id != stepId) x,
+      ],
+    );
   }
 
   @override
@@ -324,4 +453,14 @@ class FakeTeamRepository implements TeamRepository {
 
   @override
   Future<void> deleteBidDraft(String caseId) async {}
+}
+
+/// Owner 2026-10-05: the default limit, no request.
+class FakeSeatLimitRepository implements SeatLimitRepository {
+  @override
+  Future<SeatLimitState> state() async =>
+      const SeatLimitState(limit: 10, isPersonal: false);
+
+  @override
+  Future<void> request({required int seats, String? note}) async {}
 }

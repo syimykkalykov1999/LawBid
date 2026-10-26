@@ -1,5 +1,13 @@
 import { CasePhotosService } from './case-photos.service';
+import {
+  loadUrgencyThresholds,
+  urgencyFields,
+  urgencyFilterSql,
+} from '../domain/case-urgency';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { Prisma, type Case, type PracticeArea } from '@prisma/client';
 import {
   decodeCursor,
@@ -23,19 +31,49 @@ import {
   CaseAccessPolicy,
   type CaseViewer,
 } from '../policies/case-access.policy';
+import { readsAreSplit } from '../../../sharding/split-reads';
 import {
   buildPracticeCasesSql,
+  blockedPeople,
+  resolveFeedGlobals,
+  scatterFeed,
   buildVisibleCasesSql,
 } from '../queries/cases-visible.sql';
+import { budgetFilterSql } from '../queries/budget-filter.sql';
 import { CaseViewTrackingService } from './case-view-tracking.service';
+import {
+  ClientActivityService,
+  type ClientActivityView,
+} from './client-activity.service';
+import { PromotionDeliveryService } from '../../promotions/promotion-delivery.service';
+import { RecommendationsService } from '../../recommendations/recommendations.service';
+import {
+  clientsWithEntitlementSql,
+  EntitlementsService,
+} from '../../plans/entitlements.service';
+
+/** Owner 2026-10-02: promoted cases on top of the first feed page. */
+const PROMOTED_FEED_SLOTS = 3;
+/** Owner 2026-10-05 (plan builder): cases of clients whose plan includes
+ * "cases shown first" come right after the promoted ones on page one. */
+const PRIORITY_FEED_SLOTS = 5;
+/** Candidates ranked by the "for you" order: the newest this many. */
+const CASES_RANK_CANDIDATES = 300;
+const PRIORITY_CLIENT_SQL = clientsWithEntitlementSql(
+  'priority_feed',
+  Prisma.sql`c.client_id`,
+);
 
 type CaseWithPracticeArea = Case & {
   practice_area: PracticeArea & { parent: PracticeArea | null };
   states: { state_code: string; is_primary: boolean }[];
+  _count?: { extra_practices: number };
 };
 
 const CASE_WITH_PRACTICE_AREA_INCLUDE = {
   practice_area: { include: { parent: true } },
+  // Owner 2026-10-15: «+N» topics on the card.
+  _count: { select: { extra_practices: true } },
   states: { select: { state_code: true, is_primary: true } },
 } as const;
 
@@ -50,7 +88,7 @@ function forbidden(message: string): ForbiddenException {
  * (§3.5, `GET /users/me/cases`) is stage 4.2 (CasesController).
  */
 /** Feed card description preview length (owner 2026-09-30). */
-const FEED_EXCERPT_MAX = 180;
+const FEED_EXCERPT_MAX = 400;
 
 @Injectable()
 export class CasesFeedService {
@@ -61,6 +99,16 @@ export class CasesFeedService {
     private readonly posts: PostEngagementService,
     @Optional() private readonly photos?: CasePhotosService,
     @Optional() private readonly counters?: CounterAggregator,
+    @Optional() private readonly entitlements?: EntitlementsService,
+    @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-05: budget, audience, frequency cap and reach.
+    @Optional() private readonly promoDelivery?: PromotionDeliveryService,
+    // Owner 2026-10-13: "for you" ranking of the Search Cases grid.
+    @Optional() private readonly recommendations?: RecommendationsService,
+    // Owner 2026-10-18 (OQ-054): the activity line on the card.
+    @Optional() private readonly clientActivity?: ClientActivityService,
+    // S3-5: private details are stored sealed (only their length is shown).
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -81,7 +129,9 @@ export class CasesFeedService {
       return { items: [], nextCursor: null };
     }
     const limit = query.limit ?? CASES_FEED_PAGE_DEFAULT;
-    const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+    const ranked = query.sort === 'for_you' && !!this.recommendations;
+    const cursor =
+      query.cursor && !ranked ? decodeCursor(query.cursor) : undefined;
 
     // Audit 2026-10-01: the Search tab's filters on the server.
     const spanMs =
@@ -93,43 +143,155 @@ export class CasesFeedService {
             ? 30 * 24 * 3600e3
             : null;
     const since = spanMs ? new Date(Date.now() - spanMs) : undefined;
-    const extra = Prisma.sql`
-      ${query.budgetMin !== undefined ? Prisma.sql`AND c.budget_cents >= ${query.budgetMin * 100}` : Prisma.empty}
-      ${query.budgetMax !== undefined ? Prisma.sql`AND c.budget_cents <= ${query.budgetMax * 100}` : Prisma.empty}
-      ${query.budgetUnknown ? Prisma.sql`AND c.budget_mode = 'clarify_later'` : Prisma.empty}
-      ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
-      AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+    // Owner 2026-10-05: "urgent and above" / "with a date" filters.
+    const thresholds = await loadUrgencyThresholds(this.settings);
+    // Shard-ready step 8: with several databases the global parts of the
+    // rule (licences, topics, blocks) are resolved first and the statement
+    // touches the case family only (cases-visible.sql.ts).
+    const split = readsAreSplit(this.prisma);
+    const globals = split
+      ? await resolveFeedGlobals(this.prisma, viewer.userId, {
+          practiceCategory: query.practiceCategory,
+          practice: query.practice,
+        })
+      : undefined;
+    const blockedIds = split
+      ? await blockedPeople(this.prisma, viewer.userId)
+      : [];
+    const blocksFilter = split
+      ? Prisma.sql`AND c.client_id <> ALL(${blockedIds}::UUID[])`
+      : Prisma.sql`AND NOT EXISTS (SELECT 1 FROM user_blocks ub
         WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
            OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
-    const rows = await this.prisma.$queryRaw<
-      { id: string; created_at: Date }[]
-    >(
-      query.practice
+    const extra = Prisma.sql`
+      ${urgencyFilterSql(query.minUrgency, query.hasDeadline, thresholds)}
+      ${budgetFilterSql({
+        minCents:
+          query.budgetMin === undefined ? undefined : query.budgetMin * 100,
+        maxCents:
+          query.budgetMax === undefined ? undefined : query.budgetMax * 100,
+        unknown: query.budgetUnknown,
+        percent: query.budgetPercent,
+        percentMax: query.percentMax,
+      })}
+      ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
+      ${blocksFilter}`;
+    const run = (
+      filter: Prisma.Sql,
+      pageCursor: typeof cursor,
+      take: number,
+    ): Promise<{ id: string; created_at: Date }[]> => {
+      const sql = query.practice
         ? buildPracticeCasesSql({
+            globals,
             attorneyId: viewer.userId,
             practice: query.practice,
+            browseAll: query.scope === 'all',
             state: query.state,
-            cursor,
-            limit: limit + 1,
+            states: query.states?.split(','),
+            cursor: pageCursor,
+            limit: take,
             since,
-            extra,
+            extra: filter,
           })
         : buildVisibleCasesSql({
+            globals,
             attorneyId: viewer.userId,
             practiceAreaId: query.practiceAreaId,
             practiceCategory: query.practiceCategory,
+            browseAll: query.scope === 'all',
             state: query.state,
-            cursor,
-            limit: limit + 1,
+            states: query.states?.split(','),
+            cursor: pageCursor,
+            limit: take,
             since,
-            extra,
-          }),
-    );
+            extra: filter,
+          });
+      return split
+        ? scatterFeed(this.prisma, sql, take)
+        : this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(sql);
+    };
+    // Owner 2026-10-02 (paid case promotion): up to PROMOTED_FEED_SLOTS
+    // active promoted cases this attorney may see (same filters) go on top
+    // of the first page and are left out of the keyset pages, so cursor
+    // pagination stays intact and nothing repeats.
+    // Owner 2026-10-05: only promotions with budget left, matching this
+    // attorney and under today's per-person cap, best-paced first.
+    const live = this.promoDelivery
+      ? await this.promoDelivery.eligible('case', viewer.userId)
+      : null;
+    const slots = this.promoDelivery
+      ? (await this.promoDelivery.settings()).caseFeedSlots
+      : PROMOTED_FEED_SLOTS;
+    const promotedIds = live
+      ? [...new Set(live.flatMap((p) => (p.caseId ? [p.caseId] : [])))]
+      : await this.activePromotedCaseIds();
+    const visiblePromoted =
+      promotedIds.length && slots > 0
+        ? new Set(
+            (
+              await run(
+                Prisma.sql`${extra} AND c.id = ANY(${promotedIds}::UUID[])`,
+                undefined,
+                promotedIds.length,
+              )
+            ).map((r) => r.id),
+          )
+        : new Set<string>();
+    // Keep the pacing order, then the slot count.
+    const slot = promotedIds
+      .filter((id) => visiblePromoted.has(id))
+      .slice(0, slots);
+    // Owner 2026-10-05: then the newest cases of clients on a plan with
+    // "cases shown first" — same filters, same keyset exclusion.
+    const priority = cursor
+      ? []
+      : (
+          await run(
+            Prisma.sql`${extra} AND ${PRIORITY_CLIENT_SQL}
+              ${slot.length ? Prisma.sql`AND c.id <> ALL(${slot}::UUID[])` : Prisma.empty}`,
+            undefined,
+            PRIORITY_FEED_SLOTS,
+          )
+        ).map((r) => r.id);
+    const onTop = [...slot, ...priority];
+    const rest = onTop.length
+      ? Prisma.sql`${extra} AND c.id <> ALL(${onTop}::UUID[])`
+      : extra;
+    // Owner 2026-10-13: "for you" — the newest candidates ranked for this
+    // attorney, paged by position; promoted and priority cases stay on top
+    // of page one as before (and out of the ranked list on every page).
+    if (ranked && this.recommendations) {
+      const start = rankedOffset(query.cursor);
+      const candidates = (
+        await run(rest, undefined, CASES_RANK_CANDIDATES)
+      ).map((r) => r.id);
+      const ids = await this.recommendations.casesFor(
+        viewer.userId,
+        candidates,
+        { ...query, sort: undefined, cursor: undefined, limit: undefined },
+      );
+      const end = start + limit;
+      const shownPromoted = start === 0 ? slot : [];
+      const top = start === 0 ? onTop : [];
+      const items = await this.hydrate(
+        [...new Set([...top, ...ids.slice(start, end)])],
+        viewer.userId,
+      );
+      this.recordPromotedImpressions(viewer.userId, live, shownPromoted);
+      return {
+        items,
+        nextCursor: end < ids.length ? encodeRankedOffset(end) : null,
+      };
+    }
+    const rows = await run(rest, cursor, limit + 1);
     const page = rows.slice(0, limit);
+    const shownPromoted = cursor ? [] : slot;
     const items = await this.hydrate(
-      page.map((r) => r.id),
+      [...new Set([...shownPromoted, ...priority, ...page.map((r) => r.id)])],
       viewer.userId,
     );
+    this.recordPromotedImpressions(viewer.userId, live, shownPromoted);
     const last = page[page.length - 1];
     return {
       items,
@@ -138,6 +300,25 @@ export class CasesFeedService {
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
+  }
+
+  /** Promoted cases shown on page one count as impressions. */
+  private recordPromotedImpressions(
+    viewerId: string,
+    live: Awaited<ReturnType<PromotionDeliveryService['eligible']>> | null,
+    shownPromoted: string[],
+  ): void {
+    if (shownPromoted.length === 0) return;
+    if (live && this.promoDelivery) {
+      this.promoDelivery.recordImpressions(
+        viewerId,
+        live
+          .filter((p) => p.caseId && shownPromoted.includes(p.caseId))
+          .map((p) => p.id),
+      );
+    } else {
+      this.countImpressions(shownPromoted);
+    }
   }
 
   /** GET /cases/:id for an attorney (docs/04 §4.3): CASE_NOT_AVAILABLE,
@@ -158,7 +339,12 @@ export class CasesFeedService {
     const [row, saved, ownBid] = await Promise.all([
       this.prisma.case.findUniqueOrThrow({
         where: { id: caseId },
-        select: { description: true },
+        select: {
+          description: true,
+          status: true,
+          client_completed_at: true,
+          attorney_confirmed_at: true,
+        },
       }),
       this.prisma.savedItem.findFirst({
         where: { user_id: attorneyId, item_type: 'case', item_id: caseId },
@@ -168,19 +354,36 @@ export class CasesFeedService {
         where: {
           case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
         },
-        select: { id: true },
+        select: { id: true, status: true },
       }),
     ]);
     const media = this.photos
       ? await this.photos.forViewer(caseId, attorneyId)
-      : { photos: [], photosCount: 0 };
+      : { photos: [], photosCount: 0, privateDetails: null };
     return {
       ...item,
       description: row.description,
       isSaved: !!saved,
       ownBidId: ownBid?.id ?? null,
+      acceptedBidIsMine: ownBid?.status === 'accepted',
+      completionRequestedBy:
+        row.status !== 'pending_completion'
+          ? null
+          : row.client_completed_at && !row.attorney_confirmed_at
+            ? 'client'
+            : row.attorney_confirmed_at && !row.client_completed_at
+              ? 'attorney'
+              : null,
       ...media,
       inMyPractice: access.inPractice,
+      inMyLicensedStates: access.inLicensedState,
+      // Owner 2026-10-04: an attorney may bid on any open case — unless the
+      // plan's "offers in any state" term is off (plan builder, 2026-10-05).
+      bidAllowed:
+        access.kind !== 'attorney_browser' ||
+        !this.entitlements ||
+        (await this.entitlements.has(attorneyId, 'bids_any_state')),
+      priorityClient: item.priorityClient,
     };
   }
 
@@ -189,6 +392,19 @@ export class CasesFeedService {
   async recordView(attorneyId: string, caseId: string): Promise<void> {
     await this.access.assertVisibleToAttorney(attorneyId, caseId);
     await this.viewTracking.recordView(attorneyId, caseId);
+  }
+
+  /** POST /cases/views (owner 2026-10-22, package A): the same, for many
+   * cases in one request; a case the attorney may not see is skipped. */
+  async recordViews(attorneyId: string, caseIds: string[]): Promise<void> {
+    for (const caseId of [...new Set(caseIds)]) {
+      try {
+        await this.access.assertVisibleToAttorney(attorneyId, caseId);
+      } catch {
+        continue;
+      }
+      await this.viewTracking.recordView(attorneyId, caseId);
+    }
   }
 
   /** POST /saved-items (docs/04 §4.3 "Сохранить", §11.2, §15). Only
@@ -249,7 +465,7 @@ export class CasesFeedService {
    * skipped). Also used by the saved-cases list (docs/04 §11.2). */
   async hydrate(ids: string[], attorneyId: string): Promise<CaseFeedItemDto[]> {
     if (ids.length === 0) return [];
-    const [rows, ownBids, saved, pendingComments, pendingShares] =
+    const [rows, ownBids, saved, pendingComments, pendingShares, files] =
       await Promise.all([
         this.prisma.case.findMany({
           where: { id: { in: ids } },
@@ -273,9 +489,26 @@ export class CasesFeedService {
         this.counters
           ? this.counters.pending('case', 'share_count', ids)
           : Promise.resolve(new Map<string, number>()),
+        this.photos
+          ? this.photos.counts(ids)
+          : Promise.resolve(
+              new Map<string, { images: number; documents: number }>(),
+            ),
       ]);
     const bidCaseIds = new Set(ownBids.map((b) => b.case_id));
     const savedIds = new Set(saved.map((s) => s.item_id));
+    // Owner 2026-10-18 (speed): these four reads do not depend on each other.
+    const [promotedEnds, priorityClients, activity, thresholds] =
+      await Promise.all([
+        this.activePromotedEnds(ids),
+        this.priorityClientIds(rows.map((r) => r.client_id)),
+        this.activityOf(
+          attorneyId,
+          rows.map((r) => r.client_id),
+        ),
+        loadUrgencyThresholds(this.settings),
+      ]);
+    const promoted = new Set(promotedEnds.keys());
     const byId = new Map(rows.map((r) => [r.id, r]));
     const now = Date.now();
     const items: CaseFeedItemDto[] = [];
@@ -302,13 +535,20 @@ export class CasesFeedService {
           categoryI18nKey: category.i18n_key,
           categoryNameEn: category.name_en,
         },
+        extraPracticeCount: c._count?.extra_practices ?? 0,
         primaryStateCode: c.primary_state_code,
         additionalStateCodes: c.states
           .filter((s) => !s.is_primary)
           .map((s) => s.state_code),
         city: c.city,
         status: c.status,
-        budget: { mode: c.budget_mode, amountCents: c.budget_cents },
+        budget: {
+          mode: c.budget_mode,
+          amountCents: c.budget_cents,
+          percentBps: c.budget_percent_bps,
+        },
+        coverKey: c.cover_key,
+        ...urgencyFields(c, new Date(now), thresholds),
         viewCount: c.view_count,
         bidsCount: c.bids_count,
         createdAt: c.created_at.toISOString(),
@@ -321,8 +561,154 @@ export class CasesFeedService {
         ),
         isSaved: savedIds.has(c.id),
         shareCount: Math.max(0, c.share_count + (pendingShares.get(c.id) ?? 0)),
+        promoted: promoted.has(c.id),
+        promotedUntil: promotedEnds.get(c.id)?.toISOString() ?? null,
+        priorityClient: priorityClients.has(c.client_id),
+        clientActivity: activity.get(c.client_id) ?? null,
+        dossier: {
+          imagesCount: files.get(c.id)?.images ?? 0,
+          documentsCount: files.get(c.id)?.documents ?? 0,
+          descriptionLength: c.description.length,
+          privateDetailsLength: !c.private_details
+            ? 0
+            : (
+                this.cipher?.openField(
+                  c.private_details,
+                  privateDetailsAad(c.id),
+                ) ?? c.private_details
+              ).length,
+        },
       });
     }
     return items;
   }
+
+  /** Owner 2026-10-18 (OQ-054): the card's «В сети / Был …» data, only for
+   * clients whose activity status is shown to this attorney. Best effort:
+   * none on any error. */
+  private async activityOf(
+    attorneyId: string,
+    clientIds: string[],
+  ): Promise<Map<string, ClientActivityView>> {
+    if (!this.clientActivity) return new Map();
+    try {
+      return await this.clientActivity.forClients(attorneyId, clientIds);
+    } catch {
+      return new Map();
+    }
+  }
+
+  /** Owner 2026-10-05: which of these clients are on a plan with "cases
+   * shown first". Best effort: an empty set on any error. */
+  private async priorityClientIds(clientIds: string[]): Promise<Set<string>> {
+    const ids = [...new Set(clientIds)];
+    if (ids.length === 0) return new Set();
+    try {
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT u.id FROM users u
+        WHERE u.id = ANY(${ids}::UUID[])
+          AND ${clientsWithEntitlementSql('priority_feed', Prisma.sql`u.id`)}`;
+      return new Set(rows.map((r) => r.id));
+    } catch {
+      return new Set();
+    }
+  }
+
+  /** caseId → the end of its running promotion (best effort). */
+  private async activePromotedEnds(ids: string[]): Promise<Map<string, Date>> {
+    const out = new Map<string, Date>();
+    if (ids.length === 0) return out;
+    try {
+      const now = new Date();
+      const rows = await this.prisma.casePromotion.findMany({
+        where: {
+          status: 'active',
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+          case_id: { in: ids },
+        },
+        select: { case_id: true, ends_at: true },
+      });
+      for (const r of rows)
+        if (r.case_id && r.ends_at) out.set(r.case_id, r.ends_at);
+    } catch {
+      // The badge just loses its date.
+    }
+    return out;
+  }
+
+  /** Cases with a running paid/granted promotion (owner 2026-10-02),
+   * optionally limited to [ids]. Best effort: [] on any error. */
+  async activePromotedCaseIds(ids?: string[]): Promise<string[]> {
+    if (ids && ids.length === 0) return [];
+    try {
+      const now = new Date();
+      const rows = await this.prisma.casePromotion.findMany({
+        where: {
+          status: 'active',
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+          ...(ids ? { case_id: { in: ids } } : {}),
+        },
+        select: { case_id: true },
+        orderBy: { starts_at: 'asc' },
+        take: 200,
+      });
+      return [...new Set(rows.flatMap((r) => (r.case_id ? [r.case_id] : [])))];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Fire-and-forget impression counter for promoted cases shown. Owner
+   * 2026-10-25 (DB audit finding 8): one pending delta per promotion through
+   * the counter aggregator instead of an UPDATE of every hot promotion row
+   * for every feed page. */
+  private countImpressions(caseIds: string[]): void {
+    const now = new Date();
+    void Promise.resolve()
+      .then(async () => {
+        const where = {
+          case_id: { in: caseIds },
+          status: 'active' as const,
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+        };
+        if (!this.counters) {
+          await this.prisma.casePromotion.updateMany({
+            where,
+            data: { impressions: { increment: 1 } },
+          });
+          return;
+        }
+        const live = await this.prisma.casePromotion.findMany({
+          where,
+          select: { id: true },
+        });
+        for (const p of live) {
+          await this.counters.bump('case_promotion', p.id, 'impressions', 1);
+        }
+      })
+      .catch(() => undefined);
+  }
+}
+
+/** "for you" cursor: a position in the ranked list. */
+function encodeRankedOffset(i: number): string {
+  return Buffer.from(JSON.stringify({ i })).toString('base64url');
+}
+
+function rankedOffset(raw: string | undefined): number {
+  if (!raw) return 0;
+  try {
+    const { i } = JSON.parse(
+      Buffer.from(raw, 'base64url').toString('utf8'),
+    ) as {
+      i?: unknown;
+    };
+    if (typeof i === 'number' && Number.isInteger(i) && i >= 0) return i;
+  } catch {
+    // fall through to the first page
+  }
+  return 0;
 }

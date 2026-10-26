@@ -45,6 +45,21 @@ describe('detectMime (docs/03 §2.2 magic bytes)', () => {
     expect(detectMime(Buffer.alloc(0))).toBeNull();
   });
 
+  it('owner 2026-10-17: MP4 / MOV videos only when declared as video', () => {
+    expect(detectMime(ftyp('isom', ['isom', 'avc1']), 'video/mp4')).toBe(
+      'video/mp4',
+    );
+    expect(detectMime(ftyp('qt  ', ['qt  ']), 'video/quicktime')).toBe(
+      'video/quicktime',
+    );
+    // The same box declared as a voice note stays audio.
+    expect(detectMime(ftyp('mp42', ['mp42']), 'audio/mp4')).toBe('audio/mp4');
+    // A video type over non-video bytes is refused.
+    expect(detectMime(Buffer.from('%PDF-1.4 fake'), 'video/mp4')).not.toBe(
+      'video/mp4',
+    );
+  });
+
   it('OQ-047: office, ODF, RTF, text, WEBP, GIF', () => {
     const ole = Buffer.from([
       0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0,
@@ -79,5 +94,79 @@ describe('detectMime (docs/03 §2.2 magic bytes)', () => {
     expect(detectMime(Buffer.from('GIF89a....'))).toBe('image/gif');
     expect(detectMime(Buffer.from('RIFF\0\0\0\0WEBPVP8 '))).toBe('image/webp');
     expect(detectMime(Buffer.from([1, 2, 0, 3, 4, 5]))).toBeNull();
+  });
+  describe('voice notes (m4a from the app, WebM/MP4 from browsers)', () => {
+    /** An EBML element: 1-2 byte ID, 1-byte size, payload. */
+    const el = (id: number[], payload: Buffer): Buffer =>
+      Buffer.concat([
+        Buffer.from(id),
+        Buffer.from([0x80 | payload.length]),
+        payload,
+      ]);
+    const webm = (docType: string, codec = 'A_OPUS'): Buffer => {
+      const header = Buffer.concat([
+        el([0x42, 0x86], Buffer.from([1])), // EBMLVersion
+        el([0x42, 0xf7], Buffer.from([1])), // EBMLReadVersion
+        el([0x42, 0x82], Buffer.from(docType, 'latin1')), // DocType
+        el([0x42, 0x87], Buffer.from([4])), // DocTypeVersion
+        el([0x42, 0x85], Buffer.from([2])), // DocTypeReadVersion
+      ]);
+      return Buffer.concat([
+        Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x80 | header.length]),
+        header,
+        // Segment (unknown size) → Tracks → TrackEntry → CodecID.
+        Buffer.from([
+          0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+          0xff,
+        ]),
+        Buffer.from([0x16, 0x54, 0xae, 0x6b, 0x80 | (codec.length + 4)]),
+        Buffer.from([0xae, 0x80 | (codec.length + 2)]),
+        el([0x86], Buffer.from(codec, 'latin1')),
+        Buffer.alloc(32),
+      ]);
+    };
+
+    it('recognises Opus-in-WebM as audio/webm', () => {
+      expect(detectMime(webm('webm'))).toBe('audio/webm');
+      // A declared type never changes what the bytes are.
+      expect(detectMime(webm('webm'), 'audio/mp4')).toBe('audio/webm');
+    });
+
+    it('recognises a declared WebM video (VP8 / VP9 / AV1)', () => {
+      expect(detectMime(webm('webm', 'V_VP9'), 'video/webm')).toBe(
+        'video/webm',
+      );
+      expect(detectMime(webm('webm', 'V_AV1'), 'video/webm')).toBe(
+        'video/webm',
+      );
+      // Not a video track, or Matroska: no.
+      expect(detectMime(webm('webm'), 'video/webm')).toBe('audio/webm');
+      expect(detectMime(webm('matroska', 'V_VP9'), 'video/webm')).toBeNull();
+    });
+
+    it('refuses Matroska, non-Opus WebM and broken EBML headers', () => {
+      expect(detectMime(webm('matroska'))).toBeNull();
+      expect(detectMime(webm('webmx'))).toBeNull();
+      expect(detectMime(webm('webm', 'V_VP8'))).toBeNull();
+      // Header size running past the data.
+      const cut = webm('webm');
+      expect(detectMime(cut.subarray(0, 12))).toBeNull();
+      expect(detectMime(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))).toBeNull();
+      // A zero length byte is not a valid EBML vint.
+      expect(
+        detectMime(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x00, 0, 0, 0, 0])),
+      ).toBeNull();
+    });
+
+    it('recognises MPEG-4 audio brands from phones and browsers', () => {
+      for (const brand of ['M4A ', 'mp42', 'isom', 'iso5', 'iso6', 'mp4a']) {
+        expect(detectMime(ftyp(brand, ['isom']))).toBe('audio/mp4');
+      }
+      // The declared type never overrides the container.
+      expect(detectMime(ftyp('M4A ', ['isom']), 'audio/webm')).toBe(
+        'audio/mp4',
+      );
+      expect(detectMime(ftyp('qt  ', ['qt  ']))).toBeNull();
+    });
   });
 });

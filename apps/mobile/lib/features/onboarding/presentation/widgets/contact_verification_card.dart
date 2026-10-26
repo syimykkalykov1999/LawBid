@@ -67,15 +67,20 @@ class _ContactVerificationCardState
     final raw = _controller.text;
     final valid = _isPhone ? UsPhone.isValid(raw) : isPlausibleEmail(raw);
     if (!valid) {
-      setState(() => _localError = t.t(
-          _isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid'));
+      setState(
+        () => _localError = t.t(
+          _isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid',
+        ),
+      );
       return;
     }
     setState(() => _localError = null);
     final value = _isPhone ? UsPhone.toE164(raw) : raw.trim().toLowerCase();
-    unawaited(ref
-        .read(contactVerificationProvider(widget.type).notifier)
-        .sendCode(value));
+    unawaited(
+      ref
+          .read(contactVerificationProvider(widget.type).notifier)
+          .sendCode(value),
+    );
   }
 
   String _display(String value) => _isPhone ? UsPhone.format(value) : value;
@@ -99,7 +104,7 @@ class _ContactVerificationCardState
         label: t.t('onboarding.contacts.status.verified'),
         color: colors.success,
         background: colors.successTint,
-        icon: AppIcons.verifiedRounded,
+        icon: AppIcons.verifiedUserOutlined,
       );
     } else if (widget.requirement == ContactRequirement.required) {
       status = _StatusPill(
@@ -112,7 +117,7 @@ class _ContactVerificationCardState
       status = _StatusPill(
         label: t.t('onboarding.contacts.status.recommended'),
         color: colors.textSecondary,
-        background: colors.border.withValues(alpha: 0.5),
+        background: colors.chip,
       );
     }
 
@@ -141,7 +146,7 @@ class _ContactVerificationCardState
                 if (_isPhone)
                   AutofillHints.telephoneNumberNational
                 else
-                  AutofillHints.email
+                  AutofillHints.email,
               ],
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _send(t),
@@ -167,10 +172,14 @@ class _ContactVerificationCardState
           body = [
             Text(
               confirming
-                  ? t.t('onboarding.contacts.confirmIdentity',
-                      {'target': _maybeFormat(target)})
-                  : t.t('onboarding.contacts.codeSent',
-                      {'target': _display(target)}),
+                  ? t.t(
+                      'onboarding.contacts.confirmIdentity',
+                      {'target': _maybeFormat(target)},
+                    )
+                  : t.t(
+                      'onboarding.contacts.codeSent',
+                      {'target': _display(target)},
+                    ),
               style: typography.bodySmall.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -185,27 +194,32 @@ class _ContactVerificationCardState
             if (state.busy) ...[
               const SizedBox(height: AppSpacing.sm),
               LinearProgressIndicator(
-                  minHeight: 2,
-                  color: colors.gold,
-                  backgroundColor: colors.border),
+                minHeight: 2,
+                color: colors.gold,
+                backgroundColor: colors.border,
+              ),
             ],
             const SizedBox(height: AppSpacing.xs),
             Wrap(
               spacing: AppSpacing.lg,
               children: [
                 _TextLink(
-                    label: t.t('auth.otp.resend'),
-                    onTap: state.busy ? null : notifier.resend),
+                  label: t.t('auth.otp.resend'),
+                  onTap: state.busy ? null : notifier.resend,
+                ),
                 _TextLink(
-                    label: t.t('onboarding.contacts.change'),
-                    onTap: state.busy ? null : notifier.edit),
+                  label: t.t('onboarding.contacts.change'),
+                  onTap: state.busy ? null : notifier.edit,
+                ),
               ],
             ),
           ];
         case ContactVerificationStage.verified:
           body = [
-            Text(_display(state.value ?? ''),
-                style: typography.body.copyWith(color: colors.text)),
+            Text(
+              _display(state.value ?? ''),
+              style: typography.body.copyWith(color: colors.text),
+            ),
           ];
       }
     }
@@ -247,7 +261,11 @@ class _ContactVerificationCardState
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              status,
+              // Long translations: the pill never squeezes the title.
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: status,
+              ),
             ],
           ),
           if (!verified && state.stage == ContactVerificationStage.editing) ...[
@@ -264,7 +282,9 @@ class _ContactVerificationCardState
             curve: AppMotion.enterCurve,
             alignment: Alignment.topCenter,
             child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch, children: body),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: body,
+            ),
           ),
         ],
       ),
@@ -276,11 +296,12 @@ class _ContactVerificationCardState
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill(
-      {required this.label,
-      required this.color,
-      required this.background,
-      this.icon});
+  const _StatusPill({
+    required this.label,
+    required this.color,
+    required this.background,
+    this.icon,
+  });
 
   final String label;
   final Color color;
@@ -292,10 +313,13 @@ class _StatusPill extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     return Container(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(AppRadii.pill)),
+        color: background,
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -303,7 +327,14 @@ class _StatusPill extends StatelessWidget {
             AppIcon(icon, size: AppSpacing.lg, color: color),
             const SizedBox(width: AppSpacing.xs),
           ],
-          Text(label, style: typography.caption.copyWith(color: color)),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(color: color),
+            ),
+          ),
         ],
       ),
     );

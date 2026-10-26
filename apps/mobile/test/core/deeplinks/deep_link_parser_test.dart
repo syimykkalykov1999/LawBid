@@ -2,76 +2,267 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
 
 void main() {
-  DeepLink? parse(String s) => parseDeepLink(Uri.parse(s), host: 'lawbid.app');
+  DeepLink? parse(String s) => parseDeepLink(Uri.parse(s), host: 'lawbid.dev');
 
-  group('magic sign-in link (docs/01 §10.2 E/F, security review 2026-09-27)', () {
-    const token = 'Tk_-0123456789abcdefghijABCDEFGHIJ012345678'; // 43 base64url chars
+  group('magic sign-in link (docs/01 §10.2 E/F, security review 2026-09-27)',
+      () {
+    const token =
+        'Tk_-0123456789abcdefghijABCDEFGHIJ012345678'; // 43 base64url chars
 
     test('custom scheme lawbid://auth/email-code?token', () {
-      expect(parse('lawbid://auth/email-code?token=$token'), const EmailCodeDeepLink(token: token));
+      expect(
+        parse('lawbid://auth/email-code?token=$token'),
+        const EmailCodeDeepLink(token: token),
+      );
     });
 
-    test('universal / App Link on lawbid.app (and www., trailing slash)', () {
+    test('universal / App Link on lawbid.dev (and www., trailing slash)', () {
       const expected = EmailCodeDeepLink(token: token);
-      expect(parse('https://lawbid.app/auth/email-code?token=$token'), expected);
-      expect(parse('https://www.lawbid.app/auth/email-code/?token=$token'), expected);
+      expect(
+        parse('https://lawbid.dev/auth/email-code?token=$token'),
+        expected,
+      );
+      expect(
+        parse('https://www.lawbid.dev/auth/email-code/?token=$token'),
+        expected,
+      );
     });
 
-    test('rejects malformed tokens, legacy email+code links and foreign hosts', () {
-      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}'), isNull); // 42
+    test('rejects malformed tokens, legacy email+code links and foreign hosts',
+        () {
+      expect(
+        parse('lawbid://auth/email-code?token=${token.substring(1)}'),
+        isNull,
+      ); // 42
       expect(parse('lawbid://auth/email-code?token=${token}A'), isNull); // 44
-      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}='), isNull); // padding
-      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}%2B'), isNull); // '+'
-      expect(parse('lawbid://auth/email-code?token=${token.substring(1)}%20'), isNull);
+      expect(
+        parse('lawbid://auth/email-code?token=${token.substring(1)}='),
+        isNull,
+      ); // padding
+      expect(
+        parse('lawbid://auth/email-code?token=${token.substring(1)}%2B'),
+        isNull,
+      ); // '+'
+      expect(
+        parse('lawbid://auth/email-code?token=${token.substring(1)}%20'),
+        isNull,
+      );
       expect(parse('lawbid://auth/email-code?token='), isNull);
       expect(parse('lawbid://auth/email-code'), isNull);
-      expect(parse('lawbid://auth/email-code?email=ann@example.com&code=123456'), isNull);
-      expect(parse('https://evil.example/auth/email-code?token=$token'), isNull);
-      expect(parse('https://lawbid.app.evil.example/auth/email-code?token=$token'), isNull);
-      expect(parse('http://lawbid.app/auth/email-code?token=$token'), isNull);
+      expect(
+        parse('lawbid://auth/email-code?email=ann@example.com&code=123456'),
+        isNull,
+      );
+      expect(
+        parse('https://evil.example/auth/email-code?token=$token'),
+        isNull,
+      );
+      expect(
+        parse('https://lawbid.dev.evil.example/auth/email-code?token=$token'),
+        isNull,
+      );
+      expect(parse('http://lawbid.dev/auth/email-code?token=$token'), isNull);
       expect(parse('lawbid://auth/other?token=$token'), isNull);
     });
 
     test('never prints the token', () {
-      expect(const EmailCodeDeepLink(token: token).toString(), isNot(contains(token)));
+      expect(
+        const EmailCodeDeepLink(token: token).toString(),
+        isNot(contains(token)),
+      );
+    });
+  });
+
+  group('web tab addresses (refresh keeps the tab)', () {
+    test('only with webTabs', () {
+      final uri = Uri.parse('https://lawbid.dev/mine');
+      expect(parseDeepLink(uri, host: 'lawbid.dev'), isNull);
+      expect(
+        parseDeepLink(uri, host: 'lawbid.dev', webTabs: true),
+        const TabDeepLink('/mine'),
+      );
+      expect(
+        parseDeepLink(
+          Uri.parse('https://lawbid.dev/admin'),
+          host: 'lawbid.dev',
+          webTabs: true,
+        ),
+        isNull,
+      );
+    });
+
+    test('Stripe return pages land on the screen that re-reads it', () {
+      DeepLink? web(String path) => parseDeepLink(
+            Uri.parse('https://lawbid.dev$path'),
+            host: 'lawbid.dev',
+            webTabs: true,
+          );
+      const id = '3f0c9a8e-1b2d-4c5e-9f00-112233445566';
+      expect(
+        web('/payment/success?payment_id=p1&case_id=$id'),
+        const TabDeepLink('/payment/success?case_id=$id'),
+      );
+      expect(
+        web('/payment/cancel?case_id=bad%20id'),
+        const TabDeepLink('/payment/cancel'),
+      );
+      expect(
+        web('/subscription/success?session_id=cs_1'),
+        const TabDeepLink('/profile/settings/subscription'),
+      );
+      expect(
+        web('/plan/cancel'),
+        const TabDeepLink('/profile/settings/client-plan'),
+      );
+      expect(
+        web('/verification/success'),
+        const TabDeepLink('/profile/settings/verify-account'),
+      );
+      expect(
+        web('/bid-packs/success?purchase_id=x'),
+        const TabDeepLink('/profile/settings/bid-packs'),
+      );
+      expect(
+        web('/stars/success?purchase_id=x'),
+        const TabDeepLink('/profile/settings/stars'),
+      );
+      expect(
+        web('/promotion/success'),
+        const TabDeepLink('/profile/settings/promotions'),
+      );
+      // Owner 2026-10-22: the phone app is brought back by the card page.
+      DeepLink? app(String link) =>
+          parseDeepLink(Uri.parse(link), host: 'lawbid.dev');
+      expect(
+        app('lawbid:/subscription/success'),
+        const TabDeepLink('/profile/settings/subscription'),
+      );
+      expect(
+        app('lawbid://promotion/cancel'),
+        const TabDeepLink('/profile/settings/promotions'),
+      );
+      expect(web('/payout/return'), const TabDeepLink('/payout/return'));
+      expect(web('/plan/other'), isNull);
+      expect(
+        parseDeepLink(
+          Uri.parse('https://lawbid.dev/plan/success'),
+          host: 'lawbid.dev',
+        ),
+        isNull,
+      );
     });
   });
 
   group('content links (docs/01 §12)', () {
     test('case / lawyer / post on both forms', () {
       const id = '3f0c9a8e-1b2d-4c5e-9f00-112233445566';
-      expect(parse('https://lawbid.app/case/$id'), const ContentDeepLink(ContentKind.caseItem, id));
-      expect(parse('lawbid://case/$id'), const ContentDeepLink(ContentKind.caseItem, id));
-      expect(parse('https://lawbid.app/post/$id'), const ContentDeepLink(ContentKind.post, id));
-      expect(parse('https://lawbid.app/lawyer/jane.doe_esq'), const ContentDeepLink(ContentKind.lawyer, 'jane.doe_esq'));
-      expect(parse('https://lawbid.app/lawyer/@jane.doe'), const ContentDeepLink(ContentKind.lawyer, 'jane.doe'));
+      expect(
+        parse('https://lawbid.dev/case/$id'),
+        const ContentDeepLink(ContentKind.caseItem, id),
+      );
+      expect(
+        parse('lawbid://case/$id'),
+        const ContentDeepLink(ContentKind.caseItem, id),
+      );
+      expect(
+        parse('https://lawbid.dev/post/$id'),
+        const ContentDeepLink(ContentKind.post, id),
+      );
+      expect(
+        parse('https://lawbid.dev/lawyer/jane.doe_esq'),
+        const ContentDeepLink(ContentKind.lawyer, 'jane.doe_esq'),
+      );
+      expect(
+        parse('https://lawbid.dev/lawyer/@jane.doe'),
+        const ContentDeepLink(ContentKind.lawyer, 'jane.doe'),
+      );
+      expect(
+        parse('https://lawbid.dev/r/ab12cd'),
+        const ReferralDeepLink('AB12CD'),
+      );
+      expect(
+        parse('lawbid://referral/AB12CD'),
+        const ReferralDeepLink('AB12CD'),
+      );
+      expect(parse('https://lawbid.dev/r/x!'), isNull);
+    });
+
+    test('group invite links: /g/<code> and /g/@username', () {
+      const code = 'Xk3_aB-9Qz1LmN4pR7sT0w';
+      expect(
+        parse('https://lawbid.dev/g/$code'),
+        const GroupInviteDeepLink(code),
+      );
+      expect(
+        parse('https://www.lawbid.dev/g/$code'),
+        const GroupInviteDeepLink(code),
+      );
+      expect(
+        parse('lawbid://g/$code'),
+        const GroupInviteDeepLink(code),
+      );
+      expect(
+        parse('https://lawbid.dev/g/@law_chat'),
+        const ContentDeepLink(ContentKind.group, '@law_chat'),
+      );
+      expect(
+        const ContentDeepLink(ContentKind.group, code).location,
+        '/g/$code',
+      );
+      expect(
+        const ContentDeepLink(ContentKind.group, '@law_chat').location,
+        '/g/%40law_chat',
+      );
+      expect(parse('https://lawbid.dev/g'), isNull);
+      expect(parse('https://lawbid.dev/g/ab'), isNull);
+      expect(parse('https://lawbid.dev/g/a%20b%20c%20d'), isNull);
+      expect(parse('https://lawbid.dev/g/$code/extra'), isNull);
+      expect(parse('https://evil.example/g/$code'), isNull);
     });
 
     test('in-app locations', () {
-      expect(const ContentDeepLink(ContentKind.caseItem, 'abc').location, '/case/abc');
-      expect(const ContentDeepLink(ContentKind.lawyer, 'jane').location, '/lawyer/jane');
-      expect(const ContentDeepLink(ContentKind.post, 'p1').location, '/post/p1');
+      expect(
+        const ContentDeepLink(ContentKind.caseItem, 'abc').location,
+        '/case/abc',
+      );
+      expect(
+        const ContentDeepLink(ContentKind.lawyer, 'jane').location,
+        '/lawyer/jane',
+      );
+      expect(
+        const ContentDeepLink(ContentKind.post, 'p1').location,
+        '/post/p1',
+      );
     });
 
     test('rejects bad ids, usernames and unknown paths', () {
-      expect(parse('https://lawbid.app/lawyer/ab'), isNull); // < 3 chars
-      expect(parse('https://lawbid.app/lawyer/${'a' * 31}'), isNull); // > 30 chars
-      expect(parse('https://lawbid.app/lawyer/jane%20doe'), isNull);
-      expect(parse('https://lawbid.app/case/../../etc'), isNull);
-      expect(parse('https://lawbid.app/case/a/b'), isNull);
-      expect(parse('https://lawbid.app/case'), isNull);
-      expect(parse('https://lawbid.app/'), isNull);
-      expect(parse('https://lawbid.app/admin/1'), isNull);
+      expect(parse('https://lawbid.dev/lawyer/ab'), isNull); // < 3 chars
+      expect(
+        parse('https://lawbid.dev/lawyer/${'a' * 31}'),
+        isNull,
+      ); // > 30 chars
+      expect(parse('https://lawbid.dev/lawyer/jane%20doe'), isNull);
+      expect(parse('https://lawbid.dev/case/../../etc'), isNull);
+      expect(parse('https://lawbid.dev/case/a/b'), isNull);
+      expect(parse('https://lawbid.dev/case'), isNull);
+      expect(parse('https://lawbid.dev/'), isNull);
+      expect(parse('https://lawbid.dev/admin/1'), isNull);
       expect(parse('mailto:ann@example.com'), isNull);
     });
 
     test('host is configurable (owner-supplied domain)', () {
       expect(
-        parseDeepLink(Uri.parse('https://links.example.com/case/abc'), host: 'links.example.com'),
+        parseDeepLink(
+          Uri.parse('https://links.example.com/case/abc'),
+          host: 'links.example.com',
+        ),
         const ContentDeepLink(ContentKind.caseItem, 'abc'),
       );
       expect(
-        parseDeepLink(Uri.parse('https://lawbid.app/case/abc'), host: 'links.example.com'),
+        parseDeepLink(
+          Uri.parse('https://lawbid.dev/case/abc'),
+          host: 'links.example.com',
+        ),
         isNull,
       );
     });

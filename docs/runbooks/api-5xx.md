@@ -1,5 +1,7 @@
 # api-5xx-ratio — 5xx share above 1 % for 5 minutes
 
+> **Для владельца:** Подождите 15 минут: неудачное обновление откатывается само. Не прошло — GitHub → Actions → Rollback production. Все письма и кнопки: [OWNER.md](OWNER.md).
+
 **Signal.** CloudWatch `HTTPCode_Target_5XX_Count / RequestCount` on the
 api target group. Dashboard: *API health → 5xx share*.
 

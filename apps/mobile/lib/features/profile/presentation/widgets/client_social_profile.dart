@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
-import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
+import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_quiet_button.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart'
     show
         MapsReviewTile,
@@ -23,16 +25,23 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
         ReviewSummaryPanel,
         showReportReasonSheet,
         showReviewReplySheet;
-import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show currentUserIdProvider;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
-    show ProfilePostsGrid;
+    show ProfileBriefsAndReposts, ProfilePostsGrid;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
-    show FollowButton;
+    show FollowButton, TrustAvatarBadge;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/shared/presentation/share_sheet.dart';
 
-enum _Tab { posts, reviews }
+// Owner 2026-10-18: Instagram's tabs, as on an attorney's profile — Посты
+// (photo posts) | Рилсы (video posts / reels) | Брифы и репосты | Отзывы
+// (reviews about the client, only for those who may read them).
+enum _Tab { posts, reels, reposts, reviews }
 
 /// Owner 2026-09-30 (OQ-038): the client profile like Instagram, for the
 /// client and for anyone opening it — avatar with posts / followers /
@@ -58,7 +67,39 @@ class ClientSocialProfile extends ConsumerStatefulWidget {
 class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
   _Tab _tab = _Tab.posts;
 
+  /// The tab pages (set by the tab row): a tap glides to its page.
+  PageController? _pages;
+
+  void _open(_Tab value) {
+    final tabs = p.canSeeReviews
+        ? _Tab.values
+        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    final i = tabs.indexOf(value);
+    final pages = _pages;
+    if (pages != null && pages.hasClients && i >= 0) {
+      pages.animateToPage(
+        i,
+        duration: context.reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      setState(() => _tab = value);
+    }
+  }
+
   PublicClientProfile get p => widget.profile;
+
+  Future<void> _share(Translator t) async {
+    final host = ref.read(appEnvironmentProvider).deepLinkHost;
+    await showShareSheet(
+      context,
+      t: t,
+      link: 'https://$host/client/${p.username}',
+      text: atHandle(p.username),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +107,8 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final name = p.fullName.isEmpty ? '@${p.username}' : p.fullName;
-    final tab = p.canSeeReviews ? _tab : _Tab.posts;
+    final name = p.fullName.isEmpty ? atHandle(p.username) : p.fullName;
+    final tab = p.canSeeReviews || _tab != _Tab.reviews ? _tab : _Tab.posts;
     final blocked = p.isBlocked || p.hasBlockedMe;
 
     Widget counter(String value, String label, {VoidCallback? onTap}) =>
@@ -86,16 +127,21 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   children: [
                     // Owner 2026-09-30: the same size as the attorney's
                     // counters, not a big title.
-                    Text(value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.body.copyWith(
-                            color: colors.text, fontWeight: FontWeight.w700)),
-                    Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary)),
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(color: colors.textSecondary),
+                    ),
                   ],
                 ),
               ),
@@ -112,7 +158,10 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
           label: label,
           excludeSemantics: true,
           child: AppPressable(
-            onTap: () => setState(() => _tab = value),
+            key: ValueKey('client-tab-${value.name}'),
+            onTap: () => _open(value),
+            // Owner 2026-10-18: four tabs — icons only, as on an attorney's
+            // profile and Instagram (the label stays for screen readers).
             child: Container(
               height: AppSizes.touchTarget,
               decoration: BoxDecoration(
@@ -123,18 +172,12 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                   ),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AppIcon(icon,
-                      size: 20,
-                      color: selected ? colors.text : colors.textSecondary),
-                  const SizedBox(width: AppSpacing.xs),
-                  Text(label,
-                      style: type.bodySmall.copyWith(
-                          color: selected ? colors.text : colors.textSecondary,
-                          fontWeight: FontWeight.w600)),
-                ],
+              child: Center(
+                child: AppIcon(
+                  icon,
+                  size: AppSizes.iconMd,
+                  color: selected ? colors.text : colors.textSecondary,
+                ),
               ),
             ),
           ),
@@ -144,28 +187,56 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
 
     final header = Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.md,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              ProfileAvatar(
-                size: 88,
-                url: p.avatarUrl,
-                initials:
-                    initialsOf(p.firstName, p.lastName, fallback: p.username),
-                semanticLabel: t.t('profile.avatar.label'),
+              // Owner 2026-10-16: the verified badge sits on the avatar
+              // corner (as on the attorney's), not beside the name.
+              TrustAvatarBadge(
+                id: p.id,
+                size: AppSizes.profileAvatar,
+                trustLevel: 0,
+                goldLabel: p.verified ? t.t('profile.verified.label') : null,
+                child: StoryAvatarRing(
+                  userId: p.id,
+                  photoUrl: p.avatarUrl,
+                  photoCloseLabel: t.t('common.close'),
+                  size: AppSizes.profileAvatar,
+                  child: ProfileAvatar(
+                    size: AppSizes.profileAvatar,
+                    url: p.avatarUrl,
+                    initials: initialsOf(
+                      p.firstName,
+                      p.lastName,
+                      fallback: p.username,
+                    ),
+                    semanticLabel: t.t('profile.avatar.label'),
+                    viewerCloseLabel: t.t('common.close'),
+                  ),
+                ),
               ),
               const SizedBox(width: AppSpacing.md),
-              counter(SocialFormat.count(f, p.postsCount),
-                  t.t('client.counter.posts')),
-              counter(SocialFormat.count(f, p.followersCount),
-                  t.t('client.counter.followers'),
-                  onTap: () => context.push(SocialRoutes.followers(p.id))),
-              counter(SocialFormat.count(f, p.followingCount),
-                  t.t('client.counter.following'),
-                  onTap: () => context.push(SocialRoutes.following(p.id))),
+              counter(
+                SocialFormat.count(f, p.postsCount),
+                t.t('client.counter.posts'),
+              ),
+              counter(
+                SocialFormat.count(f, p.followersCount),
+                t.t('client.counter.followers'),
+                onTap: () => context.push(SocialRoutes.followers(p.id)),
+              ),
+              counter(
+                SocialFormat.count(f, p.followingCount),
+                t.t('client.counter.following'),
+                onTap: () => context.push(SocialRoutes.following(p.id)),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
@@ -174,46 +245,45 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               Flexible(
                 child: Semantics(
                   header: true,
-                  child: Text(name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.body.copyWith(
-                          color: colors.text, fontWeight: FontWeight.w700)),
-                ),
-              ),
-              if (p.verified) ...[
-                const SizedBox(width: AppSpacing.xs),
-                VerifiedBadge(semanticLabel: t.t('profile.verified.label')),
-              ],
-            ],
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              AppIcon(AppIcons.locationOnOutlined,
-                  size: AppSpacing.lg, color: colors.goldStroke),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  '${t.t('person.client')} · ${p.state.name}',
-                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                  child: Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.body.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
           if (blocked) ...[
             const SizedBox(height: AppSpacing.sm),
-            Text(t.t(p.isBlocked ? 'block.byYou' : 'block.blockedYou'),
-                style: type.bodySmall.copyWith(color: colors.textSecondary)),
+            Text(
+              t.t(p.isBlocked ? 'block.byYou' : 'block.blockedYou'),
+              style: type.bodySmall.copyWith(color: colors.textSecondary),
+            ),
           ],
+          // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.md),
           if (p.isSelf)
-            AppButton(
-              label: t.t('profile.action.edit'),
-              icon: AppIcons.editOutlined,
-              variant: AppButtonVariant.secondary,
-              height: AppSizes.touchTarget,
-              onPressed: () => context.push(AppRoutes.profileEdit),
+            Row(
+              children: [
+                Expanded(
+                  child: ProfileQuietButton(
+                    label: t.t('profile.action.edit'),
+                    onTap: () => context.push(AppRoutes.profileEdit),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: ProfileQuietButton(
+                    label: t.t('profile.action.shareProfile'),
+                    onTap: () => _share(t),
+                  ),
+                ),
+              ],
             )
           else if (!blocked)
             Row(
@@ -225,63 +295,114 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                     expanded: true,
                   ),
                 ),
-                // OQ-043: an attorney can write to a client directly (a
-                // message request until the client accepts).
-                if (ref.watch(actsAsAttorneyProvider)) ...[
+                // OQ-043: "Написать" opens the direct chat (a message
+                // request until accepted). Owner 2026-10-17: clients too,
+                // like Instagram. Audit 2026-10-02: assistants need the
+                // "chats" duty.
+                if (!ref.watch(actsAsAttorneyProvider) ||
+                    ref.watch(canDoProvider(AssistantDuty.chats))) ...[
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
-                    child: AppButton(
+                    child: ProfileQuietButton(
                       label: t.t('profile.action.message'),
-                      variant: AppButtonVariant.secondary,
-                      height: AppSizes.touchTarget,
-                      onPressed: () => openDirectChat(context, ref, p.id),
+                      onTap: () => openDirectChat(context, ref, p.id),
                     ),
                   ),
                 ],
               ],
             ),
           const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              tabButton(
-                  _Tab.posts, AppIcons.gridOnRounded, t.t('client.tab.posts')),
-              if (p.canSeeReviews)
-                tabButton(_Tab.reviews, AppIcons.starOutlineRounded,
-                    t.t('client.tab.reviews')),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
         ],
       ),
     );
 
-    return TabSwipe<_Tab>(
-      value: tab,
-      values: p.canSeeReviews ? _Tab.values : const [_Tab.posts],
-      onChanged: (v) => setState(() => _tab = v),
-      child: RefreshIndicator(
-        color: colors.gold,
-        onRefresh: () async {
-          ref
-            ..invalidate(clientReviewsProvider)
-            ..invalidate(clientReviewSummaryProvider(p.id));
-          await widget.onRefresh();
+    final tabs = p.canSeeReviews
+        ? _Tab.values
+        : const [_Tab.posts, _Tab.reels, _Tab.reposts];
+    Widget pageOf(_Tab value) => switch (value) {
+          _Tab.posts => ProfilePostsGrid(
+              attorneyId: p.id,
+              emptyTitle: t.t('client.posts.empty'),
+              emptyMessage: '',
+            ),
+          _Tab.reels => ProfilePostsGrid(
+              key: const ValueKey('reels'),
+              attorneyId: p.id,
+              reelsOnly: true,
+              emptyTitle: t.t('profile.reels.empty.title'),
+              emptyMessage: t.t(
+                p.isSelf
+                    ? 'profile.reels.empty.self'
+                    : 'profile.reels.empty.other',
+              ),
+            ),
+          _Tab.reposts => ProfileBriefsAndReposts(
+              attorneyId: p.id,
+              isSelf: p.isSelf,
+              emptyOtherKey: 'profile.briefsReposts.empty.otherUser',
+            ),
+          _Tab.reviews => _ReviewsList(clientId: p.id),
+        };
+
+    // Owner 2026-10-19 (Instagram): the header scrolls away, the tabs stick
+    // and are pages side by side (swipe / tap glide), each kept alive — no
+    // blink, no jump when a tab changes.
+    return ProfileTabPages(
+      initialPage: tabs.indexOf(tab).clamp(0, tabs.length - 1),
+      onPage: (i) => setState(() => _tab = tabs[i]),
+      header: header,
+      tabBar: Builder(
+        builder: (context) {
+          _pages = ProfileTabPages.controllerOf(context);
+          // Owner 2026-10-20: the tab bar runs edge to edge.
+          return Row(
+            children: [
+              tabButton(
+                _Tab.posts,
+                AppIcons.gridOnRounded,
+                t.t('client.tab.posts'),
+              ),
+              tabButton(
+                _Tab.reels,
+                AppIcons.playCircleOutlined,
+                t.t('profile.tab.reels'),
+              ),
+              // Owner 2026-10-18: the same «Брифы и репосты» tab as an
+              // attorney's (a client's text posts had no tab before).
+              tabButton(
+                _Tab.reposts,
+                AppIcons.autoModeRounded,
+                t.t('profile.tab.briefsReposts'),
+              ),
+              if (p.canSeeReviews)
+                tabButton(
+                  _Tab.reviews,
+                  AppIcons.starOutlineRounded,
+                  t.t('client.tab.reviews'),
+                ),
+            ],
+          );
         },
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
-          children: [
-            header,
-            if (tab == _Tab.posts)
-              ProfilePostsGrid(
-                attorneyId: p.id,
-                emptyTitle: t.t('client.posts.empty'),
-                emptyMessage: '',
-              )
-            else
-              _ReviewsList(clientId: p.id),
-          ],
-        ),
       ),
+      pagePadding: (i) => EdgeInsets.only(
+        top: tabs[i] == _Tab.reposts ? AppSpacing.sm : 0,
+        bottom: AppSpacing.xxl,
+      ),
+      onRefresh: () async {
+        ref
+          ..invalidate(clientReviewsProvider)
+          ..invalidate(clientReviewSummaryProvider(p.id));
+        await widget.onRefresh();
+      },
+      pages: [
+        for (final value in tabs)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height * 0.5,
+            ),
+            child: pageOf(value),
+          ),
+      ],
     );
   }
 }
@@ -341,7 +462,7 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
             .read(clientReviewsRepositoryProvider)
             .saveOpen(clientId, rating: rating, body: body, photoIds: photoIds),
       );
-      if (saved == true && context.mounted) {
+      if ((saved ?? false) && context.mounted) {
         refresh();
         showAppSnackBar(context, t.t('client.review.saved'));
       }
@@ -349,31 +470,43 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
 
     final note = Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppIcon(AppIcons.infoOutlineRounded,
-                  size: AppSizes.iconSm, color: colors.goldDark),
+              AppIcon(
+                AppIcons.infoOutlineRounded,
+                size: AppSizes.iconSm,
+                color: colors.iconTint,
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                    t.t(isSelf
+                  t.t(
+                    isSelf
                         ? 'client.reviews.selfNote'
-                        : 'client.reviews.publicNote'),
-                    style: type.caption.copyWith(color: colors.textSecondary)),
+                        : 'client.reviews.publicNote',
+                  ),
+                  style: type.caption.copyWith(color: colors.textSecondary),
+                ),
               ),
             ],
           ),
           if (!isSelf) ...[
             const SizedBox(height: AppSpacing.md),
             AppButton(
-              label: t.t(mine == null
-                  ? 'client.reviews.write'
-                  : 'client.reviews.editMine'),
+              label: t.t(
+                mine == null
+                    ? 'client.reviews.write'
+                    : 'client.reviews.editMine',
+              ),
               icon: mine == null
                   ? AppIcons.rateReviewOutlined
                   : AppIcons.editOutlined,
@@ -388,9 +521,9 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
       ),
     );
     final panel = Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.md, AppSpacing.screenSide, 0),
+      padding: const EdgeInsets.only(top: AppSpacing.md),
       child: ReviewSummaryPanel(
+        flat: true,
         summary: summary,
         selectedStars: _stars,
         onStarsTap: (stars) =>
@@ -418,47 +551,48 @@ class _ReviewsListState extends ConsumerState<_ReviewsList> {
           if (page.items.isEmpty)
             Padding(
               padding: const EdgeInsets.all(AppSpacing.xxl),
-              child: Text(t.t('client.reviews.empty'),
-                  textAlign: TextAlign.center,
-                  style: type.body.copyWith(color: colors.textSecondary)),
+              child: Text(
+                t.t('client.reviews.empty'),
+                textAlign: TextAlign.center,
+                style: type.body.copyWith(color: colors.textSecondary),
+              ),
             ),
           for (final r in page.items)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.md, AppSpacing.screenSide, 0),
-              // Owner 2026-10-01: laid out like a Google Maps review.
-              child: MapsReviewTile(
-                id: r.id,
-                authorName: r.attorneyName,
-                authorAvatarUrl: r.attorneyAvatarUrl,
-                authorReviewCount: r.authorReviewCount,
-                rating: r.rating,
-                createdAt: r.createdAt,
-                edited: r.editedAt != null,
-                body: r.body,
-                photos: r.photos,
-                badges: [
-                  if (r.caseId != null)
-                    ReviewBadge(
-                      label: t.t('reviews.badge.case'),
-                      icon: AppIcons.verifiedRounded,
-                    ),
-                  ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
-                ],
-                helpfulCount: r.helpfulCount,
-                helpfulByMe: r.helpfulByMe,
-                onHelpful:
-                    r.isMine || r.canReply ? null : () => _helpful(r, refresh),
-                reply: r.reply,
-                replyAt: r.replyAt,
-                replyLabel: t.t('reviews.reply.fromPerson'),
-                onEditReply: r.canReply ? () => _reply(r, refresh) : null,
-                onDeleteReply:
-                    r.canReply ? () => _deleteReply(r, refresh) : null,
-                onMenu: () => _reviewMenu(r, refresh, write),
-                onAuthor: () => context.push(r.authorIsClient
+            // Owner 2026-10-01: laid out like a Google Maps review;
+            // 2026-10-20: edge to edge with full-width dividers.
+            MapsReviewTile(
+              flat: true,
+              id: r.id,
+              authorName: r.attorneyName,
+              authorAvatarUrl: r.attorneyAvatarUrl,
+              authorReviewCount: r.authorReviewCount,
+              rating: r.rating,
+              createdAt: r.createdAt,
+              edited: r.editedAt != null,
+              body: r.body,
+              photos: r.photos,
+              badges: [
+                if (r.caseId != null)
+                  ReviewBadge(
+                    label: t.t('reviews.badge.case'),
+                    icon: AppIcons.verifiedUserOutlined,
+                  ),
+                ReviewBadge(label: t.t('reviews.role.${r.authorRole}')),
+              ],
+              helpfulCount: r.helpfulCount,
+              helpfulByMe: r.helpfulByMe,
+              onHelpful:
+                  r.isMine || r.canReply ? null : () => _helpful(r, refresh),
+              reply: r.reply,
+              replyAt: r.replyAt,
+              replyLabel: t.t('reviews.reply.fromPerson'),
+              onEditReply: r.canReply ? () => _reply(r, refresh) : null,
+              onDeleteReply: r.canReply ? () => _deleteReply(r, refresh) : null,
+              onMenu: () => _reviewMenu(r, refresh, write),
+              onAuthor: () => context.push(
+                r.authorIsClient
                     ? AppRoutes.client(r.attorneyUsername)
-                    : AppRoutes.lawyer(r.attorneyUsername)),
+                    : AppRoutes.lawyer(r.attorneyUsername),
               ),
             ),
         ],
@@ -505,6 +639,7 @@ extension on _ReviewsListState {
                 key: const ValueKey('client-review-report'),
                 icon: AppIcons.flagOutlined,
                 label: t.t('reviews.report.action'),
+                destructive: true,
                 onTap: () => Navigator.of(sheet).pop('report'),
               ),
             const SizedBox(height: AppSpacing.md),

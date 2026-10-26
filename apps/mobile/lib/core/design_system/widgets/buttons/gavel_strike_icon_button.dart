@@ -13,10 +13,10 @@ part of 'gavel_strike_button.dart';
 /// as new screens (docs/CHANGELOG.md stage 1.7 judgment call).
 class GavelStrikeIconButton extends StatefulWidget {
   const GavelStrikeIconButton({
-    super.key,
     required this.icon,
     required this.onPressed,
     required this.semanticLabel,
+    super.key,
     this.strike = false,
     this.isLoading = false,
   });
@@ -43,9 +43,10 @@ class _GavelStrikeIconButtonState extends State<GavelStrikeIconButton>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: AppMotion.gavelStrike)
-      ..addListener(_onTick)
-      ..addStatusListener(_onStatus);
+    _controller =
+        AnimationController(vsync: this, duration: AppMotion.gavelStrike)
+          ..addListener(_onTick)
+          ..addStatusListener(_onStatus);
   }
 
   void _onTick() {
@@ -76,7 +77,8 @@ class _GavelStrikeIconButtonState extends State<GavelStrikeIconButton>
     if (_isAnimating) return;
     if (widget.onPressed == null || widget.isLoading) return;
 
-    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (!widget.strike || reduceMotion) {
       widget.onPressed!.call();
       return;

@@ -1,8 +1,48 @@
+// ignore_for_file: lines_longer_than_80_chars
 // OQ-048 (owner 2026-09-30): plans, attorney assistants, approvals and
 // tasks — compiled-in strings merged into StaticTranslatorRu/En.
 
 const file07Ru = <String, String>{
-  'feed.topics.notSure': 'Не уверены в квалификации',
+  'phoneContacts.joined': '{name} теперь в LawBid',
+  'phoneContacts.joinedMany': '{count} ваших контактов теперь в LawBid',
+  'phoneContacts.notifyNew': 'Сообщать, когда контакты появляются в LawBid',
+  'phoneContacts.inviteTo': '{name}, присоединяйтесь ко мне в LawBid: {link}',
+  'phoneContacts.consentTitle': 'Найти людей из контактов?',
+  'phoneContacts.consentBody':
+      'LawBid сверяет номера из вашей телефонной книги с пользователями, чтобы показать, кто уже здесь. Отправляются только зашифрованные хэши номеров, но не сами номера и не имена. Это можно отключить в любой момент.',
+  'phoneContacts.consentYes': 'Найти людей',
+  'phoneContacts.openSettings': 'Открыть настройки',
+  'phoneContacts.limited':
+      'Сегодня слишком много контактов. Остальные синхронизируются завтра.',
+  'phoneContacts.findByPhone': 'Находить меня по номеру',
+  'phoneContacts.findByPhoneHint':
+      'Люди, у которых сохранён ваш номер, увидят вас в LawBid. Профили адвокатов открыты.',
+  'phoneContacts.syncNote':
+      'Контакты сверяются по хэшам номеров. Сами номера не хранятся.',
+  'phoneContacts.add': 'Добавить ({count})',
+  'phoneContacts.title': 'Контакты',
+  'calls.title': 'Звонки',
+  'calls.recent': 'Недавние',
+  'calls.empty': 'Звонков пока нет',
+  'calls.clear': 'Очистить список звонков',
+  'calls.clearHint': 'Звонки удалятся только у вас.',
+  'calls.clearAction': 'Очистить',
+  'calls.return': 'Вернуться',
+  'phoneContacts.onLawBid': 'В LawBid',
+  'phoneContacts.invite': 'Пригласить в LawBid',
+  'phoneContacts.inviteButton': 'Пригласить',
+  'phoneContacts.inviteText': 'Присоединяйтесь ко мне в LawBid: {link}',
+  'phoneContacts.empty':
+      'Пока никто из ваших контактов не в LawBid. Пригласите их ниже.',
+  'phoneContacts.denied':
+      'Разрешите доступ к контактам, чтобы видеть, кто уже в LawBid.',
+  'phoneContacts.allow': 'Разрешить доступ',
+  'phoneContacts.webOnly': 'Доступно в приложении',
+  'phoneContacts.search': 'Поиск по контактам',
+  'phoneContacts.noResults': 'Контакты не найдены',
+  'phoneContacts.pick': 'Выберите контакт',
+  'phoneContacts.message': 'Написать',
+  'feed.topics.notSure': 'Тема не указана',
   'search.more': 'Показать ещё',
   'cases.feed.emptyFiltered': 'Нет открытых кейсов по этому фильтру',
   'feed.filters.clear': 'Сбросить фильтры',
@@ -24,7 +64,8 @@ const file07Ru = <String, String>{
   'reviews.role.assistant': 'Помощник адвоката',
   'reviews.reply.action': 'Ответить публично',
   'reviews.reply.title': 'Ответ на отзыв',
-  'reviews.reply.hint': 'Ответ увидят все. Удалить сам отзыв нельзя — если он нарушает правила, пожалуйтесь на него.',
+  'reviews.reply.hint':
+      'Ответ увидят все. Удалить сам отзыв нельзя — если он нарушает правила, пожалуйтесь на него.',
   'reviews.reply.placeholder': 'Ваш ответ',
   'reviews.reply.send': 'Опубликовать ответ',
   'reviews.reply.saved': 'Ответ опубликован',
@@ -36,8 +77,14 @@ const file07Ru = <String, String>{
   'reviews.write.action': 'Написать отзыв',
   'reviews.write.edit': 'Изменить мой отзыв',
   'reviews.write.title': 'Ваш отзыв',
-  'reviews.write.hint': 'Оставить отзыв может любой — работали вы вместе или нет. Отзывы по общему кейсу отмечаются как подтверждённые.',
+  'reviews.write.hint':
+      'Оставить отзыв может любой — работали вы вместе или нет. Отзывы по общему кейсу отмечаются как подтверждённые.',
   'reviews.write.saved': 'Отзыв опубликован',
+  // Owner 2026-10-06: attorneys are reviewed only after a completed case.
+  'reviews.write.onlyAfterCase':
+      'Отзыв об адвокате может оставить только клиент, который завершил с ним дело.',
+  'reviews.write.hintCase':
+      'Отзыв привязан к вашему завершённому делу с этим адвокатом и отмечается как подтверждённый.',
   'reviews.sort.relevant': 'Самые релевантные',
   'reviews.sort.highest': 'Сначала высокие оценки',
   'reviews.sort.lowest': 'Сначала низкие оценки',
@@ -51,12 +98,19 @@ const file07Ru = <String, String>{
   'chat.folder.all': 'Все',
   'chat.folder.primary': 'Основные',
   'chat.folder.general': 'Общие',
-  'chat.folder.waiting': 'Ожидают ответа',
+  'chat.folder.waiting': 'Ожидают',
+  'chat.folder.cases': 'Кейсы',
+  'chat.awaitsMe': 'Ждёт ответа',
+  'chat.folder.cases.empty': 'Чатов по кейсам пока нет',
   'chat.folder.requests': 'Запросы',
-  'chat.folder.waiting.explain': 'Чаты, где человек ждёт вашего ответа. Заметка на чате напоминает, что нужно сделать.',
-  'chat.folder.primary.empty': 'Здесь чаты с клиентами по кейсам и те, что вы переместили в «Основные».',
-  'chat.folder.general.empty': 'Здесь остальные переписки. Любой чат можно переместить через ⋯.',
-  'chat.folder.waiting.empty': 'Никто не ждёт ответа. Отметьте чат через ⋯ → «Ожидает моего ответа».',
+  'chat.folder.waiting.explain':
+      'Чаты, где человек ждёт вашего ответа. Заметка на чате напоминает, что нужно сделать.',
+  'chat.folder.primary.empty':
+      'Здесь чаты с клиентами по кейсам и те, что вы переместили в «Основные».',
+  'chat.folder.general.empty':
+      'Здесь остальные переписки. Любой чат можно переместить через ⋯.',
+  'chat.folder.waiting.empty':
+      'Никто не ждёт ответа. Отметьте чат через ⋯ → «Ожидает моего ответа».',
   'chat.folder.requests.empty': 'Новых запросов нет',
   'chat.organize.title': 'Действия с чатом',
   'chat.organize.pin': 'Закрепить сверху',
@@ -64,16 +118,20 @@ const file07Ru = <String, String>{
   'chat.organize.pinned': 'Чат закреплён сверху',
   'chat.organize.unpinned': 'Чат откреплён',
   'chat.organize.moveTo': 'Переместить в «{folder}»',
-  'chat.organize.autoHint': 'Сейчас папка выбрана автоматически: чаты по кейсам — в «Основных»',
+  'chat.organize.autoHint':
+      'Сейчас папка выбрана автоматически: чаты по кейсам — в «Основных»',
   'chat.organize.auto': 'Папка автоматически',
   'chat.organize.moved': 'Чат перемещён',
   'chat.organize.waiting': 'Ожидает моего ответа',
-  'chat.organize.waitingHint': 'Например: «уточню у адвоката и напишу» — чат попадёт в «Ожидают ответа»',
-  'chat.organize.noteHint': 'Заметка: что сделать (отправить документы, перезвонить…)',
+  'chat.organize.waitingHint':
+      'Например: «уточню у адвоката и напишу» — чат попадёт в «Ожидают ответа»',
+  'chat.organize.noteHint':
+      'Заметка: что сделать (отправить документы, перезвонить…)',
   'chat.organize.saved': 'Сохранено',
   'chat.waiting.chip': 'Ждёт ответа · {ago}',
   'notif.newCases.which': 'Какие кейсы присылать',
-  'notif.newCases.explain': 'По умолчанию — по квалификациям из вашего профиля и только в штатах, где у вас лицензия. Можно поменять в любой момент.',
+  'notif.newCases.explain':
+      'По умолчанию — по квалификациям из вашего профиля и только в штатах, где у вас лицензия. Можно поменять в любой момент.',
   'notif.newCases.profile': 'Как в моём профиле',
   'notif.newCases.custom': 'Только выбранные квалификации',
   'notif.newCases.customHint': 'Выберите категории или подкатегории',
@@ -84,12 +142,16 @@ const file07Ru = <String, String>{
   'notif.newCases.none': 'Пока не выбрано',
   'notif.newCases.more': 'и ещё {n}',
   'notif.newCases.saved': 'Настройки новых кейсов сохранены',
-  'notif.newCases.profileEmpty': 'В профиле пока нет квалификаций — добавьте их или выберите здесь.',
-  'notif.newCases.turnedOn': 'Будут приходить новые кейсы по квалификациям профиля. Ниже можно выбрать другие.',
-  'practices.alertsHint': 'Новые кейсы по этим квалификациям приходят в уведомления (если включены «Новые кейсы»). Другие квалификации можно выбрать в Настройки → Уведомления.',
+  'notif.newCases.profileEmpty':
+      'В профиле пока нет квалификаций — добавьте их или выберите здесь.',
+  'notif.newCases.turnedOn':
+      'Будут приходить новые кейсы по квалификациям профиля. Ниже можно выбрать другие.',
+  'practices.alertsHint':
+      'Новые кейсы по этим квалификациям приходят в уведомления (если включены «Новые кейсы»). Другие квалификации можно выбрать в Настройки → Уведомления.',
   'practices.alertsLink': 'Настроить уведомления',
   'onboarding.role.sub.attorney': 'Я адвокат',
-  'onboarding.role.sub.attorney.body': 'Свой профиль, кейсы, ставки и команда помощников',
+  'onboarding.role.sub.attorney.body':
+      'Свой профиль, кейсы, ставки и команда помощников',
   'share.title': 'Поделиться',
   'share.more': 'Ещё',
   'share.copy': 'Копировать',
@@ -114,18 +176,19 @@ const file07Ru = <String, String>{
   'presence.todayAt': 'был(а) сегодня в {time}',
   'presence.yesterdayAt': 'был(а) вчера в {time}',
   'presence.on': 'был(а) {date}',
-  'settings.activityStatus': 'Показывать статус активности',
-  'settings.activityStatus.hint': 'Собеседники видят, когда вы в сети. Если выключить — вы тоже не будете видеть их статус.',
+  'settings.activityStatus': 'Статус активности',
   'tasks.pickKind': 'Выберите, что нужно сделать — откроются нужные поля',
   'tasks.kindChange': 'Изменить',
-  'tasks.field.phoneInvalid': 'Номер в формате 312 555 0123 или +1 312 555 0123',
+  'tasks.field.phoneInvalid':
+      'Номер в формате 312 555 0123 или +1 312 555 0123',
   'subscription.action.resume': 'Оставить подписку',
   'subscription.resume.done': 'Подписка продолжится — отмена снята',
   'tasks.casesEmpty': 'Пока нет активных дел',
   'tasks.field.caseNone': 'Без дела',
   'tasks.delete': 'Удалить',
   'tasks.delete.title': 'Удалить задачу?',
-  'tasks.delete.body': 'Задача и все её шаги удалятся без возможности восстановления.',
+  'tasks.delete.body':
+      'Задача и все её шаги удалятся без возможности восстановления.',
   'tasks.deleted': 'Задача удалена',
   'tasks.reopen': 'Вернуть в работу',
   'tasks.reopened': 'Снова в работе',
@@ -142,13 +205,17 @@ const file07Ru = <String, String>{
   'tasks.steps.reopen': 'Снять отметку',
   'tasks.steps.move': 'Перенести время',
   'tasks.steps.remove': 'Удалить шаг',
-  'tasks.steps.emptyHint': 'Несколько звонков, встреч или адресов — добавьте их шагами в эту задачу.',
-  'tasks.steps.editorHint': '5 звонков или 6 встреч? Добавьте их шагами в одну задачу — у каждого своё время и своя галочка.',
+  'tasks.steps.emptyHint':
+      'Несколько звонков, встреч или адресов — добавьте их шагами в эту задачу.',
+  'tasks.steps.editorHint':
+      '5 звонков или 6 встреч? Добавьте их шагами в одну задачу — у каждого своё время и своя галочка.',
   'prime.title': 'Prime — годовой тариф',
-  'prime.line': 'Адвокат и все 6 помощников на год. Выгода {save} в год (−20%).',
+  'prime.line':
+      'Адвокат и все места помощников на год. Выгода {save} в год (−20%).',
   'prime.cta': 'Перейти на Prime',
   'prime.confirm.title': 'Перейти на Prime?',
-  'prime.confirm.body': 'Годовой тариф {price} в год. Разница с текущим месячным планом будет списана сейчас. Все 6 мест помощников сразу включены.',
+  'prime.confirm.body':
+      'Годовой тариф {price} в год. Разница с текущим месячным планом будет списана сейчас. Все места помощников сразу включены.',
   'prime.done': 'Готово — у вас Prime',
   'tasks.emailInvalid': 'Проверьте email',
   'tasks.write': 'Написать',
@@ -228,14 +295,17 @@ const file07Ru = <String, String>{
   'tasks.f.notes': 'Подробности',
   'tasks.f.contactName': 'Контакт',
   'tasks.f.email': 'Email',
-  'error.api.AUTH_OTHER_DEVICE_ACTIVE': 'Аккаунт уже открыт на другом устройстве.',
+  'error.api.AUTH_OTHER_DEVICE_ACTIVE':
+      'Аккаунт уже открыт на другом устройстве.',
   'otherDevice.title': 'Аккаунт уже открыт на другом устройстве',
-  'otherDevice.body': 'Сейчас в этот аккаунт выполнен вход: {device}{when}.\n\nОдин аккаунт работает одновременно только на одном телефоне и на одном сайте. Если продолжите, на том устройстве произойдёт выход.',
+  'otherDevice.body':
+      'Сейчас в этот аккаунт выполнен вход: {device}{when}.\n\nОдин аккаунт работает одновременно только на одном телефоне и на одном сайте. Если продолжите, на том устройстве произойдёт выход.',
   'otherDevice.when': ', активность {date}',
   'otherDevice.phone': 'другой телефон',
   'otherDevice.web': 'сайт в другом браузере',
   'otherDevice.continue': 'Продолжить и выйти там',
-  'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'В этот аккаунт вошли на другом телефоне. Один аккаунт работает на одном телефоне (и на сайте).',
+  'error.api.AUTH_SIGNED_IN_ELSEWHERE':
+      'В этот аккаунт вошли на другом телефоне. Один аккаунт работает на одном телефоне (и на сайте).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Ставки и переговоры',
   'duty.bids.hint':
@@ -253,7 +323,18 @@ const file07Ru = <String, String>{
       'У помощника пока нет доступов. Включите нужные — ответственность за его действия несёте вы.',
   'team.liabilityAccepted': 'Ответственность принята: {date}',
   'error.api.TASK_CLOSED': 'Задача отменена — её нельзя менять',
-  'error.api.TASK_STEPS_LIMIT': 'В одной задаче до 100 шагов — создайте ещё одну',
+  'error.api.TASK_STEPS_LIMIT':
+      'В одной задаче до 100 шагов — создайте ещё одну',
+  'phoneContacts.find': 'Найти знакомых из контактов',
+  'phoneContacts.reason': 'Из контактов',
+  'phoneContacts.disable': 'Отключить',
+  'phoneContacts.removed': 'Контакты отключены',
+  'phoneContacts.synced': 'Контакты синхронизированы',
+  'profile.action.shareProfile': 'Поделиться профилем',
+  'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
+      'Файлы к постам сейчас нельзя добавлять.',
+  'error.api.FILES_COUNT_LIMIT':
+      'Здесь уже максимум файлов. Уберите лишние и попробуйте снова.',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       'Чтобы включить доступ, примите ответственность за действия помощника.',
   'common.delete': 'Удалить',
@@ -261,11 +342,15 @@ const file07Ru = <String, String>{
   'plans.title': 'Выберите план',
   'plans.perMonth': 'в месяц',
   'plans.perYear': 'в год',
+  // Owner 2026-10-07: «$99 / ~~$149~~ месяц −33%».
+  'plans.discount.month': 'месяц',
+  'plans.discount.year': 'год',
+  'plans.discount.was': 'было {price}',
   'plans.status.active': 'Активен',
   'plans.status.selected': 'Выбран',
   'plans.assistants.add': 'Добавить помощника · +{price} в месяц',
   'plans.assistants.count': 'Помощники: {n}',
-  'plans.assistants.each': '+{price} в месяц за каждого, до 6',
+  'plans.assistants.each': '+{price} в месяц за каждого',
   'plans.total.label': 'Итого',
   'plans.seats.saveCta': 'Сохранить · {price} в месяц',
   'plans.f.profile': 'Профиль, посты и новости',
@@ -278,23 +363,22 @@ const file07Ru = <String, String>{
   'plans.monthly.line': 'Адвокат + помощники по {seat} в месяц за каждого',
   'plans.yearly': 'Prime · годовой',
   'plans.yearly.price': '{price} в год',
-  'plans.yearly.line': 'Адвокат + все 6 помощников. Выгода {save} в год (−20%)',
+  'plans.yearly.line': 'Адвокат + все помощники. Выгода {save} в год (−20%)',
   'plans.yearly.badge': '−20%',
   'plans.seats': 'Помощники',
-  'plans.seats.hint':
-      'Помощник работает в вашем аккаунте под своим входом. До 6.',
-  'plans.seats.included': 'Все 6 мест включены',
+  'plans.seats.hint': 'Помощник работает в вашем аккаунте под своим входом.',
+  'plans.seats.included': 'Все места включены',
   'plans.total': 'Итого: {price}',
   'plans.total.month': '{price} в месяц',
   'plans.total.year': '{price} в год',
   'plans.phones': 'Телефоны помощников (необязательно)',
   'plans.phones.hint':
-      'Эти помощники войдут без кода. Остальных добавите позже — код придёт на ваш телефон.',
+      'Каждый помощник входит по одноразовому коду, который вы ему отправите. SMS не нужны.',
   'plans.phones.add': 'Добавить телефон',
   'plans.phones.invalid': 'Телефон в формате +13125550123',
   'plans.phones.tooMany': 'Телефонов больше, чем мест',
   'plans.pay': 'Оплатить на защищённой странице Stripe',
-  'plans.pay.trial': 'Начать 7 дней бесплатно',
+  'plans.pay.trial': 'Начать {days} бесплатно',
   'plans.pay.secure':
       'Оплата картой, Apple Pay или Google Pay на странице Stripe. Мы не видим данные карты.',
   'plans.waiting': 'Ждём оплату на странице Stripe…',
@@ -302,12 +386,12 @@ const file07Ru = <String, String>{
   'plans.cantOpen': 'Не удалось открыть страницу оплаты',
   'plans.current': 'Ваш план',
   'plans.current.monthly': 'Месячный · помощников: {seats}',
-  'plans.current.yearly': 'Prime · годовой · 6 помощников',
+  'plans.current.yearly': 'Prime · годовой · все помощники',
   'plans.seats.change': 'Изменить число мест',
   'plans.seats.saved': 'Мест для помощников: {seats}',
   'plans.team': 'Команда помощников',
   'error.api.SUBSCRIPTION_PLAN_INCLUDES_SEATS':
-      'Годовой план уже включает все 6 мест.',
+      'Годовой план уже включает все места.',
   'error.api.ASSISTANT_SEATS_IN_USE':
       'Сначала удалите помощников, чтобы уменьшить число мест.',
   'error.api.ASSISTANT_NO_FREE_SEAT': 'Нет свободного места для помощника.',
@@ -331,7 +415,7 @@ const file07Ru = <String, String>{
   'assistant.join.code': 'Код из SMS адвоката',
   'assistant.join.verify': 'Подключиться',
   'assistant.join.none':
-      'Попросите адвоката добавить ваш номер в «Команда» — или подключитесь по его номеру.',
+      'Попросите у адвоката код помощника: он в разделе Подписка → «Ваши помощники».',
   'assistant.join.done': 'Вы подключены к {name}',
   'assistant.banner': 'Вы — помощник {name}',
   'assistant.of': 'Помощник · {name}',
@@ -348,7 +432,8 @@ const file07Ru = <String, String>{
   'duty.files': 'Файлы',
   'duty.files.hint': 'Отправлять документы и фото в чатах',
   'duty.cases': 'Кейсы',
-  'duty.cases.hint': 'Просматривать, сохранять, комментировать (с одобрением)',
+  'duty.cases.hint':
+      'Просматривать, сохранять, задавать вопросы (с одобрением)',
   'duty.bid_drafts': 'Черновики ставок',
   'duty.bid_drafts.hint': 'Готовить ставки — отправляет адвокат',
   'duty.posts': 'Публикации',
@@ -364,7 +449,7 @@ const file07Ru = <String, String>{
   'team.add': 'Добавить помощника',
   'team.add.phone': 'Телефон помощника',
   'team.add.name': 'Имя (как вы его зовёте)',
-  'team.add.done': 'Помощник добавлен. Он войдёт со своим номером без кода.',
+  'team.add.done': 'Помощник добавлен. Отправьте ему код.',
   'team.noSeats': 'Нет свободных мест. Добавьте места в «Подписка».',
   'team.buySeats': 'Добавить места',
   'team.empty': 'Помощников пока нет',
@@ -387,7 +472,7 @@ const file07Ru = <String, String>{
   'team.note': 'Комментарий помощнику (необязательно)',
   'team.request.post': 'Публикация',
   'team.request.comment': 'Комментарий к посту',
-  'team.request.case_comment': 'Комментарий к кейсу',
+  'team.request.case_comment': 'Вопрос по кейсу',
   'team.request.profile_edit': 'Правка профиля',
   'team.request.pending': 'Ждёт',
   'team.request.approved': 'Одобрено',
@@ -421,7 +506,7 @@ const file07Ru = <String, String>{
   'act.report.create': 'отправил(а) жалобу',
   'act.request.post': 'просит опубликовать пост',
   'act.request.comment': 'просит оставить комментарий',
-  'act.request.case_comment': 'просит прокомментировать кейс',
+  'act.request.case_comment': 'просит задать вопрос по кейсу',
   'act.request.profile_edit': 'предлагает правку профиля',
   'act.task.create': 'поставил(а) задачу',
   'act.task.cancelled': 'отменил(а) задачу',
@@ -438,15 +523,17 @@ const file07Ru = <String, String>{
   // --- Tasks ---
   'mine.tab.tasks': 'Ежедневник',
   'tasks.add': 'Добавить задачу',
-  'tasks.doubleTapHint': 'Двойное нажатие на задачу — «Выполнено». Нажатие — подробности.',
+  'tasks.doubleTapHint':
+      'Двойное нажатие на задачу — «Выполнено». Нажатие — подробности.',
   'tasks.forAttorney': 'Задача для адвоката',
   'tasks.forMe': 'Новая задача',
-  'client.plus.task.hint': 'Заметка, звонок, встреча, документы — в ваш ежедневник',
+  'client.plus.task.hint':
+      'Заметка, звонок, встреча, документы — в ваш ежедневник',
   'tasks.empty': 'Задач нет',
   'tasks.empty.body':
       'Звонки, встречи, суды, сроки, документы — всё в одном списке по дням.',
-  'tasks.view.active': 'Активные',
-  'tasks.view.done': 'Выполненные',
+  'tasks.view.active': 'Все',
+  'tasks.view.done': 'Архив',
   'tasks.today': 'Сегодня',
   'tasks.yesterday': 'Вчера',
   'team.req.ask.post': 'просит опубликовать от вашего имени',
@@ -491,6 +578,7 @@ const file07Ru = <String, String>{
   'tasks.field.notes': 'Подробности',
   'tasks.field.files': 'Документы',
   'tasks.field.attach': 'Прикрепить документ или фото',
+  'tasks.files.limit': 'В задаче можно до {max} файлов',
   'tasks.save': 'Поставить задачу',
   'tasks.saved': 'Задача поставлена',
   'tasks.by': 'Поставил(а): {name}',
@@ -545,7 +633,46 @@ const file07Ru = <String, String>{
 };
 
 const file07En = <String, String>{
-  'feed.topics.notSure': 'Not sure of the qualification',
+  'phoneContacts.joined': '{name} is now on LawBid',
+  'phoneContacts.joinedMany': '{count} of your contacts are now on LawBid',
+  'phoneContacts.notifyNew': 'Notify me when contacts join LawBid',
+  'phoneContacts.inviteTo': '{name}, join me on LawBid: {link}',
+  'phoneContacts.consentTitle': 'Find people from your contacts?',
+  'phoneContacts.consentBody':
+      'LawBid compares the numbers in your phone book with its users to show who is already here. Only scrambled hashes of the numbers are sent, never the numbers or names. You can turn it off at any time.',
+  'phoneContacts.consentYes': 'Find people',
+  'phoneContacts.openSettings': 'Open settings',
+  'phoneContacts.limited':
+      'Too many contacts today. The rest will sync tomorrow.',
+  'phoneContacts.findByPhone': 'Let people find me by my number',
+  'phoneContacts.findByPhoneHint':
+      'People who have your number saved can see you on LawBid. Attorney profiles are public.',
+  'phoneContacts.syncNote':
+      'Contacts are matched by number hashes. The numbers themselves are not stored.',
+  'phoneContacts.add': 'Add ({count})',
+  'phoneContacts.title': 'Contacts',
+  'calls.title': 'Calls',
+  'calls.recent': 'Recent',
+  'calls.empty': 'No calls yet',
+  'calls.clear': 'Clear call log',
+  'calls.clearHint': 'Calls are removed only for you.',
+  'calls.clearAction': 'Clear',
+  'calls.return': 'Return',
+  'phoneContacts.onLawBid': 'On LawBid',
+  'phoneContacts.invite': 'Invite to LawBid',
+  'phoneContacts.inviteButton': 'Invite',
+  'phoneContacts.inviteText': 'Join me on LawBid: {link}',
+  'phoneContacts.empty':
+      'None of your contacts are on LawBid yet. Invite them below.',
+  'phoneContacts.denied':
+      'Allow access to your contacts to see who is on LawBid.',
+  'phoneContacts.allow': 'Allow access',
+  'phoneContacts.webOnly': 'Available in the app',
+  'phoneContacts.search': 'Search contacts',
+  'phoneContacts.noResults': 'No contacts found',
+  'phoneContacts.pick': 'Choose a contact',
+  'phoneContacts.message': 'Message',
+  'feed.topics.notSure': 'Topic not specified',
   'search.more': 'Show more',
   'cases.feed.emptyFiltered': 'No open cases for this filter',
   'feed.filters.clear': 'Clear filters',
@@ -565,7 +692,8 @@ const file07En = <String, String>{
   'reviews.role.assistant': "Attorney's assistant",
   'reviews.reply.action': 'Reply publicly',
   'reviews.reply.title': 'Reply to the review',
-  'reviews.reply.hint': "Everyone sees your reply. You can't delete the review itself — report it if it breaks the rules.",
+  'reviews.reply.hint':
+      "Everyone sees your reply. You can't delete the review itself — report it if it breaks the rules.",
   'reviews.reply.placeholder': 'Your reply',
   'reviews.reply.send': 'Post reply',
   'reviews.reply.saved': 'Reply posted',
@@ -577,8 +705,14 @@ const file07En = <String, String>{
   'reviews.write.action': 'Write a review',
   'reviews.write.edit': 'Edit my review',
   'reviews.write.title': 'Your review',
-  'reviews.write.hint': "Anyone can leave a review — whether or not you worked together. Reviews after a shared case are marked as verified.",
+  'reviews.write.hint':
+      'Anyone can leave a review — whether or not you worked together. Reviews after a shared case are marked as verified.',
   'reviews.write.saved': 'Review posted',
+  // Owner 2026-10-06: attorneys are reviewed only after a completed case.
+  'reviews.write.onlyAfterCase':
+      'Only a client who completed a case with this attorney can review them.',
+  'reviews.write.hintCase':
+      'Your review is tied to the case you completed with this attorney and is marked as verified.',
   'reviews.sort.relevant': 'Most relevant',
   'reviews.sort.highest': 'Highest rating',
   'reviews.sort.lowest': 'Lowest rating',
@@ -593,11 +727,18 @@ const file07En = <String, String>{
   'chat.folder.primary': 'Primary',
   'chat.folder.general': 'General',
   'chat.folder.waiting': 'Waiting',
+  'chat.folder.cases': 'Cases',
+  'chat.awaitsMe': 'Awaiting reply',
+  'chat.folder.cases.empty': 'No case chats yet',
   'chat.folder.requests': 'Requests',
-  'chat.folder.waiting.explain': 'Chats where someone is waiting for your answer. The note on a chat reminds you what to do.',
-  'chat.folder.primary.empty': 'Case chats with clients and chats you moved to Primary show here.',
-  'chat.folder.general.empty': 'Other conversations show here. Move any chat with ⋯.',
-  'chat.folder.waiting.empty': 'Nobody is waiting. Mark a chat with ⋯ → “Waiting for my answer”.',
+  'chat.folder.waiting.explain':
+      'Chats where someone is waiting for your answer. The note on a chat reminds you what to do.',
+  'chat.folder.primary.empty':
+      'Case chats with clients and chats you moved to Primary show here.',
+  'chat.folder.general.empty':
+      'Other conversations show here. Move any chat with ⋯.',
+  'chat.folder.waiting.empty':
+      'Nobody is waiting. Mark a chat with ⋯ → “Waiting for my answer”.',
   'chat.folder.requests.empty': 'No new requests',
   'chat.organize.title': 'Chat actions',
   'chat.organize.pin': 'Pin to the top',
@@ -605,16 +746,19 @@ const file07En = <String, String>{
   'chat.organize.pinned': 'Chat pinned to the top',
   'chat.organize.unpinned': 'Chat unpinned',
   'chat.organize.moveTo': 'Move to {folder}',
-  'chat.organize.autoHint': 'The folder is automatic now: case chats go to Primary',
+  'chat.organize.autoHint':
+      'The folder is automatic now: case chats go to Primary',
   'chat.organize.auto': 'Folder: automatic',
   'chat.organize.moved': 'Chat moved',
   'chat.organize.waiting': 'Waiting for my answer',
-  'chat.organize.waitingHint': 'E.g. “I’ll check with the attorney and get back” — the chat goes to Waiting',
+  'chat.organize.waitingHint':
+      'E.g. “I’ll check with the attorney and get back” — the chat goes to Waiting',
   'chat.organize.noteHint': 'Note: what to do (send documents, call back…)',
   'chat.organize.saved': 'Saved',
   'chat.waiting.chip': 'Waiting · {ago}',
   'notif.newCases.which': 'Which cases to send',
-  'notif.newCases.explain': "By default — your profile's qualifications, and only in states where you're licensed. You can change it any time.",
+  'notif.newCases.explain':
+      "By default — your profile's qualifications, and only in states where you're licensed. You can change it any time.",
   'notif.newCases.profile': 'As in my profile',
   'notif.newCases.custom': 'Only the qualifications I choose',
   'notif.newCases.customHint': 'Pick categories or subcategories',
@@ -625,12 +769,16 @@ const file07En = <String, String>{
   'notif.newCases.none': 'Nothing chosen yet',
   'notif.newCases.more': 'and {n} more',
   'notif.newCases.saved': 'New-case alerts saved',
-  'notif.newCases.profileEmpty': 'Your profile has no qualifications yet — add them or choose here.',
-  'notif.newCases.turnedOn': "You'll get new cases in your profile's qualifications. You can choose others below.",
-  'practices.alertsHint': 'New cases in these qualifications come to your notifications (when "New cases" is on). Choose other qualifications in Settings → Notifications.',
+  'notif.newCases.profileEmpty':
+      'Your profile has no qualifications yet — add them or choose here.',
+  'notif.newCases.turnedOn':
+      "You'll get new cases in your profile's qualifications. You can choose others below.",
+  'practices.alertsHint':
+      'New cases in these qualifications come to your notifications (when "New cases" is on). Choose other qualifications in Settings → Notifications.',
   'practices.alertsLink': 'Notification settings',
   'onboarding.role.sub.attorney': "I'm the attorney",
-  'onboarding.role.sub.attorney.body': 'My profile, cases, bids and a team of assistants',
+  'onboarding.role.sub.attorney.body':
+      'My profile, cases, bids and a team of assistants',
   'share.title': 'Share',
   'share.more': 'More',
   'share.copy': 'Copy',
@@ -655,13 +803,14 @@ const file07En = <String, String>{
   'presence.todayAt': 'last seen today at {time}',
   'presence.yesterdayAt': 'last seen yesterday at {time}',
   'presence.on': 'last seen {date}',
-  'settings.activityStatus': 'Show activity status',
-  'settings.activityStatus.hint': 'People you chat with see when you are online. Turn it off and you will not see theirs either.',
+  'settings.activityStatus': 'Activity status',
   'tasks.pickKind': 'Pick what to do — its fields will open',
   'tasks.kindChange': 'Change',
-  'tasks.field.phoneInvalid': 'Enter a number like 312 555 0123 or +1 312 555 0123',
+  'tasks.field.phoneInvalid':
+      'Enter a number like 312 555 0123 or +1 312 555 0123',
   'subscription.action.resume': 'Keep my subscription',
-  'subscription.resume.done': 'Your subscription continues — the cancellation is off',
+  'subscription.resume.done':
+      'Your subscription continues — the cancellation is off',
   'tasks.casesEmpty': 'No active cases yet',
   'tasks.field.caseNone': 'No case',
   'tasks.delete': 'Delete',
@@ -683,13 +832,17 @@ const file07En = <String, String>{
   'tasks.steps.reopen': 'Uncheck',
   'tasks.steps.move': 'Move to another time',
   'tasks.steps.remove': 'Remove step',
-  'tasks.steps.emptyHint': 'Several calls, meetings or addresses? Add them to this task as steps.',
-  'tasks.steps.editorHint': '5 calls or 6 meetings? Add them as steps of one task — each with its own time and checkmark.',
+  'tasks.steps.emptyHint':
+      'Several calls, meetings or addresses? Add them to this task as steps.',
+  'tasks.steps.editorHint':
+      '5 calls or 6 meetings? Add them as steps of one task — each with its own time and checkmark.',
   'prime.title': 'Prime — the yearly plan',
-  'prime.line': 'The attorney and all 6 assistants for a year. Save {save} a year (−20%).',
+  'prime.line':
+      'The attorney and every assistant seat for a year. Save {save} a year (−20%).',
   'prime.cta': 'Switch to Prime',
   'prime.confirm.title': 'Switch to Prime?',
-  'prime.confirm.body': 'The yearly plan is {price} per year. The difference from your monthly plan is charged now. All 6 assistant seats are included at once.',
+  'prime.confirm.body':
+      'The yearly plan is {price} per year. The difference from your monthly plan is charged now. Every assistant seat is included at once.',
   'prime.done': "Done — you're on Prime",
   'tasks.emailInvalid': 'Check the email',
   'tasks.write': 'Write',
@@ -769,14 +922,17 @@ const file07En = <String, String>{
   'tasks.f.notes': 'Details',
   'tasks.f.contactName': 'Contact',
   'tasks.f.email': 'Email',
-  'error.api.AUTH_OTHER_DEVICE_ACTIVE': 'This account is open on another device.',
+  'error.api.AUTH_OTHER_DEVICE_ACTIVE':
+      'This account is open on another device.',
   'otherDevice.title': 'This account is open on another device',
-  'otherDevice.body': 'This account is signed in on {device}{when}.\n\nOne account works on one phone and one website at a time. If you continue, that device will be signed out.',
+  'otherDevice.body':
+      'This account is signed in on {device}{when}.\n\nOne account works on one phone and one website at a time. If you continue, that device will be signed out.',
   'otherDevice.when': ', active {date}',
   'otherDevice.phone': 'another phone',
   'otherDevice.web': 'the website in another browser',
   'otherDevice.continue': 'Continue and sign out there',
-  'error.api.AUTH_SIGNED_IN_ELSEWHERE': 'This account signed in on another phone. One account works on one phone (plus the website).',
+  'error.api.AUTH_SIGNED_IN_ELSEWHERE':
+      'This account signed in on another phone. One account works on one phone (plus the website).',
   // --- OQ-049: access switches with responsibility ---
   'duty.bids': 'Bids and negotiation',
   'duty.bids.hint':
@@ -794,7 +950,18 @@ const file07En = <String, String>{
       'This assistant has no access yet. Switch on what they need — you are responsible for their actions.',
   'team.liabilityAccepted': 'Responsibility accepted: {date}',
   'error.api.TASK_CLOSED': 'This task was cancelled and can no longer change',
-  'error.api.TASK_STEPS_LIMIT': 'A task holds up to 100 steps — start another one',
+  'error.api.TASK_STEPS_LIMIT':
+      'A task holds up to 100 steps — start another one',
+  'phoneContacts.find': 'Find people from your contacts',
+  'phoneContacts.reason': 'From contacts',
+  'phoneContacts.disable': 'Turn off',
+  'phoneContacts.removed': 'Contacts turned off',
+  'phoneContacts.synced': 'Contacts synced',
+  'profile.action.shareProfile': 'Share profile',
+  'error.api.POST_ATTACHMENTS_NOT_ALLOWED':
+      'Files cannot be added to posts right now.',
+  'error.api.FILES_COUNT_LIMIT':
+      'This already has the most files allowed. Remove some and try again.',
   'error.api.ASSISTANT_LIABILITY_REQUIRED':
       "To switch access on, accept responsibility for your assistant's actions.",
   'common.delete': 'Delete',
@@ -802,11 +969,15 @@ const file07En = <String, String>{
   'plans.title': 'Choose a plan',
   'plans.perMonth': 'per month',
   'plans.perYear': 'per year',
+  // Owner 2026-10-07: «$99 / ~~$149~~ month −33%».
+  'plans.discount.month': 'month',
+  'plans.discount.year': 'year',
+  'plans.discount.was': 'was {price}',
   'plans.status.active': 'Active',
   'plans.status.selected': 'Selected',
   'plans.assistants.add': 'Add an assistant · +{price} a month',
   'plans.assistants.count': 'Assistants: {n}',
-  'plans.assistants.each': '+{price} a month each, up to 6',
+  'plans.assistants.each': '+{price} a month each',
   'plans.total.label': 'Total',
   'plans.seats.saveCta': 'Save · {price} per month',
   'plans.f.profile': 'Profile, posts and news',
@@ -819,23 +990,23 @@ const file07En = <String, String>{
   'plans.monthly.line': 'Attorney + assistants at {seat} per month each',
   'plans.yearly': 'Prime · yearly',
   'plans.yearly.price': '{price} per year',
-  'plans.yearly.line': 'Attorney + all 6 assistants. Save {save} a year (−20%)',
+  'plans.yearly.line': 'Attorney + every assistant. Save {save} a year (−20%)',
   'plans.yearly.badge': '−20%',
   'plans.seats': 'Assistants',
   'plans.seats.hint':
-      'An assistant works in your account under their own login. Up to 6.',
-  'plans.seats.included': 'All 6 seats included',
+      'An assistant works in your account under their own login.',
+  'plans.seats.included': 'All seats included',
   'plans.total': 'Total: {price}',
   'plans.total.month': '{price} per month',
   'plans.total.year': '{price} per year',
   'plans.phones': 'Assistant phones (optional)',
   'plans.phones.hint':
-      'These assistants join without a code. Add others later — the code goes to your phone.',
+      'Each assistant signs in with a one-time code you send them. No SMS needed.',
   'plans.phones.add': 'Add a phone',
   'plans.phones.invalid': 'Phone like +13125550123',
   'plans.phones.tooMany': 'More phones than seats',
   'plans.pay': 'Pay on the secure Stripe page',
-  'plans.pay.trial': 'Start 7 days free',
+  'plans.pay.trial': 'Start {days} free',
   'plans.pay.secure':
       'Card, Apple Pay or Google Pay on the Stripe page. We never see your card.',
   'plans.waiting': 'Waiting for the payment on the Stripe page…',
@@ -843,12 +1014,12 @@ const file07En = <String, String>{
   'plans.cantOpen': "Couldn't open the payment page",
   'plans.current': 'Your plan',
   'plans.current.monthly': 'Monthly · assistants: {seats}',
-  'plans.current.yearly': 'Prime · yearly · 6 assistants',
+  'plans.current.yearly': 'Prime · yearly · all assistants',
   'plans.seats.change': 'Change seats',
   'plans.seats.saved': 'Assistant seats: {seats}',
   'plans.team': 'Assistant team',
   'error.api.SUBSCRIPTION_PLAN_INCLUDES_SEATS':
-      'The yearly plan already includes all 6 seats.',
+      'The yearly plan already includes every seat.',
   'error.api.ASSISTANT_SEATS_IN_USE':
       'Remove assistants first to lower the seats.',
   'error.api.ASSISTANT_NO_FREE_SEAT': 'No free assistant seat.',
@@ -873,7 +1044,7 @@ const file07En = <String, String>{
   'assistant.join.code': "Code from the attorney's SMS",
   'assistant.join.verify': 'Join',
   'assistant.join.none':
-      'Ask your attorney to add your number in "Team" — or join with their phone.',
+      'Ask your attorney for your assistant code: it is in Subscription → "Your assistants".',
   'assistant.join.done': "You've joined {name}",
   'assistant.banner': "You're {name}'s assistant",
   'assistant.of': 'Assistant · {name}',
@@ -890,7 +1061,7 @@ const file07En = <String, String>{
   'duty.files': 'Files',
   'duty.files.hint': 'Send documents and photos in chats',
   'duty.cases': 'Cases',
-  'duty.cases.hint': 'Browse, save, comment (with approval)',
+  'duty.cases.hint': 'Browse, save, ask questions (with approval)',
   'duty.bid_drafts': 'Bid drafts',
   'duty.bid_drafts.hint': 'Prepare bids — the attorney sends',
   'duty.posts': 'Publications',
@@ -906,7 +1077,7 @@ const file07En = <String, String>{
   'team.add': 'Add an assistant',
   'team.add.phone': "Assistant's phone",
   'team.add.name': 'Name (how you call them)',
-  'team.add.done': 'Assistant added. They sign in with their number, no code.',
+  'team.add.done': 'Assistant added. Send them the code.',
   'team.noSeats': 'No free seats. Add seats in Subscription.',
   'team.buySeats': 'Add seats',
   'team.empty': 'No assistants yet',
@@ -929,7 +1100,7 @@ const file07En = <String, String>{
   'team.note': 'Note to the assistant (optional)',
   'team.request.post': 'Publication',
   'team.request.comment': 'Post comment',
-  'team.request.case_comment': 'Case comment',
+  'team.request.case_comment': 'Case question',
   'team.request.profile_edit': 'Profile edit',
   'team.request.pending': 'Pending',
   'team.request.approved': 'Approved',
@@ -963,7 +1134,7 @@ const file07En = <String, String>{
   'act.report.create': 'sent a report',
   'act.request.post': 'asks to publish a post',
   'act.request.comment': 'asks to comment',
-  'act.request.case_comment': 'asks to comment a case',
+  'act.request.case_comment': 'asks a question on a case',
   'act.request.profile_edit': 'suggests a profile edit',
   'act.task.create': 'set a task',
   'act.task.cancelled': 'cancelled a task',
@@ -983,11 +1154,12 @@ const file07En = <String, String>{
   'tasks.doubleTapHint': 'Double-tap a task to mark it done. Tap for details.',
   'tasks.forAttorney': 'Task for the attorney',
   'tasks.forMe': 'New task',
-  'client.plus.task.hint': 'A note, call, meeting, documents — into your planner',
+  'client.plus.task.hint':
+      'A note, call, meeting, documents — into your planner',
   'tasks.empty': 'No tasks',
   'tasks.empty.body':
       'Calls, meetings, court dates, deadlines, documents — one list by day.',
-  'tasks.view.active': 'Active',
+  'tasks.view.active': 'All',
   'tasks.view.done': 'Done',
   'tasks.today': 'Today',
   'tasks.yesterday': 'Yesterday',
@@ -1033,6 +1205,7 @@ const file07En = <String, String>{
   'tasks.field.notes': 'Details',
   'tasks.field.files': 'Documents',
   'tasks.field.attach': 'Attach a document or photo',
+  'tasks.files.limit': 'A task can hold up to {max} files',
   'tasks.save': 'Set the task',
   'tasks.saved': 'Task set',
   'tasks.by': 'Set by: {name}',

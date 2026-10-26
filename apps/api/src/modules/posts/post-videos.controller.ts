@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { OptionalAuth } from '../auth/decorators/optional-auth.decorator';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -28,7 +29,7 @@ import {
   VideoUploadDto,
 } from '../videos/videos.dto';
 import { VideosService } from '../videos/videos.service';
-import { PostsPageQueryDto, PostDto, type PostPage } from './dto/posts.dto';
+import { ReelsQueryDto, PostDto, type PostPage } from './dto/posts.dto';
 import { PostsService } from './posts.service';
 
 const E = ErrorCode;
@@ -54,7 +55,7 @@ export class PostVideosController {
   @ApiOperation({ summary: 'Start a direct video upload (TUS credentials)' })
   @ApiEnvelopeResponse(VideoUploadDto, { status: 201 })
   @ApiErrors({
-    403: [E.VIDEO_UNAVAILABLE, E.POST_NOT_ALLOWED],
+    403: [E.VIDEO_UNAVAILABLE, E.POST_NOT_ALLOWED, E.ENTITLEMENT_REQUIRED],
     409: [E.VIDEO_NOT_READY],
     422: [E.VIDEO_TOO_LONG],
     429: [E.RATE_LIMITED],
@@ -91,13 +92,14 @@ export class PostVideosController {
     return this.videos.cancel(user.sub, p.id);
   }
 
+  @OptionalAuth()
   @Get('reels')
   @ApiOperation({ summary: 'Video posts, newest first (full-screen reels)' })
   @ApiEnvelopeResponse(PostDto, { isArray: true })
   @ApiErrors({ 403: [E.VIDEO_UNAVAILABLE], 503: [E.VIDEO_UNAVAILABLE] })
   async listReels(
     @CurrentUser() user: RequestUser,
-    @Query() q: PostsPageQueryDto,
+    @Query() q: ReelsQueryDto,
   ): Promise<PostPage> {
     await this.videos.assertAvailable();
     return this.posts.listReels(user, q);

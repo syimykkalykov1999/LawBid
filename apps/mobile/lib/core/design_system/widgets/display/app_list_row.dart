@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
@@ -7,9 +8,8 @@ import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_trailing_cap.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
-import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Tappable settings-style row (UI modernization pass, 2026-09-27):
 /// medallion icon, label, optional trailing value, chevron. Press shows a
@@ -28,6 +28,7 @@ class AppListRow extends StatefulWidget {
     this.flush = false,
     this.subtitle,
     this.indent = 0,
+    this.dense = false,
   });
 
   /// A quiet second line under the label (e.g. a subcategory's category).
@@ -36,6 +37,9 @@ class AppListRow extends StatefulWidget {
   /// Extra left inset for nested options (a subcategory under its
   /// category in a picker).
   final double indent;
+
+  /// A 48dp row instead of the roomy 52dp one (info screens).
+  final bool dense;
 
   final String label;
   final VoidCallback? onTap;
@@ -75,7 +79,7 @@ class _AppListRowState extends State<AppListRow> {
       trailing = AppIcon(
         AppIcons.checkRounded,
         size: AppSizes.iconSm,
-        color: colors.goldStroke,
+        color: colors.iconTint,
       );
     } else if (widget.showChevron && !widget.destructive) {
       trailing = AppIcon(
@@ -103,12 +107,14 @@ class _AppListRowState extends State<AppListRow> {
           duration:
               context.reduceMotion ? Duration.zero : AppMotion.stateChange,
           curve: AppMotion.enterCurve,
-          constraints: const BoxConstraints(
-            minHeight: AppSizes.touchTarget + AppSpacing.md,
+          constraints: BoxConstraints(
+            minHeight: widget.dense
+                ? AppSizes.hitTarget
+                : AppSizes.touchTarget + AppSpacing.sm,
           ),
           padding: EdgeInsets.symmetric(
             horizontal: widget.flush ? 0 : AppSpacing.md,
-            vertical: AppSpacing.sm,
+            vertical: widget.dense ? AppSpacing.xs : AppSpacing.sm,
           ),
           decoration: BoxDecoration(
             color: highlight ? colors.goldTint : colors.surface,
@@ -150,10 +156,20 @@ class _AppListRowState extends State<AppListRow> {
               ),
               if (widget.trailingText != null) ...[
                 const SizedBox(width: AppSpacing.sm),
-                Text(
-                  widget.trailingText!,
-                  style: typography.bodySmall.copyWith(
-                    color: colors.textSecondary,
+                // Natural width at the end edge, capped so a long value
+                // ellipsizes instead of squeezing the label. (A Flexible
+                // here gave the label only half the row and pulled the
+                // value and chevron to the middle.)
+                AppTrailingCap(
+                  child: Text(
+                    widget.trailingText!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: (widget.dense
+                            ? typography.caption
+                            : typography.bodySmall)
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ),
               ],
@@ -191,8 +207,8 @@ class AppListSection extends StatelessWidget {
       children: [
         if (title != null)
           Padding(
-            padding: const EdgeInsets.only(
-              left: AppSpacing.xs,
+            padding: const EdgeInsetsDirectional.only(
+              start: AppSpacing.xs,
               bottom: AppSpacing.sm,
             ),
             child: Semantics(

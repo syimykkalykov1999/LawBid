@@ -22,6 +22,10 @@ export interface RequestMeta {
   /** X-Device-Id header (client-generated, unauthenticated — only used
    * as a rate-limit key, never trusted for anything else). */
   deviceId?: string;
+  /** X-Device-Key (owner 2026-10-05, docs/CLIENT_FRAUD.md): Android ID /
+   * an iOS Keychain id that survives reinstalling the app. Only hashed,
+   * only to recognise a blocked fraudster's phone. */
+  deviceKey?: string;
 }
 
 export type RefreshOutcome =
@@ -256,43 +260,51 @@ export class SessionService {
     }
 
     const { raw, hash: newHash } = this.tokenService.generateRefreshToken();
-    const session = await withTxRetry(this.prisma, async (tx) => {
-      const newSession = await tx.session.create({
-        data: {
-          user_id: found.user_id,
-          session_chain_id: found.session_chain_id,
-          device_id: device.deviceId ?? found.device_id,
-          device_name: device.deviceName ?? found.device_name,
-          platform: device.platform ?? found.platform,
-          app_version: device.appVersion ?? found.app_version,
-          ip: meta.ip ?? found.ip,
-          user_agent: meta.userAgent ?? found.user_agent,
-          refresh_hash: newHash,
-          last_used_at: new Date(),
-          expires_at: this.tokenService.refreshExpiryDate(),
-        },
-      });
-      await tx.session.update({
-        where: { id: found.id },
-        data: {
-          revoked_at: new Date(),
-          revoked_reason: 'rotated',
-          replaced_by_session_id: newSession.id,
-        },
-      });
-      await this.authEvents.record(
-        {
-          userId: found.user_id,
-          eventType: AUTH_EVENT_TYPES.TOKEN_REFRESHED,
-          success: true,
-          deviceId: device.deviceId,
-          ip: meta.ip,
-          userAgent: meta.userAgent,
-        },
-        tx,
-      );
-      return newSession;
-    });
+    const session = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        const newSession = await tx.session.create({
+          data: {
+            user_id: found.user_id,
+            session_chain_id: found.session_chain_id,
+            device_id: device.deviceId ?? found.device_id,
+            device_name: device.deviceName ?? found.device_name,
+            platform: device.platform ?? found.platform,
+            app_version: device.appVersion ?? found.app_version,
+            ip: meta.ip ?? found.ip,
+            user_agent: meta.userAgent ?? found.user_agent,
+            refresh_hash: newHash,
+            last_used_at: new Date(),
+            expires_at: this.tokenService.refreshExpiryDate(),
+          },
+        });
+        await tx.session.update({
+          where: { id: found.id },
+          data: {
+            revoked_at: new Date(),
+            revoked_reason: 'rotated',
+            replaced_by_session_id: newSession.id,
+          },
+        });
+        return newSession;
+        // Prod 2026-10-21: on a loaded database the default 5 s transaction
+        // expired and refresh answered 500, so every request after it failed.
+      },
+      { timeoutMs: 15_000 },
+    );
+
+    // The audit row is best-effort and outside the transaction: a slow
+    // database must not turn a good rotation into a 500.
+    await this.authEvents
+      .record({
+        userId: found.user_id,
+        eventType: AUTH_EVENT_TYPES.TOKEN_REFRESHED,
+        success: true,
+        deviceId: device.deviceId,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+      })
+      .catch(() => undefined);
 
     return { status: 'ok', session, refreshTokenRaw: raw };
   }

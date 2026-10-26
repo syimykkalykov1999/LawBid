@@ -18,6 +18,10 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   AssistantSelf,
@@ -33,14 +37,18 @@ import {
   AddAssistantDto,
   AssistantIdParamDto,
   AssistantMeDto,
-  AssistantPhoneDto,
+  JoinCodeDto,
   AssistantRequestDto,
+  BulkTasksDto,
+  BulkTasksResultDto,
   CreateAssistantRequestDto,
   CreateTaskDto,
   DecideRequestDto,
-  JoinVerifyDto,
   RequestsQueryDto,
   TaskDto,
+  TaskPeopleQueryDto,
+  TaskPersonSuggestionDto,
+  TaskPlaceSuggestionDto,
   TasksQueryDto,
   TaskStepInputDto,
   TaskStepParamDto,
@@ -91,34 +99,19 @@ export class AssistantsController {
   }
 
   @AssistantSelf()
-  @Post('assistants/join/request-code')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Send a join code to the attorney's phone" })
-  @ApiErrors({
-    404: [E.NOT_FOUND],
-    409: [E.ASSISTANT_NO_FREE_SEAT],
-    429: [E.RATE_LIMITED],
-  })
-  requestAssistantCode(
-    @CurrentUser() user: RequestUser,
-    @Body() dto: AssistantPhoneDto,
-  ): Promise<void> {
-    return this.assistants.requestCode(user, dto.phone);
-  }
-
-  @AssistantSelf()
-  @Post('assistants/join/verify')
-  @ApiOperation({ summary: 'Join with the code the attorney received' })
+  @Post('assistants/join/code')
+  @ApiOperation({ summary: "Join with the attorney's one-time code" })
   @ApiEnvelopeResponse(AssistantMeDto)
   @ApiErrors({
-    400: [E.AUTH_OTP_INVALID, E.AUTH_OTP_EXPIRED, E.AUTH_OTP_LOCKED],
-    409: [E.ASSISTANT_NO_FREE_SEAT],
+    401: [E.ASSISTANT_CODE_INVALID],
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    409: [E.ASSISTANT_PHONE_TAKEN],
   })
-  verifyAssistantCode(
+  joinWithCode(
     @CurrentUser() user: RequestUser,
-    @Body() dto: JoinVerifyDto,
+    @Body() dto: JoinCodeDto,
   ): Promise<AssistantMeDto> {
-    return this.assistants.verifyCode(user, dto.attorneyPhone, dto.code);
+    return this.assistants.joinWithCode(user, dto.code);
   }
 
   // --- the attorney's team ------------------------------------------------
@@ -133,7 +126,9 @@ export class AssistantsController {
 
   @AttorneyOnly()
   @Post('team')
-  @ApiOperation({ summary: 'Add an assistant by phone (joins without a code)' })
+  @ApiOperation({
+    summary: 'Add an assistant: takes a seat and gives it a one-time code',
+  })
   @ApiEnvelopeResponse(TeamDto)
   @ApiErrors({
     400: [E.ASSISTANT_LIABILITY_REQUIRED],
@@ -145,6 +140,21 @@ export class AssistantsController {
     @Req() req: Request,
   ): Promise<TeamDto> {
     return this.assistants.add(user, dto, metaOf(req));
+  }
+
+  @AttorneyOnly()
+  @Post('team/:id/code')
+  @ApiOperation({
+    summary:
+      'A new one-time code for this seat (the old one stops working; for a joined assistant it signs them in on a new phone)',
+  })
+  @ApiEnvelopeResponse(TeamDto)
+  @ApiErrors({ 404: [E.NOT_FOUND] })
+  regenerateAssistantCode(
+    @CurrentUser() user: RequestUser,
+    @Param() p: AssistantIdParamDto,
+  ): Promise<TeamDto> {
+    return this.assistants.regenerateCode(user, p.id);
   }
 
   @AttorneyOnly()
@@ -242,7 +252,13 @@ export class AssistantsController {
   @Post('tasks')
   @ApiOperation({ summary: 'Set a task for the attorney' })
   @ApiEnvelopeResponse(TaskDto)
-  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 422: [E.FILE_NOT_ATTACHABLE] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.FILES_COUNT_LIMIT],
+    422: [E.FILE_NOT_ATTACHABLE],
+  })
   createTask(
     @CurrentUser() user: RequestUser,
     @Body() dto: CreateTaskDto,
@@ -260,6 +276,43 @@ export class AssistantsController {
     return this.tasks.list(user, q);
   }
 
+  // Owner 2026-10-05: declared before `tasks/:id` (literal segments).
+  @Get('tasks/places')
+  @ApiOperation({ summary: 'Addresses already used in this planner' })
+  @ApiEnvelopeResponse(TaskPlaceSuggestionDto, { isArray: true })
+  taskPlaces(
+    @CurrentUser() user: RequestUser,
+  ): Promise<TaskPlaceSuggestionDto[]> {
+    return this.tasks.places(user);
+  }
+
+  @Get('tasks/people')
+  @ApiOperation({
+    summary: 'People to add to a task (team, chats, contacts, attorneys)',
+  })
+  @ApiEnvelopeResponse(TaskPersonSuggestionDto, { isArray: true })
+  taskPeople(
+    @CurrentUser() user: RequestUser,
+    @Query() q: TaskPeopleQueryDto,
+  ): Promise<TaskPersonSuggestionDto[]> {
+    return this.tasks.peopleSuggestions(user, q.q);
+  }
+
+  @Post('tasks/bulk')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Many tasks at once: delete, archive, return, keep forever, assign, status, priority',
+  })
+  @ApiEnvelopeResponse(BulkTasksResultDto)
+  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  bulkTasks(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: BulkTasksDto,
+  ): Promise<BulkTasksResultDto> {
+    return this.tasks.bulk(user, dto);
+  }
+
   @Get('tasks/:id')
   @ApiOperation({ summary: 'One task' })
   @ApiEnvelopeResponse(TaskDto)
@@ -272,35 +325,43 @@ export class AssistantsController {
   }
 
   @Patch('tasks/:id/status')
+  @ApiIfMatchVersion()
   @ApiOperation({
     summary: 'Take / done / not done (+ note, + new time) / cancel',
   })
   @ApiEnvelopeResponse(TaskDto)
-  @ApiErrors({ 403: [E.ASSISTANT_NOT_ALLOWED], 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    403: [E.ASSISTANT_NOT_ALLOWED],
+    404: [E.NOT_FOUND],
+    409: [E.STALE_VERSION],
+  })
   setTaskStatus(
     @CurrentUser() user: RequestUser,
     @Param() p: AssistantIdParamDto,
     @Body() dto: UpdateTaskStatusDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<TaskDto> {
-    return this.tasks.setStatus(user, p.id, dto);
+    return this.tasks.setStatus(user, p.id, dto, expectedVersion);
   }
 
   // Owner 2026-10-01: a planner card stays editable and deletable.
   @Patch('tasks/:id')
+  @ApiIfMatchVersion()
   @ApiOperation({ summary: 'Edit a task' })
   @ApiEnvelopeResponse(TaskDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     403: [E.ASSISTANT_NOT_ALLOWED],
     404: [E.NOT_FOUND],
-    409: [E.TASK_CLOSED],
+    409: [E.TASK_CLOSED, E.FILES_COUNT_LIMIT, E.STALE_VERSION],
   })
   updateTask(
     @CurrentUser() user: RequestUser,
     @Param() p: AssistantIdParamDto,
     @Body() dto: UpdateTaskDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<TaskDto> {
-    return this.tasks.update(user, p.id, dto);
+    return this.tasks.update(user, p.id, dto, expectedVersion);
   }
 
   @Delete('tasks/:id')

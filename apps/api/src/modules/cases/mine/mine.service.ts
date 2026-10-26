@@ -1,9 +1,10 @@
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import {
   hasMineFilter,
-  mineCaseWhere,
+  mineWhere,
   type MineFilterFields,
 } from './mine-filters';
+import { FilesService } from '../../files/files.service';
 import { CasePhotosService } from '../services/case-photos.service';
 import {
   ConflictException,
@@ -23,6 +24,7 @@ import {
   encodeCursor,
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 import { CaseBidsService } from '../case-bids/case-bids.service';
@@ -33,6 +35,7 @@ import {
   caseNotAvailable,
 } from '../policies/case-access.policy';
 import { CasesFeedService } from '../services/cases-feed.service';
+import { touchClientActive } from '../domain/client-activity';
 import {
   MINE_PAGE_DEFAULT,
   type CaseConversationDto,
@@ -44,6 +47,7 @@ import {
   type SavedCaseItemDto,
   type WorkItemDto,
 } from './dto/mine.dto';
+import { userDirectory } from '../../../sharding/user-directory';
 
 const FINISHED_BIDS: BidStatus[] = [
   'accepted',
@@ -87,6 +91,7 @@ export class MineService {
     private readonly access: CaseAccessPolicy,
     private readonly subscriptions: SubscriptionAccessService,
     private readonly photos: CasePhotosService,
+    private readonly files: FilesService,
   ) {}
 
   /** GET /users/me/cases/:id (owner only; deleted cases are 404). */
@@ -97,6 +102,8 @@ export class MineService {
     if (user.role !== 'client') throw caseNotFound();
     const kase = await this.prisma.case.findUnique({ where: { id: caseId } });
     if (!kase || kase.client_id !== user.sub) throw caseNotFound();
+    // OQ-054: opening the case is the client's own action on it.
+    await touchClientActive(this.prisma, caseId, user.sub);
     const [dto, acceptedBid, conversation, media] = await Promise.all([
       this.cases.toFullDto(kase),
       this.caseBids.acceptedFor(kase.accepted_bid_id),
@@ -124,24 +131,58 @@ export class MineService {
     cursor: string | undefined,
     limit = MINE_PAGE_DEFAULT,
     search: MineFilterFields = {},
+    updatedSince?: string,
   ): Promise<Page<MyBidItemDto>> {
     if (user.role !== 'attorney') throw forbidden('Attorneys only.');
+    // Owner 2026-10-22 (client economy plan, package E): the delta — my
+    // bids whose row or case changed since; the ones outside this tab now
+    // come back as deletedIds.
+    const since = parseUpdatedSince(updatedSince);
+    const tab: Prisma.BidWhereInput =
+      filter === 'completed'
+        ? {
+            OR: [
+              {
+                status: {
+                  in: FINISHED_BIDS.filter((x) => x !== 'accepted'),
+                },
+              },
+              {
+                status: 'accepted',
+                case: { status: { in: ['closed', 'archived'] } },
+              },
+            ],
+          }
+        : {
+            status: filter === 'active' ? 'active' : { in: FINISHED_BIDS },
+          };
     const rows = await this.prisma.bid.findMany({
       where: {
         attorney_id: user.sub,
         // Owner 2026-09-30: search and filters in "Mine".
-        ...(hasMineFilter(search) ? { case: mineCaseWhere(search) } : {}),
-        status: filter === 'active' ? 'active' : { in: FINISHED_BIDS },
-        ...keyset(cursor),
+        ...(hasMineFilter(search) && !since
+          ? { case: await mineWhere(this.prisma, search) }
+          : {}),
+        AND: since
+          ? [
+              {
+                OR: [
+                  { updated_at: { gte: since } },
+                  { case: { updated_at: { gte: since } } },
+                ],
+              },
+            ]
+          : [tab, keyset(cursor)],
       },
       orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
+      take: since ? 500 : limit + 1,
       include: {
         case: {
           select: {
             id: true,
             title: true,
             status: true,
+            updated_at: true,
             primary_state_code: true,
             practice_area: {
               select: { name_en: true, i18n_key: true, code: true },
@@ -151,13 +192,30 @@ export class MineService {
         offers: { orderBy: { round_no: 'desc' }, take: 1 },
       },
     });
-    const page = rows.slice(0, limit);
+    const inTab = (b: (typeof rows)[number]) =>
+      filter === 'completed'
+        ? (FINISHED_BIDS.includes(b.status) && b.status !== 'accepted') ||
+          (b.status === 'accepted' &&
+            (b.case.status === 'closed' || b.case.status === 'archived'))
+        : filter === 'active'
+          ? b.status === 'active'
+          : FINISHED_BIDS.includes(b.status);
+    const page = since ? rows.filter(inTab) : rows.slice(0, limit);
     const last = page[page.length - 1];
     const covers = await this.photos.coverUrls(
       page.map((b) => b.case.id),
       user.sub,
     );
     return {
+      ...(since
+        ? {
+            deletedIds: rows.filter((b) => !inTab(b)).map((b) => b.id),
+            syncedAt: syncedAt(
+              rows.flatMap((b) => [b.updated_at, b.case.updated_at]),
+              since,
+            ),
+          }
+        : {}),
       items: page.map((b) => ({
         ...bidFields(b),
         coverUrl: covers.get(b.case.id) ?? null,
@@ -173,7 +231,7 @@ export class MineService {
         lastOffer: offerFields(b.offers[0], b),
       })),
       nextCursor:
-        rows.length > limit && last
+        !since && rows.length > limit && last
           ? encodeCursor({ createdAt: last.updated_at, id: last.id })
           : null,
     };
@@ -187,9 +245,14 @@ export class MineService {
     cursor: string | undefined,
     limit = MINE_PAGE_DEFAULT,
     search: MineFilterFields = {},
+    updatedSince?: string,
   ): Promise<Page<WorkItemDto>> {
     if (user.role !== 'attorney') throw forbidden('Attorneys only.');
-    const c = cursor ? decodeCursor(cursor) : undefined;
+    // Owner 2026-10-22 (client economy plan, package E): the delta — my
+    // accepted bids whose row or case changed since; rows outside this tab
+    // (the case closed / reopened) come back as deletedIds.
+    const since = parseUpdatedSince(updatedSince);
+    const c = cursor && !since ? decodeCursor(cursor) : undefined;
     // From the attorney's accepted bids — index bids(attorney_id, status,
     // updated_at) — rather than scanning cases (load review, file 04).
     const [bids, active] = await Promise.all([
@@ -197,10 +260,27 @@ export class MineService {
         where: {
           attorney_id: user.sub,
           status: 'accepted',
-          accepted_for_case: {
-            status: { in: WORK_STATUSES[filter] },
-            ...mineCaseWhere(search),
-          },
+          accepted_for_case: since
+            ? { isNot: null }
+            : {
+                status: { in: WORK_STATUSES[filter] },
+                // Owner 2026-10-18: also by the client's name / @username
+                // (when the attorney sees names) and accent-insensitively.
+                ...(await mineWhere(this.prisma, search, {
+                  attorneyId: user.sub,
+                  withClient: search.q
+                    ? await this.subscriptions.isActive(user.sub)
+                    : false,
+                })),
+              },
+          ...(since
+            ? {
+                OR: [
+                  { updated_at: { gte: since } },
+                  { accepted_for_case: { updated_at: { gte: since } } },
+                ],
+              }
+            : {}),
           ...(c
             ? {
                 OR: [
@@ -211,11 +291,12 @@ export class MineService {
             : {}),
         },
         orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
-        take: limit + 1,
+        take: since ? 500 : limit + 1,
         select: {
           id: true,
           fee_type: true,
           amount_cents: true,
+          percent_bps: true,
           decided_at: true,
           updated_at: true,
           accepted_for_case: {
@@ -223,20 +304,27 @@ export class MineService {
               id: true,
               title: true,
               status: true,
+              updated_at: true,
               auto_close_at: true,
               closed_at: true,
               primary_state_code: true,
+              states: { select: { is_primary: true } },
               practice_area: {
                 select: { name_en: true, i18n_key: true, code: true },
               },
-              client: { select: { first_name: true, last_name: true } },
+              client_id: true,
             },
           },
         },
       }),
       this.subscriptions.isActive(user.sub),
     ]);
-    const page = bids.slice(0, limit);
+    const inTab = (b: (typeof bids)[number]) =>
+      !!b.accepted_for_case &&
+      (WORK_STATUSES[filter] as readonly string[]).includes(
+        b.accepted_for_case.status,
+      );
+    const page = since ? bids.filter(inTab) : bids.slice(0, limit);
     const last = page[page.length - 1];
     const covers = await this.photos.coverUrls(
       page.flatMap((b) =>
@@ -244,10 +332,39 @@ export class MineService {
       ),
       user.sub,
     );
+    // Owner 2026-10-15: the client's small avatar on the card — shown
+    // under the same rule as the name (locked without a subscription).
+    // Shard-ready step 6: the client's name card from the user directory.
+    const clients = await userDirectory(this.prisma).select(
+      page.map((b) => b.accepted_for_case?.client_id),
+      { first_name: true, last_name: true, avatar_file_id: true },
+    );
+    const avatars = active
+      ? await this.files.avatarUrlsMany(
+          page.map(
+            (b) =>
+              clients.get(b.accepted_for_case?.client_id ?? '')
+                ?.avatar_file_id ?? null,
+          ),
+        )
+      : new Map<string, { url256: string | null }>();
     return {
+      ...(since
+        ? {
+            deletedIds: bids.filter((b) => !inTab(b)).map((b) => b.id),
+            syncedAt: syncedAt(
+              bids.flatMap((b) => [
+                b.updated_at,
+                b.accepted_for_case?.updated_at,
+              ]),
+              since,
+            ),
+          }
+        : {}),
       items: page.flatMap((b) => {
         const k = b.accepted_for_case;
         if (!k) return [];
+        const client = clients.get(k.client_id)!;
         return [
           {
             caseId: k.id,
@@ -255,16 +372,21 @@ export class MineService {
             title: k.title,
             status: k.status,
             primaryStateCode: k.primary_state_code,
+            additionalStateCount: k.states.filter((x) => !x.is_primary).length,
             practiceAreaNameEn: k.practice_area.name_en,
             practiceAreaI18nKey: k.practice_area.i18n_key,
             practiceAreaCode: k.practice_area.code,
             clientName: active
-              ? [k.client.first_name, k.client.last_name]
+              ? [client.first_name, client.last_name]
                   .filter(Boolean)
                   .join(' ') || null
               : null,
+            clientAvatarUrl: client.avatar_file_id
+              ? (avatars.get(client.avatar_file_id)?.url256 ?? null)
+              : null,
             feeType: b.fee_type,
             amountCents: b.amount_cents,
+            percentBps: b.percent_bps,
             autoCloseAt: k.auto_close_at?.toISOString() ?? null,
             acceptedAt: b.decided_at?.toISOString() ?? null,
             closedAt: k.closed_at?.toISOString() ?? null,
@@ -273,7 +395,7 @@ export class MineService {
         ];
       }),
       nextCursor:
-        bids.length > limit && last
+        !since && bids.length > limit && last
           ? encodeCursor({ createdAt: last.updated_at, id: last.id })
           : null,
     };
@@ -302,7 +424,7 @@ export class MineService {
                   })
                 ).map((s) => s.item_id),
               },
-              ...mineCaseWhere(search),
+              ...(await mineWhere(this.prisma, search)),
             },
             select: { id: true },
           })
@@ -456,13 +578,16 @@ function bidFields(b: Bid) {
     status: b.status,
     feeType: b.fee_type,
     amountCents: b.amount_cents,
+    percentBps: b.percent_bps,
     message: b.message,
     startAvailability: b.start_availability,
     startDate: b.start_date ? b.start_date.toISOString().slice(0, 10) : null,
     estimatedDurationDays: b.estimated_duration_days,
     roundCount: b.round_count,
+    version: b.version,
     turn: b.turn,
     outsidePractice: b.outside_practice,
+    outsideLicensedStates: b.outside_licensed_states,
     decidedAt: b.decided_at?.toISOString() ?? null,
     createdAt: b.created_at.toISOString(),
   };
@@ -476,6 +601,7 @@ function offerFields(o: Prisma.BidOfferGetPayload<object> | undefined, b: Bid) {
         fromRole: o.from_role,
         feeType: o.fee_type,
         amountCents: o.amount_cents,
+        percentBps: o.percent_bps,
         message: o.message,
         status: o.status,
         createdAt: o.created_at.toISOString(),
@@ -486,6 +612,7 @@ function offerFields(o: Prisma.BidOfferGetPayload<object> | undefined, b: Bid) {
         fromRole: 'attorney' as const,
         feeType: b.fee_type,
         amountCents: b.amount_cents,
+        percentBps: b.percent_bps,
         message: b.message,
         status: 'pending' as const,
         createdAt: b.created_at.toISOString(),

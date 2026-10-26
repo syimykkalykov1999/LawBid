@@ -49,10 +49,14 @@ export class CaseLifecycleController {
     private readonly cases: CasesService,
   ) {}
 
+  // Applies to an assistant only (needs the "bids" duty); clients and
+  // attorneys act as themselves.
+  @AttorneyOnly('bids')
   @Post('cases/:id/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Client "Done": in_progress → pending_completion (docs/04 §10.1)',
+    summary:
+      'Either side "Done": in_progress → pending_completion (docs/04 §10.1)',
   })
   @ApiEnvelopeResponse(CaseDto)
   @ApiErrors(LIFECYCLE_ERRORS)
@@ -63,12 +67,15 @@ export class CaseLifecycleController {
     return this.cases.toFullDto(await this.lifecycle.complete(user, params.id));
   }
 
-  // Audit 2026-10-02: an assistant acts here only with "bids".
+  // Owner 2026-10-02: either side confirms the other's mark (an assistant
+  // acts here only with "bids").
+  // Applies to an assistant only (needs the "bids" duty); clients and
+  // attorneys act as themselves.
   @AttorneyOnly('bids')
   @Post('cases/:id/confirm-completion')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Attorney confirms completion: → closed (docs/04 §10.1)',
+    summary: 'The other side confirms completion: → closed (docs/04 §10.1)',
   })
   @ApiEnvelopeResponse(CaseDto)
   @ApiErrors(LIFECYCLE_ERRORS)
@@ -81,14 +88,15 @@ export class CaseLifecycleController {
     );
   }
 
-  // Audit 2026-10-02: an assistant acts here only with "bids".
+  // Applies to an assistant only (needs the "bids" duty); clients and
+  // attorneys act as themselves.
   @AttorneyOnly('bids')
   @Post('cases/:id/dispute')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiHeader({ name: 'Idempotency-Key', required: false })
   @ApiOperation({
-    summary: 'Attorney disputes completion: → disputed (docs/04 §10.1)',
+    summary: 'The other side disputes completion: → disputed (docs/04 §10.1)',
   })
   @ApiEnvelopeResponse(CaseDto)
   @ApiErrors(LIFECYCLE_ERRORS)

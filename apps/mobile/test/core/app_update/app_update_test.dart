@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,11 +37,15 @@ void main() {
       final c = await containerWith();
       final dio = c.read(dioProvider)
         ..httpClientAdapter = FakeHttpAdapter(
-          (o) async => apiError(426, 'APP_UPDATE_REQUIRED', {'minVersion': '9.0.0'}),
+          (o) async =>
+              apiError(426, 'APP_UPDATE_REQUIRED', {'minVersion': '9.0.0'}),
         );
       expect(c.read(appUpdateStatusProvider), AppUpdateStatus.upToDate);
 
-      await expectLater(dio.get<dynamic>('/cases/feed'), throwsA(isA<DioException>()));
+      await expectLater(
+        dio.get<dynamic>('/cases/feed'),
+        throwsA(isA<DioException>()),
+      );
 
       expect(c.read(forcedUpdateProvider), isTrue);
       expect(c.read(appUpdateStatusProvider), AppUpdateStatus.updateRequired);
@@ -54,15 +59,18 @@ void main() {
       await expectLater(dio.get<dynamic>('/a'), throwsA(isA<DioException>()));
       expect(c.read(forcedUpdateProvider), isFalse);
 
-      adapter.handler = (o) async => apiError(400, AppUpdateInterceptor.errorCode);
+      adapter.handler =
+          (o) async => apiError(400, AppUpdateInterceptor.errorCode);
       await expectLater(dio.post<dynamic>('/b'), throwsA(isA<DioException>()));
       expect(c.read(forcedUpdateProvider), isTrue);
     });
 
-    testWidgets('opens the forced-update screen over whatever is showing', (tester) async {
+    testWidgets('opens the forced-update screen over whatever is showing',
+        (tester) async {
       final c = await containerWith();
       final dio = c.read(dioProvider)
-        ..httpClientAdapter = FakeHttpAdapter((o) async => apiError(426, 'APP_UPDATE_REQUIRED'));
+        ..httpClientAdapter =
+            FakeHttpAdapter((o) async => apiError(426, 'APP_UPDATE_REQUIRED'));
       await tester.pumpWidget(gatedApp(c));
       expect(find.text('HOME'), findsOneWidget);
       expect(find.byType(ForcedUpdateScreen), findsNothing);
@@ -88,7 +96,8 @@ void main() {
   });
 
   group('bootstrap min_app_version', () {
-    test('below the minimum → update required; at/above → up to date', () async {
+    test('below the minimum → update required; at/above → up to date',
+        () async {
       var c = await containerWith(appConfig: {'min_app_version_$_p': '0.2.0'});
       expect(c.read(appUpdateStatusProvider), AppUpdateStatus.updateRequired);
       c = await containerWith(appConfig: {'min_app_version_$_p': '0.1.0'});
@@ -97,17 +106,26 @@ void main() {
   });
 
   group('soft update (soft_update_version_*)', () {
-    test('newer soft version → dismissible prompt; same/older → nothing', () async {
-      var c = await containerWith(appConfig: {'soft_update_version_$_p': '0.3.0'});
-      expect(c.read(appUpdateStatusProvider), AppUpdateStatus.softUpdateAvailable);
+    test('newer soft version → dismissible prompt; same/older → nothing',
+        () async {
+      var c =
+          await containerWith(appConfig: {'soft_update_version_$_p': '0.3.0'});
+      expect(
+        c.read(appUpdateStatusProvider),
+        AppUpdateStatus.softUpdateAvailable,
+      );
       c = await containerWith(appConfig: {'soft_update_version_$_p': '0.1.0'});
       expect(c.read(appUpdateStatusProvider), AppUpdateStatus.upToDate);
-      c = await containerWith(appConfig: {'soft_update_version_$_p': 'garbage'});
+      c = await containerWith(
+        appConfig: {'soft_update_version_$_p': 'garbage'},
+      );
       expect(c.read(appUpdateStatusProvider), AppUpdateStatus.upToDate);
     });
 
-    test('dismissal is remembered per soft version; a newer one prompts again', () async {
-      var c = await containerWith(appConfig: {'soft_update_version_$_p': '0.3.0'});
+    test('dismissal is remembered per soft version; a newer one prompts again',
+        () async {
+      var c =
+          await containerWith(appConfig: {'soft_update_version_$_p': '0.3.0'});
       await c.read(softUpdateDismissalProvider.notifier).dismiss('0.3.0');
       expect(c.read(appUpdateStatusProvider), AppUpdateStatus.upToDate);
 
@@ -122,23 +140,34 @@ void main() {
         appConfig: {'soft_update_version_$_p': '0.4.0'},
         prefs: {'app_update.soft_dismissed_version': '0.3.0'},
       );
-      expect(c.read(appUpdateStatusProvider), AppUpdateStatus.softUpdateAvailable);
+      expect(
+        c.read(appUpdateStatusProvider),
+        AppUpdateStatus.softUpdateAvailable,
+      );
     });
 
     test('forced update wins over a soft prompt', () async {
       final c = await containerWith(
-        appConfig: {'soft_update_version_$_p': '0.3.0', 'min_app_version_$_p': '0.2.0'},
+        appConfig: {
+          'soft_update_version_$_p': '0.3.0',
+          'min_app_version_$_p': '0.2.0',
+        },
       );
       expect(c.read(appUpdateStatusProvider), AppUpdateStatus.updateRequired);
     });
 
-    testWidgets('prompt shows after startup, "Later" dismisses it, "Update" opens the store', (
+    testWidgets(
+        'prompt shows after startup, "Later" dismisses it, "Update" opens the store',
+        (
       tester,
     ) async {
       final launched = <Uri>[];
       final c = ProviderContainer(
         overrides: [
-          ...await baseOverrides(appConfig: {'soft_update_version_$_p': '0.3.0'}, signedIn: true),
+          ...await baseOverrides(
+            appConfig: {'soft_update_version_$_p': '0.3.0'},
+            signedIn: true,
+          ),
           storeLauncherProvider.overrideWithValue((url) async {
             launched.add(url);
             return true;
@@ -158,7 +187,10 @@ void main() {
       expect(launched, hasLength(1));
       if (_p == 'android') {
         expect(launched.single.host, 'play.google.com');
-        expect(launched.single.queryParameters['id'], startsWith('com.lawbid.lawbid'));
+        expect(
+          launched.single.queryParameters['id'],
+          startsWith('com.lawbid.lawbid'),
+        );
       }
 
       await tester.tap(find.byKey(const Key('app_update.soft.later')));
@@ -167,13 +199,19 @@ void main() {
       expect(c.read(softUpdateDismissalProvider), '0.3.0');
     });
 
-    testWidgets('no soft prompt in the pre-app (signed-out) flow; forced update still shows', (
+    testWidgets(
+        'no soft prompt in the pre-app (signed-out) flow; forced update still shows',
+        (
       tester,
     ) async {
-      var c = await containerWith(appConfig: {'soft_update_version_$_p': '0.3.0'});
+      var c =
+          await containerWith(appConfig: {'soft_update_version_$_p': '0.3.0'});
       await tester.pumpWidget(gatedApp(c));
       await tester.pumpAndSettle();
-      expect(c.read(appUpdateStatusProvider), AppUpdateStatus.softUpdateAvailable);
+      expect(
+        c.read(appUpdateStatusProvider),
+        AppUpdateStatus.softUpdateAvailable,
+      );
       expect(find.byType(SoftUpdatePrompt), findsNothing);
 
       c = await containerWith(appConfig: {'min_app_version_$_p': '0.2.0'});
@@ -182,9 +220,15 @@ void main() {
       expect(find.byType(ForcedUpdateScreen), findsOneWidget);
     });
 
-    test('store_url_* from app_config overrides the computed store link', () async {
-      final c = await containerWith(appConfig: {'store_url_$_p': 'https://example.com/get-lawbid'});
-      expect(c.read(storeUrlProvider), Uri.parse('https://example.com/get-lawbid'));
+    test('store_url_* from app_config overrides the computed store link',
+        () async {
+      final c = await containerWith(
+        appConfig: {'store_url_$_p': 'https://example.com/get-lawbid'},
+      );
+      expect(
+        c.read(storeUrlProvider),
+        Uri.parse('https://example.com/get-lawbid'),
+      );
     });
   });
 }

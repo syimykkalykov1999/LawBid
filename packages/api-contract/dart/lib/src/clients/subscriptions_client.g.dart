@@ -85,7 +85,40 @@ class _SubscriptionsClient implements SubscriptionsClient {
   }
 
   @override
-  Future<SubscriptionMeEnvelope> setSeats({
+  Future<SeatPreviewEnvelope> previewSeats({
+    required SeatPreviewRequestDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<SeatPreviewEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/subscriptions/seats/preview',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late SeatPreviewEnvelope _value;
+    try {
+      _value = SeatPreviewEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<SeatChangeResultEnvelope> setSeats({
     required SetSeatsDto body,
     Map<String, dynamic>? extras,
   }) async {
@@ -96,7 +129,7 @@ class _SubscriptionsClient implements SubscriptionsClient {
     final _headers = <String, dynamic>{};
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
-    final _options = _setStreamType<SubscriptionMeEnvelope>(
+    final _options = _setStreamType<SeatChangeResultEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
@@ -107,9 +140,42 @@ class _SubscriptionsClient implements SubscriptionsClient {
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late SubscriptionMeEnvelope _value;
+    late SeatChangeResultEnvelope _value;
     try {
-      _value = SubscriptionMeEnvelope.fromJson(_result.data!);
+      _value = SeatChangeResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<SeatCheckoutEnvelope> seatsCheckout({
+    required SeatPreviewRequestDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<SeatCheckoutEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/subscriptions/seats/checkout',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late SeatCheckoutEnvelope _value;
+    try {
+      _value = SeatCheckoutEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -152,6 +218,7 @@ class _SubscriptionsClient implements SubscriptionsClient {
 
   @override
   Future<StartSubscriptionResultEnvelope> startSubscription({
+    required CheckoutRequestDto body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -159,7 +226,8 @@ class _SubscriptionsClient implements SubscriptionsClient {
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
     final _options = _setStreamType<StartSubscriptionResultEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
@@ -184,13 +252,15 @@ class _SubscriptionsClient implements SubscriptionsClient {
   @override
   Future<SubscriptionMeEnvelope> confirmSubscription({
     required ConfirmSubscriptionDto body,
+    String? idempotencyKey,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'idempotency-key': idempotencyKey};
+    _headers.removeWhere((k, v) => v == null);
     final _data = <String, dynamic>{};
     _data.addAll(body.toJson());
     final _options = _setStreamType<SubscriptionMeEnvelope>(
@@ -363,6 +433,37 @@ class _SubscriptionsClient implements SubscriptionsClient {
     late SubscriptionMeEnvelope _value;
     try {
       _value = SubscriptionMeEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<PublicPricingEnvelope> getPricing({
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    const Map<String, dynamic>? _data = null;
+    final _options = _setStreamType<PublicPricingEnvelope>(
+      Options(method: 'GET', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/pricing',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late PublicPricingEnvelope _value;
+    try {
+      _value = PublicPricingEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

@@ -5,6 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'budget_mode.dart';
+import 'case_deadline_kind.dart';
+import 'case_urgency.dart';
 
 part 'create_case_dto.g.dart';
 
@@ -16,11 +18,18 @@ class CreateCaseDto {
     required this.description,
     required this.primaryStateCode,
     required this.budgetMode,
+    this.extraPracticeAreaIds,
+    this.privateDetails,
     this.additionalStateCodes,
     this.city,
     this.photoFileIds,
     this.budgetAmountDollars,
+    this.budgetPercentBps,
     this.clientContactSharingConsent,
+    this.coverKey,
+    this.urgency,
+    this.deadlineAt,
+    this.deadlineKind,
   });
 
   factory CreateCaseDto.fromJson(Map<String, Object?> json) =>
@@ -28,8 +37,14 @@ class CreateCaseDto {
 
   /// A leaf (specialization).
   final String practiceAreaId;
+
+  /// Topics 2..N (leaves); at most `case.max_practices` in all with the first.
+  final List<String>? extraPracticeAreaIds;
   final String title;
   final String description;
+
+  /// Owner 2026-10-18: private details; only the owner and the accepted attorney read them.
+  final String? privateDetails;
   final String primaryStateCode;
 
   /// 0-2 more states, distinct from the primary and each other.
@@ -43,8 +58,25 @@ class CreateCaseDto {
   /// Required (and only meaningful) when budgetMode = amount.
   final int? budgetAmountDollars;
 
+  /// Owner 2026-10-17: required when budgetMode = percent; basis points (3300 = 33 %). Capped by `fees.contingency_max_percent`.
+  final int? budgetPercentBps;
+
   /// Must be true unless the client already granted client_contact_sharing on an earlier case.
   final bool? clientContactSharingConsent;
+
+  /// `art:0`-`art:3` (practice cover variant) or `icon:<name>`.
+  final String? coverKey;
+
+  /// Owner 2026-10-04/05: how soon the client needs an attorney — a.
+  /// level, or `by_date` with deadlineAt (a date alone means `by_date`).
+  /// A level clears the date; null clears both.
+  final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the date it is needed by (today … 2 years).
+  final DateTime? deadlineAt;
+
+  /// Owner 2026-10-05: what the date is; only with a date.
+  final CaseDeadlineKind? deadlineKind;
 
   Map<String, Object?> toJson() => _$CreateCaseDtoToJson(this);
 }

@@ -7,20 +7,28 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_bid_row_list_envelope.dart';
 import '../models/admin_bid_status.dart';
+import '../models/admin_bulk_content_dto.dart';
+import '../models/admin_bulk_result_envelope.dart';
+import '../models/admin_classify_posts_dto.dart';
+import '../models/admin_client_review_row_list_envelope.dart';
 import '../models/admin_comment_row_list_envelope.dart';
 import '../models/admin_comment_thread.dart';
 import '../models/admin_overview_envelope.dart';
 import '../models/admin_post_kind.dart';
 import '../models/admin_post_row_list_envelope.dart';
 import '../models/admin_practice_area_list_envelope.dart';
+import '../models/admin_reason_dto.dart';
 import '../models/admin_remove_comment_dto.dart';
 import '../models/admin_remove_dto.dart';
 import '../models/admin_review_row_list_envelope.dart';
+import '../models/admin_review_status.dart';
 import '../models/broadcast_envelope.dart';
 import '../models/broadcast_list_envelope.dart';
 import '../models/create_broadcast_dto.dart';
 import '../models/create_practice_area_dto.dart';
 import '../models/export_entity.dart';
+import '../models/media.dart';
+import '../models/post_content_class.dart';
 import '../models/update_practice_area_dto.dart';
 
 part 'admin_content_client.g.dart';
@@ -38,11 +46,26 @@ abstract class AdminContentClient {
   /// Posts and news, newest first.
   ///
   /// [q] - Search text.
+  ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
+  ///
+  /// [media] - Only posts that carry a video (the former "reels").
+  ///
+  /// [contentClass] - Owner 2026-10-05: legal or general (personal) posts only.
   @GET('/admin/content/posts')
   Future<AdminPostRowListEnvelope> listAdminPosts({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Query('kind') AdminPostKind? kind,
+    @Query('media') Media? media,
+    @Query('contentClass') PostContentClass? contentClass,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -54,13 +77,29 @@ abstract class AdminContentClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Mark posts legal or general (kept through author edits), or back to automatic
+  @POST('/admin/content/posts/classify')
+  Future<AdminBulkResultEnvelope> classifyAdminPosts({
+    @Body() required AdminClassifyPostsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Post or case comments, newest first.
   ///
   /// [q] - Search text.
+  ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
   @GET('/admin/content/comments')
   Future<AdminCommentRowListEnvelope> listAdminComments({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Query('thread') AdminCommentThread? thread,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -76,10 +115,19 @@ abstract class AdminContentClient {
   /// Reviews of attorneys, newest first.
   ///
   /// [q] - Search text.
+  ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
   @GET('/admin/content/reviews')
   Future<AdminReviewRowListEnvelope> listAdminReviews({
     @Query('q') String? q,
     @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -95,6 +143,73 @@ abstract class AdminContentClient {
   @POST('/admin/content/reviews/{id}/restore')
   Future<void> restoreAdminReview({
     @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Restore a post removed or hidden by moderation (reason audited)
+  @POST('/admin/content/posts/{id}/restore')
+  Future<void> restoreAdminPost({
+    @Path('id') required String id,
+    @Body() required AdminReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Restore a post comment removed by moderation
+  @POST('/admin/content/comments/{id}/restore')
+  Future<void> restoreAdminComment({
+    @Path('id') required String id,
+    @Body() required AdminReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Restore a case comment removed by moderation
+  @POST('/admin/content/case-comments/{id}/restore')
+  Future<void> restoreAdminCaseComment({
+    @Path('id') required String id,
+    @Body() required AdminReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reviews of clients, newest first.
+  ///
+  /// [q] - Search text.
+  ///
+  /// [authorId] - Only this author.
+  ///
+  /// [from] - Created at or after (inclusive).
+  ///
+  /// [to] - Created before (exclusive).
+  @GET('/admin/content/client-reviews')
+  Future<AdminClientReviewRowListEnvelope> listAdminClientReviews({
+    @Query('q') String? q,
+    @Query('cursor') String? cursor,
+    @Query('authorId') String? authorId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
+    @Query('status') AdminReviewStatus? status,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Hide a review of a client (author notified)
+  @POST('/admin/content/client-reviews/{id}/hide')
+  Future<void> hideAdminClientReview({
+    @Path('id') required String id,
+    @Body() required AdminReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Show a hidden / removed review of a client
+  @POST('/admin/content/client-reviews/{id}/restore')
+  Future<void> restoreAdminClientReview({
+    @Path('id') required String id,
+    @Body() required AdminReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove, hide or restore many posts / comments / reviews with one reason (authors notified; one audit row per batch)
+  @POST('/admin/content/bulk')
+  Future<AdminBulkResultEnvelope> bulkAdminContent({
+    @Body() required AdminBulkContentDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -143,10 +258,13 @@ abstract class AdminContentClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// CSV export (up to 50 000 rows)
+  /// CSV export (up to 50 000 rows). Every export is audited; `users` (phones, emails) needs X-Justification.
+  ///
+  /// [xJustification] - Required for entity=users: why contacts are exported (10–500 chars, encodeURIComponent for non-ASCII).
   @GET('/admin/export/{entity}')
   Future<void> exportAdminCsv({
     @Path('entity') required ExportEntity entity,
+    @Header('X-Justification') String? xJustification,
     @Extras() Map<String, dynamic>? extras,
   });
 }

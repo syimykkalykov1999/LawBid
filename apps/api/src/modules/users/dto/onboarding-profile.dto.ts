@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayUnique,
   IsArray,
+  IsEmail,
   IsEnum,
   IsIn,
   IsOptional,
@@ -13,6 +14,9 @@ import {
 } from 'class-validator';
 import { ContactMethod } from '@prisma/client';
 import { ISO_639_1_CODES } from '../iso-639-1';
+import { tidy } from '../../../common/utils/tidy-text';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
+import { USERNAME_PATTERN } from '../services/username.util';
 
 /** Longest bio (docs/02 §4.C "bio text? (≤300)", CHECK in the migration). */
 export const BIO_MAX_LENGTH = 300;
@@ -63,19 +67,40 @@ export class OnboardingProfileDto {
   @Transform(trim)
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   firstName?: string;
 
   @IsOptional()
   @Transform(trim)
   @IsString()
   @Length(1, PERSON_NAME_MAX_LENGTH)
+  @MaxTextChars('limits.name_chars')
   lastName?: string;
+
+  /** Owner 2026-10-18 («как в инсте»): the @username picked on the form;
+   * without it the server derives one from the name. */
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Matches(USERNAME_PATTERN, { message: 'username has an invalid format' })
+  username?: string;
+
+  /** Owner 2026-10-13: e-mail, format only (no code, not verified). */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail()
+  @MaxLength(254)
+  email?: string;
 
   /** Client: state of residence (50 + DC). */
   @IsOptional()
   @Transform(upper)
   @IsString()
-  @Matches(/^[A-Z]{2}$/, { message: 'stateCode must be a 2-letter code' })
+  @Matches(/^[A-Z0-9]{2}$/, {
+    message: 'stateCode must be a 2-character state code',
+  })
   stateCode?: string;
 
   /** Client preferred_languages / attorney languages — ISO 639-1. */
@@ -101,9 +126,9 @@ export class OnboardingProfileDto {
   contactNote?: string;
 
   @IsOptional()
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
-  @MaxLength(BIO_MAX_LENGTH)
+  @MaxTextChars('limits.bio_chars')
   bio?: string;
 
   @IsOptional()
@@ -120,9 +145,9 @@ export class OnboardingProfileDto {
   @IsArray()
   @ArrayMaxSize(MAX_STATES)
   @ArrayUnique()
-  @Matches(/^[A-Z]{2}$/, {
+  @Matches(/^[A-Z0-9]{2}$/, {
     each: true,
-    message: 'licensedStates must contain 2-letter codes',
+    message: 'licensedStates must contain 2-character state codes',
   })
   licensedStates?: string[];
 }

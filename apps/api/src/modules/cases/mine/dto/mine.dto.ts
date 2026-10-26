@@ -17,6 +17,7 @@ import { CaseFeedItemDto } from '../../dto/cases-feed.dto';
 import { CaseDto, CasePhotoDto } from '../../dto/case-responses.dto';
 
 import { MineFilterFields } from '../mine-filters';
+import { UpdatedSinceQuery } from '../../../../common/sync/sync.util';
 
 export const MINE_PAGE_DEFAULT = 20;
 export const MINE_PAGE_MAX = 50;
@@ -41,7 +42,9 @@ class PageQuery extends MineFilterFields {
   limit?: number;
 }
 
-export const MY_BIDS_FILTERS = ['active', 'finished'] as const;
+// Owner 2026-10-15: `completed` = accepted bids of finished cases plus the
+// declined / withdrawn / expired ones (one «Completed» chip).
+export const MY_BIDS_FILTERS = ['active', 'finished', 'completed'] as const;
 export type MyBidsFilter = (typeof MY_BIDS_FILTERS)[number];
 
 /** GET /users/me/bids (docs/04 §11.2 "Мои биды", §15). */
@@ -50,6 +53,11 @@ export class ListMyBidsQueryDto extends PageQuery {
   @IsOptional()
   @IsIn(MY_BIDS_FILTERS)
   filter?: MyBidsFilter;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package E): only my bids changed since (ISO); meta.deletedIds = bids that left this tab; meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 export const MY_WORK_FILTERS = ['active', 'closed'] as const;
@@ -61,6 +69,11 @@ export class ListMyWorkQueryDto extends PageQuery {
   @IsOptional()
   @IsIn(MY_WORK_FILTERS)
   filter?: MyWorkFilter;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package E): only the work rows (accepted bid or its case) changed since (ISO); meta.deletedIds = rows that left this tab (the case closed / reopened); meta.syncedAt = pass it back next time. Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 /** GET /saved-items (docs/04 §11.2 "Сохранённое": cases). */
@@ -130,6 +143,9 @@ export class WorkItemDto {
   @ApiProperty()
   primaryStateCode!: string;
 
+  @ApiProperty({ type: 'integer', description: 'States besides the primary.' })
+  additionalStateCount!: number;
+
   @ApiProperty()
   practiceAreaNameEn!: string;
 
@@ -147,11 +163,26 @@ export class WorkItemDto {
   })
   clientName!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Client avatar (small); null while the subscription is inactive, like the name.',
+  })
+  clientAvatarUrl!: string | null;
+
   @ApiProperty({ enum: FeeType, enumName: 'FeeType' })
   feeType!: FeeType;
 
   @ApiProperty({ type: 'integer' })
   amountCents!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points.',
+  })
+  percentBps!: number | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })
   autoCloseAt!: string | null;
@@ -219,4 +250,7 @@ export class CaseConversationDto {
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
+  /** Owner 2026-10-22 (package E): with ?updatedSince. */
+  deletedIds?: string[];
+  syncedAt?: string;
 }

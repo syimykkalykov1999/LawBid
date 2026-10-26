@@ -1,13 +1,17 @@
 import 'package:go_router/go_router.dart';
-
-import '../../features/cases/presentation/screens/case_route_screens.dart';
-import '../../features/profile/presentation/screens/attorney_profile_screen.dart';
-import '../../features/profile/presentation/screens/client_public_profile_screen.dart';
-import '../../features/social/presentation/screens/social_screens.dart';
-import '../navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:lawbid/features/cases/presentation/screens/case_route_screens.dart';
+import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/client_public_profile_screen.dart';
+import 'package:lawbid/features/profile/presentation/screens/profile_by_username_screen.dart'
+    deferred as d_profile_by_username_screen;
+import 'package:lawbid/features/qr/presentation/web_login_link_screen.dart'
+    deferred as d_web_login_link_screen;
+import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 
 /// Routes the §12 content deep links land on (docs/01_FOUNDATION_AUTH.md:
-/// `lawbid.app/case/:id`, `/lawyer/:username`, `/post/:id`).
+/// `lawbid.dev/case/:id`, `/lawyer/:username`, `/post/:id`).
 ///
 /// `/lawyer/:username` opens the real public attorney profile (docs/03
 /// stage 3.9), `/case/:id` the real case screen (docs/04), `/post/:id` the
@@ -16,6 +20,15 @@ abstract final class DeepLinkRoutes {
   static const casePath = '/case/:id';
   static const lawyerPath = '/lawyer/:username';
   static const postPath = '/post/:id';
+
+  /// Owner 2026-10-20: `lawbid.dev/u/:username` (profile QR codes) and
+  /// `lawbid.dev/q/:id` (the website's sign-in QR code).
+  static const profilePath = '/u/:username';
+  static const webLoginPath = '/q/:id';
+
+  /// Owner 2026-10-22: `lawbid.dev/qr/:nonce` — the same sign-in question,
+  /// as the universal link the website's QR code now carries.
+  static const qrLoginPath = '/qr/:nonce';
 
   /// Not a published deep link; the in-app people/followers rows use it.
   static const clientPath = '/client/:username';
@@ -34,7 +47,48 @@ List<RouteBase> deepLinkRoutes() => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           AttorneyProfileScreen(
-              username: state.pathParameters['username'] ?? ''),
+            username: state.pathParameters['username'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: DeepLinkRoutes.profilePath,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'profile_by_username_screen',
+            load: d_profile_by_username_screen.loadLibrary,
+            builder: (_) =>
+                d_profile_by_username_screen.ProfileByUsernameScreen(
+              username: state.pathParameters['username'] ?? '',
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: DeepLinkRoutes.webLoginPath,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'web_login_link_screen',
+            load: d_web_login_link_screen.loadLibrary,
+            builder: (_) => d_web_login_link_screen.WebLoginLinkScreen(
+              qrId: state.pathParameters['id'] ?? '',
+            ),
+          ),
+        ),
+      ),
+      GoRoute(
+        path: DeepLinkRoutes.qrLoginPath,
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          DeferredScreen(
+            id: 'web_login_link_screen',
+            load: d_web_login_link_screen.loadLibrary,
+            builder: (_) => d_web_login_link_screen.WebLoginLinkScreen(
+              qrId: state.pathParameters['nonce'] ?? '',
+            ),
+          ),
         ),
       ),
       GoRoute(
@@ -42,14 +96,18 @@ List<RouteBase> deepLinkRoutes() => [
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
           ClientPublicProfileScreen(
-              username: state.pathParameters['username'] ?? ''),
+            username: state.pathParameters['username'] ?? '',
+          ),
         ),
       ),
       GoRoute(
         path: DeepLinkRoutes.postPath,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          PostScreen(postId: state.pathParameters['id'] ?? ''),
+          PostScreen(
+            postId: state.pathParameters['id'] ?? '',
+            fromProfile: state.uri.queryParameters['from'] == 'profile',
+          ),
         ),
       ),
     ];

@@ -11,7 +11,12 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
-import { adminSession, adminSignIn } from './support/admin-login';
+import {
+  adminSession,
+  adminSignIn,
+  E2E_ADMIN_PASSWORD,
+  e2eLogin,
+} from './support/admin-login';
 
 jest.setTimeout(60_000);
 
@@ -23,8 +28,13 @@ interface Body {
 
 /**
  * docs/06 stage 6.2 acceptance: "токен мобильного приложения не работает
- * на /admin/* и наоборот; без 2FA вход невозможен; роль без права получает
- * 403; каждое действие есть в audit_log".
+ * на /admin/* и наоборот; роль без права получает 403; каждое действие
+ * есть в audit_log". Owner 2026-10-02: login + password (or the emailed
+ * code) signs in on its own, two-factor is optional (an admin who turned
+ * it on is asked for the code), access works by per-area toggles, and an
+ * admin the super admin allowed can manage other admins within their own
+ * access. Owner 2026-10-05: a section the admin has no right to answers
+ * 404 (as if it did not exist) instead of 403.
  */
 describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () => {
   let app: INestApplication;
@@ -72,22 +82,19 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       })
     ).map((r) => r.action);
 
-  const startAndVerify = async (email: string) => {
-    await api()
-      .post('/api/v1/admin/auth/login/start')
-      .send({ email })
-      .expect(204);
+  const passwordStep = async (email: string) => {
     const v = await api()
-      .post('/api/v1/admin/auth/login/verify')
-      .send({ email, code: '000000' })
+      .post('/api/v1/admin/auth/login/password')
+      .send({ login: e2eLogin(email), password: E2E_ADMIN_PASSWORD })
       .expect(200);
     return (v.body as Body).data as {
-      ticket: string;
-      totpEnrollment: { secret: string; otpauthUri: string } | null;
+      ticket: string | null;
+      session: { accessToken: string } | null;
+      totpSetupRequired: boolean;
     };
   };
 
-  it('signs in with email code + TOTP enrollment, then with the authenticator; every step is audited', async () => {
+  it('password → forced authenticator setup on the first sign-in, then password → code; every step is audited', async () => {
     const s = await adminSession(baseUrl, prisma, 'moderator');
     expect(s.recoveryCodes).toHaveLength(10);
     expect(s.recoveryCodes[0]).toMatch(/^[A-Z2-7]{5}-[A-Z2-7]{5}$/);
@@ -99,16 +106,11 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       totpEnabled: true,
     });
 
-    // The email code is single-use.
-    const reuse = await api()
-      .post('/api/v1/admin/auth/login/verify')
-      .send({ email: s.email, code: '000000' })
-      .expect(401);
-    expect((reuse.body as Body).error?.code).toBe('AUTH_OTP_EXPIRED');
-
-    // Second sign-in: no enrollment payload, no recovery codes.
-    const second = await startAndVerify(s.email);
-    expect(second.totpEnrollment).toBeNull();
+    // Second sign-in: the authenticator is on, so a ticket for the code.
+    const second = await passwordStep(s.email);
+    expect(second.ticket).toEqual(expect.any(String));
+    expect(second.session).toBeNull();
+    expect(second.totpSetupRequired).toBe(false);
     const again = await adminSignIn(baseUrl, s.email, s.totpSecret);
     await api().get('/api/v1/admin/dashboard').set(again.auth).expect(200);
 
@@ -131,20 +133,12 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     await api().get('/api/v1/admin/dashboard').expect(401);
   });
 
-  it('is impossible without 2FA: the email-code ticket opens nothing; wrong TOTP burns the ticket after 5 tries', async () => {
-    const email = `noauth-${randomUUID().slice(0, 8)}@lawbid-e2e.test`;
-    const user = await prisma.user.create({
-      data: {
-        role: 'admin',
-        status: 'active',
-        email,
-        email_verified_at: new Date(),
-        admin_profile: { create: { admin_role: 'support' } },
-      },
-    });
-    const { ticket, totpEnrollment } = await startAndVerify(email);
-    expect(totpEnrollment?.otpauthUri).toContain('otpauth://totp/');
-    const secret = totpEnrollment!.secret;
+  it('with two-factor on, the first factor opens nothing: wrong TOTP burns the ticket after 5 tries', async () => {
+    const s = await adminSession(baseUrl, prisma, 'support');
+    const before = await actions(s.userId);
+    const { ticket } = await passwordStep(s.email);
+    expect(ticket).toEqual(expect.any(String));
+    const secret = s.totpSecret;
 
     // The ticket is not a session.
     await api()
@@ -169,34 +163,242 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     // Even the right code is refused now.
     await api()
       .post('/api/v1/admin/auth/totp')
-      .send({ ticket, code: totpCode(secret) })
+      .send({ ticket, code: totpCode(secret, Date.now() + 30_000) })
       .expect(401);
-    expect(
-      await prisma.adminCredential.findUnique({ where: { user_id: user.id } }),
-    ).toMatchObject({ totp_enabled_at: null });
-    expect(await actions(user.id)).toEqual([]);
+    expect(await actions(s.userId)).toEqual(before);
   });
 
-  it('does not reveal whether an email is an admin (login/start always 204)', async () => {
-    await api()
-      .post('/api/v1/admin/auth/login/start')
-      .send({ email: `nobody-${randomUUID().slice(0, 6)}@lawbid-e2e.test` })
-      .expect(204);
-    const client = await prisma.user.create({
-      data: {
-        role: 'client',
-        email: `client-${randomUUID().slice(0, 6)}@lawbid-e2e.test`,
-      },
-    });
-    await api()
-      .post('/api/v1/admin/auth/login/start')
-      .send({ email: client.email })
-      .expect(204);
-    const r = await api()
-      .post('/api/v1/admin/auth/login/verify')
-      .send({ email: client.email, code: '000000' })
+  it('owner 2026-10-22: the password alone never signs in; the emailed-code sign-in is gone', async () => {
+    const s = await adminSession(baseUrl, prisma, 'support');
+    const step = await passwordStep(s.email);
+    expect(step.ticket).toEqual(expect.any(String));
+    expect(step.session).toBeNull();
+    expect(step.totpSetupRequired).toBe(false);
+
+    const wrong = await api()
+      .post('/api/v1/admin/auth/login/password')
+      .send({ login: e2eLogin(s.email), password: 'Wrong-pass-2026!' })
       .expect(401);
-    expect((r.body as Body).error?.code).toBe('AUTH_OTP_INVALID');
+    expect((wrong.body as Body).error?.code).toBe('ADMIN_CREDENTIALS_INVALID');
+
+    for (const path of ['login/start', 'login/verify', '2fa/disable']) {
+      await api().post(`/api/v1/admin/auth/${path}`).send({}).expect(404);
+    }
+  });
+
+  it('an admin whose authenticator was removed is sent back through the setup; the old session stops working', async () => {
+    const s = await adminSession(baseUrl, prisma, 'support');
+    await prisma.adminCredential.update({
+      where: { user_id: s.userId },
+      data: { totp_enabled_at: null, recovery_codes_hash: [] },
+    });
+    const old = await api()
+      .get('/api/v1/admin/dashboard')
+      .set(s.auth)
+      .expect(401);
+    expect((old.body as Body).error?.code).toBe('ADMIN_TOTP_SETUP_REQUIRED');
+    const step = await passwordStep(s.email);
+    expect(step.totpSetupRequired).toBe(true);
+    // The setup ticket is not a session either.
+    await api()
+      .get('/api/v1/admin/dashboard')
+      .set('Authorization', `Bearer ${step.ticket}`)
+      .expect(401);
+    const again = await adminSession(baseUrl, prisma, 'support', {
+      userId: s.userId,
+      email: s.email,
+    });
+    expect(again.recoveryCodes).toHaveLength(10);
+    await api().get('/api/v1/admin/dashboard').set(again.auth).expect(200);
+  });
+
+  it('only the super admin changes their own login and password', async () => {
+    const mod = await adminSession(baseUrl, prisma, 'moderator');
+    await api()
+      .put('/api/v1/admin/auth/me/credentials')
+      .set(mod.auth)
+      .send({ newPassword: 'Another-pass-2026!' })
+      .expect(404);
+    const sup = await adminSession(baseUrl, prisma, 'super_admin');
+    const login = `boss.${randomUUID().slice(0, 6)}`;
+    await api()
+      .put('/api/v1/admin/auth/me/credentials')
+      .set(sup.auth)
+      .send({
+        currentPassword: E2E_ADMIN_PASSWORD,
+        newLogin: login,
+        newPassword: 'Strong-pass-2026!',
+      })
+      .expect(200);
+    await api()
+      .post('/api/v1/admin/auth/login/password')
+      .send({ login, password: 'Strong-pass-2026!' })
+      .expect(200);
+  });
+
+  it('an admin the super admin allowed manages other admins, only within their own access', async () => {
+    const sup = await adminSession(baseUrl, prisma, 'super_admin');
+    const email = `mgr-${randomUUID().slice(0, 8)}@lawbid-e2e.test`;
+    const created = await api()
+      .post('/api/v1/admin/admins')
+      .set(sup.auth)
+      .send({
+        email,
+        role: 'support',
+        permissions: { users: 'manage', support: 'view' },
+        canManageAdmins: true,
+      })
+      .expect(201);
+    const mgrId = (created.body as Body).data.id as string;
+    expect((created.body as Body).data).toMatchObject({
+      canManageAdmins: true,
+    });
+    const mgr = await adminSession(baseUrl, prisma, 'support', {
+      userId: mgrId,
+      email,
+    });
+    // An admin without the right cannot even list admins.
+    const plain = await adminSession(baseUrl, prisma, 'support');
+    await api().get('/api/v1/admin/admins').set(plain.auth).expect(404);
+    await api().get('/api/v1/admin/admins').set(mgr.auth).expect(200);
+
+    // Creates inside their own access…
+    const staffEmail = `staff-${randomUUID().slice(0, 8)}@lawbid-e2e.test`;
+    const staff = await api()
+      .post('/api/v1/admin/admins')
+      .set(mgr.auth)
+      .send({
+        email: staffEmail,
+        role: 'support',
+        permissions: { users: 'view' },
+      })
+      .expect(201);
+    const staffId = (staff.body as Body).data.id as string;
+    // …but never more, a super admin, or the manager right.
+    const beyond = [
+      {
+        email: `b1-${randomUUID().slice(0, 6)}@lawbid-e2e.test`,
+        role: 'support',
+        permissions: { cases: 'view' },
+      },
+      {
+        email: `b2-${randomUUID().slice(0, 6)}@lawbid-e2e.test`,
+        role: 'support',
+        permissions: { support: 'manage' },
+      },
+      {
+        email: `b3-${randomUUID().slice(0, 6)}@lawbid-e2e.test`,
+        role: 'super_admin',
+      },
+      {
+        email: `b4-${randomUUID().slice(0, 6)}@lawbid-e2e.test`,
+        role: 'support',
+        canManageAdmins: true,
+      },
+    ];
+    for (const body of beyond) {
+      await api()
+        .post('/api/v1/admin/admins')
+        .set(mgr.auth)
+        .send(body)
+        .expect(403);
+    }
+
+    // Toggles: only what they hold; the manager right and roles stay with
+    // the super admin. Owner 2026-10-22: changing rights needs a fresh
+    // step-up first (it also covers the credentials change below).
+    const noStepUp = await api()
+      .patch(`/api/v1/admin/admins/${staffId}/permissions`)
+      .set(mgr.auth)
+      .send({ permissions: { users: 'manage', support: 'view' } })
+      .expect(403);
+    expect((noStepUp.body as Body).error?.code).toBe('ADMIN_STEP_UP_REQUIRED');
+    // The code of the NEXT 30 s step: the sign-in code is the current step
+    // (single-use), and an earlier step collides with it when the clock
+    // crosses a step boundary between the two calls.
+    await api()
+      .post('/api/v1/admin/auth/step-up')
+      .set(mgr.auth)
+      .send({ code: totpCode(mgr.totpSecret, Date.now() + 30_000) })
+      .expect(200);
+    await api()
+      .patch(`/api/v1/admin/admins/${staffId}/permissions`)
+      .set(mgr.auth)
+      .send({ permissions: { users: 'manage', support: 'view' } })
+      .expect(200);
+    await api()
+      .patch(`/api/v1/admin/admins/${staffId}/permissions`)
+      .set(mgr.auth)
+      .send({ permissions: { cases: 'manage' } })
+      .expect(403);
+    await api()
+      .patch(`/api/v1/admin/admins/${staffId}/permissions`)
+      .set(mgr.auth)
+      .send({ permissions: {}, canManageAdmins: true })
+      .expect(403);
+    await api()
+      .patch(`/api/v1/admin/admins/${staffId}/role`)
+      .set(mgr.auth)
+      .send({ role: 'moderator' })
+      .expect(404);
+
+    // They cannot touch the super admin, themselves, or another manager.
+    await api()
+      .post(`/api/v1/admin/admins/${sup.userId}/disable`)
+      .set(mgr.auth)
+      .expect(403);
+    await api()
+      .delete(`/api/v1/admin/admins/${mgrId}`)
+      .set(mgr.auth)
+      .expect(403);
+    await api()
+      .patch(`/api/v1/admin/admins/${sup.userId}/permissions`)
+      .set(mgr.auth)
+      .send({ permissions: {} })
+      .expect(403);
+
+    // Owner 2026-10-05: the trusted deputy reads money, the audit log and
+    // sessions; the keys stay closed (as if absent).
+    for (const path of [
+      '/api/v1/admin/billing/payments',
+      '/api/v1/admin/audit-log',
+      '/api/v1/admin/sessions',
+    ]) {
+      const r = await api().get(path).set(mgr.auth);
+      expect(`${path} ${r.status}`).toBe(`${path} 200`);
+    }
+    await api().get('/api/v1/admin/integrations').set(mgr.auth).expect(404);
+
+    // They set the new colleague's login and password (the step-up above
+    // is still fresh).
+    const colleagueLogin = `staff.${randomUUID().slice(0, 6)}`;
+    await api()
+      .put(`/api/v1/admin/admins/${staffId}/credentials`)
+      .set(mgr.auth)
+      .send({ login: colleagueLogin, password: 'Strong-pass-2026!' })
+      .expect(200);
+    await api()
+      .post('/api/v1/admin/auth/login/password')
+      .send({ login: colleagueLogin, password: 'Strong-pass-2026!' })
+      .expect(200);
+
+    // They remove the colleague: the account is closed and the login is dead.
+    await api()
+      .delete(`/api/v1/admin/admins/${staffId}`)
+      .set(mgr.auth)
+      .expect(204);
+    await api()
+      .post('/api/v1/admin/auth/login/password')
+      .send({ login: colleagueLogin, password: 'Strong-pass-2026!' })
+      .expect(401);
+    const list = await api()
+      .get('/api/v1/admin/admins')
+      .set(sup.auth)
+      .expect(200);
+    const ids = (
+      (list.body as Body).data as unknown as Array<{ id: string }>
+    ).map((r) => r.id);
+    expect(ids).not.toContain(staffId);
   });
 
   it('recovery code signs in once, then is spent', async () => {
@@ -205,7 +407,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     const ok = await api()
       .post('/api/v1/admin/auth/recovery')
       .send({
-        ticket: (await startAndVerify(s.email)).ticket,
+        ticket: (await passwordStep(s.email)).ticket,
         recoveryCode: code.toLowerCase(),
       })
       .expect(200);
@@ -213,7 +415,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     const reused = await api()
       .post('/api/v1/admin/auth/recovery')
       .send({
-        ticket: (await startAndVerify(s.email)).ticket,
+        ticket: (await passwordStep(s.email)).ticket,
         recoveryCode: code,
       })
       .expect(401);
@@ -227,20 +429,22 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     expect(cred.recovery_codes_hash).toHaveLength(9);
   });
 
-  it('applies the §2.2 matrix server-side (403 for a role without the right)', async () => {
+  it('applies the §2.2 matrix server-side (404 for a role without the right)', async () => {
     const moderator = await adminSession(baseUrl, prisma, 'moderator');
     const finance = await adminSession(baseUrl, prisma, 'finance');
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
     const cells: Array<[string, Record<string, string>, number]> = [
       ['/api/v1/admin/dashboard', moderator.auth, 200],
       ['/api/v1/admin/dashboard', finance.auth, 200],
-      ['/api/v1/admin/admins', moderator.auth, 403],
-      ['/api/v1/admin/admins', finance.auth, 403],
+      ['/api/v1/admin/admins', moderator.auth, 404],
+      ['/api/v1/admin/admins', finance.auth, 404],
       ['/api/v1/admin/admins', sup.auth, 200],
-      ['/api/v1/admin/verification/requests', moderator.auth, 403],
+      ['/api/v1/admin/verification/requests', moderator.auth, 404],
       ['/api/v1/admin/verification/requests', sup.auth, 200],
-      ['/api/v1/admin/i18n/export?lang=en', moderator.auth, 403],
-      ['/api/v1/admin/audit-log', finance.auth, 200],
+      ['/api/v1/admin/i18n/export?lang=en', moderator.auth, 404],
+      ['/api/v1/admin/audit-log', finance.auth, 404],
+      ['/api/v1/admin/audit-log', sup.auth, 200],
+      ['/api/v1/admin/billing/payments', finance.auth, 404],
     ];
     for (const [path, auth, status] of cells) {
       const r = await api().get(path).set(auth);
@@ -280,7 +484,21 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .set(fresh.auth)
       .expect(200);
 
-    // Role change → sessions revoked; new role applies on the next sign-in.
+    // Role change (fresh step-up, owner 2026-10-22) → sessions revoked;
+    // new role applies on the next sign-in.
+    const roleNoStepUp = await api()
+      .patch(`/api/v1/admin/admins/${id}/role`)
+      .set(sup.auth)
+      .send({ role: 'support' })
+      .expect(403);
+    expect((roleNoStepUp.body as Body).error?.code).toBe(
+      'ADMIN_STEP_UP_REQUIRED',
+    );
+    await api()
+      .post('/api/v1/admin/auth/step-up')
+      .set(sup.auth)
+      .send({ code: totpCode(sup.totpSecret, Date.now() + 30_000) })
+      .expect(200);
     await api()
       .patch(`/api/v1/admin/admins/${id}/role`)
       .set(sup.auth)
@@ -291,11 +509,23 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .set(fresh.auth)
       .expect(401);
     expect((revoked.body as Body).error?.code).toBe('AUTH_SESSION_REVOKED');
+    // The role is a label: access follows the per-area toggles, so the
+    // verification toggle still opens the queue…
     const relogin = await adminSignIn(baseUrl, email, fresh.totpSecret);
     await api()
       .get('/api/v1/admin/verification/requests')
       .set(relogin.auth)
-      .expect(403);
+      .expect(200);
+    // …and taking the toggle away applies at once, on the live session.
+    await api()
+      .patch(`/api/v1/admin/admins/${id}/permissions`)
+      .set(sup.auth)
+      .send({ permissions: { dashboard: 'view' } })
+      .expect(200);
+    await api()
+      .get('/api/v1/admin/verification/requests')
+      .set(relogin.auth)
+      .expect(404);
 
     // Disable → 401 on the live session; sign-in impossible; enable restores.
     await api()
@@ -304,19 +534,16 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .expect(200);
     await api().get('/api/v1/admin/dashboard').set(relogin.auth).expect(401);
     await api()
-      .post('/api/v1/admin/auth/login/start')
-      .send({ email })
-      .expect(204);
-    await api()
-      .post('/api/v1/admin/auth/login/verify')
-      .send({ email, code: '000000' })
+      .post('/api/v1/admin/auth/login/password')
+      .send({ login: e2eLogin(email), password: E2E_ADMIN_PASSWORD })
       .expect(401);
     await api()
       .post(`/api/v1/admin/admins/${id}/enable`)
       .set(sup.auth)
       .expect(200);
 
-    // Reset 2FA → next sign-in enrolls again (new secret, new codes).
+    // Reset 2FA (super admin, the fresh step-up above) → next sign-in
+    // enrolls again (new secret, new codes).
     await api()
       .post(`/api/v1/admin/admins/${id}/reset-2fa`)
       .set(sup.auth)
@@ -341,6 +568,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     expect(rows.map((r) => r.action)).toEqual([
       'admins.create',
       'admins.set_role',
+      'admins.set_permissions',
       'admins.disable',
       'admins.enable',
       'admins.reset_2fa',
@@ -350,7 +578,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       before: { role: 'verifier' },
       after: { role: 'support' },
     });
-    expect(rows[2].ip).toBeTruthy();
+    expect(rows[3].ip).toBeTruthy();
   });
 
   it('auto-audits mutating admin requests, failed ones with outcome=failed (security review); logout: a row', async () => {
@@ -369,7 +597,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
   });
 
   it('dashboard returns every §2.3.1 number and is cached for the team', async () => {
-    await redis.del('adm:dashboard');
+    await redis.del('adm:sum:dashboard');
     const s = await adminSession(baseUrl, prisma, 'support');
     const r = await api()
       .get('/api/v1/admin/dashboard')
@@ -383,12 +611,22 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       attorneys7d: expect.any(Number),
     });
     expect(d.verification).toMatchObject({ queueSize: expect.any(Number) });
+    // Money is closed for everyone but the super admin: no revenue figure.
     expect(d.subscriptions).toMatchObject({
       trialing: expect.any(Number),
       active: expect.any(Number),
       pastDue: expect.any(Number),
-      revenueEstimateUsd: expect.any(Number),
+      revenueEstimateUsd: null,
     });
+    const sup = await adminSession(baseUrl, prisma, 'super_admin');
+    const full = await api()
+      .get('/api/v1/admin/dashboard')
+      .set(sup.auth)
+      .expect(200);
+    expect(
+      ((full.body as Body).data.subscriptions as Record<string, unknown>)
+        .revenueEstimateUsd,
+    ).toEqual(expect.any(Number));
     for (const k of [
       'openCases',
       'bids24h',
@@ -403,19 +641,18 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
       .set(s.auth)
       .expect(200);
     expect((again.body as Body).data.computedAt).toBe(d.computedAt);
-    expect(await redis.ttl('adm:dashboard')).toBeGreaterThan(0);
+    // Owner 2026-10-23: kept in the precomputed-summary store (a day, the
+    // worker's `admin.summaries` recounts it every 2 minutes).
+    expect(await redis.ttl('adm:sum:dashboard')).toBeGreaterThan(0);
   });
 
-  it('audit log: super_admin sees everything with filters; others only their own rows', async () => {
+  it('audit log: only the super admin reads it (filters, paging); other admins get 404', async () => {
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
     const mod = await adminSession(baseUrl, prisma, 'moderator');
-    const own = await api()
+    await api()
       .get(`/api/v1/admin/audit-log?adminId=${sup.userId}`)
       .set(mod.auth)
-      .expect(200);
-    const ownRows = (own.body as { data: Array<{ adminId: string }> }).data;
-    expect(ownRows.length).toBeGreaterThan(0);
-    expect(ownRows.every((r) => r.adminId === mod.userId)).toBe(true);
+      .expect(404);
 
     const all = await api()
       .get(
@@ -452,7 +689,8 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
   it('idle timeout: a session whose Redis key expired is refused', async () => {
     const s = await adminSession(baseUrl, prisma, 'support');
     const keys = await redis.keys('adm:sess:*');
-    for (const k of keys.filter((k) => !k.startsWith('adm:sess:user:'))) {
+    for (const k of keys) {
+      if ((await redis.type(k)) !== 'string') continue;
       if ((await redis.get(k)) === s.userId) await redis.del(k);
     }
     const r = await api().get('/api/v1/admin/auth/me').set(s.auth).expect(401);

@@ -1,10 +1,9 @@
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/onboarding/data/current_user_mapper.dart';
 import 'package:lawbid/features/onboarding/data/users_api_client.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
@@ -12,45 +11,26 @@ import 'package:lawbid/features/verification/domain/verification_repository.dart
     show UploadCancellation, UploadCancelledException;
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
+export 'package:lawbid/core/files/file_types.dart' show sniffImageMime;
 export 'package:lawbid/features/verification/domain/verification_repository.dart'
     show UploadCancellation, UploadCancelledException;
 
-/// Max avatar size (docs/03 §9 `files.avatar_max_size_mb` = 5); the server
-/// re-checks it in the S3 policy and on confirm.
-const kAvatarMaxBytes = 5 * 1024 * 1024;
-
-/// Real image type from the first bytes (docs/03 §4.1: JPEG/PNG/HEIC), or
-/// null for anything else. The server re-checks magic bytes on confirm.
-String? sniffImageMime(Uint8List bytes) {
-  if (bytes.length >= 3 &&
-      bytes[0] == 0xFF &&
-      bytes[1] == 0xD8 &&
-      bytes[2] == 0xFF) {
-    return 'image/jpeg';
-  }
-  if (bytes.length >= 8 &&
-      bytes[0] == 0x89 &&
-      bytes[1] == 0x50 &&
-      bytes[2] == 0x4E &&
-      bytes[3] == 0x47) {
-    return 'image/png';
-  }
-  if (bytes.length >= 12 &&
-      String.fromCharCodes(bytes.sublist(4, 8)) == 'ftyp') {
-    final brand = String.fromCharCodes(bytes.sublist(8, 12));
-    if (const {'heic', 'heix', 'hevc', 'mif1', 'msf1'}.contains(brand))
-      return 'image/heic';
-  }
-  return null;
-}
-
 /// A presigned S3 POST (`POST /files/presign`).
 class PresignedUpload {
-  const PresignedUpload(
-      {required this.fileId, required this.url, required this.fields});
+  const PresignedUpload({
+    required this.fileId,
+    required this.url,
+    required this.fields,
+    this.method = 'POST',
+    this.headers = const {},
+  });
   final String fileId;
   final String url;
   final Map<String, String> fields;
+
+  /// `POST` (multipart) or `PUT` (raw body, Cloudflare R2).
+  final String method;
+  final Map<String, String> headers;
 }
 
 enum ScanOutcome { pending, clean, rejected }
@@ -89,11 +69,11 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     required Dio storageDio,
     required UsersApiClient users,
   })  : _files = api.FilesClient(apiDio),
-        _storage = storageDio,
+        _uploader = StorageUploader.dio(apiDio, storageDio),
         _users = users;
 
   final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
   final UsersApiClient _users;
 
   @override
@@ -102,21 +82,20 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     required int sizeBytes,
     required String sha256,
   }) async {
-    final dto = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: api.FilePurpose.avatar,
-          mime: mime,
-          sizeBytes: sizeBytes,
-          sha256: sha256,
-        ),
-        // Idempotent server-side: a retried presign returns the same link.
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
+    // Owner 2026-10-22 (audit #4 §3): the shared uploader's steps.
+    final t = await _uploader.presign(
+      purpose: api.FilePurpose.avatar,
+      mime: mime,
+      sizeBytes: sizeBytes,
+      sha256: sha256,
+    );
     return PresignedUpload(
-        fileId: dto.fileId, url: dto.upload.url, fields: dto.upload.fields);
+      fileId: t.fileId,
+      url: t.url,
+      fields: t.fields,
+      method: t.method,
+      headers: t.headers,
+    );
   }
 
   @override
@@ -127,51 +106,43 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
     void Function(double progress)? onProgress,
     UploadCancellation? cancellation,
   }) async {
-    if (cancellation?.isCancelled ?? false)
+    if (cancellation?.isCancelled ?? false) {
       throw const UploadCancelledException();
+    }
     final token = CancelToken();
     cancellation?.onCancel(token.cancel);
-    final parts = mime.split('/');
-    final form = FormData.fromMap({
-      ...target.fields,
-      // S3 POST policy: the file must be the LAST field.
-      'file': MultipartFile.fromBytes(
-        bytes,
-        filename: 'avatar.${parts.last}',
-        contentType: DioMediaType(parts.first, parts.last),
-      ),
-    });
     try {
-      await _storage.post<void>(
-        target.url,
-        data: form,
-        cancelToken: token,
-        onSendProgress: (sent, total) {
-          if (total > 0) onProgress?.call(sent / total);
-        },
+      await _uploader.put(
+        StorageTarget(
+          fileId: target.fileId,
+          url: target.url,
+          fields: target.fields,
+          method: target.method,
+          headers: target.headers,
+        ),
+        UploadBody.bytes(bytes),
+        mime: mime,
+        filename: 'avatar.${mime.split('/').last}',
+        cancel: token,
+        onProgress: onProgress,
       );
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) throw const UploadCancelledException();
-      // Storage answers in XML, never our error envelope.
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
+      rethrow;
     }
   }
 
   @override
   Future<ScanOutcome> confirm(String fileId) async => _outcome(
-      (await guardApiCall(() => _files.confirm(id: fileId))).data.scanStatus);
+        (await guardApiCall(() => _files.confirm(id: fileId))).data.scanStatus,
+      );
 
   @override
-  Future<ScanOutcome> scanStatus(String fileId) async =>
-      _outcome((await guardApiCall(() => _files.getFilesId(id: fileId)))
-          .data
-          .scanStatus);
+  Future<ScanOutcome> scanStatus(String fileId) async => _outcome(
+        (await guardApiCall(() => _files.getFilesId(id: fileId)))
+            .data
+            .scanStatus,
+      );
 
   @override
   Future<CurrentUser> attach(String fileId) async => CurrentUserMapper.fromDto(
@@ -184,6 +155,3 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
         _ => ScanOutcome.rejected,
       };
 }
-
-/// Lowercase hex SHA-256 the presign requires.
-String sha256Hex(Uint8List bytes) => sha256.convert(bytes).toString();

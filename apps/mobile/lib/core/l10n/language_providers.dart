@@ -1,13 +1,12 @@
 import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/available_languages.dart';
+import 'package:lawbid/core/l10n/language_repository.dart';
+import 'package:lawbid/core/l10n/local_language_repository.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
-import '../persistence/persistence_providers.dart';
-import 'app_language.dart';
-import 'available_languages.dart';
-import 'language_repository.dart';
-import 'local_language_repository.dart';
 
 part 'language_providers.g.dart';
 
@@ -31,10 +30,17 @@ final systemLocalesProvider = Provider<List<Locale>>(
 /// локали, если такой язык активен, иначе `en`". Walks the system locales
 /// in preference order and returns the first one whose language is in
 /// [selectable]; otherwise [AppLanguage.fallback].
-AppLanguage detectSystemLanguage(List<Locale> systemLocales, Set<String> selectable) {
+AppLanguage detectSystemLanguage(
+  List<Locale> systemLocales,
+  Set<String> selectable,
+) {
   for (final locale in systemLocales) {
-    final code = AppLanguage.normalizeCode(locale.languageCode);
+    // toLanguageTag keeps the script/region, so a zh-Hant-TW device picks
+    // Traditional Chinese (`zh-tw`) and falls back to `zh` if it's absent.
+    final code = AppLanguage.normalizeCode(locale.toLanguageTag());
     if (selectable.contains(code)) return AppLanguage.fromCode(code);
+    final base = code.split('-').first;
+    if (selectable.contains(base)) return AppLanguage.fromCode(base);
   }
   return AppLanguage.fallback;
 }
@@ -58,7 +64,8 @@ class LanguageController extends _$LanguageController {
 
   @override
   Future<AppLanguage> build() async {
-    ref.listen<List<ServerLanguage>?>(activeLanguagesControllerProvider, (_, __) {
+    ref.listen<List<ServerLanguage>?>(activeLanguagesControllerProvider,
+        (_, __) {
       final current = state.value;
       if (current == null) return;
       final next = _resolve();

@@ -8,6 +8,7 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
     last_name: null,
     phone_verified_at: null,
     email_verified_at: null,
+    email: null as string | null,
   };
 
   it('fresh account: consents, role, name', () => {
@@ -18,7 +19,21 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
     ]);
   });
 
-  it('client needs BOTH phone and email verified', () => {
+  it('owner 2026-10-04: an assistant (code sign-in) needs no phone', () => {
+    expect(
+      missingRequirements(
+        {
+          ...base,
+          role: 'assistant' as const,
+          first_name: 'A',
+          last_name: 'B',
+        },
+        true,
+      ),
+    ).toEqual([]);
+  });
+
+  it('owner 2026-10-13: client needs a verified phone and a profile e-mail (no code)', () => {
     const client = {
       ...base,
       role: 'client' as const,
@@ -27,29 +42,48 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
     };
     expect(missingRequirements(client, true)).toEqual([
       'phone_verified',
-      'email_verified',
+      'email',
     ]);
     expect(
       missingRequirements({ ...client, phone_verified_at: now }, true),
-    ).toEqual(['email_verified']);
+    ).toEqual(['email']);
     expect(
       missingRequirements(
-        { ...client, phone_verified_at: now, email_verified_at: now },
+        { ...client, phone_verified_at: now, email: 'a@b.co' },
         true,
       ),
     ).toEqual([]);
   });
 
-  it('attorney needs only a verified phone', () => {
+  it('a finished onboarding is not sent back for the e-mail', () => {
+    const client = {
+      ...base,
+      role: 'client' as const,
+      first_name: 'A',
+      last_name: 'B',
+      phone_verified_at: now,
+    };
+    expect(
+      missingRequirements(client, true, undefined, undefined, false),
+    ).toEqual([]);
+  });
+
+  it('attorney needs a verified phone and a profile e-mail', () => {
     const attorney = {
       ...base,
       role: 'attorney' as const,
       first_name: 'A',
       last_name: 'B',
     };
-    expect(missingRequirements(attorney, true)).toEqual(['phone_verified']);
+    expect(missingRequirements(attorney, true)).toEqual([
+      'phone_verified',
+      'email',
+    ]);
     expect(
-      missingRequirements({ ...attorney, phone_verified_at: now }, true),
+      missingRequirements(
+        { ...attorney, phone_verified_at: now, email: 'a@b.co' },
+        true,
+      ),
     ).toEqual([]);
   });
 
@@ -60,6 +94,7 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
       last_name: 'B',
       phone_verified_at: now,
       email_verified_at: now,
+      email: 'a@b.co',
     };
     const noProfile = {
       clientHasState: false,
@@ -94,6 +129,7 @@ describe('missingRequirements (docs/01_FOUNDATION_AUTH.md §11)', () => {
       last_name: 'B',
       phone_verified_at: now,
       email_verified_at: now,
+      email: 'a@b.co',
     };
     const facts = { clientHasState: true, attorneyHasLicensedStates: true };
     expect(

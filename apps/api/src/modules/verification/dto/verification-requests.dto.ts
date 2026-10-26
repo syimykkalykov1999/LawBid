@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VerificationDocType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -53,6 +54,14 @@ export class UpdateVerificationRequestDto {
 }
 
 export class SubmitVerificationRequestDto {
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-04: the attorney confirms under penalty of perjury that they hold the entered licenses (sworn statement, version ATTESTATION_VERSION). Required for a new submission.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  attestation?: boolean;
+
   @ApiPropertyOptional({ type: String, maxLength: APPLICANT_COMMENT_MAX })
   @IsOptional()
   @Transform(trim)
@@ -89,6 +98,27 @@ export class AddLicenseDto {
   @IsDateString({ strict: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'expiresAt must be YYYY-MM-DD' })
   expiresAt?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'True to renew a license that is still verified (a new expiry date). ' +
+      'Without it a state that is already verified is refused.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  renewal?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-18 («Мой номер верный — отправить на проверку»): the ' +
+      'attorney insists the number is right although it does not fit the ' +
+      "state's format. It is added for a person to check (registry flag " +
+      'format_unusual) and the bar card photo becomes required; allowed ' +
+      'while the attempts lock is on.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  manualReview?: boolean;
 }
 
 /** POST /verification/requests/:id/documents — attach a `clean` uploaded
@@ -120,4 +150,16 @@ export class AttachDocumentDto {
   @IsString()
   @Length(2, 2)
   stateCode?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    maxLength: APPLICANT_COMMENT_MAX,
+    description:
+      "Owner 2026-10-18: the attorney's optional note to the reviewer, sent " +
+      'with the bar card of a number for manual review.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(APPLICANT_COMMENT_MAX)
+  note?: string;
 }

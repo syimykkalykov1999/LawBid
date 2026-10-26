@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/available_languages.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_catalog_provider.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/text/search_fold.dart';
 
 /// Search + list language picker (2026-09-22 owner voice follow-up):
 /// tapping the welcome screen's globe icon used to toggle ru<->en directly;
@@ -52,13 +52,16 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
   /// one — see [build] below for the cached fallback used meanwhile
   /// (owner request was "search + list", not a loading state).
   List<LanguageCatalogEntry> _filtered(List<LanguageCatalogEntry> catalog) {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return catalog;
-    return catalog.where((entry) {
-      return entry.nativeName.toLowerCase().contains(q) ||
-          entry.englishName.toLowerCase().contains(q) ||
-          entry.code.toLowerCase().contains(q);
-    }).toList();
+    if (_query.trim().isEmpty) return catalog;
+    // Owner 2026-10-18: any case / accents / alphabet, a small typo.
+    return catalog
+        .where(
+          (entry) => textMatches(
+            _query,
+            [entry.nativeName, entry.englishName, entry.code],
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -78,80 +81,93 @@ class _LanguagePickerSheetState extends ConsumerState<LanguagePickerSheet> {
     final results = _filtered(catalog);
 
     // Owner 2026-09-29: the sheet can be dragged all the way to the top.
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.75,
-      minChildSize: 0.4,
-      maxChildSize: 1,
-      builder: (context, scrollController) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.sm,
-            AppSpacing.screenSide,
-            AppSpacing.md,
-          ),
-          child: Column(
-            children: [
-              const AppSheetHandle(),
-              Semantics(
-                header: true,
-                child: Text(
-                  t.t('lang.picker.title'),
-                  style: typography.titleMedium.copyWith(color: colors.text),
+    // The sheet rises above the keyboard so the list is never under it.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        minChildSize: 0.4,
+        builder: (context, scrollController) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              AppSpacing.md,
+            ),
+            child: Column(
+              children: [
+                const AppSheetHandle(),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    t.t('lang.picker.title'),
+                    style: typography.titleMedium.copyWith(color: colors.text),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _searchController,
-                leading:
-                    AppIcon(AppIcons.search, size: 20, color: colors.textSecondary),
-                hintText: t.t('lang.picker.search.hint'),
-                autofocus: true,
-                onChanged: (value) => setState(() => _query = value),
-                semanticLabel: t.t('lang.picker.search.hint'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Expanded(
-                child: results.isEmpty
-                    ? AppEmptyState(
-                        icon: AppIcons.searchOffRounded,
-                        message: t.t('lang.picker.empty'),
-                      )
-                    : ListView.separated(
-                        controller: scrollController,
-                        itemCount: results.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, index) {
-                          final entry = results[index];
-                          final isCurrent = entry.isEnabled &&
-                              entry.appLanguage == currentLanguage;
-                          final row = _LanguageRow(
-                            entry: entry,
-                            isCurrent: isCurrent,
-                            comingSoonLabel: t.t('lang.picker.comingSoon'),
-                            onTap: entry.isEnabled
-                                ? () {
-                                    ref
-                                        .read(
-                                          languageControllerProvider.notifier,
-                                        )
-                                        .setLanguage(entry.appLanguage!);
-                                    Navigator.of(context).pop();
-                                  }
-                                : null,
-                          );
-                          // Stagger only the first screenful; rows scrolled
-                          // into view later appear without delay.
-                          return index < 8
-                              ? AppEntrance(index: index, child: row)
-                              : row;
-                        },
-                      ),
-              ),
-            ],
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _searchController,
+                  leading: AppIcon(
+                    AppIcons.search,
+                    size: 20,
+                    color: colors.textSecondary,
+                  ),
+                  hintText: t.t('lang.picker.search.hint'),
+                  autofocus: true,
+                  onChanged: (value) => setState(() => _query = value),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                  semanticLabel: t.t('lang.picker.search.hint'),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Expanded(
+                  child: results.isEmpty
+                      ? AppEmptyState(
+                          icon: AppIcons.searchOffRounded,
+                          message: t.t('lang.picker.empty'),
+                        )
+                      : ListView.separated(
+                          controller: scrollController,
+                          // Owner 2026-10-20 (Samsung): the keyboard stayed
+                          // over the list and a tap on a row went nowhere.
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          itemCount: results.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final entry = results[index];
+                            final isCurrent = entry.isEnabled &&
+                                entry.appLanguage == currentLanguage;
+                            final row = _LanguageRow(
+                              entry: entry,
+                              isCurrent: isCurrent,
+                              comingSoonLabel: t.t('lang.picker.comingSoon'),
+                              onTap: entry.isEnabled
+                                  ? () {
+                                      FocusScope.of(context).unfocus();
+                                      ref
+                                          .read(
+                                            languageControllerProvider.notifier,
+                                          )
+                                          .setLanguage(entry.appLanguage!);
+                                      Navigator.of(context).pop();
+                                    }
+                                  : null,
+                            );
+                            // Stagger only the first screenful; rows scrolled
+                            // into view later appear without delay.
+                            return index < 8
+                                ? AppEntrance(index: index, child: row)
+                                : row;
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -177,77 +193,29 @@ class _LanguageRow extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final enabled = onTap != null;
-
-    return Semantics(
-      button: enabled,
-      enabled: enabled,
-      selected: isCurrent,
-      label: '${entry.nativeName}, ${entry.englishName}',
-      excludeSemantics: true,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.45,
-        child: AppPressable(
-          onTap: onTap,
-          child: AnimatedContainer(
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-            curve: AppMotion.enterCurve,
-            constraints: const BoxConstraints(
-              minHeight: AppSizes.touchTarget + AppSpacing.md,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.sm,
-            ),
-            decoration: BoxDecoration(
-              color: isCurrent ? colors.goldTint : colors.surface,
-              borderRadius: BorderRadius.circular(AppRadii.field),
-              border:
-                  Border.all(color: isCurrent ? colors.gold : colors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.nativeName,
-                        style: typography.body.copyWith(
-                          color: colors.text,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        entry.englishName,
-                        style: typography.caption
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.45,
+      child: AppPickerRow(
+        title: entry.nativeName,
+        subtitle: entry.englishName,
+        selected: isCurrent,
+        onTap: onTap,
+        semanticLabel: '${entry.nativeName}, ${entry.englishName}',
+        trailing: enabled
+            ? Text(
+                entry.code.toUpperCase(),
+                style: typography.caption.copyWith(color: colors.textSecondary),
+              )
+            : Flexible(
+                child: Text(
+                  comingSoonLabel,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style:
+                      typography.caption.copyWith(color: colors.textSecondary),
                 ),
-                if (isCurrent)
-                  AppIcon(
-                    AppIcons.checkCircleRounded,
-                    size: AppSizes.iconSm,
-                    color: colors.goldStroke,
-                  )
-                else if (!enabled)
-                  Text(
-                    comingSoonLabel,
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  )
-                else
-                  Text(
-                    entry.code.toUpperCase(),
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-              ],
-            ),
-          ),
-        ),
+              ),
       ),
     );
   }

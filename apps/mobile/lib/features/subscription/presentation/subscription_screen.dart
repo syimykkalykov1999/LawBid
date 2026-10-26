@@ -10,16 +10,19 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:lawbid/features/subscription/presentation/pay_for_plan.dart';
 import 'package:lawbid/features/subscription/presentation/plan_picker.dart';
-import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/features/subscription/presentation/seat_purchase_sheet.dart';
+import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/team_routes.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 
 /// docs/06 §1.7 п.1–2, 5 — Settings → «Подписка»: the $399/мес plan card,
 /// the current status with «Управление» / «Отменить», the trial /
@@ -35,7 +38,7 @@ class SubscriptionScreen extends ConsumerStatefulWidget {
 }
 
 class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, ResumeRefreshGate {
   bool _portalBusy = false;
   bool _primeBusy = false;
 
@@ -51,7 +54,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     if (!ok) return;
     setState(() => _primeBusy = true);
     try {
-      final next = await ref.read(subscriptionRepositoryProvider).switchToYearly();
+      final next =
+          await ref.read(subscriptionRepositoryProvider).switchToYearly();
       ref.read(subscriptionOverviewProvider.notifier).apply(next);
       if (mounted) showAppSnackBar(context, _t.t('prime.done'));
     } on Object catch (e) {
@@ -77,7 +81,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   /// the webhook may have changed the status meanwhile.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_refreshQuietly());
+    if (resumeNeedsRefresh(state)) unawaited(_refreshQuietly());
   }
 
   Future<void> _refreshQuietly() async {
@@ -107,8 +111,8 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => AppAlertDialog(
+        backgroundColor: colors.sheet,
         title: Text(title),
         content: Text(body),
         actions: [
@@ -131,12 +135,16 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
 
   /// OQ-048: the chosen plan is paid on Stripe's page in the browser.
   Future<void> _subscribeWeb(PlanChoice c) async {
-    final outcome =
-        await ref.read(subscribeControllerProvider.notifier).subscribeWeb(
-              plan: c.plan,
-              assistantSeats: c.seats,
-              assistantPhones: c.phones,
-            );
+    expectExternalReturn();
+    final outcome = await payForPlan(
+      context,
+      ref,
+      plan: c.plan,
+      assistantSeats: c.seats,
+      assistantPhones: c.phones,
+      promoCode: c.promoCode,
+      planCode: c.planCode,
+    );
     if (!mounted) return;
     switch (outcome) {
       case SubscribeOutcome.trialStarted:
@@ -156,14 +164,31 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   }
 
   /// OQ-048: monthly plan — more or fewer assistant seats (changed in
-  /// the monthly card, owner 2026-10-01).
+  /// the monthly card, owner 2026-10-01). Owner 2026-10-22: more seats go
+  /// through the purchase sheet (charged now for the rest of the period,
+  /// 3-D Secure when asked); fewer seats stay until the period end.
   Future<void> _saveSeats(int next) async {
+    final o = ref.read(subscriptionOverviewProvider).value;
+    final current = o?.seats?.extra ?? o?.subscription?.assistantSeats ?? next;
+    if (next > current) {
+      // The sheet has its own pay button and progress; the card's «Save»
+      // does not spin behind it.
+      unawaited(buyAssistantSeats(context, ref, target: next));
+      return;
+    }
     try {
-      final o2 = await ref.read(subscriptionRepositoryProvider).setSeats(next);
-      ref.read(subscriptionOverviewProvider.notifier).apply(o2);
-      if (mounted) {
-        showAppSnackBar(context, _t.t('plans.seats.saved', {'seats': '$next'}));
-      }
+      final r = await ref.read(subscriptionRepositoryProvider).setSeats(next);
+      ref.read(subscriptionOverviewProvider.notifier).apply(r.overview);
+      if (!mounted) return;
+      final at = r.effectiveAt;
+      showAppSnackBar(
+        context,
+        r.status == SeatChangeStatus.scheduled && at != null
+            ? _t.t('seats.remove.scheduled', {
+                'date': ref.read(l10nFormatsProvider).date(at),
+              })
+            : _t.t('plans.seats.saved', {'seats': '$next'}),
+      );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(_t, e));
     }
@@ -218,14 +243,14 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
   /// Stripe Customer Portal in the in-app browser (docs/06 §1.4
   /// "Управление"): card, invoices, cancellation.
   Future<void> _openPortal() async {
+    expectExternalReturn();
     if (_portalBusy) return;
     setState(() => _portalBusy = true);
     try {
       final url = await ref.read(subscriptionRepositoryProvider).portalUrl();
       if (!mounted) return;
       // Only https (security review): the portal URL comes from the server.
-      final opened = url.scheme == 'https' &&
-          await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+      final opened = url.scheme == 'https' && await openPaymentPage(url);
       if (!opened && mounted) {
         showAppSnackBar(context, _t.t('subscription.portal.cantOpen'));
       }
@@ -264,7 +289,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
         onRetry: () => ref.invalidate(subscriptionOverviewProvider),
         builder: (o) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -295,9 +320,12 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
     required bool verified,
   }) {
     final s = o.subscription;
-    final showCta = !o.isActive &&
-        s?.status != SubscriptionStatus.pastDue &&
-        !(s?.pendingConfirmation ?? false);
+    // Free under contract: nothing to buy while it runs.
+    // Owner 2026-10-07 (phone test): a checkout left without paying keeps
+    // the plans and their button — never a dead end on «Подтверждаем карту».
+    final showCta = o.contractGrant == null &&
+        !o.isActive &&
+        s?.status != SubscriptionStatus.pastDue;
     var index = 0;
     Widget section(Widget child) => AppEntrance(
           index: index++,
@@ -323,7 +351,13 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             onRefresh: _refresh,
           ),
         );
+    final grant = o.contractGrant;
     return [
+      // Owner 2026-10-02: free under contract — active until the date.
+      if (grant != null)
+        section(
+          ContractCard(t: t, formats: formats, grant: grant),
+        ),
       if (s != null && s.paymentFailed)
         section(
           PaymentFailedCard(
@@ -348,7 +382,16 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             onTeam: () => context.push(TeamRoutes.team),
           ),
         ),
+      // Owner 2026-10-04: every assistant seat with its one-time code
+      // (copy / send / new code) and "Add assistant" — right here after
+      // buying seats, no SMS.
+      if (s != null &&
+          !showCta &&
+          (s.assistantSeats > 0 || (grant?.assistantSeats ?? 0) > 0))
+        section(const AssistantSeatsSection()),
       if (s != null && !statusFirst) statusCard(s),
+      // Owner 2026-10-15: the plan cards above already say what is included
+      // and the seats; no second «Your plan» card repeating them.
       if (showCta)
         section(
           PlanPicker(
@@ -358,6 +401,9 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             verified: verified,
             state: subscribing,
             onPay: _subscribeWeb,
+            onValidatePromo: (code, plan) => ref
+                .read(subscriptionRepositoryProvider)
+                .validatePromo(code, plan),
             onStopWaiting: () =>
                 ref.read(subscribeControllerProvider.notifier).stopWaiting(),
             onGoVerify: () => context.push(AppRoutes.verification),
@@ -369,12 +415,72 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen>
             AppListRow(
               icon: AppIcons.receiptLongOutlined,
               label: t.t('subscription.action.payments'),
-              onTap: () => context.push(SubscriptionRoutes.payments),
+              onTap: () => context.push(AppRoutes.paymentsTab('receipts')),
             ),
           ],
         ),
       ),
     ];
+  }
+}
+
+/// Owner 2026-10-02: "Free under contract until …" (blogger attorneys,
+/// partners) — the grant's end and the assistant seats it includes.
+class ContractCard extends StatelessWidget {
+  const ContractCard({
+    required this.t,
+    required this.formats,
+    required this.grant,
+    super.key,
+  });
+
+  final Translator t;
+  final L10nFormats formats;
+  final ContractGrant grant;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: colors.iconTintFill,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.iconTint),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppIcon(AppIcons.giftOutlined, color: colors.iconTint, size: 28),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  t.t('contract.title', {'date': formats.date(grant.endsAt)}),
+                  style: type.titleMedium.copyWith(
+                    color: colors.text,
+                    fontFamily: type.body.fontFamily,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  grant.assistantSeats > 0
+                      ? t.t('contract.withSeats', {
+                          'seats': '${grant.assistantSeats}',
+                        })
+                      : t.t('contract.noSeats'),
+                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -633,111 +739,17 @@ class PaymentFailedCard extends StatelessWidget {
   }
 }
 
-/// docs/06 §1.7 п.1 — «Начать бесплатный период» (or «Оформить подписку»
-/// when no trial is left): disabled with an explanation until the
-/// verification is approved; shows the flow's progress while running.
-class SubscribeCta extends StatelessWidget {
-  const SubscribeCta({
-    required this.t,
-    required this.overview,
-    required this.verified,
-    required this.state,
-    required this.onSubscribe,
-    required this.onGoVerify,
-    super.key,
-  });
-
-  final Translator t;
-  final SubscriptionOverview overview;
-  final bool verified;
-  final SubscribeState state;
-  final VoidCallback onSubscribe;
-  final VoidCallback onGoVerify;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final o = overview;
-    final ended = o.subscription?.ended ?? false;
-    final label = t.t(
-      ended
-          ? 'subscription.cta.resubscribe'
-          : o.trialEligible
-              ? 'subscription.cta.startTrial'
-              : 'subscription.cta.subscribe',
-    );
-    final progress = switch (state.phase) {
-      SubscribePhase.idle => null,
-      SubscribePhase.starting => t.t('subscription.progress.starting'),
-      SubscribePhase.collectingCard =>
-        t.t('subscription.progress.collectingCard'),
-      SubscribePhase.confirming => t.t('subscription.progress.confirming'),
-      SubscribePhase.syncing => t.t('subscription.progress.syncing'),
-      SubscribePhase.awaitingPayment => t.t('plans.waiting'),
-    };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppButton(
-          key: const ValueKey('subscribe-cta'),
-          label: label,
-          icon: AppIcons.workspacePremiumOutlined,
-          isLoading: state.busy,
-          isEnabled: o.canStart,
-          dimWhenDisabled: true,
-          onPressed: o.canStart ? onSubscribe : null,
-        ),
-        AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          child: progress == null
-              ? const SizedBox.shrink()
-              : Padding(
-                  key: ValueKey(state.phase),
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Text(
-                    progress,
-                    textAlign: TextAlign.center,
-                    style: typography.caption
-                        .copyWith(color: colors.textSecondary),
-                  ),
-                ),
-        ),
-        if (!o.canStart && !verified) ...[
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            t.t('subscription.cta.verifyFirst'),
-            key: const ValueKey('verify-first'),
-            textAlign: TextAlign.center,
-            style: typography.caption.copyWith(color: colors.textSecondary),
-          ),
-          TextButton(
-            onPressed: onGoVerify,
-            child: Text(t.t('subscription.cta.goVerify')),
-          ),
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          t.t('subscription.terms'),
-          textAlign: TextAlign.center,
-          style: typography.caption.copyWith(color: colors.textSecondary),
-        ),
-      ],
-    );
-  }
-}
-
 /// docs/06 §1.1 shows the tariff as "$399" — whole dollars when there are
 /// no cents (the payment history keeps the exact amounts).
-String subscriptionPrice(L10nFormats formats, int cents) => cents % 100 == 0
-    ? NumberFormat.simpleCurrency(
-        locale: formats.locale,
-        name: 'USD',
-        decimalDigits: 0,
-      ).format(cents ~/ 100)
-    : NumberFormat.simpleCurrency(
-        locale: formats.locale,
-        name: 'USD',
-      ).format(cents / 100);
-
+String subscriptionPrice(L10nFormats formats, int cents) => formats.digits(
+      cents % 100 == 0
+          ? NumberFormat.simpleCurrency(
+              locale: formats.locale,
+              name: 'USD',
+              decimalDigits: 0,
+            ).format(cents ~/ 100)
+          : NumberFormat.simpleCurrency(
+              locale: formats.locale,
+              name: 'USD',
+            ).format(cents / 100),
+    );

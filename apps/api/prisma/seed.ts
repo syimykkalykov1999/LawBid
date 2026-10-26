@@ -24,7 +24,7 @@
 // Cost-guard addition (owner decision 2026-09-27, docs/OPEN_QUESTIONS.md):
 // seedAppConfig() also seeds budget.<provider>.* caps and
 // sms.allowed_country_codes.
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -35,7 +35,9 @@ import {
   flattenPracticeAreaSeed,
   PracticeAreaSeedCategory,
 } from '../src/common/reference-data/practice-areas.util';
+import { STARTER_TEMPLATES } from './seed-form-templates';
 import { US_STATES } from '../src/common/reference-data/us-states';
+import { FLAG_CATALOG } from '../src/modules/feature-flags/flag-catalog';
 import {
   FILE_03_SETTINGS,
   FILE_04_SETTINGS,
@@ -50,7 +52,8 @@ async function seedStates(): Promise<void> {
   for (const state of US_STATES) {
     await prisma.state.upsert({
       where: { code: state.code },
-      create: state,
+      // Owner 2026-10-22: New York requires «Attorney Advertising».
+      create: { ...state, attorney_advertising_label: state.code === 'NY' },
       update: { name: state.name },
     });
   }
@@ -92,22 +95,17 @@ async function seedPracticeAreas(): Promise<void> {
 
 // docs/01_FOUNDATION_AUTH.md §3.3 / §3.3: en is default+active, ru active.
 async function seedI18nLanguages(): Promise<void> {
-  const languages = [
-    {
-      code: 'en',
-      name_native: 'English',
-      is_active: true,
-      is_rtl: false,
-      sort: 0,
-    },
-    {
-      code: 'ru',
-      name_native: 'Русский',
-      is_active: true,
-      is_rtl: false,
-      sort: 1,
-    },
-  ];
+  // Owner 2026-10-13: all 85 languages (the columns of translations_seed.xlsx)
+  // come from languages.seed.json; en and ru stay the active defaults.
+  const languages = JSON.parse(
+    readFileSync(join(__dirname, 'seed', 'languages.seed.json'), 'utf8'),
+  ) as {
+    code: string;
+    name_native: string;
+    is_active: boolean;
+    is_rtl: boolean;
+    sort: number;
+  }[];
   for (const lang of languages) {
     await prisma.i18nLanguage.upsert({
       where: { code: lang.code },
@@ -115,7 +113,7 @@ async function seedI18nLanguages(): Promise<void> {
       update: lang,
     });
   }
-  console.log(`  i18n_languages: ${languages.length} upserted (en, ru)`);
+  console.log(`  i18n_languages: ${languages.length} upserted`);
 }
 
 // docs/02_DATABASE.md §3.3: privaterelay.appleid.com (apple_relay) + a
@@ -163,7 +161,14 @@ async function seedI18nTranslations(): Promise<void> {
     const existingValues = new Map(
       (existing?.translations ?? []).map((t) => [t.lang, t.value]),
     );
+    // Owner 2026-10-18: a text changed in the admin stays as it is.
+    const adminEdited = new Set(
+      (existing?.translations ?? [])
+        .filter((t) => t.admin_edited)
+        .map((t) => t.lang),
+    );
     for (const [lang, value] of Object.entries(row.values)) {
+      if (adminEdited.has(lang)) continue;
       if (existingValues.get(lang) !== value) {
         changedKeys.push({ key: row.key, lang });
         affectedLangs.add(lang);
@@ -254,50 +259,19 @@ async function seedBlockedEmailDomains(): Promise<void> {
 // GET /config/bootstrap) is the stage-1.8 work added alongside this
 // function's app_config sibling below.
 async function seedFeatureFlags(): Promise<void> {
-  const flags = [
-    {
-      key: 'video_posts',
-      enabled: false,
-      description: 'Video attachments on feed posts',
-    },
-    {
-      key: 'profile_promotion',
-      enabled: false,
-      description: 'Paid attorney profile promotion',
-    },
-    {
-      key: 'stripe_identity',
-      enabled: false,
-      description: 'Stripe Identity as a verification provider',
-    },
-    {
-      key: 'persona_verification',
-      enabled: false,
-      description: 'Persona as a verification provider',
-    },
-    {
-      key: 'auto_bar_check',
-      enabled: false,
-      description: 'Automatic bar-number lookup against state databases',
-    },
-    { key: 'phone_login', enabled: true, description: 'Phone/SMS OTP login' },
-    { key: 'email_login', enabled: true, description: 'Email OTP login' },
-    { key: 'apple_login', enabled: true, description: 'Sign in with Apple' },
-    { key: 'google_login', enabled: true, description: 'Sign in with Google' },
-    {
-      // docs/01 §10.6: App Attest / Play Integrity on otp/request and
-      // social login. Keep OFF until real verifiers are configured —
-      // the placeholder verifiers reject every token.
-      key: 'device_attestation',
-      enabled: false,
-      description:
-        'Require App Attest / Play Integrity on OTP request and social login',
-    },
-  ];
+  // Owner 2026-10-22: retired flags are never seeded.
+  const flags = FLAG_CATALOG.filter((f) => !f.retired);
   for (const flag of flags) {
     await prisma.featureFlag.upsert({
       where: { key: flag.key },
-      create: { ...flag, rollout_percent: 100 },
+      // Only the table's columns: catalog entries carry app-side fields
+      // (e.g. `app`) that are not columns (the first prod seed failed on it).
+      create: {
+        key: flag.key,
+        enabled: flag.enabled,
+        description: flag.description,
+        rollout_percent: 100,
+      },
       update: { enabled: flag.enabled, description: flag.description },
     });
   }
@@ -373,6 +347,16 @@ async function seedAppConfig(): Promise<void> {
     'budget.storage.per_minute_max': 120,
     'budget.storage.daily_max': 5000,
     'budget.storage.monthly_max': 100000,
+    'budget.translate.per_minute_max': 60,
+    'budget.translate.daily_max': 5000,
+    'budget.translate.monthly_max': 50000,
+    'budget.video.per_minute_max': 30,
+    'budget.video.daily_max': 1000,
+    'budget.video.monthly_max': 10000,
+    // Owner 2026-10-22: AWS Rekognition image moderation.
+    'budget.image_moderation.per_minute_max': 300,
+    'budget.image_moderation.daily_max': 20000,
+    'budget.image_moderation.monthly_max': 300000,
     'sms.allowed_country_codes': ['US'],
   };
   for (const [key, value] of Object.entries(costKeys)) {
@@ -437,23 +421,62 @@ async function seedAdmin(): Promise<void> {
   const existing = await prisma.user.findFirst({
     where: { email, role: 'admin' },
   });
-  if (existing) {
-    console.log(`  admin: ${email} already exists (${existing.id})`);
-    return;
-  }
-  const admin = await prisma.user.create({
-    data: {
-      role: 'admin',
-      status: 'active',
-      email,
-      email_verified_at: new Date(),
-      ui_language: 'en',
-    },
+  const admin =
+    existing ??
+    (await prisma.user.create({
+      data: {
+        role: 'admin',
+        status: 'active',
+        email,
+        email_verified_at: new Date(),
+        ui_language: 'en',
+      },
+    }));
+  // Admin sign-in requires an admin_profiles row (AdminAuthService
+  // .findAdmin); without it the seeded super admin could never log in.
+  await prisma.adminProfile.upsert({
+    where: { user_id: admin.id },
+    update: {},
+    create: { user_id: admin.id, admin_role: 'super_admin' },
   });
-  console.log(`  admin: created ${email} (${admin.id})`);
+  console.log(
+    `  admin: ${existing ? 'already exists' : 'created'} ${email} (${admin.id}), super_admin`,
+  );
+}
+
+// Owner 2026-10-20: the starter document forms. Created once — after that
+// the admin owns them, so a re-run never overwrites an edit.
+async function seedFormTemplates(): Promise<void> {
+  let created = 0;
+  for (const t of STARTER_TEMPLATES) {
+    const exists = await prisma.formTemplate.findUnique({
+      where: { slug: t.slug },
+      select: { id: true },
+    });
+    if (exists) continue;
+    await prisma.formTemplate.create({
+      data: {
+        slug: t.slug,
+        title: t.title,
+        description: t.description,
+        body: t.body,
+        fields: t.fields as unknown as Prisma.InputJsonArray,
+        position: t.position,
+        is_published: true,
+      },
+    });
+    created += 1;
+  }
+  console.log(`  form_templates: ${created} created`);
 }
 
 async function main(): Promise<void> {
+  // Owner 2026-10-18: `npm run seed:i18n` loads only the translations —
+  // the full seed resets the feature flags the admin switched.
+  if (process.argv.includes('--i18n-only')) {
+    await seedI18nTranslations();
+    return;
+  }
   console.log('Seeding LawBid...');
   // Order per docs/02_DATABASE.md §7.2.
   await seedStates();
@@ -464,6 +487,7 @@ async function main(): Promise<void> {
   await seedFeatureFlags();
   await seedAppConfig();
   await seedLegalDocuments();
+  await seedFormTemplates();
   await seedAdmin();
   console.log('Seed complete.');
 }

@@ -22,6 +22,29 @@ export const NOTIFICATION_TEMPLATES: Partial<
     }
   >
 > = {
+  // Owner 2026-10-05: a client offered their case to the attorney.
+  case_invite_received: {
+    group: 'bids',
+    en: {
+      title: 'A client offers you a case',
+      body: 'Open it and answer with a bid or decline.',
+    },
+    ru: {
+      title: 'Клиент предлагает вам дело',
+      body: 'Откройте его и ответьте бидом или откажитесь.',
+    },
+  },
+  case_invite_declined: {
+    group: 'bids',
+    en: {
+      title: 'Invitation declined',
+      body: 'The attorney declined your case. Invite another one.',
+    },
+    ru: {
+      title: 'Приглашение отклонено',
+      body: 'Адвокат отказался от дела. Пригласите другого.',
+    },
+  },
   bid_received: {
     group: 'bids',
     en: { title: 'New bid', body: 'An attorney sent a bid on your case.' },
@@ -84,6 +107,77 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Клиент обновил кейс, на который вы сделали бид.',
     },
   },
+  // Owner 2026-10-05: the case's date ({days} = days left).
+  case_deadline_soon: {
+    group: 'cases',
+    en: {
+      title: 'The case date is coming up',
+      body: 'Days left until the date: {days}. Open the case.',
+    },
+    ru: {
+      title: 'Срок по делу приближается',
+      body: 'Дней до срока: {days}. Откройте дело.',
+    },
+  },
+  case_deadline_today: {
+    group: 'cases',
+    en: {
+      title: 'The case date is today',
+      body: 'Today is the date set for the case.',
+    },
+    ru: {
+      title: 'Срок по делу — сегодня',
+      body: 'Сегодня дата, указанная в деле.',
+    },
+  },
+  case_deadline_passed: {
+    group: 'cases',
+    en: {
+      title: 'The case date has passed',
+      body: 'Nobody is hired yet. Update the date or the urgency so attorneys see what is current.',
+    },
+    ru: {
+      title: 'Срок по делу прошёл',
+      body: 'Адвокат ещё не выбран. Обновите дату или срочность, чтобы адвокаты видели актуальное.',
+    },
+  },
+  case_deadline_changed: {
+    group: 'cases',
+    en: {
+      title: 'The case date changed',
+      body: 'The other side changed the date or urgency of your case.',
+    },
+    ru: {
+      title: 'Срок по делу изменён',
+      body: 'Другая сторона изменила дату или срочность дела.',
+    },
+  },
+  // Owner 2026-10-18 (OQ-054): one question per client per run, several
+  // cases grouped ({count|форма|…} = «2 кейса»). Never SMS.
+  case_still_needed: {
+    group: 'cases',
+    en: {
+      title: 'Is your case still current?',
+      body: 'You have not opened {count|case|cases} in a while. Answer in one tap, or it is hidden from the attorneys’ feed.',
+    },
+    ru: {
+      title: 'Ваш кейс ещё актуален?',
+      body: 'Вы давно не заходили: {count|кейс|кейса|кейсов}. Ответьте в одно касание, иначе кейс скроется из ленты адвокатов.',
+    },
+  },
+  // Audit 2026-10-19: the push body says what was added (renderFor:
+  // `notif.workspace.<kind>`); this pair is the fallback.
+  case_workspace_activity: {
+    group: 'cases',
+    en: {
+      title: 'New in your case',
+      body: 'The other side added something to the case. Open it to see.',
+    },
+    ru: {
+      title: 'Новое в кейсе',
+      body: 'Другая сторона добавила что-то в кейс. Откройте, чтобы посмотреть.',
+    },
+  },
   case_stale_prompt: {
     group: 'cases',
     en: {
@@ -133,6 +227,28 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'Case closed', body: 'The case is closed.' },
     ru: { title: 'Кейс закрыт', body: 'Кейс закрыт.' },
   },
+  case_disputed: {
+    group: 'cases',
+    en: {
+      title: 'Completion disputed',
+      body: 'The other side disputed completion. Support will review the case.',
+    },
+    ru: {
+      title: 'Завершение оспорено',
+      body: 'Другая сторона оспорила завершение. Поддержка рассмотрит кейс.',
+    },
+  },
+  dispute_resolved: {
+    group: 'cases',
+    en: {
+      title: 'Dispute resolved',
+      body: 'Support decided the dispute. The case is back in progress.',
+    },
+    ru: {
+      title: 'Спор решён',
+      body: 'Поддержка рассмотрела спор. Кейс снова в работе.',
+    },
+  },
   contact_issue_update: {
     group: 'cases',
     en: {
@@ -180,6 +296,43 @@ export const NOTIFICATION_TEMPLATES: Partial<
     },
     ru: { title: 'Вас отметили', body: 'Вас отметили в LawBid.' },
   },
+  // Owner 2026-10-22: someone from the phone book registered (sent by the
+  // server, contacts.joined job). No name: the push carries no personal data.
+  contact_joined: {
+    group: 'social',
+    en: {
+      title: 'New on LawBid',
+      body: 'Someone from your contacts joined LawBid. Say hello.',
+    },
+    ru: {
+      title: 'Новый человек в LawBid',
+      body: 'Ваш контакт теперь в LawBid. Напишите ему.',
+    },
+  },
+  // Owner 2026-10-21: an invitation to a group (Requests).
+  group_invite: {
+    group: 'social',
+    en: {
+      title: 'Group invitation',
+      body: 'You were invited to a group. Open Requests to answer.',
+    },
+    ru: {
+      title: 'Приглашение в группу',
+      body: 'Вас пригласили в группу. Ответьте во вкладке «Запросы».',
+    },
+  },
+  // Owner 2026-10-20: a post in a channel I subscribed to.
+  channel_post: {
+    group: 'social',
+    en: {
+      title: 'New post in a channel',
+      body: 'A channel you follow published a new post.',
+    },
+    ru: {
+      title: 'Новый пост в канале',
+      body: 'В канале, на который вы подписаны, новая публикация.',
+    },
+  },
   // Owner 2026-09-30 (opt-in).
   followed_post: {
     group: 'social',
@@ -203,6 +356,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Опубликован новый кейс по вашим практикам.',
     },
   },
+  // Owner 2026-10-05: an urgent case (urgent / very urgent level or a
+  // date within the urgent threshold).
+  new_urgent_case: {
+    group: 'cases',
+    en: {
+      title: 'Urgent case for you',
+      body: 'An urgent case in your practice areas was published.',
+    },
+    ru: {
+      title: 'Срочное дело для вас',
+      body: 'Опубликовано срочное дело по вашим практикам.',
+    },
+  },
   // OQ-048.
   assistant_request: {
     group: 'messages',
@@ -219,6 +385,18 @@ export const NOTIFICATION_TEMPLATES: Partial<
     group: 'cases',
     en: { title: 'New task', body: 'Your assistant set a task for you.' },
     ru: { title: 'Новая задача', body: 'Помощник поставил вам задачу.' },
+  },
+  // Owner 2026-10-21 (inbox 30).
+  assistant_bid_draft: {
+    group: 'bids',
+    en: {
+      title: 'Bid draft ready',
+      body: 'Your assistant prepared a bid. Check it and send.',
+    },
+    ru: {
+      title: 'Черновик бида готов',
+      body: 'Помощник подготовил бид. Проверьте и отправьте.',
+    },
   },
   assistant_joined: {
     group: 'system',
@@ -242,6 +420,230 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Откройте «Результаты», чтобы увидеть решение.',
     },
   },
+  // Owner 2026-10-05: the planner (no task text in a push: docs/05 §9.5).
+  task_reminder: {
+    group: 'cases',
+    en: { title: 'Task reminder', body: 'A task in your planner is due.' },
+    ru: {
+      title: 'Напоминание о задаче',
+      body: 'Подошло время задачи в вашем планировщике.',
+    },
+  },
+  task_assigned: {
+    group: 'cases',
+    en: { title: 'Task for you', body: 'The attorney assigned you a task.' },
+    ru: { title: 'Задача для вас', body: 'Адвокат назначил вам задачу.' },
+  },
+  task_purge_soon: {
+    group: 'system',
+    en: {
+      title: 'Archived tasks will be removed',
+      body: 'Finished tasks older than a year are removed soon. Open the archive to keep the ones you need.',
+    },
+    ru: {
+      title: 'Архив задач скоро очистится',
+      body: 'Выполненные задачи старше года скоро удалятся. Откройте архив и сохраните нужные.',
+    },
+  },
+  partner_commission: {
+    group: 'system',
+    en: {
+      title: 'Partner earnings',
+      body: 'Someone you brought to LawBid qualified. Your commission is accrued.',
+    },
+    ru: {
+      title: 'Партнёрское начисление',
+      body: 'Приглашённый вами выполнил условие. Вознаграждение начислено.',
+    },
+  },
+  partner_payout: {
+    group: 'system',
+    en: {
+      title: 'Partner payout',
+      body: 'Your partner earnings were paid out. See the details in the app.',
+    },
+    ru: {
+      title: 'Партнёрская выплата',
+      body: 'Ваше партнёрское вознаграждение выплачено. Подробности в приложении.',
+    },
+  },
+  partner_approved: {
+    group: 'system',
+    en: {
+      title: 'You are a LawBid partner',
+      body: 'Your request is approved. Your partner link is ready in Settings.',
+    },
+    ru: {
+      title: 'Вы партнёр LawBid',
+      body: 'Заявка одобрена. Ваша партнёрская ссылка готова в настройках.',
+    },
+  },
+  partner_declined: {
+    group: 'system',
+    en: {
+      title: 'Partner request declined',
+      body: 'The LawBid team did not approve your partner request this time.',
+    },
+    ru: {
+      title: 'Заявка партнёра отклонена',
+      body: 'Команда LawBid пока не одобрила вашу заявку на участие в программе.',
+    },
+  },
+  referral_reward: {
+    group: 'system',
+    en: {
+      title: 'Invite bonus',
+      body: 'A friend joined with your invite. Your bonus is added.',
+    },
+    ru: {
+      title: 'Бонус за приглашение',
+      body: 'Друг присоединился по вашему приглашению. Бонус начислен.',
+    },
+  },
+  promotion_started: {
+    group: 'cases',
+    en: {
+      title: 'Promotion started',
+      body: 'People now see it in their feed. Reach and clicks are in My promotions.',
+    },
+    ru: {
+      title: 'Продвижение началось',
+      body: 'Его уже показывают в ленте. Охват и клики — в «Мои продвижения».',
+    },
+  },
+  promotion_ended: {
+    group: 'cases',
+    en: {
+      title: 'Promotion ended',
+      body: 'Your promotion has finished. See the results in My promotions.',
+    },
+    ru: {
+      title: 'Продвижение завершилось',
+      body: 'Продвижение завершилось. Итоги — в «Мои продвижения».',
+    },
+  },
+  // Owner 2026-10-05: client → attorney payments through the platform.
+  case_payment_received: {
+    group: 'cases',
+    en: {
+      title: 'Payment received',
+      body: 'A client paid you through LawBid. The money goes to your Stripe account.',
+    },
+    ru: {
+      title: 'Оплата получена',
+      body: 'Клиент оплатил вам через LawBid. Деньги поступят на ваш счёт Stripe.',
+    },
+  },
+  case_payment_sent: {
+    group: 'cases',
+    en: {
+      title: 'Payment sent',
+      body: 'Your payment to the attorney went through. The receipt is in the case.',
+    },
+    ru: {
+      title: 'Оплата отправлена',
+      body: 'Ваш платёж адвокату прошёл. Чек — в карточке дела.',
+    },
+  },
+  case_payment_refunded: {
+    group: 'cases',
+    en: {
+      title: 'Refund issued',
+      body: 'The attorney refunded part or all of your payment.',
+    },
+    ru: {
+      title: 'Возврат оформлен',
+      body: 'Адвокат вернул вам часть или всю сумму платежа.',
+    },
+  },
+  case_payment_disputed: {
+    group: 'cases',
+    en: {
+      title: 'Payment disputed',
+      body: 'A client disputed a payment with their bank. Respond in your Stripe dashboard.',
+    },
+    ru: {
+      title: 'Платёж оспорен',
+      body: 'Клиент оспорил платёж через банк. Ответьте в панели Stripe.',
+    },
+  },
+  payment_request_created: {
+    group: 'cases',
+    en: {
+      title: 'Payment request',
+      body: 'Your attorney sent you a payment request. Open the case to pay in two taps.',
+    },
+    ru: {
+      title: 'Счёт от адвоката',
+      body: 'Адвокат выставил вам счёт. Откройте дело, чтобы оплатить в два касания.',
+    },
+  },
+  payment_request_due: {
+    group: 'cases',
+    en: {
+      title: 'Payment due soon',
+      body: 'A payment request from your attorney is due soon.',
+    },
+    ru: {
+      title: 'Скоро срок оплаты',
+      body: 'Срок оплаты счёта от адвоката скоро наступит.',
+    },
+  },
+  payment_request_overdue: {
+    group: 'cases',
+    en: {
+      title: 'Payment overdue',
+      body: 'A payment request from your attorney is past its due date.',
+    },
+    ru: {
+      title: 'Счёт просрочен',
+      body: 'Срок оплаты счёта от адвоката прошёл.',
+    },
+  },
+  payment_fee_countered: {
+    group: 'cases',
+    en: {
+      title: 'Stripe fee: counter-offer',
+      body: 'The other side proposed another way to cover the Stripe fee.',
+    },
+    ru: {
+      title: 'Комиссия Stripe: встречное предложение',
+      body: 'Другая сторона предложила иначе разделить комиссию Stripe.',
+    },
+  },
+  payment_fee_agreed: {
+    group: 'cases',
+    en: {
+      title: 'Stripe fee agreed',
+      body: 'Who covers the Stripe fee on the invoice is agreed.',
+    },
+    ru: {
+      title: 'Комиссия Stripe согласована',
+      body: 'Кто платит комиссию Stripe по счёту — согласовано.',
+    },
+  },
+  payment_request_canceled: {
+    group: 'cases',
+    en: {
+      title: 'Payment request withdrawn',
+      body: 'Your attorney withdrew a payment request.',
+    },
+    ru: {
+      title: 'Счёт отозван',
+      body: 'Адвокат отозвал выставленный счёт.',
+    },
+  },
+  payout_account_status: {
+    group: 'system',
+    en: {
+      title: 'Payout account',
+      body: 'The status of your payout account changed. Check Settings → Receiving payments.',
+    },
+    ru: {
+      title: 'Счёт для выплат',
+      body: 'Статус вашего счёта для выплат изменился. Проверьте Настройки → Приём оплат.',
+    },
+  },
   admin_broadcast: {
     group: 'system',
     en: { title: 'LawBid', body: 'A message from the LawBid team.' },
@@ -257,6 +659,48 @@ export const NOTIFICATION_TEMPLATES: Partial<
     group: 'cases',
     en: { title: 'New comment', body: 'Someone commented on your case.' },
     ru: { title: 'Новый комментарий', body: 'Ваш кейс прокомментировали.' },
+  },
+  review_requested: {
+    group: 'cases',
+    en: {
+      title: 'Leave a review',
+      body: 'The case is closed. Tell others how it went.',
+    },
+    ru: {
+      title: 'Оставьте отзыв',
+      body: 'Кейс закрыт. Расскажите, как всё прошло.',
+    },
+  },
+  review_received: {
+    group: 'cases',
+    en: { title: 'New review', body: 'You received a new review.' },
+    ru: { title: 'Новый отзыв', body: 'Вам оставили новый отзыв.' },
+  },
+  post_like: {
+    group: 'social',
+    en: { title: 'New like', body: 'Someone liked your post.' },
+    ru: { title: 'Новый лайк', body: 'Ваш пост понравился.' },
+  },
+  post_repost: {
+    group: 'social',
+    en: { title: 'New repost', body: 'Someone reposted your post.' },
+    ru: {
+      title: 'Новый репост',
+      body: 'Кто-то сделал репост вашей публикации.',
+    },
+  },
+  gift_received: {
+    group: 'social',
+    en: { title: 'You received a gift', body: 'Open your profile to see it.' },
+    ru: {
+      title: 'Вам подарили подарок',
+      body: 'Откройте профиль, чтобы посмотреть.',
+    },
+  },
+  comment_like: {
+    group: 'social',
+    en: { title: 'New like', body: 'Someone liked your comment.' },
+    ru: { title: 'Новый лайк', body: 'Ваш комментарий понравился.' },
   },
   comment_reply: {
     group: 'social',
@@ -334,6 +778,29 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'В ваш аккаунт вошли с нового устройства.',
     },
   },
+  // Owner 2026-10-20: booking; the body says what happened
+  // (`notif.consult.<kind>`), this pair is the fallback.
+  consultation_update: {
+    group: 'cases',
+    en: { title: 'Consultation', body: 'Your consultation has an update.' },
+    ru: { title: 'Консультация', body: 'По консультации есть новости.' },
+  },
+  legal_question_new: {
+    group: 'cases',
+    en: {
+      title: 'New question',
+      body: 'A client asked a question in your practice area.',
+    },
+    ru: {
+      title: 'Новый вопрос',
+      body: 'Клиент задал вопрос по вашей специализации.',
+    },
+  },
+  legal_answer_update: {
+    group: 'cases',
+    en: { title: 'Question', body: 'Your question has a new answer.' },
+    ru: { title: 'Вопрос', body: 'На ваш вопрос есть новый ответ.' },
+  },
   security_phone_changed: {
     group: 'system',
     en: {
@@ -343,6 +810,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
     ru: {
       title: 'Номер телефона изменён',
       body: 'Поддержка сменила номер телефона в вашем аккаунте по вашему запросу. Это были не вы? Сразу напишите в поддержку.',
+    },
+  },
+  // Owner 2026-10-22 (security audit #3): no contact values in the push
+  // (docs/05 §9.5) — only that something changed and where to look.
+  security_sign_in_changed: {
+    group: 'system',
+    en: {
+      title: 'Sign-in settings changed',
+      body: 'A phone, e-mail, sign-in method or password changed on your account. Not you? Open Active devices and sign out everywhere.',
+    },
+    ru: {
+      title: 'Изменены данные для входа',
+      body: 'В вашем аккаунте изменились телефон, почта, способ входа или пароль. Это были не вы? Откройте «Активные устройства» и выйдите везде.',
     },
   },
 };
@@ -363,4 +843,40 @@ export function templateKeys(type: NotificationType): {
     title: `notif.${t.group}.${type}.title`,
     body: `notif.${t.group}.${type}.body`,
   };
+}
+
+/** Owner 2026-10-05: fills `{name}` placeholders from the payload's
+ * string / number values (identifiers and counts only — docs/05 §9.5);
+ * an unknown placeholder stays as written. */
+export function fillTemplate(
+  text: TemplateText,
+  payload: Record<string, unknown>,
+): TemplateText {
+  const fill = (s: string) =>
+    s
+      // `{count|кейс|кейса|кейсов}` → «2 кейса»: three forms follow the
+      // Russian rule (1 / 2–4 / 5+), two forms are one / other.
+      .replace(
+        /\{([a-zA-Z0-9_]+)\|([^{}|]+(?:\|[^{}|]+){1,2})\}/g,
+        (m, k: string, forms: string) => {
+          const n = payload[k];
+          if (typeof n !== 'number') return m;
+          return `${n} ${pluralForm(n, forms.split('|'))}`;
+        },
+      )
+      .replace(/\{([a-zA-Z0-9_]+)\}/g, (m, k: string) => {
+        const v = payload[k];
+        return typeof v === 'number' || typeof v === 'string' ? String(v) : m;
+      });
+  return { title: fill(text.title), body: fill(text.body) };
+}
+
+function pluralForm(n: number, forms: string[]): string {
+  const abs = Math.abs(Math.trunc(n));
+  if (forms.length === 2) return abs === 1 ? forms[0] : forms[1];
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
+  return forms[2];
 }

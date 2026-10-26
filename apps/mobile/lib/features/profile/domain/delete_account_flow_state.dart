@@ -1,6 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-import 'delete_account_step.dart';
+import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 
 part 'delete_account_flow_state.freezed.dart';
 

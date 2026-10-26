@@ -1,5 +1,5 @@
 import type { AddressInfo, Server } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { LoggerErrorInterceptor, Logger } from 'nestjs-pino';
@@ -11,18 +11,21 @@ import { adminSession } from './support/admin-login';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
+import { ATTESTATION_VERSION } from '../src/modules/verification/verification.constants';
+import { SELF_ATTESTED_NOTE } from '../src/modules/verification/services/verification-checks.service';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stages 3.3 (verification request API)
- * and 3.4 (checks + verifier admin API), against real CockroachDB + Redis.
+ * and 3.4 (checks + verifier admin API), against real PostgreSQL + Redis.
  *
  * 3.3 acceptance: two open requests are impossible; a request can't be
  * submitted without identity document / selfie / license; the same bar
  * number in the same state by another attorney → LICENSE_ALREADY_REGISTERED.
  * 3.4 acceptance: with no flags a request passes fully by hand; every
  * document view and decision is in audit_log; a role without verifier
- * permission gets 403; suspend removes the profile from search (public
- * profile 404) and moves active bids to withdrawn.
+ * permission gets 404 (owner 2026-10-05: hidden, was 403); suspend
+ * removes the profile from search (public profile 404) and moves active
+ * bids to withdrawn.
  */
 jest.setTimeout(90_000);
 
@@ -93,11 +96,19 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         },
       })
     ).id;
-    await setFlag('stripe_identity', false);
+    // No registry calls from e2e: NY lookups stay off (unit-tested).
+    await setFlag('auto_bar_check', false);
+    await setConfig('verification.require_identity', false);
+    await setConfig('verification.require_bar_document', false);
+    // The verifier-queue tests below need submitted requests to wait for a
+    // verifier; self-attestation (owner 2026-10-04) has its own test.
+    await setConfig('verification.self_attestation_auto_approve', false);
   });
 
   afterAll(async () => {
-    await setFlag('stripe_identity', false);
+    await setConfig('verification.require_identity', false);
+    await setConfig('verification.require_bar_document', false);
+    await setConfig('verification.self_attestation_auto_approve', true);
     await app.close();
   });
 
@@ -114,6 +125,15 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       update: { enabled },
     });
     await app.get(FeatureFlagsService).invalidate();
+  }
+
+  async function setConfig(key: string, value: boolean): Promise<void> {
+    await prisma.appConfig.upsert({
+      where: { key },
+      create: { key, value },
+      update: { value },
+    });
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
   }
 
   function nextPhone(): string {
@@ -202,7 +222,9 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     return id;
   }
 
-  const barNumber = () => `B${randomUUID().slice(0, 10).toUpperCase()}`;
+  // Digits only: a state without its own format needs at least 3 digits, and
+  // random hex sometimes has fewer (a rare flake).
+  const barNumber = () => `B${String(randomInt(100_000_000, 999_999_999))}`;
 
   async function createDraft(auth: Record<string, string>): Promise<string> {
     const res = await api()
@@ -248,7 +270,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
     await api()
       .post(`/api/v1/verification/requests/${requestId}/submit`)
       .set(a.auth)
-      .send({})
+      .send({ attestation: true })
       .expect(200);
     return { requestId, licenseId, bar };
   }
@@ -291,7 +313,76 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       const data = (me.body as Body).data;
       expect(data.verificationStatus).toBe('unverified');
       expect((data.request as { id: string }).id).toBe(id);
-      expect(data.identityRequired).toBe(true);
+      // Owner 2026-10-04 ("только номер"): state + bar number only.
+      expect(data.identityRequired).toBe(false);
+      expect(data.barDocumentRequired).toBe(false);
+    });
+
+    it('owner 2026-10-04: state + bar number alone can be submitted', async () => {
+      const a = await attorney();
+      const id = await createDraft(a.auth);
+      const empty = await api()
+        .post(`/api/v1/verification/requests/${id}/submit`)
+        .set(a.auth)
+        .send({})
+        .expect(400);
+      expect((empty.body as Body).error?.details?.missing).toEqual([
+        'attestation',
+        'license',
+      ]);
+      await api()
+        .post(`/api/v1/verification/requests/${id}/licenses`)
+        .set(a.auth)
+        .send({ stateCode: 'NJ', barNumber: barNumber() })
+        .expect(201);
+      const unsworn = await api()
+        .post(`/api/v1/verification/requests/${id}/submit`)
+        .set(a.auth)
+        .send({ attestation: false })
+        .expect(400);
+      expect((unsworn.body as Body).error?.details?.missing).toEqual([
+        'attestation',
+      ]);
+      const sent = await api()
+        .post(`/api/v1/verification/requests/${id}/submit`)
+        .set(a.auth)
+        .send({ attestation: true })
+        .expect(200);
+      expect((sent.body as Body).data.status).toBe('submitted');
+      expect(await profileStatus(a.userId)).toBe('pending');
+    });
+
+    it('owner 2026-10-04: the sworn statement approves at once and is stored', async () => {
+      await setConfig('verification.self_attestation_auto_approve', true);
+      try {
+        const a = await attorney();
+        const id = await createDraft(a.auth);
+        await api()
+          .post(`/api/v1/verification/requests/${id}/licenses`)
+          .set(a.auth)
+          .send({ stateCode: 'CA', barNumber: barNumber() })
+          .expect(201);
+        const sent = await api()
+          .post(`/api/v1/verification/requests/${id}/submit`)
+          .set(a.auth)
+          .send({ attestation: true })
+          .expect(200);
+        expect((sent.body as Body).data.status).toBe('approved');
+        expect(await profileStatus(a.userId)).toBe('verified');
+        const row = await prisma.verificationRequest.findUniqueOrThrow({
+          where: { id },
+        });
+        expect(row.attested_at).toBeInstanceOf(Date);
+        expect(row.attestation_version).toBe(ATTESTATION_VERSION);
+        expect(row.attestation_ip).toEqual(expect.any(String));
+        expect(row.admin_note).toBe(SELF_ATTESTED_NOTE);
+        const license = await prisma.attorneyLicense.findFirstOrThrow({
+          where: { attorney_id: a.userId },
+        });
+        expect(license.license_status).toBe('verified');
+      } finally {
+        await setConfig('verification.self_attestation_auto_approve', false);
+      }
     });
 
     it('rejects clients and hides other attorneys requests', async () => {
@@ -310,7 +401,9 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       await api().post('/api/v1/verification/requests').set(auth).expect(403);
     });
 
-    it('cannot submit without license, identity document and selfie', async () => {
+    it('with both settings on: cannot submit without license, bar document, identity document and selfie', async () => {
+      await setConfig('verification.require_identity', true);
+      await setConfig('verification.require_bar_document', true);
       const a = await attorney();
       const id = await createDraft(a.auth);
       const empty = await api()
@@ -351,6 +444,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         ]),
       );
       expect(await profileStatus(a.userId)).toBe('unverified');
+      await setConfig('verification.require_identity', false);
+      await setConfig('verification.require_bar_document', false);
     });
 
     it('only clean files of the right purpose can be attached', async () => {
@@ -491,13 +586,13 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
   // ---------------------------------------------------------------- 3.4
 
   describe('stage 3.4 — verifier admin API', () => {
-    it('denies attorneys, admins without a profile and non-verifier roles (403)', async () => {
+    it('denies attorneys, admins without a profile and non-verifier roles (401/404)', async () => {
       const a = await attorney();
       const bare = await admin(null);
       const moderator = await admin('moderator');
       const support = await admin('support');
       // A mobile token (attorney) and no token at all (an admin without a
-      // profile can't even sign in) are 401; the wrong admin role is 403.
+      // profile can't even sign in) are 401; the wrong admin role is 404.
       for (const who of [a, bare]) {
         await api()
           .get('/api/v1/admin/verification/requests')
@@ -508,8 +603,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         const res = await api()
           .get('/api/v1/admin/verification/requests')
           .set(who.auth)
-          .expect(403);
-        expect((res.body as Body).error?.code).toBe('FORBIDDEN');
+          .expect(404);
+        expect((res.body as Body).error?.code).toBe('NOT_FOUND');
       }
       const sup = await admin('super_admin');
       await api()
@@ -768,11 +863,8 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .expect(200);
 
       const verifier = await admin('verifier');
-      await api()
-        .post(`/api/v1/admin/verification/attorneys/${a.userId}/suspend`)
-        .set(verifier.auth)
-        .send({})
-        .expect(400);
+      // Owner 2026-10-05: the reason is required only in the sections the
+      // owner switched on (verification is off by default).
       const res = await api()
         .post(`/api/v1/admin/verification/attorneys/${a.userId}/suspend`)
         .set(verifier.auth)
@@ -858,29 +950,54 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         .set(verifier.auth)
         .expect(409);
     });
+  });
 
-    it('stripe_identity flag routes ID checks through the paid adapter + CostGuard', async () => {
-      await setFlag('stripe_identity', true);
-      try {
-        const a = await attorney();
-        const { requestId } = await submittedRequest(a);
-        const checks = await prisma.verificationCheck.findMany({
-          where: { request_id: requestId },
-          orderBy: { check_type: 'asc' },
-        });
-        expect(
-          checks.map((c) => `${c.check_type}/${c.provider}/${c.result}`).sort(),
-        ).toEqual([
-          'face_match/stripe_identity/manual_review',
-          'id_check/stripe_identity/manual_review',
-        ]);
-        const redis = app.get<Redis>(REDIS_CLIENT);
-        expect(
-          (await redis.keys('budget:{id_check}:*')).length,
-        ).toBeGreaterThan(0);
-      } finally {
-        await setFlag('stripe_identity', false);
-      }
+  // Owner 2026-10-16: a new license stays pending; where no registry checks
+  // the number, the bar card is required; an unusual shape goes to a person.
+  describe('pending until confirmed, bar card where nobody checks', () => {
+    beforeAll(async () => {
+      await setConfig('verification.bar_document_for_manual_states', true);
+    });
+    afterAll(async () => {
+      await setConfig('verification.bar_document_for_manual_states', false);
+    });
+
+    it('no bar card → incomplete; with it → submitted, never auto-verified', async () => {
+      const a = await attorney();
+      const requestId = await createDraft(a.auth);
+      await api()
+        .post(`/api/v1/verification/requests/${requestId}/licenses`)
+        .set(a.auth)
+        .send({ stateCode: 'CA', barNumber: '123456' })
+        .expect(201);
+      const incomplete = await api()
+        .post(`/api/v1/verification/requests/${requestId}/submit`)
+        .set(a.auth)
+        .send({ attestation: true });
+      expect(incomplete.status).toBe(400);
+      expect(
+        (incomplete.body as { error: { details: { missing: string[] } } }).error
+          .details.missing,
+      ).toContain('bar_license:CA');
+      await api()
+        .post(`/api/v1/verification/requests/${requestId}/documents`)
+        .set(a.auth)
+        .send({
+          fileId: await file(a.userId),
+          docType: 'bar_license',
+          stateCode: 'CA',
+        })
+        .expect(201);
+      await api()
+        .post(`/api/v1/verification/requests/${requestId}/submit`)
+        .set(a.auth)
+        .send({ attestation: true })
+        .expect(200);
+      const lic = await prisma.attorneyLicense.findFirstOrThrow({
+        where: { attorney_id: a.userId },
+      });
+      expect(lic.license_status).toBe('pending');
+      expect(await profileStatus(a.userId)).not.toBe('verified');
     });
   });
 });

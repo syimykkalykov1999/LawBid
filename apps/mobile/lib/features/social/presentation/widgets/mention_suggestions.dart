@@ -8,6 +8,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/search/application/search_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/shared/people/people_suggest_list.dart';
 
 /// The "@…" being typed right before the cursor, or null.
 ({int start, String query})? mentionQueryAt(TextEditingValue v) {
@@ -101,7 +102,6 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return AnimatedSize(
       duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
       alignment: Alignment.topCenter,
@@ -119,83 +119,16 @@ class _MentionSuggestionsState extends ConsumerState<MentionSuggestions> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final p in _people)
-                    Semantics(
-                      button: true,
-                      label: '@${p.username}',
-                      excludeSemantics: true,
-                      child: AppPressable(
-                        onTap: () => _pick(p),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.md,
-                              vertical: AppSpacing.sm),
-                          child: Row(
-                            children: [
-                              AppAvatar(
-                                size: 36,
-                                imageProvider: _avatar(p) == null
-                                    ? null
-                                    : NetworkImage(_avatar(p)!),
-                                initials: _initials(p),
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '@${p.username}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: type.bodySmall.copyWith(
-                                        color: colors.text,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    if (_name(p).isNotEmpty)
-                                      Text(
-                                        _name(p),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: type.caption.copyWith(
-                                            color: colors.textSecondary),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              if (_verified(p))
-                                AppIcon(AppIcons.verifiedRounded,
-                                    size: 16, color: colors.info),
-                            ],
-                          ),
-                        ),
-                      ),
+                    PersonSuggestionTile(
+                      key: ValueKey('mention-${p.id}'),
+                      person: SuggestedPerson.fromRow(p),
+                      avatarSize: 36,
+                      inset: AppSpacing.md,
+                      onTap: () => _pick(p),
                     ),
                 ],
               ),
             ),
     );
-  }
-
-  static String? _avatar(PersonRow p) =>
-      p.attorney?.avatarUrl ?? p.client?.avatarUrl;
-
-  static bool _verified(PersonRow p) =>
-      p.attorney?.verified ?? p.client?.verified ?? false;
-
-  static String _name(PersonRow p) => [
-        p.attorney?.firstName ?? p.client?.firstName,
-        p.attorney?.lastName ?? p.client?.lastName,
-      ].whereType<String>().join(' ').trim();
-
-  static String _initials(PersonRow p) {
-    final n = _name(p);
-    final src = n.isEmpty ? p.username : n;
-    return src
-        .split(' ')
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0].toUpperCase())
-        .join();
   }
 }

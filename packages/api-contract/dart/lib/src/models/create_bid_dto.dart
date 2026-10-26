@@ -15,7 +15,9 @@ class CreateBidDto {
     required this.feeType,
     required this.message,
     required this.startAvailability,
+    this.sendAsAttorneyId,
     this.amountCents,
+    this.percentBps,
     this.startDate,
     this.estimatedDurationDays,
   });
@@ -23,10 +25,15 @@ class CreateBidDto {
   factory CreateBidDto.fromJson(Map<String, Object?> json) =>
       _$CreateBidDtoFromJson(json);
 
+  /// Firm lawyer who sends the bid (must hold a matching verified licence); default: the caller.
+  final String? sendAsAttorneyId;
   final FeeType feeType;
 
   /// Required for fixed/hourly; ignored (stored as 0) for free_consultation.
   final int? amountCents;
+
+  /// Owner 2026-10-17: required for contingency — basis points (3300 = 33 %), capped by `fees.contingency_max_percent`.
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
 

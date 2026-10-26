@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 
 /// Semantic tone of a status (colors strictly from docs/01 §8.1 tokens).
 enum StatusTone { gold, info, success, warning, danger, neutral }
@@ -29,10 +30,20 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final c = _colorsOf(colors, tone);
+    final raw = _colorsOf(colors, tone);
+    // Owner 2026-10-15: the label stays readable (>= 4.5:1) on its own
+    // tint in every theme, Glass included.
+    final fg = readableOn(
+      raw.fg,
+      Color.alphaBlend(raw.bg, practiceCardBase(colors)),
+    );
+    final c = (fg: fg, bg: raw.bg);
     return AnimatedContainer(
       duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
       curve: AppMotion.enterCurve,
+      // Capped so a long status (de, uk, …) at the end of a row ellipsizes
+      // instead of pushing the row's title aside.
+      constraints: const BoxConstraints(maxWidth: 180),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm + AppSpacing.xs / 2,
         vertical: AppSpacing.xs,
@@ -81,15 +92,35 @@ String caseStatusLabel(Translator t, CaseStatus s) => switch (s) {
       _ => t.t('cases.status.closed'),
     };
 
+/// OQ-054: an open case that is paused (hidden from the attorneys' feed)
+/// reads «На паузе».
+String caseStatusLabelOf(Translator t, CaseStatus s, {bool paused = false}) =>
+    paused && s == CaseStatus.open
+        ? t.t('cases.stale.pausedPill')
+        : caseStatusLabel(t, s);
+
 class CaseStatusPill extends StatelessWidget {
-  const CaseStatusPill({required this.status, required this.t, super.key});
+  const CaseStatusPill({
+    required this.status,
+    required this.t,
+    this.paused = false,
+    super.key,
+  });
 
   final CaseStatus status;
   final Translator t;
 
+  /// OQ-054: show «На паузе» for an open case hidden from the feed.
+  final bool paused;
+
   @override
-  Widget build(BuildContext context) =>
-      StatusPill(label: caseStatusLabel(t, status), tone: caseTone(status));
+  Widget build(BuildContext context) {
+    final onPause = paused && status == CaseStatus.open;
+    return StatusPill(
+      label: caseStatusLabelOf(t, status, paused: paused),
+      tone: onPause ? StatusTone.neutral : caseTone(status),
+    );
+  }
 }
 
 /// docs/04 §11.2 bid status chips: "Ваш ход" / "Ожидает …" while active,
@@ -154,9 +185,13 @@ class RoundCounter extends StatelessWidget {
             ),
           ],
           const SizedBox(width: AppSpacing.sm),
-          Text(
-            label,
-            style: typography.caption.copyWith(color: colors.textSecondary),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
           ),
         ],
       ),

@@ -1,3 +1,7 @@
+import {
+  POST_CONTENT_CLASSES,
+  type PostContentClass,
+} from '../posts/content-filter.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -14,6 +18,10 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import {
+  CASE_MIN_URGENCIES,
+  type CaseMinUrgency,
+} from '../cases/domain/case-urgency';
 
 export const SEARCH_PERIODS = ['24h', '7d', '30d', 'all'] as const;
 export type SearchPeriod = (typeof SEARCH_PERIODS)[number];
@@ -139,6 +147,34 @@ export class SearchCasesQueryDto extends SearchTextQueryDto {
   @IsBoolean()
   budgetUnknown?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Include cases with a percent (contingency) budget. Combined with a dollar range or "clarify later" the options are OR-ed.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  budgetPercent?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 100,
+    description:
+      'With budgetPercent: only percent budgets up to this whole percent.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  percentMax?: number;
+
   @ApiPropertyOptional({ description: 'Only cases nobody has bid on yet.' })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
@@ -150,6 +186,31 @@ export class SearchCasesQueryDto extends SearchTextQueryDto {
   )
   @IsBoolean()
   noBids?: boolean;
+
+  @ApiPropertyOptional({
+    enum: CASE_MIN_URGENCIES,
+    enumName: 'MinUrgency',
+    description:
+      'Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).',
+  })
+  @IsOptional()
+  @IsIn(CASE_MIN_URGENCIES)
+  minUrgency?: CaseMinUrgency;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  hasDeadline?: boolean;
 }
 
 export const POST_SORTS = ['relevance', 'newest', 'popular'] as const;
@@ -198,6 +259,18 @@ export class SearchPostsQueryDto extends SearchTextQueryDto {
   @IsBoolean()
   withPhotos?: boolean;
 
+  @ApiPropertyOptional({ description: 'Only text-only posts (Briefs).' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  briefsOnly?: boolean;
+
   @ApiPropertyOptional({ enum: POST_SORTS, default: 'relevance' })
   @IsOptional()
   @IsIn(POST_SORTS)
@@ -235,6 +308,21 @@ export class TagPostsQueryDto extends CursorQueryDto {
   @IsString()
   @Length(2, 2)
   state?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-02: only reels (posts with a video), newest first.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  videoOnly?: boolean;
 }
 
 export class TagDto {
@@ -247,6 +335,14 @@ export class TagDto {
     description: 'Posts in the last 7 days (trending only).',
   })
   postsCount!: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Practice category its posts mostly belong to (for the topic cover).',
+  })
+  categoryCode?: string | null;
 }
 
 export { PersonItemDto, type PeoplePage } from '../follows/follows.dto';
@@ -260,6 +356,25 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @IsString()
   @Length(2, 2)
   state?: string;
+
+  /** Owner 2026-10-06: several states at once (comma-separated) — posts of
+   * attorneys licensed in any of them. Joins `state` when both are sent. */
+  @ApiPropertyOptional({ example: 'IL,NY' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(180)
+  @Matches(/^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$/)
+  states?: string;
+
+  /** Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of
+   * these qualifications (comma-separated; a category includes its
+   * subcategories). */
+  @ApiPropertyOptional({ example: 'immigration,traffic.tickets' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  @Matches(/^[a-z0-9_.]{2,120}(,[a-z0-9_.]{2,120}){0,99}$/)
+  practices?: string;
 
   /** Owner 2026-09-30: a practice category or subcategory code; a
    * category includes its subcategories. */
@@ -300,13 +415,79 @@ export class LatestPostsQueryDto extends CursorQueryDto {
   @IsBoolean()
   withPhotos?: boolean;
 
+  @ApiPropertyOptional({ description: 'Only text-only posts (Briefs).' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  briefsOnly?: boolean;
+
   @ApiPropertyOptional({
-    enum: ['newest', 'popular'],
+    enum: ['newest', 'popular', 'for_you'],
     enumName: 'LatestPostsSort',
     default: 'newest',
-    description: 'popular = likes + comments, then newest (offset cursor).',
+    description:
+      'popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).',
   })
   @IsOptional()
-  @IsIn(['newest', 'popular'])
-  sort?: 'newest' | 'popular';
+  @IsIn(['newest', 'popular', 'for_you'])
+  sort?: 'newest' | 'popular' | 'for_you';
+
+  /** Owner 2026-10-05: only legal or only general (personal) posts — the
+   * "Posts" topic lists general ones. Absent = the viewer's feed setting. */
+  @ApiPropertyOptional({
+    enum: POST_CONTENT_CLASSES,
+    enumName: 'PostContentClass',
+  })
+  @IsOptional()
+  @IsIn(POST_CONTENT_CLASSES)
+  contentClass?: PostContentClass;
+}
+
+export class PracticeMatchDto {
+  @ApiProperty({ description: 'practice code, e.g. family_law.divorce' })
+  code!: string;
+
+  @ApiProperty()
+  nameEn!: string;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'the word that matched when it is not the English name',
+  })
+  hit!: string | null;
+}
+
+export class SuggestionDto {
+  @ApiProperty({ enum: ['tag', 'person', 'practice'] })
+  kind!: 'tag' | 'person' | 'practice';
+
+  @ApiProperty()
+  text!: string;
+}
+
+/** Owner 2026-10-15: a result the person opened after a query (the search
+ * learns "query → topic" from these). */
+export class SearchClickDto {
+  @ApiProperty({ description: 'The text that was searched.' })
+  @IsString()
+  @Length(3, 100)
+  q!: string;
+
+  @ApiProperty({ enum: ['case', 'post', 'attorney', 'practice'] })
+  @IsIn(['case', 'post', 'attorney', 'practice'])
+  targetType!: 'case' | 'post' | 'attorney' | 'practice';
+
+  @ApiProperty({
+    description: 'Id of the opened result (a code for a practice).',
+  })
+  @IsString()
+  @Length(1, 64)
+  targetId!: string;
 }

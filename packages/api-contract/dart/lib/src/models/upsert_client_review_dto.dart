@@ -16,7 +16,7 @@ class UpsertClientReviewDto {
   final num rating;
   final String? body;
 
-  /// Owner 2026-10-01 (Google Maps-style): up to 10 `review_photo` files.
+  /// Owner 2026-10-01 (Google Maps-style): `review_photo` files (count: admin, bug 17).
   final List<String>? photoIds;
 
   Map<String, Object?> toJson() => _$UpsertClientReviewDtoToJson(this);

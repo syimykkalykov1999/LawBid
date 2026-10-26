@@ -1,4 +1,8 @@
+import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
+import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { CasePhotosService } from './services/case-photos.service';
+import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
@@ -8,10 +12,14 @@ import { FilesModule } from '../files/files.module';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
+import { ReferralsCoreModule } from '../referrals/referrals.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { UsersModule } from '../users/users.module';
+import { BidDetailController } from './case-bids/bid-detail.controller';
 import { CaseBidsController } from './case-bids/case-bids.controller';
 import { CaseBidsService } from './case-bids/case-bids.service';
+import { CaseInvitesController } from './case-invites/case-invites.controller';
+import { CaseInvitesService } from './case-invites/case-invites.service';
 import { CasesController } from './cases.controller';
 import { CasesFeedController } from './cases-feed.controller';
 import { CasesService } from './cases.service';
@@ -25,8 +33,12 @@ import { CaseDisputesAdminController } from './lifecycle/case-disputes-admin.con
 import { CaseLifecycleController } from './lifecycle/case-lifecycle.controller';
 import { CaseLifecycleModule } from './lifecycle/case-lifecycle.module';
 import { CaseAccessPolicy } from './policies/case-access.policy';
+import { CaseWorkspaceController } from './workspace/case-workspace.controller';
+import { CaseWorkspaceService } from './workspace/case-workspace.service';
 import { CaseViewTrackingService } from './services/case-view-tracking.service';
 import { CasesFeedService } from './services/cases-feed.service';
+import { ClientActivityService } from './services/client-activity.service';
+import { PresenceModule } from '../presence/presence.module';
 
 /** docs/04_CASES_BIDS.md §3 (stage 4.2): case creation and management
  * (CasesService, CasesController) on top of the stage 4.1 case lifecycle
@@ -38,6 +50,8 @@ import { CasesFeedService } from './services/cases-feed.service';
 @Module({
   imports: [
     UsersModule,
+    LegalAcceptanceModule,
+    UsageLimitsModule,
     ChatSystemModule,
     BidsModule,
     JournalModule,
@@ -53,12 +67,24 @@ import { CasesFeedService } from './services/cases-feed.service';
     AuthModule,
     // docs/05 §4: /saved-items also saves posts.
     PostsModule,
+    // Owner 2026-10-02: referral qualification on the first case.
+    ReferralsCoreModule,
+    // Owner 2026-10-05: promoted cases in the feed (budget, reach, cap).
+    PromotionsCoreModule,
+    // Owner 2026-10-13: "for you" ranking in Search.
+    RecommendationsModule,
+    // Owner 2026-10-18 (OQ-054): «В сети / Был …» on the feed card.
+    PresenceModule,
   ],
   controllers: [
     CasesController,
     CasesFeedController,
     CaseBidsController,
+    BidDetailController,
+    // Owner 2026-10-05: client → attorney case invites.
+    CaseInvitesController,
     CaseContactsController,
+    CaseWorkspaceController,
     ContactIssuesAdminController,
     CaseLifecycleController,
     CaseDisputesAdminController,
@@ -68,14 +94,24 @@ import { CasesFeedService } from './services/cases-feed.service';
     CasesService,
     // OQ-031: case photos.
     CasePhotosService,
+    CaseWorkspaceService,
     CaseStateMachine,
     CaseAccessPolicy,
     CasesFeedService,
+    ClientActivityService,
     CaseViewTrackingService,
     CaseBidsService,
+    CaseInvitesService,
     CaseContactsService,
     MineService,
   ],
-  exports: [CasesService, CaseStateMachine, CaseAccessPolicy, CasesFeedService],
+  exports: [
+    CasesService,
+    CaseStateMachine,
+    CaseAccessPolicy,
+    CasesFeedService,
+    // Owner 2026-10-20: the case tools read the same two sides of a case.
+    CaseWorkspaceService,
+  ],
 })
 export class CasesModule {}

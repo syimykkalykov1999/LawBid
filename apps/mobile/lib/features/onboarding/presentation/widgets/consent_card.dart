@@ -30,7 +30,7 @@ class ConsentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final Color borderColor = value
+    final borderColor = value
         ? colors.gold
         : showError
             ? colors.danger
@@ -50,7 +50,7 @@ class ConsentCard extends StatelessWidget {
                     ? Duration.zero
                     : AppMotion.stateChange,
                 curve: AppMotion.enterCurve,
-                padding: const EdgeInsets.all(AppSpacing.md),
+                padding: const EdgeInsets.all(AppSpacing.sm + 2),
                 decoration: BoxDecoration(
                   color: colors.surface,
                   borderRadius: BorderRadius.circular(AppRadii.roleCard),
@@ -64,7 +64,11 @@ class ConsentCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        AppIcon(icon, size: AppSizes.iconSm, color: colors.gold),
+                        AppIcon(
+                          icon,
+                          size: AppSizes.iconSm,
+                          color: colors.iconTint,
+                        ),
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
@@ -77,7 +81,8 @@ class ConsentCard extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.xl),
+                      padding:
+                          const EdgeInsetsDirectional.only(end: AppSpacing.xl),
                       child: Text(
                         description,
                         style: typography.bodySmall
@@ -87,8 +92,8 @@ class ConsentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Positioned(
-                right: AppSpacing.md,
+              PositionedDirectional(
+                end: AppSpacing.md,
                 bottom: AppSpacing.md,
                 child: AnimatedContainer(
                   duration: context.reduceMotion
@@ -110,8 +115,11 @@ class ConsentCard extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: value
-                      ? AppIcon(AppIcons.check,
-                          size: AppSizes.iconSm * 0.65, color: colors.navy)
+                      ? AppIcon(
+                          AppIcons.check,
+                          size: AppSizes.iconSm * 0.65,
+                          color: colors.navy,
+                        )
                       : null,
                 ),
               ),

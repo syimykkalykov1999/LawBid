@@ -18,6 +18,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -32,6 +33,19 @@ import {
 
 const trim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
+
+/** Owner 2026-10-05: `attorney_licenses.registry_flag` values. */
+export const REGISTRY_FLAGS = [
+  'name_mismatch',
+  'not_found',
+  'not_active',
+  // Owner 2026-10-05 (trust levels): another account tried to register
+  // this bar number.
+  'duplicate_claim',
+  // Owner 2026-10-16: the number's shape did not match the state's rule; a
+  // person decides with the bar card.
+  'format_unusual',
+] as const;
 
 export const QUEUE_PAGE_DEFAULT = 20;
 export const QUEUE_PAGE_MAX = 50;
@@ -65,6 +79,14 @@ export class AdminLicenseIdParamDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID('all')
   licenseId!: string;
+}
+
+/** Owner 2026-10-24: an admin sets or clears a license's expiry date. */
+export class SetLicenseExpiryDto {
+  @ApiProperty({ type: String, format: 'date', nullable: true })
+  @ValidateIf((_, v) => v !== null)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'expiresAt must be YYYY-MM-DD' })
+  expiresAt!: string | null;
 }
 
 export class AdminAttorneyIdParamDto {
@@ -159,12 +181,12 @@ export class RejectRequestDto {
 }
 
 export class SuspendAttorneyDto {
-  @ApiProperty({ type: String, maxLength: SUSPEND_REASON_MAX })
+  @ApiPropertyOptional({ type: String, maxLength: SUSPEND_REASON_MAX })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(SUSPEND_REASON_MAX)
-  reason!: string;
+  reason = '';
 }
 
 // ---- responses ----------------------------------------------------------
@@ -209,6 +231,13 @@ export class VerificationQueueItemDto {
   })
   stateCodes!: string[];
 
+  @ApiProperty({
+    description:
+      "Owner 2026-10-18: a license of this request does not fit its state's " +
+      'format and the attorney sent it for manual review (bar card attached).',
+  })
+  formatReview!: boolean;
+
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   reviewerId!: string | null;
 
@@ -245,12 +274,45 @@ export class AdminLicenseDto {
   expiresAt!: string | null;
 
   @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['registry', 'attorney', 'admin'],
+    description: 'Owner 2026-10-24: who set expiresAt.',
+  })
+  expiresSource!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: ['ok', 'expiring', 'renewal_due', 'expired'],
+    description:
+      'Owner 2026-10-24: renewal_due = the date passed, grace period running (badge hidden, «требует продления»); null = no date or not a verified license.',
+  })
+  renewalState!: 'ok' | 'expiring' | 'renewal_due' | 'expired' | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date',
+    nullable: true,
+    description: 'Last day of the grace period (expiresAt + grace days).',
+  })
+  graceEndsAt!: string | null;
+
+  @ApiProperty({
     type: 'object',
     additionalProperties: true,
     nullable: true,
     description: 'Latest automatic bar lookup (§2.4), null if none ran.',
   })
   autoCheckResult!: Record<string, unknown> | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      "The state bar's public lookup page for this license (profile page when the state has one per number).",
+  })
+  lookupUrl!: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   rejectionCode!: string | null;
@@ -263,6 +325,44 @@ export class AdminLicenseDto {
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   decidedBy!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    enum: REGISTRY_FLAGS,
+    description:
+      'Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified).',
+  })
+  registryFlag!: (typeof REGISTRY_FLAGS)[number] | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  registryFlaggedAt!: string | null;
+}
+
+export class RegistryFlagItemDto {
+  @ApiProperty({ type: AdminAttorneySummaryDto })
+  attorney!: AdminAttorneySummaryDto;
+
+  @ApiProperty({ type: () => AdminLicenseDto })
+  license!: AdminLicenseDto;
+
+  @ApiProperty({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: "The attorney's latest verification request (its card).",
+  })
+  latestRequestId!: string | null;
+}
+
+export class RegistryCheckDto {
+  @ApiProperty({ type: () => AdminLicenseDto })
+  license!: AdminLicenseDto;
+
+  @ApiProperty({ enum: CheckResult, enumName: 'CheckResult' })
+  result!: CheckResult;
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  details!: Record<string, unknown>;
 }
 
 export class AdminDocumentDto {
@@ -286,6 +386,13 @@ export class AdminDocumentDto {
 
   @ApiProperty({ enum: ScanStatus, enumName: 'ScanStatus' })
   scanStatus!: ScanStatus;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "The attorney's note sent with this document.",
+  })
+  notes!: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
@@ -366,6 +473,25 @@ export class AdminVerificationRequestDto {
 
   @ApiProperty({ type: String, format: 'uuid', nullable: true })
   reviewerId!: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description:
+      'Owner 2026-10-04: when the attorney confirmed the licenses under the sworn statement',
+  })
+  attestedAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  attestationIp!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Version of the sworn-statement text the attorney accepted',
+  })
+  attestationVersion!: string | null;
 
   @ApiProperty({ type: String, nullable: true })
   applicantComment!: string | null;

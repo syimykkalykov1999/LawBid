@@ -15,7 +15,7 @@ import type { AuthEventService } from '../src/modules/auth/services/auth-event.s
  * method runs), after ANALYZE, and must not FULL SCAN sessions.
  */
 describe('DB sessions — (user_id, device_id) lookup (e2e)', () => {
-  // App boot + CockroachDB fixtures exceed Jest's 5 s default under load.
+  // App boot + PostgreSQL fixtures exceed Jest's 5 s default under load.
   jest.setTimeout(60_000);
 
   const prisma = new PrismaClient({ log: [{ emit: 'event', level: 'query' }] });
@@ -76,7 +76,7 @@ describe('DB sessions — (user_id, device_id) lookup (e2e)', () => {
     );
   });
 
-  it('EXPLAIN of the exact isNewDevice query uses the (user_id, device_id) index, no FULL SCAN', async () => {
+  it('EXPLAIN of the exact isNewDevice query uses the (user_id, device_id) index, no sequential scan', async () => {
     captured.length = 0;
     await sessions.isNewDevice(userIds[7], 'dev-7-1');
     const lookup = captured.find((c) =>
@@ -86,22 +86,29 @@ describe('DB sessions — (user_id, device_id) lookup (e2e)', () => {
     const { query, params } = lookup!;
     expect(query).toMatch(/"user_id" = \$1 AND .*"device_id" = \$2/);
 
-    const plan = await prisma.$queryRawUnsafe<{ info: string }[]>(
-      `EXPLAIN ${query}`,
-      ...(JSON.parse(params) as unknown[]),
-    );
-    const text = plan.map((r) => r.info).join('\n');
-    expect(text).not.toMatch(/FULL SCAN/);
-    expect(text).toContain('sessions@sessions_user_id_device_id_idx');
+    const text = await prisma.$transaction(async (tx) => {
+      // Small tables are cheapest to scan; forbidding a seq scan shows
+      // whether the index is usable at all.
+      await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off');
+      const plan = await tx.$queryRawUnsafe<Record<string, string>[]>(
+        `EXPLAIN ${query.replace('$1', '$1::uuid')}`,
+        ...(JSON.parse(params) as unknown[]),
+      );
+      return plan.map((r) => Object.values(r)[0]).join('\n');
+    });
+    expect(text).not.toMatch(/Seq Scan/);
+    expect(text).toContain('sessions_user_id_device_id_idx');
   });
 
   it('the index exists with the expected columns', async () => {
-    const rows = await prisma.$queryRawUnsafe<
-      { column_name: string; seq_in_index: bigint; implicit: boolean }[]
-    >(
-      `SELECT column_name, seq_in_index, implicit FROM [SHOW INDEXES FROM sessions]
-       WHERE index_name = 'sessions_user_id_device_id_idx' AND NOT implicit
-       ORDER BY seq_in_index`,
+    const rows = await prisma.$queryRawUnsafe<{ column_name: string }[]>(
+      `SELECT a.attname AS column_name
+         FROM pg_index i
+         JOIN pg_class c ON c.oid = i.indexrelid
+         JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, pos) ON true
+         JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
+        WHERE c.relname = 'sessions_user_id_device_id_idx'
+        ORDER BY k.pos`,
     );
     expect(rows.map((r) => r.column_name)).toEqual(['user_id', 'device_id']);
   });

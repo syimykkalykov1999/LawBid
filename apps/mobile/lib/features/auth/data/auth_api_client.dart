@@ -1,9 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
-
-import '../../../core/network/api_error.dart';
-import '../../../core/network/request_flags.dart';
-import 'auth_dtos.dart';
 
 /// One method per `/auth/*` endpoint the app uses (docs/01_FOUNDATION_AUTH.md
 /// §10.5), on top of the generated client (`package:lawbid_api`, docs/01
@@ -20,7 +19,7 @@ class AuthApiClient {
   final api.UsersClient _users;
 
   /// otp/request, otp/verify, social, and refresh issue or exchange
-  /// tokens, so [AuthInterceptor] (core/network/auth_interceptor.dart) must
+  /// tokens, so `AuthInterceptor` (core/network/auth_interceptor.dart) must
   /// not attach an Authorization header to them, and a 401 from one of
   /// these must never trigger the silent-refresh retry loop.
   static const Map<String, dynamic> _skipAuth = {RequestFlags.skipAuth: true};
@@ -62,8 +61,60 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// Owner 2026-10-04: `POST /auth/assistant/code` — the attorney's
+  /// one-time code for an assistant seat; issues tokens like [verifyOtp].
+  Future<AuthTokensResult> assistantCodeLogin({
+    required String code,
+    DeviceInfo? deviceInfo,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.assistantCodeLogin(
+        body: api.AssistantCodeLoginDto(code: code, deviceInfo: deviceInfo),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// Owner 2026-10-20: the website's sign-in QR code (`POST /auth/qr`).
+  Future<api.QrLoginCreatedDto> qrCreate() async {
+    final envelope = await guardApiCall(
+      () => _auth.qrCreate(
+        body: const api.QrLoginCreateDto(),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `POST /auth/qr/poll` — the website waits for the phone's answer.
+  Future<api.QrLoginPollResultDto> qrPoll({
+    required String qrId,
+    required String pollSecret,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.qrPoll(
+        body: api.QrLoginPollDto(qrId: qrId, pollSecret: pollSecret),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `GET /auth/qr/{qrId}` — the phone scanned the code: which browser?
+  Future<api.QrLoginPreviewDto> qrPreview(String qrId) async {
+    final envelope = await guardApiCall(() => _auth.qrPreview(qrId: qrId));
+    return envelope.data;
+  }
+
+  /// `POST /auth/qr/{qrId}/approve` | `/reject`.
+  Future<void> qrAnswer(String qrId, {required bool approve}) => guardApiCall(
+        () =>
+            approve ? _auth.qrApprove(qrId: qrId) : _auth.qrReject(qrId: qrId),
+      );
+
   /// `POST /auth/otp/verify-link` — email magic link: the link's one-time
-  /// [token] plus the [verifier] this device stored when it requested the
+  /// `token` plus the `verifier` this device stored when it requested the
   /// code. Issues tokens like [verifyOtp] (same `_skipAuth`).
   /// Owner 2026-10-01: finish a sign-in that signs another phone / browser
   /// out (after `AUTH_OTHER_DEVICE_ACTIVE`).
@@ -84,7 +135,101 @@ class AuthApiClient {
   }) async {
     final envelope = await guardApiCall(
       () => _auth.verifyOtpLink(
-        body: api.OtpVerifyLinkDto(token: token, verifier: verifier, deviceInfo: deviceInfo),
+        body: api.OtpVerifyLinkDto(
+          token: token,
+          verifier: verifier,
+          deviceInfo: deviceInfo,
+        ),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `POST /auth/phone/status` — is this number registered, and does the
+  /// account have a password.
+  Future<({bool registered, bool hasPassword})> phoneStatus(
+    String identifier,
+  ) async {
+    final envelope = await guardApiCall(
+      () => _auth.phoneStatus(
+        body: api.PhoneStatusDto(identifier: identifier),
+        extras: _skipAuth,
+      ),
+    );
+    return (
+      registered: envelope.data.registered,
+      hasPassword: envelope.data.hasPassword,
+    );
+  }
+
+  /// Owner 2026-10-13: `POST /auth/password/login` — sign in with a phone
+  /// number or e-mail and the password (no SMS); issues tokens.
+  Future<AuthTokensResult> passwordLogin({
+    required String identifier,
+    required String password,
+    DeviceInfo? deviceInfo,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.passwordLogin(
+        body: api.PasswordLoginDto(
+          identifier: identifier,
+          password: password,
+          deviceInfo: deviceInfo,
+        ),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data;
+  }
+
+  /// `POST /auth/password` — sets the password of the signed-in account.
+  /// Owner 2026-10-22 (security audit #3): [reauthToken] from
+  /// `POST /auth/reauth` when the server asks for it (no password yet and
+  /// the sign-in is not fresh).
+  Future<void> setPassword(
+    String password, {
+    String? currentPassword,
+    String? reauthToken,
+  }) =>
+      guardApiCall(
+        () => _auth.setPassword(
+          body: api.SetPasswordDto(
+            password: password,
+            currentPassword: currentPassword,
+          ),
+          xReauthToken: reauthToken,
+        ),
+      );
+
+  /// `POST /auth/password/reset/request` — a code to the account's verified
+  /// e-mail, else an SMS. Returns where it went (`email` | `phone`).
+  Future<String> requestPasswordReset(String identifier) async {
+    final envelope = await guardApiCall(
+      () => _auth.passwordResetRequest(
+        body: api.PasswordResetRequestDto(identifier: identifier),
+        extras: _skipAuth,
+      ),
+    );
+    return envelope.data.channel.json ?? 'phone';
+  }
+
+  /// `POST /auth/password/reset/confirm` — the code + a new password;
+  /// issues tokens.
+  Future<AuthTokensResult> confirmPasswordReset({
+    required String identifier,
+    required String code,
+    required String newPassword,
+    DeviceInfo? deviceInfo,
+  }) async {
+    final envelope = await guardApiCall(
+      () => _auth.passwordResetConfirm(
+        body: api.PasswordResetConfirmDto(
+          identifier: identifier,
+          code: code,
+          newPassword: newPassword,
+          deviceInfo: deviceInfo,
+        ),
         extras: _skipAuth,
       ),
     );
@@ -100,21 +245,28 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// [isDemo]: the stored refresh token belongs to a demo session, so the
+  /// request must carry the demo header even before a session exists in
+  /// memory (docs/ops/demo-world.md; `RequestFlags.demo`).
   Future<AuthTokensResult> refresh({
     required String refreshToken,
     DeviceInfo? deviceInfo,
+    bool isDemo = false,
   }) async {
     final envelope = await guardApiCall(
       () => _auth.refresh(
-        body: api.RefreshTokenDto(refreshToken: refreshToken, deviceInfo: deviceInfo),
-        extras: _skipAuth,
+        body: api.RefreshTokenDto(
+          refreshToken: refreshToken,
+          deviceInfo: deviceInfo,
+        ),
+        extras: isDemo ? {..._skipAuth, RequestFlags.demo: true} : _skipAuth,
       ),
     );
     return envelope.data;
   }
 
   /// No `skipAuth` here — `POST /auth/logout` isn't `@Public()` on the
-  /// backend, it needs the bearer token, so [AuthInterceptor] must attach
+  /// backend, it needs the bearer token, so `AuthInterceptor` must attach
   /// it normally.
   Future<void> logout() => guardApiCall(_auth.logout);
 
@@ -141,7 +293,10 @@ class AuthApiClient {
   /// the single-use `reauthToken` (5 minutes, `REAUTH_TOKEN_TTL_SECONDS`)
   /// for the `X-Reauth-Token` header of a sensitive action — see
   /// [deleteAccount].
-  Future<String> reauth({required String identifier, required String code}) async {
+  Future<String> reauth({
+    required String identifier,
+    required String code,
+  }) async {
     final envelope = await guardApiCall(
       () => _auth.reauth(
         body: api.ReauthDto(

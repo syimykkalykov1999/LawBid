@@ -1,15 +1,27 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/network/contract_extras.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
-    show ScanOutcome, sha256Hex, sniffImageMime;
+    show sniffImageMime;
+import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+
+export 'package:lawbid/features/social/domain/post_text.dart'
+    show kPostTitleMaxChars;
 
 /// docs/05 §3.2: post photos up to 10 MB each; at most 9 per post (owner
 /// 2026-09-30, same as cases).
@@ -19,8 +31,40 @@ const kPostMaxPhotos = 9;
 /// docs/05 §3.1: post text limit (server-enforced too).
 const kPostMaxChars = 2200;
 
-/// Owner 2026-09-30: the card title limit (server-enforced too).
-const kPostTitleMaxChars = 120;
+/// Owner 2026-10-15: a text-only brief is up to 3000 characters (the live
+/// value is `post.max_chars_brief` from the admin panel).
+const kThreadMaxChars = 3000;
+
+/// Owner 2026-10-05: up to 9 documents (PDF, Word, text) per post, each
+/// ≤ `files.post_attachment_max_size_mb` (10 MB by default; the server
+/// enforces it and the total `posts.attachments_max_total_mb`).
+const kPostMaxDocuments = 9;
+const kPostDocumentDefaultMaxMb = 10;
+const kPostDocumentsDefaultTotalMb = 30;
+
+/// MIME of a post document by its name, or null when not allowed.
+String? postDocumentMimeForName(String name) {
+  final dot = name.lastIndexOf('.');
+  final ext = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+  return switch (ext) {
+    'pdf' => kPdfMime,
+    'doc' => 'application/msword',
+    'docx' =>
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'txt' => 'text/plain',
+    'rtf' => 'application/rtf',
+    'odt' => 'application/vnd.oasis.opendocument.text',
+    _ => null,
+  };
+}
+
+/// An uploaded document and the name readers download it under.
+class PostDocumentRef {
+  const PostDocumentRef({required this.fileId, required this.fileName});
+
+  final String fileId;
+  final String fileName;
+}
 
 /// What "+" publishes (owner 2026-09-30): title, text, the qualification,
 /// Post or News (attorneys), photos in order.
@@ -32,13 +76,34 @@ class PostDraft {
     this.isNews = false,
     this.mediaFileIds = const [],
     this.videoAssetId,
+    this.locationName,
+    this.commentsEnabled = true,
+    this.attachments = const [],
+    this.markedLegal = false,
+    this.idempotencyKey,
   });
+
+  /// Owner 2026-10-22 (audit #4 §3): a queued reel publishes with its job
+  /// id as the key, so a repeat after a restart returns the same post.
+  final String? idempotencyKey;
+
+  /// Owner 2026-10-05: without a topic a post is general (personal); the
+  /// author marks it legal here. A topic or News is always legal.
+  final bool markedLegal;
+
+  /// Owner 2026-10-05: documents in order (≤ [kPostMaxDocuments]).
+  final List<PostDocumentRef> attachments;
 
   /// Owner 2026-10-01: a reel — the uploaded video instead of photos.
   final String? videoAssetId;
 
+  /// Owner 2026-10-02: place shown under the author's name.
+  final String? locationName;
+  final bool commentsEnabled;
+
   final String title;
   final String body;
+
   /// Owner 2026-10-01: optional (general news has no area of law).
   final String? practiceCode;
   final bool isNews;
@@ -46,7 +111,7 @@ class PostDraft {
 }
 
 /// docs/05 §5.1: comment length 1–1000.
-const kCommentMaxChars = 1000;
+int get kCommentMaxChars => TextLimits.of(TextLimit.comment);
 
 /// Owner 2026-09-30 (OQ-034): comments under a case reuse the post comment
 /// UI. A case thread id and its comment ids carry this prefix, so the
@@ -88,8 +153,17 @@ const Map<String, dynamic> _createsResource = {
 
 /// docs/05 §2–§6 for the app: feed, posts, likes, saves, comments,
 /// follows, suggestions, tag pages, reports. Throws [ApiException].
+/// Owner 2026-10-18: a profile's tabs Посты | Рилсы | Брифы и репосты —
+/// [video] video posts / reels, [visual] photo or file posts without a
+/// video, [text] text-only briefs.
+enum ProfileMedia { video, visual, text }
+
 /// Network access only through here (.cursorrules).
 abstract interface class SocialRepository {
+  /// Owner 2026-10-13: whether the viewer may add files, documents, extra
+  /// photos to a post or reel (server flag + plan).
+  Future<bool> attachmentsAllowed();
+
   Future<CursorPage<Post>> feed({String? cursor});
 
   /// The last first page seen online (docs/05 §2.2.6), for offline.
@@ -97,10 +171,13 @@ abstract interface class SocialRepository {
   Future<Post> post(String id);
 
   /// [newsOnly]: the profile's News tab (owner 2026-09-30).
+  /// [media]: the profile's Posts / Reels tabs (owner 2026-10-18), filtered
+  /// by the server so every page is full.
   Future<CursorPage<Post>> attorneyPosts(
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   });
   Future<CursorPage<Post>> tagPosts(
     String tag,
@@ -108,6 +185,15 @@ abstract interface class SocialRepository {
     String? cursor,
     String? state,
   });
+
+  /// Owner 2026-10-18: the "Reposts" profile tab of any user.
+  Future<CursorPage<Post>> userReposts(String userId, {String? cursor});
+
+  /// Owner 2026-10-18: who reposted a post (avatar, name, follow).
+  Future<CursorPage<PersonRow>> postReposters(String postId, {String? cursor});
+
+  /// Owner 2026-10-20: people who liked a post (the like counter's tap).
+  Future<CursorPage<PersonRow>> postLikers(String postId, {String? cursor});
 
   /// OQ-034: newest posts (of attorneys licensed in [state] when given);
   /// owner 2026-09-30: of a qualification ([practice], a category with its
@@ -121,7 +207,16 @@ abstract interface class SocialRepository {
     // Audit 2026-10-01: Search-tab filters on the server.
     String? period,
     bool withPhotos = false,
+    bool briefsOnly = false,
     bool popular = false,
+    // Owner 2026-10-13: ranked for the viewer (the Search grid's default).
+    bool forYou = false,
+    // Owner 2026-10-05: the "Posts" topic — general (personal) posts only.
+    bool generalOnly = false,
+    // Owner 2026-10-06: several states at once, and «Юр. посты» →
+    // «Только мои темы» (any of these qualifications).
+    List<String> states = const [],
+    List<String> practices = const [],
   });
   Future<Post> createPost(PostDraft draft);
   Future<Post> updatePost(
@@ -129,12 +224,40 @@ abstract interface class SocialRepository {
     required String body,
     String? title,
     String? practiceCode,
+    bool? markedLegal,
   });
   Future<void> deletePost(String id);
+
+  /// Owner 2026-10-15: hide / show the like and view counters of an own post.
+  Future<Post> setPostCounters(String id, {bool? hideLikes, bool? hideViews});
+
+  /// Owner 2026-10-12: pin an own post to slot 1..3 / take it off.
+  Future<Post> pinPost(String id, int slot);
+  Future<Post> unpinPost(String id);
+
+  /// Owner 2026-10-18 (Instagram): the author turns comments of an own post
+  /// on / off (off: no new comments, the existing ones hidden).
+  Future<Post> setPostCommentsEnabled(String id, {required bool enabled});
+
+  /// Owner 2026-10-18: «Архивировать» / «Показать в профиле».
+  Future<Post> setPostArchived(String id, {required bool archived});
+
+  /// Owner 2026-10-18: Settings → «Архив», newest archived first.
+  Future<CursorPage<Post>> archivedPosts({String? cursor});
+
+  /// Owner 2026-10-05: the feed shows legal posts only (general, personal
+  /// posts hidden in the feed, topics, search and recommendations).
+  Future<String> feedContentMode();
+  Future<void> setFeedContentMode(String mode);
   Future<void> setLiked(String postId, {required bool liked});
+
+  /// Owner 2026-10-07: Threads-style repost / undo (idempotent).
+  Future<void> setReposted(String postId, {required bool reposted});
 
   /// OQ-037: count a completed share of a post / a case.
   Future<void> recordPostShare(String postId);
+
+  /// Owner 2026-10-12: a video post / reel was watched (once per viewer).
   Future<void> recordCaseShare(String caseId);
   Future<void> setSaved(String postId, {required bool saved});
   Future<CursorPage<SavedPost>> savedPosts({String? cursor});
@@ -145,15 +268,26 @@ abstract interface class SocialRepository {
   Future<void> deleteComment(String commentId);
   Future<void> setCommentLiked(String commentId, {required bool liked});
 
-  Future<void> setFollowing(String attorneyId, {required bool following});
+  /// Answers the new state and follower count (applied locally).
+  Future<FollowState> setFollowing(
+    String attorneyId, {
+    required bool following,
+  });
 
   /// OQ-026: attorneys and clients who follow [attorneyId].
+  ///
+  /// Owner 2026-10-18: [q] — name (any alphabet, typos) or @username; the
+  /// server matches.
   Future<CursorPage<PersonRow>> followers(
     String attorneyId, {
     String? cursor,
+    String? q,
   });
-  Future<CursorPage<PersonRow>> following(String attorneyId, {String? cursor});
-  Future<CursorPage<AttorneyRow>> myFollowing({String? cursor});
+  Future<CursorPage<PersonRow>> following(
+    String attorneyId, {
+    String? cursor,
+    String? q,
+  });
   Future<CursorPage<AttorneyRow>> suggestions({String? cursor});
 
   Future<void> report(
@@ -164,13 +298,30 @@ abstract interface class SocialRepository {
   });
 
   /// Presign → upload → confirm → wait for a clean scan; returns the file
-  /// id to attach to a post (docs/05 §3.2).
+  /// id to attach to a post (docs/05 §3.2). [fileName] names a case
+  /// document by extension; [maxBytes] is the admin's MB per file.
   Future<String> uploadPostPhoto(
     Uint8List bytes, {
     void Function(double progress)? onProgress,
     bool casePhoto = false,
     bool reviewPhoto = false,
+    String? fileName,
+    int? maxBytes,
   });
+
+  /// Owner 2026-10-05: a post document (PDF, Word, text) through the same
+  /// pipeline; returns the clean file id. [maxBytes] is the admin limit.
+  Future<String> uploadPostDocument(
+    Uint8List bytes,
+    String mime, {
+    required int maxBytes,
+    void Function(double progress)? onProgress,
+  });
+}
+
+String? _queryOrNull(String? q) {
+  final v = q?.trim();
+  return v == null || v.isEmpty ? null : v;
 }
 
 class ApiSocialRepository implements SocialRepository {
@@ -189,8 +340,12 @@ class ApiSocialRepository implements SocialRepository {
         _search = api.SearchClient(apiDio),
         _cases = api.CasesClient(apiDio),
         _reports = api.ReportsClient(apiDio),
-        _files = api.FilesClient(apiDio),
-        _storage = storageDio;
+        _uploader = StorageUploader.dio(
+          apiDio,
+          storageDio,
+          scanPoll: _scanPoll,
+          scanMaxPolls: _scanMaxPolls,
+        );
 
   final api.FeedClient _feed;
   final api.PostsClient _posts;
@@ -200,8 +355,7 @@ class ApiSocialRepository implements SocialRepository {
   final api.SearchClient _search;
   final api.CasesClient _cases;
   final api.ReportsClient _reports;
-  final api.FilesClient _files;
-  final Dio _storage;
+  final StorageUploader _uploader;
   final SocialLocalDatabase _local;
   final String? _ownerId;
 
@@ -213,13 +367,33 @@ class ApiSocialRepository implements SocialRepository {
     final env = await guardApiCall(() => _feed.getFeed(cursor: cursor));
     final owner = _ownerId;
     if (cursor == null && owner != null) {
-      await _local.savePage('feed:$owner', jsonEncode(env.toJson()));
+      // Owner 2026-10-18 (speed): the offline copy is written in the
+      // background — the first page is on screen without waiting for the
+      // disk; a failed write only means no offline copy this time.
+      unawaited(
+        _local
+            .savePage('feed:$owner', jsonEncode(env.toJson()))
+            .catchError((Object e) => debugPrint('feed cache write: $e')),
+      );
     }
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
       nextCursor: env.meta?.nextCursor,
     );
   }
+
+  @override
+  Future<String> feedContentMode() async =>
+      (await guardApiCall(_feed.getPreferences)).data.contentMode.json ?? 'all';
+
+  @override
+  Future<void> setFeedContentMode(String mode) => guardApiCall(
+        () => _feed.setPreferences(
+          body: api.FeedPreferencesDto(
+            contentMode: api.FeedContentMode.fromJson(mode),
+          ),
+        ),
+      );
 
   @override
   Future<CursorPage<Post>?> cachedFeed() async {
@@ -239,24 +413,76 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
+  Future<bool> attachmentsAllowed() async =>
+      (await guardApiCall(_posts.attachmentsAllowed)).data.allowed;
+
+  @override
   Future<Post> post(String id) async => SocialMappers.post(
-      (await guardApiCall(() => _posts.getPost(id: id))).data);
+        (await guardApiCall(() => _posts.getPost(id: id))).data,
+      );
 
   @override
   Future<CursorPage<Post>> attorneyPosts(
     String attorneyId, {
     String? cursor,
     bool newsOnly = false,
+    ProfileMedia? media,
   }) async {
     final env = await guardApiCall(
       () => _posts.listAttorneyPosts(
         id: attorneyId,
         cursor: cursor,
-        kind: newsOnly ? api.PostKind.news : null,
+        // The Posts tab must not repeat the News tab's items.
+        kind: newsOnly ? api.PostKind.news : api.PostKind.post,
+        media: switch (media) {
+          null => null,
+          ProfileMedia.video => api.PostMediaFilter.video,
+          ProfileMedia.visual => api.PostMediaFilter.visual,
+          ProfileMedia.text => api.PostMediaFilter.text,
+        },
       ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<Post>> userReposts(String userId, {String? cursor}) async {
+    final env = await guardApiCall(
+      () => _posts.listUserReposts(id: userId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<PersonRow>> postLikers(
+    String postId, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _posts.listLikers(id: postId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
+
+  @override
+  Future<CursorPage<PersonRow>> postReposters(
+    String postId, {
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _posts.listReposters(id: postId, cursor: cursor),
+    );
+    return CursorPage(
+      items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
       nextCursor: env.meta?.nextCursor,
     );
   }
@@ -274,6 +500,7 @@ class ApiSocialRepository implements SocialRepository {
         sort: sort == TagSort.top ? api.Sort3.top : api.Sort3.valueNew,
         cursor: cursor,
         state: state,
+        videoOnly: sort == TagSort.video ? true : null,
       ),
     );
     return CursorPage(
@@ -291,18 +518,31 @@ class ApiSocialRepository implements SocialRepository {
     bool newsOnly = false,
     String? period,
     bool withPhotos = false,
+    bool briefsOnly = false,
     bool popular = false,
+    bool forYou = false,
+    bool generalOnly = false,
+    List<String> states = const [],
+    List<String> practices = const [],
   }) async {
     final env = await guardApiCall(
       () => _search.latestPosts(
         state: state,
+        states: states.isEmpty ? null : states.join(','),
+        practices: practices.isEmpty ? null : practices.join(','),
         cursor: cursor,
         practice: practice,
         tag: tag,
         kind: newsOnly ? api.PostKind.news : null,
         period: period == null ? null : api.Period.fromJson(period),
         withPhotos: withPhotos ? true : null,
-        sort: popular ? api.LatestPostsSort.popular : null,
+        briefsOnly: briefsOnly ? true : null,
+        sort: forYou
+            ? api.LatestPostsSort.forYou
+            : popular
+                ? api.LatestPostsSort.popular
+                : null,
+        contentClass: generalOnly ? api.PostContentClass.general : null,
       ),
     );
     return CursorPage(
@@ -319,12 +559,31 @@ class ApiSocialRepository implements SocialRepository {
               title: draft.title,
               practiceCode: draft.practiceCode,
               kind: draft.isNews ? api.PostKind.news : api.PostKind.post,
+              contentClass:
+                  draft.markedLegal ? api.PostContentClass.legal : null,
               body: draft.body,
               mediaFileIds:
                   draft.mediaFileIds.isEmpty ? null : draft.mediaFileIds,
               videoAssetId: draft.videoAssetId,
+              location: draft.locationName == null
+                  ? null
+                  : api.PostLocationDto(name: draft.locationName!),
+              commentsEnabled: draft.commentsEnabled,
+              attachments: draft.attachments.isEmpty
+                  ? null
+                  : [
+                      for (final a in draft.attachments)
+                        api.PostAttachmentInputDto(
+                          fileId: a.fileId,
+                          fileName: a.fileName,
+                        ),
+                    ],
             ),
-            extras: _createsResource,
+            extras: {
+              ..._createsResource,
+              if (draft.idempotencyKey != null)
+                RequestFlags.idempotencyKey: draft.idempotencyKey,
+            },
           ),
         ))
             .data,
@@ -336,6 +595,7 @@ class ApiSocialRepository implements SocialRepository {
     required String body,
     String? title,
     String? practiceCode,
+    bool? markedLegal,
   }) async =>
       SocialMappers.post(
         (await guardApiCall(
@@ -345,6 +605,30 @@ class ApiSocialRepository implements SocialRepository {
               body: body,
               title: title,
               practiceCode: practiceCode,
+              contentClass: markedLegal == null
+                  ? null
+                  : (markedLegal
+                      ? api.PostContentClass.legal
+                      : api.PostContentClass.general),
+            ),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> setPostCounters(
+    String id, {
+    bool? hideLikes,
+    bool? hideViews,
+  }) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.setPostCounters(
+            id: id,
+            body: api.PostCountersDto(
+              hideLikes: hideLikes,
+              hideViews: hideViews,
             ),
           ),
         ))
@@ -354,6 +638,55 @@ class ApiSocialRepository implements SocialRepository {
   @override
   Future<void> deletePost(String id) =>
       guardApiCall(() => _posts.deletePost(id: id));
+
+  @override
+  Future<Post> pinPost(String id, int slot) async => SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.pinPost(id: id, body: api.PinPostDto(slot: slot)),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> unpinPost(String id) async => SocialMappers.post(
+        (await guardApiCall(() => _posts.unpinPost(id: id))).data,
+      );
+
+  @override
+  Future<Post> setPostCommentsEnabled(
+    String id, {
+    required bool enabled,
+  }) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => _posts.setPostComments(
+            id: id,
+            body: api.PostCommentsSettingDto(enabled: enabled),
+          ),
+        ))
+            .data,
+      );
+
+  @override
+  Future<Post> setPostArchived(String id, {required bool archived}) async =>
+      SocialMappers.post(
+        (await guardApiCall(
+          () => archived
+              ? _posts.archivePost(id: id)
+              : _posts.unarchivePost(id: id),
+        ))
+            .data,
+      );
+
+  @override
+  Future<CursorPage<Post>> archivedPosts({String? cursor}) async {
+    final env =
+        await guardApiCall(() => _posts.listArchivedPosts(cursor: cursor));
+    return CursorPage(
+      items: env.data.map(SocialMappers.post).toList(),
+      nextCursor: env.meta?.nextCursor,
+    );
+  }
 
   @override
   Future<void> recordPostShare(String postId) =>
@@ -367,6 +700,14 @@ class ApiSocialRepository implements SocialRepository {
   Future<void> setLiked(String postId, {required bool liked}) => guardApiCall(
         () =>
             liked ? _posts.likePost(id: postId) : _posts.unlikePost(id: postId),
+      );
+
+  @override
+  Future<void> setReposted(String postId, {required bool reposted}) =>
+      guardApiCall(
+        () => reposted
+            ? _posts.repostPost(id: postId)
+            : _posts.unrepostPost(id: postId),
       );
 
   @override
@@ -501,12 +842,20 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<void> setFollowing(String attorneyId, {required bool following}) =>
-      guardApiCall(
-        () => following
-            ? _follows.followAttorney(id: attorneyId)
-            : _follows.unfollowAttorney(id: attorneyId),
-      );
+  Future<FollowState> setFollowing(
+    String attorneyId, {
+    required bool following,
+  }) async {
+    final env = await guardApiCall(
+      () => following
+          ? _follows.followAttorney(id: attorneyId)
+          : _follows.unfollowAttorney(id: attorneyId),
+    );
+    return FollowState(
+      following: env.data.following,
+      followersCount: env.data.followersCount,
+    );
+  }
 
   Future<CursorPage<AttorneyRow>> _rows(
     Future<api.AttorneyListItemListEnvelope> Function() call,
@@ -522,9 +871,14 @@ class ApiSocialRepository implements SocialRepository {
   Future<CursorPage<PersonRow>> followers(
     String attorneyId, {
     String? cursor,
+    String? q,
   }) async {
     final env = await guardApiCall(
-      () => _follows.listFollowers(id: attorneyId, cursor: cursor),
+      () => _follows.listFollowers(
+        id: attorneyId,
+        cursor: cursor,
+        q: _queryOrNull(q),
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
@@ -536,10 +890,15 @@ class ApiSocialRepository implements SocialRepository {
   Future<CursorPage<PersonRow>> following(
     String attorneyId, {
     String? cursor,
+    String? q,
   }) async {
     // OQ-038: attorneys and clients.
     final env = await guardApiCall(
-      () => _follows.listFollowing(id: attorneyId, cursor: cursor),
+      () => _follows.listFollowing(
+        id: attorneyId,
+        cursor: cursor,
+        q: _queryOrNull(q),
+      ),
     );
     return CursorPage(
       items: env.data.map(SocialMappers.person).whereType<PersonRow>().toList(),
@@ -548,12 +907,12 @@ class ApiSocialRepository implements SocialRepository {
   }
 
   @override
-  Future<CursorPage<AttorneyRow>> myFollowing({String? cursor}) =>
-      _rows(() => _follows.listMyFollowing(cursor: cursor));
-
-  @override
-  Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) =>
-      _rows(() => _follows.listSuggestedAttorneys(cursor: cursor));
+  Future<CursorPage<AttorneyRow>> suggestions({String? cursor}) => _rows(
+        () => _follows.listSuggestedAttorneys(
+          cursor: cursor,
+          extras: cursor == null ? cacheFor(const Duration(minutes: 30)) : null,
+        ),
+      );
 
   @override
   Future<void> report(
@@ -572,6 +931,9 @@ class ApiSocialRepository implements SocialRepository {
               ReportTarget.comment => api.ReportTargetType.comment,
               ReportTarget.message => api.ReportTargetType.message,
               ReportTarget.user => api.ReportTargetType.user,
+              ReportTarget.stickerPack => api.ReportTargetType.stickerPack,
+              ReportTarget.legalQuestion => api.ReportTargetType.legalQuestion,
+              ReportTarget.legalAnswer => api.ReportTargetType.legalAnswer,
             },
             targetId: _raw(id),
             reason: api.ReportReason.values.byName(reason.name),
@@ -588,10 +950,17 @@ class ApiSocialRepository implements SocialRepository {
     bool casePhoto = false,
     // Owner 2026-10-01: photos in reviews (public, like post photos).
     bool reviewPhoto = false,
+    String? fileName,
+    int? maxBytes,
   }) async {
-    // OQ-034: a case also takes documents (PDF, Word) next to photos.
+    // OQ-034: a case also takes documents next to photos; owner
+    // 2026-10-07 (bug 17): any format the admin turned on, by its name.
     final image = sniffImageMime(bytes);
-    final doc = casePhoto && image == null ? sniffDocumentMime(bytes) : null;
+    final named = fileName == null ? null : uploadMimeForName(fileName);
+    final doc = casePhoto && image == null
+        ? sniffDocumentMime(bytes) ??
+            (named != null && !named.startsWith('image/') ? named : null)
+        : null;
     final mime = image ?? doc;
     if (mime == null) {
       throw const ApiException(
@@ -599,89 +968,90 @@ class ApiSocialRepository implements SocialRepository {
         message: 'type',
       );
     }
-    if (bytes.length > kPostPhotoMaxBytes) {
+    if (bytes.length > (maxBytes ?? kPostPhotoMaxBytes)) {
       throw const ApiException(
         code: ApiErrorCodes.fileTooLarge,
         message: 'size',
       );
     }
-    final target = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: doc != null
-              ? api.FilePurpose.caseAttachment
-              : casePhoto
-                  ? api.FilePurpose.casePhoto
-                  : reviewPhoto
-                      ? api.FilePurpose.reviewPhoto
-                      : api.FilePurpose.postImage,
-          mime: mime,
-          sizeBytes: bytes.length,
-          sha256: sha256Hex(bytes),
-        ),
-        extras: _createsResource,
-      ),
-    ))
-        .data;
-    final parts = mime.split('/');
-    try {
-      await _storage.post<void>(
-        target.upload.url,
-        data: FormData.fromMap({
-          ...target.upload.fields,
-          // S3 POST policy: the file must be the LAST field.
-          'file': MultipartFile.fromBytes(
-            bytes,
-            filename: doc == null
-                ? 'photo.${parts.last}'
-                : (doc == kPdfMime ? 'document.pdf' : 'document.docx'),
-            contentType: DioMediaType(parts.first, parts.last),
-          ),
-        }),
-        onSendProgress: (sent, total) {
-          if (total > 0) onProgress?.call(sent / total);
-        },
-      );
-    } on DioException catch (e) {
-      throw ApiException(
-        code: e.response == null
-            ? ApiException.networkErrorCode
-            : ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-        statusCode: e.response?.statusCode,
-      );
-    }
-    var outcome = _scan(
-      (await guardApiCall(
-        () => _files.confirm(id: target.fileId),
-      ))
-          .data
-          .scanStatus,
+    return _upload(
+      bytes,
+      mime,
+      purpose: doc != null
+          ? api.FilePurpose.caseAttachment
+          : casePhoto
+              ? api.FilePurpose.casePhoto
+              : reviewPhoto
+                  ? api.FilePurpose.reviewPhoto
+                  : api.FilePurpose.postImage,
+      filename: doc == null
+          ? 'photo.${mime.split('/').last}'
+          : doc == kPdfMime
+              ? 'document.pdf'
+              : doc == kDocxMime
+                  ? 'document.docx'
+                  : (fileName ?? 'document'),
+      onProgress: onProgress,
     );
-    for (var i = 0; outcome == ScanOutcome.pending && i < _scanMaxPolls; i++) {
-      await Future<void>.delayed(_scanPoll);
-      outcome = _scan(
-        (await guardApiCall(
-          () => _files.getFilesId(id: target.fileId),
-        ))
-            .data
-            .scanStatus,
-      );
-    }
-    if (outcome != ScanOutcome.clean) {
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotAttachable,
-        message: 'scan',
-      );
-    }
-    return target.fileId;
   }
 
-  static ScanOutcome _scan(api.ScanStatus status) => switch (status) {
-        api.ScanStatus.clean => ScanOutcome.clean,
-        api.ScanStatus.pending => ScanOutcome.pending,
-        _ => ScanOutcome.rejected,
-      };
+  @override
+  Future<String> uploadPostDocument(
+    Uint8List bytes,
+    String mime, {
+    required int maxBytes,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (_extOf(mime).isEmpty) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTypeNotAllowed,
+        message: 'type',
+      );
+    }
+    if (bytes.length > maxBytes) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'size',
+      );
+    }
+    return _upload(
+      bytes,
+      mime,
+      purpose: api.FilePurpose.postAttachment,
+      filename: 'document.${_extOf(mime)}',
+      onProgress: onProgress,
+    );
+  }
+
+  /// Owner 2026-10-19: every document format the admin may turn on for a
+  /// post (xls, pptx, csv, … too — not only PDF / Word / text).
+  static String _extOf(String mime) {
+    for (final e in kUploadFormatMime.entries) {
+      if (e.value == mime &&
+          !kPhotoFormats.contains(e.key) &&
+          !kVideoFormats.contains(e.key)) {
+        return e.key;
+      }
+    }
+    return '';
+  }
+
+  /// Presign → S3 POST → confirm → wait for a clean scan (the shared
+  /// uploader, owner 2026-10-22 audit #4 §3).
+  Future<String> _upload(
+    Uint8List bytes,
+    String mime, {
+    required api.FilePurpose purpose,
+    required String filename,
+    void Function(double progress)? onProgress,
+  }) =>
+      _uploader.upload(
+        purpose: purpose,
+        body: UploadBody.bytes(bytes),
+        mime: mime,
+        filename: filename,
+        onProgress: onProgress,
+      );
 }
 
 /// Generated DTO → app model. Kept apart so screens never see DTOs.
@@ -697,11 +1067,18 @@ abstract final class SocialMappers {
           verified: d.author.verifiedBadge,
           isFollowing: d.author.isFollowing,
           isClient: d.author.role == api.PostAuthorDtoRole.client,
+          location: d.author.location,
+          trustLevel: d.author.trustLevel.toInt(),
+          identityRejected: d.author.identityRejected ?? false,
+          practiceKeys: d.author.practiceI18nKeys,
+          advertisingLabel:
+              contractField<bool>(d.author, ContractExtra.advertisingLabel) ??
+                  false,
         ),
         body: d.body,
         media: [
           for (final m in [
-            ...d.media
+            ...d.media,
           ]..sort((a, b) => a.position.compareTo(b.position)))
             PostMedia(
               fileId: m.fileId,
@@ -712,10 +1089,15 @@ abstract final class SocialMappers {
               height: m.height,
             ),
         ],
+        locationName: d.location?.name,
+        commentsEnabled: d.commentsEnabled,
+        likesHidden: d.likesHidden,
+        viewsHidden: d.viewsHidden,
         tags: d.tags,
         mentions: [for (final m in d.mentions) SocialMappers.mention(m)],
         title: d.title,
         isNews: d.kind == api.PostKind.news,
+        isGeneral: d.contentClass == api.PostContentClass.general,
         practice: d.practice == null
             ? null
             : PostPractice(
@@ -726,7 +1108,23 @@ abstract final class SocialMappers {
               ),
         likeCount: d.likeCount,
         commentCount: d.commentCount,
-        shareCount: d.shareCount.toInt(),
+        shareCount: d.shareCount,
+        viewCount: d.viewCount,
+        repostCount: d.repostCount,
+        repostedByMe: d.repostedByMe,
+        pinSlot: d.pinSlot,
+        archivedAt: d.archivedAt?.toLocal(),
+        repostedBy: d.repostedBy == null
+            ? null
+            : PostReposter(
+                id: d.repostedBy!.id,
+                username: d.repostedBy!.username,
+                name: d.repostedBy!.name,
+                isClient: d.repostedBy!.role == api.PostReposterDtoRole.client,
+                repostedAt: d.repostedBy!.repostedAt == null
+                    ? null
+                    : DateTime.parse(d.repostedBy!.repostedAt!).toLocal(),
+              ),
         likedByMe: d.likedByMe,
         savedByMe: d.savedByMe,
         isMine: d.isMine,
@@ -738,10 +1136,32 @@ abstract final class SocialMappers {
             : PostVideo(
                 status: d.video!.status.json ?? d.video!.status.name,
                 playbackUrl: d.video!.playbackUrl,
+                fallbackUrl: d.video!.fallbackUrl,
                 thumbnailUrl: d.video!.thumbnailUrl,
                 durationSec: d.video!.durationSec,
                 width: d.video!.width,
                 height: d.video!.height,
+                trimStartMs: d.video!.trimStartMs,
+                trimEndMs: d.video!.trimEndMs,
+              ),
+        attachments: [
+          for (final a in [
+            ...d.attachments,
+          ]..sort((a, b) => a.position.compareTo(b.position)))
+            PostAttachment(
+              fileId: a.fileId,
+              fileName: a.fileName,
+              mime: a.mime,
+              sizeBytes: a.sizeBytes,
+              url: a.url,
+            ),
+        ],
+        promotionId: d.promotionId,
+        promotionCta: d.promotionCta == null
+            ? null
+            : PromotionCta(
+                type: d.promotionCta!.type.json ?? 'more',
+                value: d.promotionCta!.value,
               ),
       );
 
@@ -806,6 +1226,7 @@ abstract final class SocialMappers {
         avatarUrl: d.avatarUrl,
         stateCode: d.stateCode,
         verified: d.verifiedBadge,
+        isFollowing: d.isFollowing,
       );
 
   /// null for a row of an unknown role (a newer server).
@@ -822,10 +1243,15 @@ abstract final class SocialMappers {
         lastName: d.lastName,
         avatarUrl: d.avatarUrl,
         verified: d.verifiedBadge,
+        trustLevel: d.trustLevel,
+        identityRejected: d.identityRejected ?? false,
         ratingAvg: d.rating.avg.toDouble(),
         ratingCount: d.rating.count.toInt(),
         states: d.states,
         practiceKeys: d.practiceI18nKeys,
         isFollowing: d.isFollowing,
+        reason: d.reason?.toString().endsWith('contacts') ?? false
+            ? 'contacts'
+            : null,
       );
 }

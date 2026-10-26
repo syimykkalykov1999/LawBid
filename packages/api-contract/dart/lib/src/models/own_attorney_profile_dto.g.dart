@@ -10,6 +10,7 @@ OwnAttorneyProfileDto _$OwnAttorneyProfileDtoFromJson(
   Map<String, dynamic> json,
 ) => OwnAttorneyProfileDto(
   id: json['id'] as String,
+  version: (json['version'] as num).toInt(),
   username: json['username'] as String,
   firstName: json['firstName'] as String?,
   lastName: json['lastName'] as String?,
@@ -23,6 +24,9 @@ OwnAttorneyProfileDto _$OwnAttorneyProfileDtoFromJson(
     json['verificationStatus'] as String,
   ),
   verifiedBadge: json['verifiedBadge'] as bool,
+  advertisingLabel: json['advertisingLabel'] as bool,
+  publicUrl: json['publicUrl'] as String,
+  trustLevel: (json['trustLevel'] as num).toInt(),
   nameMismatch: json['nameMismatch'] as bool,
   usernameChangedAt: json['usernameChangedAt'] == null
       ? null
@@ -43,6 +47,7 @@ Map<String, dynamic> _$OwnAttorneyProfileDtoToJson(
   OwnAttorneyProfileDto instance,
 ) => <String, dynamic>{
   'id': instance.id,
+  'version': instance.version,
   'username': instance.username,
   'firstName': ?instance.firstName,
   'lastName': ?instance.lastName,
@@ -52,6 +57,9 @@ Map<String, dynamic> _$OwnAttorneyProfileDtoToJson(
   'languages': instance.languages,
   'verificationStatus': instance.verificationStatus.toJson(),
   'verifiedBadge': instance.verifiedBadge,
+  'advertisingLabel': instance.advertisingLabel,
+  'publicUrl': instance.publicUrl,
+  'trustLevel': instance.trustLevel,
   'nameMismatch': instance.nameMismatch,
   'usernameChangedAt': ?instance.usernameChangedAt?.toIso8601String(),
   'usernameNextChangeAt': ?instance.usernameNextChangeAt?.toIso8601String(),

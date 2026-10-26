@@ -6,10 +6,22 @@ import 'package:flutter/foundation.dart';
 /// the names and the step position (apps/api `OnboardingProfileDto`).
 @immutable
 sealed class ProfileInput {
-  const ProfileInput({required this.firstName, required this.lastName});
+  const ProfileInput({
+    required this.firstName,
+    required this.lastName,
+    this.email = '',
+    this.username = '',
+  });
 
   final String firstName;
   final String lastName;
+
+  /// Owner 2026-10-13: required, format only (no code).
+  final String email;
+
+  /// Owner 2026-10-18: the @username picked on the form; empty = the
+  /// server keeps or derives one.
+  final String username;
 
   Map<String, dynamic> toJson();
 }
@@ -21,6 +33,8 @@ final class ClientProfileInput extends ProfileInput {
     required super.firstName,
     required super.lastName,
     required this.stateCode,
+    super.email,
+    super.username,
     this.languages = const [],
     this.contactMethod,
     this.contactNote = '',
@@ -37,6 +51,8 @@ final class ClientProfileInput extends ProfileInput {
   Map<String, dynamic> toJson() => {
         'firstName': firstName.trim(),
         'lastName': lastName.trim(),
+        if (email.trim().isNotEmpty) 'email': email.trim(),
+        if (username.trim().isNotEmpty) 'username': username.trim(),
         'stateCode': stateCode,
         'languages': [...languages]..sort(),
         'contactMethod': contactMethod,
@@ -49,6 +65,8 @@ final class AttorneyProfileInput extends ProfileInput {
   const AttorneyProfileInput({
     required super.firstName,
     required super.lastName,
+    super.email,
+    super.username,
     this.bio = '',
     this.firmName = '',
     this.languages = const [],
@@ -64,6 +82,8 @@ final class AttorneyProfileInput extends ProfileInput {
   Map<String, dynamic> toJson() => {
         'firstName': firstName.trim(),
         'lastName': lastName.trim(),
+        if (email.trim().isNotEmpty) 'email': email.trim(),
+        if (username.trim().isNotEmpty) 'username': username.trim(),
         'bio': bio.trim(),
         'firmName': firmName.trim(),
         'languages': [...languages]..sort(),

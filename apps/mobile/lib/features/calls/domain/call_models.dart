@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/text/bidi.dart';
 
 /// OQ-041: server-side life of an in-app audio call.
 enum CallStatus {
@@ -9,7 +10,7 @@ enum CallStatus {
   declined,
   busy,
   canceled,
-  failed
+  failed,
 }
 
 /// The other member of a call.
@@ -29,10 +30,112 @@ class CallPeer {
   final String? username;
   final String? avatarUrl;
 
-  String get name => displayName ?? (username == null ? '' : '@$username');
+  /// Never empty: a peer with no name and no username shows as the brand
+  /// (the call screen, the notification and the system call UI never get
+  /// a blank or "?").
+  String get name {
+    final n = displayName?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    final u = username;
+    return u == null || u.isEmpty ? 'LawBid' : atHandle(u);
+  }
 }
 
+/// Where a person stands in a group call.
+enum CallMemberStatus { invited, joined, declined, left, removed }
+
+/// One person in a group call.
 @immutable
+class CallMember {
+  const CallMember({
+    required this.userId,
+    required this.status,
+    this.displayName,
+    this.username,
+    this.avatarUrl,
+    this.muted = false,
+    this.mutedByHost = false,
+    this.joinedAt,
+    this.sfuTracks,
+  });
+
+  /// Cloudflare SFU calls: what this person publishes now (`mic`, `cam`).
+  /// Null = the server did not say (a plain `GET /calls/:id` carries no
+  /// roster): the pulls we hold are left as they are.
+  final Set<String>? sfuTracks;
+
+  final String userId;
+  final CallMemberStatus status;
+  final String? displayName;
+  final String? username;
+  final String? avatarUrl;
+
+  /// The microphone is off (their own choice or the host's).
+  final bool muted;
+  final bool mutedByHost;
+  final DateTime? joinedAt;
+
+  bool get joined => status == CallMemberStatus.joined;
+  bool get ringing => status == CallMemberStatus.invited;
+
+  /// Never empty (name, @username or the brand).
+  String get name {
+    final n = displayName?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    final u = username;
+    return u == null || u.isEmpty ? 'LawBid' : atHandle(u);
+  }
+}
+
+/// Owner 2026-10-24: how the media of a call is carried, fixed at its start.
+enum CallMediaProvider { p2p, cloudflare }
+
+/// Owner 2026-10-24: group calls only — the Cloudflare outage fallback.
+/// [active]: Cloudflare is chosen by the admin but this call runs device to
+/// device; [videoBlocked]: too many people for the camera.
+@immutable
+class CallMediaFallback {
+  const CallMediaFallback({
+    this.active = false,
+    this.reason,
+    this.videoBlocked = false,
+    this.videoMaxParticipants = 4,
+  });
+
+  final bool active;
+  final String? reason;
+  final bool videoBlocked;
+  final int videoMaxParticipants;
+}
+
+/// Owner 2026-10-21: the open vote to remove a member of a group call.
+@immutable
+class CallVote {
+  const CallVote({
+    required this.id,
+    required this.targetId,
+    required this.startedById,
+    required this.forCount,
+    required this.againstCount,
+    required this.voters,
+    required this.expiresAt,
+    this.myBallot,
+  });
+
+  final String id;
+  final String targetId;
+  final String startedById;
+  final int forCount;
+  final int againstCount;
+
+  /// Members who vote now (in the call, minus the candidate).
+  final int voters;
+  final DateTime expiresAt;
+
+  /// Our own ballot; null = not voted.
+  final bool? myBallot;
+}
+
 class AppCall {
   const AppCall({
     required this.id,
@@ -41,13 +144,53 @@ class AppCall {
     required this.outgoing,
     required this.peer,
     required this.createdAt,
+    this.groupId,
+    this.channelId,
     this.answeredAt,
     this.endedAt,
     this.durationSec,
+    this.video = false,
+    this.group = false,
+    this.hostId,
+    this.participants = const [],
+    this.moderated = true,
+    this.vote,
+    this.mediaProvider = CallMediaProvider.p2p,
+    this.mediaFallback,
   });
 
+  /// Owner 2026-10-24: `cloudflare` = one connection to the SFU, `p2p` =
+  /// device to device (1:1 calls and the outage fallback).
+  final CallMediaProvider mediaProvider;
+  final CallMediaFallback? mediaFallback;
+
+  bool get viaSfu => mediaProvider == CallMediaProvider.cloudflare;
+
+  /// Somebody who runs the call (starter / group admin) is in it — members
+  /// cannot vote to remove anyone then.
+  final bool moderated;
+
+  /// The open vote to remove a member, if any.
+  final CallVote? vote;
+
+  /// Owner 2026-10-20: people were added; [participants] lists everyone.
+  final bool group;
+
+  /// Who can mute / remove others (group calls).
+  final String? hostId;
+  final List<CallMember> participants;
+
+  /// Owner 2026-10-05: a video call (camera on both sides).
+  final bool video;
+
   final String id;
-  final String conversationId;
+
+  /// Null for a call started from a group chat ([groupId] is set then).
+  final String? conversationId;
+  final String? groupId;
+
+  /// Owner 2026-10-21 (inbox 20e): the channel the call belongs to.
+  final String? channelId;
   final CallStatus status;
   final bool outgoing;
   final CallPeer peer;
@@ -56,8 +199,67 @@ class AppCall {
   final DateTime? endedAt;
   final int? durationSec;
 
+  AppCall copyWith({
+    bool? group,
+    String? hostId,
+    List<CallMember>? participants,
+    bool? moderated,
+    CallVote? vote,
+    bool clearVote = false,
+    bool? video,
+    CallMediaFallback? mediaFallback,
+  }) =>
+      AppCall(
+        id: id,
+        conversationId: conversationId,
+        groupId: groupId,
+        channelId: channelId,
+        status: status,
+        outgoing: outgoing,
+        peer: peer,
+        createdAt: createdAt,
+        answeredAt: answeredAt,
+        endedAt: endedAt,
+        durationSec: durationSec,
+        video: video ?? this.video,
+        group: group ?? this.group,
+        hostId: hostId ?? this.hostId,
+        participants: participants ?? this.participants,
+        moderated: moderated ?? this.moderated,
+        vote: clearVote ? null : vote ?? this.vote,
+        mediaProvider: mediaProvider,
+        mediaFallback: mediaFallback ?? this.mediaFallback,
+      );
+
   bool get live => status == CallStatus.ringing || status == CallStatus.active;
+
+  /// The most people the call holds (server GROUP_MAX_AUDIO / _VIDEO).
+  int get capacity =>
+      viaSfu ? callMaxSfu : (video ? callMaxVideo : callMaxAudio);
+
+  /// People in the call or ringing — what the server counts against
+  /// [capacity] (a one-to-one call is two).
+  int get size => group
+      ? participants
+          .where(
+            (m) =>
+                m.status == CallMemberStatus.joined ||
+                m.status == CallMemberStatus.invited,
+          )
+          .length
+      : 2;
+
+  bool get full => size >= capacity;
 }
+
+/// Mesh calls: the server's GROUP_MAX_AUDIO / GROUP_MAX_VIDEO — 9 / 9 (inbox
+/// 20d). Hundreds of people would need an SFU media server.
+const callMaxAudio = 9;
+const callMaxVideo = 9;
+
+/// Cloudflare SFU calls: the server's `calls.sfu_max_participants` default
+/// (the server stays the judge; this only gates the buttons early).
+const callMaxSfu = 20;
 
 /// One ICE server (STUN or TURN) for WebRTC.
 @immutable

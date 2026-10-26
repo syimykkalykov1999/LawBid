@@ -5,10 +5,10 @@
 /// FOUNDATION_AUTH.md §10.2 H) to link Terms/Privacy/Disclaimer.
 class LegalDocument {
   const LegalDocument({
-    this.id,
     required this.docType,
     required this.version,
     required this.locale,
+    this.id,
     this.contentUrl,
     this.contentMd,
   });

@@ -5,14 +5,16 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_user_card_envelope.dart';
 import '../models/admin_user_contacts_envelope.dart';
 import '../models/admin_user_list_item_list_envelope.dart';
+import '../models/admin_users_bulk_dto.dart';
 import '../models/change_user_phone_dto.dart';
 import '../models/phone_changed_envelope.dart';
 import '../models/role.dart';
 import '../models/sanction_result_envelope.dart';
-import '../models/status.dart';
+import '../models/status2.dart';
 import '../models/suspend_user_dto.dart';
 import '../models/warn_user_dto.dart';
 
@@ -26,13 +28,25 @@ abstract class AdminUsersClient {
   ///
   /// [q] - Name (substring), email, phone (any format), @username or user id. Empty = newest users.
   ///
+  /// [stateCode] - Owner 2026-10-04: clients of this state and attorneys licensed in it.
+  ///
+  /// [countryCode] - Owner 2026-10-05: people of this country only.
+  ///
+  /// [from] - Registered at or after (inclusive).
+  ///
+  /// [to] - Registered before (exclusive).
+  ///
   /// [cursor] - meta.nextCursor of the previous page.
   @GET('/admin/users')
   Future<AdminUserListItemListEnvelope> searchUsers({
     @Query('limit') int? limit = 20,
     @Query('q') String? q,
     @Query('role') Role? role,
-    @Query('status') Status? status,
+    @Query('status') Status2? status,
+    @Query('stateCode') String? stateCode,
+    @Query('countryCode') String? countryCode,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -54,9 +68,23 @@ abstract class AdminUsersClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Owner 2026-10-04: suspend, restore or end sessions of up to 500 users; one reason, audited per user
+  @POST('/admin/users/bulk')
+  Future<AdminBulkResultEnvelope> bulk({
+    @Body() required AdminUsersBulkDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Revoke every session of the user
   @POST('/admin/users/{id}/sessions/revoke')
   Future<SanctionResultEnvelope> revokeUserSessions({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reset the user's password (sessions signed out; SMS code to sign in once)
+  @POST('/admin/users/{id}/password/reset')
+  Future<SanctionResultEnvelope> resetUserPassword({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

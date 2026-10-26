@@ -6,6 +6,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { ensurePostPractices } from './support/post-practices';
 
 /**
@@ -46,17 +47,33 @@ describe('Post qualifications and News (e2e, owner 2026-09-30)', () => {
       update: {},
     });
     tokens = app.get(TokenService);
+    // Owner 2026-10-06: News is off by default; these tests cover it on.
+    await setNews(true);
   });
 
   afterAll(async () => {
+    await setNews(false);
     await app.close();
   });
+
+  async function setNews(enabled: boolean) {
+    await prisma.featureFlag.upsert({
+      where: { key: 'news_posts' },
+      create: { key: 'news_posts', enabled, rollout_percent: 100 },
+      update: { enabled },
+    });
+    await app.get(FeatureFlagsService).invalidate();
+  }
 
   const api = () => request(baseUrl);
 
   async function user(role: 'client' | 'attorney', verified = true) {
     const u = await prisma.user.create({
-      data: { role, phone_verified_at: role === 'client' ? new Date() : null },
+      data: {
+        email: `e2e-${crypto.randomUUID()}@example.com`,
+        role,
+        phone_verified_at: role === 'client' ? new Date() : null,
+      },
     });
     if (role === 'client') {
       const handle = `cl_${u.id.slice(0, 8)}`;
@@ -222,5 +239,26 @@ describe('Post qualifications and News (e2e, owner 2026-09-30)', () => {
     expect(e.status).toBe(200);
     expect(e.body.data.title).toBe('New');
     expect(e.body.data.practice.code).toBe(SUB);
+  });
+
+  it('News off (owner 2026-10-06): a News post lands as a legal post', async () => {
+    await setNews(false);
+    try {
+      const att = await user('attorney');
+      const r = await post(att.auth, {
+        title: 'Courts close early',
+        kind: 'news',
+        body: 'No area of law.',
+      });
+      expect(r.status).toBe(201);
+      expect(r.body.data.kind).toBe('post');
+      const row = await prisma.post.findUniqueOrThrow({
+        where: { id: r.body.data.id as string },
+        select: { content_class: true },
+      });
+      expect(row.content_class).toBe('legal');
+    } finally {
+      await setNews(true);
+    }
   });
 });

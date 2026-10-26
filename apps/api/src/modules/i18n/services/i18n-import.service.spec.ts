@@ -303,3 +303,40 @@ describe('I18nImportService.run — apply', () => {
     );
   });
 });
+
+describe('I18nImportService.run — missingOnly (every release)', () => {
+  it('fills only what the database lacks and keeps texts already there', async () => {
+    const prisma = buildFakePrisma();
+    const bundle = buildFakeBundle();
+    const service = new I18nImportService(
+      prisma as never,
+      bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
+    );
+    // The owner's upload in Admin → Localization: ru edited, no en yet.
+    prisma.keysByKey.set('common.cancel', {
+      id: 'key-x',
+      key: 'common.cancel',
+      translations: [{ lang: 'ru', value: 'Отменить (админка)' }],
+    });
+
+    const report = await service.run(
+      csv('key,en,ru\ncommon.cancel,Cancel,Отмена\ncommon.ok,OK,Хорошо\n'),
+      'apply',
+      { missingOnly: true },
+    );
+
+    expect(report.applied).toBe(true);
+    expect(report.changedKeys).toEqual([
+      { key: 'common.cancel', lang: 'en' },
+      { key: 'common.ok', lang: 'en' },
+      { key: 'common.ok', lang: 'ru' },
+    ]);
+    const cancel = prisma.keysByKey.get('common.cancel')!;
+    expect(cancel.translations).toContainEqual({
+      lang: 'ru',
+      value: 'Отменить (админка)',
+    });
+    expect(cancel.translations).toContainEqual({ lang: 'en', value: 'Cancel' });
+  });
+});

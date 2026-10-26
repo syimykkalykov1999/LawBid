@@ -2,6 +2,7 @@ import type Redis from 'ioredis';
 import type { PinoLogger } from 'nestjs-pino';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import type { AttorneyTrustService } from '../../modules/attorney-trust/attorney-trust.service';
 import type { NotificationsService } from '../../modules/notifications/notifications.service';
 import {
   LICENSE_NOTIFICATION_KIND,
@@ -48,6 +49,9 @@ describe('LicenseExpiryJob.run', () => {
     upcoming?: { id: string; attorney_id: string; expires_at: Date }[];
     existingPayloads?: Record<string, unknown>[];
     claimed?: string[];
+    /** Verified licenses past their date but inside the grace period. */
+    lapsing?: { id: string; attorney_id: string; expires_at: Date }[];
+    graceDays?: number;
   }) {
     const emitted: { recipientId: string; payload: Record<string, unknown> }[] =
       [];
@@ -64,6 +68,17 @@ describe('LicenseExpiryJob.run', () => {
     const prisma = {
       attorneyLicense: {
         findMany: jest.fn((args: { where: { expires_at: object } }) => {
+          const ex = args.where.expires_at as { lte?: Date; gt?: Date };
+          // The lapse query: lte = today with a lower bound (gt).
+          if (
+            ex.gt &&
+            ex.lte &&
+            ex.lte.getTime() === day('2026-09-27').getTime()
+          ) {
+            return Promise.resolve(
+              (opts.lapsing ?? []).map((d) => ({ ...d, state_code: 'NJ' })),
+            );
+          }
           if (
             'lte' in args.where.expires_at &&
             !('gt' in args.where.expires_at)
@@ -89,7 +104,11 @@ describe('LicenseExpiryJob.run', () => {
       },
       $transaction: jest.fn((fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
     };
-    const settings = { numberList: jest.fn(() => Promise.resolve([30, 7])) };
+    const settings = {
+      numberList: jest.fn(() => Promise.resolve([30, 7])),
+      number: jest.fn(() => Promise.resolve(opts.graceDays ?? 0)),
+    };
+    const trust = { recompute: jest.fn(() => Promise.resolve(null)) };
     const notifications = {
       emit: jest.fn(
         (input: { recipientId: string; payload: Record<string, unknown> }) => {
@@ -114,8 +133,9 @@ describe('LicenseExpiryJob.run', () => {
       notifications as unknown as NotificationsService,
       logger as unknown as PinoLogger,
       redis as unknown as Redis,
+      trust as unknown as AttorneyTrustService,
     );
-    return { job, tx, emitted, redis };
+    return { job, tx, emitted, redis, trust, prisma };
   }
 
   it('expires a due license and unverifies the profile when it was the last one', async () => {
@@ -125,7 +145,12 @@ describe('LicenseExpiryJob.run', () => {
       downgraded: 1,
     });
     const result = await job.run(now);
-    expect(result).toEqual({ expired: 1, unverifiedProfiles: 1, reminders: 0 });
+    expect(result).toEqual({
+      expired: 1,
+      unverifiedProfiles: 1,
+      reminders: 0,
+      lapsed: 0,
+    });
     expect(tx.attorneyLicense.updateMany).toHaveBeenCalledWith({
       where: { id: 'l1', license_status: 'verified' },
       data: { license_status: 'expired' },
@@ -149,6 +174,51 @@ describe('LicenseExpiryJob.run', () => {
     const result = await job.run(now);
     expect(result.unverifiedProfiles).toBe(0);
     expect(tx.attorneyProfile.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('grace period: a lapsed license is announced once, the badge is recomputed, nothing expires', async () => {
+    const { job, tx, emitted, trust, prisma } = setup({
+      due: [],
+      remaining: 1,
+      downgraded: 0,
+      graceDays: 14,
+      lapsing: [{ id: 'g1', attorney_id: 'a9', expires_at: day('2026-09-20') }],
+    });
+    const result = await job.run(now);
+    expect(result).toMatchObject({ lapsed: 1, expired: 0 });
+    expect(trust.recompute).toHaveBeenCalledWith('a9');
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0].payload).toMatchObject({
+      kind: LICENSE_NOTIFICATION_KIND.renewalDue,
+      licenseId: 'g1',
+      expiresAt: '2026-09-20',
+      graceDays: 14,
+    });
+    expect(tx.attorneyLicense.updateMany).not.toHaveBeenCalled();
+    // The expire query only reaches licenses past date + grace.
+    const expireCall = (
+      prisma.attorneyLicense.findMany as jest.Mock
+    ).mock.calls.find(
+      ([a]: [{ where: { expires_at: { lte?: Date; gt?: Date } } }]) =>
+        a.where.expires_at.lte && !a.where.expires_at.gt,
+    ) as [{ where: { expires_at: { lte: Date } } }];
+    expect(expireCall[0].where.expires_at.lte.toISOString()).toBe(
+      '2026-09-13T00:00:00.000Z',
+    );
+  });
+
+  it('grace period: the announcement is not repeated the next night', async () => {
+    const { job, emitted } = setup({
+      due: [],
+      remaining: 1,
+      downgraded: 0,
+      graceDays: 14,
+      lapsing: [{ id: 'g1', attorney_id: 'a9', expires_at: day('2026-09-20') }],
+      claimed: ['reminder:license:g1:2026-09-20:due'],
+    });
+    const result = await job.run(now);
+    expect(result.lapsed).toBe(0);
+    expect(emitted).toHaveLength(0);
   });
 
   it('sends the 30- and 7-day reminders once', async () => {

@@ -364,7 +364,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
     await api()
       .get('/api/v1/admin/moderation/queue')
       .set(support.auth)
-      .expect(403);
+      .expect(404);
 
     const card = await api()
       .get(`/api/v1/admin/moderation/targets/post/${postId}`)
@@ -386,7 +386,8 @@ describe('stage 6.4 — moderation (e2e)', () => {
       .set(mod.auth)
       .send({ action: 'hide' })
       .expect(400);
-    expect((noReason.body as Body).error?.code).toBe('VALIDATION_ERROR');
+    // Owner 2026-10-05: moderation is a «reason required» section for staff.
+    expect((noReason.body as Body).error?.code).toBe('REASON_REQUIRED');
 
     const hid = await api()
       .post(`/api/v1/admin/moderation/targets/post/${postId}/actions`)
@@ -518,7 +519,7 @@ describe('stage 6.4 — moderation (e2e)', () => {
       before: { status: 'published', openReports: 1 },
       after: { status: 'hidden', reason: 'Misleading claim' },
     });
-    await redis.del('adm:dashboard');
+    await redis.del('adm:sum:dashboard');
   });
 
   it('comment hide keeps the post comment_count in sync; message hide sets deleted_at', async () => {

@@ -14,7 +14,9 @@ import { ApiErrors, COMMON_ERRORS } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { Public } from '../auth/decorators/public.decorator';
 import { AdminAuditInterceptor } from './admin-audit.interceptor';
+import { AdminPiiMaskInterceptor } from './admin-pii-mask.interceptor';
 import { AdminAuthGuard } from './admin-auth.guard';
+import type { AdminPermissions, PartnerMembership } from './admin-permissions';
 
 export const ADMIN_ROLES_KEY = 'lawbid:admin-roles';
 export const JUSTIFICATION_KEY = 'lawbid:admin-justification';
@@ -80,7 +82,7 @@ export const AdminEndpoint = (
     Public(),
     Roles(...roles),
     UseGuards(AdminAuthGuard),
-    UseInterceptors(AdminAuditInterceptor),
+    UseInterceptors(AdminAuditInterceptor, AdminPiiMaskInterceptor),
     ApiBearerAuth('admin'),
     ApiErrors(ADMIN_ERRORS),
   );
@@ -91,6 +93,20 @@ export interface RequestAdmin {
   adminRole: AdminRole;
   sessionId: string;
   justification: string | null;
+  /** Area toggles (empty for the super admin, who needs none). */
+  permissions?: AdminPermissions;
+  /** The super admin gave this admin the right to manage other admins. */
+  manageAdmins?: boolean;
+  /** Owner 2026-10-06: the country partner team this admin belongs to. */
+  partner?: PartnerMembership | null;
+  /** Owner 2026-10-16: personal data in responses is masked for this admin. */
+  noPii?: boolean;
+  /** Owner 2026-10-05: countries this admin's lists are limited to on
+   * this request (assigned countries narrowed by the picked tab); null or
+   * absent = every country. */
+  countries?: string[] | null;
+  /** Countries assigned to this admin (empty = every country). */
+  assignedCountries?: string[];
 }
 
 /** The admin resolved by AdminAuthGuard plus the client IP (audit_log). */

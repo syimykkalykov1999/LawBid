@@ -1,12 +1,21 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'dart:async';
+import 'dart:convert';
 
-import '../network/dio_client.dart';
-import '../network/headers_interceptor.dart';
-import 'default_feature_flags.dart';
-import 'feature_flags_api_client.dart';
-import 'feature_flags_state.dart';
-import 'semver.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
+import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
+import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_api_client.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
+import 'package:lawbid/core/feature_flags/semver.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/network/headers_interceptor.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'feature_flags_providers.g.dart';
 
@@ -51,19 +60,73 @@ class FeatureFlagsController extends _$FeatureFlagsController {
   FeatureFlagsState build() =>
       const FeatureFlagsState(flags: defaultFeatureFlags, appConfig: {});
 
-  Future<void> refreshInBackground() async {
+  /// SharedPreferences key of the config version the phone's bootstrap
+  /// copy belongs to (`AppSessionDto.bootstrapVersion`).
+  static const versionKey = 'bootstrap.version';
+
+  /// `GET /me/session` → `client.timings` (connection timings): kept as
+  /// `client.timings` in the config; a bootstrap that carries its own wins.
+  void applySessionTimings(Map<String, num>? timings) {
+    if (timings == null || timings.isEmpty) return;
+    state = FeatureFlagsState(
+      flags: state.flags,
+      appConfig: {...state.appConfig, 'client.timings': jsonEncode(timings)},
+      legalDocuments: state.legalDocuments,
+    );
+  }
+
+  /// Owner 2026-10-22 (package G): with [knownVersion] from `/me/session`
+  /// the bootstrap is read from the phone when that version is the one
+  /// the copy was made for — no request; [flags] (the session's gated
+  /// flags) are applied at once either way.
+  Future<void> refreshInBackground({
+    String? knownVersion,
+    Map<String, bool>? flags,
+  }) async {
+    if (flags != null && flags.isNotEmpty) {
+      state = FeatureFlagsState(
+        flags: {...state.flags, ...flags},
+        appConfig: state.appConfig,
+        legalDocuments: state.legalDocuments,
+      );
+    }
     try {
+      final kv = ref.read(localKvStoreProvider);
+      final fromLocal =
+          knownVersion != null && kv.getString(versionKey) == knownVersion;
       final client = ref.read(featureFlagsApiClientProvider);
-      final result = await client.getBootstrap();
+      final result = await client.getBootstrap(fromLocal: fromLocal);
+      if (knownVersion != null && !fromLocal) {
+        unawaited(kv.setString(versionKey, knownVersion));
+      }
       state = FeatureFlagsState(
         // An empty `flags` map (e.g. a future backend variant, or a
         // response the parser recognized no keys in) leaves the current
         // flags untouched rather than wiping them back to defaults —
         // mirrors L10nRepository.refresh's "nothing new -> null, caller
         // keeps its existing map" behavior.
-        flags: result.flags.isEmpty ? state.flags : {...defaultFeatureFlags, ...result.flags},
-        appConfig: result.appConfig,
+        flags: result.flags.isEmpty
+            ? state.flags
+            : {...defaultFeatureFlags, ...result.flags},
+        appConfig: {
+          // Session timings stay unless the bootstrap carries its own.
+          if (state.appConfig['client.timings'] != null)
+            'client.timings': state.appConfig['client.timings']!,
+          ...result.appConfig,
+        },
         legalDocuments: result.legalDocuments,
+      );
+      // Owner 2026-10-15: the admin's character limits for text fields.
+      TextLimits.apply(state.appConfig);
+      // Scale audit 2026-10-23: retries, reconnects, polling - server-tunable.
+      ClientTuning.apply(state.appConfig);
+      // Owner 2026-10-15: kill switches of the app's own diagnostics.
+      AppEvents.enabled = state.flags['app_events'] ?? true;
+      CrashReporter.enabled = state.flags['crash_reports'] ?? true;
+      // Owner 2026-10-20: Sentry's DSN comes from the admin (no rebuild).
+      SentryReporter.configure(
+        state.appConfig['sentry.mobile_dsn'],
+        AppEnvironment.current.flavor,
       );
     } catch (_) {
       // Best-effort — see class doc comment. `state` already holds
@@ -85,7 +148,21 @@ class FeatureFlagsController extends _$FeatureFlagsController {
 /// doesn't cover.
 final isAppUpdateRequiredProvider = Provider<bool>((ref) {
   final state = ref.watch(featureFlagsControllerProvider);
-  final minVersion = state.appConfig['min_app_version_${HeadersInterceptor.platformName}'];
+  final minVersion =
+      state.appConfig['min_app_version_${HeadersInterceptor.platformName}'];
   if (minVersion == null) return false;
   return isVersionBelow(HeadersInterceptor.appVersion, minVersion);
 });
+
+/// Admin «Вход и письма по почте» (flag key `email_login`, owner
+/// 2026-10-07): ONE switch for every place the app asks for an e-mail or
+/// relies on a code / link reaching one — e-mail sign-in, adding or
+/// changing the account e-mail, the client's e-mail step in onboarding,
+/// the firm e-mail check, e-mail notifications, the country waitlist.
+/// Off while Amazon SES only delivers to pre-verified addresses; the API
+/// enforces the same flag, so turning it back on needs no new build.
+const kEmailFlowsFlag = 'email_login';
+
+final emailFlowsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled(kEmailFlowsFlag),
+);

@@ -1,4 +1,9 @@
+import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { ChatSystemModule } from '../chat/chat-system.module';
+import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
+import { ReferralsCoreModule } from '../referrals/referrals.module';
+import { BidPacksCoreModule } from '../bid-packs/bid-packs.module';
+import { FirmsModule } from '../firms/firms.module';
 import { Module } from '@nestjs/common';
 import { CaseStateMachine } from '../cases/domain/case-state-machine';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
@@ -8,6 +13,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { BidAcceptanceController } from './acceptance/bid-acceptance.controller';
 import { BidAcceptanceService } from './acceptance/bid-acceptance.service';
 import { BidsController } from './bids.controller';
+import { ConflictCheckService } from './conflict/conflict-check.service';
 import { BidsService } from './bids.service';
 import { BidStateMachine } from './domain/bid-state-machine';
 
@@ -29,9 +35,17 @@ import { BidStateMachine } from './domain/bid-state-machine';
 @Module({
   imports: [
     JournalModule,
+    LegalAcceptanceModule,
+    UsageLimitsModule,
     NotificationsModule,
     SubscriptionsModule,
     ChatSystemModule,
+    // Owner 2026-10-05: a hire (`bid_accepted`) qualifies a referred
+    // client for the partner program.
+    ReferralsCoreModule,
+    // Owner 2026-10-14: bought offers are spent here.
+    BidPacksCoreModule,
+    FirmsModule,
   ],
   controllers: [BidsController, BidAcceptanceController],
   providers: [
@@ -40,6 +54,7 @@ import { BidStateMachine } from './domain/bid-state-machine';
     CaseAccessPolicy,
     BidsService,
     BidAcceptanceService,
+    ConflictCheckService,
   ],
   exports: [BidStateMachine, BidsService, BidAcceptanceService],
 })

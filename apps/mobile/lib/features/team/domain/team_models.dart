@@ -31,27 +31,68 @@ enum AssistantDuty {
       {...raw.map(parse).whereType<AssistantDuty>()};
 }
 
+/// Owner 2026-10-05: ready sets of accesses the attorney gives in one tap;
+/// each access can still be switched on or off after.
+enum AssistantRole {
+  /// Calls, chats, files and tasks.
+  secretary({
+    AssistantDuty.calls,
+    AssistantDuty.chats,
+    AssistantDuty.files,
+    AssistantDuty.tasks,
+  }),
+
+  /// The secretary's work plus cases, bid drafts and posts for approval.
+  paralegal({
+    AssistantDuty.calls,
+    AssistantDuty.chats,
+    AssistantDuty.files,
+    AssistantDuty.tasks,
+    AssistantDuty.cases,
+    AssistantDuty.bidDrafts,
+    AssistantDuty.posts,
+  }),
+
+  /// Everything, bids and publishing in the attorney's name included.
+  full({...AssistantDuty.values});
+
+  const AssistantRole(this.duties);
+
+  final Set<AssistantDuty> duties;
+
+  String get labelKey => 'team.role.$name';
+}
+
 enum MemberStatus { invited, active, removed }
 
 @immutable
 class TeamMember {
   const TeamMember({
     required this.id,
-    required this.phone,
     required this.status,
     required this.approval,
     required this.duties,
     required this.createdAt,
+    this.phone,
     this.name,
     this.joinedAt,
     this.liabilityAcceptedAt,
+    this.joinCode,
+    this.joinCodeExpiresAt,
   });
+
+  /// Owner 2026-10-04: the seat's one-time code (XXXX-XXXX-XXXX) while it
+  /// can be used — to join, or to sign in on a new phone. Null once used.
+  final String? joinCode;
+  final DateTime? joinCodeExpiresAt;
 
   /// OQ-049: when the attorney last accepted responsibility.
   final DateTime? liabilityAcceptedAt;
 
   final String id;
-  final String phone;
+
+  /// Only for assistants added by phone (older apps).
+  final String? phone;
   final String? name;
   final MemberStatus status;
 
@@ -61,7 +102,10 @@ class TeamMember {
   final DateTime? joinedAt;
   final DateTime createdAt;
 
-  String get label => (name?.trim().isNotEmpty ?? false) ? name! : phone;
+  /// The name, else the phone; empty when neither is known yet (the UI
+  /// shows "Assistant" then).
+  String get label =>
+      (name?.trim().isNotEmpty ?? false) ? name! : (phone ?? '');
 }
 
 @immutable
@@ -71,7 +115,14 @@ class TeamInfo {
     required this.seats,
     required this.used,
     required this.plan,
+    this.maxDuties = defaultMaxDuties,
   });
+
+  /// Owner 2026-10-22: one assistant holds at most this many duties (the
+  /// admin's `assistants.max_duties`) — more assistants, nobody with the
+  /// whole account.
+  static const defaultMaxDuties = 3;
+  final int maxDuties;
 
   final List<TeamMember> members;
   final int seats;
@@ -283,6 +334,139 @@ class TaskFile {
   bool get isImage => mime?.startsWith('image/') ?? false;
 }
 
+/// Owner 2026-10-05: how urgent a task is (sorting, the card's mark).
+enum TaskPriority {
+  low,
+  normal,
+  high,
+  urgent;
+
+  String get wire => name;
+
+  static TaskPriority parse(String? raw) =>
+      values.firstWhere((p) => p.name == raw, orElse: () => normal);
+}
+
+/// Owner 2026-10-05: a repeating task — the next one appears when this one
+/// is finished.
+enum TaskRepeat {
+  none,
+  daily,
+  weekdays,
+  weekly,
+  monthly,
+  yearly;
+
+  String get wire => name;
+
+  static TaskRepeat parse(String? raw) =>
+      values.firstWhere((r) => r.name == raw, orElse: () => none);
+}
+
+/// Owner 2026-10-05: one address on a task — opens in Google / Apple Maps
+/// by a plain link (no maps API, nothing paid).
+@immutable
+class TaskPlace {
+  const TaskPlace({required this.address, this.id, this.label});
+
+  final String? id;
+  final String address;
+
+  /// What the place is ("Court", "Client's home").
+  final String? label;
+}
+
+/// Owner 2026-10-05: one person on a task — someone from the app (the
+/// chat opens) or an outside contact (call, write).
+@immutable
+class TaskPerson {
+  const TaskPerson({
+    required this.name,
+    this.id,
+    this.userId,
+    this.userRole,
+    this.avatarUrl,
+    this.role,
+    this.phone,
+    this.email,
+  });
+
+  final String? id;
+  final String? userId;
+
+  /// `attorney` / `client` / `assistant` for app people.
+  final String? userRole;
+  final String? avatarUrl;
+  final String name;
+
+  /// What the person is to the task ("Witness", "Judge").
+  final String? role;
+  final String? phone;
+  final String? email;
+
+  bool get inApp => userId != null;
+}
+
+/// Where a suggested person comes from (`GET /tasks/people`).
+enum TaskPersonSource { assistant, client, attorney, contact }
+
+/// A person the planner can add: the team, chats, contacts used before,
+/// attorneys found by name.
+@immutable
+class TaskPersonSuggestion {
+  const TaskPersonSuggestion({
+    required this.source,
+    required this.name,
+    this.userId,
+    this.membershipId,
+    this.avatarUrl,
+    this.role,
+    this.phone,
+    this.email,
+  });
+
+  final TaskPersonSource source;
+  final String name;
+  final String? userId;
+
+  /// An assistant of the team — the id a task is assigned with.
+  final String? membershipId;
+  final String? avatarUrl;
+  final String? role;
+  final String? phone;
+  final String? email;
+
+  TaskPerson toPerson() => TaskPerson(
+        name: name,
+        userId: userId,
+        userRole: switch (source) {
+          TaskPersonSource.assistant => 'assistant',
+          TaskPersonSource.client => 'client',
+          TaskPersonSource.attorney => 'attorney',
+          TaskPersonSource.contact => null,
+        },
+        avatarUrl: avatarUrl,
+        role: role,
+        phone: phone,
+        email: email,
+      );
+}
+
+/// Owner 2026-10-05: one action on many selected tasks.
+enum TaskBulkAction {
+  delete,
+  archive,
+  unarchive,
+  keep,
+  unkeep,
+  assign,
+  unassign,
+  status,
+  priority;
+
+  String get wire => name;
+}
+
 /// Owner 2026-10-01: one checklist step inside a task (5 calls, 6
 /// meetings, several addresses — one card, checked off step by step).
 @immutable
@@ -346,6 +530,33 @@ class TaskStepDraft {
   final String? contactEmail;
 }
 
+/// Owner 2026-10-15: a task of a case in work shown on the Tasks board next
+/// to the planner's own. [kind] is `for_client` | `shared` | `joint`.
+@immutable
+class BoardCaseTask {
+  const BoardCaseTask({
+    required this.taskId,
+    required this.kind,
+    required this.viewerIsAttorney,
+    required this.createdByClient,
+    required this.canTick,
+    required this.closed,
+  });
+
+  final String taskId;
+  final String kind;
+
+  /// The viewer is the case's attorney (else its client).
+  final bool viewerIsAttorney;
+  final bool createdByClient;
+  final bool canTick;
+  final bool closed;
+
+  bool get forClient => kind == 'for_client';
+  bool get shared => kind == 'shared';
+  bool get joint => kind == 'joint';
+}
+
 @immutable
 class TaskItem {
   const TaskItem({
@@ -369,7 +580,35 @@ class TaskItem {
     this.canDelete = true,
     this.doneAt,
     this.steps = const [],
+    this.places = const [],
+    this.people = const [],
+    this.priority = TaskPriority.normal,
+    this.repeat = TaskRepeat.none,
+    this.repeatUntil,
+    this.remindBeforeMin,
+    this.assigneeMembershipId,
+    this.assigneeName,
+    this.assignedToMe = false,
+    this.conversationId,
+    this.archivedAt,
+    this.keepForever = false,
+    this.purgeAt,
+    this.canComplete = true,
+    this.canEdit = true,
+    this.casePracticeCode,
+    this.boardTask,
+    this.consultationId,
   });
+
+  /// The case's leaf practice code (the card's colour).
+  final String? casePracticeCode;
+
+  /// Owner 2026-10-20: the booked consultation this entry mirrors (a tap
+  /// opens it; its time is fixed there).
+  final String? consultationId;
+
+  /// Set for a task of a case's workspace (not the planner's own).
+  final BoardCaseTask? boardTask;
 
   final String id;
   final TaskKind kind;
@@ -398,6 +637,83 @@ class TaskItem {
   /// Owner 2026-10-01: the checklist (empty = a single-step task).
   final List<TaskStep> steps;
 
+  /// Owner 2026-10-05: every address and every person of the task.
+  final List<TaskPlace> places;
+  final List<TaskPerson> people;
+  final TaskPriority priority;
+  final TaskRepeat repeat;
+  final DateTime? repeatUntil;
+
+  /// Reminder this many minutes before the time; null = none.
+  final int? remindBeforeMin;
+
+  /// The assistant the task is assigned to.
+  final String? assigneeMembershipId;
+  final String? assigneeName;
+  final bool assignedToMe;
+
+  /// The chat the task is about.
+  final String? conversationId;
+
+  /// In the archive since (finished tasks); null = in the planner.
+  final DateTime? archivedAt;
+
+  /// Never removed by the yearly archive cleanup.
+  final bool keepForever;
+
+  /// When the archive cleanup removes it (null = never).
+  final DateTime? purgeAt;
+
+  /// The viewer may check it off (the attorney, the assigned assistant).
+  final bool canComplete;
+
+  /// The viewer may edit it (the attorney, an assistant with the duty).
+  final bool canEdit;
+
+  bool get archived => archivedAt != null || !status.active;
+
+  /// The same task with another checklist (a checkmark set locally).
+  TaskItem withSteps(List<TaskStep> steps) => TaskItem(
+        id: id,
+        kind: kind,
+        title: title,
+        status: status,
+        createdAt: createdAt,
+        notes: notes,
+        dueAt: dueAt,
+        location: location,
+        caseId: caseId,
+        caseTitle: caseTitle,
+        contactName: contactName,
+        contactPhone: contactPhone,
+        contactEmail: contactEmail,
+        files: files,
+        outcomeNote: outcomeNote,
+        rescheduledTo: rescheduledTo,
+        createdByName: createdByName,
+        canDelete: canDelete,
+        doneAt: doneAt,
+        steps: steps,
+        places: places,
+        people: people,
+        priority: priority,
+        repeat: repeat,
+        repeatUntil: repeatUntil,
+        remindBeforeMin: remindBeforeMin,
+        assigneeMembershipId: assigneeMembershipId,
+        assigneeName: assigneeName,
+        assignedToMe: assignedToMe,
+        conversationId: conversationId,
+        archivedAt: archivedAt,
+        keepForever: keepForever,
+        purgeAt: purgeAt,
+        canComplete: canComplete,
+        canEdit: canEdit,
+        consultationId: consultationId,
+        casePracticeCode: casePracticeCode,
+        boardTask: boardTask,
+      );
+
   int get checkedSteps => steps.where((s) => s.checked).length;
 
   /// The first unchecked step — its time leads the card.
@@ -413,7 +729,12 @@ class TaskItem {
 
   bool isOverdue(DateTime now) {
     if (!status.active) return false;
-    if (steps.isNotEmpty) return steps.any((s) => s.isOverdue(now));
+    // Steps with their own times decide; steps without (a case task's
+    // checklist) follow the task's date while one is still open.
+    if (steps.any((s) => s.dueAt != null)) {
+      return steps.any((s) => s.isOverdue(now));
+    }
+    if (steps.isNotEmpty && steps.every((s) => s.checked)) return false;
     return dueAt != null && dueAt!.isBefore(now);
   }
 }
@@ -433,6 +754,15 @@ class TaskDraft {
     this.contactEmail,
     this.fileIds = const [],
     this.steps = const [],
+    this.places = const [],
+    this.people = const [],
+    this.priority = TaskPriority.normal,
+    this.repeat = TaskRepeat.none,
+    this.repeatUntil,
+    this.remindBeforeMin,
+    this.assigneeMembershipId,
+    this.conversationId,
+    this.keepForever = false,
   });
 
   final TaskKind kind;
@@ -446,6 +776,19 @@ class TaskDraft {
   final String? contactEmail;
   final List<String> fileIds;
   final List<TaskStepDraft> steps;
+
+  /// Owner 2026-10-05: the planner fields (lists replace the task's).
+  final List<TaskPlace> places;
+  final List<TaskPerson> people;
+  final TaskPriority priority;
+  final TaskRepeat repeat;
+  final DateTime? repeatUntil;
+
+  /// Null = no reminder.
+  final int? remindBeforeMin;
+  final String? assigneeMembershipId;
+  final String? conversationId;
+  final bool keepForever;
 }
 
 /// A bid an assistant prepared (`/cases/:id/bid-draft`).

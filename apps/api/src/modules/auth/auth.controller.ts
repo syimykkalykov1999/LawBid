@@ -8,6 +8,7 @@ import {
   Param,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -21,6 +22,15 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { AuthService } from './auth.service';
+import { PasswordAuthService } from './password-auth.service';
+import {
+  PasswordLoginDto,
+  PhoneStatusDto,
+  PhoneStatusResultDto,
+  PasswordResetConfirmDto,
+  PasswordResetRequestDto,
+  SetPasswordDto,
+} from './dto/password.dto';
 import { SocialAuthService } from './social/social-auth.service';
 import { Public } from './decorators/public.decorator';
 import {
@@ -35,35 +45,53 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ReauthDto } from './dto/reauth.dto';
 import { LinkIdentifierDto } from './dto/link-identifier.dto';
 import type { RequestMeta } from './services/session.service';
-import { DeviceAttestationGuard } from './attestation/device-attestation.guard';
-import { ATTESTATION_HEADER } from './attestation/device-attestation.service';
 import {
   AuthTokensDto,
   IdentifierLinkedDto,
   LoggedOutDto,
   OtpSentDto,
+  PasswordResetSentDto,
+  PasswordSavedDto,
   ReauthTokenDto,
   SessionDto,
   SessionEndedDto,
 } from './dto/auth-responses.dto';
 import { ContinueLoginDto } from './dto/continue-login.dto';
+import { AssistantCodeLoginDto } from './dto/assistant-code-login.dto';
+import { TokenService } from './services/token.service';
+import { QrLoginService } from './services/qr-login.service';
+import { AssistantSelf } from './assistant/assistant-context';
+import { ReauthGuard } from './guards/reauth.guard';
+import { AppCheckGuard, RequireAppCheck } from './app-check/app-check.guard';
+import { ReauthRequired } from './decorators/reauth-required.decorator';
+import { ReauthVerifier } from './services/reauth-verifier.service';
+import {
+  ClearsWebSessionCookie,
+  WebSessionCookieInterceptor,
+  WebSessionCookies,
+} from './web-session-cookie';
+import {
+  QrLoginAnsweredDto,
+  QrLoginCreateDto,
+  QrLoginCreatedDto,
+  QrLoginPollDto,
+  QrLoginPollResultDto,
+  QrLoginPreviewDto,
+} from './dto/qr-login.dto';
 
 const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
 const BEARER_401 = [E.UNAUTHORIZED, E.TOKEN_EXPIRED, E.AUTH_SESSION_REVOKED];
 /** Optional on every route guarded by IdempotencyInterceptor. */
+/** Owner 2026-10-22 (security audit #3): the single-use token from
+ * POST /auth/reauth, for the routes that change how the account signs in. */
+const ReauthTokenHeader = (description: string) =>
+  ApiHeader({ name: 'X-Reauth-Token', required: false, description });
 const IdempotencyKeyHeader = ApiHeader({
   name: 'Idempotency-Key',
   required: false,
   description:
     'Replays the stored response for a retried request (24h); a different body with the same key is 409 IDEMPOTENCY_KEY_CONFLICT.',
-});
-/** DeviceAttestationGuard (flag `device_attestation`, docs/01 §10.6). */
-const AttestationHeader = ApiHeader({
-  name: ATTESTATION_HEADER,
-  required: false,
-  description:
-    'App Attest / Play Integrity token; required only while the device_attestation flag is on.',
 });
 
 /**
@@ -83,40 +111,66 @@ const AttestationHeader = ApiHeader({
  * otp/request triggers a billed SMS/email send) — logout/logout-all/
  * reauth/DELETE sessions are naturally idempotent already (revoking an
  * already-revoked session is a no-op) so they don't need it.
- *
- * DeviceAttestationGuard (flag `device_attestation`, docs/01 §10.6)
- * guards the two unauthenticated routes that spend money or mint
- * accounts: otp/request and social.
  */
 @ApiTags('auth')
 @ApiErrors(COMMON_ERRORS)
+// Owner 2026-10-22 (security audit #3, finding 1): every route here is
+// about the caller's OWN sign-in — sessions, identifiers, password, reauth,
+// the QR approval. An assistant's token must never be swapped for the
+// attorney here, or the assistant could link their own e-mail / Google to
+// the attorney's account, set the attorney's password or sign the
+// attorney's devices out (OWASP ASVS V4.1.3 least privilege).
+@AssistantSelf()
 @Controller('auth')
+// Owner 2026-10-22 (audit #7): the website's refresh token goes into an
+// HttpOnly cookie on every route that issues one (see web-session-cookie).
+@UseInterceptors(WebSessionCookieInterceptor)
+// Security research #5 (2026-10-22), A4: only the routes marked
+// @RequireAppCheck() are looked at (app-check.guard.ts).
+@UseGuards(AppCheckGuard)
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly socialAuth: SocialAuthService,
+    private readonly passwordAuth: PasswordAuthService,
+    private readonly tokens: TokenService,
+    private readonly qrLogin: QrLoginService,
+    private readonly webCookies: WebSessionCookies,
+    private readonly reauthVerifier: ReauthVerifier,
   ) {}
 
   @ApiEnvelopeResponse(OtpSentDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.PHONE_COUNTRY_NOT_SUPPORTED],
-    403: [E.DEVICE_ATTESTATION_REQUIRED, E.AUTH_PROVIDER_DISABLED],
+    403: [E.AUTH_PROVIDER_DISABLED],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
     429: [E.AUTH_OTP_REQUEST_LIMIT, E.RATE_LIMITED],
     503: [E.PROVIDER_BUDGET_EXCEEDED],
   })
   @IdempotencyKeyHeader
-  @AttestationHeader
   @Public()
+  // Security research #5 (2026-10-22), A4: the app's App Check token;
+  // a code by e-mail stays free (no SMS money at stake).
+  @RequireAppCheck({ freeWhen: (b) => b.channel === 'email' })
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
-  @UseGuards(DeviceAttestationGuard)
   @UseInterceptors(IdempotencyInterceptor)
   async requestOtp(
     @Body() dto: OtpRequestDto,
     @Req() req: Request,
   ): Promise<OtpSentDto> {
-    await this.auth.requestOtp(dto, this.meta(req));
+    // Owner 2026-10-16: a signed-in person may ask a code for their OWN number
+    // (reauthentication for a sensitive action); a stranger may not.
+    let callerId: string | undefined;
+    const bearer = /^Bearer (.+)$/i.exec(req.header('authorization') ?? '');
+    if (bearer) {
+      try {
+        callerId = this.tokens.verifyAccessToken(bearer[1]).sub;
+      } catch {
+        callerId = undefined;
+      }
+    }
+    await this.auth.requestOtp(dto, this.meta(req), callerId);
     return { sent: true };
   }
 
@@ -124,7 +178,12 @@ export class AuthController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     401: [E.AUTH_OTP_INVALID, E.AUTH_OTP_EXPIRED],
-    403: [E.AUTH_PROVIDER_DISABLED, E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    403: [
+      E.AUTH_PROVIDER_DISABLED,
+      E.FEATURE_DISABLED,
+      E.ACCOUNT_SUSPENDED,
+      E.ACCOUNT_DELETED,
+    ],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
     423: [E.AUTH_OTP_LOCKED],
     429: [E.RATE_LIMITED],
@@ -148,7 +207,7 @@ export class AuthController {
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     401: [E.AUTH_OTP_EXPIRED],
-    403: [E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    403: [E.FEATURE_DISABLED, E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
   })
   @Public()
   @Post('login/continue')
@@ -159,13 +218,38 @@ export class AuthController {
     return this.auth.continueLogin(dto.pendingToken, this.meta(req));
   }
 
+  /** Owner 2026-10-04: an assistant signs in with the one-time code the
+   * attorney got for their seat — no SMS. A new account becomes the
+   * assistant; a code issued again signs the same assistant in on a new
+   * phone (the old one is signed out). */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.ASSISTANT_CODE_INVALID],
+    403: [E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    429: [E.RATE_LIMITED],
+  })
+  @Public()
+  @Post('assistant/code')
+  async assistantCodeLogin(
+    @Body() dto: AssistantCodeLoginDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.auth.assistantCodeLogin(dto, this.meta(req));
+  }
+
   /** Email magic link (docs/01 §10.2 E): one-time token from the email +
    * the verifier held by the device that requested the code. */
   @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     401: [E.AUTH_OTP_INVALID],
-    403: [E.AUTH_PROVIDER_DISABLED, E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    403: [
+      E.AUTH_PROVIDER_DISABLED,
+      E.FEATURE_DISABLED,
+      E.ACCOUNT_SUSPENDED,
+      E.ACCOUNT_DELETED,
+    ],
     429: [E.RATE_LIMITED],
   })
   @Public()
@@ -182,8 +266,8 @@ export class AuthController {
     400: [E.VALIDATION_ERROR],
     401: [E.AUTH_SOCIAL_TOKEN_INVALID],
     403: [
-      E.DEVICE_ATTESTATION_REQUIRED,
       E.AUTH_PROVIDER_DISABLED,
+      E.FEATURE_DISABLED,
       E.ACCOUNT_SUSPENDED,
       E.ACCOUNT_DELETED,
     ],
@@ -196,10 +280,9 @@ export class AuthController {
     503: [E.AUTH_PROVIDER_DISABLED],
   })
   @IdempotencyKeyHeader
-  @AttestationHeader
   @Public()
+  @RequireAppCheck()
   @Post('social')
-  @UseGuards(DeviceAttestationGuard)
   @UseInterceptors(IdempotencyInterceptor)
   async social(
     @Body() dto: SocialLoginDto,
@@ -216,7 +299,7 @@ export class AuthController {
       E.AUTH_REFRESH_EXPIRED,
       E.AUTH_REFRESH_REUSE_DETECTED,
     ],
-    403: [E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    403: [E.FEATURE_DISABLED, E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
     429: [E.RATE_LIMITED],
   })
@@ -228,13 +311,27 @@ export class AuthController {
     @Body() dto: RefreshTokenDto,
     @Req() req: Request,
   ): Promise<AuthTokensDto> {
-    return this.auth.refresh(dto, this.meta(req));
+    // Owner 2026-10-22: the website sends an empty refreshToken; its token
+    // is the HttpOnly cookie (only from an allowed web origin with the
+    // web-session header — the CSRF check).
+    let refreshToken = dto.refreshToken;
+    if (!refreshToken) {
+      refreshToken = (await this.webCookies.fromRequest(req)) ?? '';
+      if (!refreshToken) {
+        throw new UnauthorizedException({
+          code: ErrorCode.AUTH_REFRESH_INVALID,
+          message: 'Refresh token is invalid.',
+        });
+      }
+    }
+    return this.auth.refresh({ ...dto, refreshToken }, this.meta(req));
   }
 
   @ApiBearerAuth()
   @ApiEnvelopeResponse(LoggedOutDto)
   @ApiErrors({ 401: BEARER_401 })
   @Post('logout')
+  @ClearsWebSessionCookie()
   @HttpCode(HttpStatus.OK)
   async logout(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
     await this.auth.logout(user);
@@ -245,6 +342,7 @@ export class AuthController {
   @ApiEnvelopeResponse(LoggedOutDto)
   @ApiErrors({ 401: BEARER_401 })
   @Post('logout-all')
+  @ClearsWebSessionCookie()
   @HttpCode(HttpStatus.OK)
   async logoutAll(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
     await this.auth.logoutAll(user);
@@ -293,13 +391,27 @@ export class AuthController {
   @ApiEnvelopeResponse(IdentifierLinkedDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
-    401: [...BEARER_401, E.AUTH_OTP_INVALID, E.AUTH_SOCIAL_TOKEN_INVALID],
-    403: [E.AUTH_PROVIDER_DISABLED],
+    401: [
+      ...BEARER_401,
+      E.AUTH_OTP_INVALID,
+      E.AUTH_SOCIAL_TOKEN_INVALID,
+      E.REAUTH_INVALID,
+    ],
+    403: [E.AUTH_PROVIDER_DISABLED, E.REAUTH_REQUIRED],
     409: [E.IDENTIFIER_ALREADY_LINKED, E.IDEMPOTENCY_KEY_CONFLICT],
     503: [E.AUTH_PROVIDER_DISABLED],
   })
   @IdempotencyKeyHeader
+  @ReauthTokenHeader(
+    'Required: single-use token from POST /auth/reauth (a new sign-in method).',
+  )
   @Post('identifiers')
+  // Owner 2026-10-22 (security audit #3, findings 1–2): a new sign-in
+  // method is a permanent way into the account — a stolen 15-minute access
+  // token must not be able to add the thief's e-mail or Google account.
+  // OWASP ASVS V3.7.1: reauthenticate before changing account data.
+  @UseGuards(ReauthGuard)
+  @ReauthRequired()
   @UseInterceptors(IdempotencyInterceptor)
   async linkIdentifier(
     @Body() dto: LinkIdentifierDto,
@@ -309,12 +421,204 @@ export class AuthController {
     return { linked: true };
   }
 
+  @Public()
+  @RequireAppCheck()
+  @Post('phone/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiEnvelopeResponse(PhoneStatusResultDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 429: [E.RATE_LIMITED] })
+  async phoneStatus(
+    @Body() dto: PhoneStatusDto,
+    @Req() req: Request,
+  ): Promise<PhoneStatusResultDto> {
+    return this.passwordAuth.phoneStatus(dto, this.meta(req));
+  }
+
+  /** Owner 2026-10-13: sign in with a phone number or e-mail and the
+   * password — no SMS (the code is only for sign-up and a forgotten
+   * password). */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.AUTH_INVALID_CREDENTIALS],
+    403: [
+      E.AUTH_PROVIDER_DISABLED,
+      E.FEATURE_DISABLED,
+      E.ACCOUNT_SUSPENDED,
+      E.ACCOUNT_DELETED,
+    ],
+    429: [E.RATE_LIMITED],
+  })
+  @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
+  @Public()
+  @Post('password/login')
+  async passwordLogin(
+    @Body() dto: PasswordLoginDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.passwordAuth.login(dto, this.meta(req));
+  }
+
+  /** Sets the password of the signed-in account (right after the sign-up
+   * code); changing an existing one needs `currentPassword`. Owner
+   * 2026-10-22 (security audit #3): either the current password or a
+   * reauth token — and with no password yet, a reauth token unless this
+   * session signed in minutes ago (the sign-up code itself). */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(PasswordSavedDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [...BEARER_401, E.AUTH_INVALID_CREDENTIALS, E.REAUTH_INVALID],
+    403: [E.AUTH_PROVIDER_DISABLED, E.REAUTH_REQUIRED],
+    429: [E.RATE_LIMITED],
+  })
+  @ReauthTokenHeader(
+    'Single-use token from POST /auth/reauth: replaces currentPassword; with no password yet it is required unless this session signed in within the last 10 minutes.',
+  )
+  @Post('password')
+  @HttpCode(HttpStatus.OK)
+  async setPassword(
+    @Body() dto: SetPasswordDto,
+    @CurrentUser() user: RequestUser,
+    @Req() req: Request & { user?: RequestUser },
+  ): Promise<PasswordSavedDto> {
+    await this.passwordAuth.setPassword(dto, user, {
+      hasReauthToken: this.reauthVerifier.hasToken(req),
+      assertReauth: () => this.reauthVerifier.assertRecentAuthentication(req),
+    });
+    return { saved: true };
+  }
+
+  /** Forgot password: a code to the verified e-mail, else an SMS. The
+   * answer is the same for an unknown account. */
+  @ApiEnvelopeResponse(PasswordResetSentDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.AUTH_PROVIDER_DISABLED, E.ACCOUNT_SUSPENDED],
+    429: [E.RATE_LIMITED],
+    503: [E.PROVIDER_BUDGET_EXCEEDED],
+  })
+  @Public()
+  // Security research #5 (2026-10-22), A4: a reset code is an SMS.
+  @RequireAppCheck()
+  @Post('password/reset/request')
+  @HttpCode(HttpStatus.OK)
+  async passwordResetRequest(
+    @Body() dto: PasswordResetRequestDto,
+    @Req() req: Request,
+  ): Promise<PasswordResetSentDto> {
+    return this.passwordAuth.requestReset(dto, this.meta(req));
+  }
+
+  /** Forgot password: the code + a new password; ends every session and
+   * signs this device in. */
+  @ApiEnvelopeResponse(AuthTokensDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    401: [E.AUTH_OTP_INVALID, E.AUTH_OTP_EXPIRED],
+    403: [
+      E.AUTH_PROVIDER_DISABLED,
+      E.FEATURE_DISABLED,
+      E.ACCOUNT_SUSPENDED,
+      E.ACCOUNT_DELETED,
+    ],
+    423: [E.AUTH_OTP_LOCKED],
+    429: [E.RATE_LIMITED],
+  })
+  @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
+  @Public()
+  @Post('password/reset/confirm')
+  async passwordResetConfirm(
+    @Body() dto: PasswordResetConfirmDto,
+    @Req() req: Request,
+  ): Promise<AuthTokensDto> {
+    return this.passwordAuth.confirmReset(dto, this.meta(req));
+  }
+
+  // ---------------------------------------------------------------------
+  // Owner 2026-10-20: sign in to the website by scanning its QR code.
+  // ---------------------------------------------------------------------
+
+  /** The website asks for a QR code (two minutes, single use). */
+  @ApiEnvelopeResponse(QrLoginCreatedDto, { status: HttpStatus.CREATED })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 429: [E.RATE_LIMITED] })
+  @Public()
+  @Post('qr')
+  async qrCreate(
+    @Body() dto: QrLoginCreateDto,
+    @Req() req: Request,
+  ): Promise<QrLoginCreatedDto> {
+    return this.qrLogin.create(dto.deviceInfo ?? {}, this.meta(req));
+  }
+
+  /** The website waits: pending → scanned → tokens (once). */
+  @ApiEnvelopeResponse(QrLoginPollResultDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FEATURE_DISABLED, E.ACCOUNT_SUSPENDED, E.ACCOUNT_DELETED],
+    429: [E.RATE_LIMITED],
+  })
+  @Public()
+  @Post('qr/poll')
+  @HttpCode(HttpStatus.OK)
+  async qrPoll(
+    @Body() dto: QrLoginPollDto,
+    @Req() req: Request,
+  ): Promise<QrLoginPollResultDto> {
+    return this.qrLogin.poll(dto.qrId, dto.pollSecret, this.meta(req));
+  }
+
+  /** The phone scanned the code: which browser is asking? */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(QrLoginPreviewDto)
+  @ApiErrors({ 401: BEARER_401, 404: [E.NOT_FOUND], 429: [E.RATE_LIMITED] })
+  @Get('qr/:qrId')
+  async qrPreview(
+    @CurrentUser() user: RequestUser,
+    @Param('qrId') qrId: string,
+  ): Promise<QrLoginPreviewDto> {
+    return this.qrLogin.preview(user.sub, user.sid, qrId);
+  }
+
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(QrLoginAnsweredDto)
+  @ApiErrors({ 401: BEARER_401, 404: [E.NOT_FOUND], 429: [E.RATE_LIMITED] })
+  @Post('qr/:qrId/approve')
+  @HttpCode(HttpStatus.OK)
+  async qrApprove(
+    @CurrentUser() user: RequestUser,
+    @Param('qrId') qrId: string,
+    @Req() req: Request,
+  ): Promise<QrLoginAnsweredDto> {
+    await this.qrLogin.answer(user.sub, user.sid, qrId, true, this.meta(req));
+    return { ok: true };
+  }
+
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(QrLoginAnsweredDto)
+  @ApiErrors({ 401: BEARER_401, 404: [E.NOT_FOUND], 429: [E.RATE_LIMITED] })
+  @Post('qr/:qrId/reject')
+  @HttpCode(HttpStatus.OK)
+  async qrReject(
+    @CurrentUser() user: RequestUser,
+    @Param('qrId') qrId: string,
+    @Req() req: Request,
+  ): Promise<QrLoginAnsweredDto> {
+    await this.qrLogin.answer(user.sub, user.sid, qrId, false, this.meta(req));
+    return { ok: true };
+  }
+
   private meta(req: Request): RequestMeta {
     const deviceId = req.header('x-device-id')?.trim();
+    const deviceKey = req.header('x-device-key')?.trim();
     return {
       ip: req.ip,
       userAgent: req.header('user-agent'),
       deviceId: deviceId && deviceId.length <= 255 ? deviceId : undefined,
+      deviceKey:
+        deviceKey && deviceKey.length >= 8 && deviceKey.length <= 128
+          ? deviceKey
+          : undefined,
     };
   }
 }

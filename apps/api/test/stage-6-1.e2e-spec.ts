@@ -54,6 +54,18 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     expect(await settings.stringList('moderation.blocked_terms')).toEqual([]);
   });
 
+  it('owner 2026-10-15: an unchanged answer is a 304 with no body (ETag)', async () => {
+    const first = await request(baseUrl).get('/api/v1/config/bootstrap');
+    expect(first.status).toBe(200);
+    const etag = first.headers['etag'];
+    expect(etag).toBeTruthy();
+    const again = await request(baseUrl)
+      .get('/api/v1/config/bootstrap')
+      .set('If-None-Match', etag);
+    expect(again.status).toBe(304);
+    expect(again.text).toBe('');
+  });
+
   it('a body above the cap is refused with 413', async () => {
     const r = await request(baseUrl)
       .post('/api/v1/auth/otp/request')
@@ -68,6 +80,34 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
       .set('Origin', 'https://evil.example')
       .set('Access-Control-Request-Method', 'GET');
     expect(r.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  // Owner 2026-10-22 (audit #7): with credentials — the website's refresh
+  // token is an HttpOnly cookie on /api/v1/auth.
+  it('CORS: the web client origin (web.allowed_origins default) is allowed with credentials', async () => {
+    const r = await request(baseUrl)
+      .options('/api/v1/health/live')
+      .set('Origin', 'https://lawbid.dev')
+      .set('Access-Control-Request-Method', 'POST');
+    expect(r.headers['access-control-allow-origin']).toBe('https://lawbid.dev');
+    expect(r.headers['access-control-allow-credentials']).toBe('true');
+  });
+
+  // Owner 2026-10-23 (web pass): the web app revalidates with If-None-Match
+  // and reads the tag from ETag, both cross-origin.
+  it('CORS: the web origin may send If-None-Match and read ETag', async () => {
+    const pre = await request(baseUrl)
+      .options('/api/v1/countries')
+      .set('Origin', 'https://lawbid.dev')
+      .set('Access-Control-Request-Method', 'GET')
+      .set('Access-Control-Request-Headers', 'if-none-match');
+    expect(pre.headers['access-control-allow-headers']).toMatch(
+      /If-None-Match/i,
+    );
+    const get = await request(baseUrl)
+      .get('/api/v1/countries')
+      .set('Origin', 'https://lawbid.dev');
+    expect(get.headers['access-control-expose-headers']).toMatch(/ETag/i);
   });
 
   it('logs never contain phones, emails or tokens (pino redact + serializer)', () => {

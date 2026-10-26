@@ -15,8 +15,24 @@
  * - storage: S3 uploads — one unit per pre-signed upload issued by
  *   FilesService.presign (docs/03 §11 stage 3.2): storage, PUT requests
  *   and the antivirus/image work every upload triggers.
+ * - translate: Google Cloud Translation — one unit per uncached chat
+ *   message translation (ChatTranslationService), a global cap on top of
+ *   the per-user daily quota.
+ * - video: Bunny Stream — one unit per reel upload session created by
+ *   VideosService (encoding + storage + CDN delivery).
+ * - image_moderation: AWS Rekognition DetectModerationLabels — one unit
+ *   per image checked (owner 2026-10-22, MediaModerationService); a
+ *   repeat of the same picture reuses the stored verdict for free.
  */
-export const COST_PROVIDERS = ['sms', 'email', 'id_check', 'storage'] as const;
+export const COST_PROVIDERS = [
+  'sms',
+  'email',
+  'id_check',
+  'storage',
+  'translate',
+  'video',
+  'image_moderation',
+] as const;
 export type CostProvider = (typeof COST_PROVIDERS)[number];
 
 export type CostWindow = 'minute' | 'daily' | 'monthly';

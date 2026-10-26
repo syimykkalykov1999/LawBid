@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/search/presentation/screens/search_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
@@ -31,14 +35,28 @@ void main() {
       expect(c.read(postOverridesProvider)['p1']?.likeCount, 3);
     });
 
-    test('a second tap while the first is in flight never calls the API twice',
+    // Owner 2026-10-22 (client economy plan, package K): a like waits
+    // 700 ms; «like → unlike» inside that window is no request at all.
+    test('like then unlike within the window: no request, state as before',
         () async {
       final repo = FakeSocialRepository();
       final c = ProviderContainer(overrides: socialOverrides(repo));
       addTearDown(c.dispose);
       final actions = c.read(socialActionsProvider);
       final post = fakePost('p1');
-      await Future.wait([actions.toggleLike(post), actions.toggleLike(post)]);
+      final first = actions.toggleLike(post);
+      expect(c.read(postOverridesProvider)['p1']?.likedByMe, isTrue);
+      final second = actions.toggleLike(post);
+      expect(c.read(postOverridesProvider)['p1']?.likedByMe, isFalse);
+      await Future.wait([first, second]);
+      expect(repo.likeCalls, isEmpty);
+    });
+
+    test('a like that settles is sent once', () async {
+      final repo = FakeSocialRepository();
+      final c = ProviderContainer(overrides: socialOverrides(repo));
+      addTearDown(c.dispose);
+      await c.read(socialActionsProvider).toggleLike(fakePost('p1'));
       expect(repo.likeCalls, [('p1', true)]);
     });
 
@@ -49,6 +67,74 @@ void main() {
       await c.read(socialActionsProvider).like(fakePost('p1', liked: true));
       expect(repo.likeCalls, isEmpty);
     });
+  });
+
+  test("deleting a post hides it without refetching the author's grid",
+      () async {
+    final repo = FakeSocialRepository(posts: [fakePost('p1')]);
+    final c = ProviderContainer(overrides: socialOverrides(repo));
+    addTearDown(c.dispose);
+    final sub = c.listen(attorneyPostsProvider('att-1'), (_, __) {});
+    addTearDown(sub.close);
+    await c.read(attorneyPostsProvider('att-1').future);
+    expect(repo.attorneyPostsCalls, 1);
+    await c.read(socialActionsProvider).deletePost(fakePost('p1'));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    // Delta audit P6: no refetch; the post is hidden by the local override.
+    expect(repo.attorneyPostsCalls, 1);
+    expect(c.read(deletedPostsProvider), contains('p1'));
+  });
+
+  testWidgets('tapping your own name opens the Profile tab, not a copy',
+      (tester) async {
+    final router = GoRouter(
+      initialLocation: '/start',
+      routes: [
+        GoRoute(
+          path: '/start',
+          builder: (_, __) => Consumer(
+            builder: (context, ref, _) => Column(
+              children: [
+                TextButton(
+                  onPressed: () =>
+                      openProfile(context, ref, id: 'me', username: 'mine'),
+                  child: const Text('me'),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      openProfile(context, ref, id: 'x', username: 'other'),
+                  child: const Text('other'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        GoRoute(
+          path: AppRoutes.profile,
+          builder: (_, __) => const Text('PROFILE TAB'),
+        ),
+        GoRoute(
+          path: '/lawyer/:u',
+          builder: (_, s) => Text('LAWYER ${s.pathParameters['u']}'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [currentUserIdProvider.overrideWithValue('me')],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.tap(find.text('other'));
+    await tester.pumpAndSettle();
+    expect(find.text('LAWYER other'), findsOneWidget);
+    router.go('/start');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('me'));
+    await tester.pumpAndSettle();
+    expect(find.text('PROFILE TAB'), findsOneWidget);
+    expect(router.canPop(), isFalse);
   });
 
   test('offline feed falls back to the cached first page (§2.3)', () async {
@@ -64,28 +150,90 @@ void main() {
 
   testWidgets('the feed shows post cards with author, likes and tags',
       (tester) async {
-    final repo = FakeSocialRepository(posts: [fakePost('p1', likes: 2)]);
-    await tester.pumpWidget(uxApp(
-      const Scaffold(body: PostsFeedView()),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(social: repo),
-    ));
+    final repo = FakeSocialRepository(
+      // News keeps the LawBid card (like a post with a qualification).
+      posts: [fakePost('p1', likes: 2, news: true)],
+    );
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Saul Goodman'), findsOneWidget);
-    // Owner 2026-09-30 card: the like count sits next to the heart.
+    // Owner 2026-10-20: the like counter sits right of the heart.
     expect(find.text('2'), findsOneWidget);
     expect(find.textContaining('#dui', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets(
+      'a post without a qualification looks like Instagram: photo, '
+      'actions, likes line, bold name + caption, comments, time',
+      (tester) async {
+    final repo = FakeSocialRepository(
+      posts: [fakePost('p1', likes: 2, comments: 3, withPhoto: true)],
+    );
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Saul Goodman'), findsOneWidget);
+    // The same card as a practice post (owner 2026-10-12): counts beside
+    // the icons, the caption below the actions.
+    expect(find.text('2'), findsOneWidget);
+    expect(find.textContaining('likes'), findsNothing);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.textContaining('Know your rights'), findsOneWidget);
+    expect(find.text('Read more'), findsNothing);
+    // Order: photo above the actions, the caption below them.
+    final photo = tester.getTopLeft(find.byType(PostMediaCarousel)).dy;
+    final heart = tester.getTopLeft(find.bySemanticsLabel('Like')).dy;
+    final caption =
+        tester.getTopLeft(find.textContaining('Know your rights')).dy;
+    expect(photo, lessThan(heart));
+    expect(heart, lessThan(caption));
+    // Full width photo (edge to edge).
+    expect(
+      tester.getSize(find.byType(PostMediaCarousel)).width,
+      tester.getSize(find.byType(PostsFeedView)).width,
+    );
+  });
+
+  testWidgets(
+      'a very tall photo (1:4) never makes the photo taller than 1:1, '
+      'like Instagram', (tester) async {
+    final repo = FakeSocialRepository(
+      posts: [fakePost('p1', withPhoto: true, photoHeight: 4320)],
+    );
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final size = tester.getSize(find.byType(PostMediaCarousel));
+    expect(size.height, lessThanOrEqualTo(size.width + 0.5));
   });
 
   testWidgets(
       "someone else's post ⋯: profile, block, report — no copy link "
       '(the paper plane shares)', (tester) async {
     final repo = FakeSocialRepository(posts: [fakePost('p1')]);
-    await tester.pumpWidget(uxApp(
-      const Scaffold(body: PostsFeedView()),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(social: repo),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: PostsFeedView()),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(social: repo),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(AppIcons.moreHorizRounded).first);
     await tester.pump(const Duration(milliseconds: 400));
@@ -102,11 +250,13 @@ void main() {
       'search: one request per pause, nothing under 2 characters (§7.1)',
       (tester) async {
     final search = FakeSearchRepository();
-    await tester.pumpWidget(uxApp(
-      const SearchScreen(),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(search: search),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const SearchScreen(),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(search: search),
+      ),
+    );
     await tester.pump();
     // Owner 2026-09-29 (2nd pass): the big field sits at the top again.
     await tester.enterText(find.byType(TextField), 'a');
@@ -125,11 +275,13 @@ void main() {
 
   testWidgets('search tabs by role: a client has no Cases tab (§7.1)',
       (tester) async {
-    await tester.pumpWidget(uxApp(
-      const SearchScreen(),
-      theme: AppTheme.light(),
-      overrides: uxOverrides(),
-    ));
+    await tester.pumpWidget(
+      uxApp(
+        const SearchScreen(),
+        theme: AppTheme.light(),
+        overrides: uxOverrides(),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Cases'), findsNothing);
     expect(find.text('Topics'), findsOneWidget);
@@ -137,7 +289,9 @@ void main() {
 
   test('compact counters', () {
     // 12.5K style past ten thousand.
-    expect(SocialFormat.postLink('lawbid.app', 'p 1'),
-        'https://lawbid.app/post/p%201');
+    expect(
+      SocialFormat.postLink('lawbid.dev', 'p 1'),
+      'https://lawbid.dev/post/p%201',
+    );
   });
 }

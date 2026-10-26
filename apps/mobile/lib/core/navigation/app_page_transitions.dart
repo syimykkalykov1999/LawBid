@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' show MaterialPage;
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/accessibility/reduce_motion.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 
 /// go_router page builders with LawBid's page motion (UI modernization
 /// pass, 2026-09-27). Calm "shared axis" style: the incoming page fades in
@@ -31,17 +33,27 @@ abstract final class AppPageTransitions {
   /// on every platform (Android too) the page slides in from the right and
   /// a swipe from the LEFT edge to the right goes back, like on iPhone.
   static Page<void> push(GoRouterState state, Widget child) {
+    // Owner 2026-10-22 (checklist §17): reduce motion — no slide at all.
+    if (ReduceMotion.enabled.value) {
+      return _still(
+        state,
+        WebPageFrame(location: state.matchedLocation, child: child),
+      );
+    }
+    // Owner 2026-10-22: a MaterialPage takes the theme's page transition
+    // (core/navigation/back_swipe.dart): the Cupertino slide and «back» by a
+    // swipe from the edge or from anywhere no child claims — also on Android.
     if (_cupertino || _swipeBackEverywhere) {
-      return CupertinoPage<void>(
+      return MaterialPage<void>(
         key: state.pageKey,
         name: state.name,
-        child: child,
+        child: WebPageFrame(location: state.matchedLocation, child: child),
       );
     }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: child,
+      child: WebPageFrame(location: state.matchedLocation, child: child),
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
       transitionsBuilder: _sharedAxisX,
@@ -53,19 +65,27 @@ abstract final class AppPageTransitions {
   static Page<void> modal(GoRouterState state, Widget child) {
     // Owner 2026-10-01: a screen that rose from the bottom closes with a
     // pull down from its top, like a sheet.
+    // ignore: parameter_assignments
     child = PullDownToClose(threshold: 110, child: child);
+    if (ReduceMotion.enabled.value) {
+      return _still(
+        state,
+        WebPageFrame(location: state.matchedLocation, child: child),
+        fullscreenDialog: true,
+      );
+    }
     if (_cupertino) {
       return CupertinoPage<void>(
         key: state.pageKey,
         name: state.name,
         fullscreenDialog: true,
-        child: child,
+        child: WebPageFrame(location: state.matchedLocation, child: child),
       );
     }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
-      child: child,
+      child: WebPageFrame(location: state.matchedLocation, child: child),
       fullscreenDialog: true,
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
@@ -75,9 +95,14 @@ abstract final class AppPageTransitions {
 
   /// Tab-root swap (shell → first screen after onboarding): fade only.
   static Page<void> fade(GoRouterState state, Widget child) {
+    if (ReduceMotion.enabled.value) {
+      return _still(state, child);
+    }
     return CustomTransitionPage<void>(
       key: state.pageKey,
       name: state.name,
+      // The splash and the main shell: the shell draws its own menu and
+      // column, so no frame here.
       child: child,
       transitionDuration: AppMotion.pageEnter,
       reverseTransitionDuration: AppMotion.pageExit,
@@ -94,6 +119,22 @@ abstract final class AppPageTransitions {
       },
     );
   }
+
+  /// A page that appears and leaves at once (reduce motion).
+  static Page<void> _still(
+    GoRouterState state,
+    Widget child, {
+    bool fullscreenDialog = false,
+  }) =>
+      CustomTransitionPage<void>(
+        key: state.pageKey,
+        name: state.name,
+        fullscreenDialog: fullscreenDialog,
+        transitionDuration: Duration.zero,
+        reverseTransitionDuration: Duration.zero,
+        transitionsBuilder: (_, __, ___, child) => child,
+        child: child,
+      );
 
   static Widget _sharedAxisX(
     BuildContext context,
@@ -112,21 +153,20 @@ abstract final class AppPageTransitions {
       curve: AppMotion.enterCurve,
       reverseCurve: AppMotion.exitCurve,
     );
-    return FadeTransition(
-      opacity: enter,
+    // Owner 2026-10-13: slide only, no fade — a fading page lets the
+    // previous screen show through ("hanging" text and scales).
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(AppMotion.pageSlideFraction, 0),
+        end: Offset.zero,
+      ).animate(enter),
+      // The page underneath drifts left a little as the new one arrives.
       child: SlideTransition(
         position: Tween<Offset>(
-          begin: const Offset(AppMotion.pageSlideFraction, 0),
-          end: Offset.zero,
-        ).animate(enter),
-        // The page underneath drifts left a little as the new one arrives.
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: Offset.zero,
-            end: const Offset(-AppMotion.pageSlideFraction / 2, 0),
-          ).animate(behind),
-          child: child,
-        ),
+          begin: Offset.zero,
+          end: const Offset(-AppMotion.pageSlideFraction / 2, 0),
+        ).animate(behind),
+        child: child,
       ),
     );
   }
@@ -143,15 +183,12 @@ abstract final class AppPageTransitions {
       curve: AppMotion.enterCurve,
       reverseCurve: AppMotion.exitCurve,
     );
-    return FadeTransition(
-      opacity: enter,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, AppMotion.modalSlideFraction),
-          end: Offset.zero,
-        ).animate(enter),
-        child: child,
-      ),
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, AppMotion.modalSlideFraction),
+        end: Offset.zero,
+      ).animate(enter),
+      child: child,
     );
   }
 }

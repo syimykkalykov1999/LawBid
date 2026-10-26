@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_social_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 
 /// The client's private profile (docs/03 §5): photo, name, state — no
 /// follower counters — and the "My cases" tab: a lock + "Visible only to
@@ -29,7 +29,9 @@ class ClientProfileView extends ConsumerWidget {
     void retry() => ref.invalidate(clientProfileProvider);
 
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: profile.when(
         skipLoadingOnReload: true,
         loading: () => const _ClientSkeleton(key: ValueKey('loading')),
@@ -52,30 +54,34 @@ class ClientProfileView extends ConsumerWidget {
                 retryLabel: t.t('error.retry'),
                 onRetry: retry,
               ),
-        data: (p) => RefreshIndicator(
-          key: const ValueKey('data'),
-          color: Theme.of(context).extension<AppColorTokens>()!.gold,
-          onRefresh: () async {
-            ref.invalidate(clientProfileProvider);
-            try {
-              await ref.read(clientProfileProvider.future);
-            } catch (_) {
-              // Rendered by the error state.
-            }
-          },
-          // OQ-038: the same Instagram-like profile others see (+ Edit);
-          // the client's cases live in "Mine".
-          child: p.username.isEmpty
-              ? _ClientBody(profile: p, t: t)
-              : _OwnSocial(username: p.username),
-        ),
+        // OQ-038: the same Instagram-like profile others see (+ Edit);
+        // the client's cases live in "Mine". The social profile has its
+        // own pull-to-refresh (it reloads this provider too).
+        data: (p) => p.username.isNotEmpty
+            ? _OwnSocial(
+                key: const ValueKey('data'),
+                username: p.username,
+              )
+            : RefreshIndicator(
+                key: const ValueKey('data'),
+                color: Theme.of(context).extension<AppColorTokens>()!.gold,
+                onRefresh: () async {
+                  ref.invalidate(clientProfileProvider);
+                  try {
+                    await ref.read(clientProfileProvider.future);
+                  } catch (_) {
+                    // Rendered by the error state.
+                  }
+                },
+                child: _ClientBody(profile: p, t: t),
+              ),
       ),
     );
   }
 }
 
 class _OwnSocial extends ConsumerWidget {
-  const _OwnSocial({required this.username});
+  const _OwnSocial({required this.username, super.key});
 
   final String username;
 
@@ -125,12 +131,22 @@ class _ClientBody extends ConsumerWidget {
       // avatar left, name and state beside it, no card frame.
       Row(
         children: [
-          ProfileAvatar(
-            size: 88,
-            url: avatarUrl,
-            initials: initialsOf(profile.firstName, profile.lastName,
-                fallback: profile.username),
-            semanticLabel: t.t('profile.avatar.label'),
+          StoryAvatarRing(
+            userId: profile.id,
+            photoUrl: avatarUrl,
+            photoCloseLabel: t.t('common.close'),
+            size: AppSizes.profileAvatar,
+            child: ProfileAvatar(
+              size: AppSizes.profileAvatar,
+              url: avatarUrl,
+              initials: initialsOf(
+                profile.firstName,
+                profile.lastName,
+                fallback: profile.username,
+              ),
+              semanticLabel: t.t('profile.avatar.label'),
+              viewerCloseLabel: t.t('common.close'),
+            ),
           ),
           const SizedBox(width: AppSpacing.lg),
           Expanded(
@@ -144,23 +160,10 @@ class _ClientBody extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: typography.body.copyWith(
-                        color: colors.text, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Row(
-                  children: [
-                    AppIcon(AppIcons.locationOnOutlined,
-                        size: AppSpacing.lg, color: colors.goldStroke),
-                    const SizedBox(width: AppSpacing.xs),
-                    Flexible(
-                      child: Text(
-                        profile.state.name,
-                        style: typography.bodySmall
-                            .copyWith(color: colors.textSecondary),
-                      ),
+                      color: colors.text,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -169,39 +172,58 @@ class _ClientBody extends ConsumerWidget {
       ),
       AppButton(
         label: t.t('profile.action.edit'),
-        icon: AppIcons.editOutlined,
         variant: AppButtonVariant.secondary,
-        height: AppSizes.touchTarget,
+        height: 32,
         onPressed: () => context.push(AppRoutes.profileEdit),
       ),
       Row(
         children: [
-          AppIcon(AppIcons.folderOutlined,
-              size: AppSizes.iconSm, color: colors.text),
+          AppIcon(
+            AppIcons.folderOutlined,
+            size: AppSizes.iconSm,
+            color: colors.text,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Semantics(
               header: true,
-              child: Text(t.t('profile.client.myCases'),
-                  style: typography.roleTitle.copyWith(color: colors.text)),
+              child: Text(
+                t.t('profile.client.myCases'),
+                style: typography.roleTitle.copyWith(color: colors.text),
+              ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-            decoration: BoxDecoration(
-              color: colors.goldTint,
-              borderRadius: BorderRadius.circular(AppRadii.pill),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppIcon(AppIcons.lockOutlineRounded,
-                    size: AppSpacing.md + 2, color: colors.text),
-                const SizedBox(width: AppSpacing.xs),
-                Text(t.t('profile.client.onlyYou'),
-                    style: typography.badge.copyWith(color: colors.text)),
-              ],
+          // Natural width, capped: a long "Visible only to you" can't push
+          // the title out.
+          AppTrailingCap(
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              decoration: BoxDecoration(
+                color: colors.iconTintFill,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppIcon(
+                    AppIcons.lockOutlineRounded,
+                    size: AppSpacing.md + 2,
+                    color: colors.text,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Flexible(
+                    child: Text(
+                      t.t('profile.client.onlyYou'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: typography.badge.copyWith(color: colors.text),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -215,9 +237,10 @@ class _ClientBody extends ConsumerWidget {
             child: Column(
               children: [
                 const AppIconMedallion(
-                    icon: AppIcons.lockOutlineRounded,
-                    size: AppSizes.stateMedallion - AppSpacing.xl,
-                    iconSize: AppSizes.iconLg),
+                  icon: AppIcons.lockOutlineRounded,
+                  size: AppSizes.stateMedallion - AppSpacing.xl,
+                  iconSize: AppSizes.iconLg,
+                ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   t.t('profile.client.noCases'),
@@ -237,7 +260,7 @@ class _ClientBody extends ConsumerWidget {
       ),
       // Placeholder entry to the review form until file 04 lists closed
       // cases (non-production builds only).
-      // TODO(docs/04 closed cases): replace with the "Leave a review"
+      // TODO(docs-04-closed-cases): replace with the "Leave a review"
       // action on each closed case card.
       if (showReviewEntry)
         AppListRow(
@@ -249,8 +272,12 @@ class _ClientBody extends ConsumerWidget {
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-          AppSpacing.screenSide, AppSpacing.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        AppSpacing.xxl,
+      ),
       children: [
         for (var i = 0; i < children.length; i++) ...[
           if (i > 0) const SizedBox(height: AppSpacing.lg),
@@ -261,10 +288,15 @@ class _ClientBody extends ConsumerWidget {
   }
 
   Future<void> _openReviewPlaceholder(
-      BuildContext context, Translator t) async {
+    BuildContext context,
+    Translator t,
+  ) async {
     final controller = TextEditingController();
     final caseId = await showAppBottomSheet<String>(
       context: context,
+      // The keyboard opens under the field: the sheet grows above it and
+      // scrolls instead of overflowing.
+      isScrollControlled: true,
       builder: (sheetContext) {
         final colors = Theme.of(sheetContext).extension<AppColorTokens>()!;
         final typography =
@@ -276,29 +308,36 @@ class _ClientBody extends ConsumerWidget {
             AppSpacing.screenSide,
             AppSpacing.lg + MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              Text(t.t('reviews.placeholder.entry'),
-                  style: typography.titleMedium.copyWith(color: colors.text)),
-              const SizedBox(height: AppSpacing.sm),
-              Text(t.t('reviews.placeholder.body'),
-                  style: typography.body.copyWith(color: colors.textSecondary)),
-              const SizedBox(height: AppSpacing.lg),
-              AppTextField(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                Text(
+                  t.t('reviews.placeholder.entry'),
+                  style: typography.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  t.t('reviews.placeholder.body'),
+                  style: typography.body.copyWith(color: colors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppTextField(
                   controller: controller,
                   label: t.t('reviews.placeholder.caseId'),
-                  autofocus: true),
-              const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                label: t.t('common.confirm'),
-                height: AppSizes.touchTarget,
-                onPressed: () =>
-                    Navigator.of(sheetContext).pop(controller.text.trim()),
-              ),
-            ],
+                  autofocus: true,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(
+                  label: t.t('common.confirm'),
+                  height: AppSizes.touchTarget,
+                  onPressed: () =>
+                      Navigator.of(sheetContext).pop(controller.text.trim()),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -316,13 +355,18 @@ class _ClientSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide, AppSpacing.sm,
-            AppSpacing.screenSide, AppSpacing.xxl),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.sm,
+          AppSpacing.screenSide,
+          AppSpacing.xxl,
+        ),
         children: const [
           AppSkeletonCard(),
           SizedBox(height: AppSpacing.lg),
           AppSkeleton(
-              height: AppSizes.touchTarget, borderRadius: AppRadii.button),
+            height: AppSizes.touchTarget,
+          ),
           SizedBox(height: AppSpacing.lg),
           AppSkeleton(height: 160, borderRadius: AppRadii.card),
         ],

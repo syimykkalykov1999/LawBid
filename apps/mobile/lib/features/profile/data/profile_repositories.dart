@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/features/profile/data/own_profile_saved.dart';
 import 'package:lawbid/features/profile/data/profile_mappers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -9,7 +11,7 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// Resource-creating POSTs: IdempotencyInterceptor stamps an
 /// Idempotency-Key (review create is REQUIRED to carry one, docs/03 §7.2).
 const Map<String, dynamic> _createsResource = {
-  RequestFlags.createsResource: true
+  RequestFlags.createsResource: true,
 };
 
 /// docs/03 §4 attorney profiles (`/attorneys/*`). Throws [ApiException].
@@ -22,7 +24,20 @@ abstract interface class AttorneyProfileRepository {
 
   Future<OwnAttorneyProfile> updateOwn(AttorneyProfilePatch patch);
 
-  Future<UsernameCheck> checkUsername(String username);
+  /// [firstName]/[lastName]: the name on the form, for the suggestions.
+  Future<UsernameCheck> checkUsername(
+    String username, {
+    String? firstName,
+    String? lastName,
+  });
+
+  /// Owner 2026-10-18 («как в инсте»): up to 5 free handles from what was
+  /// typed and the name (`GET /attorneys/username-suggestions`).
+  Future<List<String>> suggestUsernames({
+    String? typed,
+    String? firstName,
+    String? lastName,
+  });
 }
 
 /// docs/03 §3.2 practices. Throws [ApiException].
@@ -39,14 +54,23 @@ abstract interface class PracticesRepository {
 /// docs/03 §7 reviews. Throws [ApiException].
 abstract interface class ReviewsRepository {
   /// [rating] 1–5: only reviews with that many stars (tap on the bar).
-  Future<ReviewPage> list(String attorneyId,
-      {String? cursor, int? rating, ReviewsSort sort = ReviewsSort.newest});
+  Future<ReviewPage> list(
+    String attorneyId, {
+    String? cursor,
+    int? rating,
+    ReviewsSort sort = ReviewsSort.newest,
+  });
 
-  // Owner 2026-10-01 (Google-style): anyone reviews an attorney; the author
+  // Owner 2026-10-06: a client who completed a case reviews the attorney;
+  // throws REVIEW_CASE_NOT_CLOSED for anyone else. The author
   // edits / deletes; the attorney replies; anyone marks "Helpful" / flags.
   Future<Review?> mine(String attorneyId);
-  Future<Review> saveMine(String attorneyId,
-      {required int rating, String? body, List<String>? photoIds});
+  Future<Review> saveMine(
+    String attorneyId, {
+    required int rating,
+    String? body,
+    List<String>? photoIds,
+  });
   Future<void> delete(String reviewId);
   Future<Review> reply(String reviewId, String? body);
   Future<Review> helpful(String reviewId, {required bool on});
@@ -61,8 +85,11 @@ abstract interface class ReviewsRepository {
 
   Future<Review> update(String reviewId, {required int rating, String? body});
 
-  Future<void> report(String reviewId, ReviewReportReason reason,
-      {String? note});
+  Future<void> report(
+    String reviewId,
+    ReviewReportReason reason, {
+    String? note,
+  });
 }
 
 /// docs/03 §5 the client's private profile. Throws [ApiException].
@@ -83,22 +110,35 @@ abstract interface class ClientProfileRepository {
 }
 
 class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
-  ApiAttorneyProfileRepository(Dio dio) : _client = api.AttorneysClient(dio);
+  ApiAttorneyProfileRepository(Dio dio, {this.saved})
+      : _dio = dio,
+        _client = api.AttorneysClient(dio);
 
+  /// Owner 2026-10-20: keeps my profile for the next start.
+  final OwnProfileSaved? saved;
+
+  final Dio _dio;
   final api.AttorneysClient _client;
 
   @override
   Future<PublicAttorneyProfile> fetchPublic(String username) async =>
       ProfileMappers.publicProfile(
         (await guardApiCall(
-                () => _client.getAttorneyProfile(username: username)))
+          // Package D: shown from the phone for 10 min, then If-None-Match.
+          () => _client.getAttorneyProfile(
+            username: username,
+            extras: cacheFor(const Duration(minutes: 10)),
+          ),
+        ))
             .data,
       );
 
   @override
-  Future<OwnAttorneyProfile> fetchOwn() async => ProfileMappers.ownProfile(
-        (await guardApiCall(_client.getMyAttorneyProfile)).data,
-      );
+  Future<OwnAttorneyProfile> fetchOwn() async {
+    final env = await guardApiCall(_client.getMyAttorneyProfile);
+    saved?.saveAttorney(env);
+    return ProfileMappers.ownProfile(env.data);
+  }
 
   @override
   Future<OwnAttorneyProfile> updateOwn(AttorneyProfilePatch patch) async {
@@ -119,12 +159,49 @@ class ApiAttorneyProfileRepository implements AttorneyProfileRepository {
     );
   }
 
+  // Raw calls: the generated client predates `suggestions`.
   @override
-  Future<UsernameCheck> checkUsername(String username) async =>
-      ProfileMappers.username(
-        (await guardApiCall(() => _client.checkUsernameAvailable(u: username)))
-            .data,
-      );
+  Future<UsernameCheck> checkUsername(
+    String username, {
+    String? firstName,
+    String? lastName,
+  }) async {
+    final res = await guardApiCall(
+      () => _dio.get<Map<String, dynamic>>(
+        '/attorneys/username-available',
+        queryParameters: {
+          'u': username,
+          if (firstName?.trim().isNotEmpty ?? false) 'first': firstName!.trim(),
+          if (lastName?.trim().isNotEmpty ?? false) 'last': lastName!.trim(),
+        },
+      ),
+    );
+    return ProfileMappers.usernameJson(
+      res.data?['data'] as Map<String, dynamic>? ?? const {},
+      username,
+    );
+  }
+
+  @override
+  Future<List<String>> suggestUsernames({
+    String? typed,
+    String? firstName,
+    String? lastName,
+  }) async {
+    final res = await guardApiCall(
+      () => _dio.get<Map<String, dynamic>>(
+        '/attorneys/username-suggestions',
+        queryParameters: {
+          if (typed?.trim().isNotEmpty ?? false) 'u': typed!.trim(),
+          if (firstName?.trim().isNotEmpty ?? false) 'first': firstName!.trim(),
+          if (lastName?.trim().isNotEmpty ?? false) 'last': lastName!.trim(),
+        },
+      ),
+    );
+    final data = res.data?['data'];
+    final list = data is Map<String, dynamic> ? data['suggestions'] : null;
+    return list is List ? list.whereType<String>().toList() : const [];
+  }
 }
 
 class ApiPracticesRepository implements PracticesRepository {
@@ -137,7 +214,13 @@ class ApiPracticesRepository implements PracticesRepository {
 
   @override
   Future<List<PracticeCategory>> fetchTree() async =>
-      (await guardApiCall(() => _tree.listPracticeAreas()))
+      (await guardApiCall(
+        // Delta audit P7: the tree changes a few times a year; the server
+        // ETag still revalidates it after the hour.
+        () => _tree.listPracticeAreas(
+          extras: cacheFor(const Duration(hours: 1)),
+        ),
+      ))
           .data
           .map(ProfileMappers.category)
           .toList(growable: false);
@@ -170,14 +253,15 @@ class ApiReviewsRepository implements ReviewsRepository {
   static const pageSize = 20;
 
   @override
-  Future<ReviewPage> list(String attorneyId,
-      {String? cursor,
-      int? rating,
-      ReviewsSort sort = ReviewsSort.newest}) async {
+  Future<ReviewPage> list(
+    String attorneyId, {
+    String? cursor,
+    int? rating,
+    ReviewsSort sort = ReviewsSort.newest,
+  }) async {
     final env = await guardApiCall(
       () => _client.list(
         id: attorneyId,
-        limit: pageSize,
         cursor: cursor,
         rating: rating,
         sort: api.ReviewSort.fromJson(sort.wire),
@@ -192,7 +276,8 @@ class ApiReviewsRepository implements ReviewsRepository {
   @override
   Future<ReviewSummary> summary(String attorneyId) async =>
       ProfileMappers.summary(
-          (await guardApiCall(() => _client.summary(id: attorneyId))).data);
+        (await guardApiCall(() => _client.summary(id: attorneyId))).data,
+      );
 
   @override
   Future<Review?> ownForCase(String caseId) async {
@@ -207,8 +292,11 @@ class ApiReviewsRepository implements ReviewsRepository {
   }
 
   @override
-  Future<Review> create(String caseId,
-          {required int rating, String? body}) async =>
+  Future<Review> create(
+    String caseId, {
+    required int rating,
+    String? body,
+  }) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.create(
@@ -221,8 +309,11 @@ class ApiReviewsRepository implements ReviewsRepository {
       );
 
   @override
-  Future<Review> update(String reviewId,
-          {required int rating, String? body}) async =>
+  Future<Review> update(
+    String reviewId, {
+    required int rating,
+    String? body,
+  }) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.update(
@@ -234,8 +325,11 @@ class ApiReviewsRepository implements ReviewsRepository {
       );
 
   @override
-  Future<void> report(String reviewId, ReviewReportReason reason,
-          {String? note}) =>
+  Future<void> report(
+    String reviewId,
+    ReviewReportReason reason, {
+    String? note,
+  }) =>
       guardApiCall(
         () => _client.report(
           id: reviewId,
@@ -251,7 +345,13 @@ class ApiReviewsRepository implements ReviewsRepository {
   Future<Review?> mine(String attorneyId) async {
     try {
       return ProfileMappers.ownReview(
-          (await guardApiCall(() => _client.mine(id: attorneyId))).data);
+        (await guardApiCall(() => _client.mine(id: attorneyId))).data,
+      );
+    } on ApiException catch (e) {
+      // Owner 2026-10-06: never finished a case with this attorney — the
+      // profile shows why there is no "Write a review" button.
+      if (e.code == ApiErrorCodes.reviewCaseNotClosed) rethrow;
+      return null;
     } on Object {
       // `data: null` (no review yet) can't be parsed by the envelope.
       return null;
@@ -259,16 +359,21 @@ class ApiReviewsRepository implements ReviewsRepository {
   }
 
   @override
-  Future<Review> saveMine(String attorneyId,
-          {required int rating,
-          String? body,
-          List<String>? photoIds}) async =>
+  Future<Review> saveMine(
+    String attorneyId, {
+    required int rating,
+    String? body,
+    List<String>? photoIds,
+  }) async =>
       ProfileMappers.ownReview(
         (await guardApiCall(
           () => _client.upsertOpen(
             id: attorneyId,
             body: api.CreateReviewDto(
-                rating: rating, body: _text(body), photoIds: photoIds),
+              rating: rating,
+              body: _text(body),
+              photoIds: photoIds,
+            ),
           ),
         ))
             .data,
@@ -280,21 +385,29 @@ class ApiReviewsRepository implements ReviewsRepository {
 
   @override
   Future<Review> reply(String reviewId, String? body) async =>
-      ProfileMappers.publicReview((await guardApiCall(() => body == null
+      ProfileMappers.publicReview(
+        (await guardApiCall(
+          () => body == null
               ? _client.deleteReviewReply(id: reviewId)
               : _client.replyToReview(
                   id: reviewId,
                   body: api.ReviewReplyDto(body: body.trim()),
-                )))
-          .data);
+                ),
+        ))
+            .data,
+      );
 
   @override
   Future<Review> helpful(String reviewId, {required bool on}) async =>
-      ProfileMappers.publicReview((await guardApiCall(() => _client.markHelpful(
-                id: reviewId,
-                body: api.ReviewHelpfulDto(helpful: on),
-              )))
-          .data);
+      ProfileMappers.publicReview(
+        (await guardApiCall(
+          () => _client.markHelpful(
+            id: reviewId,
+            body: api.ReviewHelpfulDto(helpful: on),
+          ),
+        ))
+            .data,
+      );
 
   static String? _text(String? body) {
     final trimmed = body?.trim();
@@ -303,24 +416,31 @@ class ApiReviewsRepository implements ReviewsRepository {
 }
 
 class ApiClientProfileRepository implements ClientProfileRepository {
-  ApiClientProfileRepository(Dio dio)
+  ApiClientProfileRepository(Dio dio, {this.saved})
       : _dio = dio,
         _client = api.ProfilesClient(dio),
         _clients = api.ClientsClient(dio);
+
+  /// Owner 2026-10-20: keeps my profile for the next start.
+  final OwnProfileSaved? saved;
 
   final Dio _dio;
   final api.ProfilesClient _client;
   final api.ClientsClient _clients;
 
   @override
-  Future<ClientProfileDetails> fetch() async => ProfileMappers.client(
-      (await guardApiCall(_client.getMyClientProfile)).data);
+  Future<ClientProfileDetails> fetch() async {
+    final env = await guardApiCall(_client.getMyClientProfile);
+    saved?.saveClient(env);
+    return ProfileMappers.client(env.data);
+  }
 
   @override
   Future<PublicClientProfile> fetchPublic(String username) async =>
       ProfileMappers.publicClient(
         (await guardApiCall(
-                () => _clients.getClientProfile(username: username)))
+          () => _clients.getClientProfile(username: username),
+        ))
             .data,
       );
 
@@ -337,7 +457,8 @@ class ApiClientProfileRepository implements ClientProfileRepository {
       contactMethod: patch.contactMethod == null
           ? null
           : api.UpdateClientProfileDtoContactMethod.fromJson(
-              patch.contactMethod!.wire),
+              patch.contactMethod!.wire,
+            ),
       contactNote: patch.contactNote?.trim(),
     );
     return ProfileMappers.client(
@@ -362,7 +483,8 @@ class ApiClientProfileRepository implements ClientProfileRepository {
     );
     return guardApiCall(
       () async => ProfileMappers.client(
-          api.ClientProfileEnvelope.fromJson(response.data!).data),
+        api.ClientProfileEnvelope.fromJson(response.data!).data,
+      ),
     );
   }
 }

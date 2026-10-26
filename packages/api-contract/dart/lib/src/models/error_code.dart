@@ -34,6 +34,8 @@ enum ErrorCode {
   authOtpLocked('AUTH_OTP_LOCKED'),
   @JsonValue('AUTH_OTP_REQUEST_LIMIT')
   authOtpRequestLimit('AUTH_OTP_REQUEST_LIMIT'),
+  @JsonValue('AUTH_PHONE_REGISTERED')
+  authPhoneRegistered('AUTH_PHONE_REGISTERED'),
   @JsonValue('AUTH_REFRESH_INVALID')
   authRefreshInvalid('AUTH_REFRESH_INVALID'),
   @JsonValue('AUTH_REFRESH_EXPIRED')
@@ -52,6 +54,10 @@ enum ErrorCode {
   authSocialProviderUnavailable('AUTH_SOCIAL_PROVIDER_UNAVAILABLE'),
   @JsonValue('AUTH_PROVIDER_DISABLED')
   authProviderDisabled('AUTH_PROVIDER_DISABLED'),
+  @JsonValue('AUTH_INVALID_CREDENTIALS')
+  authInvalidCredentials('AUTH_INVALID_CREDENTIALS'),
+  @JsonValue('AUTH_PASSWORD_COMPROMISED')
+  authPasswordCompromised('AUTH_PASSWORD_COMPROMISED'),
   @JsonValue('ACCOUNT_EXISTS_USE_OTHER_METHOD')
   accountExistsUseOtherMethod('ACCOUNT_EXISTS_USE_OTHER_METHOD'),
   @JsonValue('IDENTIFIER_ALREADY_LINKED')
@@ -64,8 +70,16 @@ enum ErrorCode {
   reauthRequired('REAUTH_REQUIRED'),
   @JsonValue('REAUTH_INVALID')
   reauthInvalid('REAUTH_INVALID'),
+  @JsonValue('PASSKEY_INVALID')
+  passkeyInvalid('PASSKEY_INVALID'),
+  @JsonValue('PASSKEY_NOT_FOUND')
+  passkeyNotFound('PASSKEY_NOT_FOUND'),
+  @JsonValue('PASSKEY_LIMIT')
+  passkeyLimit('PASSKEY_LIMIT'),
   @JsonValue('DEVICE_ATTESTATION_REQUIRED')
   deviceAttestationRequired('DEVICE_ATTESTATION_REQUIRED'),
+  @JsonValue('TURNSTILE_FAILED')
+  turnstileFailed('TURNSTILE_FAILED'),
   @JsonValue('ACCOUNT_SUSPENDED')
   accountSuspended('ACCOUNT_SUSPENDED'),
   @JsonValue('ACCOUNT_DELETED')
@@ -94,30 +108,48 @@ enum ErrorCode {
   reviewAlreadyExists('REVIEW_ALREADY_EXISTS'),
   @JsonValue('REVIEW_EDIT_WINDOW_EXPIRED')
   reviewEditWindowExpired('REVIEW_EDIT_WINDOW_EXPIRED'),
+  @JsonValue('MESSAGE_WINDOW_EXPIRED')
+  messageWindowExpired('MESSAGE_WINDOW_EXPIRED'),
+  @JsonValue('MESSAGE_PIN_LIMIT')
+  messagePinLimit('MESSAGE_PIN_LIMIT'),
   @JsonValue('REVIEW_NOT_EDITABLE')
   reviewNotEditable('REVIEW_NOT_EDITABLE'),
   @JsonValue('REVIEW_APPEAL_EXISTS')
   reviewAppealExists('REVIEW_APPEAL_EXISTS'),
+  @JsonValue('APPEAL_NOT_ALLOWED')
+  appealNotAllowed('APPEAL_NOT_ALLOWED'),
   @JsonValue('CHAT_ATTACHMENTS_LOCKED')
   chatAttachmentsLocked('CHAT_ATTACHMENTS_LOCKED'),
   @JsonValue('SUBSCRIPTION_PLAN_INCLUDES_SEATS')
   subscriptionPlanIncludesSeats('SUBSCRIPTION_PLAN_INCLUDES_SEATS'),
+  @JsonValue('SEATS_TRIAL_NOT_ALLOWED')
+  seatsTrialNotAllowed('SEATS_TRIAL_NOT_ALLOWED'),
+  @JsonValue('SEATS_NOT_PAID_YET')
+  seatsNotPaidYet('SEATS_NOT_PAID_YET'),
+  @JsonValue('SEATS_PREVIEW_STALE')
+  seatsPreviewStale('SEATS_PREVIEW_STALE'),
   @JsonValue('ASSISTANT_SEATS_IN_USE')
   assistantSeatsInUse('ASSISTANT_SEATS_IN_USE'),
   @JsonValue('ASSISTANT_NO_FREE_SEAT')
   assistantNoFreeSeat('ASSISTANT_NO_FREE_SEAT'),
+  @JsonValue('ASSISTANT_TOO_MANY_DUTIES')
+  assistantTooManyDuties('ASSISTANT_TOO_MANY_DUTIES'),
   @JsonValue('ASSISTANT_NOT_ALLOWED')
   assistantNotAllowed('ASSISTANT_NOT_ALLOWED'),
   @JsonValue('ASSISTANT_PHONE_TAKEN')
   assistantPhoneTaken('ASSISTANT_PHONE_TAKEN'),
   @JsonValue('ASSISTANT_INVITE_NOT_FOUND')
   assistantInviteNotFound('ASSISTANT_INVITE_NOT_FOUND'),
+  @JsonValue('ASSISTANT_CODE_INVALID')
+  assistantCodeInvalid('ASSISTANT_CODE_INVALID'),
   @JsonValue('ASSISTANT_LIABILITY_REQUIRED')
   assistantLiabilityRequired('ASSISTANT_LIABILITY_REQUIRED'),
   @JsonValue('TASK_CLOSED')
   taskClosed('TASK_CLOSED'),
   @JsonValue('TASK_STEPS_LIMIT')
   taskStepsLimit('TASK_STEPS_LIMIT'),
+  @JsonValue('FILES_COUNT_LIMIT')
+  filesCountLimit('FILES_COUNT_LIMIT'),
   @JsonValue('ATTORNEY_NOT_VERIFIED')
   attorneyNotVerified('ATTORNEY_NOT_VERIFIED'),
   @JsonValue('USERNAME_TAKEN')
@@ -140,6 +172,12 @@ enum ErrorCode {
   fileNotAttachable('FILE_NOT_ATTACHABLE'),
   @JsonValue('FILE_STORAGE_UNAVAILABLE')
   fileStorageUnavailable('FILE_STORAGE_UNAVAILABLE'),
+  @JsonValue('STORAGE_QUOTA_EXCEEDED')
+  storageQuotaExceeded('STORAGE_QUOTA_EXCEEDED'),
+  @JsonValue('CHAT_STORAGE_FULL')
+  chatStorageFull('CHAT_STORAGE_FULL'),
+  @JsonValue('DAILY_UPLOAD_LIMIT_EXCEEDED')
+  dailyUploadLimitExceeded('DAILY_UPLOAD_LIMIT_EXCEEDED'),
   @JsonValue('VERIFICATION_ALREADY_PENDING')
   verificationAlreadyPending('VERIFICATION_ALREADY_PENDING'),
   @JsonValue('VERIFICATION_SUBMISSION_LIMIT')
@@ -158,8 +196,14 @@ enum ErrorCode {
   licenseAlreadyAdded('LICENSE_ALREADY_ADDED'),
   @JsonValue('ATTORNEY_SUSPENDED')
   attorneySuspended('ATTORNEY_SUSPENDED'),
+  @JsonValue('BAR_NUMBER_BLOCKED')
+  barNumberBlocked('BAR_NUMBER_BLOCKED'),
+  @JsonValue('ACCOUNT_RESTRICTED')
+  accountRestricted('ACCOUNT_RESTRICTED'),
   @JsonValue('JUSTIFICATION_REQUIRED')
   justificationRequired('JUSTIFICATION_REQUIRED'),
+  @JsonValue('REASON_REQUIRED')
+  reasonRequired('REASON_REQUIRED'),
   @JsonValue('ADMIN_TICKET_INVALID')
   adminTicketInvalid('ADMIN_TICKET_INVALID'),
   @JsonValue('ADMIN_TOTP_INVALID')
@@ -170,6 +214,20 @@ enum ErrorCode {
   adminAuthNotConfigured('ADMIN_AUTH_NOT_CONFIGURED'),
   @JsonValue('ADMIN_EMAIL_TAKEN')
   adminEmailTaken('ADMIN_EMAIL_TAKEN'),
+  @JsonValue('ADMIN_CREDENTIALS_INVALID')
+  adminCredentialsInvalid('ADMIN_CREDENTIALS_INVALID'),
+  @JsonValue('ADMIN_LOGIN_TAKEN')
+  adminLoginTaken('ADMIN_LOGIN_TAKEN'),
+  @JsonValue('ADMIN_RECOVERY_FAILED')
+  adminRecoveryFailed('ADMIN_RECOVERY_FAILED'),
+  @JsonValue('ADMIN_TOTP_SETUP_REQUIRED')
+  adminTotpSetupRequired('ADMIN_TOTP_SETUP_REQUIRED'),
+  @JsonValue('ADMIN_APPROVAL_PENDING')
+  adminApprovalPending('ADMIN_APPROVAL_PENDING'),
+  @JsonValue('ADMIN_APPROVAL_SELF')
+  adminApprovalSelf('ADMIN_APPROVAL_SELF'),
+  @JsonValue('ADMIN_APPROVAL_NOT_PENDING')
+  adminApprovalNotPending('ADMIN_APPROVAL_NOT_PENDING'),
   @JsonValue('CONTENT_BLOCKED')
   contentBlocked('CONTENT_BLOCKED'),
   @JsonValue('MODERATION_ACTION_NOT_APPLICABLE')
@@ -208,6 +266,20 @@ enum ErrorCode {
   subscriptionRequired('SUBSCRIPTION_REQUIRED'),
   @JsonValue('BID_ALREADY_EXISTS')
   bidAlreadyExists('BID_ALREADY_EXISTS'),
+  @JsonValue('INVITE_NOT_FOUND')
+  inviteNotFound('INVITE_NOT_FOUND'),
+  @JsonValue('INVITE_INVALID_STATE')
+  inviteInvalidState('INVITE_INVALID_STATE'),
+  @JsonValue('INVITE_ALREADY_PENDING')
+  inviteAlreadyPending('INVITE_ALREADY_PENDING'),
+  @JsonValue('INVITE_ATTORNEY_UNAVAILABLE')
+  inviteAttorneyUnavailable('INVITE_ATTORNEY_UNAVAILABLE'),
+  @JsonValue('INVITE_LIMIT_REACHED')
+  inviteLimitReached('INVITE_LIMIT_REACHED'),
+  @JsonValue('SEAT_LIMIT_REQUEST_PENDING')
+  seatLimitRequestPending('SEAT_LIMIT_REQUEST_PENDING'),
+  @JsonValue('SEAT_LIMIT_REQUEST_DECIDED')
+  seatLimitRequestDecided('SEAT_LIMIT_REQUEST_DECIDED'),
   @JsonValue('CASE_CONTAINS_CONTACT_INFO')
   caseContainsContactInfo('CASE_CONTAINS_CONTACT_INFO'),
   @JsonValue('CLIENT_CONTACT_SHARING_CONSENT_REQUIRED')
@@ -226,22 +298,40 @@ enum ErrorCode {
   postNotFound('POST_NOT_FOUND'),
   @JsonValue('POST_NOT_ALLOWED')
   postNotAllowed('POST_NOT_ALLOWED'),
+  @JsonValue('POST_ATTACHMENTS_NOT_ALLOWED')
+  postAttachmentsNotAllowed('POST_ATTACHMENTS_NOT_ALLOWED'),
+  @JsonValue('REPOST_OWN_POST')
+  repostOwnPost('REPOST_OWN_POST'),
   @JsonValue('COMMENT_NOT_FOUND')
   commentNotFound('COMMENT_NOT_FOUND'),
   @JsonValue('FOLLOW_NOT_ALLOWED')
   followNotAllowed('FOLLOW_NOT_ALLOWED'),
+  @JsonValue('GROUP_NOT_FOUND')
+  groupNotFound('GROUP_NOT_FOUND'),
+  @JsonValue('GROUP_FORBIDDEN')
+  groupForbidden('GROUP_FORBIDDEN'),
+  @JsonValue('GROUP_FULL')
+  groupFull('GROUP_FULL'),
+  @JsonValue('GROUP_USERNAME_TAKEN')
+  groupUsernameTaken('GROUP_USERNAME_TAKEN'),
+  @JsonValue('POLL_CLOSED')
+  pollClosed('POLL_CLOSED'),
   @JsonValue('CONVERSATION_NOT_FOUND')
   conversationNotFound('CONVERSATION_NOT_FOUND'),
   @JsonValue('CONVERSATION_CLOSED')
   conversationClosed('CONVERSATION_CLOSED'),
   @JsonValue('MESSAGE_TOO_LONG')
   messageTooLong('MESSAGE_TOO_LONG'),
+  @JsonValue('TEXT_TOO_LONG')
+  textTooLong('TEXT_TOO_LONG'),
   @JsonValue('FEATURE_DISABLED')
   featureDisabled('FEATURE_DISABLED'),
   @JsonValue('SEARCH_QUERY_TOO_SHORT')
   searchQueryTooShort('SEARCH_QUERY_TOO_SHORT'),
   @JsonValue('USER_BLOCKED')
   userBlocked('USER_BLOCKED'),
+  @JsonValue('PRIVACY_RESTRICTED')
+  privacyRestricted('PRIVACY_RESTRICTED'),
   @JsonValue('CALL_NOT_FOUND')
   callNotFound('CALL_NOT_FOUND'),
   @JsonValue('CALL_NOT_ALLOWED')
@@ -250,8 +340,12 @@ enum ErrorCode {
   callInProgress('CALL_IN_PROGRESS'),
   @JsonValue('CALL_STATE_CONFLICT')
   callStateConflict('CALL_STATE_CONFLICT'),
+  @JsonValue('CALL_MEDIA_UNAVAILABLE')
+  callMediaUnavailable('CALL_MEDIA_UNAVAILABLE'),
   @JsonValue('DIRECT_CHAT_NOT_ALLOWED')
   directChatNotAllowed('DIRECT_CHAT_NOT_ALLOWED'),
+  @JsonValue('CONTINGENCY_NOT_ALLOWED')
+  contingencyNotAllowed('CONTINGENCY_NOT_ALLOWED'),
   @JsonValue('MESSAGE_REQUEST_DECLINED')
   messageRequestDeclined('MESSAGE_REQUEST_DECLINED'),
   @JsonValue('MESSAGE_REQUEST_LIMIT')
@@ -268,8 +362,138 @@ enum ErrorCode {
   videoTooLong('VIDEO_TOO_LONG'),
   @JsonValue('VIDEO_NOT_READY')
   videoNotReady('VIDEO_NOT_READY'),
+  @JsonValue('COMMENTS_DISABLED')
+  commentsDisabled('COMMENTS_DISABLED'),
+  @JsonValue('LICENSE_STATE_REQUIRED')
+  licenseStateRequired('LICENSE_STATE_REQUIRED'),
+  @JsonValue('TRUST_LEVEL_REQUIRED')
+  trustLevelRequired('TRUST_LEVEL_REQUIRED'),
+  @JsonValue('ATTORNEY_ON_HOLD')
+  attorneyOnHold('ATTORNEY_ON_HOLD'),
+  @JsonValue('TRANSLATION_UNAVAILABLE')
+  translationUnavailable('TRANSLATION_UNAVAILABLE'),
   @JsonValue('STICKER_LIMIT_REACHED')
   stickerLimitReached('STICKER_LIMIT_REACHED'),
+  @JsonValue('INSUFFICIENT_STARS')
+  insufficientStars('INSUFFICIENT_STARS'),
+  @JsonValue('STICKER_PACK_NOT_OWNED')
+  stickerPackNotOwned('STICKER_PACK_NOT_OWNED'),
+  @JsonValue('SUPPORT_TICKET_CLOSED')
+  supportTicketClosed('SUPPORT_TICKET_CLOSED'),
+  @JsonValue('REFERRAL_CODE_INVALID')
+  referralCodeInvalid('REFERRAL_CODE_INVALID'),
+  @JsonValue('REFERRAL_NOT_ALLOWED')
+  referralNotAllowed('REFERRAL_NOT_ALLOWED'),
+  @JsonValue('REFERRAL_INVALID_STATE')
+  referralInvalidState('REFERRAL_INVALID_STATE'),
+  @JsonValue('PARTNER_INVALID_STATE')
+  partnerInvalidState('PARTNER_INVALID_STATE'),
+  @JsonValue('PROMOTION_ALREADY_ACTIVE')
+  promotionAlreadyActive('PROMOTION_ALREADY_ACTIVE'),
+  @JsonValue('PROMOTION_INVALID_STATE')
+  promotionInvalidState('PROMOTION_INVALID_STATE'),
+  @JsonValue('PAYOUT_ACCOUNT_NOT_READY')
+  payoutAccountNotReady('PAYOUT_ACCOUNT_NOT_READY'),
+  @JsonValue('PAYMENT_INVALID_STATE')
+  paymentInvalidState('PAYMENT_INVALID_STATE'),
+  @JsonValue('PAYMENT_AMOUNT_INVALID')
+  paymentAmountInvalid('PAYMENT_AMOUNT_INVALID'),
+  @JsonValue('PAYMENT_FEE_MAX_ROUNDS_REACHED')
+  paymentFeeMaxRoundsReached('PAYMENT_FEE_MAX_ROUNDS_REACHED'),
+  @JsonValue('PROMO_CODE_INVALID')
+  promoCodeInvalid('PROMO_CODE_INVALID'),
+  @JsonValue('PROMO_CODE_EXISTS')
+  promoCodeExists('PROMO_CODE_EXISTS'),
+  @JsonValue('CONTRACT_GRANT_NOT_ATTORNEY')
+  contractGrantNotAttorney('CONTRACT_GRANT_NOT_ATTORNEY'),
+  @JsonValue('CONTRACT_GRANT_REVOKED')
+  contractGrantRevoked('CONTRACT_GRANT_REVOKED'),
+  @JsonValue('REFUND_AMOUNT_EXCEEDED')
+  refundAmountExceeded('REFUND_AMOUNT_EXCEEDED'),
+  @JsonValue('REFUND_NOT_ALLOWED')
+  refundNotAllowed('REFUND_NOT_ALLOWED'),
+  @JsonValue('REFUND_PROVIDER_FAILED')
+  refundProviderFailed('REFUND_PROVIDER_FAILED'),
+  @JsonValue('CONTENT_INVALID_STATE')
+  contentInvalidState('CONTENT_INVALID_STATE'),
+  @JsonValue('STICKER_PACK_NAME_TAKEN')
+  stickerPackNameTaken('STICKER_PACK_NAME_TAKEN'),
+  @JsonValue('BID_LIMIT_REACHED')
+  bidLimitReached('BID_LIMIT_REACHED'),
+  @JsonValue('BID_MONTHLY_LIMIT_REACHED')
+  bidMonthlyLimitReached('BID_MONTHLY_LIMIT_REACHED'),
+  @JsonValue('BID_TRIAL_LIMIT_REACHED')
+  bidTrialLimitReached('BID_TRIAL_LIMIT_REACHED'),
+  @JsonValue('BAR_NUMBER_FORMAT_INVALID')
+  barNumberFormatInvalid('BAR_NUMBER_FORMAT_INVALID'),
+  @JsonValue('FIRM_ALREADY_MEMBER')
+  firmAlreadyMember('FIRM_ALREADY_MEMBER'),
+  @JsonValue('FIRM_FULL')
+  firmFull('FIRM_FULL'),
+  @JsonValue('BID_LICENSE_PENDING')
+  bidLicensePending('BID_LICENSE_PENDING'),
+  @JsonValue('BAR_ATTEMPTS_COOLDOWN')
+  barAttemptsCooldown('BAR_ATTEMPTS_COOLDOWN'),
+  @JsonValue('CASE_LIMIT_REACHED')
+  caseLimitReached('CASE_LIMIT_REACHED'),
+  @JsonValue('PLAN_NOT_AVAILABLE')
+  planNotAvailable('PLAN_NOT_AVAILABLE'),
+  @JsonValue('PLAN_CODE_EXISTS')
+  planCodeExists('PLAN_CODE_EXISTS'),
+  @JsonValue('PLAN_IN_USE')
+  planInUse('PLAN_IN_USE'),
+  @JsonValue('ENTITLEMENT_REQUIRED')
+  entitlementRequired('ENTITLEMENT_REQUIRED'),
+  @JsonValue('OUTREACH_IMPORT_INVALID')
+  outreachImportInvalid('OUTREACH_IMPORT_INVALID'),
+  @JsonValue('OUTREACH_INVALID_STATE')
+  outreachInvalidState('OUTREACH_INVALID_STATE'),
+  @JsonValue('OUTREACH_EMAIL_LIMIT')
+  outreachEmailLimit('OUTREACH_EMAIL_LIMIT'),
+  @JsonValue('OUTREACH_CONTACT_BLOCKED')
+  outreachContactBlocked('OUTREACH_CONTACT_BLOCKED'),
+  @JsonValue('OUTREACH_CLIENTS_DISABLED')
+  outreachClientsDisabled('OUTREACH_CLIENTS_DISABLED'),
+  @JsonValue('COUNTRY_NOT_AVAILABLE')
+  countryNotAvailable('COUNTRY_NOT_AVAILABLE'),
+  @JsonValue('DMCA_INVALID_STATE')
+  dmcaInvalidState('DMCA_INVALID_STATE'),
+  @JsonValue('DEMO_DISABLED')
+  demoDisabled('DEMO_DISABLED'),
+  @JsonValue('DEMO_LIMIT_REACHED')
+  demoLimitReached('DEMO_LIMIT_REACHED'),
+  @JsonValue('DEMO_UNAVAILABLE')
+  demoUnavailable('DEMO_UNAVAILABLE'),
+  @JsonValue('DEMO_CODE_INVALID')
+  demoCodeInvalid('DEMO_CODE_INVALID'),
+  @JsonValue('LEGAL_REACCEPT_REQUIRED')
+  legalReacceptRequired('LEGAL_REACCEPT_REQUIRED'),
+  @JsonValue('STORY_LIMIT_REACHED')
+  storyLimitReached('STORY_LIMIT_REACHED'),
+  @JsonValue('CHANNEL_LIMIT_REACHED')
+  channelLimitReached('CHANNEL_LIMIT_REACHED'),
+  @JsonValue('CHANNEL_USERNAME_TAKEN')
+  channelUsernameTaken('CHANNEL_USERNAME_TAKEN'),
+  @JsonValue('CONSULTATION_SLOT_TAKEN')
+  consultationSlotTaken('CONSULTATION_SLOT_TAKEN'),
+  @JsonValue('CONSULTATION_NOT_AVAILABLE')
+  consultationNotAvailable('CONSULTATION_NOT_AVAILABLE'),
+  @JsonValue('CONSULTATION_STATE_CONFLICT')
+  consultationStateConflict('CONSULTATION_STATE_CONFLICT'),
+  @JsonValue('QA_ANSWERS_ENOUGH')
+  qaAnswersEnough('QA_ANSWERS_ENOUGH'),
+  @JsonValue('QA_QUESTION_CLOSED')
+  qaQuestionClosed('QA_QUESTION_CLOSED'),
+  @JsonValue('FORWARD_NOT_ALLOWED')
+  forwardNotAllowed('FORWARD_NOT_ALLOWED'),
+  @JsonValue('CONTENT_PROTECTED')
+  contentProtected('CONTENT_PROTECTED'),
+  @JsonValue('UNSUPPORTED_IN_TARGET')
+  unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
+  @JsonValue('SYNC_TOO_OLD')
+  syncTooOld('SYNC_TOO_OLD'),
+  @JsonValue('STALE_VERSION')
+  staleVersion('STALE_VERSION'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

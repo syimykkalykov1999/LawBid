@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 import 'package:lawbid/features/onboarding/application/contact_verification_controller.dart';
+import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
 import 'package:lawbid/features/settings/account/application/account_providers.dart';
@@ -82,9 +82,12 @@ class _AccountContactFlowScreenState
 
   Future<void> _submitCode(ContactVerificationState state, String code) {
     if (widget.mode == AccountContactMode.link) {
-      return ref
-          .read(identifierLinkProvider(widget.type).notifier)
-          .verify(code);
+      // Owner 2026-10-22 (security audit #3): "it's me" first, then the
+      // new contact's code.
+      final link = ref.read(identifierLinkProvider(widget.type).notifier);
+      return state.stage == ContactVerificationStage.confirmIdentity
+          ? link.confirmIdentity(code)
+          : link.verify(code);
     }
     final notifier =
         ref.read(contactVerificationProvider(widget.type).notifier);
@@ -103,16 +106,26 @@ class _AccountContactFlowScreenState
 
   void _send(Translator t) {
     final raw = _controller.text;
-    final valid = _isPhone ? UsPhone.isValid(raw) : isPlausibleEmail(raw);
+    final callingCode = UsPhone.callingCodeFor(ref.read(phoneCountryProvider));
+    final valid = _isPhone
+        ? UsPhone.isValid(raw, callingCode: callingCode)
+        : isPlausibleEmail(raw);
     if (!valid) {
-      setState(() => _localError = t.t(
-            _isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid',
-          ));
+      setState(
+        () => _localError = t.t(
+          _isPhone ? 'auth.phone.error.invalid' : 'auth.email.error.invalid',
+        ),
+      );
       return;
     }
     setState(() => _localError = null);
     unawaited(
-        _sendCode(_isPhone ? UsPhone.toE164(raw) : raw.trim().toLowerCase()));
+      _sendCode(
+        _isPhone
+            ? UsPhone.toE164(raw, callingCode: callingCode)
+            : raw.trim().toLowerCase(),
+      ),
+    );
   }
 
   String _titleKey() {
@@ -130,7 +143,7 @@ class _AccountContactFlowScreenState
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
     final state = _watch();
-    final total = _replacing ? 3 : 2;
+    final total = _replacing || widget.mode == AccountContactMode.link ? 3 : 2;
     final current = switch (state.stage) {
       ContactVerificationStage.editing => 1,
       ContactVerificationStage.confirmIdentity => 2,
@@ -184,7 +197,10 @@ class _AccountContactFlowScreenState
   }
 
   Widget _stage(
-      BuildContext context, Translator t, ContactVerificationState state) {
+    BuildContext context,
+    Translator t,
+    ContactVerificationState state,
+  ) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final kind = _isPhone ? 'phone' : 'email';
@@ -208,13 +224,24 @@ class _AccountContactFlowScreenState
             const SizedBox(height: AppSpacing.lg),
             AppTextField(
               controller: _controller,
-              leading: _isPhone ? const CountryCodeChip() : null,
+              leading: _isPhone
+                  ? CountryCodeChip(onChanged: _controller.clear)
+                  : null,
               hintText: t.t(_isPhone ? 'auth.phone.hint' : 'auth.email.hint'),
               semanticLabel: t.t('account.contact.$kind'),
               errorText: _localError ?? error,
               keyboardType:
                   _isPhone ? TextInputType.phone : TextInputType.emailAddress,
-              inputFormatters: _isPhone ? [UsPhoneFormatter()] : null,
+              inputFormatters: _isPhone
+                  ? [
+                      UsPhoneFormatter(
+                        nanp: UsPhone.callingCodeFor(
+                              ref.watch(phoneCountryProvider),
+                            ) ==
+                            '1',
+                      ),
+                    ]
+                  : null,
               autofillHints: [
                 if (_isPhone)
                   AutofillHints.telephoneNumberNational
@@ -253,9 +280,11 @@ class _AccountContactFlowScreenState
             Semantics(
               header: true,
               child: Text(
-                t.t(confirming
-                    ? 'account.flow.identity.title'
-                    : 'account.flow.code.title'),
+                t.t(
+                  confirming
+                      ? 'account.flow.identity.title'
+                      : 'account.flow.code.title',
+                ),
                 style: typography.titleLarge.copyWith(color: colors.text),
               ),
             ),
@@ -329,8 +358,10 @@ class _AccountContactFlowScreenState
             const SizedBox(height: AppSpacing.sm),
             Text(
               widget.mode == AccountContactMode.link
-                  ? t.t('account.flow.done.linked',
-                      {'value': display(state.value ?? '')})
+                  ? t.t(
+                      'account.flow.done.linked',
+                      {'value': display(state.value ?? '')},
+                    )
                   : t.t('account.flow.done.$kind'),
               style: typography.body.copyWith(color: colors.textSecondary),
             ),

@@ -50,13 +50,26 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     super.dispose();
   }
 
+  /// Re-entry guard: a double tap / Enter before the button rebuilds as
+  /// loading would otherwise push the code screen twice.
+  bool _submitting = false;
+
   Future<void> _submit(Translator t) async {
+    if (_submitting) return;
     if (!isPlausibleEmail(_controller.text)) {
       setState(() => _localError = t.t('auth.email.error.invalid'));
       return;
     }
     setState(() => _localError = null);
-    final ok = await ref.read(onboardingFlowProvider.notifier).submitEmail(_controller.text);
+    _submitting = true;
+    final bool ok;
+    try {
+      ok = await ref
+          .read(onboardingFlowProvider.notifier)
+          .submitEmail(_controller.text);
+    } finally {
+      _submitting = false;
+    }
     if (ok && mounted) await context.push(AuthRoutes.otp);
   }
 
@@ -66,29 +79,39 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
     final flowState = ref.watch(onboardingFlowProvider);
-    final phoneEnabled = ref.watch(featureFlagsControllerProvider).isEnabled('phone_login');
+    final phoneEnabled =
+        ref.watch(featureFlagsControllerProvider).isEnabled('phone_login');
 
     return Scaffold(
       backgroundColor: colors.bg,
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned(right: -40, bottom: 70, child: WatermarkScales()),
+            const PositionedDirectional(
+              end: -40,
+              bottom: 70,
+              child: WatermarkScales(),
+            ),
             LayoutBuilder(
               builder: (context, constraints) {
                 return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenSide,
+                  ),
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
                     child: IntrinsicHeight(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: staggeredEntrance([
-                          const SizedBox(height: 30),
+                          const SizedBox(height: 8),
                           AppBackButton(
                             semanticLabel: t.t('common.back'),
                             onPressed: () {
-                              ref.read(onboardingFlowProvider.notifier).goBackTo(OnboardingStep.welcome);
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .goBackTo(OnboardingStep.welcome);
                               // Reached via go() from a magic-link code screen
                               // there is nothing underneath — go home instead.
                               if (context.canPop()) {
@@ -98,20 +121,22 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                               }
                             },
                           ),
-                          const SizedBox(height: 34),
+                          const SizedBox(height: 14),
                           Semantics(
                             header: true,
                             child: Text(
                               t.t('auth.email.title'),
-                              style: typography.titleLarge.copyWith(color: colors.text),
+                              style: typography.titleLarge
+                                  .copyWith(color: colors.text),
                             ),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(
                             t.t('auth.email.subtitle'),
-                            style: typography.body.copyWith(color: colors.textSecondary),
+                            style: typography.body
+                                .copyWith(color: colors.textSecondary),
                           ),
-                          const SizedBox(height: 26),
+                          const SizedBox(height: 18),
                           AppTextField(
                             controller: _controller,
                             hintText: t.t('auth.email.hint'),
@@ -123,38 +148,45 @@ class _EmailScreenState extends ConsumerState<EmailScreen> {
                             textInputAction: TextInputAction.go,
                             onSubmitted: (_) => _submit(t),
                             onChanged: (_) {
-                              if (_localError != null) setState(() => _localError = null);
-                              ref.read(onboardingFlowProvider.notifier).clearError();
+                              setState(() => _localError = null);
+                              ref
+                                  .read(onboardingFlowProvider.notifier)
+                                  .clearError();
                             },
                           ),
-                          if (phoneEnabled) ...[
-                            const SizedBox(height: AppSpacing.md),
-                            SwitchChannelLink(
-                              label: t.t('auth.email.usePhone'),
-                              onTap: () {
-                                ref.read(onboardingFlowProvider.notifier).goToPhoneStep();
-                                context.pushReplacement(AuthRoutes.phone);
-                              },
-                            ),
-                          ],
-                          const Spacer(),
                           Padding(
-                            padding: const EdgeInsets.only(bottom: 22),
+                            padding: const EdgeInsets.only(top: 14),
                             child: Column(
                               children: [
                                 AppButton(
                                   label: t.t('auth.phone.submit'),
                                   isLoading: flowState.isSubmitting,
+                                  isEnabled: isPlausibleEmail(_controller.text),
                                   onPressed: () => _submit(t),
                                 ),
                                 const SizedBox(height: AppSpacing.sm),
+                                if (phoneEnabled) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  SwitchChannelLink(
+                                    label: t.t('auth.email.usePhone'),
+                                    onTap: () {
+                                      ref
+                                          .read(onboardingFlowProvider.notifier)
+                                          .goToPhoneStep();
+                                      context.pushReplacement(AuthRoutes.phone);
+                                    },
+                                  ),
+                                ],
+                                const SizedBox(height: AppSpacing.md),
                                 LegalText(
                                   text: t.t('auth.phone.terms'),
                                   links: {
-                                    t.t('auth.phone.terms.usage'): () =>
-                                        context.push(AppRoutes.legalDoc('terms')),
+                                    t.t('auth.phone.terms.usage'): () => context
+                                        .push(AppRoutes.legalDoc('terms')),
                                     t.t('auth.phone.terms.privacy'): () =>
-                                        context.push(AppRoutes.legalDoc('privacy')),
+                                        context.push(
+                                          AppRoutes.legalDoc('privacy'),
+                                        ),
                                   },
                                 ),
                               ],

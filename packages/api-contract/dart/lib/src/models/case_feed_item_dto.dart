@@ -5,8 +5,13 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'case_budget_dto.dart';
+import 'case_deadline_kind.dart';
+import 'case_dossier_dto.dart';
 import 'case_practice_area_dto.dart';
 import 'case_status.dart';
+import 'case_urgency.dart';
+import 'case_urgency_level.dart';
+import 'client_activity_dto.dart';
 
 part 'case_feed_item_dto.g.dart';
 
@@ -17,6 +22,7 @@ class CaseFeedItemDto {
     required this.title,
     required this.excerpt,
     required this.practiceArea,
+    required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCodes,
     required this.status,
@@ -29,7 +35,17 @@ class CaseFeedItemDto {
     required this.commentCount,
     required this.shareCount,
     required this.isSaved,
+    required this.promoted,
+    required this.priorityClient,
+    required this.dossier,
     this.city,
+    this.coverKey,
+    this.urgency,
+    this.urgencyLevel,
+    this.deadlineAt,
+    this.deadlineKind,
+    this.promotedUntil,
+    this.clientActivity,
   });
 
   factory CaseFeedItemDto.fromJson(Map<String, Object?> json) =>
@@ -41,11 +57,31 @@ class CaseFeedItemDto {
   /// Owner 2026-09-30: first ~180 characters of the description.
   final String excerpt;
   final CasePracticeAreaDto practiceArea;
+
+  /// Topics besides the first: «+N».
+  final int extraPracticeCount;
   final String primaryStateCode;
   final List<String> additionalStateCodes;
   final String? city;
   final CaseStatus status;
   final CaseBudgetDto budget;
+
+  /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
+  final String? coverKey;
+
+  /// Owner 2026-10-04/05: the client's choice — a level, or `by_date`.
+  /// (see deadlineAt); null when not set.
+  final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the level the case reads as today (a dated case's.
+  /// level follows from the days left; `overdue` once the date passed).
+  final CaseUrgencyLevel? urgencyLevel;
+
+  /// Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).
+  final DateTime? deadlineAt;
+
+  /// Owner 2026-10-05: what the date is (court hearing, filing…).
+  final CaseDeadlineKind? deadlineKind;
   final int viewCount;
   final int bidsCount;
   final DateTime createdAt;
@@ -64,6 +100,21 @@ class CaseFeedItemDto {
 
   /// In the viewer's saved items.
   final bool isSaved;
+
+  /// Promoted by its client right now.
+  final bool promoted;
+
+  /// Owner 2026-10-15: the last paid day, «Реклама · до {date}».
+  final DateTime? promotedUntil;
+
+  /// Owner 2026-10-05: the client's plan puts the case first in the feed (shown on top of the first page).
+  final bool priorityClient;
+
+  /// Owner 2026-10-18 (OQ-054): the client's activity line.
+  final ClientActivityDto? clientActivity;
+
+  /// Owner 2026-10-05: how complete the case is (counts only).
+  final CaseDossierDto dossier;
 
   Map<String, Object?> toJson() => _$CaseFeedItemDtoToJson(this);
 }

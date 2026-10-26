@@ -1,4 +1,8 @@
 import {
+  casePaymentsUnlockedForTests,
+  LOCKED_OFF_FLAGS,
+} from '../../common/feature-flags/locked-flags';
+import {
   BadRequestException,
   ConflictException,
   Inject,
@@ -15,7 +19,7 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
-import { APP_CONFIG_CACHE_KEY } from '../feature-flags/services/app-config.service';
+import { dropAppConfigCache } from '../feature-flags/services/app-config.service';
 import { BootstrapService } from '../feature-flags/services/bootstrap.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
@@ -27,6 +31,7 @@ import type {
   UpdateFlagDto,
   UpdateLanguageDto,
 } from './admin-config.dto';
+import { LEGAL_DOC_TYPES } from './admin-config.dto';
 import { configSchema, validateConfigValue } from './config-schema';
 
 export const CONFIG_AUDIT = {
@@ -49,15 +54,6 @@ export const PAID_FLAGS: Record<
   string,
   { integration?: string; keys: string[] }
 > = {
-  stripe_identity: { integration: 'stripe', keys: ['STRIPE_SECRET_KEY'] },
-  persona_verification: {
-    integration: 'persona',
-    keys: ['PERSONA_API_KEY'],
-  },
-  profile_promotion: {
-    integration: 'stripe',
-    keys: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID'],
-  },
   video_posts: {
     integration: 'bunny_stream',
     keys: [
@@ -68,21 +64,22 @@ export const PAID_FLAGS: Record<
       'BUNNY_WEBHOOK_TOKEN',
     ],
   },
-  auto_bar_check: { integration: 'bar_lookup', keys: ['BAR_LOOKUP_API_KEY'] },
+  chat_translate: {
+    integration: 'google_translate',
+    keys: ['GOOGLE_TRANSLATE_API_KEY'],
+  },
+  payroll_stripe_payouts: {
+    integration: 'stripe',
+    keys: ['STRIPE_SECRET_KEY'],
+  },
+  // Owner 2026-10-05: client → attorney payments (Stripe Connect).
+  payments_in_app: { integration: 'stripe', keys: ['STRIPE_SECRET_KEY'] },
+  // Owner 2026-10-05: video calls go through our TURN (bandwidth billed).
+  video_calls: {
+    integration: 'turn',
+    keys: ['TURN_URLS', 'TURN_SECRET'],
+  },
 };
-
-/**
- * Audit 2026-10-02: flags whose feature is not built yet — switching one on
- * would do nothing (or, for device_attestation, lock every user out), so
- * the admin can't enable them until the code ships.
- */
-export const UNBUILT_FLAGS: ReadonlySet<string> = new Set([
-  'device_attestation',
-  'stripe_identity',
-  'persona_verification',
-  'auto_bar_check',
-  'profile_promotion',
-]);
 
 /**
  * docs/06 §2.3 items 7–10: feature flags (with the paid-service guard),
@@ -109,7 +106,11 @@ export class AdminConfigService {
     const rows = await this.prisma.featureFlag.findMany({
       orderBy: { key: 'asc' },
     });
-    return Promise.all(rows.map((r) => this.presentFlag(r)));
+    // Owner 2026-10-16: a locked-off switch is not offered at all.
+    const shown = casePaymentsUnlockedForTests()
+      ? rows
+      : rows.filter((r) => !LOCKED_OFF_FLAGS.includes(r.key));
+    return Promise.all(shown.map((r) => this.presentFlag(r)));
   }
 
   async updateFlag(
@@ -120,11 +121,16 @@ export class AdminConfigService {
     const before = await this.prisma.featureFlag.findUnique({ where: { key } });
     if (!before) throw notFound('Feature flag');
     const enabling = dto.enabled === true && !before.enabled;
-    if (enabling && UNBUILT_FLAGS.has(key)) {
+    if (
+      dto.enabled === true &&
+      LOCKED_OFF_FLAGS.includes(key) &&
+      !casePaymentsUnlockedForTests()
+    ) {
       throw new ConflictException({
         code: ErrorCode.FLAG_PROVIDER_KEYS_MISSING,
-        message: 'This feature is not built yet and cannot be switched on.',
-        details: { missingKeys: [], notBuilt: true },
+        message:
+          'LawBid does not process payments between clients and attorneys; this switch stays off.',
+        details: { missingKeys: [], locked: true },
       });
     }
     const missing = await this.missingKeys(key);
@@ -231,6 +237,89 @@ export class AdminConfigService {
       });
   }
 
+  /** Owner 2026-10-24: R2 cannot be switched on without its keys. */
+  private async assertR2Ready(key: string, value: unknown): Promise<void> {
+    if (key !== 'media.public_store' || value !== 'r2') return;
+    const f = (await this.secrets?.get('cloudflare_r2'))?.fields ?? {};
+    const missing = [
+      'accountId',
+      'accessKeyId',
+      'secretAccessKey',
+      'bucket',
+      'publicBaseUrl',
+    ].filter((n) => !(f[n] ?? '').trim());
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `Cloudflare R2 is not configured: add ${missing.join(', ')} in Integrations → Cloudflare R2 first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
+  /** Owner 2026-10-24: the search engine cannot be switched on without its address. */
+  private async assertSearchEngineReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'search.engine' || value === 'postgres') return;
+    const f = (await this.secrets?.get('opensearch'))?.fields ?? {};
+    const url = (
+      f.url ??
+      this.config.get<string>('OPENSEARCH_URL') ??
+      ''
+    ).trim();
+    if (url) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'The search engine is not configured: add its address (OPENSEARCH_URL) in Integrations → Search engine first.',
+      details: { field: 'value', missing: ['OPENSEARCH_URL'] },
+    });
+  }
+
+  /** Owner 2026-10-22: livekit cannot be switched on without its keys. */
+  private async assertLivekitReady(key: string, value: unknown): Promise<void> {
+    const needs = key === 'calls.video_provider' && value === 'livekit';
+    if (!needs) return;
+    const f = (await this.secrets?.get('livekit'))?.fields ?? {};
+    const has = (name: string, env: string) =>
+      Boolean((f[name] ?? this.config.get<string>(env) ?? '').trim());
+    const missing = [
+      has('url', 'LIVEKIT_URL') ? null : 'LIVEKIT_URL',
+      has('apiKey', 'LIVEKIT_API_KEY') ? null : 'LIVEKIT_API_KEY',
+      has('apiSecret', 'LIVEKIT_API_SECRET') ? null : 'LIVEKIT_API_SECRET',
+    ].filter((x): x is string => x !== null);
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `LiveKit is not configured: add ${missing.join(', ')} in Integrations → LiveKit first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
+  /** Owner 2026-10-24: cloudflare cannot be switched on without its keys. */
+  private async assertCloudflareSfuReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'calls.video_provider' || value !== 'cloudflare') return;
+    const f = (await this.secrets?.get('cloudflare_sfu'))?.fields ?? {};
+    const has = (name: string, env: string) =>
+      Boolean((f[name] ?? this.config.get<string>(env) ?? '').trim());
+    const missing = [
+      has('appId', 'CLOUDFLARE_SFU_APP_ID') ? null : 'CLOUDFLARE_SFU_APP_ID',
+      has('appToken', 'CLOUDFLARE_SFU_APP_TOKEN')
+        ? null
+        : 'CLOUDFLARE_SFU_APP_TOKEN',
+    ].filter((x): x is string => x !== null);
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `Cloudflare SFU is not configured: add ${missing.join(', ')} in Integrations → Cloudflare SFU first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
   async updateConfig(
     admin: AdminActor,
     key: string,
@@ -252,6 +341,10 @@ export class AdminConfigService {
         details: { field: 'value', type: schema.type },
       });
     }
+    await this.assertLivekitReady(key, value);
+    await this.assertCloudflareSfuReady(key, value);
+    await this.assertR2Ready(key, value);
+    await this.assertSearchEngineReady(key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });
@@ -277,7 +370,7 @@ export class AdminConfigService {
       );
       return updated;
     });
-    await this.redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(this.redis);
     return {
       key,
       type: schema.type,
@@ -360,6 +453,8 @@ export class AdminConfigService {
 
   async listLegalDocuments(): Promise<LegalDocumentAdminDto[]> {
     const rows = await this.prisma.legalDocument.findMany({
+      // The newer documents are managed under /admin/legal/documents.
+      where: { doc_type: { in: [...LEGAL_DOC_TYPES] } },
       orderBy: [{ doc_type: 'asc' }, { locale: 'asc' }, { created_at: 'desc' }],
       include: { _count: { select: { consents: true } } },
     });
@@ -412,6 +507,7 @@ export class AdminConfigService {
           content_md: dto.contentMd ?? null,
           content_url: dto.contentUrl ?? null,
           is_current: false,
+          status: 'draft',
         },
         include: { _count: { select: { consents: true } } },
       });
@@ -461,12 +557,13 @@ export class AdminConfigService {
       });
       await tx.legalDocument.updateMany({
         where: { doc_type: doc.doc_type, locale: doc.locale, is_current: true },
-        data: { is_current: false },
+        data: { is_current: false, status: 'archived' },
       });
       const published = await tx.legalDocument.update({
         where: { id },
         data: {
           is_current: true,
+          status: 'published',
           published_at: doc.published_at ?? new Date(),
         },
         include: { _count: { select: { consents: true } } },

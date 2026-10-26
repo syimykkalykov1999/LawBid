@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:local_auth/local_auth.dart';
 
 /// Local Face ID/Touch ID/fingerprint gate (docs/01_FOUNDATION_AUTH.md
@@ -38,6 +39,8 @@ class BiometricAuthService {
   /// to decide whether to show a "Use Face ID" affordance at all, rather
   /// than showing it and having [authenticate] immediately fail.
   Future<bool> isAvailable() async {
+    // The browser has no biometric prompt (web: sign in with the code).
+    if (kIsWeb) return false;
     try {
       final supported = await _localAuth.isDeviceSupported();
       if (!supported) return false;
@@ -59,7 +62,8 @@ class BiometricAuthService {
     try {
       return await _localAuth.authenticate(
         localizedReason: reason,
-        options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
+        options:
+            const AuthenticationOptions(biometricOnly: true, stickyAuth: true),
       );
     } catch (_) {
       return false;

@@ -205,11 +205,24 @@ describe('Online / last seen (e2e, owner 2026-10-01)', () => {
       if (!joined) await new Promise((r) => setTimeout(r, 150));
     }
     expect(joined).toBe(true);
-    const typing = new Promise<{ conversationId: string; typing: boolean }>(
-      (resolve) => attorneySock.once('typing', resolve),
-    );
+    const typing = new Promise<{
+      conversationId: string;
+      typing: boolean;
+      kind: string;
+    }>((resolve) => attorneySock.once('typing', resolve));
     clientSock.emit('typing:start', { conversationId: c.id });
-    expect(await typing).toEqual({ conversationId: c.id, typing: true });
+    expect(await typing).toEqual({
+      conversationId: c.id,
+      typing: true,
+      kind: 'text',
+    });
+    // Owner 2026-10-20: a voice recording says so.
+    await new Promise((r) => setTimeout(r, 1100));
+    const voice = new Promise<{ kind: string }>((resolve) =>
+      attorneySock.once('typing', resolve),
+    );
+    clientSock.emit('typing:start', { conversationId: c.id, kind: 'voice' });
+    expect((await voice).kind).toBe('voice');
   });
 
   it('nothing across a block; strangers cannot watch', async () => {

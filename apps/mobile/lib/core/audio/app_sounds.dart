@@ -1,20 +1,38 @@
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
-/// OQ-044 (owner 2026-09-30): the app's own sounds — ringback tones while
-/// our call rings on the other side, "busy", call end, and soft
-/// Telegram-like sounds for messages in an open chat. Every call is
-/// best-effort: no sound (tests, no audio device) never breaks a flow.
+/// OQ-044 (owner 2026-09-30): call progress tones — ringback while our
+/// call rings on the other side, "busy" and call end. Owner 2026-10-07:
+/// no melodies of LawBid's own — an incoming call rings with the phone's
+/// ringtone and an open chat makes no sound of its own (messages outside
+/// it use the phone's notification sound). Every call is best-effort: no
+/// sound (tests, no audio device) never breaks a flow.
 abstract interface class AppSounds {
   Future<void> startRingback();
   Future<void> stopRingback();
+
+  /// The call's audio session (WebRTC) opens a moment after the ringback
+  /// began and may have silenced it: make sure it still plays — and loud
+  /// enough (owner 2026-10-20: no ringback heard).
+  Future<void> keepRingback();
+
+  /// Audit 2026-10-02: the phone's own ringtone while the app is open on
+  /// Android (iOS CallKit rings by itself).
+  Future<void> startRingtone();
+  Future<void> stopRingtone();
   Future<void> busy();
   Future<void> callEnded();
   Future<void> messageIn();
   Future<void> messageOut();
+
+  /// Owner 2026-10-22 (WhatsApp): a short tone in a call when the other
+  /// side switches its camera on — «turn yours on?».
+  Future<void> videoRequest();
 }
 
 class NoAppSounds implements AppSounds {
@@ -24,6 +42,12 @@ class NoAppSounds implements AppSounds {
   @override
   Future<void> stopRingback() async {}
   @override
+  Future<void> keepRingback() async {}
+  @override
+  Future<void> startRingtone() async {}
+  @override
+  Future<void> stopRingtone() async {}
+  @override
   Future<void> busy() async {}
   @override
   Future<void> callEnded() async {}
@@ -31,9 +55,13 @@ class NoAppSounds implements AppSounds {
   Future<void> messageIn() async {}
   @override
   Future<void> messageOut() async {}
+  @override
+  Future<void> videoRequest() async {}
 }
 
 class JustAudioAppSounds implements AppSounds {
+  static const _ringtone = MethodChannel('lawbid/ringtone');
+
   AudioPlayer? _loop;
   AudioPlayer? _fx;
 
@@ -52,13 +80,42 @@ class JustAudioAppSounds implements AppSounds {
   @override
   Future<void> startRingback() async {
     try {
-      final p = _loop ??= AudioPlayer();
+      final p = _loop ??= AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      // Audit 2026-10-02: the call's audio mode (WebRTC) silenced media
+      // playback — ringback now plays on the call's own signalling path,
+      // so the caller hears it in the earpiece or the speaker.
+      await p.setAndroidAudioAttributes(
+        const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.sonification,
+          usage: AndroidAudioUsage.voiceCommunicationSignalling,
+        ),
+      );
       await p.setAsset('assets/sounds/ringback.wav');
       await p.setLoopMode(LoopMode.one);
-      await p.setVolume(0.5);
+      await p.setVolume(1);
       unawaited(p.play());
     } on Object catch (e) {
       debugPrint('ringback: $e');
+    }
+  }
+
+  @override
+  Future<void> keepRingback() async {
+    try {
+      final p = _loop;
+      if (p == null || p.playing == false) return;
+      await p.setVolume(1);
+      // The audio session changed under it: playing in name only.
+      if (p.processingState == ProcessingState.idle ||
+          p.processingState == ProcessingState.completed) {
+        await p.seek(Duration.zero);
+      }
+      unawaited(p.play());
+    } on Object catch (e) {
+      debugPrint('ringback keep: $e');
     }
   }
 
@@ -68,6 +125,27 @@ class JustAudioAppSounds implements AppSounds {
       await _loop?.stop();
     } on Object {
       // Nothing playing.
+    }
+  }
+
+  @override
+  Future<void> startRingtone() async {
+    // Web: a page can't reach the device ringtone — loop the ringback.
+    if (kIsWeb) return startRingback();
+    try {
+      await _ringtone.invokeMethod<void>('start');
+    } on Object catch (e) {
+      debugPrint('ringtone: $e');
+    }
+  }
+
+  @override
+  Future<void> stopRingtone() async {
+    if (kIsWeb) return stopRingback();
+    try {
+      await _ringtone.invokeMethod<void>('stop');
+    } on Object {
+      // Nothing playing / not Android.
     }
   }
 
@@ -84,10 +162,26 @@ class JustAudioAppSounds implements AppSounds {
   }
 
   @override
-  Future<void> messageIn() => _play('message_in', volume: 0.45);
+  Future<void> messageIn() async {}
 
   @override
-  Future<void> messageOut() => _play('message_out', volume: 0.35);
+  Future<void> messageOut() async {}
+
+  /// One short beep: the first moment of the ringback tone (no new asset;
+  /// the message sounds are the phone's own and play nothing here).
+  @override
+  Future<void> videoRequest() async {
+    await _play('ringback', volume: 0.4);
+    unawaited(
+      Future<void>.delayed(const Duration(milliseconds: 450), () async {
+        try {
+          await _fx?.stop();
+        } on Object {
+          // Already over.
+        }
+      }),
+    );
+  }
 }
 
 /// The real sounds are set up in `run_app.dart`; tests keep silence.

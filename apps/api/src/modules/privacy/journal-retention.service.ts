@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
 
 /** Rows per statement: short transactions, no long locks. */
 const BATCH = 5000;
@@ -41,19 +42,36 @@ export class JournalRetentionService implements OnModuleDestroy {
 
   async run(now: Date = new Date()): Promise<{ deleted: number }> {
     const db = this.client();
+    // Shard-ready step 8: the journal sits on the case-family databases, one
+    // sweep per database. A dedicated retention connection (one URL) is
+    // used as it is and covers its own database only.
+    const parts =
+      db === this.prisma
+        ? await forEachDatabase(this.prisma, () => this.sweep(db, now))
+        : [await this.sweep(db, now)];
+    const deleted = parts.reduce((n, d) => n + d, 0);
+    if (deleted > 0) this.logger.info({ deleted }, 'case_journal retention');
+    return { deleted };
+  }
+
+  private async sweep(
+    db: PrismaClient | PrismaService,
+    now: Date,
+  ): Promise<number> {
     let deleted = 0;
     while (deleted < MAX_PER_RUN) {
       const n = await db.$executeRaw`
         DELETE FROM case_journal
-        WHERE retain_until < ${now}
-        ORDER BY retain_until
-        LIMIT ${BATCH}`;
+        WHERE ctid IN (
+          SELECT ctid FROM case_journal
+          WHERE retain_until < ${now}
+          ORDER BY retain_until
+          LIMIT ${BATCH})`;
       deleted += n;
       if (n < BATCH) break;
       await new Promise((r) => setTimeout(r, 200));
     }
-    if (deleted > 0) this.logger.info({ deleted }, 'case_journal retention');
-    return { deleted };
+    return deleted;
   }
 
   async onModuleDestroy(): Promise<void> {

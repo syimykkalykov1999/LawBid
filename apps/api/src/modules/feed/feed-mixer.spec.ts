@@ -34,6 +34,17 @@ describe('feed mixing (docs/05 §2.2.3)', () => {
     expect(recoSlotsFor(10, false)).toBe(10);
   });
 
+  it('no follows but own posts: own posts are mixed in, not dropped', () => {
+    expect(mixPage(f(2), r(10), 6, false)).toEqual([
+      'f0',
+      'f1',
+      'r0',
+      'r1',
+      'r2',
+      'r3',
+    ]);
+  });
+
   it('followed posts run out → recommendations fill the rest', () => {
     expect(mixPage(f(2), r(10), 6, true)).toEqual([
       'f0',
@@ -62,8 +73,26 @@ describe('feed mixing (docs/05 §2.2.3)', () => {
   });
 
   it('cursor round-trips and rejects garbage', () => {
-    const c = { f: { t: '2026-09-28T00:00:00.000Z', id: 'x' }, r: 7, v: 'v1' };
+    const c = {
+      f: { t: '2026-09-28T00:00:00.000Z', id: 'x' },
+      r: 7,
+      v: 'v1',
+      l: null,
+    };
     expect(decodeFeedCursor(encodeFeedCursor(c))).toEqual(c);
+    const tail = { f: null, r: 0, v: null, l: { t: c.f.t, id: 'y' } };
+    expect(decodeFeedCursor(encodeFeedCursor(tail))).toEqual(tail);
+    // Cursors issued before the tail existed still decode.
+    expect(
+      decodeFeedCursor(
+        Buffer.from('{"f":null,"r":3,"v":"v1"}').toString('base64url'),
+      ),
+    ).toEqual({ f: null, r: 3, v: 'v1', l: null });
+    expect(
+      decodeFeedCursor(
+        Buffer.from('{"f":null,"r":0,"l":{"t":1}}').toString('base64url'),
+      ),
+    ).toBeNull();
     expect(decodeFeedCursor('###')).toBeNull();
     expect(
       decodeFeedCursor(Buffer.from('{"r":-1}').toString('base64url')),

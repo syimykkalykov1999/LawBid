@@ -12,7 +12,7 @@ import { attachCleanAvatar } from './support/clean-avatar';
  * checklist: role chosen once, onboarding step resumes, client can't
  * finish without BOTH verified contacts, attorney needs a verified phone,
  * POST /cases stub returns CLIENT_CONTACTS_INCOMPLETE (item 9). Same real
- * CockroachDB/Redis setup and fixed OTP as auth.e2e-spec.ts.
+ * PostgreSQL/Redis setup and fixed OTP as auth.e2e-spec.ts.
  */
 describe('Onboarding (e2e) — stage 1.7 server side', () => {
   let app: INestApplication;
@@ -170,12 +170,18 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .send({ role: 'client' })
       .expect(200);
 
-    const again = await api()
+    // Owner 2026-10-14: until onboarding is complete the person may take the
+    // other door (a visitor who peeked at the lawyer side), and back.
+    await api()
       .post('/api/v1/users/me/role')
       .set(auth)
       .send({ role: 'attorney' })
-      .expect(409);
-    expect(again.body.error.code).toBe('ROLE_ALREADY_SET');
+      .expect(200);
+    await api()
+      .post('/api/v1/users/me/role')
+      .set(auth)
+      .send({ role: 'client' })
+      .expect(200);
 
     // Step position + data survive "closing the app" (item 4).
     await api()
@@ -189,8 +195,30 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       theme: 'dark',
       role: 'client',
       onboarding: { currentStep: 'contacts', data: { stateCode: 'NY' } },
-      missing: ['email_verified', 'state'],
+      missing: ['email', 'state'],
     });
+
+    // Owner 2026-10-22: Blue / Green are stored as sent; the legacy navy /
+    // glass of old apps are accepted and read back as blue / dark.
+    for (const [sent, read] of [
+      ['green', 'green'],
+      ['blue', 'blue'],
+      ['navy', 'blue'],
+      ['glass', 'dark'],
+    ] as const) {
+      await api()
+        .patch('/api/v1/users/me')
+        .set(auth)
+        .send({ theme: sent })
+        .expect(200);
+      const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+      expect(me.body.data.theme).toBe(read);
+    }
+    await api()
+      .patch('/api/v1/users/me')
+      .set(auth)
+      .send({ theme: 'dark' })
+      .expect(200);
 
     // The profile step persists into client_profiles (§11 3A).
     await api()
@@ -223,13 +251,20 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
       .expect(200);
     expect(done.body.data.onboarding.completedAt).toEqual(expect.any(String));
     expect(done.body.data.missing).toEqual([]);
+    // Finished: the role is final.
+    const locked = await api()
+      .post('/api/v1/users/me/role')
+      .set(auth)
+      .send({ role: 'attorney' })
+      .expect(409);
+    expect(locked.body.error.code).toBe('ROLE_ALREADY_SET');
 
     // Onboarding complete: the real endpoint (docs/04 stage 4.2) creates it.
     const created = await postCase(auth);
     expect(created.status).toBe(201);
   });
 
-  it('attorney: completes with a verified phone, no email needed', async () => {
+  it('attorney: completes with a verified phone and a profile e-mail (no code)', async () => {
     const token = await login('+12025557002');
     const auth = { Authorization: `Bearer ${token}` };
     await grantRequiredConsents(token);
@@ -246,7 +281,10 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     await api()
       .patch('/api/v1/users/me/onboarding')
       .set(auth)
-      .send({ currentStep: 'push', profile: { licensedStates: ['NY'] } })
+      .send({
+        currentStep: 'push',
+        profile: { licensedStates: ['NY'], email: 'john.roe@example.com' },
+      })
       .expect(200);
     // docs/03 §4.1 / OQ-012: the attorney photo is mandatory.
     const noPhoto = await api()
@@ -267,29 +305,104 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
     expect(res.body.error.code).toBe('FORBIDDEN');
   });
 
-  it('first contact of a type needs no reauth; changing a verified one does', async () => {
+  it('owner 2026-10-22 (audit #3): a fresh sign-in is the reauth; later every contact needs one', async () => {
     const token = await login('+12025557004');
     const auth = { Authorization: `Bearer ${token}` };
     const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+    const userId = me.body.data.id as string;
 
-    // Phone is verified by the phone login -> changing it needs reauth.
-    const change = await api()
-      .post('/api/v1/users/me/contacts/request')
-      .set(auth)
-      .send({ type: 'phone', value: '+12025557005' })
-      .expect(403);
-    expect(change.body.error.code).toBe('REAUTH_REQUIRED');
-
-    // No verified phone yet -> adding one is allowed without reauth.
-    await prisma.user.update({
-      where: { id: me.body.data.id as string },
-      data: { phone_verified_at: null },
-    });
+    // Onboarding stays one code long: the sign-in minutes ago counts.
     await api()
       .post('/api/v1/users/me/contacts/request')
       .set(auth)
-      .send({ type: 'phone', value: '+12025557006' })
+      .send({ type: 'phone', value: '+12025557005' })
       .expect(201);
+
+    // An older session (or a stolen token of one): reauth for any contact,
+    // even adding the first one of a type.
+    await prisma.session.updateMany({
+      where: { user_id: userId },
+      data: { created_at: new Date(Date.now() - 3_600_000) },
+    });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { phone_verified_at: null },
+    });
+    const add = await api()
+      .post('/api/v1/users/me/contacts/request')
+      .set(auth)
+      .send({ type: 'phone', value: '+12025557006' })
+      .expect(403);
+    expect(add.body.error.code).toBe('REAUTH_REQUIRED');
+  });
+
+  it('owner 2026-10-22 (audit #3): a password is set only by the account holder', async () => {
+    const token = await login('+12025557014');
+    const auth = { Authorization: `Bearer ${token}` };
+    const me = await api().get('/api/v1/users/me').set(auth).expect(200);
+    const userId = me.body.data.id as string;
+    const age = () =>
+      prisma.session.updateMany({
+        where: { user_id: userId },
+        data: { created_at: new Date(Date.now() - 3_600_000) },
+      });
+
+    // An hour-old session of an SMS-only account: no bare access token
+    // (an assistant's, a thief's) may give it a password any more.
+    await age();
+    const bare = await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-1' })
+      .expect(403);
+    expect(bare.body.error.code).toBe('REAUTH_REQUIRED');
+
+    // Right after the sign-up code it works with no second code.
+    await prisma.session.updateMany({
+      where: { user_id: userId },
+      data: { created_at: new Date() },
+    });
+    await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-1' })
+      .expect(200);
+
+    // Changing it later: the current password, or a reauth token.
+    await age();
+    await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-2', currentPassword: 'wrong-pass-0' })
+      .expect(401);
+    const sessionsBefore = await prisma.session.count({
+      where: { user_id: userId, revoked_at: null },
+    });
+    const other = await prisma.session.create({
+      data: {
+        user_id: userId,
+        session_chain_id: randomUUID(),
+        refresh_hash: `audit3-${randomUUID()}`,
+        platform: 'web',
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    await api()
+      .post('/api/v1/auth/password')
+      .set(auth)
+      .send({ password: 'Strong-pass-2', currentPassword: 'Strong-pass-1' })
+      .expect(200);
+    // Every other session ended; this one is still signed in.
+    const ended = await prisma.session.findUniqueOrThrow({
+      where: { id: other.id },
+    });
+    expect(ended.revoked_reason).toBe('credentials_changed');
+    expect(
+      await prisma.session.count({
+        where: { user_id: userId, revoked_at: null },
+      }),
+    ).toBe(sessionsBefore);
+    await api().get('/api/v1/users/me').set(auth).expect(200);
   });
 
   it('bootstrap legal documents carry an id for consents.documentId', async () => {
@@ -307,6 +420,7 @@ describe('Onboarding (e2e) — stage 1.7 server side', () => {
         locale: 'en',
         content_md: 'Terms',
         is_current: true,
+        status: 'published',
         published_at: new Date(),
       },
       update: {},

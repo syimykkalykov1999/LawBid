@@ -10,10 +10,12 @@ BadgesDto _$BadgesDtoFromJson(Map<String, dynamic> json) => BadgesDto(
   chatsUnread: json['chatsUnread'] as num,
   notificationsUnread: json['notificationsUnread'] as num,
   total: json['total'] as num,
+  iconBadge: json['iconBadge'] as bool?,
 );
 
 Map<String, dynamic> _$BadgesDtoToJson(BadgesDto instance) => <String, dynamic>{
   'chatsUnread': instance.chatsUnread,
   'notificationsUnread': instance.notificationsUnread,
   'total': instance.total,
+  'iconBadge': ?instance.iconBadge,
 };

@@ -11,13 +11,6 @@ import type {
   EmailMessage,
   EmailProvider,
 } from '../src/modules/auth/providers/email/email-provider.interface';
-import {
-  APP_ATTEST_VERIFIER,
-  type AttestationEvidence,
-  type AttestationVerdict,
-  type AttestationVerifier,
-} from '../src/modules/auth/attestation/attestation-verifier.interface';
-import { UnconfiguredAttestationVerifier } from '../src/modules/auth/attestation/unconfigured-attestation.verifier';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { NewDeviceNotifier } from '../src/modules/auth/notifications/new-device-notifier.service';
 
@@ -33,25 +26,14 @@ class RecordingEmailProvider implements EmailProvider {
   }
 }
 
-/** iOS verifier whose behavior a test can swap; defaults to the real
- * fail-closed placeholder that AuthModule registers. */
-class SwitchableAttestVerifier implements AttestationVerifier {
-  readonly platform = 'ios' as const;
-  impl: AttestationVerifier = new UnconfiguredAttestationVerifier('ios');
-  verify(evidence: AttestationEvidence): Promise<AttestationVerdict> {
-    return this.impl.verify(evidence);
-  }
-}
-
 const GOOGLE_AUDIENCE = '123456789012-e2etest.apps.googleusercontent.com';
 const FIXED_CODE = '000000';
 
 /**
  * Ledger leaf-1.2 G2 — docs/01 §10.3 (blocked accounts), §10.4 (refresh),
- * §10.2 E (email magic link), §10.6 (login flags, new-device alert,
- * device integrity), §10.2 G (social token nonce). Real CockroachDB +
+ * §10.2 E (email magic link), §10.6 (login flags, new-device alert), §10.2 G (social token nonce). Real PostgreSQL +
  * Redis (isolated per E2E_ISOLATION), only the outbound email provider,
- * Google's JWKS signature check and the App Attest verifier are faked.
+ * Google's JWKS signature check are faked.
  */
 describe('Auth hardening (e2e)', () => {
   let app: NestExpressApplication;
@@ -59,7 +41,6 @@ describe('Auth hardening (e2e)', () => {
   let flags: FeatureFlagsService;
   let notifier: NewDeviceNotifier;
   const email = new RecordingEmailProvider();
-  const attest = new SwitchableAttestVerifier();
   let googlePayload: Record<string, unknown> = {};
   let verifyIdTokenSpy: jest.Mock;
 
@@ -84,8 +65,6 @@ describe('Auth hardening (e2e)', () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(EMAIL_PROVIDER)
       .useValue(email)
-      .overrideProvider(APP_ATTEST_VERIFIER)
-      .useValue(attest)
       .compile();
     app = moduleRef.createNestApplication<NestExpressApplication>({
       bufferLogs: true,
@@ -506,71 +485,6 @@ describe('Auth hardening (e2e)', () => {
         .set('Authorization', `Bearer ${first.body.data.accessToken}`);
       expect(old.status).toBe(401);
       expect(old.body.error.code).toBe('AUTH_SIGNED_IN_ELSEWHERE');
-    });
-  });
-
-  // -------------------------------------------------------------------
-  describe('device attestation behind flag device_attestation', () => {
-    afterAll(async () => {
-      await clearFlag('device_attestation');
-      attest.impl = new UnconfiguredAttestationVerifier('ios');
-    });
-
-    it('is not required while the flag is off / absent', async () => {
-      await clearFlag('device_attestation');
-      await api()
-        .post('/api/v1/auth/otp/request')
-        .send({ channel: 'phone', identifier: '+12025558501' })
-        .expect(200);
-    });
-
-    it('when on: otp/request and social return DEVICE_ATTESTATION_REQUIRED without a verifiable attestation', async () => {
-      await setFlag('device_attestation', true);
-
-      const missing = await api()
-        .post('/api/v1/auth/otp/request')
-        .send({ channel: 'phone', identifier: '+12025558502' });
-      expect(missing.status).toBe(403);
-      expect(missing.body.error.code).toBe('DEVICE_ATTESTATION_REQUIRED');
-
-      // Placeholder verifier (no owner keys yet) rejects every token.
-      const stub = await api()
-        .post('/api/v1/auth/otp/request')
-        .set('X-Platform', 'ios')
-        .set('X-Device-Attestation', 'some-assertion')
-        .send({ channel: 'phone', identifier: '+12025558502' });
-      expect(stub.status).toBe(403);
-      expect(stub.body.error.details.reason).toBe('verifier_not_configured');
-
-      const social = await api()
-        .post('/api/v1/auth/social')
-        .send({
-          provider: 'google',
-          idToken: 'header.payload.sig',
-          nonce: 'n'.repeat(32),
-        });
-      expect(social.status).toBe(403);
-      expect(social.body.error.code).toBe('DEVICE_ATTESTATION_REQUIRED');
-    });
-
-    it('when on: a token the platform verifier accepts lets the request through', async () => {
-      await setFlag('device_attestation', true);
-      attest.impl = {
-        platform: 'ios',
-        verify: (e) =>
-          Promise.resolve(
-            e.token === 'valid-assertion' &&
-              e.requestBinding === 'POST /api/v1/auth/otp/request'
-              ? { valid: true }
-              : { valid: false, reason: 'bad' },
-          ),
-      };
-      await api()
-        .post('/api/v1/auth/otp/request')
-        .set('X-Platform', 'ios')
-        .set('X-Device-Attestation', 'valid-assertion')
-        .send({ channel: 'phone', identifier: '+12025558503' })
-        .expect(200);
     });
   });
 });

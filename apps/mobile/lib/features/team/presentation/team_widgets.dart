@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -20,58 +21,11 @@ IconData dutyIcon(AssistantDuty d) => switch (d) {
       AssistantDuty.publish => AppIcons.campaignRounded,
     };
 
-String requestKindLabel(Translator t, RequestKind k) =>
-    t.t('team.request.${k.wire}');
-
 /// "act.<key>" or the raw action for unknown routes.
 String activityLabel(Translator t, String action) {
   final key = 'act.$action';
   final text = t.t(key);
   return text == key ? t.t('act.other', {'action': action}) : text;
-}
-
-/// Gold pill "+ Add task" (Mine → Tasks).
-class AddTaskButton extends StatelessWidget {
-  const AddTaskButton({required this.label, required this.onTap, super.key});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: AppPressable(
-        onTap: onTap,
-        child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          decoration: BoxDecoration(
-            color: colors.ctaBright,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(AppIcons.addRounded, size: 20, color: colors.onCtaBright),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: typography.bodySmall.copyWith(
-                  color: colors.onCtaBright,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _StatusPillSmall extends StatelessWidget {
@@ -89,7 +43,9 @@ class _StatusPillSmall extends StatelessWidget {
       RequestStatus.approved => colors.success,
       RequestStatus.rejected => colors.danger,
     };
+    // Capped so a long translation can't squeeze the card's title column.
     return Container(
+      constraints: const BoxConstraints(maxWidth: 110),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
@@ -97,6 +53,8 @@ class _StatusPillSmall extends StatelessWidget {
       ),
       child: Text(
         t.t('team.request.${status.name}'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: typography.caption
             .copyWith(color: color, fontWeight: FontWeight.w600),
       ),
@@ -137,16 +95,19 @@ class RequestCard extends StatelessWidget {
     Widget chip(String label, {bool gold = false, IconData? icon}) => Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: gold ? colors.goldTint : colors.navy,
+            color: gold ? colors.iconTintFill : colors.navy,
             borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: gold ? Border.all(color: colors.goldStroke) : null,
+            border: gold ? Border.all(color: colors.iconTint) : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                AppIcon(icon,
-                    size: 13, color: gold ? colors.goldDark : colors.gold),
+                AppIcon(
+                  icon,
+                  size: 13,
+                  color: gold ? colors.iconTint : colors.iconTint,
+                ),
                 const SizedBox(width: 4),
               ],
               Flexible(
@@ -202,9 +163,9 @@ class RequestCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors.navy,
                   borderRadius: BorderRadius.circular(AppRadii.field),
-                  border: Border.all(color: colors.goldStroke),
+                  border: Border.all(color: colors.iconTint),
                 ),
-                child: AppIcon(kindIcon, color: colors.gold, size: 22),
+                child: AppIcon(kindIcon, color: colors.iconTint, size: 22),
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -212,13 +173,15 @@ class RequestCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text.rich(
-                      TextSpan(children: [
-                        TextSpan(
-                          text: r.assistantName,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        TextSpan(text: ' $asks'),
-                      ]),
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: r.assistantName,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          TextSpan(text: ' $asks'),
+                        ],
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: typography.bodySmall.copyWith(color: colors.text),
@@ -275,8 +238,11 @@ class RequestCard extends StatelessWidget {
                       if (r.practiceName != null)
                         chip(r.practiceName!, icon: AppIcons.balanceRounded),
                       if (r.isNews)
-                        chip(t.t('post.kind.news'),
-                            gold: true, icon: AppIcons.newspaperRounded),
+                        chip(
+                          t.t('post.kind.news'),
+                          gold: true,
+                          icon: AppIcons.newspaperRounded,
+                        ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.sm),
@@ -311,16 +277,18 @@ class RequestCard extends StatelessWidget {
                       separatorBuilder: (_, __) => const SizedBox(width: 6),
                       itemBuilder: (_, i) => ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadii.field),
-                        child: Image.network(
-                          r.mediaUrls[i],
+                        child: Image(
+                          image: appNetworkImage(r.mediaUrls[i], 216),
                           width: 72,
                           height: 72,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             width: 72,
-                            color: colors.goldTint,
-                            child: AppIcon(AppIcons.imageOutlined,
-                                color: colors.gold),
+                            color: colors.iconTintFill,
+                            child: AppIcon(
+                              AppIcons.imageOutlined,
+                              color: colors.iconTint,
+                            ),
                           ),
                         ),
                       ),
@@ -445,10 +413,13 @@ class ActivityRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.navy,
               borderRadius: BorderRadius.circular(AppRadii.field),
-              border: Border.all(color: colors.goldStroke),
+              border: Border.all(color: colors.iconTint),
             ),
-            child: AppIcon(activityIcon(entry.action),
-                color: colors.gold, size: 20),
+            child: AppIcon(
+              activityIcon(entry.action),
+              color: colors.iconTint,
+              size: 20,
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -532,13 +503,16 @@ class AssistantBanner extends StatelessWidget {
         horizontal: AppSpacing.screenSide,
         vertical: AppSpacing.sm,
       ),
-      color: colors.goldTint,
+      color: colors.iconTintFill,
       child: Row(
         // Owner 2026-10-01: centred.
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AppIcon(AppIcons.supportAgentRounded,
-              size: AppSizes.iconSm, color: colors.gold),
+          AppIcon(
+            AppIcons.supportAgentRounded,
+            size: AppSizes.iconSm,
+            color: colors.iconTint,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Flexible(
             child: Text(
@@ -610,9 +584,9 @@ class _LiabilityDialogState extends State<_LiabilityDialog> {
     final t = widget.t;
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return AlertDialog(
-      backgroundColor: colors.surface,
-      icon: AppIcon(AppIcons.gavelRounded, color: colors.gold),
+    return AppAlertDialog(
+      backgroundColor: colors.sheet,
+      icon: AppIcon(AppIcons.gavelRounded, color: colors.iconTint),
       title: Text(t.t('liability.title')),
       content: SingleChildScrollView(
         child: Column(

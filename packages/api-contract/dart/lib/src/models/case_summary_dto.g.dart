@@ -13,6 +13,7 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       practiceArea: PracticeAreaRefDto.fromJson(
         json['practiceArea'] as Map<String, dynamic>,
       ),
+      extraPracticeCount: (json['extraPracticeCount'] as num).toInt(),
       primaryStateCode: json['primaryStateCode'] as String,
       additionalStateCount: (json['additionalStateCount'] as num).toInt(),
       status: CaseStatus.fromJson(json['status'] as String),
@@ -20,9 +21,28 @@ CaseSummaryDto _$CaseSummaryDtoFromJson(Map<String, dynamic> json) =>
       bidsCount: (json['bidsCount'] as num).toInt(),
       createdAt: json['createdAt'] as String,
       lastActivityAt: json['lastActivityAt'] as String,
+      stillNeededPending: json['stillNeededPending'] as bool,
+      canMakeNotUrgent: json['canMakeNotUrgent'] as bool,
       coverUrl: json['coverUrl'] as String?,
       city: json['city'] as String?,
       budgetCents: (json['budgetCents'] as num?)?.toInt(),
+      budgetPercentBps: (json['budgetPercentBps'] as num?)?.toInt(),
+      coverKey: json['coverKey'] as String?,
+      urgency: json['urgency'] == null
+          ? null
+          : CaseUrgency.fromJson(json['urgency'] as String),
+      urgencyLevel: json['urgencyLevel'] == null
+          ? null
+          : CaseUrgencyLevel.fromJson(json['urgencyLevel'] as String),
+      deadlineAt: json['deadlineAt'] == null
+          ? null
+          : DateTime.parse(json['deadlineAt'] as String),
+      deadlineKind: json['deadlineKind'] == null
+          ? null
+          : CaseDeadlineKind.fromJson(json['deadlineKind'] as String),
+      pausedAt: json['pausedAt'] as String?,
+      hidesAt: json['hidesAt'] as String?,
+      archivesAt: json['archivesAt'] as String?,
     );
 
 Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
@@ -31,13 +51,25 @@ Map<String, dynamic> _$CaseSummaryDtoToJson(CaseSummaryDto instance) =>
       'coverUrl': ?instance.coverUrl,
       'title': instance.title,
       'practiceArea': instance.practiceArea.toJson(),
+      'extraPracticeCount': instance.extraPracticeCount,
       'primaryStateCode': instance.primaryStateCode,
       'additionalStateCount': instance.additionalStateCount,
       'city': ?instance.city,
       'status': instance.status.toJson(),
       'budgetMode': instance.budgetMode.toJson(),
       'budgetCents': ?instance.budgetCents,
+      'budgetPercentBps': ?instance.budgetPercentBps,
+      'coverKey': ?instance.coverKey,
+      'urgency': ?instance.urgency?.toJson(),
+      'urgencyLevel': ?instance.urgencyLevel?.toJson(),
+      'deadlineAt': ?instance.deadlineAt?.toIso8601String(),
+      'deadlineKind': ?instance.deadlineKind?.toJson(),
       'bidsCount': instance.bidsCount,
       'createdAt': instance.createdAt,
       'lastActivityAt': instance.lastActivityAt,
+      'pausedAt': ?instance.pausedAt,
+      'stillNeededPending': instance.stillNeededPending,
+      'canMakeNotUrgent': instance.canMakeNotUrgent,
+      'hidesAt': ?instance.hidesAt,
+      'archivesAt': ?instance.archivesAt,
     };

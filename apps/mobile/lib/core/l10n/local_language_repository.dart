@@ -1,6 +1,6 @@
-import '../persistence/local_kv_store.dart';
-import 'app_language.dart';
-import 'language_repository.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/language_repository.dart';
+import 'package:lawbid/core/persistence/local_kv_store.dart';
 
 const _kLanguageKey = 'l10n.language';
 
@@ -22,5 +22,6 @@ class LocalLanguageRepository implements LanguageRepository {
   }
 
   @override
-  Future<void> write(AppLanguage language) => _kv.setString(_kLanguageKey, language.code);
+  Future<void> write(AppLanguage language) =>
+      _kv.setString(_kLanguageKey, language.code);
 }

@@ -21,6 +21,12 @@ MeDto _$MeDtoFromJson(Map<String, dynamic> json) => MeDto(
   avatarFileId: json['avatarFileId'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
   requiredConsentsGranted: json['requiredConsentsGranted'] as bool,
+  analyticsConsent: json['analyticsConsent'] as bool?,
+  pendingLegalDocuments: (json['pendingLegalDocuments'] as List<dynamic>)
+      .map((e) => PendingLegalDocumentDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  passwordSet: json['passwordSet'] as bool,
+  passwordRequired: json['passwordRequired'] as bool,
   onboarding: OnboardingStateDto.fromJson(
     json['onboarding'] as Map<String, dynamic>,
   ),
@@ -30,6 +36,7 @@ MeDto _$MeDtoFromJson(Map<String, dynamic> json) => MeDto(
   missing: (json['missing'] as List<dynamic>)
       .map((e) => MissingRequirement.fromJson(e as String))
       .toList(),
+  hideLikeCounts: json['hideLikeCounts'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$MeDtoToJson(MeDto instance) => <String, dynamic>{
@@ -44,9 +51,16 @@ Map<String, dynamic> _$MeDtoToJson(MeDto instance) => <String, dynamic>{
   'phoneVerified': instance.phoneVerified,
   'uiLanguage': instance.uiLanguage,
   'theme': instance.theme.toJson(),
+  'hideLikeCounts': instance.hideLikeCounts,
   'avatarFileId': ?instance.avatarFileId,
   'avatarUrl': ?instance.avatarUrl,
   'requiredConsentsGranted': instance.requiredConsentsGranted,
+  'analyticsConsent': ?instance.analyticsConsent,
+  'pendingLegalDocuments': instance.pendingLegalDocuments
+      .map((e) => e.toJson())
+      .toList(),
+  'passwordSet': instance.passwordSet,
+  'passwordRequired': instance.passwordRequired,
   'onboarding': instance.onboarding.toJson(),
   'profile': ?instance.profile?.toJson(),
   'missing': instance.missing.map((e) => e.toJson()).toList(),

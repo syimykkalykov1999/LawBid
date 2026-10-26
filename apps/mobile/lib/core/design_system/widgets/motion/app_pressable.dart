@@ -14,10 +14,14 @@ class AppPressable extends StatefulWidget {
     required this.child,
     required this.onTap,
     super.key,
+    this.onLongPress,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Optional long-press action (context menus).
+  final VoidCallback? onLongPress;
 
   @override
   State<AppPressable> createState() => _AppPressableState();
@@ -41,6 +45,7 @@ class _AppPressableState extends State<AppPressable> {
       onTapUp: (_) => _set(pressed: false),
       onTapCancel: () => _set(pressed: false),
       onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       child: AnimatedScale(
         scale: scale,
         duration: AppMotion.pressScale,

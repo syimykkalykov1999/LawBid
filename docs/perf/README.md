@@ -33,3 +33,10 @@ the run), test-mode Stripe, mock SMS with the fixed OTP code.
 
 Keep the raw `k6` summary (`--summary-export`) next to this file as
 `YYYY-MM-DD-<stage>.json`.
+
+## Audits (newest first)
+
+- `APP_DEVICE_PERF.md` — on-device app speed suite (cold start, frame jank, tap latency, memory, video start), profile mode, `apps/mobile/tool/perf/run_device_perf.sh <device>`.
+
+- `LOAD_SPEED_AUDIT_6_2026-10-23.md` — hot-path latency, round trips per request, Redis, replica seam, billion-user model; tools in `apps/api/bench`, data in `scripts/ops/user-load-gen.sql`.
+- `GROWTH_LADDER_2026-10-23.md` — per growth step (10k … 1B): signal, what to flip, minutes, cost, who (plain Russian).

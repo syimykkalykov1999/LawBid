@@ -1,10 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import {
   type PaymentProvider,
+  type ProviderTaxCalculation,
+  type ProviderTaxLocation,
   type ProviderCharge,
   type ProviderCheckoutSession,
+  type ProviderConnectAccount,
+  type ProviderConnectedCharge,
+  type ProviderConnectedCheckout,
+  type ProviderConnectedCheckoutInput,
+  type ProviderCoupon,
+  type ProviderCouponInput,
   type ProviderEvent,
+  type ProviderRefund,
   type ProviderInvoice,
+  type ProviderSeatCharge,
+  type ProviderSeatItemInput,
+  type ProviderSeatPreview,
+  type ProviderOneTimeCheckoutInput,
+  type ProviderPaymentIntent,
+  type ProviderPaymentIntentInput,
+  type ProviderPrice,
+  type ProviderPriceInput,
   type ProviderSetupIntent,
   type ProviderSubscription,
   WebhookSignatureError,
@@ -26,6 +43,7 @@ export interface FakeCard {
  */
 export class FakePaymentProvider implements PaymentProvider {
   readonly name = 'fake' as const;
+  readonly mode = 'fake' as const;
   readonly customers = new Map<string, { id: string; userId: string }>();
   readonly setupIntents = new Map<string, ProviderSetupIntent>();
   readonly cards = new Map<string, FakeCard>();
@@ -41,8 +59,85 @@ export class FakePaymentProvider implements PaymentProvider {
       lineItems: { priceId: string; quantity: number }[];
       trialDays: number | null;
       successUrl: string;
+      couponId: string | null;
     }
   >();
+  /** Owner 2026-10-02: coupons (admin promo codes) and refunds. */
+  readonly coupons = new Map<string, ProviderCouponInput>();
+  readonly refunds = new Map<
+    string,
+    { paymentIntentId: string; amountCents: number }
+  >();
+  /** Owner 2026-10-02: one-time checkouts (case promotion) and customer
+   * balance credits (referral rewards). */
+  readonly oneTimeCheckouts = new Map<
+    string,
+    ProviderCheckoutSession & { successUrl: string }
+  >();
+  readonly balanceCredits = new Map<
+    string,
+    { customerId: string; cents: number; description: string }
+  >();
+
+  createOneTimeCheckout(
+    input: ProviderOneTimeCheckoutInput,
+  ): Promise<{ id: string; url: string }> {
+    const id = `cs_fake_${randomUUID().slice(0, 12)}`;
+    const url = `${this.checkoutBaseUrl}/${id}`;
+    this.oneTimeCheckouts.set(id, {
+      id,
+      url,
+      status: 'open',
+      customerId: null,
+      subscriptionId: null,
+      metadata: input.metadata,
+      paymentIntentId: null,
+      amountTotalCents: input.amountCents,
+      paymentStatus: 'unpaid',
+      successUrl: input.successUrl,
+    });
+    return Promise.resolve({ id, url });
+  }
+
+  creditCustomerBalance(
+    customerId: string,
+    cents: number,
+    description: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
+    this.balanceCredits.set(idempotencyKey ?? randomUUID(), {
+      customerId,
+      cents,
+      description,
+    });
+    return Promise.resolve();
+  }
+
+  createCoupon(input: ProviderCouponInput): Promise<ProviderCoupon> {
+    const couponId = `coupon_fake_${randomUUID().slice(0, 12)}`;
+    this.coupons.set(couponId, input);
+    return Promise.resolve({
+      couponId,
+      promotionCodeId: `promo_fake_${randomUUID().slice(0, 12)}`,
+    });
+  }
+
+  deleteCoupon(couponId: string): Promise<void> {
+    this.coupons.delete(couponId);
+    return Promise.resolve();
+  }
+
+  refund(input: {
+    paymentIntentId: string;
+    amountCents: number;
+  }): Promise<ProviderRefund> {
+    const id = `re_fake_${randomUUID().slice(0, 12)}`;
+    this.refunds.set(id, {
+      paymentIntentId: input.paymentIntentId,
+      amountCents: input.amountCents,
+    });
+    return Promise.resolve({ id, status: 'succeeded', failureReason: null });
+  }
   /** Seat quantities set on fake subscriptions (OQ-048). */
   readonly seats = new Map<string, number>();
 
@@ -56,6 +151,133 @@ export class FakePaymentProvider implements PaymentProvider {
     this.seats.set(subscriptionId, quantity);
     return Promise.resolve(strip(cur));
   }
+
+  /** Owner 2026-10-22: dev / e2e seat purchase — the prorated rest of the
+   * period at the seat price the admin created (else $100). */
+  previewSeatIncrease(
+    input: ProviderSeatItemInput & { addSeats: number; prorationDate: number },
+  ): Promise<ProviderSeatPreview> {
+    const cur = this.subscriptions.get(input.subscriptionId);
+    if (!cur) throw new Error('no such subscription');
+    return Promise.resolve({
+      amountNowCents: this.proratedSeatCents(
+        cur,
+        input.seatPriceId,
+        input.addSeats,
+        input.prorationDate,
+      ),
+      currency: 'usd',
+      prorationDate: input.prorationDate,
+      periodEnd: cur.currentPeriodEnd,
+    });
+  }
+
+  /** Card `decline` → failed; `3ds` → requires_action (dev tests set it). */
+  seatChargeOutcome: ProviderSeatCharge['status'] = 'applied';
+
+  chargeSeatIncrease(
+    input: ProviderSeatItemInput & {
+      quantity: number;
+      prorationDate: number;
+      idempotencyKey: string;
+    },
+  ): Promise<ProviderSeatCharge> {
+    const cur = this.subscriptions.get(input.subscriptionId);
+    if (!cur) throw new Error('no such subscription');
+    const before = this.seats.get(input.subscriptionId) ?? 0;
+    const amountCents = this.proratedSeatCents(
+      cur,
+      input.seatPriceId,
+      Math.max(0, input.quantity - before),
+      input.prorationDate,
+    );
+    const invoiceId = `in_fake_seats_${randomUUID().slice(0, 8)}`;
+    const status = this.seatChargeOutcome;
+    if (status === 'applied')
+      this.seats.set(input.subscriptionId, input.quantity);
+    this.invoices.set(invoiceId, {
+      id: invoiceId,
+      customerId: cur.customerId,
+      subscriptionId: cur.id,
+      amountCents,
+      currency: 'usd',
+      status:
+        status === 'applied' ? 'paid' : status === 'failed' ? 'void' : 'open',
+      paidAt: status === 'applied' ? Math.floor(Date.now() / 1000) : null,
+      paymentIntentId: null,
+      failureCode: null,
+      _version: 1,
+    });
+    return Promise.resolve({
+      status,
+      invoiceId,
+      amountCents,
+      currency: 'usd',
+      clientSecret:
+        status === 'requires_action' ? `pi_fake_secret_${invoiceId}` : null,
+      subscription: strip(cur),
+    });
+  }
+
+  /** Owner 2026-10-22: deleted customers (tests check the anonymization). */
+  readonly deletedCustomers = new Set<string>();
+
+  deleteCustomer(customerId: string): Promise<void> {
+    this.customers.delete(customerId);
+    this.deletedCustomers.add(customerId);
+    return Promise.resolve();
+  }
+
+  voidInvoice(invoiceId: string): Promise<void> {
+    const cur = this.invoices.get(invoiceId);
+    if (cur && cur.status === 'open') {
+      this.invoices.set(invoiceId, {
+        ...cur,
+        status: 'void',
+        _version: cur._version + 1,
+      });
+    }
+    return Promise.resolve();
+  }
+
+  private proratedSeatCents(
+    sub: ProviderSubscription,
+    seatPriceId: string,
+    addSeats: number,
+    at: number,
+  ): number {
+    const unit = this.prices.get(seatPriceId)?.amountCents ?? 10_000;
+    const start = sub.currentPeriodStart ?? at;
+    const end = sub.currentPeriodEnd ?? at;
+    const left = end > start ? Math.max(0, end - at) / (end - start) : 1;
+    return Math.round(unit * addSeats * Math.min(1, left));
+  }
+  /** Owner 2026-10-03: prices created from the admin, and the item
+   * moves (subscription → new price id) done by "move subscribers". */
+  readonly prices = new Map<string, ProviderPriceInput>();
+  readonly priceMoves = new Map<string, string>();
+
+  createPrice(input: ProviderPriceInput): Promise<ProviderPrice> {
+    const priceId = `price_fake_${input.metadata.kind ?? 'plan'}_${input.amountCents}_${randomUUID().slice(0, 6)}`;
+    this.prices.set(priceId, input);
+    return Promise.resolve({
+      priceId,
+      productId:
+        input.productId ?? `prod_fake_${input.metadata.kind ?? 'plan'}`,
+    });
+  }
+
+  replaceItemPrice(
+    subscriptionId: string,
+    _fromPriceIds: string[],
+    toPriceId: string,
+  ): Promise<ProviderSubscription | null> {
+    const cur = this.subscriptions.get(subscriptionId);
+    if (!cur) return Promise.resolve(null);
+    this.priceMoves.set(subscriptionId, toPriceId);
+    return Promise.resolve(strip(cur));
+  }
+
   /** Fake subscriptions moved to the yearly plan → its price id. */
   readonly yearly = new Map<string, string>();
 
@@ -96,6 +318,7 @@ export class FakePaymentProvider implements PaymentProvider {
     successUrl: string;
     cancelUrl: string;
     metadata: Record<string, string>;
+    couponId?: string | null;
   }): Promise<ProviderCheckoutSession> {
     const id = `cs_fake_${randomUUID().slice(0, 12)}`;
     const s = {
@@ -108,6 +331,7 @@ export class FakePaymentProvider implements PaymentProvider {
       lineItems: input.lineItems,
       trialDays: input.trialDays,
       successUrl: input.successUrl,
+      couponId: input.couponId ?? null,
     };
     this.checkouts.set(id, s);
     return Promise.resolve(stripCheckout(s));
@@ -115,12 +339,160 @@ export class FakePaymentProvider implements PaymentProvider {
 
   retrieveCheckoutSession(id: string): Promise<ProviderCheckoutSession | null> {
     const s = this.checkouts.get(id);
+    if (!s) {
+      const one = this.oneTimeCheckouts.get(id);
+      if (one) {
+        const { successUrl: _u, ...session } = one;
+        void _u;
+        return Promise.resolve(session);
+      }
+    }
     return Promise.resolve(s ? stripCheckout(s) : null);
+  }
+
+  // ---- Owner 2026-10-22: our own card page (PaymentIntents) -------------
+
+  readonly paymentIntents = new Map<string, ProviderPaymentIntent>();
+  readonly subscriptionCards = new Map<string, string>();
+
+  createPaymentIntent(
+    input: ProviderPaymentIntentInput,
+  ): Promise<ProviderPaymentIntent> {
+    // The idempotency key gives the same intent back, like Stripe.
+    const existing = [...this.paymentIntents.values()].find(
+      (p) => p.metadata._idem === input.idempotencyKey,
+    );
+    if (existing) return Promise.resolve(publicIntent(existing));
+    const id = `fake_pi_${randomUUID().slice(0, 12)}`;
+    const pi: ProviderPaymentIntent = {
+      id,
+      status: 'requires_payment_method',
+      amountCents: input.amountCents,
+      currency: input.currency,
+      clientSecret: `${id}_secret_fake`,
+      metadata: { ...input.metadata, _idem: input.idempotencyKey },
+    };
+    this.paymentIntents.set(id, pi);
+    return Promise.resolve(publicIntent(pi));
+  }
+
+  retrievePaymentIntent(id: string): Promise<ProviderPaymentIntent | null> {
+    const pi = this.paymentIntents.get(id);
+    return Promise.resolve(pi ? publicIntent(pi) : null);
+  }
+
+  updatePaymentIntent(
+    id: string,
+    patch: { amountCents: number; metadata: Record<string, string> },
+  ): Promise<ProviderPaymentIntent> {
+    const pi = this.paymentIntents.get(id);
+    if (!pi) throw new Error('no such payment intent');
+    pi.amountCents = patch.amountCents;
+    pi.metadata = { ...pi.metadata, ...patch.metadata };
+    return Promise.resolve(publicIntent(pi));
+  }
+
+  // ---- Owner 2026-10-22: Stripe Tax in dev / e2e ----------------------
+  /** Per-customer tax location the tests may set; a US address with a
+   * ZIP counts as a recognised location. */
+  readonly taxLocations = new Map<string, ProviderTaxLocation>();
+  /** Flat rate the fake charges on top (0 = no tax, like a customer
+   * Stripe cannot place). Tests set it (e.g. 0.0825). */
+  taxRate = 0;
+  readonly taxTransactions: { calculationId: string; reference: string }[] = [];
+
+  updateCustomerTaxLocation(
+    customerId: string,
+    location: ProviderTaxLocation,
+  ): Promise<void> {
+    this.taxLocations.set(customerId, location);
+    return Promise.resolve();
+  }
+
+  customerTaxSupported(customerId: string): Promise<boolean> {
+    const l = this.taxLocations.get(customerId);
+    return Promise.resolve(
+      this.taxRate > 0 && Boolean(l?.address?.postalCode || l?.ip),
+    );
+  }
+
+  calculateTax(input: {
+    amountCents: number;
+    currency: string;
+    reference: string;
+    customerId?: string | null;
+    location: ProviderTaxLocation;
+  }): Promise<ProviderTaxCalculation> {
+    const placed = Boolean(
+      input.location.address?.postalCode || input.location.ip,
+    );
+    const taxCents = placed ? Math.round(input.amountCents * this.taxRate) : 0;
+    return Promise.resolve({
+      calculationId: `fake_taxcalc_${randomUUID().slice(0, 12)}`,
+      subtotalCents: input.amountCents,
+      taxCents,
+      totalCents: input.amountCents + taxCents,
+      currency: input.currency,
+    });
+  }
+
+  recordTaxTransaction(
+    calculationId: string,
+    reference: string,
+  ): Promise<string> {
+    this.taxTransactions.push({ calculationId, reference });
+    return Promise.resolve(`fake_taxtx_${this.taxTransactions.length}`);
+  }
+
+  cancelPaymentIntent(id: string): Promise<ProviderPaymentIntent | null> {
+    const pi = this.paymentIntents.get(id);
+    if (!pi) return Promise.resolve(null);
+    if (pi.status !== 'succeeded') pi.status = 'canceled';
+    return Promise.resolve(publicIntent(pi));
+  }
+
+  /** What the card page does in dev / tests: the payment succeeds. */
+  payPaymentIntent(id: string): void {
+    const pi = this.paymentIntents.get(id);
+    if (!pi) throw new Error('no such payment intent');
+    if (pi.status === 'canceled') throw new Error('payment intent canceled');
+    pi.status = 'succeeded';
+  }
+
+  expireCheckoutSession(id: string): Promise<ProviderCheckoutSession | null> {
+    const one = this.oneTimeCheckouts.get(id);
+    if (one && one.status === 'open') {
+      this.oneTimeCheckouts.set(id, { ...one, status: 'expired' });
+    }
+    const s = this.checkouts.get(id);
+    if (s && s.status === 'open')
+      this.checkouts.set(id, { ...s, status: 'expired' });
+    return this.retrieveCheckoutSession(id);
+  }
+
+  setSubscriptionPaymentMethod(
+    subscriptionId: string,
+    paymentMethodId: string,
+  ): Promise<void> {
+    this.subscriptionCards.set(subscriptionId, paymentMethodId);
+    const sub = this.subscriptions.get(subscriptionId);
+    if (sub) {
+      this.subscriptions.set(subscriptionId, {
+        ...sub,
+        defaultPaymentMethodId: paymentMethodId,
+      });
+    }
+    return Promise.resolve();
   }
 
   /** What paying on the hosted page does: a card, a subscription, the
    * session complete. Returns the success URL. */
   async payCheckout(id: string, card?: FakeCard): Promise<string> {
+    const one = this.oneTimeCheckouts.get(id);
+    if (one) {
+      this.completeOneTime(id);
+      return one.successUrl;
+    }
     const s = this.checkouts.get(id);
     if (!s) throw new Error('no such checkout session');
     if (s.status === 'complete') return s.successUrl;
@@ -135,6 +507,7 @@ export class FakePaymentProvider implements PaymentProvider {
       paymentMethodId: c.paymentMethodId,
       trialDays: s.trialDays,
       metadata: s.metadata,
+      idempotencyKey: `checkout:${id}`,
     });
     this.checkouts.set(id, {
       ...s,
@@ -152,6 +525,7 @@ export class FakePaymentProvider implements PaymentProvider {
 
   createSetupIntent(
     customerId: string,
+    metadata: Record<string, string> = {},
   ): Promise<{ id: string; clientSecret: string }> {
     const id = `seti_fake_${randomUUID().slice(0, 12)}`;
     this.setupIntents.set(id, {
@@ -159,6 +533,7 @@ export class FakePaymentProvider implements PaymentProvider {
       customerId,
       status: 'requires_payment_method',
       paymentMethodId: null,
+      metadata,
     });
     return Promise.resolve({ id, clientSecret: `${id}_secret_fake` });
   }
@@ -188,9 +563,12 @@ export class FakePaymentProvider implements PaymentProvider {
   createSubscription(input: {
     customerId: string;
     priceId: string;
+    lineItems?: { priceId: string; quantity: number }[];
+    couponId?: string | null;
     paymentMethodId: string;
     trialDays: number | null;
     metadata: Record<string, string>;
+    idempotencyKey?: string;
   }): Promise<ProviderSubscription> {
     const now = Math.floor(Date.now() / 1000);
     const month = 30 * 86_400;
@@ -277,6 +655,7 @@ export class FakePaymentProvider implements PaymentProvider {
   constructWebhookEvent(
     rawBody: Buffer,
     signature: string | undefined,
+    options: { connect?: boolean } = {},
   ): ProviderEvent {
     if (signature !== 'fake')
       throw new WebhookSignatureError('Expected Stripe-Signature: fake');
@@ -301,6 +680,9 @@ export class FakePaymentProvider implements PaymentProvider {
       throw new WebhookSignatureError('Malformed event');
     }
     this.absorb(object);
+    // Owner 2026-10-05: a Connect event names its connected account.
+    const account = (parsed as { account?: string }).account;
+    if (options.connect && account) object._account = account;
     return {
       id: parsed.id,
       type: parsed.type,
@@ -311,6 +693,239 @@ export class FakePaymentProvider implements PaymentProvider {
 
   dashboardUrl(): null {
     return null;
+  }
+
+  // ---- Stripe Connect (owner 2026-10-05) ----------------------------------
+
+  readonly connectAccounts = new Map<
+    string,
+    ProviderConnectAccount & { userId: string }
+  >();
+  readonly connectedCheckouts = new Map<
+    string,
+    ProviderConnectedCheckout & {
+      customerId?: string | null;
+      successUrl: string;
+      applicationFeeCents: number;
+    }
+  >();
+  readonly connectedCharges = new Map<
+    string,
+    ProviderConnectedCharge & { accountId: string }
+  >();
+  readonly connectedRefunds = new Map<
+    string,
+    {
+      accountId: string;
+      paymentIntentId: string;
+      amountCents: number;
+      refundApplicationFee: boolean;
+    }
+  >();
+
+  createConnectAccount(input: {
+    userId: string;
+    email: string | null;
+    country: string;
+  }): Promise<string> {
+    const id = `acct_fake_${randomUUID().slice(0, 12)}`;
+    this.connectAccounts.set(id, {
+      id,
+      userId: input.userId,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
+      requirementsDue: ['external_account', 'individual.verification.document'],
+      disabledReason: null,
+      country: input.country,
+    });
+    return Promise.resolve(id);
+  }
+
+  createAccountOnboardingLink(input: {
+    accountId: string;
+    refreshUrl: string;
+    returnUrl: string;
+  }): Promise<string> {
+    if (!this.connectAccounts.has(input.accountId))
+      throw new Error('no such connected account');
+    return Promise.resolve(
+      `${this.checkoutBaseUrl}/connect/${input.accountId}?return=${encodeURIComponent(input.returnUrl)}`,
+    );
+  }
+
+  createAccountLoginLink(accountId: string): Promise<string> {
+    if (!this.connectAccounts.has(accountId))
+      throw new Error('no such connected account');
+    return Promise.resolve(`https://connect.stripe.com/fake/${accountId}`);
+  }
+
+  retrieveConnectAccount(
+    accountId: string,
+  ): Promise<ProviderConnectAccount | null> {
+    const a = this.connectAccounts.get(accountId);
+    if (!a) return Promise.resolve(null);
+    const { userId: _u, ...rest } = a;
+    void _u;
+    return Promise.resolve(rest);
+  }
+
+  /** Owner 2026-10-05 (anti-fraud): payout delays asked of "Stripe". */
+  readonly payoutDelays = new Map<string, number | null>();
+
+  updateConnectPayoutDelay(
+    accountId: string,
+    days: number | null,
+  ): Promise<void> {
+    if (!this.connectAccounts.has(accountId)) {
+      return Promise.reject(new Error('no such connected account'));
+    }
+    this.payoutDelays.set(accountId, days);
+    return Promise.resolve();
+  }
+
+  /** What finishing Stripe's onboarding does (dev page / e2e). */
+  completeConnectOnboarding(accountId: string): void {
+    const a = this.connectAccounts.get(accountId);
+    if (!a) throw new Error('no such connected account');
+    this.connectAccounts.set(accountId, {
+      ...a,
+      chargesEnabled: true,
+      payoutsEnabled: true,
+      detailsSubmitted: true,
+      requirementsDue: [],
+      disabledReason: null,
+    });
+  }
+
+  createConnectedCheckout(
+    input: ProviderConnectedCheckoutInput,
+  ): Promise<{ id: string; url: string }> {
+    if (!this.connectAccounts.has(input.accountId))
+      throw new Error('no such connected account');
+    const id = `cs_fake_${randomUUID().slice(0, 12)}`;
+    const url = `${this.checkoutBaseUrl}/${id}`;
+    this.connectedCheckouts.set(id, {
+      id,
+      accountId: input.accountId,
+      url,
+      status: 'open',
+      paymentStatus: 'unpaid',
+      paymentIntentId: null,
+      chargeId: null,
+      receiptUrl: null,
+      amountTotalCents: input.amountCents,
+      metadata: input.metadata,
+      successUrl: input.successUrl,
+      applicationFeeCents: input.applicationFeeCents,
+      customerId: input.customerId ?? null,
+    });
+    return Promise.resolve({ id, url });
+  }
+
+  /** Customers created on connected accounts (saved cards), for tests. */
+  readonly connectedCustomers: { accountId: string; id: string }[] = [];
+
+  ensureConnectedCustomer(input: {
+    accountId: string;
+    email: string | null;
+  }): Promise<string> {
+    if (!this.connectAccounts.has(input.accountId))
+      throw new Error('no such connected account');
+    const id = `cus_fake_${randomUUID().slice(0, 12)}`;
+    this.connectedCustomers.push({ accountId: input.accountId, id });
+    return Promise.resolve(id);
+  }
+
+  retrieveConnectedCheckout(
+    accountId: string,
+    sessionId: string,
+  ): Promise<ProviderConnectedCheckout | null> {
+    const s = this.connectedCheckouts.get(sessionId);
+    if (!s || s.accountId !== accountId) return Promise.resolve(null);
+    const { successUrl: _u, applicationFeeCents: _f, ...rest } = s;
+    void _u;
+    void _f;
+    return Promise.resolve(rest);
+  }
+
+  /** Dev checkout page: a connected checkout by its id alone. */
+  connectedCheckoutById(sessionId: string): ProviderConnectedCheckout | null {
+    const s = this.connectedCheckouts.get(sessionId);
+    if (!s) return null;
+    const { successUrl: _u, applicationFeeCents: _f, ...rest } = s;
+    void _u;
+    void _f;
+    return rest;
+  }
+
+  /** Paying a connected checkout on the dev page / in e2e: a payment
+   * intent, a charge with a receipt, the session complete. Returns the
+   * success URL. */
+  payConnectedCheckout(sessionId: string): string {
+    const s = this.connectedCheckouts.get(sessionId);
+    if (!s) throw new Error('no such connected checkout');
+    if (s.status === 'complete') return s.successUrl;
+    const pi = `pi_fake_${randomUUID().slice(0, 12)}`;
+    const ch = `ch_fake_${randomUUID().slice(0, 12)}`;
+    this.connectedCharges.set(ch, {
+      id: ch,
+      accountId: s.accountId,
+      paymentIntentId: pi,
+      amountCents: s.amountTotalCents ?? 0,
+      amountRefundedCents: 0,
+      refunded: false,
+      receiptUrl: `https://pay.stripe.com/receipts/fake/${ch}`,
+      disputed: false,
+      disputeStatus: null,
+    });
+    this.connectedCheckouts.set(sessionId, {
+      ...s,
+      status: 'complete',
+      paymentStatus: 'paid',
+      paymentIntentId: pi,
+      chargeId: ch,
+      receiptUrl: `https://pay.stripe.com/receipts/fake/${ch}`,
+    });
+    return s.successUrl;
+  }
+
+  refundConnected(input: {
+    accountId: string;
+    paymentIntentId: string;
+    amountCents: number;
+    refundApplicationFee: boolean;
+    idempotencyKey: string;
+  }): Promise<ProviderRefund> {
+    const id = `re_fake_${randomUUID().slice(0, 12)}`;
+    this.connectedRefunds.set(id, {
+      accountId: input.accountId,
+      paymentIntentId: input.paymentIntentId,
+      amountCents: input.amountCents,
+      refundApplicationFee: input.refundApplicationFee,
+    });
+    for (const [chId, ch] of this.connectedCharges) {
+      if (ch.paymentIntentId === input.paymentIntentId) {
+        const refunded = ch.amountRefundedCents + input.amountCents;
+        this.connectedCharges.set(chId, {
+          ...ch,
+          amountRefundedCents: refunded,
+          refunded: refunded >= ch.amountCents,
+        });
+      }
+    }
+    return Promise.resolve({ id, status: 'succeeded', failureReason: null });
+  }
+
+  retrieveConnectedCharge(
+    accountId: string,
+    chargeId: string,
+  ): Promise<ProviderConnectedCharge | null> {
+    const ch = this.connectedCharges.get(chargeId);
+    if (!ch || ch.accountId !== accountId) return Promise.resolve(null);
+    const { accountId: _a, ...rest } = ch;
+    void _a;
+    return Promise.resolve(rest);
   }
 
   /** Upsert an event's object unless a newer version is already stored. */
@@ -377,6 +992,51 @@ export class FakePaymentProvider implements PaymentProvider {
         failureCode: (object.failure_code as string | null) ?? null,
         _version: version,
       });
+    } else if (
+      object.object === 'checkout.session' &&
+      object.status === 'complete'
+    ) {
+      if (this.connectedCheckouts.has(id)) this.payConnectedCheckout(id);
+      else this.completeOneTime(id);
+    } else if (object.object === 'account') {
+      // Owner 2026-10-05: `account.updated` of a connected account.
+      const cur = this.connectAccounts.get(id);
+      if (cur) {
+        this.connectAccounts.set(id, {
+          ...cur,
+          chargesEnabled:
+            (object.charges_enabled as boolean | undefined) ??
+            cur.chargesEnabled,
+          payoutsEnabled:
+            (object.payouts_enabled as boolean | undefined) ??
+            cur.payoutsEnabled,
+          detailsSubmitted:
+            (object.details_submitted as boolean | undefined) ??
+            cur.detailsSubmitted,
+          requirementsDue:
+            (object.requirements as { currently_due?: string[] } | undefined)
+              ?.currently_due ?? cur.requirementsDue,
+          disabledReason:
+            ((object.requirements as { disabled_reason?: string } | undefined)
+              ?.disabled_reason as string | null | undefined) ??
+            cur.disabledReason,
+        });
+      }
+    } else if (object.object === 'dispute') {
+      const chId = object.charge as string | undefined;
+      const ch = chId ? this.connectedCharges.get(chId) : undefined;
+      if (ch) {
+        const status =
+          (object.status as string | undefined) ?? 'needs_response';
+        this.connectedCharges.set(ch.id, {
+          ...ch,
+          disputed: true,
+          disputeStatus: status,
+          ...(status === 'lost'
+            ? { refunded: true, amountRefundedCents: ch.amountCents }
+            : {}),
+        });
+      }
     } else if (object.object === 'charge') {
       this.charges.set(id, {
         id,
@@ -385,6 +1045,18 @@ export class FakePaymentProvider implements PaymentProvider {
         amountRefundedCents: (object.amount_refunded as number) ?? 0,
       });
     }
+  }
+
+  /** A one-time session paid (owner 2026-10-02, case promotion). */
+  private completeOneTime(id: string): void {
+    const one = this.oneTimeCheckouts.get(id);
+    if (!one || one.status === 'complete') return;
+    this.oneTimeCheckouts.set(id, {
+      ...one,
+      status: 'complete',
+      paymentStatus: 'paid',
+      paymentIntentId: `pi_fake_${randomUUID().slice(0, 12)}`,
+    });
   }
 
   private must(id: string) {
@@ -398,6 +1070,13 @@ function strip<T extends { _version: number }>(o: T): Omit<T, '_version'> {
   const { _version: _v, ...rest } = o;
   void _v;
   return rest;
+}
+
+/** The intent without the fake's own bookkeeping field. */
+function publicIntent(pi: ProviderPaymentIntent): ProviderPaymentIntent {
+  const { _idem: _i, ...metadata } = pi.metadata;
+  void _i;
+  return { ...pi, metadata };
 }
 
 function stripCheckout(s: ProviderCheckoutSession): ProviderCheckoutSession {

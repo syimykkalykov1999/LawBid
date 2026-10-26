@@ -1,25 +1,42 @@
-import 'package:flutter/material.dart';
-import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
-import 'package:go_router/go_router.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
+    show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/attorney_view_preview.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_stale_banner.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
+import 'package:lawbid/features/cases/presentation/widgets/owner_case_dossier.dart';
+import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
+import 'package:lawbid/features/cases/presentation/widgets/review_nudge_sheet.dart';
+import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
+import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
+import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
 /// accepted attorney, and the bids (§5.2) with sorting.
@@ -35,6 +52,7 @@ class OwnerCaseScreen extends ConsumerStatefulWidget {
 class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
   BidsSort _sort = BidsSort.newest;
   bool _busy = false;
+  bool _nudged = false;
 
   CaseBidsKey get _bidsKey => (caseId: widget.caseId, sort: _sort);
 
@@ -75,6 +93,70 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
     if (popAfter && mounted && context.canPop()) context.pop();
   }
 
+  Future<void> _dispute(OwnerCase c) async {
+    final t = ref.read(translatorProvider);
+    final controller = TextEditingController();
+    final reason = await showAppBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.screenSide,
+          AppSpacing.md,
+          AppSpacing.screenSide,
+          MediaQuery.viewInsetsOf(ctx).bottom + AppSpacing.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const AppSheetHandle(),
+            const SizedBox(height: AppSpacing.md),
+            AppTextField(
+              controller: controller,
+              label: t.t('cases.work.disputeReason'),
+              // Audit 2026-10-04: 1000, as the API and the lawyer form.
+              maxLength: TextLimits.of(TextLimit.dispute),
+              tapAnywhere: true,
+              maxLines: 4,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            AppButton(
+              label: t.t('cases.work.dispute'),
+              onPressed: () {
+                final v = controller.text.trim();
+                if (v.isNotEmpty) Navigator.of(ctx).pop(v);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (reason == null) return;
+    await _run(
+      () => ref.read(caseActionsProvider).dispute(c.id, reason),
+      doneKey: 'cases.work.disputed',
+    );
+  }
+
+  void _maybeNudge(OwnerCase? c) {
+    if (_nudged ||
+        c == null ||
+        c.status != CaseStatus.closed ||
+        c.acceptedBid == null) {
+      return;
+    }
+    _nudged = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final write = await maybeShowReviewNudge(context, ref, c.id);
+      if (!write || !mounted) return;
+      // ignore: use_build_context_synchronously
+      unawaited(context.push(AppRoutes.reviewFormFor(c.id)));
+    });
+  }
+
   Future<void> _refresh() async {
     ref
       ..invalidate(ownerCaseProvider(widget.caseId))
@@ -90,6 +172,36 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
     final canDelete =
         c.status == CaseStatus.open || c.status == CaseStatus.archived;
     showActionSheet(context, [
+      if (c.status == CaseStatus.inProgress)
+        ActionSheetItem(
+          icon: AppIcons.taskAltRounded,
+          label: t.t('cases.owner.complete'),
+          onTap: () => _confirm(
+            title: 'cases.owner.completeTitle',
+            message: 'cases.owner.completeMessage',
+            confirm: 'cases.owner.complete',
+            action: () => actions.complete(c.id),
+            doneKey: 'cases.owner.completed',
+          ),
+        ),
+      if (c.attorneyMarkedDone) ...[
+        ActionSheetItem(
+          icon: AppIcons.taskAltRounded,
+          label: t.t('cases.owner.complete'),
+          onTap: () => _confirm(
+            title: 'cases.owner.confirmTitle',
+            message: 'cases.owner.confirmMessage',
+            confirm: 'cases.owner.complete',
+            action: () => actions.confirmCompletion(c.id),
+            doneKey: 'cases.owner.confirmed',
+          ),
+        ),
+        ActionSheetItem(
+          icon: AppIcons.policyOutlined,
+          label: t.t('cases.work.dispute'),
+          onTap: () => _dispute(c),
+        ),
+      ],
       if (canEdit)
         ActionSheetItem(
           icon: AppIcons.editOutlined,
@@ -128,13 +240,18 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Owner 2026-10-15: a finished case → a kind but firm ask for a review.
+    _maybeNudge(ref.watch(ownerCaseProvider(widget.caseId)).value);
     final t = ref.watch(translatorProvider);
     final formats = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final value = ref.watch(ownerCaseProvider(widget.caseId));
     final kase = value.value;
     final hasMenu = kase != null &&
-        (kase.status == CaseStatus.open || kase.status == CaseStatus.archived);
+        (kase.status == CaseStatus.open ||
+            kase.status == CaseStatus.archived ||
+            kase.status == CaseStatus.inProgress ||
+            kase.attorneyMarkedDone);
 
     return Scaffold(
       backgroundColor: colors.bg,
@@ -160,7 +277,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
         onRetry: _refresh,
         builder: (c) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
           child: _OwnerCaseBody(
             kase: c,
@@ -177,28 +294,26 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
   }
 
   Widget? _bottomBar(OwnerCase c, Translator t) {
-    final actions = ref.read(caseActionsProvider);
     final children = <Widget>[
-      if (c.status == CaseStatus.inProgress)
+      if (c.acceptedBid != null &&
+          c.conversationId != null &&
+          c.status != CaseStatus.open &&
+          c.status != CaseStatus.archived)
         AppButton(
-          label: t.t('cases.owner.complete'),
-          icon: AppIcons.taskAltRounded,
-          isLoading: _busy,
-          onPressed: () => _confirm(
-            title: 'cases.owner.completeTitle',
-            message: 'cases.owner.completeMessage',
-            confirm: 'cases.owner.complete',
-            action: () => actions.complete(c.id),
-            doneKey: 'cases.owner.completed',
-          ),
+          label: t.t('cases.owner.chatWithLawyer'),
+          icon: AppIcons.chatBubbleOutlineRounded,
+          onPressed: () =>
+              context.push(ChatRoutes.conversation(c.conversationId!)),
         ),
       if (c.status == CaseStatus.archived)
         AppButton(
           label: t.t('cases.owner.restore'),
           icon: AppIcons.unarchiveOutlined,
           isLoading: _busy,
-          onPressed: () => _run(() => actions.restoreCase(c.id),
-              doneKey: 'cases.owner.restored'),
+          onPressed: () => _run(
+            () => ref.read(caseActionsProvider).restoreCase(c.id),
+            doneKey: 'cases.owner.restored',
+          ),
         ),
       if (c.status == CaseStatus.closed && c.acceptedBid != null)
         AppButton(
@@ -234,6 +349,181 @@ class _OwnerCaseBody extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = kase;
+    final showBids = c.status != CaseStatus.inProgress &&
+        c.status != CaseStatus.pendingCompletion &&
+        c.status != CaseStatus.disputed;
+
+    // Owner 2026-10-13: once a bid is accepted the case is a workspace:
+    // Overview | Files | Tasks | Updates | Activity.
+    if (c.acceptedBid != null && !showBids && c.status != CaseStatus.open) {
+      final category = CaseFormat.practice(
+        t,
+        c.practice.categoryI18nKey ?? c.practice.i18nKey,
+        c.practice.categoryNameEn ?? c.practice.nameEn,
+      );
+      final leaf =
+          CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
+      return CaseWorkspaceBody(
+        caseId: c.id,
+        isAttorney: false,
+        chips: [category, if (leaf != category) leaf],
+        statusLabel: c.status == CaseStatus.inProgress
+            ? t.t('cases.status.acceptedByBoth')
+            : caseStatusLabel(t, c.status),
+        title: c.title,
+        states: [c.primaryStateCode, ...c.additionalStateCodes],
+        budget: c.budget,
+        urgency: c.urgencyInfo,
+        onRefresh: () async => ref.invalidate(ownerCaseProvider(c.id)),
+        categoryCode: c.practice.artCode,
+        statusTone: caseTone(c.status),
+        stage: caseStageOf(c.status, c.bidsCount),
+        publishedAt: c.createdAt,
+        overview: [
+          if (c.status == CaseStatus.pendingCompletion)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.lg,
+                0,
+              ),
+              child: NoticeCard(
+                icon: AppIcons.hourglassTopRounded,
+                message: t.t(
+                  c.attorneyMarkedDone
+                      ? 'cases.owner.attorneyMarkedNotice'
+                      : 'cases.owner.pendingNotice',
+                  {
+                    'date': c.autoCloseAt == null
+                        ? ''
+                        : formats.date(c.autoCloseAt!),
+                  },
+                ),
+              ),
+            ),
+          if (c.status == CaseStatus.disputed)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.lg,
+                0,
+              ),
+              child: NoticeCard(
+                icon: AppIcons.policyOutlined,
+                tone: StatusTone.danger,
+                message: t.t('cases.owner.disputedNotice'),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              0,
+            ),
+            child: _AcceptedAttorneyCard(
+              bid: c.acceptedBid!,
+              t: t,
+              formats: formats,
+              conversationId: c.conversationId,
+            ),
+          ),
+          CaseText(
+            text: c.description,
+            moreLabel: t.t('post.more'),
+          ),
+          // Audit 2026-10-19: «Подробности» stay readable and editable
+          // once a bid is accepted.
+          PrivateDetailsCard(
+            caseId: c.id,
+            text: c.privateDetails,
+            isOwner: true,
+            hired: true,
+            onSaved: () => ref.invalidate(ownerCaseProvider(c.id)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              0,
+            ),
+            child: CasePaymentsCard(caseId: c.id, asAttorney: false),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              0,
+            ),
+            child: Text(
+              t.t('cases.overview.meta', {
+                'published': formats.date(c.createdAt),
+                'accepted': formats.date(c.lastActivityAt),
+                'bids': '${c.bidsCount}',
+              }),
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
+          ),
+          AppListRow(
+            icon: AppIcons.modeCommentOutlined,
+            label: t.t('cases.comments.button'),
+            onTap: () => context.push(AppRoutes.caseComments(c.id)),
+          ),
+        ],
+      );
+    }
+
+    return _OwnerOpenCase(
+      kase: c,
+      t: t,
+      formats: formats,
+      sort: sort,
+      bidsKey: bidsKey,
+      onSort: onSort,
+    );
+  }
+}
+
+/// Owner 2026-10-15 («Экран кейса»): a case that is not yet in work — the
+/// hero, then Overview · Bids · Files · Tasks.
+class _OwnerOpenCase extends ConsumerStatefulWidget {
+  const _OwnerOpenCase({
+    required this.kase,
+    required this.t,
+    required this.formats,
+    required this.sort,
+    required this.bidsKey,
+    required this.onSort,
+  });
+
+  final OwnerCase kase;
+  final Translator t;
+  final L10nFormats formats;
+  final BidsSort sort;
+  final CaseBidsKey bidsKey;
+  final ValueChanged<BidsSort> onSort;
+
+  @override
+  ConsumerState<_OwnerOpenCase> createState() => _OwnerOpenCaseState();
+}
+
+class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
+  int _tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.kase;
+    final t = widget.t;
+    final formats = widget.formats;
+    final sort = widget.sort;
+    final bidsKey = widget.bidsKey;
+    final onSort = widget.onSort;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final bids = ref.watch(caseBidsProvider(bidsKey));
     final states = [c.primaryStateCode, ...c.additionalStateCodes]
         .map(stateName)
@@ -241,139 +531,318 @@ class _OwnerCaseBody extends ConsumerWidget {
     final showBids = c.status != CaseStatus.inProgress &&
         c.status != CaseStatus.pendingCompletion &&
         c.status != CaseStatus.disputed;
-
-    return NotificationListener<ScrollNotification>(
-      onNotification: (n) {
-        if (n.depth == 0 &&
-            n.metrics.axis == Axis.vertical &&
-            n.metrics.extentAfter < 400) {
-          ref.read(caseBidsProvider(bidsKey).notifier).loadMore();
-        }
-        return false;
-      },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: kDetailPadding,
-        children: [
-          CaseHeader(
-            practice:
-                CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn),
-            title: c.title,
-            status: c.status,
-            meta: t.t(
-                'cases.detail.published', {'date': formats.date(c.createdAt)}),
-            t: t,
-          ),
-          if (c.status == CaseStatus.pendingCompletion) ...[
-            const SizedBox(height: AppSpacing.lg),
-            NoticeCard(
-              icon: AppIcons.hourglassTopRounded,
-              message: t.t('cases.owner.pendingNotice', {
-                'date':
-                    c.autoCloseAt == null ? '' : formats.date(c.autoCloseAt!),
-              }),
-            ),
-          ],
-          if (c.status == CaseStatus.disputed) ...[
-            const SizedBox(height: AppSpacing.lg),
-            NoticeCard(
-              icon: AppIcons.policyOutlined,
-              tone: StatusTone.danger,
-              message: t.t('cases.owner.disputedNotice'),
-            ),
-          ],
-          if (c.status == CaseStatus.archived) ...[
-            const SizedBox(height: AppSpacing.lg),
-            NoticeCard(
-              icon: AppIcons.inventory2Outlined,
-              message: t.t('cases.owner.archivedNotice'),
-            ),
-          ],
-          if (c.acceptedBid != null)
-            DetailSection(
-              title: t.t('cases.owner.attorneyAtWork'),
-              child: _AcceptedAttorneyCard(
-                  bid: c.acceptedBid!,
-                  t: t,
-                  formats: formats,
-                  conversationId: c.conversationId),
-            ),
-          DetailSection(
-            title: t.t('cases.detail.description'),
-            child: Text(c.description,
-                style: typography.body.copyWith(color: colors.text)),
-          ),
-          if (c.photos.isNotEmpty)
-            DetailSection(
-              title: t.t('cases.photos.title'),
-              child: CasePhotosStrip(photos: c.photos),
-            ),
-          // OQ-034: attorneys' questions under the case; the owner answers.
-          AppListRow(
-            icon: AppIcons.modeCommentOutlined,
-            label: t.t('cases.comments.title'),
-            flush: true,
-            onTap: () => context.push(AppRoutes.caseComments(c.id)),
-          ),
-          DetailSection(
-            title: t.t('cases.detail.details'),
-            child: FactsCard(
-              rows: [
-                InfoRow(
-                  icon: AppIcons.paymentsOutlined,
-                  label: t.t('cases.card.budget'),
-                  value: CaseFormat.budget(t, formats, c.budget),
-                ),
-                InfoRow(
-                    icon: AppIcons.mapOutlined,
-                    label: t.t('cases.field.states'),
-                    value: states),
-                if (c.city != null && c.city!.trim().isNotEmpty)
-                  InfoRow(
-                      icon: AppIcons.placeOutlined,
-                      label: t.t('cases.field.city'),
-                      value: c.city!),
-                InfoRow(
-                  icon: AppIcons.visibilityOutlined,
-                  label: t.t('cases.detail.views'),
-                  value: SocialFormat.count(formats, c.viewCount),
-                ),
-              ],
-            ),
-          ),
-          if (showBids)
-            DetailSection(
-              title: t.t('cases.bids.title',
-                  {'count': SocialFormat.count(formats, c.bidsCount)}),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final (s, key) in [
-                          (BidsSort.newest, 'cases.bids.sortNewest'),
-                          (BidsSort.lowestPrice, 'cases.bids.sortPrice'),
-                          (BidsSort.highestRating, 'cases.bids.sortRating'),
-                        ]) ...[
-                          AppChip(
-                              label: t.t(key),
-                              selected: sort == s,
-                              onTap: () => onSort(s)),
-                          const SizedBox(width: AppSpacing.sm),
-                        ],
-                      ],
+    final category = CaseFormat.practice(
+      t,
+      c.practice.categoryI18nKey ?? c.practice.i18nKey,
+      c.practice.categoryNameEn ?? c.practice.nameEn,
+    );
+    final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
+    final filesCount = c.photos.length;
+    final tabs = [
+      CaseTabItem(t.t('cases.tab.overview')),
+      if (showBids) CaseTabItem(t.t('cases.tab.bids'), count: c.bidsCount),
+      CaseTabItem(t.t('cases.tab.files'), count: filesCount),
+      CaseTabItem(t.t('cases.tab.tasks')),
+    ];
+    final tab = _tab.clamp(0, tabs.length - 1);
+    // Owner 2026-10-19 (Instagram): the case header scrolls away, the tab
+    // row sticks, and Overview | Bids | Files | Tasks are pages side by
+    // side — the next one slides in with the finger, a tap slides to it.
+    final kinds = [
+      'overview',
+      if (showBids) 'bids',
+      'files',
+      'tasks',
+    ];
+    Widget sectionFor(String which) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (which == 'overview') ...[
+                if (c.status == CaseStatus.pendingCompletion) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  NoticeCard(
+                    icon: AppIcons.hourglassTopRounded,
+                    message: t.t(
+                      c.attorneyMarkedDone
+                          ? 'cases.owner.attorneyMarkedNotice'
+                          : 'cases.owner.pendingNotice',
+                      {
+                        'date': c.autoCloseAt == null
+                            ? ''
+                            : formats.date(c.autoCloseAt!),
+                      },
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  _BidsList(
-                      value: bids, t: t, formats: formats, bidsKey: bidsKey),
                 ],
-              ),
-            ),
-        ],
+                if (c.status == CaseStatus.disputed) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  NoticeCard(
+                    icon: AppIcons.policyOutlined,
+                    tone: StatusTone.danger,
+                    message: t.t('cases.owner.disputedNotice'),
+                  ),
+                ],
+                if (c.status == CaseStatus.archived) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  NoticeCard(
+                    icon: AppIcons.inventory2Outlined,
+                    message: t.t('cases.owner.archivedNotice'),
+                  ),
+                ],
+                // OQ-054: «Вам ещё нужен адвокат?» / «Кейс скрыт · Вернуть».
+                if (c.status == CaseStatus.open &&
+                    CaseStaleBanner.needed(
+                      paused: c.paused,
+                      pending: c.stillNeededPending,
+                    )) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  CaseStaleBanner(
+                    caseId: c.id,
+                    paused: c.paused,
+                    pending: c.stillNeededPending,
+                    canMakeNotUrgent: c.canMakeNotUrgent,
+                    hidesAt: c.hidesAt,
+                    archivesAt: c.archivesAt,
+                  ),
+                ],
+                // Owner 2026-10-05: attorneys the client offered the case to.
+                CaseInvitesSection(caseId: c.id),
+                if (c.acceptedBid != null)
+                  DetailSection(
+                    title: t.t('cases.owner.attorneyAtWork'),
+                    child: _AcceptedAttorneyCard(
+                      bid: c.acceptedBid!,
+                      t: t,
+                      formats: formats,
+                      conversationId: c.conversationId,
+                    ),
+                  ),
+                DetailSection(
+                  title: t.t('cases.detail.description'),
+                  child: Text(
+                    c.description,
+                    style: typography.body.copyWith(color: colors.text),
+                  ),
+                ),
+                // Audit 2026-10-19: the owner reads their «Подробности».
+                PrivateDetailsCard(
+                  caseId: c.id,
+                  text: c.privateDetails,
+                  isOwner: true,
+                  padding: EdgeInsets.zero,
+                  onSaved: c.status == CaseStatus.open
+                      ? () => ref.invalidate(ownerCaseProvider(c.id))
+                      : null,
+                ),
+                if (c.photos.isNotEmpty)
+                  DetailSection(
+                    title: t.t('cases.photos.title'),
+                    child: CasePhotosStrip(photos: c.photos),
+                  ),
+                // Owner 2026-10-19: one row of two buttons — «Как выглядит
+                // ваш кейс» (until a bid is accepted) and «Вопросы по
+                // кейсу» (OQ-034: attorneys' questions under the case).
+                const SizedBox(height: AppSpacing.lg),
+                // Owner 2026-10-19: both buttons always the same height.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (c.status == CaseStatus.open &&
+                          c.acceptedBid == null) ...[
+                        Expanded(
+                          child: AppButton(
+                            key: const ValueKey('case-preview-open'),
+                            label: t.t('cases.preview.button'),
+                            icon: AppIcons.visibilityOutlined,
+                            variant: AppButtonVariant.secondary,
+                            onPressed: () => showAttorneyViewPreview(
+                              context,
+                              item: AttorneyViewPreview.feedViewOf(c),
+                              t: t,
+                              formats: formats,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                      ],
+                      Expanded(
+                        child: AppButton(
+                          key: const ValueKey('case-questions-open'),
+                          label: t.t('cases.comments.button'),
+                          icon: AppIcons.modeCommentOutlined,
+                          variant: AppButtonVariant.secondary,
+                          onPressed: () =>
+                              context.push(AppRoutes.caseComments(c.id)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                DetailSection(
+                  title: t.t('cases.detail.details'),
+                  child: FactsCard(
+                    rows: [
+                      CaseUrgencyRow(
+                        caseId: c.id,
+                        info: c.urgencyInfo,
+                        canEdit: c.status == CaseStatus.open ||
+                            c.status == CaseStatus.inProgress ||
+                            c.status == CaseStatus.pendingCompletion,
+                        hired: c.acceptedBid != null,
+                        onSaved: () => ref.invalidate(ownerCaseProvider(c.id)),
+                      ),
+                      InfoRow(
+                        icon: AppIcons.sellOutlined,
+                        label: t.t('cases.card.budget'),
+                        value: CaseFormat.budget(t, formats, c.budget),
+                      ),
+                      InfoRow(
+                        icon: AppIcons.mapOutlined,
+                        label: t.t('cases.field.states'),
+                        value: states,
+                      ),
+                      if (c.city != null && c.city!.trim().isNotEmpty)
+                        InfoRow(
+                          icon: AppIcons.placeOutlined,
+                          label: t.t('cases.field.city'),
+                          value: c.city!,
+                        ),
+                      InfoRow(
+                        icon: AppIcons.visibilityOutlined,
+                        label: t.t('cases.detail.views'),
+                        value: SocialFormat.count(formats, c.viewCount),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (which == 'bids')
+                DetailSection(
+                  title: t.t(
+                    'cases.bids.title',
+                    {'count': SocialFormat.count(formats, c.bidsCount)},
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (final (s, key) in [
+                              (BidsSort.newest, 'cases.bids.sortNewest'),
+                              (BidsSort.lowestPrice, 'cases.bids.sortPrice'),
+                              (
+                                BidsSort.highestRating,
+                                'cases.bids.sortRating',
+                              ),
+                            ]) ...[
+                              AppChip(
+                                label: t.t(key),
+                                selected: sort == s,
+                                onTap: () => onSort(s),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _BidsList(
+                        value: bids,
+                        t: t,
+                        formats: formats,
+                        bidsKey: bidsKey,
+                      ),
+                    ],
+                  ),
+                ),
+              if (which == 'files')
+                // Owner 2026-10-05: the client's case file and adding files.
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.md),
+                  child: OwnerCaseDossier(kase: c),
+                ),
+              if (which == 'tasks') ...[
+                // Owner 2026-10-20: the deadline calculator, prefilled.
+                CaseDeadlinesRow(
+                  caseId: c.id,
+                  stateCode: c.primaryStateCode,
+                  practiceCategory: c.practice.artCode,
+                ),
+                if (c.status != CaseStatus.archived)
+                  CaseTasksSection(caseId: c.id, caseTitle: c.title),
+              ],
+            ],
+          ),
+        );
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return ProfileTabPages(
+      key: ValueKey('owner-case-pages-${kinds.length}'),
+      initialPage: tab,
+      onPage: (i) => setState(() => _tab = i),
+      // The screen has its own pull-to-refresh around this view.
+      tabBarHeight: 28 + 18 * scale,
+      pagePadding: (_) => const EdgeInsets.only(bottom: AppSpacing.xxl),
+      onNearEnd: (i) {
+        if (kinds[i] == 'bids') {
+          ref.read(caseBidsProvider(bidsKey).notifier).loadMore();
+        }
+      },
+      header: CaseHero(
+        t: t,
+        formats: formats,
+        practiceName: [
+          category,
+          if (leaf != category) leaf,
+          for (final p in c.extraPractices)
+            CaseFormat.practice(t, p.i18nKey, p.nameEn),
+        ].join(' · '),
+        categoryCode: c.practice.artCode,
+        statusLabel: caseStatusLabelOf(t, c.status, paused: c.paused),
+        statusTone: c.paused && c.status == CaseStatus.open
+            ? StatusTone.neutral
+            : caseTone(c.status),
+        title: c.title,
+        states: [c.primaryStateCode, ...c.additionalStateCodes],
+        budget: c.budget,
+        urgency: c.urgencyInfo,
+        stage: caseStageOf(c.status, c.bidsCount),
+        publishedAt: c.createdAt,
       ),
+      tabBar: Builder(
+        builder: (context) => CaseTextTabs(
+          pages: ProfileTabPages.controllerOf(context),
+          items: tabs,
+          index: tab,
+          onChanged: (i) {
+            final pages = ProfileTabPages.controllerOf(context);
+            if (pages != null && pages.hasClients) {
+              pages.animateToPage(
+                i,
+                duration: context.reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+              );
+            } else {
+              setState(() => _tab = i);
+            }
+          },
+        ),
+      ),
+      pages: [
+        for (final w in kinds)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.sizeOf(context).height * 0.5,
+            ),
+            child: sectionFor(w),
+          ),
+      ],
     );
   }
 }
@@ -398,10 +867,15 @@ class _BidsList extends ConsumerWidget {
     return switch (async) {
       AsyncData(:final value) when value.items.isEmpty => Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-          child: AppEmptyState(
-            icon: AppIcons.gavelRounded,
-            title: t.t('cases.bids.emptyTitle'),
-            message: t.t('cases.bids.emptyMessage'),
+          // Audit 2026-10-04: AppEmptyState fills its parent's height — a
+          // bounded box inside this ListView (unbounded made layout throw).
+          child: SizedBox(
+            height: 320,
+            child: AppEmptyState(
+              icon: AppIcons.gavelRounded,
+              title: t.t('cases.bids.emptyTitle'),
+              message: t.t('cases.bids.emptyMessage'),
+            ),
           ),
         ),
       AsyncData(:final value) => Column(
@@ -419,7 +893,8 @@ class _BidsList extends ConsumerWidget {
                   onAttorneyTap: value.items[i].attorney?.username.isNotEmpty ??
                           false
                       ? () => context.push(
-                          AppRoutes.lawyer(value.items[i].attorney!.username))
+                            AppRoutes.lawyer(value.items[i].attorney!.username),
+                          )
                       : null,
                 ),
               ),
@@ -496,12 +971,24 @@ class _AcceptedAttorneyCard extends StatelessWidget {
                   : () => context.push(AppRoutes.lawyer(a.username)),
             ),
           const SizedBox(height: AppSpacing.md),
-          MoneyText(CaseFormat.terms(t, formats, bid.feeType, bid.amountCents),
-              large: true),
+          MoneyText(
+            CaseFormat.terms(
+              t,
+              formats,
+              bid.feeType,
+              bid.amountCents,
+              percentBps: bid.percentBps,
+            ),
+            large: true,
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             CaseFormat.startLabel(
-                t, formats, bid.startAvailability, bid.startDate),
+              t,
+              formats,
+              bid.startAvailability,
+              bid.startDate,
+            ),
             style: typography.caption.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.lg),

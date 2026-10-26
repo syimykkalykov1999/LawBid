@@ -1,4 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { notModified } from '../../../common/sync/cheap-etag';
 import { ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -30,13 +32,21 @@ export class BootstrapController {
   @Public()
   @SkipVersionCheck()
   @Get('bootstrap')
+  // Owner 2026-10-22 (client economy plan, package D): a minute in the
+  // browser / CDN cache, served stale while revalidating; the weak ETag
+  // (config version + 5-min bucket) answers 304 without building the body.
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiEnvelopeResponse(BootstrapDto)
   // No 426: @SkipVersionCheck() — see the class doc.
   @ApiErrors({
     429: [ErrorCode.RATE_LIMITED],
     500: [ErrorCode.INTERNAL_ERROR],
   })
-  async getBootstrap(): Promise<BootstrapResponse> {
+  async getBootstrap(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<BootstrapResponse | undefined> {
+    if (notModified(req, res, await this.bootstrap.etag())) return undefined;
     return this.bootstrap.build();
   }
 }

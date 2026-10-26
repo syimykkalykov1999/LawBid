@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { caseNotFound } from '../domain/case-state-machine';
+import { readsAreSplit } from '../../../sharding/split-reads';
 
 export interface CaseViewer {
   userId: string;
@@ -20,6 +21,10 @@ export interface CaseViewer {
  *   whether it is one of the attorney's own (the client is warned on a
  *   bid from outside them).
  *
+ * - attorney_browser (owner 2026-10-04): any other open case (any state,
+ *   any practice) a verified attorney may see AND bid on — the client is
+ *   told on the bid that the attorney has no licence in the case's states.
+ *
  * `clientIdentityVisible` is false for every attorney access: the client's
  * name, photo and contacts are never part of a case view for an attorney.
  * They are released only by GET /cases/:id/contacts after acceptance with
@@ -28,11 +33,15 @@ export interface CaseViewer {
 export type CaseAccess =
   | { kind: 'owner'; clientIdentityVisible: true }
   | {
-      kind: 'attorney_participant' | 'attorney_prospect';
+      kind: 'attorney_participant' | 'attorney_prospect' | 'attorney_browser';
       clientIdentityVisible: false;
       /** The case's practice is one of the attorney's own (or the §4.1
        * General Practice exception). */
       inPractice: boolean;
+      /** Owner 2026-10-04: the attorney holds a verified licence in one of
+       * the case's states. Informational only — never blocks a bid; the
+       * client is told on the bid when it is false. */
+      inLicensedState: boolean;
     };
 
 /** docs/04 §4.1 exception: not_sure_or_other cases are also shown to
@@ -44,6 +53,14 @@ export const GENERAL_PRACTICE_CODES = [
 ] as const;
 
 type Db = Pick<Prisma.TransactionClient, 'case' | '$queryRaw'>;
+
+interface DecideRow {
+  participant: boolean;
+  visible: boolean;
+  browsable: boolean;
+  in_practice: boolean;
+  in_licensed_state: boolean;
+}
 
 /**
  * Deny-by-default access to a single case (.cursorrules: "Доступ к
@@ -78,8 +95,21 @@ export class CaseAccessPolicy {
     // exception), constrained by the case's primary key. The feed (stage
     // 4.3) uses the index-friendly list shape (visibleQuery in
     // test/db-roles-indexes.e2e-spec.ts).
+    // Shard-ready step 6: with several databases the statement below (it
+    // joins cases with attorney / block / practice tables) is answered by
+    // one query per family instead.
+    if (readsAreSplit(this.prisma)) {
+      const split = await this.decideRowSplit(a, caseId, db);
+      return split ? this.accessOf(split) : null;
+    }
     const rows = await db.$queryRaw<
-      { participant: boolean; visible: boolean; in_practice: boolean }[]
+      {
+        participant: boolean;
+        visible: boolean;
+        browsable: boolean;
+        in_practice: boolean;
+        in_licensed_state: boolean;
+      }[]
     >`
       SELECT
         (EXISTS (SELECT 1 FROM bids b
@@ -101,26 +131,49 @@ export class CaseAccessPolicy {
                          WHERE (ub.blocker_id = ${a}::UUID AND ub.blocked_id = c.client_id)
                             OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${a}::UUID)))
           AS visible,
+        (c.status = 'open'
+         AND EXISTS (SELECT 1 FROM attorney_profiles p
+                     WHERE p.user_id = ${a}::UUID
+                       AND p.verification_status = 'verified')
+         AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+                         WHERE (ub.blocker_id = ${a}::UUID AND ub.blocked_id = c.client_id)
+                            OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${a}::UUID)))
+          AS browsable,
         EXISTS (SELECT 1 FROM attorney_practice_areas ap
                 WHERE ap.attorney_id = ${a}::UUID
                   AND (ap.practice_area_id = c.practice_area_id
+                       -- Owner 2026-10-15: any of the case's topics counts.
+                       OR EXISTS (SELECT 1 FROM case_extra_practices x
+                                  WHERE x.case_id = c.id
+                                    AND x.practice_area_id = ap.practice_area_id)
                        OR (pa.code = ${NOT_SURE_OR_OTHER_CODE}
                            AND ap.practice_area_id IN (
                              SELECT id FROM practice_areas
                              WHERE code IN (${GENERAL_PRACTICE_CODES[0]},
                                             ${GENERAL_PRACTICE_CODES[1]})))))
-          AS in_practice
+          AS in_practice,
+        EXISTS (SELECT 1 FROM case_states cs
+                JOIN attorney_licenses l ON l.state_code = cs.state_code
+                WHERE cs.case_id = c.id AND l.attorney_id = ${a}::UUID
+                  AND l.license_status = 'verified')
+          AS in_licensed_state
       FROM cases c
       JOIN practice_areas pa ON pa.id = c.practice_area_id
       WHERE c.id = ${caseId}::UUID AND c.deleted_at IS NULL`;
     const row = rows[0];
     if (!row) return null;
+    return this.accessOf(row);
+  }
+
+  private accessOf(row: DecideRow): CaseAccess | null {
     const inPractice = row.in_practice;
+    const inLicensedState = row.in_licensed_state;
     if (row.participant) {
       return {
         kind: 'attorney_participant',
         clientIdentityVisible: false,
         inPractice,
+        inLicensedState,
       };
     }
     if (row.visible) {
@@ -128,9 +181,110 @@ export class CaseAccessPolicy {
         kind: 'attorney_prospect',
         clientIdentityVisible: false,
         inPractice,
+        inLicensedState,
+      };
+    }
+    if (row.browsable) {
+      return {
+        kind: 'attorney_browser',
+        clientIdentityVisible: false,
+        inPractice,
+        inLicensedState,
       };
     }
     return null;
+  }
+
+  /**
+   * The same five answers as the single statement of decide(), computed
+   * from one read of the case family (the case, its bids / conversations /
+   * states / extra topics) and a few reads of the global family (profile,
+   * licences, blocks, practice areas). Identical results: both paths are
+   * exercised by the same e2e suites (SHARD_SPLIT_READS=on).
+   */
+  private async decideRowSplit(
+    a: string,
+    caseId: string,
+    db: Db,
+  ): Promise<DecideRow | null> {
+    const c = await db.case.findFirst({
+      where: { id: caseId, deleted_at: null },
+      select: {
+        status: true,
+        client_id: true,
+        practice_area_id: true,
+        states: { select: { state_code: true } },
+        extra_practices: { select: { practice_area_id: true } },
+      },
+    });
+    if (!c) return null;
+    const stateCodes = c.states.map((x) => x.state_code);
+    const caseAreaIds = [
+      c.practice_area_id,
+      ...c.extra_practices.map((x) => x.practice_area_id),
+    ];
+    const [bid, conv, verified, licences, block, mine, pa, general] =
+      await Promise.all([
+        this.prisma.bid.findFirst({
+          where: { case_id: caseId, attorney_id: a },
+          select: { id: true },
+        }),
+        this.prisma.conversation.findFirst({
+          where: { case_id: caseId, attorney_id: a },
+          select: { id: true },
+        }),
+        this.prisma.attorneyProfile.findFirst({
+          where: { user_id: a, verification_status: 'verified' },
+          select: { user_id: true },
+        }),
+        stateCodes.length
+          ? this.prisma.attorneyLicense.findFirst({
+              where: {
+                attorney_id: a,
+                license_status: 'verified',
+                state_code: { in: stateCodes },
+              },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
+        this.prisma.userBlock.findFirst({
+          where: {
+            OR: [
+              { blocker_id: a, blocked_id: c.client_id },
+              { blocker_id: c.client_id, blocked_id: a },
+            ],
+          },
+          select: { blocker_id: true },
+        }),
+        this.prisma.attorneyPracticeArea.findMany({
+          where: { attorney_id: a },
+          select: { practice_area_id: true },
+        }),
+        this.prisma.practiceArea.findUnique({
+          where: { id: c.practice_area_id },
+          select: { code: true },
+        }),
+        this.prisma.practiceArea.findMany({
+          where: { code: { in: [...GENERAL_PRACTICE_CODES] } },
+          select: { id: true },
+        }),
+      ]);
+    const open = c.status === 'open';
+    const isVerified = verified !== null;
+    const blocked = block !== null;
+    const mineIds = new Set(mine.map((m) => m.practice_area_id));
+    const generalIds = new Set(general.map((g) => g.id));
+    const inPractice =
+      caseAreaIds.some((id) => mineIds.has(id)) ||
+      (pa?.code === NOT_SURE_OR_OTHER_CODE &&
+        [...mineIds].some((id) => generalIds.has(id)));
+    return {
+      participant: bid !== null || conv !== null,
+      visible: open && isVerified && licences !== null && !blocked,
+      browsable: open && isVerified && !blocked,
+      in_practice: inPractice,
+      in_licensed_state: licences !== null,
+    };
   }
 
   /** Batched decide() for attorney lists (saved cases): the ids among
@@ -140,11 +294,18 @@ export class CaseAccessPolicy {
     attorneyId: string,
     caseIds: string[],
     db: Db = this.prisma,
+    /** OQ-054: Search drops PAUSED cases (a ranked list kept for a few
+     * minutes may still hold one); participants keep theirs. */
+    opts: { hidePaused?: boolean } = {},
   ): Promise<Set<string>> {
+    const hidePaused = opts.hidePaused ?? false;
     if (caseIds.length === 0) return new Set();
+    if (readsAreSplit(this.prisma)) {
+      return this.visibleCaseIdsSplit(attorneyId, caseIds, db, hidePaused);
+    }
     const a = attorneyId;
     const rows = await db.$queryRaw<{ id: string }[]>`
-      SELECT c.id::STRING AS id
+      SELECT c.id::TEXT AS id
       FROM cases c
       JOIN practice_areas pa ON pa.id = c.practice_area_id
       WHERE c.id = ANY(${caseIds}::UUID[]) AND c.deleted_at IS NULL
@@ -154,6 +315,7 @@ export class CaseAccessPolicy {
           OR EXISTS (SELECT 1 FROM conversations v
                      WHERE v.case_id = c.id AND v.attorney_id = ${a}::UUID)
           OR (c.status = 'open'
+              AND (NOT ${hidePaused} OR c.paused_at IS NULL)
               AND EXISTS (SELECT 1 FROM attorney_profiles p
                           WHERE p.user_id = ${a}::UUID
                             AND p.verification_status = 'verified')
@@ -163,6 +325,59 @@ export class CaseAccessPolicy {
                             AND l.license_status = 'verified'))
         )`;
     return new Set(rows.map((r) => r.id));
+  }
+
+  /** visibleCaseIds() without a statement that joins the case family with
+   * the global one: the cases (with their states), the attorney's bids and
+   * conversations on them, then the attorney's profile and licences. */
+  private async visibleCaseIdsSplit(
+    a: string,
+    caseIds: string[],
+    db: Db,
+    hidePaused: boolean,
+  ): Promise<Set<string>> {
+    const [cases, bids, convs, verified, licences] = await Promise.all([
+      db.case.findMany({
+        where: { id: { in: caseIds }, deleted_at: null },
+        select: {
+          id: true,
+          status: true,
+          paused_at: true,
+          states: { select: { state_code: true } },
+        },
+      }),
+      this.prisma.bid.findMany({
+        where: { attorney_id: a, case_id: { in: caseIds } },
+        select: { case_id: true },
+      }),
+      this.prisma.conversation.findMany({
+        where: { attorney_id: a, case_id: { in: caseIds } },
+        select: { case_id: true },
+      }),
+      this.prisma.attorneyProfile.findFirst({
+        where: { user_id: a, verification_status: 'verified' },
+        select: { user_id: true },
+      }),
+      this.prisma.attorneyLicense.findMany({
+        where: { attorney_id: a, license_status: 'verified' },
+        select: { state_code: true },
+      }),
+    ]);
+    const mine = new Set<string>([
+      ...bids.map((b) => b.case_id),
+      ...convs.flatMap((v) => (v.case_id ? [v.case_id] : [])),
+    ]);
+    const licensed = new Set(licences.map((l) => l.state_code));
+    const out = new Set<string>();
+    for (const c of cases) {
+      const prospect =
+        c.status === 'open' &&
+        (!hidePaused || c.paused_at === null) &&
+        verified !== null &&
+        c.states.some((s) => licensed.has(s.state_code));
+      if (mine.has(c.id) || prospect) out.add(c.id);
+    }
+    return out;
   }
 
   /** decide() or CASE_NOT_FOUND (404). */
@@ -190,7 +405,12 @@ export class CaseAccessPolicy {
     caseId: string,
     db: Db = this.prisma,
   ): Promise<
-    Extract<CaseAccess, { kind: 'attorney_participant' | 'attorney_prospect' }>
+    Extract<
+      CaseAccess,
+      {
+        kind: 'attorney_participant' | 'attorney_prospect' | 'attorney_browser';
+      }
+    >
   > {
     const access = await this.decide(
       { userId: attorneyId, role: 'attorney' },
@@ -202,7 +422,9 @@ export class CaseAccessPolicy {
     // the union (see the `if (viewer.role === 'client')` guard above it).
     return access as Extract<
       CaseAccess,
-      { kind: 'attorney_participant' | 'attorney_prospect' }
+      {
+        kind: 'attorney_participant' | 'attorney_prospect' | 'attorney_browser';
+      }
     >;
   }
 }

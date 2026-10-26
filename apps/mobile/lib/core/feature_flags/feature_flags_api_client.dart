@@ -1,7 +1,9 @@
-import 'package:dio/dio.dart';
+import 'dart:convert';
 
-import '../network/api_error.dart';
-import 'legal_document.dart';
+import 'package:dio/dio.dart';
+import 'package:lawbid/core/cache/http_cache_interceptor.dart';
+import 'package:lawbid/core/feature_flags/legal_document.dart';
+import 'package:lawbid/core/network/api_error.dart';
 
 /// `GET /config/bootstrap`'s response body
 /// (apps/api/src/modules/feature-flags/services/bootstrap.service.ts
@@ -22,6 +24,55 @@ class FeatureFlagsBootstrapResult {
     required this.appConfig,
     this.legalDocuments = const [],
   });
+  factory FeatureFlagsBootstrapResult.fromJson(Map<String, dynamic> json) {
+    final rawFlags = json['flags'];
+    final flags = <String, bool>{};
+    if (rawFlags is Map<String, dynamic>) {
+      for (final entry in rawFlags.entries) {
+        if (entry.value is bool) flags[entry.key] = entry.value as bool;
+      }
+    }
+
+    final rawConfig = json['app_config'];
+    final appConfig = <String, String>{};
+    if (rawConfig is Map<String, dynamic>) {
+      for (final entry in rawConfig.entries) {
+        // Audit 2026-10-02: numeric limits too (files, video, stickers),
+        // kept as text — read them with FeatureFlagsState.configInt.
+        final v = entry.value;
+        if (v is String) {
+          appConfig[entry.key] = v;
+        } else if (v is num || v is bool) {
+          appConfig[entry.key] = '$v';
+        } else if (v is Map || v is List) {
+          // Owner 2026-10-07 (bug 17): `uploads.limits` is an object.
+          appConfig[entry.key] = jsonEncode(v);
+        }
+      }
+    }
+
+    // docs/runbooks/REALTIME_LIFECYCLE.md §3: `client.timings` (connection
+    // timings the admin tunes) is kept as JSON under `client.timings`.
+    final rawClient = json['client'];
+    final rawTimings = rawClient is Map ? rawClient['timings'] : null;
+    if (rawTimings is Map) {
+      appConfig['client.timings'] = jsonEncode(rawTimings);
+    }
+
+    final rawDocs = json['legal_documents'];
+    final legalDocuments = rawDocs is List
+        ? rawDocs
+            .map(LegalDocument.tryParse)
+            .whereType<LegalDocument>()
+            .toList()
+        : const <LegalDocument>[];
+
+    return FeatureFlagsBootstrapResult(
+      flags: flags,
+      appConfig: appConfig,
+      legalDocuments: legalDocuments,
+    );
+  }
 
   /// `{flagKey: enabled}`, e.g. `{"apple_login": true, "video_posts":
   /// false}` — see `apps/api/prisma/schema.prisma`'s `FeatureFlag` model.
@@ -38,35 +89,6 @@ class FeatureFlagsBootstrapResult {
   /// `legal_documents` — consumed by the onboarding consents step
   /// (stage 1.7 mobile, docs/01_FOUNDATION_AUTH.md §10.2 H).
   final List<LegalDocument> legalDocuments;
-
-  factory FeatureFlagsBootstrapResult.fromJson(Map<String, dynamic> json) {
-    final rawFlags = json['flags'];
-    final flags = <String, bool>{};
-    if (rawFlags is Map<String, dynamic>) {
-      for (final entry in rawFlags.entries) {
-        if (entry.value is bool) flags[entry.key] = entry.value as bool;
-      }
-    }
-
-    final rawConfig = json['app_config'];
-    final appConfig = <String, String>{};
-    if (rawConfig is Map<String, dynamic>) {
-      for (final entry in rawConfig.entries) {
-        if (entry.value is String) appConfig[entry.key] = entry.value as String;
-      }
-    }
-
-    final rawDocs = json['legal_documents'];
-    final legalDocuments = rawDocs is List
-        ? rawDocs.map(LegalDocument.tryParse).whereType<LegalDocument>().toList()
-        : const <LegalDocument>[];
-
-    return FeatureFlagsBootstrapResult(
-      flags: flags,
-      appConfig: appConfig,
-      legalDocuments: legalDocuments,
-    );
-  }
 }
 
 /// `/config/bootstrap` (docs/01_FOUNDATION_AUTH.md §10.2 "A. Splash",
@@ -79,11 +101,21 @@ class FeatureFlagsApiClient {
 
   final Dio _dio;
 
-  Future<FeatureFlagsBootstrapResult> getBootstrap() async {
+  /// [fromLocal]: the server's config version has not moved (`GET
+  /// /me/session`), so the phone's copy is good for a year — served by the
+  /// HTTP cache with no request (client economy plan, package G).
+  Future<FeatureFlagsBootstrapResult> getBootstrap({
+    bool fromLocal = false,
+  }) async {
     try {
       final response = await _dio.get<Map<String, dynamic>>(
         '/config/bootstrap',
-        options: Options(extra: const {'skipAuth': true}),
+        options: Options(
+          extra: {
+            'skipAuth': true,
+            if (fromLocal) ...cacheFor(const Duration(days: 365)),
+          },
+        ),
       );
       final envelope = response.data?['data'];
       if (envelope is! Map<String, dynamic>) {

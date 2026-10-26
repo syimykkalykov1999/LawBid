@@ -260,6 +260,7 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
       status: 'active' as BidStatus,
       turn: 'client' as PartyRole,
       round_count: 1,
+      version: 4,
       fee_type: 'fixed' as FeeType,
       amount_cents: 50_000,
     };
@@ -309,8 +310,19 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
       const sql = (tx.$queryRaw.mock.calls[0][0] as string[]).join('?');
       expect(sql).toMatch(/FOR UPDATE/);
       expect(tx.bid.updateMany).toHaveBeenCalledWith({
-        where: { id: 'b1', status: 'active', round_count: 1, turn: 'client' },
-        data: { round_count: 2, turn: 'attorney', amount_cents: 40_000 },
+        where: {
+          id: 'b1',
+          status: 'active',
+          round_count: 1,
+          turn: 'client',
+          version: 4,
+        },
+        data: {
+          round_count: 2,
+          turn: 'attorney',
+          amount_cents: 40_000,
+          version: { increment: 1 },
+        },
       });
       expect(tx.bidOffer.updateMany).toHaveBeenCalledWith({
         where: { bid_id: 'b1', round_no: 1, status: 'pending' },
@@ -323,11 +335,31 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
           from_role: 'client',
           fee_type: 'fixed',
           amount_cents: 40_000,
+          percent_bps: null,
           message: 'Can you do 400?',
           status: 'pending',
           created_at: now,
         },
       });
+    });
+
+    it('counter with a stale If-Match → 409 STALE_VERSION, nothing written', async () => {
+      const { tx, client } = fakeTx();
+      await expect(
+        machine.apply(client, {
+          bidId: 'b1',
+          action: 'counter',
+          by: 'client',
+          amountCents: 40_000,
+          expectedVersion: 3,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: ErrorCode.STALE_VERSION,
+          details: { currentVersion: 4 },
+        },
+      });
+      expect(tx.bid.updateMany).not.toHaveBeenCalled();
     });
 
     it('counter without a valid amount is a programming error', async () => {
@@ -406,7 +438,11 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
       });
       expect(tx.bid.updateMany).toHaveBeenCalledWith({
         where: { id: { in: ['b1', 'b2'] }, status: 'active' },
-        data: { status: 'rejected_auto', decided_at: now },
+        data: {
+          status: 'rejected_auto',
+          decided_at: now,
+          version: { increment: 1 },
+        },
       });
       expect(tx.bidOffer.updateMany).toHaveBeenCalledWith({
         where: { bid_id: { in: ['b1', 'b2'] }, status: 'pending' },

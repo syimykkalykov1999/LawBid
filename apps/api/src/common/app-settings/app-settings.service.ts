@@ -21,6 +21,26 @@ export class AppSettingsService {
       : (fallback as number);
   }
 
+  /** The value an admin saved for [key], or null when none is stored
+   * (or it is not a finite number) — for settings whose fallback is an
+   * env var rather than the built-in default. */
+  async storedNumber(key: AppSettingKey): Promise<number | null> {
+    const value = (await this.appConfig.getConfig())[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  async boolean(key: AppSettingKey): Promise<boolean> {
+    const value = (await this.appConfig.getConfig())[key];
+    return typeof value === 'boolean' ? value : (APP_SETTINGS[key] as boolean);
+  }
+
+  async string(key: AppSettingKey): Promise<string> {
+    const value = (await this.appConfig.getConfig())[key];
+    return typeof value === 'string' && value.length > 0
+      ? value
+      : String(APP_SETTINGS[key]);
+  }
+
   async numberList(key: AppSettingKey): Promise<number[]> {
     const value = (await this.appConfig.getConfig())[key];
     return Array.isArray(value) && value.every((v) => typeof v === 'number')
@@ -33,5 +53,10 @@ export class AppSettingsService {
     return Array.isArray(value) && value.every((v) => typeof v === 'string')
       ? value
       : [...(APP_SETTINGS[key] as readonly string[])];
+  }
+
+  /** An object-valued setting as stored (the caller validates it). */
+  async raw(key: string): Promise<unknown> {
+    return (await this.appConfig.getConfig())[key];
   }
 }

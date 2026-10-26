@@ -33,6 +33,8 @@ export enum ErrorCode {
   AUTH_OTP_EXPIRED = 'AUTH_OTP_EXPIRED',
   AUTH_OTP_LOCKED = 'AUTH_OTP_LOCKED',
   AUTH_OTP_REQUEST_LIMIT = 'AUTH_OTP_REQUEST_LIMIT',
+  // Owner 2026-10-16: the number is registered; a code is only for new ones.
+  AUTH_PHONE_REGISTERED = 'AUTH_PHONE_REGISTERED',
   AUTH_REFRESH_INVALID = 'AUTH_REFRESH_INVALID',
   AUTH_REFRESH_EXPIRED = 'AUTH_REFRESH_EXPIRED',
   AUTH_REFRESH_REUSE_DETECTED = 'AUTH_REFRESH_REUSE_DETECTED',
@@ -44,13 +46,27 @@ export enum ErrorCode {
   AUTH_SOCIAL_TOKEN_INVALID = 'AUTH_SOCIAL_TOKEN_INVALID',
   AUTH_SOCIAL_PROVIDER_UNAVAILABLE = 'AUTH_SOCIAL_PROVIDER_UNAVAILABLE',
   AUTH_PROVIDER_DISABLED = 'AUTH_PROVIDER_DISABLED',
+  // Owner 2026-10-13: wrong phone / e-mail or password (one generic answer).
+  AUTH_INVALID_CREDENTIALS = 'AUTH_INVALID_CREDENTIALS',
+  // Owner 2026-10-25: a new password found in a breach / the common list.
+  AUTH_PASSWORD_COMPROMISED = 'AUTH_PASSWORD_COMPROMISED',
   ACCOUNT_EXISTS_USE_OTHER_METHOD = 'ACCOUNT_EXISTS_USE_OTHER_METHOD',
   IDENTIFIER_ALREADY_LINKED = 'IDENTIFIER_ALREADY_LINKED',
   CONTACT_DOMAIN_BLOCKED = 'CONTACT_DOMAIN_BLOCKED',
   CONTACT_ALREADY_EXISTS = 'CONTACT_ALREADY_EXISTS',
   REAUTH_REQUIRED = 'REAUTH_REQUIRED',
   REAUTH_INVALID = 'REAUTH_INVALID',
+  // Owner 2026-10-22 (passkeys): 401 the assertion / attestation did not
+  // verify (timed-out challenge, unknown credential, wrong origin or
+  // account, bad signature or counter); 404 no such passkey; 409 the
+  // account already holds the maximum number of passkeys.
+  PASSKEY_INVALID = 'PASSKEY_INVALID',
+  PASSKEY_NOT_FOUND = 'PASSKEY_NOT_FOUND',
+  PASSKEY_LIMIT = 'PASSKEY_LIMIT',
   DEVICE_ATTESTATION_REQUIRED = 'DEVICE_ATTESTATION_REQUIRED',
+  // 2026-10-24 (abuse batch B): 403 — the web page's Cloudflare Turnstile
+  // token was rejected (security.turnstile.mode = enforce).
+  TURNSTILE_FAILED = 'TURNSTILE_FAILED',
   ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
   ACCOUNT_DELETED = 'ACCOUNT_DELETED',
 
@@ -86,25 +102,45 @@ export enum ErrorCode {
   REVIEW_ALREADY_EXISTS = 'REVIEW_ALREADY_EXISTS',
   // review.edit_window_days after publication have passed (§7.2).
   REVIEW_EDIT_WINDOW_EXPIRED = 'REVIEW_EDIT_WINDOW_EXPIRED',
+  // Owner 2026-10-20: a chat message can no longer be edited / deleted for
+  // everyone, or the chat already has the most pinned messages.
+  MESSAGE_WINDOW_EXPIRED = 'MESSAGE_WINDOW_EXPIRED',
+  MESSAGE_PIN_LIMIT = 'MESSAGE_PIN_LIMIT',
   // A moderator hid or removed the review; it can't be edited.
   REVIEW_NOT_EDITABLE = 'REVIEW_NOT_EDITABLE',
   /** Owner 2026-09-30: a client review was already appealed. */
   REVIEW_APPEAL_EXISTS = 'REVIEW_APPEAL_EXISTS',
+  // 409: this moderation decision cannot be appealed (owner 2026-10-20):
+  // already appealed / decided, too old, not the latest, or a DMCA removal.
+  APPEAL_NOT_ALLOWED = 'APPEAL_NOT_ALLOWED',
   /** OQ-047: chat files open once the bid is accepted. */
   CHAT_ATTACHMENTS_LOCKED = 'CHAT_ATTACHMENTS_LOCKED',
   // OQ-048: attorney assistants.
   SUBSCRIPTION_PLAN_INCLUDES_SEATS = 'SUBSCRIPTION_PLAN_INCLUDES_SEATS',
+  // Owner 2026-10-22: seats are bought only after the first paid period.
+  SEATS_TRIAL_NOT_ALLOWED = 'SEATS_TRIAL_NOT_ALLOWED',
+  SEATS_NOT_PAID_YET = 'SEATS_NOT_PAID_YET',
+  // The preview's proration moment is too old (or from the future): ask again.
+  SEATS_PREVIEW_STALE = 'SEATS_PREVIEW_STALE',
   ASSISTANT_SEATS_IN_USE = 'ASSISTANT_SEATS_IN_USE',
   ASSISTANT_NO_FREE_SEAT = 'ASSISTANT_NO_FREE_SEAT',
+  // Owner 2026-10-22: one assistant may hold at most `assistants.max_duties`.
+  ASSISTANT_TOO_MANY_DUTIES = 'ASSISTANT_TOO_MANY_DUTIES',
   ASSISTANT_NOT_ALLOWED = 'ASSISTANT_NOT_ALLOWED',
   ASSISTANT_PHONE_TAKEN = 'ASSISTANT_PHONE_TAKEN',
   ASSISTANT_INVITE_NOT_FOUND = 'ASSISTANT_INVITE_NOT_FOUND',
+  // Owner 2026-10-04: the assistant's one-time code is unknown, used,
+  // expired or its seat was removed (one answer for all, no probing).
+  ASSISTANT_CODE_INVALID = 'ASSISTANT_CODE_INVALID',
   // OQ-049: granting bids / publish needs the attorney's acceptance.
   ASSISTANT_LIABILITY_REQUIRED = 'ASSISTANT_LIABILITY_REQUIRED',
   /** Owner 2026-10-01: a cancelled task takes no new steps. */
   TASK_CLOSED = 'TASK_CLOSED',
   /** A task holds up to 100 steps. */
   TASK_STEPS_LIMIT = 'TASK_STEPS_LIMIT',
+  /** Owner 2026-10-07 (bugs 14, 17): more photos or files than the
+   * admin's limit for this place (details: place, kind, max). */
+  FILES_COUNT_LIMIT = 'FILES_COUNT_LIMIT',
   // Practices and profiles (docs/03_VERIFICATION_PROFILES.md §3–§4,
   // stages 3.5–3.6)
   // 403: the action needs verification_status = verified (practices).
@@ -133,6 +169,16 @@ export enum ErrorCode {
   FILE_NOT_ATTACHABLE = 'FILE_NOT_ATTACHABLE',
   // 503: file storage (S3) is not configured or not reachable.
   FILE_STORAGE_UNAVAILABLE = 'FILE_STORAGE_UNAVAILABLE',
+  // Owner 2026-10-05: 400 — the user's files would exceed their storage
+  // cap (details.quotaBytes, details.usedBytes).
+  STORAGE_QUOTA_EXCEEDED = 'STORAGE_QUOTA_EXCEEDED',
+  // Owner 2026-10-05: 400 — this chat already holds storage.chat_quota_mb
+  // of files (details.quotaBytes, details.usedBytes).
+  CHAT_STORAGE_FULL = 'CHAT_STORAGE_FULL',
+  // 2026-10-24 (abuse batch B): 429 — the person already uploaded
+  // storage.daily_upload_mb_per_user today (details.limitBytes,
+  // details.usedBytes, details.retryAfterSeconds = until 00:00 UTC).
+  DAILY_UPLOAD_LIMIT_EXCEEDED = 'DAILY_UPLOAD_LIMIT_EXCEEDED',
   // Verification (docs/03_VERIFICATION_PROFILES.md §2, stages 3.3–3.4)
   // 409: the attorney already has a draft/submitted/in_review/
   // needs_more_info request (§2.3: one at a time).
@@ -158,10 +204,21 @@ export enum ErrorCode {
   LICENSE_ALREADY_ADDED = 'LICENSE_ALREADY_ADDED',
   // 403: a suspended attorney can't create or change verification requests.
   ATTORNEY_SUSPENDED = 'ATTORNEY_SUSPENDED',
+  // 403: this bar number (or the contacts of a blocked account) was rejected
+  // or blocked before; registration with it is refused — contact support.
+  BAR_NUMBER_BLOCKED = 'BAR_NUMBER_BLOCKED',
+  // 403 (owner 2026-10-05, docs/CLIENT_FRAUD.md): the account is limited
+  // while staff check it (complaints, or it is linked to a blocked
+  // account); it cannot publish cases or write to attorneys. Support chat
+  // stays open for an appeal.
+  ACCOUNT_RESTRICTED = 'ACCOUNT_RESTRICTED',
   // Admin panel (docs/06 §2.1, stage 6.2)
   // 400: sensitive view without X-Justification (10–500 chars).
   JUSTIFICATION_REQUIRED = 'JUSTIFICATION_REQUIRED',
-  // 401: the pre-auth ticket (between email code and TOTP) is missing,
+  // 400 (owner 2026-10-05): an admin action without a reason in a section
+  // where the owner made it required (never for the super admin).
+  REASON_REQUIRED = 'REASON_REQUIRED',
+  // 401: the pre-auth ticket (between password and TOTP) is missing,
   // expired, already used or burned after too many wrong codes.
   ADMIN_TICKET_INVALID = 'ADMIN_TICKET_INVALID',
   // 401: wrong authenticator code; details.remainingAttempts.
@@ -172,6 +229,23 @@ export enum ErrorCode {
   ADMIN_AUTH_NOT_CONFIGURED = 'ADMIN_AUTH_NOT_CONFIGURED',
   // 409: an account with this email already exists.
   ADMIN_EMAIL_TAKEN = 'ADMIN_EMAIL_TAKEN',
+  // 401: wrong login or password (never says which).
+  ADMIN_CREDENTIALS_INVALID = 'ADMIN_CREDENTIALS_INVALID',
+  // 409: this login belongs to another admin.
+  ADMIN_LOGIN_TAKEN = 'ADMIN_LOGIN_TAKEN',
+  // 401: password recovery by the security question did not work.
+  ADMIN_RECOVERY_FAILED = 'ADMIN_RECOVERY_FAILED',
+  // 401 (owner 2026-10-22): this admin has no authenticator yet — sign in
+  // again; the sign-in walks through the forced authenticator setup.
+  ADMIN_TOTP_SETUP_REQUIRED = 'ADMIN_TOTP_SETUP_REQUIRED',
+  // Owner 2026-10-22 (maker-checker, billing.dual_approval_min_cents):
+  // 409: the action was NOT run — it waits for a second admin's approval
+  // (details.approvalId).
+  ADMIN_APPROVAL_PENDING = 'ADMIN_APPROVAL_PENDING',
+  // 403: the admin who asked cannot approve their own request.
+  ADMIN_APPROVAL_SELF = 'ADMIN_APPROVAL_SELF',
+  // 409: the request was already decided (or expired after 72 hours).
+  ADMIN_APPROVAL_NOT_PENDING = 'ADMIN_APPROVAL_NOT_PENDING',
   // Moderation (docs/06 §3, stage 6.4)
   // 422: the rule-based check (blocked terms) refused the publication.
   CONTENT_BLOCKED = 'CONTENT_BLOCKED',
@@ -229,6 +303,20 @@ export enum ErrorCode {
   // 409: UQ bids(case_id, attorney_id) — a second bid by the same
   // attorney on this case, including after the first was withdrawn (§5.1).
   BID_ALREADY_EXISTS = 'BID_ALREADY_EXISTS',
+  // Owner 2026-10-05: client → attorney case invites.
+  // 404: unknown invite, or not the caller's.
+  INVITE_NOT_FOUND = 'INVITE_NOT_FOUND',
+  // 409: the invite was already answered, cancelled or expired.
+  INVITE_INVALID_STATE = 'INVITE_INVALID_STATE',
+  // 409: this attorney already has a pending invite on this case.
+  INVITE_ALREADY_PENDING = 'INVITE_ALREADY_PENDING',
+  // 409: the attorney can't take the case (not a verified attorney, or a
+  // block either way).
+  INVITE_ATTORNEY_UNAVAILABLE = 'INVITE_ATTORNEY_UNAVAILABLE',
+  // 429: too many pending invites on the case / invites today.
+  INVITE_LIMIT_REACHED = 'INVITE_LIMIT_REACHED',
+  SEAT_LIMIT_REQUEST_PENDING = 'SEAT_LIMIT_REQUEST_PENDING',
+  SEAT_LIMIT_REQUEST_DECIDED = 'SEAT_LIMIT_REQUEST_DECIDED',
   // Case creation and management (docs/04_CASES_BIDS.md §3, stage 4.2)
   // 400: title/description/city matched the §3.3 phone/email/link
   // detector; details.field names which one.
@@ -257,22 +345,42 @@ export enum ErrorCode {
   POST_NOT_FOUND = 'POST_NOT_FOUND',
   // 403: posting needs a verified, active attorney (§3.1).
   POST_NOT_ALLOWED = 'POST_NOT_ALLOWED',
+  /** Owner 2026-10-13: the account may not add files to a post. */
+  POST_ATTACHMENTS_NOT_ALLOWED = 'POST_ATTACHMENTS_NOT_ALLOWED',
+  // 409: reposting one's own post (owner 2026-10-07, Threads-style).
+  REPOST_OWN_POST = 'REPOST_OWN_POST',
   // 404: no such comment (or deleted).
   COMMENT_NOT_FOUND = 'COMMENT_NOT_FOUND',
   // 422: follow a client or yourself (§6.1).
   FOLLOW_NOT_ALLOWED = 'FOLLOW_NOT_ALLOWED',
+  // Owner 2026-10-20 (group chats). 404: no such group, or not a member.
+  GROUP_NOT_FOUND = 'GROUP_NOT_FOUND',
+  // 403: the group's rules do not let this member do that (admins only).
+  GROUP_FORBIDDEN = 'GROUP_FORBIDDEN',
+  // 409: the group is at its member limit.
+  GROUP_FULL = 'GROUP_FULL',
+  // 409: the public group's @username is already used.
+  GROUP_USERNAME_TAKEN = 'GROUP_USERNAME_TAKEN',
+  // 409: the poll was closed by its author or an admin.
+  POLL_CLOSED = 'POLL_CLOSED',
   // 404: not a participant, or no such conversation.
   CONVERSATION_NOT_FOUND = 'CONVERSATION_NOT_FOUND',
   // 409: the conversation is closed (read only, §8.2).
   CONVERSATION_CLOSED = 'CONVERSATION_CLOSED',
-  // 400: a message longer than 2000 characters (§8.2).
+  // 400: a message longer than the admin's chat limit (§8.2).
   MESSAGE_TOO_LONG = 'MESSAGE_TOO_LONG',
+  // 400: a text longer than its limit (admin: Config → «Лимиты ввода»);
+  // details = { field, max, length }.
+  TEXT_TOO_LONG = 'TEXT_TOO_LONG',
   // 403: the feature is off by a feature flag (video posts, §3.6).
   FEATURE_DISABLED = 'FEATURE_DISABLED',
   // 400: search needs at least 2 characters (§7.1).
   SEARCH_QUERY_TOO_SHORT = 'SEARCH_QUERY_TOO_SHORT',
   // 403: one of the two users blocked the other (OQ-028).
   USER_BLOCKED = 'USER_BLOCKED',
+  // 403: the person's privacy settings do not let this user write / call
+  // (owner 2026-10-20).
+  PRIVACY_RESTRICTED = 'PRIVACY_RESTRICTED',
   // 404: no such call, or the caller is not one of its two members (OQ-041).
   CALL_NOT_FOUND = 'CALL_NOT_FOUND',
   // 409: calls open once the bid is accepted (contacts unlocked) (OQ-041).
@@ -281,8 +389,13 @@ export enum ErrorCode {
   CALL_IN_PROGRESS = 'CALL_IN_PROGRESS',
   // 409: the call already ended / was answered elsewhere (OQ-041).
   CALL_STATE_CONFLICT = 'CALL_STATE_CONFLICT',
+  // 503: the media service of a group call (Cloudflare SFU) does not answer,
+  // or a group call cannot start without it (owner 2026-10-24).
+  CALL_MEDIA_UNAVAILABLE = 'CALL_MEDIA_UNAVAILABLE',
   // 409: direct chats are between an attorney and a client (OQ-043).
   DIRECT_CHAT_NOT_ALLOWED = 'DIRECT_CHAT_NOT_ALLOWED',
+  // Owner 2026-10-17: percent fee in a criminal/family case (admin list).
+  CONTINGENCY_NOT_ALLOWED = 'CONTINGENCY_NOT_ALLOWED',
   // 403: the recipient declined this message request (OQ-043).
   MESSAGE_REQUEST_DECLINED = 'MESSAGE_REQUEST_DECLINED',
   // 409: up to 3 messages until the request is accepted (OQ-043).
@@ -297,6 +410,147 @@ export enum ErrorCode {
   VIDEO_UNAVAILABLE = 'VIDEO_UNAVAILABLE',
   VIDEO_TOO_LONG = 'VIDEO_TOO_LONG',
   VIDEO_NOT_READY = 'VIDEO_NOT_READY',
+  COMMENTS_DISABLED = 'COMMENTS_DISABLED',
+  LICENSE_STATE_REQUIRED = 'LICENSE_STATE_REQUIRED',
+  // Owner 2026-10-05 (attorney trust levels): 403 — the action needs a
+  // higher trust level (details: required, current, gate).
+  TRUST_LEVEL_REQUIRED = 'TRUST_LEVEL_REQUIRED',
+  // 403 — payments / bids are paused until a verifier looks (details: hold).
+  ATTORNEY_ON_HOLD = 'ATTORNEY_ON_HOLD',
+  // Owner 2026-10-04: 503 — chat translation is off, has no key or failed.
+  TRANSLATION_UNAVAILABLE = 'TRANSLATION_UNAVAILABLE',
   // Owner 2026-10-01: stickers — 409: over a pack/sticker/install limit.
   STICKER_LIMIT_REACHED = 'STICKER_LIMIT_REACHED',
+  // Owner 2026-10-20 stars — 402: not enough stars on the balance.
+  INSUFFICIENT_STARS = 'INSUFFICIENT_STARS',
+  // 403: a paid sticker pack is sent only after it is added (bought).
+  STICKER_PACK_NOT_OWNED = 'STICKER_PACK_NOT_OWNED',
+  // Owner 2026-10-02: 409 — a closed support ticket can't get replies.
+  SUPPORT_TICKET_CLOSED = 'SUPPORT_TICKET_CLOSED',
+  // Owner 2026-10-02 referrals — 404: no such referral code.
+  REFERRAL_CODE_INVALID = 'REFERRAL_CODE_INVALID',
+  // 409: self-referral, already referred, sign-up window passed, no role.
+  REFERRAL_NOT_ALLOWED = 'REFERRAL_NOT_ALLOWED',
+  // 409: admin action not valid for the referral's current status.
+  REFERRAL_INVALID_STATE = 'REFERRAL_INVALID_STATE',
+  // Owner 2026-10-05 partner program — 409: already a partner, nothing to
+  // pay, commission not in a state the action allows.
+  PARTNER_INVALID_STATE = 'PARTNER_INVALID_STATE',
+  // Owner 2026-10-02 case promotion — 409: the case already has one.
+  PROMOTION_ALREADY_ACTIVE = 'PROMOTION_ALREADY_ACTIVE',
+  // 409: promotion action not valid for its current status.
+  PROMOTION_INVALID_STATE = 'PROMOTION_INVALID_STATE',
+  // Owner 2026-10-05 client → attorney payments (Stripe Connect):
+  // 409 the attorney has not finished Stripe onboarding yet.
+  PAYOUT_ACCOUNT_NOT_READY = 'PAYOUT_ACCOUNT_NOT_READY',
+  // 409: payment action not valid for its current status.
+  PAYMENT_INVALID_STATE = 'PAYMENT_INVALID_STATE',
+  // 400: amount outside the admin's min/max, over the remaining balance
+  // or a kind that needs an amount came without one.
+  PAYMENT_AMOUNT_INVALID = 'PAYMENT_AMOUNT_INVALID',
+  // Owner 2026-10-05: 409 — who covers Stripe's fee on an invoice is agreed
+  // like a bid; no more counter-offers after the admin's round cap.
+  PAYMENT_FEE_MAX_ROUNDS_REACHED = 'PAYMENT_FEE_MAX_ROUNDS_REACHED',
+  // Owner 2026-10-02: 400 — promo code unknown, expired, used up or not
+  // valid for this purchase.
+  PROMO_CODE_INVALID = 'PROMO_CODE_INVALID',
+  // Owner 2026-10-02 (admin billing): 409 a promo code with this code
+  // exists (PROMO_CODE_INVALID above is the 400 for using one).
+  PROMO_CODE_EXISTS = 'PROMO_CODE_EXISTS',
+  // 409: the user is not a live attorney (contract grants).
+  CONTRACT_GRANT_NOT_ATTORNEY = 'CONTRACT_GRANT_NOT_ATTORNEY',
+  // 409: the grant was revoked (no extend / revoke again).
+  CONTRACT_GRANT_REVOKED = 'CONTRACT_GRANT_REVOKED',
+  // 409: refund above what is left of the payment; payment not refundable.
+  REFUND_AMOUNT_EXCEEDED = 'REFUND_AMOUNT_EXCEEDED',
+  REFUND_NOT_ALLOWED = 'REFUND_NOT_ALLOWED',
+  // 502: the payment provider refused the refund.
+  REFUND_PROVIDER_FAILED = 'REFUND_PROVIDER_FAILED',
+  // Admin 2026-10-02 — 409: restore/hide/takedown not valid for the
+  // content's current state (e.g. restoring a post its author deleted).
+  CONTENT_INVALID_STATE = 'CONTENT_INVALID_STATE',
+  // 409: an official sticker pack with this short name exists.
+  STICKER_PACK_NAME_TAKEN = 'STICKER_PACK_NAME_TAKEN',
+  // Owner 2026-10-05 (plan builder) — 409: an attorney's open offers or a
+  // client's open cases are at the plan's limit.
+  BID_LIMIT_REACHED = 'BID_LIMIT_REACHED',
+  BID_MONTHLY_LIMIT_REACHED = 'BID_MONTHLY_LIMIT_REACHED',
+  BID_TRIAL_LIMIT_REACHED = 'BID_TRIAL_LIMIT_REACHED',
+  BAR_NUMBER_FORMAT_INVALID = 'BAR_NUMBER_FORMAT_INVALID',
+  FIRM_ALREADY_MEMBER = 'FIRM_ALREADY_MEMBER',
+  FIRM_FULL = 'FIRM_FULL',
+  BID_LICENSE_PENDING = 'BID_LICENSE_PENDING',
+  BAR_ATTEMPTS_COOLDOWN = 'BAR_ATTEMPTS_COOLDOWN',
+  CASE_LIMIT_REACHED = 'CASE_LIMIT_REACHED',
+  // 409: the plan is not for sale (archived / draft / other audience).
+  PLAN_NOT_AVAILABLE = 'PLAN_NOT_AVAILABLE',
+  // 409: a plan with this code exists / the plan has subscribers.
+  PLAN_CODE_EXISTS = 'PLAN_CODE_EXISTS',
+  PLAN_IN_USE = 'PLAN_IN_USE',
+  // 403: the plan does not include this feature (video calls, templates).
+  ENTITLEMENT_REQUIRED = 'ENTITLEMENT_REQUIRED',
+  // Owner 2026-10-05 — outreach (Привлечение). 400: the CSV/registry
+  // import is unusable; 409: lead unsubscribed / no email / status change
+  // not valid; 429: the partner's daily email limit is spent.
+  OUTREACH_IMPORT_INVALID = 'OUTREACH_IMPORT_INVALID',
+  OUTREACH_INVALID_STATE = 'OUTREACH_INVALID_STATE',
+  OUTREACH_EMAIL_LIMIT = 'OUTREACH_EMAIL_LIMIT',
+  // Owner 2026-10-05 (legal) — outreach compliance. 409: a call/email to
+  // this lead is not allowed now (do-not-contact, outside the local call
+  // window, client leads switched off); 409: client (consumer) leads are
+  // switched off in Outreach → Settings (TCPA / Do-Not-Call).
+  OUTREACH_CONTACT_BLOCKED = 'OUTREACH_CONTACT_BLOCKED',
+  OUTREACH_CLIENTS_DISABLED = 'OUTREACH_CLIENTS_DISABLED',
+  // Owner 2026-10-05 — countries. 403: LawBid is not switched on in this
+  // country yet (sign-up, profile, new case); details.countryCode.
+  COUNTRY_NOT_AVAILABLE = 'COUNTRY_NOT_AVAILABLE',
+  // Owner 2026-10-05 (legal) — DMCA. 409: the notice is not in a state
+  // the action allows (counter-notice before a removal, deciding twice,
+  // restoring what was never removed).
+  DMCA_INVALID_STATE = 'DMCA_INVALID_STATE',
+  // Owner 2026-10-05 — demo mode («Продвижение»). 403: switched off or the
+  // partner has no demo right; 409: the partner holds the most demo
+  // accounts allowed; 503: the demo database is not ready; 404: unknown
+  // or expired demo invite code.
+  DEMO_DISABLED = 'DEMO_DISABLED',
+  DEMO_LIMIT_REACHED = 'DEMO_LIMIT_REACHED',
+  DEMO_UNAVAILABLE = 'DEMO_UNAVAILABLE',
+  DEMO_CODE_INVALID = 'DEMO_CODE_INVALID',
+  // Owner 2026-10-05 — legal documents. 403: a key action (publish a case,
+  // place a bid) needs the user to accept the updated legal documents
+  // first; details.documents = the doc types.
+  LEGAL_REACCEPT_REQUIRED = 'LEGAL_REACCEPT_REQUIRED',
+  // Owner 2026-10-20 — stories and channels. 409: too many active stories /
+  // channels of one person; 409: the @username of a channel is taken.
+  STORY_LIMIT_REACHED = 'STORY_LIMIT_REACHED',
+  CHANNEL_LIMIT_REACHED = 'CHANNEL_LIMIT_REACHED',
+  CHANNEL_USERNAME_TAKEN = 'CHANNEL_USERNAME_TAKEN',
+  // Owner 2026-10-20: booking a consultation.
+  // 409: the slot was taken, moved or is no longer offered.
+  CONSULTATION_SLOT_TAKEN = 'CONSULTATION_SLOT_TAKEN',
+  // 409: the attorney does not take bookings (off, no active subscription).
+  CONSULTATION_NOT_AVAILABLE = 'CONSULTATION_NOT_AVAILABLE',
+  // 409: the booking is not in a state that allows this action.
+  CONSULTATION_STATE_CONFLICT = 'CONSULTATION_STATE_CONFLICT',
+  // Owner 2026-10-21: «Вопрос юристу».
+  // 409: the question already has the most answers an attorney can add.
+  QA_ANSWERS_ENOUGH = 'QA_ANSWERS_ENOUGH',
+  // 409: the author closed the question (or it was closed after 30 days).
+  QA_QUESTION_CLOSED = 'QA_QUESTION_CLOSED',
+  // Owner 2026-10-21 (Telegram «Переслать»).
+  // 403: a disappearing message is never forwarded.
+  FORWARD_NOT_ALLOWED = 'FORWARD_NOT_ALLOWED',
+  // 403: the group / channel restricts saving content (no forward, no copy).
+  CONTENT_PROTECTED = 'CONTENT_PROTECTED',
+  // 400: the target cannot hold this kind of message (a voice note into a
+  // group, a document into a channel…).
+  UNSUPPORTED_IN_TARGET = 'UNSUPPORTED_IN_TARGET',
+  // Owner 2026-10-22 (client economy plan §4). 409: `updatedSince` is
+  // older than 7 days — the app reloads the list from page 1.
+  SYNC_TOO_OLD = 'SYNC_TOO_OLD',
+
+  // Day-one foundations (2026-10-24). 409: the client sent `If-Match: <version>`
+  // and the row was saved by someone else since; reload and retry. details:
+  // { currentVersion }.
+  STALE_VERSION = 'STALE_VERSION',
 }

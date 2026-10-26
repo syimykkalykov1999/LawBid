@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { sealJournalPayload } from './journal-text-seal';
 import { createHash, randomUUID } from 'node:crypto';
 import type {
   CaseJournal,
@@ -32,10 +34,12 @@ export interface JournalAppendInput {
   attorneyId?: string | null;
 }
 
-/** The hashed fields of a row: everything except row_hash itself. The
+/** The hashed fields of a row: everything except row_hash itself (and the
+ * `shard_id` routing column, which the shard extension fills on create and
+ * which is deliberately not part of the hash). The
  * payload is typed loosely: the same row is hashed on insert (input JSON)
  * and on verification (JSON read back from JSONB). */
-type HashedRow = Omit<CaseJournal, 'row_hash' | 'payload'> & {
+type HashedRow = Omit<CaseJournal, 'row_hash' | 'payload' | 'shard_id'> & {
   payload: unknown;
 };
 
@@ -84,18 +88,22 @@ type JournalReader = Pick<Prisma.TransactionClient, 'caseJournal'>;
  * row_hash = SHA-256(prev_hash + canonical JSON of the row), so any later
  * edit, deletion or reordering is detectable by verifyChain().
  *
- * Per-case serialization (safe on CockroachDB): append() first takes
+ * Per-case serialization (safe on PostgreSQL): append() first takes
  * `SELECT ... FOR UPDATE` on the case's `cases` row — the journal row
  * itself can't be locked (lawbid_app has no UPDATE on case_journal, and
  * the first row doesn't exist yet) — so two transactions appending to the
  * same case run one after the other and each sees the other's tail. Under
- * CockroachDB SERIALIZABLE the read of the tail would already conflict;
+ * PostgreSQL SERIALIZABLE the read of the tail would already conflict;
  * the lock turns that retry into a wait. created_at is made strictly
  * increasing within a case, so "last row" is unambiguous.
  */
 @Injectable()
 export class CaseJournalService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // S3-5: free text in the payload is sealed when the admin switch is on.
+    @Optional() private readonly cipher?: MessageBodyCipher,
+  ) {}
 
   async append(
     tx: Prisma.TransactionClient,
@@ -117,15 +125,22 @@ export class CaseJournalService {
     const createdAt = new Date(
       last ? Math.max(now, last.created_at.getTime() + 1) : now,
     );
+    const id = randomUUID();
+    // The hash covers the stored (sealed) form, so verifyChain needs no key.
+    const payload = await sealJournalPayload(
+      input.payload as Record<string, unknown>,
+      id,
+      this.cipher,
+    );
     const row: HashedRow = {
-      id: randomUUID(),
+      id,
       case_id: input.caseId,
       client_id: input.clientId,
       attorney_id: input.attorneyId ?? null,
       actor_user_id: input.actor.userId,
       actor_role: input.actor.role,
       event_type: input.event,
-      payload: input.payload,
+      payload,
       prev_hash: last?.row_hash ?? null,
       retain_until: retainUntil(createdAt),
       created_at: createdAt,
@@ -133,7 +148,7 @@ export class CaseJournalService {
     return tx.caseJournal.create({
       data: {
         ...row,
-        payload: input.payload,
+        payload: payload as Prisma.InputJsonObject,
         row_hash: computeRowHash(row),
       },
     });

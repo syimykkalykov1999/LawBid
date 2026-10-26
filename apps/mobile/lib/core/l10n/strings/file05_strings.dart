@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 // docs/05 (feed, posts, comments, follows, search, chats, notifications)
 // compiled-in strings, merged into StaticTranslatorRu/En (the seed and
 // fallback layer of L10nTranslator). Plurals: `.one/.few/.many/.other`
@@ -6,6 +7,11 @@
 const file05Ru = <String, String>{
   // --- relative time ---
   'time.justNow': 'только что',
+  'time.short.s': '{count}с',
+  'time.short.w': '{count}н',
+  'time.short.m': '{count} мин',
+  'time.short.h': '{count} ч',
+  'time.short.d': '{count} д',
   'time.minutesAgo.one': '{count} мин назад',
   'time.minutesAgo.few': '{count} мин назад',
   'time.minutesAgo.many': '{count} мин назад',
@@ -21,6 +27,7 @@ const file05Ru = <String, String>{
 
   // --- post card / screen ---
   'post.title': 'Пост',
+  'post.feed.title': 'Публикации',
   'post.media.label': 'Фото поста. Двойное нажатие — нравится',
   'post.author.open': 'Открыть профиль {name}',
   'post.verified': 'Проверенный адвокат',
@@ -45,6 +52,13 @@ const file05Ru = <String, String>{
   'post.likes.many': '{count} отметок «Нравится»',
   'post.likes.other': '{count} отметки «Нравится»',
   'post.more': 'ещё',
+  'post.create.limitHint': 'Без фото и видео можно до 3000 символов',
+  'profile.tab.threads': 'Текст',
+  'post.brief.published': 'Пост опубликован',
+  'post.menu.pin': 'Закрепить',
+  'post.menu.unpin': 'Открепить',
+  'post.pinned': 'Закреплено',
+  'post.pin.slot': 'Позиция {n}',
   'post.edited': 'Изменено',
   'post.pending_review': 'Пост на проверке',
   'post.viewComments': 'Посмотреть все комментарии ({count})',
@@ -59,7 +73,7 @@ const file05Ru = <String, String>{
   'post.published': 'Пост опубликован',
 
   // --- composer ---
-  'post.create.title': 'Пост в ленту',
+  'post.create.title': 'Новая публикация',
   'post.create.hint': 'Поделитесь знаниями, разбором кейса или советом…',
   'post.create.photos': 'Фото',
   'post.create.addPhoto': 'Добавить фото',
@@ -88,6 +102,10 @@ const file05Ru = <String, String>{
   'report.reason.impersonation': 'Выдаёт себя за другого',
   'report.reason.inappropriate': 'Неприемлемый контент',
   'report.reason.other': 'Другое',
+  // Owner 2026-10-05: attorney trust — counts as a trust complaint.
+  'report.reason.fraud': 'Мошенничество / выдаёт себя за адвоката',
+  // Owner 2026-10-05 (legal): opens the DMCA form instead of a plain report.
+  'report.reason.copyright': 'Нарушение авторских прав',
   'report.sent': 'Спасибо. Мы проверим жалобу.',
 
   // --- follows ---
@@ -116,6 +134,7 @@ const file05Ru = <String, String>{
   'search.hint.tag': 'Темы, например #dui',
   'search.hint.practice': 'Практика или штат',
   'search.hint.cases': 'Кейсы по ключевым словам',
+  'search.hint.posts': 'Поиск по постам',
   'search.tab.attorneys': 'Адвокаты',
   'search.tab.people': 'Люди',
   'search.tab.cases': 'Кейсы',
@@ -166,6 +185,8 @@ const file05Ru = <String, String>{
   'chat.today': 'Сегодня',
   'chat.yesterday': 'Вчера',
   'chat.typing': 'печатает…',
+  'chat.recordingVoice': 'записывает голосовое…',
+  'chat.unarchive': 'Из архива',
   'chat.seen': 'Прочитано',
   'chat.state.sending': 'Отправляется',
   'chat.state.sent': 'Отправлено',
@@ -185,6 +206,8 @@ const file05Ru = <String, String>{
   'notif.group.week': 'На этой неделе',
   'notif.group.earlier': 'Раньше',
   'notif.category.messages': 'Сообщения',
+  'notif.category.groups': 'Группы',
+  'notif.category.channels': 'Каналы',
   'notif.category.calls': 'Звонки',
   'notif.category.bids': 'Биды',
   'notif.category.cases': 'Кейсы',
@@ -219,12 +242,15 @@ const file05Ru = <String, String>{
   'notif.list.review_requested': 'Оцените работу адвоката',
   'notif.list.review_received': 'У вас новый отзыв',
   'notif.list.new_follower': '{name} подписался(-ась) на вас',
+  // Owner 2026-10-22: sent by the server when a contact registers.
+  'notif.list.contact_joined': '{name} из ваших контактов теперь в LawBid',
   'notif.list.new_follower.many': '{name} и ещё {others} подписались на вас',
   'notif.list.post_like': '{name} отметил(-а) ваш пост',
   'notif.list.post_like.many': '{name} и ещё {others} отметили ваш пост',
   'notif.list.post_comment': '{name} прокомментировал(-а) ваш пост',
-  'notif.list.case_comment': '{name} прокомментировал(-а) ваш кейс',
-  'notif.list.case_comment.many': '{name} и ещё {others} прокомментировали ваш кейс',
+  'notif.list.case_comment': '{name} задал(-а) вопрос по вашему кейсу',
+  'notif.list.case_comment.many':
+      '{name} и ещё {others} задали вопросы по вашему кейсу',
   'notif.list.comment_reply': '{name} ответил(-а) на ваш комментарий',
   'notif.list.comment_like': '{name} отметил(-а) ваш комментарий',
   'notif.list.comment_like.many':
@@ -235,13 +261,16 @@ const file05Ru = <String, String>{
   'notif.list.subscription_status': 'Статус подписки изменился',
   'notif.list.moderation_notice': 'Сообщение от модерации',
   'notif.list.security_new_device': 'Вход в аккаунт с нового устройства',
-  'notif.list.security_phone_changed': 'Поддержка сменила номер телефона по вашему запросу',
+  'notif.list.security_phone_changed':
+      'Поддержка сменила номер телефона по вашему запросу',
+  'notif.list.security_sign_in_changed': 'Изменены данные для входа',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'Новый',
-  'profile.action.message': 'Написать',
+  'profile.action.message': 'Сообщение',
   'chat.direct': 'Чат',
   'chat.hiddenClient.direct': 'Клиент',
   'reviews.sort.label': 'Порядок отзывов',
+  'reviews.filter.all': 'Все',
   'reviews.sort.newest': 'Сначала новые',
   'reviews.sort.oldest': 'Сначала старые',
   'reviews.filter.emptyTitle': 'Нет отзывов на {stars} ★',
@@ -252,6 +281,11 @@ const file05Ru = <String, String>{
 const file05En = <String, String>{
   // --- relative time ---
   'time.justNow': 'just now',
+  'time.short.s': '{count}s',
+  'time.short.w': '{count}w',
+  'time.short.m': '{count}m',
+  'time.short.h': '{count}h',
+  'time.short.d': '{count}d',
   'time.minutesAgo.one': '{count} min ago',
   'time.minutesAgo.other': '{count} min ago',
   'time.hoursAgo.one': '{count} h ago',
@@ -261,6 +295,7 @@ const file05En = <String, String>{
 
   // --- post card / screen ---
   'post.title': 'Post',
+  'post.feed.title': 'Posts',
   'post.media.label': 'Post photos. Double tap to like',
   'post.author.open': 'Open the profile of {name}',
   'post.verified': 'Verified attorney',
@@ -283,6 +318,13 @@ const file05En = <String, String>{
   'post.likes.one': '{count} like',
   'post.likes.other': '{count} likes',
   'post.more': 'more',
+  'post.create.limitHint': 'Without photo or video up to 3000 characters',
+  'profile.tab.threads': 'Text',
+  'post.brief.published': 'Post published',
+  'post.menu.pin': 'Pin',
+  'post.menu.unpin': 'Unpin',
+  'post.pinned': 'Pinned',
+  'post.pin.slot': 'Position {n}',
   'post.edited': 'Edited',
   'post.pending_review': 'Post under review',
   'post.viewComments': 'View all comments ({count})',
@@ -325,6 +367,8 @@ const file05En = <String, String>{
   'report.reason.impersonation': 'Impersonation',
   'report.reason.inappropriate': 'Inappropriate content',
   'report.reason.other': 'Something else',
+  'report.reason.fraud': 'Fraud / impersonating an attorney',
+  'report.reason.copyright': 'Copyright infringement',
   'report.sent': 'Thanks. We’ll review your report.',
 
   // --- follows ---
@@ -353,6 +397,7 @@ const file05En = <String, String>{
   'search.hint.tag': 'Topics like #dui',
   'search.hint.practice': 'Practice area or state',
   'search.hint.cases': 'Cases by keyword',
+  'search.hint.posts': 'Search posts',
   'search.tab.attorneys': 'Attorneys',
   'search.tab.people': 'People',
   'search.tab.cases': 'Cases',
@@ -403,6 +448,8 @@ const file05En = <String, String>{
   'chat.today': 'Today',
   'chat.yesterday': 'Yesterday',
   'chat.typing': 'typing…',
+  'chat.recordingVoice': 'recording a voice message…',
+  'chat.unarchive': 'Unarchive',
   'chat.seen': 'Seen',
   'chat.state.sending': 'Sending',
   'chat.state.sent': 'Sent',
@@ -422,6 +469,8 @@ const file05En = <String, String>{
   'notif.group.week': 'This week',
   'notif.group.earlier': 'Earlier',
   'notif.category.messages': 'Messages',
+  'notif.category.groups': 'Groups',
+  'notif.category.channels': 'Channels',
   'notif.category.calls': 'Calls',
   'notif.category.bids': 'Bids',
   'notif.category.cases': 'Cases',
@@ -455,13 +504,16 @@ const file05En = <String, String>{
   'notif.list.review_requested': 'Rate your attorney',
   'notif.list.review_received': 'You have a new review',
   'notif.list.new_follower': '{name} started following you',
+  // Owner 2026-10-22: sent by the server when a contact registers.
+  'notif.list.contact_joined': '{name} from your contacts joined LawBid',
   'notif.list.new_follower.many':
       '{name} and {others} others started following you',
   'notif.list.post_like': '{name} liked your post',
   'notif.list.post_like.many': '{name} and {others} others liked your post',
   'notif.list.post_comment': '{name} commented on your post',
-  'notif.list.case_comment': '{name} commented on your case',
-  'notif.list.case_comment.many': '{name} and {others} more commented on your case',
+  'notif.list.case_comment': '{name} asked a question about your case',
+  'notif.list.case_comment.many':
+      '{name} and {others} more asked questions about your case',
   'notif.list.comment_reply': '{name} replied to your comment',
   'notif.list.comment_like': '{name} liked your comment',
   'notif.list.comment_like.many':
@@ -473,13 +525,16 @@ const file05En = <String, String>{
   'notif.list.subscription_status': 'Your subscription status changed',
   'notif.list.moderation_notice': 'A message from moderation',
   'notif.list.security_new_device': 'New sign-in from another device',
-  'notif.list.security_phone_changed': 'Support changed your phone number at your request',
+  'notif.list.security_phone_changed':
+      'Support changed your phone number at your request',
+  'notif.list.security_sign_in_changed': 'Your sign-in details changed',
   // --- profile header (owner redesign) ---
   'profile.rating.newShort': 'New',
   'profile.action.message': 'Message',
   'chat.direct': 'Chat',
   'chat.hiddenClient.direct': 'Client',
   'reviews.sort.label': 'Review order',
+  'reviews.filter.all': 'All',
   'reviews.sort.newest': 'Newest first',
   'reviews.sort.oldest': 'Oldest first',
   'reviews.filter.emptyTitle': 'No {stars}-star reviews',

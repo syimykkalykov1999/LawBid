@@ -1,3 +1,4 @@
+import 'package:lawbid/core/network/contract_extras.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -10,7 +11,9 @@ abstract final class ProfileMappers {
   static RatingInfo rating(api.RatingDto d) {
     final count = d.count.toInt();
     return RatingInfo(
-        average: count == 0 ? null : d.avg.toDouble(), count: count);
+      average: count == 0 ? null : d.avg.toDouble(),
+      count: count,
+    );
   }
 
   static ProfileCounters counters(api.ProfileCountersDto d) => ProfileCounters(
@@ -36,7 +39,12 @@ abstract final class ProfileMappers {
         nameEn: d.nameEn,
         children: [
           for (final c in d.children)
-            PracticeLeaf(id: c.id, i18nKey: c.i18nKey, nameEn: c.nameEn),
+            PracticeLeaf(
+              id: c.id,
+              i18nKey: c.i18nKey,
+              nameEn: c.nameEn,
+              code: c.code,
+            ),
         ],
       );
 
@@ -48,19 +56,31 @@ abstract final class ProfileMappers {
         lastName: d.lastName,
         bio: d.bio,
         firmName: d.firmName,
-        firms: d.firms,
+        firms: [
+          if (d.firm != null) d.firm!.name,
+          ...d.firms.where((f) => f != d.firm?.name),
+        ],
         languages: d.languages,
         verifiedBadge: d.verifiedBadge,
+        trustLevel: d.trustLevel,
         licensedStates: d.licensedStates.map(state).toList(growable: false),
         practices: d.practiceAreas.map(selected).toList(growable: false),
+        qaAnswers: d.qa.answers.toInt(),
+        qaBest: d.qa.best.toInt(),
         rating: rating(d.rating),
         counters: counters(d.counters),
         isSelf: d.isSelf,
         isFollowing: d.isFollowing,
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
-        // The header avatar is small: prefer the 256 px square variant.
-        avatarUrl: d.avatarUrl256 ?? d.avatarUrl,
+        consultationEnabled: d.consultationEnabled,
+        // Owner 2026-10-18: the profile header shows the full avatar (the
+        // 256 px variant looked soft at ~100 dp on a Retina screen);
+        // AppAvatar decodes it at the size it is drawn.
+        avatarUrl: d.avatarUrl ?? d.avatarUrl256,
+        advertisingLabel:
+            contractField<bool>(d, ContractExtra.advertisingLabel) ?? false,
+        publicUrl: contractField<String>(d, ContractExtra.publicUrl),
       );
 
   static LicenseState license(api.LicenseStatus s) => switch (s) {
@@ -84,6 +104,7 @@ abstract final class ProfileMappers {
         languages: d.languages,
         verification: AttorneyVerification.parse(d.verificationStatus.json),
         verifiedBadge: d.verifiedBadge,
+        trustLevel: d.trustLevel,
         nameMismatch: d.nameMismatch,
         usernameNextChangeAt: d.usernameNextChangeAt,
         licenses: [
@@ -103,10 +124,34 @@ abstract final class ProfileMappers {
         issue: switch (d.reason) {
           api.UsernameUnavailableReason.invalid => UsernameIssue.invalid,
           api.UsernameUnavailableReason.reserved => UsernameIssue.reserved,
-          api.UsernameUnavailableReason.taken => UsernameIssue.taken,
+          api.UsernameUnavailableReason.taken ||
+          api.UsernameUnavailableReason.held ||
+          api.UsernameUnavailableReason.similar =>
+            UsernameIssue.taken,
           _ => d.available ? null : UsernameIssue.invalid,
         },
       );
+
+  /// `GET /attorneys/username-available` read raw (it carries
+  /// `suggestions`, which the generated DTO does not have yet).
+  static UsernameCheck usernameJson(Map<String, dynamic> j, String asked) {
+    final available = j['available'] == true;
+    final suggestions = j['suggestions'];
+    return UsernameCheck(
+      username: j['username'] as String? ?? asked,
+      available: available,
+      issue: available
+          ? null
+          : switch (j['reason']) {
+              'reserved' => UsernameIssue.reserved,
+              'taken' || 'held' || 'similar' => UsernameIssue.taken,
+              _ => UsernameIssue.invalid,
+            },
+      suggestions: suggestions is List
+          ? suggestions.whereType<String>().toList()
+          : const [],
+    );
+  }
 
   static ReviewSummary summary(api.ReviewSummaryDto d) => ReviewSummary(
         average: d.ratingAvg?.toDouble(),
@@ -173,20 +218,20 @@ abstract final class ProfileMappers {
         isBlocked: d.isBlocked,
         hasBlockedMe: d.hasBlockedMe,
         verified: d.verifiedBadge,
-        postsCount: d.postsCount.toInt(),
-        followersCount: d.followersCount.toInt(),
-        followingCount: d.followingCount.toInt(),
+        postsCount: d.postsCount,
+        followersCount: d.followersCount,
+        followingCount: d.followingCount,
         isFollowing: d.isFollowing,
         canSeeReviews: d.canSeeReviews,
         ratingAvg: d.ratingAvg?.toDouble(),
-        ratingCount: d.ratingCount.toInt(),
+        ratingCount: d.ratingCount,
       );
 
   static ClientReview clientReview(api.ClientReviewDto d) => ClientReview(
         id: d.id,
         caseId: d.caseId,
         caseTitle: d.caseTitle,
-        rating: d.rating.toInt(),
+        rating: d.rating,
         body: d.body,
         attorneyId: d.attorney.id,
         attorneyUsername: d.attorney.username,
@@ -196,13 +241,12 @@ abstract final class ProfileMappers {
         isMine: d.isMine,
         createdAt: DateTime.parse(d.createdAt).toLocal(),
         authorIsClient: d.attorney.role == api.ClientReviewAuthorDtoRole.client,
-        canAppeal: false,
         appealStatus: d.appealStatus?.json,
         authorRole: d.attorney.role.json ?? 'attorney',
         canReply: d.canReply,
         reply: d.reply,
         replyAt: d.replyAt?.toLocal(),
-        helpfulCount: d.helpfulCount.toInt(),
+        helpfulCount: d.helpfulCount,
         helpfulByMe: d.helpfulByMe,
         editedAt: d.editedAt?.toLocal(),
         photos: [for (final p in d.photos) _photo(p)],

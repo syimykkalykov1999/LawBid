@@ -16,9 +16,14 @@ class PostAuthorDto {
     required this.username,
     required this.verifiedBadge,
     required this.isFollowing,
+    required this.trustLevel,
+    required this.practiceI18nKeys,
+    required this.advertisingLabel,
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.identityRejected,
+    this.location,
   });
 
   factory PostAuthorDto.fromJson(Map<String, Object?> json) =>
@@ -40,6 +45,22 @@ class PostAuthorDto {
 
   /// Owner 2026-09-30: the viewer follows this author (card Follow).
   final bool isFollowing;
+
+  /// Owner 2026-10-13: Identity level 0..3 (attorneys; 0 for clients).
+  final num trustLevel;
+
+  /// Owner 2026-10-13: the attorney's verification was rejected — a red.
+  /// circle on the avatar.
+  final bool? identityRejected;
+
+  /// Owner 2026-10-13: up to three practice keys under the name.
+  final List<String> practiceI18nKeys;
+
+  /// Owner 2026-10-13: attorney: licensed states ("NY, CA"); client: state.
+  final String? location;
+
+  /// Show the «Attorney Advertising» label on this post (the author is licensed in a state that requires it).
+  final bool advertisingLabel;
 
   Map<String, Object?> toJson() => _$PostAuthorDtoToJson(this);
 }

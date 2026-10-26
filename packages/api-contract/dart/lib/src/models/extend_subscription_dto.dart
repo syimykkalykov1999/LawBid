@@ -8,14 +8,14 @@ part 'extend_subscription_dto.g.dart';
 
 @JsonSerializable()
 class ExtendSubscriptionDto {
-  const ExtendSubscriptionDto({required this.days, required this.reason});
+  const ExtendSubscriptionDto({required this.days, this.reason = ''});
 
   factory ExtendSubscriptionDto.fromJson(Map<String, Object?> json) =>
       _$ExtendSubscriptionDtoFromJson(json);
 
   final int days;
 
-  /// Required (§1.6): e.g. the confirmed contact issue.
+  /// Optional: e.g. the confirmed contact issue.
   final String reason;
 
   Map<String, Object?> toJson() => _$ExtendSubscriptionDtoToJson(this);

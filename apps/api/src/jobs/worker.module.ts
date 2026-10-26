@@ -1,9 +1,16 @@
+import { RuntimeStatsModule } from '../common/ops/runtime-stats.service';
+import { SloMetricsModule } from '../common/ops/slo-metrics.service';
+import { ServerTextsModule } from '../common/i18n/server-texts.service';
+import { CountriesCoreModule } from '../modules/countries/countries.module';
 import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { ConfigModule } from '../config/config.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
+import { AdminSummaryModule } from '../common/admin-summary/admin-summary.module';
+import { OpsModule } from '../common/ops/ops.module';
 import { AppSettingsModule } from '../common/app-settings/app-settings.module';
+import { EconomyModule } from '../common/economy/economy.module';
 import { CostGuardModule } from '../common/cost-guard/cost-guard.module';
 import { JobsModule } from './jobs.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
@@ -13,7 +20,13 @@ import { PushModule } from '../modules/notifications/push/push.module';
 import { CountersModule } from '../modules/counters/counters.module';
 import { RealtimeModule } from '../modules/realtime/realtime.module';
 import { BillingModule } from '../modules/billing/billing.module';
+import { PlansCoreModule } from '../modules/plans/plans.module';
 import { PrivacyModule } from '../modules/privacy/privacy.module';
+import { MediaModerationModule } from '../modules/media-moderation/media-moderation.module';
+import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout.module';
+import { CaseFanoutModule } from '../modules/notifications/case-fanout/case-fanout.worker';
+import { GroupFanoutModule } from '../modules/groups/group-fanout.module';
+import { ChannelFanoutModule } from '../modules/channels/channel-fanout.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -22,6 +35,11 @@ import { PrivacyModule } from '../modules/privacy/privacy.module';
  * the job runner, which always runs here regardless of JOBS_ENABLED.
  */
 import { SecretsModule } from '../common/secrets/secrets.module';
+import { AdminAuthModule } from '../modules/admin-auth/admin-auth.module';
+import { AttorneyTrustCoreModule } from '../modules/attorney-trust/attorney-trust.module';
+import { ClientFraudCoreModule } from '../modules/client-fraud/client-fraud.module';
+import { MentionsModule } from '../modules/mentions/mentions.module';
+import { ModerationModule } from '../modules/moderation/moderation.module';
 @Module({
   imports: [
     ConfigModule,
@@ -36,21 +54,53 @@ import { SecretsModule } from '../common/secrets/secrets.module';
     }),
     PrismaModule,
     RedisModule,
+    // Owner 2026-10-23: the admin's precomputed aggregates (Redis).
+    AdminSummaryModule,
+    // Owner 2026-10-05: ops guard (DB probe, budget, backups) + heartbeat.
+    OpsModule,
     // LicenseExpiryJob: typed app_config reads + the notifications seam.
     AppSettingsModule,
     // Global paid-provider caps: FilesService (calls, client reviews in
     // the cron jobs) injects CostGuardService.
     CostGuardModule,
+    // Owner 2026-10-16: `economy.guard` (spend rule, ceiling, DB / Redis).
+    EconomyModule,
     // Owner 2026-10-01: keys managed in the admin (push, email, Stripe…).
     SecretsModule,
     NotificationsModule,
+    // Global in the API; PostsService (reached via JobsModule) needs them.
+    MentionsModule,
+    ModerationModule,
+    AdminAuthModule,
+    // Owner 2026-10-05: nightly trust recompute (`trust.recompute`).
+    AttorneyTrustCoreModule,
+    // Owner 2026-10-05: nightly `fraud.sweep` (repeat accounts, retention).
+    ClientFraudCoreModule,
+
+    CountriesCoreModule,
     JobsModule.register({ mode: 'worker' }),
     // docs/03 stage 3.2: antivirus scan + image processing (`files` queue).
     FilesWorkerModule,
     // docs/06 §1.5: stripe webhook processing + trial reminders.
+    PlansCoreModule,
     BillingModule.register({ mode: 'worker' }),
     // docs/06 §5 (stage 6.9): data export ZIP worker.
     PrivacyModule.register({ mode: 'worker' }),
+    // Owner 2026-10-22 (audit #4 §5): the `media-moderation` queue.
+    MediaModerationModule.register({ mode: 'worker' }),
+    // Owner 2026-10-22 (audit #4 §4): pushes in every app language.
+    ServerTextsModule,
+    // Owner 2026-10-22 (audit #4 §7): push SLO counters.
+    SloMetricsModule,
+    // Load audit 6: event-loop delay + heap as CloudWatch EMF metrics.
+    RuntimeStatsModule,
+    // Audit 2026-10-02: admin broadcast fan-out (`admin-broadcast` queue).
+    BroadcastFanoutModule.register({ mode: 'worker' }),
+    // Owner 2026-10-22 (server load audit, finding 7): group messages
+    // (`group-fanout-<n>`) and channel posts (`channel-fanout`).
+    GroupFanoutModule.register({ mode: 'worker' }),
+    CaseFanoutModule.register({ mode: 'worker' }),
+    ChannelFanoutModule.register({ mode: 'worker' }),
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
     // docs/04 stage 4.8: `push` queue consumer.

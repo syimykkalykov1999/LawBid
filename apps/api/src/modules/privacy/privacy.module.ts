@@ -1,17 +1,22 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { createEmailProvider } from '../auth/providers/email/email-provider.factory';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CaseLifecycleModule } from '../cases/lifecycle/case-lifecycle.module';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import { FileReleaseService } from '../files/storage/file-release.service';
 import { JournalModule } from '../journal/journal.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { NOTIFICATION_EMAIL } from '../notifications/push/push.constants';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { VideosModule } from '../videos/videos.module';
 import { AccountAnonymizationService } from './account-anonymization.service';
+import { AccountDeletionRunner } from './account-deletion.runner';
 import { DataExportController } from './data-export.controller';
 import { DataExportRunner } from './data-export.runner';
 import { DataExportService } from './data-export.service';
@@ -44,18 +49,24 @@ export class PrivacyModule {
         JournalModule,
         BidsModule,
         JournalModule,
+        // «Вход и письма по почте» gates the data-export e-mail.
+        FeatureFlagsModule,
+        // Owner 2026-10-22: reels / story videos go at Bunny on deletion.
+        VideosModule,
         ...(options.mode === 'api' ? [AuthModule] : []),
       ],
       controllers: options.mode === 'api' ? [DataExportController] : [],
       providers: [
         { provide: PRIVACY_OPTIONS, useValue: options },
         S3StorageService,
+        FileReleaseService,
         {
           provide: NOTIFICATION_EMAIL,
-          inject: [ConfigService, PinoLogger, SecretsService],
+          inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
           useFactory: createEmailProvider,
         },
         AccountAnonymizationService,
+        AccountDeletionRunner,
         DataExportService,
         DataExportRunner,
         JournalRetentionService,
@@ -64,6 +75,7 @@ export class PrivacyModule {
       ],
       exports: [
         AccountAnonymizationService,
+        AccountDeletionRunner,
         DataExportService,
         DataExportRunner,
         JournalRetentionService,

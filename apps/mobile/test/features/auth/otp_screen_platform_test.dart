@@ -1,7 +1,11 @@
+// ignore_for_file: lines_longer_than_80_chars
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
@@ -20,12 +24,24 @@ const _phone = '+12025550123';
 const _token = 'Tk_-0123456789abcdefghijABCDEFGHIJ012345678';
 const _verifier = 'Vf_-0123456789abcdefghijABCDEFGHIJ012345678';
 
+/// `phoneStatus` stays pending until [status] completes, like a slow network.
+class _SlowStatusRepository extends RecordingAuthRepository {
+  final status = Completer<({bool registered, bool hasPassword})?>();
+
+  @override
+  Future<({bool registered, bool hasPassword})?> phoneStatus(String phone) =>
+      status.future;
+}
+
 void main() {
   late RecordingAuthRepository repo;
 
   setUp(() => repo = RecordingAuthRepository());
 
-  Future<ProviderContainer> container({SmsCodeRetriever? retriever, String? magicLinkVerifier}) async {
+  Future<ProviderContainer> container({
+    SmsCodeRetriever? retriever,
+    String? magicLinkVerifier,
+  }) async {
     final c = ProviderContainer(
       overrides: await authOverrides(
         repo: repo,
@@ -38,13 +54,18 @@ void main() {
   }
 
   /// The real flow: phone screen → request code → push the code screen.
-  Future<GoRouter> openOtpFromPhone(WidgetTester tester, ProviderContainer c) async {
-    final router = GoRouter(initialLocation: AuthRoutes.phone, routes: authRoutes());
+  Future<GoRouter> openOtpFromPhone(
+    WidgetTester tester,
+    ProviderContainer c,
+  ) async {
+    final router =
+        GoRouter(initialLocation: AuthRoutes.phone, routes: authRoutes());
     addTearDown(router.dispose);
     await tester.pumpWidget(routedApp(c, router));
     await tester.pumpAndSettle();
     final flow = c.read(onboardingFlowProvider.notifier)..goToPhoneStep();
     expect(await flow.submitPhoneNumber(_phone), isTrue);
+    // ignore: unawaited_futures
     router.push(AuthRoutes.otp);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
@@ -53,7 +74,9 @@ void main() {
   }
 
   group('«Изменить номер» / Change number (docs/01 §10.2 D)', () {
-    testWidgets('phone code screen shows "Change number" and it returns to phone entry', (
+    testWidgets(
+        'phone code screen shows "Change number" and it returns to phone entry',
+        (
       tester,
     ) async {
       final c = await container();
@@ -78,12 +101,15 @@ void main() {
       expect(c.read(onboardingFlowProvider).identifier, _phone);
     });
 
-    testWidgets('email code opened on its own (magic link) → "Change email" goes to email entry', (
+    testWidgets(
+        'email code opened on its own (magic link) → "Change email" goes to email entry',
+        (
       tester,
     ) async {
       repo.verifyResult = const OtpVerifyResult.invalid();
       final c = await container(magicLinkVerifier: _verifier);
-      final router = GoRouter(initialLocation: AuthRoutes.welcome, routes: authRoutes());
+      final router =
+          GoRouter(initialLocation: AuthRoutes.welcome, routes: authRoutes());
       addTearDown(router.dispose);
       await tester.pumpWidget(routedApp(c, router));
       final flow = c.read(onboardingFlowProvider.notifier);
@@ -106,7 +132,9 @@ void main() {
   });
 
   group('Android SMS Retriever autofill (docs/01 §10.2 D)', () {
-    testWidgets('listening starts before the SMS is requested; the code is shown and verified', (
+    testWidgets(
+        'listening starts before the SMS is requested; the code is shown and verified',
+        (
       tester,
     ) async {
       final sms = FakeSmsCodeRetriever();
@@ -127,7 +155,10 @@ void main() {
       expect(c.read(onboardingFlowProvider).autofilledCode, '482913');
       // The 6 cells show the digits.
       final field = tester.widget<TextField>(
-        find.descendant(of: find.byType(OtpScreen), matching: find.byType(TextField)),
+        find.descendant(
+          of: find.byType(OtpScreen),
+          matching: find.byType(TextField),
+        ),
       );
       expect(field.controller!.text, '482913');
     });
@@ -144,7 +175,9 @@ void main() {
       expect(repo.verified, isEmpty);
     });
 
-    testWidgets('not started where unsupported (iOS uses oneTimeCode keyboard autofill)', (
+    testWidgets(
+        'not started where unsupported (iOS uses oneTimeCode keyboard autofill)',
+        (
       tester,
     ) async {
       final sms = FakeSmsCodeRetriever(isSupported: false);
@@ -153,7 +186,8 @@ void main() {
       expect(sms.listens, 0);
     });
 
-    test('production retriever: Android only, matches exactly a 6-digit code', () {
+    test('production retriever: Android only, matches exactly a 6-digit code',
+        () {
       expect(SmartAuthSmsCodeRetriever(isAndroid: false).isSupported, isFalse);
       expect(SmartAuthSmsCodeRetriever(isAndroid: true).isSupported, isTrue);
       final matcher = RegExp(SmartAuthSmsCodeRetriever.codeMatcher);
@@ -165,12 +199,16 @@ void main() {
   });
 
   group('email magic link (docs/01 §10.2 E, security review 2026-09-27)', () {
-    testWidgets('stored verifier → verify-link with token + verifier, signed in, verifier cleared', (
+    testWidgets(
+        'stored verifier → verify-link with token + verifier, signed in, verifier cleared',
+        (
       tester,
     ) async {
       final c = await container(magicLinkVerifier: _verifier);
       final shown = <OnboardingStep>[];
-      final ok = await c.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(_token, show: shown.add);
+      final ok = await c
+          .read(onboardingFlowProvider.notifier)
+          .verifyEmailMagicLink(_token, show: shown.add);
 
       expect(ok, isTrue);
       expect(shown, [OnboardingStep.otp]);
@@ -185,12 +223,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 10));
     });
 
-    testWidgets('no verifier on this device → no request, email step with the "other device" hint', (
+    testWidgets(
+        'no verifier on this device → no request, email step with the "other device" hint',
+        (
       tester,
     ) async {
       final c = await container();
       final shown = <OnboardingStep>[];
-      final ok = await c.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(_token, show: shown.add);
+      final ok = await c
+          .read(onboardingFlowProvider.notifier)
+          .verifyEmailMagicLink(_token, show: shown.add);
 
       expect(ok, isFalse);
       expect(shown, [OnboardingStep.email]);
@@ -207,24 +249,33 @@ void main() {
       await tester.pump(const Duration(milliseconds: 10));
     });
 
-    testWidgets('401 AUTH_OTP_INVALID → the invalid-code message (email step when the address is unknown)', (
+    testWidgets(
+        '401 AUTH_OTP_INVALID → the invalid-code message (email step when the address is unknown)',
+        (
       tester,
     ) async {
       repo.verifyResult = const OtpVerifyResult.invalid();
       final c = await container(magicLinkVerifier: _verifier);
       final shown = <OnboardingStep>[];
-      final ok = await c.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(_token, show: shown.add);
+      final ok = await c
+          .read(onboardingFlowProvider.notifier)
+          .verifyEmailMagicLink(_token, show: shown.add);
 
       expect(ok, isFalse);
       expect(shown, [OnboardingStep.otp, OnboardingStep.email]);
       final s = c.read(onboardingFlowProvider);
-      expect(s.errorMessage, c.read(translatorProvider).t('error.api.AUTH_OTP_INVALID'));
+      expect(
+        s.errorMessage,
+        c.read(translatorProvider).t('error.api.AUTH_OTP_INVALID'),
+      );
       expect(s.isSubmitting, isFalse);
       await tester.pump(const Duration(milliseconds: 10));
       await tester.pump(const Duration(milliseconds: 10));
     });
 
-    testWidgets('401 AUTH_OTP_INVALID with the address known → stays on the code step with the error', (
+    testWidgets(
+        '401 AUTH_OTP_INVALID with the address known → stays on the code step with the error',
+        (
       tester,
     ) async {
       repo.verifyResult = const OtpVerifyResult.invalid();
@@ -238,9 +289,44 @@ void main() {
       final s = c.read(onboardingFlowProvider);
       expect(s.step, OnboardingStep.otp);
       expect(s.identifier, 'ann@example.com');
-      expect(s.errorMessage, c.read(translatorProvider).t('error.api.AUTH_OTP_INVALID'));
+      expect(
+        s.errorMessage,
+        c.read(translatorProvider).t('error.api.AUTH_OTP_INVALID'),
+      );
       await tester.pump(const Duration(milliseconds: 10));
       await tester.pump(const Duration(milliseconds: 10));
+    });
+  });
+
+  group('double submit (owner bug 2026-10-16)', () {
+    testWidgets('two quick taps on Continue push the code screen once',
+        (tester) async {
+      final slow = _SlowStatusRepository();
+      repo = slow;
+      final c = await container();
+      final router =
+          GoRouter(initialLocation: AuthRoutes.phone, routes: authRoutes());
+      addTearDown(router.dispose);
+      await tester.pumpWidget(routedApp(c, router));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(EditableText).first, '2025550123');
+      await tester.pump();
+      final button = find.byType(AppButton).first;
+      await tester.tap(button);
+      await tester.tap(button); // phoneStatus still pending (network)
+      slow.status.complete((registered: false, hasPassword: false));
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(OtpScreen), findsOneWidget);
+      expect(repo.requested, hasLength(1));
+
+      // One «back» must land on the phone screen, not on a second code screen.
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(OtpScreen), findsNothing);
+      expect(find.byType(PhoneScreen), findsOneWidget);
     });
   });
 }

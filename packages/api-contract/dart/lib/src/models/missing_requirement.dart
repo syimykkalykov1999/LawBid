@@ -17,6 +17,8 @@ enum MissingRequirement {
   phoneVerified('phone_verified'),
   @JsonValue('email_verified')
   emailVerified('email_verified'),
+  @JsonValue('email')
+  email('email'),
   @JsonValue('state')
   state('state'),
   @JsonValue('licensed_states')

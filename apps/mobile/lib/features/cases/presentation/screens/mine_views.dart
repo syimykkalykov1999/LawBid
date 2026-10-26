@@ -1,35 +1,67 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
+import 'package:lawbid/features/cases/presentation/widgets/my_case_row.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/cases/tools/running_timer_chip.dart';
+import 'package:lawbid/features/chat/presentation/saved_chats_view.dart';
+import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
+import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart'
+    deferred as d_qa_feed;
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 
-enum _ClientTab { planner, open, inProgress, completed, saved }
+// Owner 2026-10-15: two tabs per role. Client: Cases (Active · Completed
+// inside) · Tasks; the client's Saved moved to Settings.
+enum _ClientTab { cases, planner, qa }
 
-// Owner 2026-10-01: two top tabs — My bids (with Active · In progress ·
-// Completed · Saved inside) and the Planner (tasks calendar).
-// Owner 2026-10-01: Planner first, My bids second.
-enum _AttorneyTab { planner, bids }
+enum _CaseSection { active, completed }
 
-enum _BidsSection { active, work, completed, saved }
+// Attorney: Cases (Active · Bids · Completed inside, Saved behind the
+// bookmark right of the search) · Tasks. «Bids» holds Waiting and
+// Invitations.
+enum _AttorneyTab { cases, planner, qa }
+
+/// Owner 2026-10-23: the attorney's four chips on one row - Active · Bids
+/// (my bids, the ones «waiting for the client» included: that was the same
+/// list) · Invitations · Done.
+enum AttorneyCasesSection {
+  active,
+  bids,
+  invites,
+  completed;
+
+  /// A filter id of the old five-chip row (a link, a notification, a saved
+  /// choice) lands on the chip that now holds it.
+  static AttorneyCasesSection? fromLegacy(String id) => switch (id) {
+        'active' => active,
+        'bids' || 'waiting' => bids,
+        'invites' => invites,
+        'completed' || 'done' => completed,
+        _ => null,
+      };
+}
 
 /// Owner 2026-09-30 — client "Mine": Open (with Archive), In progress,
-/// Completed and Saved (posts). Cases show as an Instagram-like grid —
-/// the first photo or our art of the qualification, a short title and the
-/// status — with search by title and filters (qualification, state), so a
-/// long history is never scrolled through.
+/// Completed and Saved (posts). Cases show as compact rows (owner
+/// 2026-10-07, bug 16) — the first photo or the practice icon, the title,
+/// the status and counts — with search by title and filters
+/// (qualification, state).
 class ClientMineView extends ConsumerStatefulWidget {
   const ClientMineView({super.key});
 
@@ -38,86 +70,149 @@ class ClientMineView extends ConsumerStatefulWidget {
 }
 
 class _ClientMineViewState extends ConsumerState<ClientMineView> {
-  _ClientTab _tab = _ClientTab.planner;
-  bool _archived = false;
+  _ClientTab _tab = _ClientTab.cases;
+  _CaseSection _section = _CaseSection.active;
   MineSearch _search = const MineSearch();
+  final _chrome = FeedChromeController(revealOnUp: true);
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final filter = switch (_tab) {
-      _ClientTab.open =>
-        _archived ? MyCasesFilter.archived : MyCasesFilter.open,
-      _ClientTab.inProgress => MyCasesFilter.inProgress,
-      _ClientTab.completed => MyCasesFilter.closed,
-      _ClientTab.saved || _ClientTab.planner => MyCasesFilter.active,
-    };
-    final Widget body = switch (_tab) {
-      // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
-      _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
-      _ClientTab.saved => const SavedPostsList(key: ValueKey('saved')),
-      _ => Column(
-          key: ValueKey('cases-${_tab.name}'),
-          children: [
-            MineSearchBar(
-              search: _search,
-              onChanged: (v) => setState(() => _search = v),
+    // Owner 2026-10-23: «Вопросы» is the third tab (while `legal_qa` is on).
+    final qa = ref.watch(legalQaEnabledProvider);
+    Widget pageFor(_ClientTab tab) => switch (tab) {
+          // Owner 2026-10-01: clients keep a planner too (own tasks + steps).
+          _ClientTab.planner => const TasksTab(key: ValueKey('planner')),
+          _ClientTab.qa => const _QaTabPage(),
+          _ClientTab.cases => Column(
+              key: const ValueKey('cases'),
+              children: [
+                // Owner 2026-10-15: search and chips go away on scroll down and
+                // come back on scroll up.
+                ChromeCollapse(
+                  child: Column(
+                    children: [
+                      // Owner 2026-10-16: the chips and the search share a row.
+                      MineChipsSearchRow(
+                        search: _search,
+                        onChanged: (v) => setState(() => _search = v),
+                        chips: FilterChips<_CaseSection>(
+                          key: const ValueKey('case-sections'),
+                          compact: true,
+                          padding: EdgeInsets.zero,
+                          value: _section,
+                          options: [
+                            (_CaseSection.active, t.t('mine.filter.active')),
+                            (_CaseSection.completed, t.t('mine.chip.done')),
+                          ],
+                          onChanged: (v) => setState(() => _section = v),
+                        ),
+                      ),
+                      MineActiveFilters(
+                        search: _search,
+                        onChanged: (v) => setState(() => _search = v),
+                      ),
+                      const DeadlineMineEntry(),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  // Owner 2026-10-22: Active | Completed swipe like the tabs.
+                  child: SwipePages<_CaseSection>(
+                    value: _section,
+                    values: _CaseSection.values,
+                    onChanged: (v) => setState(() => _section = v),
+                    pageBuilder: (_, section) {
+                      final isActive = section == _CaseSection.active;
+                      return _ClientCasesGrid(
+                        key: ValueKey(section),
+                        // Owner 2026-10-15: «Active» = open and in work (the
+                        // stage scale); «Completed» = closed and archived.
+                        filter: isActive
+                            ? MyCasesFilter.active
+                            : MyCasesFilter.completed,
+                        search: _search,
+                        cards: true,
+                        scale: isActive,
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-            MineActiveFilters(
-              search: _search,
-              onChanged: (v) => setState(() => _search = v),
-            ),
-            if (_tab == _ClientTab.open) ...[
-              const SizedBox(height: AppSpacing.sm),
-              FilterChips<bool>(
-                value: _archived,
-                options: [
-                  (false, t.t('mine.filter.open')),
-                  (true, t.t('mine.filter.archived')),
-                ],
-                onChanged: (v) => setState(() => _archived = v),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            Expanded(child: _ClientCasesGrid(filter: filter, search: _search)),
-          ],
-        ),
-    };
-    return Column(
-      children: [
-        PillTabs<_ClientTab>(
-          value: _tab,
-          tabs: [
-            (_ClientTab.planner, t.t('mine.tab.tasks')),
-            (_ClientTab.open, t.t('mine.tab.open')),
-            (_ClientTab.inProgress, t.t('mine.tab.inWork')),
-            (_ClientTab.completed, t.t('mine.tab.completed')),
-            (_ClientTab.saved, t.t('mine.tab.saved')),
-          ],
-          onChanged: (v) => setState(() => _tab = v),
-        ),
-        Expanded(
-          child: TabSwipe<_ClientTab>(
+        };
+    return FeedChrome(
+      controller: _chrome,
+      child: Column(
+        children: [
+          PillTabs<_ClientTab>(
             value: _tab,
-            values: _ClientTab.values,
+            tabs: [
+              (_ClientTab.cases, t.t('mine.tab.cases')),
+              (_ClientTab.planner, t.t('mine.tab.tasks')),
+              if (qa) (_ClientTab.qa, t.t('mine.tab.qa')),
+            ],
             onChanged: (v) => setState(() => _tab = v),
-            child: AnimatedSwitcher(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              child: body,
+          ),
+          Expanded(
+            // Owner 2026-10-19 (Instagram): the sections are pages — the
+            // next one slides in with the finger, a tap slides to it.
+            child: SwipePages<_ClientTab>(
+              value: _tab,
+              values: [
+                for (final v in _ClientTab.values)
+                  if (v != _ClientTab.qa || qa) v,
+              ],
+              onChanged: (v) => setState(() => _tab = v),
+              pageBuilder: (_, tab) => pageFor(tab),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
+/// Owner 2026-10-23: the questions and answers as a tab of the Cases
+/// screen (what the «?» opened before). Its code loads the first time.
+class _QaTabPage extends StatelessWidget {
+  const _QaTabPage();
+
+  @override
+  Widget build(BuildContext context) => DeferredScreen(
+        id: 'qa_feed_screen',
+        load: d_qa_feed.loadLibrary,
+        builder: (_) => d_qa_feed.QaFeedBody(
+          key: const ValueKey('qa-tab'),
+          embedded: true,
+        ),
+      );
+}
+
 class _ClientCasesGrid extends ConsumerWidget {
-  const _ClientCasesGrid({required this.filter, required this.search});
+  const _ClientCasesGrid({
+    required this.filter,
+    required this.search,
+    this.cards = false,
+    this.scale = true,
+    super.key,
+  });
 
   final MyCasesFilter filter;
   final MineSearch search;
+
+  /// «Active» and «My cases»: cards instead of compact rows.
+  final bool cards;
+
+  /// The progress scale on a card («Active» only).
+  final bool scale;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -127,7 +222,7 @@ class _ClientCasesGrid extends ConsumerWidget {
     final n = ref.read(mineCasesProvider(key).notifier);
     final ids = value.value?.items.map((c) => c.id).join(',') ?? '';
     final seen = ref.watch(seenBidCountsProvider(ids)).value ?? const {};
-    final firstOpen = filter == MyCasesFilter.open && search.isEmpty;
+    final firstOpen = filter == MyCasesFilter.active && search.isEmpty;
     return MinePagedGrid<CaseSummary>(
       value: value,
       onRefresh: n.refresh,
@@ -144,69 +239,24 @@ class _ClientCasesGrid extends ConsumerWidget {
                 label: t.t('mine.cases.create'),
                 icon: AppIcons.addRounded,
                 height: AppSizes.touchTarget,
-                onPressed: () => context.push(AppRoutes.create),
+                // Audit 2026-10-04: straight to the case form.
+                onPressed: () => context.push('${AppRoutes.create}?kind=case'),
               )
             : null,
       ),
-      tileOf: (c) => MineTileData(
-        title: c.title,
-        statusLabel: caseStatusLabel(t, c.status),
-        statusTone: caseTone(c.status),
-        coverUrl: c.coverUrl,
-        practiceCode: c.practice.code,
-        categoryCode: c.practice.categoryCode,
-        badge: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
-        onTap: () => context.push(AppRoutes.myCase(c.id)),
-      ),
-    );
-  }
-}
-
-/// "Мои кейсы" list — also used by the client profile tab (§11.3).
-class MyCasesList extends ConsumerWidget {
-  const MyCasesList({required this.filter, super.key});
-
-  final MyCasesFilter filter;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
-    final value = ref.watch(myCasesProvider(filter));
-    final notifier = ref.read(myCasesProvider(filter).notifier);
-    final ids = value.value?.items.map((c) => c.id).join(',') ?? '';
-    final seen = ref.watch(seenBidCountsProvider(ids)).value ?? const {};
-    return PagedListBody<CaseSummary>(
-      value: value,
-      t: t,
-      itemKey: (c) => c.id,
-      onRefresh: notifier.refresh,
-      onLoadMore: notifier.loadMore,
-      onRetryMore: notifier.retryLoadMore,
-      empty: AppEmptyState(
-        icon: AppIcons.folderOpenRounded,
-        title: filter == MyCasesFilter.active
-            ? t.t('mine.cases.emptyTitle')
-            : null,
-        message: filter == MyCasesFilter.active
-            ? t.t('mine.cases.emptyMessage')
-            : t.t('mine.cases.emptyFiltered'),
-        action: filter == MyCasesFilter.active
-            ? AppButton(
-                label: t.t('mine.cases.create'),
-                icon: AppIcons.addRounded,
-                height: AppSizes.touchTarget,
-                onPressed: () => context.push(AppRoutes.create),
-              )
-            : null,
-      ),
-      itemBuilder: (context, c, _) => ClientCaseCard(
-        item: c,
-        unseenBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
-        t: t,
-        formats: formats,
-        onTap: () => context.push(AppRoutes.myCase(c.id)),
-      ),
+      // Owner 2026-10-07 (bug 16): compact rows; swipe left for actions.
+      edgeToEdge: cards,
+      rowOf: (c) => cards
+          ? ClientActiveCaseCard(
+              item: c,
+              scale: scale,
+              newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
+            )
+          : MyCaseRow(
+              item: c,
+              swipe: true,
+              newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
+            ),
     );
   }
 }
@@ -214,108 +264,180 @@ class MyCasesList extends ConsumerWidget {
 /// Owner 2026-09-30 — attorney "Mine": My bids, In progress, Completed
 /// and Saved, each a searchable, filterable grid of case squares.
 class AttorneyMineView extends ConsumerStatefulWidget {
-  const AttorneyMineView({super.key});
+  const AttorneyMineView({this.initialSection, super.key});
+
+  /// A legacy filter id (see [AttorneyCasesSection.fromLegacy]).
+  final String? initialSection;
 
   @override
   ConsumerState<AttorneyMineView> createState() => _AttorneyMineViewState();
 }
 
 class _AttorneyMineViewState extends ConsumerState<AttorneyMineView> {
-  _AttorneyTab _tab = _AttorneyTab.planner;
-  _BidsSection _section = _BidsSection.active;
+  _AttorneyTab _tab = _AttorneyTab.cases;
+  late AttorneyCasesSection _section = AttorneyCasesSection.fromLegacy(
+        widget.initialSection ?? '',
+      ) ??
+      AttorneyCasesSection.active;
+  bool _saved = false;
+  _SavedKind _savedKind = _SavedKind.cases;
   MineSearch _search = const MineSearch();
+  final _chrome = FeedChromeController(revealOnUp: true);
+
+  @override
+  void dispose() {
+    _chrome.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
-    final search = Column(
-      children: [
-        MineSearchBar(
-          search: _search,
-          onChanged: (v) => setState(() => _search = v),
-        ),
-        MineActiveFilters(
-          search: _search,
-          onChanged: (v) => setState(() => _search = v),
-        ),
-      ],
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final qa = ref.watch(legalQaEnabledProvider);
+    final filters = MineActiveFilters(
+      search: _search,
+      onChanged: (v) => setState(() => _search = v),
     );
-    final sections = Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: FilterChips<_BidsSection>(
-        key: const ValueKey('bids-sections'),
-        value: _section,
-        options: [
-          (_BidsSection.active, t.t('mine.filter.active')),
-          (_BidsSection.work, t.t('mine.tab.inWork')),
-          (_BidsSection.completed, t.t('mine.tab.completed')),
-          (_BidsSection.saved, t.t('mine.tab.saved')),
-        ],
-        onChanged: (v) => setState(() => _section = v),
+    // Owner 2026-10-15: «Saved» is a bookmark right of the search.
+    final saved = AppIconButton(
+      key: const ValueKey('mine-saved-toggle'),
+      compact: true,
+      icon: AppIcon(
+        _saved ? AppIcons.bookmarkRounded : AppIcons.bookmarkBorderRounded,
+        color: _saved ? colors.iconTint : colors.text,
       ),
+      semanticLabel: t.t('mine.tab.saved'),
+      onPressed: () => setState(() => _saved = !_saved),
     );
-    final Widget grid = switch (_section) {
-      // Bids waiting for the client.
-      _BidsSection.active => _BidsGrid(
-          key: const ValueKey('active'),
-          filter: MyBidsFilter.active,
-          search: _search,
-        ),
-      _BidsSection.work || _BidsSection.completed => _WorkGrid(
-          key: ValueKey(_section.name),
-          filter: _section == _BidsSection.work
-              ? WorkFilter.active
-              : WorkFilter.closed,
-          search: _search,
-        ),
-      _BidsSection.saved => _AttorneySaved(
-          key: const ValueKey('saved'),
-          search: _search,
-          searchBar: const SizedBox.shrink(),
-        ),
-    };
-    final Widget body = switch (_tab) {
-      _AttorneyTab.bids => Column(
-          key: const ValueKey('bids'),
-          children: [
-            search,
-            sections,
-            const SizedBox(height: AppSpacing.sm),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: context.reduceMotion
-                    ? Duration.zero
-                    : AppMotion.stateChange,
-                child: grid,
-              ),
+    // Owner 2026-10-16: the section chips, the search and «Saved» share one
+    // row; the invitations switch stays under it.
+    final topRow = MineChipsSearchRow(
+      search: _search,
+      onChanged: (v) => setState(() => _search = v),
+      action: saved,
+      hintKey: _saved
+          // Owner 2026-10-20: the saved chats have their own caption.
+          ? (_savedKind == _SavedKind.chats
+              ? 'saved.search'
+              : 'mine.search.saved')
+          : _section == AttorneyCasesSection.active
+              ? 'mine.search.hint'
+              : 'mine.search.bids',
+      chips: _saved
+          ? null
+          : FilterChips<AttorneyCasesSection>(
+              key: const ValueKey('bids-sections'),
+              compact: true,
+              padding: EdgeInsets.zero,
+              value: _section,
+              options: [
+                (AttorneyCasesSection.active, t.t('mine.filter.active')),
+                (AttorneyCasesSection.bids, t.t('mine.bids.title')),
+                (AttorneyCasesSection.invites, t.t('invites.section')),
+                (AttorneyCasesSection.completed, t.t('mine.chip.done')),
+              ],
+              onChanged: (v) => setState(() => _section = v),
             ),
-          ],
-        ),
-      _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
-    };
-    return Column(
-      children: [
-        PillTabs<_AttorneyTab>(
-          value: _tab,
-          tabs: [
-            (_AttorneyTab.planner, t.t('mine.tab.tasks')),
-            (_AttorneyTab.bids, t.t('mine.tab.myBids')),
-          ],
-          onChanged: (v) => setState(() => _tab = v),
-        ),
-        Expanded(
-          child: TabSwipe<_AttorneyTab>(
+    );
+    Widget gridFor(AttorneyCasesSection section) => switch (section) {
+          // The cases in work.
+          AttorneyCasesSection.active => _WorkGrid(
+              key: const ValueKey('active'),
+              filter: WorkFilter.active,
+              search: _search,
+              cards: true,
+            ),
+          // My bids: the ones waiting for the client and the rest of the
+          // open ones (the old «Waiting» chip was this same list).
+          AttorneyCasesSection.bids => _BidsGrid(
+              key: const ValueKey('waiting'),
+              filter: MyBidsFilter.active,
+              search: _search,
+            ),
+          AttorneyCasesSection.invites =>
+            const InvitesList(key: ValueKey('invites')),
+          // Chosen and finished, declined, withdrawn, expired — everything
+          // that is over.
+          AttorneyCasesSection.completed => _BidsGrid(
+              key: const ValueKey('completed'),
+              filter: MyBidsFilter.completed,
+              search: _search,
+            ),
+        };
+    // Owner 2026-10-22: Active | Bids | Completed swipe like the tabs.
+    final Widget grid = _saved
+        ? _AttorneySaved(
+            key: const ValueKey('saved'),
+            search: _search,
+            searchBar: const SizedBox.shrink(),
+            kind: _savedKind,
+            onKind: (v) => setState(() => _savedKind = v),
+          )
+        : SwipePages<AttorneyCasesSection>(
+            value: _section,
+            values: AttorneyCasesSection.values,
+            onChanged: (v) => setState(() => _section = v),
+            pageBuilder: (_, section) => gridFor(section),
+          );
+    Widget pageFor(_AttorneyTab tab) => switch (tab) {
+          _AttorneyTab.cases => Column(
+              key: const ValueKey('cases'),
+              children: [
+                // Owner 2026-10-15: the filter chips hide on scroll down and
+                // return on scroll up.
+                ChromeCollapse(
+                  child: Column(
+                    children: [
+                      topRow,
+                      filters,
+                      const DeadlineMineEntry(),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    // Owner 2026-10-19 («мигание»): loading, data and
+                    // tab bodies swap at once (Instagram), no cross-fade.
+                    duration: Duration.zero,
+                    child: grid,
+                  ),
+                ),
+              ],
+            ),
+          _AttorneyTab.planner => const TasksTab(key: ValueKey('planner')),
+          _AttorneyTab.qa => const _QaTabPage(),
+        };
+    return FeedChrome(
+      controller: _chrome,
+      child: Column(
+        children: [
+          const RunningTimerChip(),
+          PillTabs<_AttorneyTab>(
             value: _tab,
-            values: _AttorneyTab.values,
+            tabs: [
+              (_AttorneyTab.cases, t.t('mine.tab.cases')),
+              (_AttorneyTab.planner, t.t('mine.tab.tasks')),
+              if (qa) (_AttorneyTab.qa, t.t('mine.tab.qa')),
+            ],
             onChanged: (v) => setState(() => _tab = v),
-            child: AnimatedSwitcher(
-              duration:
-                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-              child: body,
+          ),
+          Expanded(
+            // Owner 2026-10-19 (Instagram): the sections are pages — the
+            // next one slides in with the finger, a tap slides to it.
+            child: SwipePages<_AttorneyTab>(
+              value: _tab,
+              values: [
+                for (final v in _AttorneyTab.values)
+                  if (v != _AttorneyTab.qa || qa) v,
+              ],
+              onChanged: (v) => setState(() => _tab = v),
+              pageBuilder: (_, tab) => pageFor(tab),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -340,11 +462,12 @@ class _BidsGrid extends ConsumerWidget {
       empty: AppEmptyState(
         icon: AppIcons.gavelRounded,
         message: mineEmpty(
-            t,
-            search,
-            filter == MyBidsFilter.active
-                ? 'mine.bids.emptyActive'
-                : 'mine.bids.emptyFinished'),
+          t,
+          search,
+          filter == MyBidsFilter.active
+              ? 'mine.bids.emptyActive'
+              : 'mine.bids.emptyFinished',
+        ),
         action: filter == MyBidsFilter.active && search.isEmpty
             ? AppButton(
                 label: t.t('mine.bids.findCases'),
@@ -354,26 +477,25 @@ class _BidsGrid extends ConsumerWidget {
               )
             : null,
       ),
-      tileOf: (b) {
-        final (label, tone) = bidStatusOf(t, b.bid, PartyRole.attorney);
-        return MineTileData(
-          title: b.caseTitle,
-          statusLabel: label,
-          statusTone: tone,
-          coverUrl: b.coverUrl,
-          practiceCode: b.casePracticeCode,
-          onTap: () => context.push(AppRoutes.bid(b.bid.id)),
-        );
-      },
+      edgeToEdge: true,
+      rowOf: (b) => AttorneyBidCard(item: b),
     );
   }
 }
 
 class _WorkGrid extends ConsumerWidget {
-  const _WorkGrid({required this.filter, required this.search, super.key});
+  const _WorkGrid({
+    required this.filter,
+    required this.search,
+    this.cards = false,
+    super.key,
+  });
 
   final WorkFilter filter;
   final MineSearch search;
+
+  /// «Active»: cards with the progress scale instead of tiles.
+  final bool cards;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -391,33 +513,43 @@ class _WorkGrid extends ConsumerWidget {
             ? AppIcons.workOutlineRounded
             : AppIcons.historyRounded,
         message: mineEmpty(
-            t,
-            search,
-            filter == WorkFilter.active
-                ? 'mine.work.empty'
-                : 'mine.work.completedEmpty'),
+          t,
+          search,
+          filter == WorkFilter.active
+              ? 'mine.work.empty'
+              : 'mine.work.completedEmpty',
+        ),
       ),
-      tileOf: (w) => MineTileData(
-        title: w.title,
-        statusLabel: caseStatusLabel(t, w.status),
-        statusTone: caseTone(w.status),
-        coverUrl: w.coverUrl,
-        practiceCode: w.practiceCode,
-        onTap: () => context.push(AppRoutes.workCase(w.caseId)),
-      ),
+      edgeToEdge: cards,
+      rowOf: cards ? (w) => AttorneyActiveCaseCard(item: w) : null,
+      tileOf: cards
+          ? null
+          : (w) => MineTileData(
+                title: w.title,
+                statusLabel: caseStatusLabel(t, w.status),
+                statusTone: caseTone(w.status),
+                coverUrl: w.coverUrl,
+                practiceCode: w.practiceCode,
+                onTap: () => context.push(AppRoutes.workCase(w.caseId)),
+              ),
     );
   }
 }
 
-enum _SavedKind { cases, posts }
+enum _SavedKind { cases, posts, chats }
 
 /// "Saved" for attorneys: saved cases (a grid, searchable) and posts.
 class _AttorneySaved extends ConsumerStatefulWidget {
   const _AttorneySaved({
     required this.search,
     required this.searchBar,
+    required this.kind,
+    required this.onKind,
     super.key,
   });
+
+  final _SavedKind kind;
+  final ValueChanged<_SavedKind> onKind;
 
   final MineSearch search;
   final Widget searchBar;
@@ -427,7 +559,7 @@ class _AttorneySaved extends ConsumerStatefulWidget {
 }
 
 class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
-  _SavedKind _kind = _SavedKind.cases;
+  _SavedKind get _kind => widget.kind;
 
   @override
   Widget build(BuildContext context) {
@@ -441,22 +573,34 @@ class _AttorneySavedState extends ConsumerState<_AttorneySaved> {
           options: [
             (_SavedKind.cases, t.t('mine.saved.cases')),
             (_SavedKind.posts, t.t('mine.saved.posts')),
+            // Owner 2026-10-20: messages, files and links kept from chats.
+            (_SavedKind.chats, t.t('inbox.tab.chats')),
           ],
-          onChanged: (v) => setState(() => _kind = v),
+          onChanged: widget.onKind,
         ),
         const SizedBox(height: AppSpacing.sm),
+        // Owner 2026-10-19 (Instagram): cases and posts slide side by side.
         Expanded(
-          child: _kind == _SavedKind.cases
-              ? _SavedGrid(search: widget.search)
-              : const SavedPostsList(),
+          child: SwipePages<_SavedKind>(
+            value: _kind,
+            values: _SavedKind.values,
+            onChanged: widget.onKind,
+            pageBuilder: (_, kind) => switch (kind) {
+              _SavedKind.cases => SavedCasesGrid(search: widget.search),
+              _SavedKind.posts => const SavedPostsList(),
+              _SavedKind.chats => SavedChatsView(query: widget.search.q),
+            },
+          ),
         ),
       ],
     );
   }
 }
 
-class _SavedGrid extends ConsumerWidget {
-  const _SavedGrid({required this.search});
+/// The attorney's saved cases (a grid). Owner 2026-10-22: also the «Дела»
+/// tab of Settings → «Сохранённое».
+class SavedCasesGrid extends ConsumerWidget {
+  const SavedCasesGrid({this.search = const MineSearch(), super.key});
 
   final MineSearch search;
 
@@ -499,49 +643,6 @@ class _SavedGrid extends ConsumerWidget {
   }
 }
 
-/// Saved cases of an attorney (docs/04 §11.2).
-class SavedCasesList extends ConsumerWidget {
-  const SavedCasesList({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ref.watch(translatorProvider);
-    final formats = ref.watch(l10nFormatsProvider);
-    final value = ref.watch(savedCasesProvider);
-    final n = ref.read(savedCasesProvider.notifier);
-    return PagedListBody<SavedCase>(
-      value: value,
-      t: t,
-      itemKey: (s) => s.caseId,
-      onRefresh: n.refresh,
-      onLoadMore: n.loadMore,
-      onRetryMore: n.retryLoadMore,
-      header: const SizedBox(height: AppSpacing.xs),
-      empty: AppEmptyState(
-        icon: AppIcons.bookmarkOutlineRounded,
-        message: t.t('mine.saved.empty'),
-      ),
-      itemBuilder: (context, s, _) => s.available && s.card != null
-          ? FeedCaseCard(
-              item: s.card!,
-              t: t,
-              formats: formats,
-              onTap: () => context.push(AppRoutes.caseDetail(s.caseId)),
-            )
-          : UnavailableCaseCard(
-              title: s.title,
-              t: t,
-              onRemove: () async {
-                await ref
-                    .read(caseActionsProvider)
-                    .setSaved(s.caseId, saved: false);
-                n.removeWhere((x) => x.caseId == s.caseId);
-              },
-            ),
-    );
-  }
-}
-
 /// "Завершённые" (docs/04 §11.2): the attorney's closed cases.
 class CompletedWorkScreen extends ConsumerWidget {
   const CompletedWorkScreen({super.key});
@@ -570,8 +671,9 @@ class CompletedWorkScreen extends ConsumerWidget {
         onLoadMore: n.loadMore,
         onRetryMore: n.retryLoadMore,
         empty: AppEmptyState(
-            icon: AppIcons.historyRounded,
-            message: t.t('mine.work.completedEmpty')),
+          icon: AppIcons.historyRounded,
+          message: t.t('mine.work.completedEmpty'),
+        ),
         itemBuilder: (context, w, _) => WorkCard(
           item: w,
           t: t,

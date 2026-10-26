@@ -1,13 +1,23 @@
 import {
+  Req,
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Post,
   Query,
+  ServiceUnavailableException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -22,6 +32,10 @@ import {
   CheckoutRequestDto,
   CheckoutSessionDto,
   SetSeatsDto,
+  SeatCheckoutDto,
+  SeatChangeResultDto,
+  SeatPreviewDto,
+  SeatPreviewRequestDto,
   CompleteCheckoutDto,
   ConfirmSubscriptionDto,
   PaymentDto,
@@ -31,7 +45,10 @@ import {
   SubscriptionMeDto,
   type PaymentsPage,
 } from './billing.dto';
+import type { Request } from 'express';
+import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { SeatsService } from './seats.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -41,14 +58,24 @@ const ATTORNEY_ERRORS = {
 };
 
 /** docs/06 §1.4 — the attorney's subscription (mobile). */
+
+/** A client Idempotency-Key (UUID or similar). */
+const IDEMPOTENCY_KEY_RE = /^[\w.:-]{8,200}$/;
 @ApiTags('subscriptions')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
 @AttorneyOnly()
 @Controller('subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly subscriptions: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptions: SubscriptionsService,
+    private readonly payPage: PayPageService,
+    private readonly seats: SeatsService,
+  ) {}
 
+  // Security research #5 (2026-10-22), A11: card testing — a stolen-card
+  // script creating checkouts in a loop (each attempt costs a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('checkout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -58,13 +85,29 @@ export class SubscriptionsController {
   @ApiEnvelopeResponse(CheckoutSessionDto)
   @ApiErrors({
     ...ATTORNEY_ERRORS,
-    400: [E.VALIDATION_ERROR],
+    400: [E.VALIDATION_ERROR, E.PROMO_CODE_INVALID],
     409: [E.SUBSCRIPTION_ALREADY_ACTIVE],
   })
-  createCheckout(
+  async createCheckout(
     @CurrentUser() user: RequestUser,
     @Body() dto: CheckoutRequestDto,
+    @Req() req: Request,
   ): Promise<CheckoutSessionDto> {
+    // Owner 2026-10-16: our own card page when it is switched on and the
+    // public Stripe key is known; otherwise Stripe's hosted page.
+    if (await this.payPage.enabled()) {
+      const quote = await this.subscriptions.quote(user, dto);
+      const apiBase = `${req.protocol}://${req.get('host')}/api/v1`;
+      const link = await this.payPage.link(user, dto, apiBase);
+      return {
+        url: link.url,
+        sessionId: link.id,
+        trialEligible: quote.trialEligible,
+        priceCents: quote.priceCents,
+        trialDays: quote.trialDays,
+        ...(quote.promo ? { promo: quote.promo } : {}),
+      };
+    }
     return this.subscriptions.checkout(user, dto);
   }
 
@@ -83,23 +126,90 @@ export class SubscriptionsController {
     return this.subscriptions.switchToYearly(user);
   }
 
-  @Post('seats')
+  @Post('seats/preview')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Monthly plan: set the number of assistant seats (OQ-048)',
+    summary:
+      'What buying seats costs now (prorated rest of the period) and per month after (owner 2026-10-22)',
   })
-  @ApiEnvelopeResponse(SubscriptionMeDto)
+  @ApiEnvelopeResponse(SeatPreviewDto)
   @ApiErrors({
     ...ATTORNEY_ERRORS,
     400: [E.VALIDATION_ERROR],
     404: [E.SUBSCRIPTION_NOT_FOUND],
-    409: [E.SUBSCRIPTION_PLAN_INCLUDES_SEATS, E.ASSISTANT_SEATS_IN_USE],
+    409: [
+      E.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+      E.SEATS_TRIAL_NOT_ALLOWED,
+      E.SEATS_NOT_PAID_YET,
+    ],
+  })
+  previewSeats(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SeatPreviewRequestDto,
+  ): Promise<SeatPreviewDto> {
+    return this.seats.preview(user, dto.seats);
+  }
+
+  @Post('seats')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Set the extra assistant seats: more = charged now (3-D Secure may be asked), fewer = from the period end, no refund (owner 2026-10-22)',
+  })
+  @ApiEnvelopeResponse(SeatChangeResultDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    400: [E.VALIDATION_ERROR],
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [
+      E.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+      E.ASSISTANT_SEATS_IN_USE,
+      E.SEATS_TRIAL_NOT_ALLOWED,
+      E.SEATS_NOT_PAID_YET,
+      E.SEATS_PREVIEW_STALE,
+    ],
   })
   setSeats(
     @CurrentUser() user: RequestUser,
     @Body() dto: SetSeatsDto,
-  ): Promise<SubscriptionMeDto> {
-    return this.subscriptions.setSeats(user, dto.seats);
+  ): Promise<SeatChangeResultDto> {
+    return this.seats.set(user, dto.seats, dto.prorationDate);
+  }
+
+  // Security research #5 (2026-10-22), A11: card testing — a stolen-card
+  // script creating checkouts in a loop (each attempt costs a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('seats/checkout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'A one-time link to the card page for buying seats in the browser (iPhone, owner 2026-10-22)',
+  })
+  @ApiEnvelopeResponse(SeatCheckoutDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    400: [E.VALIDATION_ERROR],
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [
+      E.SUBSCRIPTION_PLAN_INCLUDES_SEATS,
+      E.SEATS_TRIAL_NOT_ALLOWED,
+      E.SEATS_NOT_PAID_YET,
+    ],
+  })
+  async seatsCheckout(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SeatPreviewRequestDto,
+    @Req() req: Request,
+  ): Promise<SeatCheckoutDto> {
+    if (!(await this.payPage.enabled())) {
+      throw new ServiceUnavailableException({
+        code: E.PAYMENTS_NOT_CONFIGURED,
+        message: 'The card page is not configured.',
+      });
+    }
+    const apiBase = `${req.protocol}://${req.get('host')}/api/v1`;
+    const link = await this.payPage.seatsLink(user, dto.seats, apiBase);
+    return { url: link.url, sessionId: link.id };
   }
 
   @Post('checkout/complete')
@@ -125,8 +235,9 @@ export class SubscriptionsController {
   @ApiErrors({ ...ATTORNEY_ERRORS, 409: [E.SUBSCRIPTION_ALREADY_ACTIVE] })
   startSubscription(
     @CurrentUser() user: RequestUser,
+    @Body() dto: CheckoutRequestDto,
   ): Promise<StartSubscriptionResultDto> {
-    return this.subscriptions.start(user);
+    return this.subscriptions.start(user, dto);
   }
 
   @Post('confirm')
@@ -135,6 +246,9 @@ export class SubscriptionsController {
     summary:
       'Card confirmed → create the subscription (7-day trial when eligible)',
   })
+  // Optional: older apps send no key (the server then makes its own).
+  // Lower case: the same parameter as the @Headers() below, not a second one.
+  @ApiHeader({ name: 'idempotency-key', required: false })
   @ApiEnvelopeResponse(SubscriptionMeDto)
   @ApiErrors({
     ...ATTORNEY_ERRORS,
@@ -148,18 +262,36 @@ export class SubscriptionsController {
   confirmSubscription(
     @CurrentUser() user: RequestUser,
     @Body() dto: ConfirmSubscriptionDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<SubscriptionMeDto> {
+    // Audit #15: the client's key for this checkout attempt (optional).
+    if (
+      idempotencyKey !== undefined &&
+      !IDEMPOTENCY_KEY_RE.test(idempotencyKey)
+    ) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Idempotency-Key must be 8-200 letters, digits, - _ . :',
+        details: { field: 'Idempotency-Key' },
+      });
+    }
     return this.subscriptions.confirm(
       user,
       dto.setupIntentId,
       dto.chargeNow === true,
+      idempotencyKey,
     );
   }
 
   @Get('me')
   @ApiOperation({ summary: 'Current subscription and access verdict' })
   @ApiEnvelopeResponse(SubscriptionMeDto)
-  mySubscription(@CurrentUser() user: RequestUser): Promise<SubscriptionMeDto> {
+  async mySubscription(
+    @CurrentUser() user: RequestUser,
+  ): Promise<SubscriptionMeDto> {
+    // Owner 2026-10-22: a removed seat whose period ended drops here too
+    // when the renewal webhook is late.
+    await this.seats.applyDueDecrease(user.sub);
     return this.subscriptions.me(user);
   }
 

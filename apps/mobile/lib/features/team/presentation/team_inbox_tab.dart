@@ -64,7 +64,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
         Expanded(
           child: RefreshIndicator(
             color: colors.gold,
-            backgroundColor: colors.surface,
+            backgroundColor: colors.sheet,
             onRefresh: () => ref.read(teamRequestsProvider.notifier).refresh(),
             child: _requests(t, formats),
           ),
@@ -152,15 +152,29 @@ class _RejectDialogState extends State<_RejectDialog> {
   @override
   Widget build(BuildContext context) {
     final t = widget.t;
-    return AlertDialog(
+    return AppAlertDialog(
       title: Text(t.t('team.reject')),
-      content: TextField(
-        onTapOutside: hideKeyboardOnTapOutside,
-        key: const ValueKey('reject-note'),
+      // Owner 2026-10-19: the «n/500» counter inside the field.
+      content: InsideCounter(
         controller: _note,
-        maxLength: 500,
-        maxLines: 3,
-        decoration: InputDecoration(hintText: t.t('team.note')),
+        max: 500,
+        child: TextField(
+          onTapOutside: hideKeyboardOnTapOutside,
+          key: const ValueKey('reject-note'),
+          controller: _note,
+          maxLength: 500,
+          maxLines: 3,
+          buildCounter: noFieldCounter,
+          decoration: InputDecoration(
+            hintText: t.t('team.note'),
+            contentPadding: const EdgeInsetsDirectional.fromSTEB(
+              12,
+              20,
+              12,
+              12 + kInsideCounterRoom,
+            ),
+          ),
+        ),
       ),
       actions: [
         TextButton(
@@ -170,7 +184,8 @@ class _RejectDialogState extends State<_RejectDialog> {
         TextButton(
           key: const ValueKey('reject-confirm'),
           onPressed: () => Navigator.of(context).pop(
-              (note: _note.text.trim().isEmpty ? null : _note.text.trim(),)),
+            (note: _note.text.trim().isEmpty ? null : _note.text.trim(),),
+          ),
           child: Text(t.t('team.reject')),
         ),
       ],

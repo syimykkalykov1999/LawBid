@@ -1,28 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/cases/presentation/widgets/case_photos.dart';
-import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
+    show routeSubscriptionError;
+import 'package:lawbid/features/cases/presentation/widgets/active_case_cards.dart'
+    show caseStageOf;
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_parts.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:lawbid/features/cases/presentation/widgets/client_review_sheet.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
-import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart'
-    show routeSubscriptionError;
+import 'package:lawbid/features/cases/presentation/widgets/private_details_card.dart';
+import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart'
+    show initialsOf;
+import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// docs/04 §8 + §11.2 "В работе": the case, the client's contacts (locked
 /// behind the subscription, §8.3), "Не могу связаться" (§8.4) and, in
@@ -69,6 +79,22 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
     }
   }
 
+  Future<void> _complete() async {
+    final t = ref.read(translatorProvider);
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('cases.work.completeTitle'),
+      message: t.t('cases.work.completeMessage'),
+      confirmLabel: t.t('cases.work.complete'),
+    );
+    if (!ok) return;
+    await _run(
+      () => ref.read(caseActionsProvider).completeAsAttorney(widget.caseId),
+      'cases.work.completed',
+    );
+  }
+
   Future<void> _confirm() async {
     final t = ref.read(translatorProvider);
     final ok = await showConfirmSheet(
@@ -80,8 +106,9 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
     );
     if (!ok) return;
     await _run(
-        () => ref.read(caseActionsProvider).confirmCompletion(widget.caseId),
-        'cases.work.confirmed');
+      () => ref.read(caseActionsProvider).confirmCompletion(widget.caseId),
+      'cases.work.confirmed',
+    );
   }
 
   Future<void> _dispute() async {
@@ -94,8 +121,9 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
     );
     if (reason == null) return;
     await _run(
-        () => ref.read(caseActionsProvider).dispute(widget.caseId, reason),
-        'cases.work.disputed');
+      () => ref.read(caseActionsProvider).dispute(widget.caseId, reason),
+      'cases.work.disputed',
+    );
   }
 
   Future<void> _cantReach() async {
@@ -150,6 +178,132 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
             _TextSheet(title: title, label: label, submit: submit, min: min),
       );
 
+  Widget _workspace(
+    BuildContext context,
+    FeedCase c,
+    Translator t,
+    L10nFormats formats,
+    AppColorTokens colors,
+    bool pending,
+  ) {
+    final category = CaseFormat.practice(
+      t,
+      c.practice.categoryI18nKey ?? c.practice.i18nKey,
+      c.practice.categoryNameEn ?? c.practice.nameEn,
+    );
+    final leaf = CaseFormat.practice(t, c.practice.i18nKey, c.practice.nameEn);
+    EdgeInsets side(double top) => EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          top,
+          AppSpacing.lg,
+          0,
+        );
+    return CaseWorkspaceBody(
+      caseId: c.id,
+      isAttorney: true,
+      chips: [category, if (leaf != category) leaf],
+      statusLabel: c.status == CaseStatus.inProgress
+          ? t.t('cases.status.acceptedByBoth')
+          : caseStatusLabel(t, c.status),
+      title: c.title,
+      states: [c.primaryStateCode, ...c.additionalStateCodes],
+      budget: c.budget,
+      urgency: c.urgencyInfo,
+      onRefresh: _refresh,
+      categoryCode: c.practice.artCode,
+      statusTone: caseTone(c.status),
+      stage: caseStageOf(c.status, c.bidsCount),
+      publishedAt: c.createdAt,
+      overview: [
+        if (pending)
+          Padding(
+            padding: side(AppSpacing.md),
+            child: NoticeCard(
+              icon: AppIcons.hourglassTopRounded,
+              message: t.t(
+                c.completionRequestedBy == 'attorney'
+                    ? 'cases.work.waitingClientNotice'
+                    : 'cases.work.pendingNotice',
+              ),
+            ),
+          ),
+        if (c.status == CaseStatus.disputed)
+          Padding(
+            padding: side(AppSpacing.md),
+            child: NoticeCard(
+              icon: AppIcons.policyOutlined,
+              tone: StatusTone.danger,
+              message: t.t('cases.work.disputedNotice'),
+            ),
+          ),
+        Padding(
+          padding: side(AppSpacing.lg),
+          child: _ContactsBlock(
+            caseId: c.id,
+            t: t,
+            formats: formats,
+            onOpenChat: () => _openChat(t),
+          ),
+        ),
+        CaseText(
+          text: c.description ?? '',
+          moreLabel: t.t('post.more'),
+        ),
+        // Audit 2026-10-19: the client's «Подробности» for the hired
+        // attorney, as text.
+        PrivateDetailsCard(
+          caseId: c.id,
+          text: c.privateDetails,
+          isOwner: false,
+        ),
+        if (c.ownBidId != null)
+          Padding(
+            padding: side(AppSpacing.lg),
+            child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
+          ),
+        Padding(
+          padding: side(AppSpacing.lg),
+          child: CasePaymentsCard(caseId: c.id, asAttorney: true),
+        ),
+        // OQ-038: the hired attorney reviews the client (audit 2026-10-02:
+        // in person — not an assistant in their name).
+        if (!ref.watch(isAssistantProvider))
+          Padding(
+            padding: side(AppSpacing.md),
+            child: ClientReviewAction(caseId: c.id),
+          ),
+        Padding(
+          padding: side(AppSpacing.lg),
+          child: Text(
+            t.t('cases.overview.meta', {
+              'published': formats.date(c.createdAt),
+              'accepted': formats.date(c.createdAt),
+              'bids': '${c.bidsCount}',
+            }),
+            style: Theme.of(context)
+                .extension<AppTypographyTokens>()!
+                .caption
+                .copyWith(color: colors.textSecondary),
+          ),
+        ),
+        // Audit 2026-10-19: the client's Overview had the case questions,
+        // the hired attorney's had no way to them.
+        AppListRow(
+          icon: AppIcons.modeCommentOutlined,
+          label: t.t('cases.comments.button'),
+          onTap: () => context.push(AppRoutes.caseComments(c.id)),
+        ),
+        // Owner 2026-10-20: the deadline calculator, prefilled.
+        CaseDeadlinesRow(
+          caseId: c.id,
+          stateCode: c.primaryStateCode,
+          practiceCategory: c.practice.artCode,
+          padding: side(AppSpacing.md),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
@@ -172,6 +326,14 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
               context.canPop() ? context.pop() : context.go(AppRoutes.mine),
         ),
         title: Text(t.t('cases.work.title')),
+        actions: [
+          if (active)
+            TopBarIcon(
+              icon: AppIcons.moreHorizRounded,
+              label: t.t('cases.owner.actions'),
+              onTap: () => _menu(c, t),
+            ),
+        ],
       ),
       body: AsyncDetailBody<FeedCase>(
         value: value,
@@ -179,106 +341,66 @@ class _WorkCaseScreenState extends ConsumerState<WorkCaseScreen> {
         onRetry: _refresh,
         builder: (c) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: kDetailPadding,
-            children: [
-              CaseHeader(
-                practice: CaseFormat.practice(
-                    t, c.practice.i18nKey, c.practice.nameEn),
-                title: c.title,
-                status: c.status,
-                meta: CaseFormat.place(
-                    c.city, c.primaryStateCode, c.additionalStateCodes.length),
-                t: t,
-              ),
-              if (pending) ...[
-                const SizedBox(height: AppSpacing.lg),
-                NoticeCard(
-                    icon: AppIcons.hourglassTopRounded,
-                    message: t.t('cases.work.pendingNotice')),
-              ],
-              if (c.status == CaseStatus.disputed) ...[
-                const SizedBox(height: AppSpacing.lg),
-                NoticeCard(
-                  icon: AppIcons.policyOutlined,
-                  tone: StatusTone.danger,
-                  message: t.t('cases.work.disputedNotice'),
-                ),
-              ],
-              DetailSection(
-                title: t.t('cases.contacts.title'),
-                child: _ContactsBlock(
-                  caseId: c.id,
-                  t: t,
-                  formats: formats,
-                  onOpenChat: () => _openChat(t),
-                ),
-              ),
-              if (c.ownBidId != null)
-                DetailSection(
-                  title: t.t('cases.work.terms'),
-                  child: _TermsLine(bidId: c.ownBidId!, t: t, formats: formats),
-                ),
-              // OQ-038: the hired attorney reviews the client.
-              ClientReviewAction(caseId: c.id),
-              DetailSection(
-                title: t.t('cases.detail.description'),
-                child: Text(
-                  c.description ?? '',
-                  style: Theme.of(context)
-                      .extension<AppTypographyTokens>()!
-                      .body
-                      .copyWith(color: colors.text),
-                ),
-              ),
-              // OQ-031: the accepted attorney sees the case photos.
-              if (c.photosCount > 0)
-                DetailSection(
-                  title: t.t('cases.photos.title'),
-                  child: CasePhotosStrip(
-                    photos: c.photos,
-                    hiddenCount: c.photosCount,
-                  ),
-                ),
-            ],
-          ),
+          child: _workspace(context, c, t, formats, colors, pending),
         ),
       ),
       bottomNavigationBar: !active
           ? null
           : BottomActionBar(
               children: [
-                if (pending)
-                  AppButton(
-                    label: t.t('cases.work.confirm'),
-                    icon: AppIcons.taskAltRounded,
-                    isLoading: _busy,
-                    onPressed: _confirm,
-                  ),
-                if (pending)
-                  AppButton(
-                    label: t.t('cases.work.dispute'),
-                    variant: AppButtonVariant.secondary,
-                    onPressed: _busy ? null : _dispute,
-                  ),
                 AppButton(
-                  label: t.t('cases.issue.button'),
-                  icon: AppIcons.phoneDisabledOutlined,
-                  variant: AppButtonVariant.secondary,
-                  onPressed: _busy ? null : _cantReach,
+                  label: t.t('cases.work.chatWithClient'),
+                  icon: AppIcons.chatBubbleOutlineRounded,
+                  isLoading: _opening,
+                  onPressed: () => _openChat(t),
                 ),
               ],
             ),
     );
   }
+
+  /// "…": marking the case done and the rare actions.
+  void _menu(FeedCase c, Translator t) {
+    final pending = c.status == CaseStatus.pendingCompletion;
+    final canBids = ref.read(canDoProvider(AssistantDuty.bids));
+    showActionSheet(context, [
+      // Audit 2026-10-02: an assistant confirms or disputes only with
+      // "bids". Owner 2026-10-02: either side may mark "Done" first.
+      if (c.status == CaseStatus.inProgress && canBids)
+        ActionSheetItem(
+          icon: AppIcons.taskAltRounded,
+          label: t.t('cases.work.complete'),
+          onTap: _complete,
+        ),
+      if (pending && c.completionRequestedBy == 'client' && canBids) ...[
+        ActionSheetItem(
+          icon: AppIcons.taskAltRounded,
+          label: t.t('cases.work.confirm'),
+          onTap: _confirm,
+        ),
+        ActionSheetItem(
+          icon: AppIcons.policyOutlined,
+          label: t.t('cases.work.dispute'),
+          onTap: _dispute,
+        ),
+      ],
+      ActionSheetItem(
+        icon: AppIcons.phoneDisabledOutlined,
+        label: t.t('cases.issue.button'),
+        onTap: _cantReach,
+      ),
+    ]);
+  }
 }
 
 class _TermsLine extends ConsumerWidget {
-  const _TermsLine(
-      {required this.bidId, required this.t, required this.formats});
+  const _TermsLine({
+    required this.bidId,
+    required this.t,
+    required this.formats,
+  });
 
   final String bidId;
   final Translator t;
@@ -293,11 +415,20 @@ class _TermsLine extends ConsumerWidget {
       child: Row(
         children: [
           Expanded(
-              child: MoneyText(
-                  CaseFormat.terms(t, formats, bid.feeType, bid.amountCents))),
-          AppIcon(AppIcons.chevronRightRounded,
-              color:
-                  Theme.of(context).extension<AppColorTokens>()!.textSecondary),
+            child: MoneyText(
+              CaseFormat.terms(
+                t,
+                formats,
+                bid.feeType,
+                bid.amountCents,
+                percentBps: bid.percentBps,
+              ),
+            ),
+          ),
+          AppIcon(
+            AppIcons.chevronRightRounded,
+            color: Theme.of(context).extension<AppColorTokens>()!.textSecondary,
+          ),
         ],
       ),
     );
@@ -338,12 +469,18 @@ class _ContactsBlock extends ConsumerWidget {
               Row(
                 children: [
                   AppAvatar(
-                      initials: initialsOf(value.firstName, value.lastName),
-                      size: AppSizes.cardAvatar),
+                    initials: initialsOf(
+                      value.firstName,
+                      value.lastName,
+                      fallback: '·',
+                    ),
+                  ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Text(
                       value.fullName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: typography.roleTitle.copyWith(color: colors.text),
                     ),
                   ),
@@ -352,14 +489,16 @@ class _ContactsBlock extends ConsumerWidget {
               const SizedBox(height: AppSpacing.md),
               if (value.phone != null)
                 InfoRow(
-                    icon: AppIcons.callOutlined,
-                    label: t.t('cases.contacts.phone'),
-                    value: value.phone!),
+                  icon: AppIcons.callOutlined,
+                  label: t.t('cases.contacts.phone'),
+                  value: value.phone!,
+                ),
               if (value.email != null)
                 InfoRow(
-                    icon: AppIcons.alternateEmailRounded,
-                    label: t.t('cases.contacts.email'),
-                    value: value.email!),
+                  icon: AppIcons.alternateEmailRounded,
+                  label: t.t('cases.contacts.email'),
+                  value: value.email!,
+                ),
               if (value.contactMethod != null)
                 InfoRow(
                   icon: AppIcons.starOutlineRounded,
@@ -370,9 +509,10 @@ class _ContactsBlock extends ConsumerWidget {
               if (value.contactNote != null &&
                   value.contactNote!.trim().isNotEmpty)
                 InfoRow(
-                    icon: AppIcons.scheduleRounded,
-                    label: t.t('cases.contacts.note'),
-                    value: value.contactNote!),
+                  icon: AppIcons.scheduleRounded,
+                  label: t.t('cases.contacts.note'),
+                  value: value.contactNote!,
+                ),
               const SizedBox(height: AppSpacing.md),
               Row(
                 children: [
@@ -433,10 +573,20 @@ class _ContactsBlock extends ConsumerWidget {
                 context.push(AppRoutes.subscriptionRequiredFor('contacts')),
           ),
         ),
-      AsyncError(:final error) => CasesErrorView(
-          error: error,
-          t: t,
-          onRetry: () => ref.invalidate(clientContactsProvider(caseId)),
+      // Owner 2026-10-13: never a blank block — say why the contacts are
+      // not here and let the attorney retry.
+      AsyncError(:final error) => NoticeCard(
+          icon: AppIcons.lockOutlineRounded,
+          message: error is ApiException &&
+                  error.code == ApiErrorCodes.contactsLocked
+              ? t.t('cases.contacts.notShared')
+              : errorText(t, error),
+          action: AppButton(
+            label: t.t('error.retry'),
+            height: AppSizes.touchTarget,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => ref.invalidate(clientContactsProvider(caseId)),
+          ),
         ),
       _ => const AppContentCardSkeleton(),
     };
@@ -444,8 +594,11 @@ class _ContactsBlock extends ConsumerWidget {
 }
 
 class _ContactAction extends StatelessWidget {
-  const _ContactAction(
-      {required this.icon, required this.label, required this.onTap});
+  const _ContactAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -466,22 +619,30 @@ class _ContactAction extends StatelessWidget {
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(
-                minHeight: AppSizes.hitTarget + AppSpacing.md),
+              minHeight: AppSizes.hitTarget + AppSpacing.md,
+            ),
             decoration: BoxDecoration(
-              color: colors.goldTint,
+              color: colors.iconTintFill,
               borderRadius: BorderRadius.circular(AppRadii.field),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
+                AppIcon(icon, color: colors.iconTint, size: AppSizes.iconSm),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: typography.caption.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w600),
+                // Four actions share the row: a long label shrinks to fit.
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                  ),
+                  child: FitText(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: typography.caption.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -532,8 +693,10 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
             children: [
               const AppSheetHandle(),
               const SizedBox(height: AppSpacing.lg),
-              Text(t.t('cases.issue.title'),
-                  style: typography.titleMedium.copyWith(color: colors.text)),
+              Text(
+                t.t('cases.issue.title'),
+                style: typography.titleMedium.copyWith(color: colors.text),
+              ),
               const SizedBox(height: AppSpacing.md),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -551,15 +714,16 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
               AppTextField(
                 controller: _note,
                 label: t.t('cases.issue.comment'),
+                tapAnywhere: true,
                 maxLines: 3,
-                maxLength: 1000,
+                maxLength: TextLimits.of(TextLimit.dispute),
                 textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: AppSpacing.lg),
               AppButton(
                 label: t.t('cases.issue.send'),
+                disabledHint: t.t('form.disabled.required'),
                 isEnabled: _type != null,
-                dimWhenDisabled: true,
                 onPressed: () =>
                     Navigator.of(context).pop((_type!, _note.text)),
               ),
@@ -572,11 +736,12 @@ class _ContactIssueSheetState extends State<_ContactIssueSheet> {
 }
 
 class _TextSheet extends StatefulWidget {
-  const _TextSheet(
-      {required this.title,
-      required this.label,
-      required this.submit,
-      required this.min});
+  const _TextSheet({
+    required this.title,
+    required this.label,
+    required this.submit,
+    required this.min,
+  });
 
   final String title;
   final String label;
@@ -614,15 +779,18 @@ class _TextSheetState extends State<_TextSheet> {
           children: [
             const AppSheetHandle(),
             const SizedBox(height: AppSpacing.lg),
-            Text(widget.title,
-                style: typography.titleMedium.copyWith(color: colors.text)),
+            Text(
+              widget.title,
+              style: typography.titleMedium.copyWith(color: colors.text),
+            ),
             const SizedBox(height: AppSpacing.md),
             AppTextField(
               controller: _text,
               label: widget.label,
               autofocus: true,
+              tapAnywhere: true,
               maxLines: 4,
-              maxLength: 1000,
+              maxLength: TextLimits.of(TextLimit.dispute),
               textCapitalization: TextCapitalization.sentences,
               onChanged: (_) => setState(() {}),
             ),
@@ -630,7 +798,6 @@ class _TextSheetState extends State<_TextSheet> {
             AppButton(
               label: widget.submit,
               isEnabled: _text.text.trim().length >= widget.min,
-              dimWhenDisabled: true,
               onPressed: () => Navigator.of(context).pop(_text.text.trim()),
             ),
           ],

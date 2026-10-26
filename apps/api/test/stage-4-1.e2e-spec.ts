@@ -9,7 +9,7 @@ import { CaseAccessPolicy } from '../src/modules/cases/policies/case-access.poli
 import { SubscriptionAccessService } from '../src/modules/subscriptions/subscription-access.service';
 
 /**
- * docs/04_CASES_BIDS.md §16 stage 4.1 acceptance against CockroachDB:
+ * docs/04_CASES_BIDS.md §16 stage 4.1 acceptance against PostgreSQL:
  * - a case change and its case_journal row commit or roll back together;
  * - the hash chain verifies (also under concurrent appends as lawbid_app),
  *   and tampering (edit / delete) is detected;
@@ -359,16 +359,16 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
           where: { id: row.id },
           data: { payload: { forged: true } },
         }),
-      ).rejects.toThrow(/privilege/i);
+      ).rejects.toThrow(/privilege|permission denied/i);
       await expect(
         appRole.caseJournal.delete({ where: { id: row.id } }),
-      ).rejects.toThrow(/privilege/i);
+      ).rejects.toThrow(/privilege|permission denied/i);
       await expect(
         appRole.$executeRaw`UPDATE case_journal SET row_hash = 'x' WHERE id = ${row.id}::UUID`,
-      ).rejects.toThrow(/privilege/i);
+      ).rejects.toThrow(/privilege|permission denied/i);
       await expect(
         appRole.$executeRaw`DELETE FROM case_journal WHERE case_id = ${caseId}::UUID`,
-      ).rejects.toThrow(/privilege/i);
+      ).rejects.toThrow(/privilege|permission denied/i);
       expect(await root.caseJournal.count({ where: { case_id: caseId } })).toBe(
         8,
       );
@@ -545,6 +545,7 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
         kind: 'attorney_prospect',
         clientIdentityVisible: false,
         inPractice: true,
+        inLicensedState: true,
       };
       // Owner 2026-09-30: other practices are visible (and biddable) in
       // licensed states, marked as outside the attorney's practices.
@@ -552,7 +553,14 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
 
       expect(await policy.decide(v(att), njSpeeding)).toEqual(prospect);
       expect(await policy.decide(v(att), nyPlusNj)).toEqual(prospect);
-      expect(await policy.decide(v(att), nySpeeding)).toBeNull(); // pending NY license
+      // Owner 2026-10-04: no verified licence in NY (only pending) — still
+      // visible and biddable, marked for the client.
+      expect(await policy.decide(v(att), nySpeeding)).toEqual({
+        kind: 'attorney_browser',
+        clientIdentityVisible: false,
+        inPractice: true,
+        inLicensedState: false,
+      });
       expect(await policy.decide(v(att), njDui)).toEqual(outside); // other practice
       expect(await policy.decide(v(att), njNotSure)).toEqual(outside);
       expect(await policy.decide(v(generalist), njNotSure)).toEqual(prospect); // §4.1 exception
@@ -574,6 +582,7 @@ describe('Stage 4.1 — state machines, journal, access policy (e2e)', () => {
         kind: 'attorney_participant',
         clientIdentityVisible: false,
         inPractice: false,
+        inLicensedState: true,
       });
       await root.case.update({
         where: { id: njSpeeding },

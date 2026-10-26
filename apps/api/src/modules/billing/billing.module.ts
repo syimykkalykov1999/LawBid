@@ -4,11 +4,19 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ClientBadgeCoreModule } from '../client-badge/client-badge.module';
+import { CasePaymentsCoreModule } from '../case-payments/case-payments.module';
+import { BidPacksCoreModule } from '../bid-packs/bid-packs.module';
+import { StarsCoreModule } from '../stars/stars.module';
+import { PromotionsCoreModule } from '../promotions/promotions.module';
+import { ReferralsCoreModule } from '../referrals/referrals.module';
+import { PartnersCoreModule } from '../partners/partners.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { AdminSubscriptionsController } from './admin-subscriptions.controller';
 import {
   BILLING_OPTIONS,
   type BillingModuleOptions,
+  fakeCheckoutAllowed,
   PAYMENT_PROVIDER,
 } from './billing.constants';
 import { BillingRunner } from './billing.runner';
@@ -20,7 +28,16 @@ import { StripeWebhookController } from './stripe-webhook.controller';
 import { StripeWebhookIntakeService } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { SubscriptionsController } from './subscriptions.controller';
+import { PayPageController } from './pay-page.controller';
+import { PayLinkModule } from './pay-link.module';
+import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { SeatsService } from './seats.service';
+import { PricingService } from './pricing.service';
+import { PricingController } from './pricing.controller';
+import { ClientPlansController } from '../plans/client-plans.controller';
+import { ClientPlansService } from '../plans/client-plans.service';
+import { PlansController } from '../plans/plans.controller';
 
 /**
  * docs/06 §1 (stage 6.7): Stripe subscriptions behind PaymentProvider.
@@ -29,6 +46,7 @@ import { SubscriptionsService } from './subscriptions.service';
  * webhooks and reminders too. Without STRIPE_SECRET_KEY the fake provider
  * is used (dev / e2e), driven through the same webhook endpoint.
  */
+import { LedgerModule } from '../ledger/ledger.public';
 @Module({})
 export class BillingModule {
   static register(options: BillingModuleOptions): DynamicModule {
@@ -43,6 +61,19 @@ export class BillingModule {
         SubscriptionsModule,
         BidsModule,
         NotificationsModule,
+        // Owner 2026-10-02: referral qualification on a paid invoice and
+        // paid case promotions (checkout webhook, fake checkout page).
+        ReferralsCoreModule,
+        PartnersCoreModule,
+        PromotionsCoreModule,
+        // Owner 2026-10-22: the card page's signed links.
+        PayLinkModule,
+        BidPacksCoreModule,
+        StarsCoreModule,
+        // Owner 2026-10-05: client → attorney payments (Connect webhooks).
+        CasePaymentsCoreModule,
+        ClientBadgeCoreModule,
+        LedgerModule,
         // Only the controllers need the auth guards and the admin audit log;
         // the worker must stay bootable without AppModule's global modules.
         ...(options.mode === 'api' ? [AdminAccessModule, AuthModule] : []),
@@ -51,10 +82,20 @@ export class BillingModule {
         options.mode === 'api'
           ? [
               SubscriptionsController,
+              PayPageController,
               StripeWebhookController,
               AdminSubscriptionsController,
-              // Dev / e2e stand-in for Stripe's hosted page (404 with Stripe).
-              FakeCheckoutController,
+              // Owner 2026-10-03: public price list (app, website).
+              PricingController,
+              // Owner 2026-10-05: plans for sale, my entitlements, the
+              // client's plan purchase.
+              PlansController,
+              ClientPlansController,
+              // Dev / e2e stand-in for Stripe's hosted page. Security audit
+              // 2026-10-07: never mounted on a deployed server — right after
+              // boot the dynamic provider still reports the fake one until
+              // its first refresh, so a name check alone is not enough.
+              ...(fakeCheckoutAllowed() ? [FakeCheckoutController] : []),
             ]
           : [],
       providers: [
@@ -74,14 +115,21 @@ export class BillingModule {
             ).asProvider(),
         },
         SubscriptionSyncService,
+        PricingService,
         SubscriptionsService,
+        // Owner 2026-10-22: seats charged now / removed at the period end.
+        SeatsService,
+        PayPageService,
+        ClientPlansService,
         StripeWebhookIntakeService,
         BillingRunner,
       ],
       exports: [
         PAYMENT_PROVIDER,
+        PricingService,
         SubscriptionsService,
         SubscriptionSyncService,
+        ClientPlansService,
         BillingRunner,
       ],
     };

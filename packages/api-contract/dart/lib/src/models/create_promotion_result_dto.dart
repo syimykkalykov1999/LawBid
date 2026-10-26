@@ -1,0 +1,46 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+import 'case_promotion_dto.dart';
+import 'case_promotion_status.dart';
+
+part 'create_promotion_result_dto.g.dart';
+
+@JsonSerializable()
+class CreatePromotionResultDto {
+  const CreatePromotionResultDto({
+    required this.promotionId,
+    required this.status,
+    required this.totalCents,
+    required this.starsCharged,
+    required this.creditDaysUsed,
+    required this.creditDaysUsedExact,
+    required this.promotion,
+    this.checkoutUrl,
+  });
+
+  factory CreatePromotionResultDto.fromJson(Map<String, Object?> json) =>
+      _$CreatePromotionResultDtoFromJson(json);
+
+  final String promotionId;
+  final CasePromotionStatus status;
+
+  /// Open in the browser to pay; null when nothing to pay.
+  final String? checkoutUrl;
+  final int totalCents;
+
+  /// Stars taken when paid with the star balance, else 0.
+  final int starsCharged;
+
+  /// Whole credit days.
+  final int creditDaysUsed;
+
+  /// Credit days used, exact (may be fractional).
+  final num creditDaysUsedExact;
+  final CasePromotionDto promotion;
+
+  Map<String, Object?> toJson() => _$CreatePromotionResultDtoToJson(this);
+}

@@ -12,8 +12,14 @@ part 'send_message_dto.g.dart';
 class SendMessageDto {
   const SendMessageDto({
     required this.clientMessageId,
+    this.giftId,
+    this.contactUserId,
+    this.postId,
     this.stickerId,
     this.fileName,
+    this.replyToId,
+    this.forwardFromId,
+    this.forwarded,
     this.body,
     this.fileId,
     this.durationMs,
@@ -28,11 +34,34 @@ class SendMessageDto {
   final String clientMessageId;
   final SendMessageType type;
 
+  /// Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is.
+  /// the optional note (≤200).
+  final String? giftId;
+
+  /// Owner 2026-10-20: the attorney whose card is shared (type=contact).
+  final String? contactUserId;
+
+  /// Owner 2026-10-21 (Instagram «Поделиться»): the post sent as a card.
+  /// (type=post).
+  final String? postId;
+
   /// Owner 2026-10-01: a sticker message (type=sticker).
   final String? stickerId;
 
   /// OQ-047: the attachment's original file name (shown on its card).
   final String? fileName;
+
+  /// Owner 2026-10-20: a reply quotes this message of the same chat.
+  final String? replyToId;
+
+  /// Owner 2026-10-20: forward this message (any chat of mine): the server.
+  /// copies its text / sticker and, for a voice note or a file, a new file.
+  /// row over the same stored object (no upload). Replaces the content.
+  /// fields of the request.
+  final String? forwardFromId;
+
+  /// Owner 2026-10-20: a forwarded message ("Forwarded" label).
+  final bool? forwarded;
 
   /// Text of a text message; ignored for voice.
   final String? body;

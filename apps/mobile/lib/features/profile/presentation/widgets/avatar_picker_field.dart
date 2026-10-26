@@ -3,11 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
@@ -15,18 +16,20 @@ import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart
 enum AvatarSource { camera, gallery }
 
 /// Picks a photo and returns its bytes (null = cancelled). Downscaled on
-/// device to 1024 px (docs/03 §4.1: "сжатие до 1024 px"); the server makes
-/// the square centre crop. Overridden in tests.
+/// device to 1024 px (docs/03 §4.1: "сжатие до 1024 px"; owner 2026-10-05:
+/// `media.avatar_max_px` in the admin); the server makes the square centre
+/// crop. Overridden in tests.
 final avatarImagePickerProvider =
     Provider<Future<Uint8List?> Function(AvatarSource)>(
   (ref) => (source) async {
+    final limits = avatarLimitsOf(ref.read(featureFlagsControllerProvider));
     final file = await ImagePicker().pickImage(
       source: source == AvatarSource.camera
           ? ImageSource.camera
           : ImageSource.gallery,
-      maxWidth: 1024,
-      maxHeight: 1024,
-      imageQuality: 88,
+      maxWidth: limits.maxPx,
+      maxHeight: limits.maxPx,
+      imageQuality: limits.quality,
       preferredCameraDevice: CameraDevice.front,
     );
     return file?.readAsBytes();
@@ -38,8 +41,13 @@ final avatarImagePickerProvider =
 /// progress ring, a status line, and Retry on failure. Visually a plain
 /// form row so it fits the onboarding step's existing style.
 class AvatarPickerField extends ConsumerWidget {
-  const AvatarPickerField(
-      {super.key, this.initials, this.heroTag, this.label, this.requiredError});
+  const AvatarPickerField({
+    super.key,
+    this.initials,
+    this.heroTag,
+    this.label,
+    this.requiredError,
+  });
 
   final String? initials;
   final String? heroTag;
@@ -57,8 +65,12 @@ class AvatarPickerField extends ConsumerWidget {
       builder: (sheetContext) => SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -78,6 +90,20 @@ class AvatarPickerField extends ConsumerWidget {
                 onTap: () =>
                     Navigator.of(sheetContext).pop(AvatarSource.gallery),
               ),
+              // The format / size note lives here, not on the screen.
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('profile.photo.hint'),
+                textAlign: TextAlign.center,
+                style: Theme.of(sheetContext)
+                    .extension<AppTypographyTokens>()!
+                    .caption
+                    .copyWith(
+                      color: Theme.of(sheetContext)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+              ),
             ],
           ),
         ),
@@ -88,8 +114,9 @@ class AvatarPickerField extends ConsumerWidget {
     try {
       bytes = await ref.read(avatarImagePickerProvider)(source);
     } catch (_) {
-      if (context.mounted)
+      if (context.mounted) {
         showAppSnackBar(context, t.t('profile.photo.pickFailed'));
+      }
       return;
     }
     if (bytes == null) return;
@@ -112,8 +139,10 @@ class AvatarPickerField extends ConsumerWidget {
           colors.textSecondary
         ),
       AvatarUploadStage.uploading => (
-          t.t('profile.photo.uploading',
-              {'percent': '${(upload.progress * 100).round()}'}),
+          t.t(
+            'profile.photo.uploading',
+            {'percent': '${(upload.progress * 100).round()}'},
+          ),
           colors.textSecondary,
         ),
       AvatarUploadStage.checking => (
@@ -127,7 +156,8 @@ class AvatarPickerField extends ConsumerWidget {
         ),
       AvatarUploadStage.idle => requiredError != null
           ? (requiredError!, colors.dangerText)
-          : (t.t('profile.photo.hint'), colors.textSecondary),
+          // Owner 2026-10-13: no file-format hint under the photo.
+          : ('', colors.textSecondary),
     };
 
     return Row(
@@ -144,17 +174,26 @@ class AvatarPickerField extends ConsumerWidget {
         const SizedBox(width: AppSpacing.lg),
         Expanded(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label ?? t.t('profile.photo.label'),
-                  style: typography.bodySmall.copyWith(
-                      color: colors.text, fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpacing.xs),
-              Semantics(
-                liveRegion: true,
-                child: Text(status,
-                    style: typography.caption.copyWith(color: statusColor)),
+              Text(
+                label ?? t.t('profile.photo.label'),
+                style: typography.bodySmall.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+              if (status.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    status,
+                    style: typography.caption.copyWith(color: statusColor),
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpacing.xs),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -170,9 +209,9 @@ class AvatarPickerField extends ConsumerWidget {
                     ),
                   _TextAction(
                     key: const ValueKey('avatar-pick'),
-                    label: t.t(hasPhoto
-                        ? 'profile.photo.change'
-                        : 'profile.photo.add'),
+                    label: t.t(
+                      hasPhoto ? 'profile.photo.change' : 'profile.photo.add',
+                    ),
                     icon: AppIcons.photoCameraOutlined,
                     onTap: upload.busy ? null : () => _pick(context, ref, t),
                   ),
@@ -187,11 +226,12 @@ class AvatarPickerField extends ConsumerWidget {
 }
 
 class _TextAction extends StatelessWidget {
-  const _TextAction(
-      {required this.label,
-      required this.icon,
-      required this.onTap,
-      super.key});
+  const _TextAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    super.key,
+  });
 
   final String label;
   final IconData icon;
@@ -215,9 +255,14 @@ class _TextAction extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AppIcon(icon, size: AppSpacing.lg + 2, color: color),
-              const SizedBox(width: AppSpacing.xs),
-              Text(label, style: typography.button.copyWith(color: color)),
+              // Owner 2026-10-13: no icon — the label starts on the same left
+              // edge as the title above it.
+              Flexible(
+                child: FitText(
+                  label,
+                  style: typography.button.copyWith(color: color),
+                ),
+              ),
             ],
           ),
         ),

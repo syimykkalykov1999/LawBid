@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -102,6 +104,11 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
 
   /// Step 1: sends the code to [value] directly for a first contact, or
   /// starts identity confirmation when replacing a verified one.
+  ///
+  /// Owner 2026-10-22 (security audit #3): the server now wants the
+  /// identity confirmed for a first contact too, unless this session signed
+  /// in minutes ago (onboarding stays one code long). Its
+  /// `REAUTH_REQUIRED` answer moves on to the identity step here.
   Future<void> sendCode(String value) => _guard(() async {
         final me = ref.read(currentUserControllerProvider).user;
         final alreadyVerified = type == ContactType.phone
@@ -112,25 +119,33 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
             await ref
                 .read(onboardingRepositoryProvider)
                 .requestContactCode(type: type, value: value);
-          } on ApiException {
             state = state.copyWith(
-                stage: ContactVerificationStage.editing, value: value);
-            rethrow;
+              stage: ContactVerificationStage.codeSent,
+              value: value,
+              attempt: state.attempt + 1,
+            );
+            return;
+          } on ApiException catch (e) {
+            if (e.code != ApiErrorCodes.reauthRequired) {
+              state = state.copyWith(
+                stage: ContactVerificationStage.editing,
+                value: value,
+              );
+              rethrow;
+            }
           }
-          state = state.copyWith(
-            stage: ContactVerificationStage.codeSent,
-            value: value,
-            attempt: state.attempt + 1,
-          );
-          return;
         }
         final target = me?.reauthIdentifier;
         if (target == null) {
           throw const ApiException(
-              code: kNoReauthContactCode, message: 'No verified contact');
+            code: kNoReauthContactCode,
+            message: 'No verified contact',
+          );
         }
         await ref.read(onboardingRepositoryProvider).requestReauthCode(
-            channel: target.channel, identifier: target.identifier);
+              channel: target.channel,
+              identifier: target.identifier,
+            );
         state = state.copyWith(
           stage: ContactVerificationStage.confirmIdentity,
           value: value,
@@ -150,14 +165,18 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
         final token = await repo.reauth(identifier: target, code: code);
         try {
           await repo.requestContactCode(
-              type: type, value: value, reauthToken: token);
+            type: type,
+            value: value,
+            reauthToken: token,
+          );
         } on ApiException {
           state = state.copyWith(stage: ContactVerificationStage.editing);
           rethrow;
         }
         state = state.copyWith(
-            stage: ContactVerificationStage.codeSent,
-            attempt: state.attempt + 1);
+          stage: ContactVerificationStage.codeSent,
+          attempt: state.attempt + 1,
+        );
       });
 
   /// Step 3: verifies the new contact, then refreshes `GET /users/me`.
@@ -168,6 +187,7 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
             .read(onboardingRepositoryProvider)
             .verifyContact(type: type, value: value, code: code);
         state = state.copyWith(stage: ContactVerificationStage.verified);
+        AppEvents.track(AppEventNames.contactsVerified);
         await ref.read(currentUserControllerProvider.notifier).load();
       });
 
@@ -180,7 +200,9 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
   /// Back to editing (change the number/address).
   void edit() {
     state = state.copyWith(
-        stage: ContactVerificationStage.editing, clearError: true);
+      stage: ContactVerificationStage.editing,
+      clearError: true,
+    );
   }
 }
 

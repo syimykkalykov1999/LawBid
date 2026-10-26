@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMaxSize, ArrayUnique, IsArray, IsUUID } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
+  IsUUID,
+} from 'class-validator';
 
 /** Upper bound on one attorney's selection: well above the number of
  * leaves in the docs/02 §3.2 tree, only there so a crafted request can't
@@ -7,9 +13,11 @@ import { ArrayMaxSize, ArrayUnique, IsArray, IsUUID } from 'class-validator';
 export const MAX_PRACTICE_AREAS = 500;
 
 /** PUT /attorneys/me/practice-areas (docs/03 §3.2): the FULL new set of
- * leaf ids — it replaces the stored set. An empty list clears it. */
+ * leaf ids — it replaces the stored set. Owner 2026-10-05 (audit): at
+ * least one — an attorney without practices gets no cases. */
 export class ReplacePracticeAreasDto {
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(MAX_PRACTICE_AREAS)
   @ArrayUnique()
   @IsUUID('all', { each: true })

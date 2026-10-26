@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { BlocksModule } from '../blocks/blocks.module';
+import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
+import { ConsultationsCoreModule } from '../consultations/consultations-core.module';
 import { FilesModule } from '../files/files.module';
+import { UsernamesModule } from '../usernames/usernames.module';
 import { UsersModule } from '../users/users.module';
 import { AttorneysController } from './controllers/attorneys.controller';
 import { ClientProfileController } from './controllers/client-profile.controller';
@@ -14,7 +17,14 @@ import { PracticeAreasService } from './services/practice-areas.service';
  * client/attorney profiles and the public profile by @username (stage
  * 3.6). Reuses UsersModule's UserProfilesService for client writes. */
 @Module({
-  imports: [UsersModule, FilesModule, BlocksModule],
+  imports: [
+    UsersModule,
+    UsernamesModule,
+    FilesModule,
+    BlocksModule,
+    PrivacySettingsModule,
+    ConsultationsCoreModule,
+  ],
   controllers: [
     PracticeAreasController,
     AttorneysController,

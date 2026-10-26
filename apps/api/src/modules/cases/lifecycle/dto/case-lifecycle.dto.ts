@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsString, IsUUID, MinLength } from 'class-validator';
+import { MaxTextChars } from '../../../../common/app-settings/max-text-chars.decorator';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -14,7 +15,7 @@ export class DisputeCaseDto {
   @Transform(trim)
   @IsString()
   @MinLength(1)
-  @MaxLength(DISPUTE_TEXT_MAX)
+  @MaxTextChars('limits.dispute_chars')
   reason!: string;
 }
 
@@ -31,7 +32,7 @@ export class ResolveCaseDisputeDto {
   @Transform(trim)
   @IsString()
   @MinLength(1)
-  @MaxLength(DISPUTE_TEXT_MAX)
+  @MaxTextChars('limits.dispute_chars')
   note!: string;
 }
 

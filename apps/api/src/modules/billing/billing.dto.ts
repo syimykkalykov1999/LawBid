@@ -1,10 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  PlanEntitlementsDto,
+  PublicPlanDto,
+  SeatSummaryDto,
+} from '../plans/plans.dto';
+import { PriceDiscountDto } from './price-discount.dto';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -16,9 +21,32 @@ import {
   ArrayMaxSize,
   Matches,
 } from 'class-validator';
+import { SEATS_HARD_CAP } from './billing.constants';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+
+/** Owner 2026-10-02: the promo code applied to a checkout. */
+export class CheckoutPromoDto {
+  @ApiProperty() code!: string;
+  @ApiProperty({
+    enum: ['percent', 'amount', 'free_days'],
+    enumName: 'PromoDiscountType',
+  })
+  discountType!: 'percent' | 'amount' | 'free_days';
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Off the first invoice (percent / amount codes).',
+  })
+  discountCents!: number | null;
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description: 'Free days added to the trial (free_days codes).',
+  })
+  freeDays!: number | null;
+}
 
 /** Owner 2026-09-30: Stripe's hosted payment page for the subscription. */
 export class CheckoutSessionDto {
@@ -28,6 +56,22 @@ export class CheckoutSessionDto {
   @ApiProperty() trialEligible!: boolean;
   @ApiProperty({ type: 'integer' }) priceCents!: number;
   @ApiProperty({ type: 'integer' }) trialDays!: number;
+  @ApiPropertyOptional({
+    type: CheckoutPromoDto,
+    description: 'Present when a promo code was applied (owner 2026-10-02).',
+  })
+  promo?: CheckoutPromoDto;
+}
+
+/** Owner 2026-10-22 (audit #3): the iPhone app buys seats on our card page
+ * in the browser (no payment screen in the app). */
+export class SeatCheckoutDto {
+  @ApiProperty({
+    description:
+      'One-time link to the card page; open it in the browser, then re-read GET /subscriptions/me.',
+  })
+  url!: string;
+  @ApiProperty() sessionId!: string;
 }
 
 /** POST /subscriptions/checkout (OQ-048): the plan, seats and the phones
@@ -42,12 +86,30 @@ export class CheckoutRequestDto {
   @IsIn(['monthly', 'yearly'])
   plan?: 'monthly' | 'yearly';
 
-  @ApiPropertyOptional({ type: 'integer', minimum: 0, maximum: 6, default: 0 })
+  @ApiPropertyOptional({
+    description:
+      "Owner 2026-10-05: the plan to buy (code from GET /plans or /subscriptions/me). Default: the audience's default plan of `plan`'s interval.",
+    maxLength: 64,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(2, 64)
+  @Matches(/^[a-z0-9_-]+$/)
+  planCode?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    maximum: SEATS_HARD_CAP,
+    default: 0,
+    description: 'Extra assistant seats on top of the ones the plan includes.',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(6)
+  @Max(SEATS_HARD_CAP)
   assistantSeats?: number;
 
   @ApiPropertyOptional({
@@ -60,14 +122,57 @@ export class CheckoutRequestDto {
   @ArrayMaxSize(6)
   @Matches(/^\+[1-9][0-9]{7,14}$/, { each: true })
   assistantPhones?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-02: a promo code (case-insensitive). 400 PROMO_CODE_INVALID with details.reason when it cannot be used.',
+    example: 'BLOGGER20',
+    maxLength: 40,
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(3, 40)
+  promoCode?: string;
 }
 
 export class SetSeatsDto {
-  @ApiProperty({ type: 'integer', minimum: 0, maximum: 6 })
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: SEATS_HARD_CAP,
+    description: 'Extra seats on top of the ones the plan includes.',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  @Max(6)
+  @Max(SEATS_HARD_CAP)
+  seats!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description:
+      'Owner 2026-10-22: `prorationDate` from POST /subscriptions/seats/preview, so the charge equals the amount shown (unix seconds; now when absent).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  prorationDate?: number;
+}
+
+/** Owner 2026-10-22: «К оплате сейчас» before buying seats. */
+export class SeatPreviewRequestDto {
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: SEATS_HARD_CAP,
+    description: "The wanted EXTRA seats (on top of the plan's included).",
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(SEATS_HARD_CAP)
   seats!: number;
 }
 
@@ -130,7 +235,12 @@ export class SubscriptionDto {
   @ApiProperty({ type: 'integer' }) priceCents!: number;
   @ApiProperty({ enum: ['monthly', 'yearly'], enumName: 'SubscriptionPlan' })
   plan!: 'monthly' | 'yearly';
-  @ApiProperty({ type: 'integer' }) assistantSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      "Every assistant seat the attorney has: the plan's included seats + the extra bought (owner 2026-10-05).",
+  })
+  assistantSeats!: number;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   trialEndsAt!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
@@ -154,11 +264,36 @@ export class PlanPricesDto {
   @ApiProperty({ type: 'integer' }) seatCents!: number;
   @ApiProperty({ type: 'integer' }) yearlyCents!: number;
   @ApiProperty({ type: 'integer' }) maxSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Free trial days for a new subscription (admin setting; 0 = no trial).',
+  })
+  trialDays!: number;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  monthlyDiscount!: PriceDiscountDto | null;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  seatDiscount!: PriceDiscountDto | null;
+  @ApiProperty({ type: PriceDiscountDto, nullable: true })
+  yearlyDiscount!: PriceDiscountDto | null;
+}
+
+/** Owner 2026-10-02: "Free under contract until …". */
+export class ContractGrantInfoDto {
+  @ApiProperty({ format: 'date-time' }) endsAt!: string;
+  @ApiProperty({ type: 'integer' }) assistantSeats!: number;
 }
 
 export class SubscriptionMeDto {
   @ApiProperty({ type: SubscriptionDto, nullable: true })
   subscription!: SubscriptionDto | null;
+  @ApiProperty({
+    type: ContractGrantInfoDto,
+    nullable: true,
+    description:
+      'An active free subscription under a contract (isActive is true while it runs).',
+  })
+  contractGrant!: ContractGrantInfoDto | null;
   @ApiProperty({ type: PlanPricesDto })
   prices!: PlanPricesDto;
   @ApiProperty() isActive!: boolean;
@@ -168,6 +303,15 @@ export class SubscriptionMeDto {
   canStart!: boolean;
   @ApiProperty() trialEligible!: boolean;
   @ApiProperty({ type: 'integer' }) priceCents!: number;
+  // Owner 2026-10-05 (plan builder): the plan the attorney is on, every
+  // plan for sale and the entitlements that stand right now.
+  @ApiProperty({ type: PublicPlanDto, nullable: true })
+  plan!: PublicPlanDto | null;
+  @ApiProperty({ type: [PublicPlanDto] }) plans!: PublicPlanDto[];
+  @ApiProperty({ type: PlanEntitlementsDto })
+  entitlements!: PlanEntitlementsDto;
+  @ApiProperty({ type: SeatSummaryDto, nullable: true })
+  seats!: SeatSummaryDto | null;
 }
 
 export class PaymentDto {
@@ -180,6 +324,24 @@ export class PaymentDto {
     string | null;
   @ApiProperty({ type: String, nullable: true }) failureCode!: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
+
+  /** Owner 2026-10-22 (Stripe Tax): the tax inside amountCents and the
+   * amount before it; null when no tax was computed. */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  taxCents?: number | null;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  subtotalCents?: number | null;
+
+  /** Owner 2026-10-15: what it paid for. */
+  @ApiProperty({ enum: ['subscription', 'boost'] })
+  kind!: string;
+
+  /** For a boost: what was boosted (`post` | `case`) and for how many days. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  boostTarget?: string | null;
+
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  boostDays?: number | null;
 }
 
 export interface PaymentsPage {
@@ -199,12 +361,6 @@ export class PortalSessionDto {
   @ApiProperty({ format: 'uri' }) url!: string;
 }
 
-export class WebhookAckDto {
-  @ApiProperty() received!: true;
-  @ApiProperty({ description: 'False when the event id was already stored.' })
-  queued!: boolean;
-}
-
 // ---- admin (§1.6) -------------------------------------------------------
 
 export class AdminSubscriptionUserParamDto {
@@ -221,15 +377,16 @@ export class ExtendSubscriptionDto {
   @Max(90)
   days!: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
     maxLength: 500,
-    description: 'Required (§1.6): e.g. the confirmed contact issue.',
+    description: 'Optional: e.g. the confirmed contact issue.',
   })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminSubscriptionDto {
@@ -249,4 +406,89 @@ export class AdminSubscriptionDto {
   @ApiProperty({ type: [PaymentDto], description: 'Last 50.' })
   payments!: PaymentDto[];
   @ApiProperty({ type: 'integer' }) trialsUsedWithCard!: number;
+}
+
+/** Owner 2026-10-22: the price of buying seats now (Stripe's preview). */
+export class SeatPreviewDto {
+  @ApiProperty({ type: 'integer', description: 'The wanted extra seats.' })
+  seats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Extra seats usable now (paid through the period end).',
+  })
+  currentSeats!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Charged now: the prorated rest of the current period.',
+  })
+  amountNowCents!: number;
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description:
+      'Owner 2026-10-22 (Stripe Tax): the tax inside amountNowCents; null = no tax.',
+  })
+  taxCents?: number | null;
+  @ApiProperty() currency!: string;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Send back with POST /subscriptions/seats (unix seconds).',
+  })
+  prorationDate!: number;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'The paid period ends (the «до {date}» of the sheet).',
+  })
+  periodEnd!: string | null;
+  @ApiProperty({ type: 'integer', description: 'One seat per month.' })
+  seatCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'How much the monthly invoice grows («затем +$Y/мес»).',
+  })
+  monthlyIncreaseCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'The next monthly invoice with the new seats.',
+  })
+  nextChargeCents!: number;
+}
+
+export const SEAT_CHANGE_RESULTS = [
+  'applied',
+  'requires_action',
+  'failed',
+  'scheduled',
+] as const;
+
+/** Owner 2026-10-22: the outcome of POST /subscriptions/seats.
+ *
+ * It still carries every SubscriptionMeDto field at the top level (the
+ * response before 2026-10-22), so apps already in the stores keep reading
+ * it (docs/06 §7.2: a changed response must stay compatible); new apps
+ * read `status` and `overview`. */
+export class SeatChangeResultDto extends SubscriptionMeDto {
+  @ApiProperty({
+    enum: SEAT_CHANGE_RESULTS,
+    enumName: 'SeatChangeResult',
+    description:
+      'applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund.',
+  })
+  status!: (typeof SEAT_CHANGE_RESULTS)[number];
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: "The PaymentIntent's client secret (requires_action only).",
+  })
+  clientSecret!: string | null;
+  @ApiProperty({ type: 'integer' }) amountCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  effectiveAt!: string | null;
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  changeId!: string | null;
+  @ApiProperty({ type: () => SubscriptionMeDto })
+  overview!: SubscriptionMeDto;
 }

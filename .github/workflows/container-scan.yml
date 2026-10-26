@@ -3,16 +3,12 @@
 name: Container scan
 
 on:
-  pull_request:
-    branches: [main, master]
-    paths:
-      - "apps/api/**"
-      - "packages/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/container-scan.yml"
+  # Runs once per merge into main and once a day (not on every PR); results go to Security → Code scanning.
   push:
     branches: [main, master]
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,19 +20,51 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build image
         run: docker build -f apps/api/Dockerfile -t lawbid-api:ci .
+      # npm itself (the node image's own CLI, only used by the migrate task)
+      # is skipped: its bundled packages are not reachable from requests.
+      # The trivy-action tag 0.28.0 no longer resolves, so run the pinned
+      # Trivy CLI image against the local image instead.
       - name: Trivy (fail on CRITICAL/HIGH)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: lawbid-api:ci
-          format: sarif
-          output: trivy.sarif
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: "1"
-      - uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        run: |
+          # The vulnerability DB is fetched once into a shared cache, trying
+          # each official mirror in turn (mirror.gcr.io has served a broken
+          # blob), then both scans read it without updating.
+          mkdir -p "$RUNNER_TEMP/trivy-cache"
+          ok=
+          for repo in mirror.gcr.io/aquasec/trivy-db:2 ghcr.io/aquasecurity/trivy-db:2 public.ecr.aws/aquasecurity/trivy-db:2; do
+            if docker run --rm -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
+              aquasec/trivy:0.58.0 image --download-db-only --db-repository "$repo"; then
+              ok=1; break
+            fi
+            echo "Trivy DB from $repo failed, trying the next mirror"
+          done
+          [ -n "$ok" ] || { echo "No Trivy DB mirror answered"; exit 1; }
+          # Readable list in the log first, then the gating SARIF run.
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
+            -v "$PWD:/out" \
+            aquasec/trivy:0.58.0 image --skip-db-update \
+            --severity CRITICAL,HIGH --ignore-unfixed --exit-code 0 \
+            --skip-dirs /usr/local/lib/node_modules/npm \
+            --ignorefile /out/.trivyignore \
+            --format table lawbid-api:ci
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy" \
+            -v "$PWD:/out" \
+            aquasec/trivy:0.58.0 image --skip-db-update \
+            --severity CRITICAL,HIGH --ignore-unfixed --exit-code 1 \
+            --skip-dirs /usr/local/lib/node_modules/npm \
+            --ignorefile /out/.trivyignore \
+            --format sarif --output /out/trivy.sarif lawbid-api:ci
+      - uses: github/codeql-action/upload-sarif@4bfa242aa49c5f7c6770b98670d354a7dfac05f8 # v3.39.1
+        if: ${{ always() && vars.CODE_SCANNING_ENABLED == 'true' && hashFiles('trivy.sarif') != '' }}
+        # Needs GitHub code scanning; a private repo without it must not
+        # turn the scan itself red.
+        continue-on-error: true
         with:
           sarif_file: trivy.sarif

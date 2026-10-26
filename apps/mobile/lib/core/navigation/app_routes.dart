@@ -61,10 +61,42 @@ abstract final class AppRoutes {
   /// the redirect target of AppRouterGuard for unverified attorneys.
   static const verificationRequired = '/create/verification-required';
 
-  /// Public attorney profile — same path as the `lawbid.app/lawyer/:username`
+  /// Public attorney profile — same path as the `lawbid.dev/lawyer/:username`
   /// deep link (docs/01 §12, DeepLinkRoutes.lawyerPath).
   static String lawyer(String username) =>
       '/lawyer/${Uri.encodeComponent(username)}';
+
+  /// `lawbid.dev/u/<username>` — the address inside a profile QR code: an
+  /// attorney's or a client's profile, whichever the username belongs to.
+  static const profileByUsernamePattern = '/u/:username';
+  static String profileByUsername(String username) =>
+      '/u/${Uri.encodeComponent(username)}';
+
+  /// `lawbid.dev/q/<id>` — the sign-in QR of the website. On the phone:
+  /// "Sign in on the web?"; in the browser: the "open the app" page. Public
+  /// (no session needed to see it).
+  static const webLoginPrefix = '/q/';
+  static const webLoginPattern = '/q/:id';
+  static String webLogin(String qrId) => '/q/${Uri.encodeComponent(qrId)}';
+
+  /// Owner 2026-10-22 (QR login): `lawbid.dev/qr/<nonce>` — the universal
+  /// link / App Link inside the website's sign-in QR code, so the phone's
+  /// own camera opens the approval screen. Same screen as [webLogin].
+  static const qrLoginPrefix = '/qr/';
+  static const qrLoginPattern = '/qr/:nonce';
+  static String qrLogin(String nonce) => '/qr/${Uri.encodeComponent(nonce)}';
+
+  /// True for the public sign-in-QR pages (`/q/<id>`, `/qr/<nonce>`), never
+  /// for the app's own [myQr] / [qrScan] screens.
+  static bool isWebLoginLink(String location) =>
+      location.startsWith(webLoginPrefix) ||
+      (location.startsWith(qrLoginPrefix) &&
+          location != myQr &&
+          location != qrScan);
+
+  /// Profile → "My QR code" (owner 2026-10-20), and the scanner.
+  static const myQr = '/qr/my';
+  static const qrScan = '/qr/scan';
 
   /// Public client mini-profile (OQ-026), opened from People search,
   /// followers and @mentions.
@@ -81,6 +113,27 @@ abstract final class AppRoutes {
   static const legal = '/legal/:docType';
   static String legalDoc(String docType) => '$legalPrefix$docType';
 
+  /// Owner 2026-10-05 (legal documents): the screen where the user accepts
+  /// the new or changed documents of their role (one unchecked box per
+  /// document). Deliberately NOT under [legalPrefix]: the guard sends users
+  /// here, while `/legal/*` stays open for reading.
+  static const legalAccept = '/legal-accept';
+
+  /// Owner 2026-10-05 (legal): the DMCA takedown form. `targetType` /
+  /// `targetId` name the content on LawBid (from the report sheet); without
+  /// them the form asks for a URL. Registered BEFORE [legal] so the static
+  /// path wins over `:docType`.
+  static const dmcaNotice = '/legal/dmca';
+  static String dmcaNoticeFor({String? targetType, String? targetId}) {
+    if (targetType == null || targetId == null || targetId.isEmpty) {
+      return dmcaNotice;
+    }
+    return Uri(
+      path: dmcaNotice,
+      queryParameters: {'targetType': targetType, 'targetId': targetId},
+    ).toString();
+  }
+
   // --- docs/04 cases & bids (stages 4.9/4.10) — ROOT navigator.
 
   /// The client's own case (docs/04 §11.1).
@@ -96,7 +149,7 @@ abstract final class AppRoutes {
   static const bidPattern = '/bid/:id';
   static String bid(String id) => '/bid/${Uri.encodeComponent(id)}';
 
-  /// Attorney case detail — the `lawbid.app/case/:id` deep-link path
+  /// Attorney case detail — the `lawbid.dev/case/:id` deep-link path
   /// (DeepLinkRoutes.casePath); the owner is redirected to [myCase].
   static String caseDetail(String id) => '/case/${Uri.encodeComponent(id)}';
 
@@ -110,6 +163,9 @@ abstract final class AppRoutes {
   static String placeBid(String id) => '/case/${Uri.encodeComponent(id)}/bid';
 
   /// "В работе" case: contacts, completion (docs/04 §8, §11.2).
+  /// Owner 2026-10-05: cases clients offered to the attorney.
+  static const invites = '/mine/invites';
+
   static const workCasePattern = '/mine/work/:id';
   static String workCase(String id) => '/mine/work/${Uri.encodeComponent(id)}';
 
@@ -123,7 +179,52 @@ abstract final class AppRoutes {
   /// Settings → Blocked users (OQ-028).
   static const blockedUsers = '/profile/settings/blocked';
 
+  /// Owner 2026-10-20: phone-book contacts on LawBid + invites, pushed on
+  /// the ROOT navigator like [blockedUsers].
+  static const contacts = '/profile/settings/phone-contacts';
+
   static const dataExport = '/profile/settings/data-export';
+
+  /// Owner 2026-10-22 (client economy plan §5.2): «Данные и память».
+  static const storage = '/profile/settings/storage';
+  // Owner 2026-10-02: About LawBid + the website link.
+  static const about = '/profile/settings/about';
+  // Owner 2026-10-15: the client's saved posts, moved here from «Mine».
+  // Owner 2026-10-22 (audit #4 §1): one «Сохранённое» for both roles.
+  static const saved = '/profile/settings/saved';
+
+  /// Owner 2026-10-22 (audit #4 §1, Stripe / Slack «Billing»): one
+  /// «Платежи» page for both roles — `?tab=receipts|cases|purchases`.
+  static const payments = '/profile/settings/payments';
+  static String paymentsTab(String tab) => '$payments?tab=$tab';
+  // Owner 2026-10-18 (Instagram): my archived posts.
+  static const postArchive = '/profile/settings/archive';
+  // Owner 2026-10-18: «Справочник» — the «i» in the case lists.
+  static const referral = '/profile/settings/referral';
+  // Owner 2026-10-05: my promoted posts / cases (reach, clicks, stop).
+  static const myPromotions = '/profile/settings/promotions';
+  static const promotionStatsPattern = '/profile/settings/promotions/:id';
+  static String promotionStats(String id) =>
+      '/profile/settings/promotions/${Uri.encodeComponent(id)}';
+  static const myStats = '/profile/settings/stats';
+  static const bidPacks = '/profile/settings/bid-packs';
+  static const stars = '/profile/settings/stars';
+  static const myGifts = '/profile/settings/stars/gifts';
+  static const myFirm = '/profile/settings/firm';
+  // Owner 2026-10-05: partner program (shown to partners only).
+  static const partner = '/profile/settings/partner';
+
+  /// Owner 2026-10-02: the client's paid gold badge (verify my account).
+  static const clientBadge = '/profile/settings/verify-account';
+  // Owner 2026-10-05: the document templates library.
+  static const templates = '/profile/settings/templates';
+
+  // Owner 2026-10-02: Help & support (tickets to the LawBid team).
+  static const support = '/profile/settings/support';
+  static const supportNew = '/profile/settings/support/new';
+  static const supportTicketPattern = '/profile/settings/support/:id';
+  static String supportTicket(String id) =>
+      '/profile/settings/support/${Uri.encodeComponent(id)}';
   static const caseHistoryItemPattern = '/profile/settings/case-history/:id';
   static String caseHistoryItem(String id) =>
       '/profile/settings/case-history/${Uri.encodeComponent(id)}';

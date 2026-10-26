@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_state_layout.dart';
-import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// Empty-state placeholder (file 01 §15; `.cursorrules` requires this on
 /// every screen alongside loading/error/offline/pagination). Gold-seal

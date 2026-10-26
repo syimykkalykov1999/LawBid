@@ -39,11 +39,17 @@ describe('Filters audit (e2e, 2026-10-01)', () => {
     baseUrl = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
     await ensurePostPractices(prisma);
-    await prisma.state.upsert({
-      where: { code: 'NY' },
-      create: { code: 'NY', name: 'New York' },
-      update: {},
-    });
+    for (const [code, name] of [
+      ['NY', 'New York'],
+      ['CA', 'California'],
+      ['TX', 'Texas'],
+    ]) {
+      await prisma.state.upsert({
+        where: { code },
+        create: { code, name },
+        update: {},
+      });
+    }
     tokens = app.get(TokenService);
   });
 
@@ -55,7 +61,11 @@ describe('Filters audit (e2e, 2026-10-01)', () => {
 
   async function user(role: 'client' | 'attorney', verified = true) {
     const u = await prisma.user.create({
-      data: { role, phone_verified_at: role === 'client' ? new Date() : null },
+      data: {
+        email: `e2e-${crypto.randomUUID()}@example.com`,
+        role,
+        phone_verified_at: role === 'client' ? new Date() : null,
+      },
     });
     if (role === 'client') {
       const handle = `cl_${u.id.slice(0, 8)}`;
@@ -170,6 +180,77 @@ describe('Filters audit (e2e, 2026-10-01)', () => {
     expect(tags.body.data[0]).toMatchObject({ tag, postsCount: 1 });
   });
 
+  // Owner 2026-10-06: several states at once; «Юр. посты» → «Только мои
+  // темы» = any of the picked qualifications with their subcategories.
+  it('latest posts: several states and several qualifications', async () => {
+    const ny = await user('attorney');
+    const ca = await user('attorney');
+    const tx = await user('attorney');
+    await license(ny.id, 'NY');
+    await license(ca.id, 'CA');
+    await license(tx.id, 'TX');
+    const viewer = await user('client');
+    const mark = randomUUID().slice(0, 8);
+    const ids: Record<string, string> = {};
+    for (const [key, who, practiceCode] of [
+      ['ny', ny, SUB],
+      ['ca', ca, 'family_law'],
+      ['tx', tx, SUB],
+      ['nyGeneral', ny, undefined],
+    ] as const) {
+      const res = await post(who.auth, {
+        title: `${key} ${mark}`,
+        body: `${key} ${mark}`,
+        ...(practiceCode ? { practiceCode } : {}),
+      });
+      expect(res.status).toBe(201);
+      ids[key] = res.body.data.id as string;
+    }
+    const list = async (query: Record<string, string>) =>
+      (
+        (
+          await api()
+            .get('/api/v1/search/latest-posts')
+            .query(query)
+            .set(viewer.auth)
+            .expect(200)
+        ).body.data as { id: string }[]
+      ).map((p) => p.id);
+
+    const twoStates = await list({ states: 'NY,ca' });
+    expect(twoStates).toEqual(
+      expect.arrayContaining([ids.ny, ids.ca, ids.nyGeneral]),
+    );
+    expect(twoStates).not.toContain(ids.tx);
+
+    // `state` (older apps) and `states` together = either of them.
+    const both = await list({ state: 'TX', states: 'CA' });
+    expect(both).toEqual(expect.arrayContaining([ids.ca, ids.tx]));
+    expect(both).not.toContain(ids.ny);
+
+    // A category matches its subcategories; general posts never match.
+    const topics = await list({
+      states: 'NY,CA,TX',
+      practices: 'civil_litigation,family_law',
+    });
+    expect(topics).toEqual(expect.arrayContaining([ids.ny, ids.ca, ids.tx]));
+    expect(topics).not.toContain(ids.nyGeneral);
+    const one = await list({ states: 'NY,CA,TX', practices: 'family_law' });
+    expect(one).toContain(ids.ca);
+    expect(one).not.toContain(ids.ny);
+
+    await api()
+      .get('/api/v1/search/latest-posts')
+      .query({ states: 'NYC' })
+      .set(viewer.auth)
+      .expect(400);
+    await api()
+      .get('/api/v1/search/latest-posts')
+      .query({ practices: 'Bad Code' })
+      .set(viewer.auth)
+      .expect(400);
+  });
+
   it('latest posts: photos only, period and popular on the server', async () => {
     const att = await user('attorney');
     await license(att.id);
@@ -275,5 +356,61 @@ describe('Filters audit (e2e, 2026-10-01)', () => {
     expect((s.body.data as { id: string }[]).map((c) => c.id)).toEqual(
       expect.arrayContaining([fresh, withBids]),
     );
+  });
+
+  // Owner 2026-10-06: the case feed takes several states at once too.
+  it('case feed: several states at once', async () => {
+    const att = await user('attorney');
+    for (const st of ['NY', 'CA', 'TX']) await license(att.id, st);
+    const client = await user('client');
+    const sub = await prisma.practiceArea.findUniqueOrThrow({
+      where: { code: SUB },
+    });
+    const byState: Record<string, string> = {};
+    for (const st of ['NY', 'CA', 'TX']) {
+      const c = await prisma.case.create({
+        data: {
+          client_id: client.id,
+          title: `Multi-state case ${st}`,
+          description: 'Arbitration clause in my contract',
+          practice_area_id: sub.id,
+          primary_state_code: st,
+          budget_mode: 'clarify_later',
+        },
+      });
+      await prisma.caseState.create({
+        data: { case_id: c.id, state_code: st, is_primary: true },
+      });
+      byState[st] = c.id;
+    }
+    const ids = async (query: Record<string, string>) =>
+      (
+        (
+          await api()
+            .get('/api/v1/cases')
+            .query(query)
+            .set(att.auth)
+            .expect(200)
+        ).body.data as { id: string }[]
+      ).map((c) => c.id);
+
+    const topic = await ids({ practice: 'civil_litigation', states: 'NY,ca' });
+    expect(topic).toEqual(expect.arrayContaining([byState.NY, byState.CA]));
+    expect(topic).not.toContain(byState.TX);
+
+    const browse = await ids({ scope: 'all', states: 'CA,TX' });
+    expect(browse).toEqual(expect.arrayContaining([byState.CA, byState.TX]));
+    expect(browse).not.toContain(byState.NY);
+
+    // One state still works the old way.
+    const one = await ids({ scope: 'all', state: 'TX' });
+    expect(one).toContain(byState.TX);
+    expect(one).not.toContain(byState.CA);
+
+    await api()
+      .get('/api/v1/cases')
+      .query({ states: 'N1' })
+      .set(att.auth)
+      .expect(400);
   });
 });

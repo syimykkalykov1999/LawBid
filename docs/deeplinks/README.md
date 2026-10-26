@@ -4,34 +4,50 @@ The app handles these links (docs/01_FOUNDATION_AUTH.md §12, §10.2 E/F):
 
 | Link | Opens |
 |---|---|
-| `https://lawbid.app/auth/email-code?email=<address>&code=<6 digits>` | Email code screen with the code filled in, then verifies it (magic sign-in link) |
-| `https://lawbid.app/case/<id>` | Case (placeholder until file 04) |
-| `https://lawbid.app/lawyer/<username>` | Attorney profile (placeholder until file 03) |
-| `https://lawbid.app/post/<id>` | Post (placeholder until file 05) |
+| `https://lawbid.dev/auth/email-code?email=<address>&code=<6 digits>` | Email code screen with the code filled in, then verifies it (magic sign-in link) |
+| `https://lawbid.dev/case/<id>` | Case (placeholder until file 04) |
+| `https://lawbid.dev/lawyer/<username>` | Attorney profile (placeholder until file 03) |
+| `https://lawbid.dev/post/<id>` | Post (placeholder until file 05) |
 | `lawbid://auth/email-code?…`, `lawbid://case/<id>`, … | Same routes over the custom scheme. Works without any hosting |
 
-The `https://` links open the app only after the domain proves it trusts the app. You need to host two files for that.
+The `https://` links open the app only after the domain proves it trusts the app. Both files are generated and published by `seo-deploy.yml` (`scripts/seo/well-known.mjs`, tested in `scripts/seo/test/well-known.test.mjs`); nothing is uploaded by hand. They open in the app: `/u/*` (profile QR), `/q/*` (website sign-in QR), `/g/*` (group invitation), `/lawyer/*`, `/case/*`, `/post/*`, `/r/*` and `/auth/email-code`.
 
 ## 1. iOS: `apple-app-site-association`
 
-1. In `apple-app-site-association`, replace every `TEAM_ID` with your Apple Team ID. That's the 10-character value under developer.apple.com → Membership details.
-2. Serve the file at `https://lawbid.app/.well-known/apple-app-site-association`:
-   - the file has no extension;
-   - use `Content-Type: application/json`;
-   - serve it over HTTPS with no redirects.
-3. Keep the Associated Domains capability turned on for all three app ids in the Apple Developer portal. Xcode automatic signing does this for you.
+Served at `https://lawbid.dev/.well-known/apple-app-site-association`, no extension, `Content-Type: application/json`, no redirect. Team ID 78T56RPM74, bundle `com.lawbid.lawbid`. `docs/deeplinks/apple-app-site-association` is a copy kept equal to the generated file by a test.
 
-The app declares `applinks:$(DEEP_LINK_HOST)` in `apps/mobile/ios/Runner/Runner.entitlements`. `DEEP_LINK_HOST` defaults to `lawbid.app` in `apps/mobile/ios/Flutter/Common.xcconfig`, and `Secrets.xcconfig` can override it.
+Keep the Associated Domains capability on for the app id in the Apple Developer portal (Xcode automatic signing does this). The app declares `applinks:$(DEEP_LINK_HOST)` in `apps/mobile/ios/Runner/Runner.entitlements`. `DEEP_LINK_HOST` defaults to `lawbid.dev` in `apps/mobile/ios/Flutter/Common.xcconfig`.
 
 ## 2. Android: `assetlinks.json`
 
-1. In `assetlinks.json`, replace each `SHA256_*` placeholder with the SHA-256 fingerprint of the certificate that signs that variant:
-   - **prod** (`com.lawbid.lawbid`): Play Console → Test and release → App integrity → App signing key certificate → SHA-256.
-   - **staging / dev**: the fingerprint of the keystore you sign them with. For local debug builds, run `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`.
-   - You can list several fingerprints per app, for example the upload key and the app-signing key.
-2. Serve the file at `https://lawbid.app/.well-known/assetlinks.json` with `Content-Type: application/json`.
+Served at `https://lawbid.dev/.well-known/assetlinks.json`, `Content-Type: application/json`, package `com.lawbid.lawbid`. It needs the SHA-256 of the certificate Google Play signs the app with:
 
-The intent filter in `apps/mobile/android/app/src/main/AndroidManifest.xml` uses `${deepLinkHost}`. It defaults to `lawbid.app`, and you can override it with the Gradle property `-Plawbid.deepLinkHost=…`.
+1. Play Console → Test and release → App integrity → App signing key certificate → SHA-256.
+2. GitHub → the LawBid repository → Settings → Secrets and variables → Actions → Variables → new variable `ANDROID_APP_SHA256` with that value. Several fingerprints (for example the upload key too) go in one value separated by commas.
+3. Run the workflow "SEO pages" by hand (or wait for the daily run).
+
+Until the variable exists the Android file is not published (a made-up fingerprint would only look valid) and Android keeps opening the links in the browser; the workflow prints a warning. Check after publishing: `adb shell pm verify-app-links --re-verify com.lawbid.lawbid`, then `adb shell pm get-app-links com.lawbid.lawbid`.
+
+The intent filter in `apps/mobile/android/app/src/main/AndroidManifest.xml` uses `${deepLinkHost}`. It defaults to `lawbid.dev`, and you can override it with the Gradle property `-Plawbid.deepLinkHost=…`.
+
+## 3. Passkeys (owner 2026-10-22)
+
+The same two files also tell the phones that the app may create and use
+passkeys for `lawbid.dev`:
+
+- iOS: `webcredentials` → `78T56RPM74.com.lawbid.lawbid` in the AASA file,
+  and the app declares `webcredentials:$(DEEP_LINK_HOST)` in
+  `Runner.entitlements` (the Associated Domains capability must stay on in
+  the Apple Developer portal).
+- Android: the relation `delegate_permission/common.get_login_creds` beside
+  `handle_all_urls` in `assetlinks.json` — with the SHA-256 of the Play
+  signing key **and** of the upload key (comma-separated in
+  `ANDROID_APP_SHA256`), otherwise a debug / internal-testing build cannot
+  create passkeys.
+- Web: the passkeys bridge script in `apps/mobile/web/index.html` is loaded
+  from GitHub releases; the web CSP (`infra/modules/web`) must allow that
+  origin in `script-src`, else the browser reports no passkey support and
+  the app hides the button.
 
 ## Using a different domain
 
@@ -42,7 +58,7 @@ Set all three of these to the same host, then host both files there:
 
 ## Server side
 
-The sign-in email must contain the magic link exactly as `https://lawbid.app/auth/email-code?email=<url-encoded email>&code=<code>`. The `lawbid://` form also works, but mail clients often don't make it clickable.
+The sign-in email must contain the magic link exactly as `https://lawbid.dev/auth/email-code?email=<url-encoded email>&code=<code>`. The `lawbid://` form also works, but mail clients often don't make it clickable.
 
 ## Testing on a device or simulator
 
@@ -54,5 +70,5 @@ adb shell pm get-app-links com.lawbid.lawbid
 
 # iOS simulator
 xcrun simctl openurl booted "lawbid://auth/email-code?email=ann%40example.com&code=123456"
-xcrun simctl openurl booted "https://lawbid.app/case/3f0c9a8e-1b2d-4c5e-9f00-112233445566"
+xcrun simctl openurl booted "https://lawbid.dev/case/3f0c9a8e-1b2d-4c5e-9f00-112233445566"
 ```

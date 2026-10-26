@@ -23,15 +23,18 @@ CaseBidItemDto _$CaseBidItemDtoFromJson(Map<String, dynamic> json) =>
           : DateTime.parse(json['startDate'] as String),
       estimatedDurationDays: (json['estimatedDurationDays'] as num?)?.toInt(),
       roundCount: (json['roundCount'] as num).toInt(),
+      version: (json['version'] as num).toInt(),
       turn: PartyRole.fromJson(json['turn'] as String),
       decidedAt: json['decidedAt'] == null
           ? null
           : DateTime.parse(json['decidedAt'] as String),
       outsidePractice: json['outsidePractice'] as bool,
+      outsideLicensedStates: json['outsideLicensedStates'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
       attorney: BidAttorneySummaryDto.fromJson(
         json['attorney'] as Map<String, dynamic>,
       ),
+      percentBps: (json['percentBps'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$CaseBidItemDtoToJson(CaseBidItemDto instance) =>
@@ -42,14 +45,17 @@ Map<String, dynamic> _$CaseBidItemDtoToJson(CaseBidItemDto instance) =>
       'status': instance.status.toJson(),
       'feeType': instance.feeType.toJson(),
       'amountCents': instance.amountCents,
+      'percentBps': ?instance.percentBps,
       'message': instance.message,
       'startAvailability': instance.startAvailability.toJson(),
       'startDate': ?instance.startDate?.toIso8601String(),
       'estimatedDurationDays': ?instance.estimatedDurationDays,
       'roundCount': instance.roundCount,
+      'version': instance.version,
       'turn': instance.turn.toJson(),
       'decidedAt': ?instance.decidedAt?.toIso8601String(),
       'outsidePractice': instance.outsidePractice,
+      'outsideLicensedStates': instance.outsideLicensedStates,
       'createdAt': instance.createdAt.toIso8601String(),
       'attorney': instance.attorney.toJson(),
     };

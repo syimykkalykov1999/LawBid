@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/scheduler.dart';
-
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
@@ -9,8 +11,6 @@ import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
-import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// State of the "next page" slot at the end of a paginated list
 /// (docs/01 §8.3 "Pagination-loader").
@@ -150,19 +150,31 @@ class AppPaginationFooter extends StatelessWidget {
       AppPaginationStatus.end => Padding(
           key: const ValueKey(AppPaginationStatus.end),
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-          child: Row(
-            children: [
-              Expanded(child: _Hairline(color: colors.goldStroke)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: Text(
-                  labels.end,
-                  style: typography.bodySmall
-                      .copyWith(color: colors.textSecondary),
+          // Centered: equal lines on both sides, the text capped at 60%
+          // of the width so a long translation wraps instead of shifting.
+          child: LayoutBuilder(
+            builder: (context, box) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(child: _Hairline(color: colors.goldStroke)),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: box.maxWidth * 0.6),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                    child: Text(
+                      labels.end,
+                      textAlign: TextAlign.center,
+                      style: typography.bodySmall
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ),
                 ),
-              ),
-              Expanded(child: _Hairline(color: colors.goldStroke, flip: true)),
-            ],
+                Expanded(
+                  child: _Hairline(color: colors.goldStroke, flip: true),
+                ),
+              ],
+            ),
           ),
         ),
     };
@@ -228,7 +240,14 @@ class AppPaginatedListView<T> extends StatefulWidget {
     this.itemSpacing = AppSpacing.md,
     this.loadMoreExtent = 320,
     this.controller,
+    this.scrollCacheExtent,
   });
+
+  /// Owner 2026-10-19 (smooth scroll): how far past the screen rows are
+  /// built ahead (null: Flutter's 250 px). A feed of screen-tall cards
+  /// passes about a screen, so the next card is built and its pictures
+  /// decoded before it scrolls in, not in the frame it appears.
+  final ScrollCacheExtent? scrollCacheExtent;
 
   final List<T> items;
   final Widget Function(BuildContext context, T item, int index) itemBuilder;
@@ -316,6 +335,7 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
       controller: _controller,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: widget.padding,
+      scrollCacheExtent: widget.scrollCacheExtent,
       itemCount: count,
       itemBuilder: (context, index) {
         if (hasHeader && index == 0) return widget.header;
@@ -350,7 +370,7 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>> {
     if (widget.onRefresh != null) {
       list = RefreshIndicator(
         color: colors.gold,
-        backgroundColor: colors.surface,
+        backgroundColor: colors.sheet,
         onRefresh: widget.onRefresh!,
         child: list,
       );

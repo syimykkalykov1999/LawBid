@@ -10,9 +10,9 @@ part 'otp_verify_result.freezed.dart';
 /// (ecc:code-architect, docs/CHANGELOG.md).
 ///
 /// Real-backend wiring pass (docs/CHANGELOG.md, stage-1.7-auth):
-/// [success] gained [isNewUser] (from `AuthTokensResult.isNewUser`, drives
-/// whether `OnboardingFlow` skips the role step), and [locked]/
-/// [rateLimited] were added for `AUTH_OTP_LOCKED` /
+/// `success` gained `isNewUser` (from `AuthTokensResult.isNewUser`, drives
+/// whether `OnboardingFlow` skips the role step), and `locked`/
+/// `rateLimited` were added for `AUTH_OTP_LOCKED` /
 /// `AUTH_OTP_REQUEST_LIMIT`/`RATE_LIMITED` (apps/api's `ErrorCode` enum —
 /// see `RealAuthRepository.verifyOtp` for the exact mapping). NOTE: this
 /// file's `.freezed.dart` part was NOT regenerated as part of this change
@@ -20,10 +20,12 @@ part 'otp_verify_result.freezed.dart';
 /// required before this compiles.
 @freezed
 sealed class OtpVerifyResult with _$OtpVerifyResult {
-  const factory OtpVerifyResult.success({required bool isNewUser}) = OtpVerifySuccess;
+  const factory OtpVerifyResult.success({required bool isNewUser}) =
+      OtpVerifySuccess;
   const factory OtpVerifyResult.invalid() = OtpVerifyInvalid;
   const factory OtpVerifyResult.expired() = OtpVerifyExpired;
   const factory OtpVerifyResult.locked() = OtpVerifyLocked;
-  const factory OtpVerifyResult.rateLimited(int retryAfterSeconds) = OtpVerifyRateLimited;
+  const factory OtpVerifyResult.rateLimited(int retryAfterSeconds) =
+      OtpVerifyRateLimited;
   const factory OtpVerifyResult.networkError() = OtpVerifyNetworkError;
 }

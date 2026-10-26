@@ -1,0 +1,276 @@
+# Owner 2026-10-15 — the web version of the app: build (WebAssembly) →
+# S3 → CloudFront cache reset. Infra: infra/modules/web.
+#
+# Audit #10 (2026-10-22): every build goes to releases/<sha>/ in the
+# bucket and the live release is switched only after the whole upload, by
+# one write to the CloudFront KeyValueStore (scripts/deploy/web-release.sh)
+# — a visitor never mixes two builds, and the previous releases stay for
+# rollback.yml (web_release input). Until the store exists (infra not
+# applied yet) the old root upload below is used as well.
+#
+# Owner 2026-10-23 (web speed pass): the heavy, release-specific files (the
+# app, the engine, the assets) are moved to v/<sha>/ before the upload
+# (scripts/deploy/web-immutable.py), so the browser sees a NEW url on every
+# release and can keep them for a year (`immutable`): a repeat visit asks
+# the network for nothing but index.html and a few small files. The
+# page-level files (index.html, flutter_bootstrap.js, manifest, ...) are
+# still revalidated. Brotli twins (*.br) of the app and the engine are
+# uploaded next to the gzip ones (scripts/deploy/web-gzip-big.sh).
+#
+# Runs only when the repository variable WEB_DEPLOY_ENABLED is 'true', so
+# a repo without the AWS secrets stays green.
+#
+# Repository secrets / variables (never in the repo):
+#   AWS_DEPLOY_ROLE_PROD   OIDC role that may use the `web_deploy_policy_arn`
+#                          policy (terraform output of the stack)
+#   AWS_REGION
+#   WEB_BUCKET             terraform output `web_bucket`
+#   WEB_DISTRIBUTION_ID    terraform output `web_distribution_id`
+#   WEB_API_BASE_URL       e.g. https://api.<domain>/api/v1
+#   WEB_DEEP_LINK_HOST     the host links open on (the web host)
+#   FIREBASE_WEB_*         (optional) API_KEY, APP_ID, SENDER_ID, PROJECT_ID,
+#                          AUTH_DOMAIN, VAPID_KEY of the Firebase web app: push
+#                          in the browser; without them the web has no push
+#   FIREBASE_WEB_RECAPTCHA_KEY (optional) reCAPTCHA Enterprise site key of the
+#                          web app (Firebase → App Check); without it the web
+#                          sends no App Check token (docs/runbooks/APP_CHECK.md)
+name: Web deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/api-client/**"
+      - ".github/workflows/web-deploy.yml"
+      - "scripts/deploy/web-release.sh"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and publish the web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ vars.WEB_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: "stable"
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build web (WebAssembly)
+        working-directory: apps/mobile
+        run: >-
+          flutter build web --wasm -t lib/main_prod.dart
+          --no-web-resources-cdn
+          --dart-define=WEB_ENABLED=true
+          --dart-define=API_BASE_URL=${{ secrets.WEB_API_BASE_URL }}
+          --dart-define=DEEP_LINK_HOST=${{ secrets.WEB_DEEP_LINK_HOST }}
+          --dart-define=FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}
+          --dart-define=FIREBASE_WEB_APP_ID=${{ secrets.FIREBASE_WEB_APP_ID }}
+          --dart-define=FIREBASE_WEB_SENDER_ID=${{ secrets.FIREBASE_WEB_SENDER_ID }}
+          --dart-define=FIREBASE_WEB_PROJECT_ID=${{ secrets.FIREBASE_WEB_PROJECT_ID }}
+          --dart-define=FIREBASE_WEB_AUTH_DOMAIN=${{ secrets.FIREBASE_WEB_AUTH_DOMAIN }}
+          --dart-define=FIREBASE_WEB_VAPID_KEY=${{ secrets.FIREBASE_WEB_VAPID_KEY }}
+          --dart-define=FIREBASE_WEB_RECAPTCHA_KEY=${{ secrets.FIREBASE_WEB_RECAPTCHA_KEY }}
+
+      # The push worker needs the same keys (it cannot read the build's).
+      - name: Fill the push worker's keys
+        working-directory: apps/mobile/build/web
+        env:
+          K1: ${{ secrets.FIREBASE_WEB_API_KEY }}
+          K2: ${{ secrets.FIREBASE_WEB_APP_ID }}
+          K3: ${{ secrets.FIREBASE_WEB_SENDER_ID }}
+          K4: ${{ secrets.FIREBASE_WEB_PROJECT_ID }}
+        run: |
+          if [ -n "$K1" ]; then
+            sed -i \
+              -e "s|__FIREBASE_WEB_API_KEY__|$K1|" \
+              -e "s|__FIREBASE_WEB_APP_ID__|$K2|" \
+              -e "s|__FIREBASE_WEB_SENDER_ID__|$K3|" \
+              -e "s|__FIREBASE_WEB_PROJECT_ID__|$K4|" \
+              firebase-messaging-sw.js
+          fi
+
+      # Owner 2026-10-23: app, engine and assets under v/<sha>/ (see above).
+      - name: Move the heavy files under v/<sha>/
+        working-directory: apps/mobile
+        run: python3 ../../scripts/deploy/web-immutable.py build/web "${{ github.sha }}"
+
+      # The engine (CanvasKit / skwasm) is served from our own domain: the
+      # page's CSP allows fetches only to 'self' and the API, and a fetch to
+      # gstatic.com was blocked, leaving the app on its splash forever.
+      - name: The bundle has what the app needs
+        working-directory: apps/mobile
+        run: |
+          V=build/web/v/${{ github.sha }}
+          test -s $V/canvaskit/skwasm.wasm
+          test -s build/web/index.html
+          # Owner 2026-10-22: the page's scripts are files (strict CSP).
+          test -s build/web/boot_head.js
+          test -s build/web/boot_end.js
+          test -s build/web/pay.js
+          test -s $V/main.dart.wasm
+          test -s $V/main.dart.js
+          test -s $V/assets/FontManifest.json
+          grep -q 'entrypointBaseUrl' build/web/flutter_bootstrap.js
+          test -s build/web/sqlite3.wasm
+          test -s build/web/drift_worker.js
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Find the release switch (empty = infra not applied yet)
+        id: store
+        run: echo "arn=$(scripts/deploy/web-release.sh store "${{ secrets.WEB_DISTRIBUTION_ID }}")" >> "$GITHUB_OUTPUT"
+
+      # The whole build under its own prefix. Browsers revalidate every file
+      # (the URLs they see do not change between releases); CloudFront keeps
+      # a release's files for good (its cache key is the release path).
+      - name: Install brotli (for the .br twins)
+        run: command -v brotli >/dev/null || sudo apt-get install -y -qq brotli
+
+      - name: Upload this release to releases/<sha>/
+        working-directory: apps/mobile/build/web
+        env:
+          DEST: s3://${{ secrets.WEB_BUCKET }}/releases/${{ github.sha }}
+        run: |
+          # App screens read spa.html (marked noindex), the home page index.html.
+          cp index.html spa.html
+          # The page-level files: the browser asks again every time (a 304
+          # when nothing changed); CloudFront keeps them for good, its cache
+          # key is the release path.
+          CC="public,max-age=0,must-revalidate,s-maxage=31536000"
+          # v/<sha>/: the url changes with every release, so a year, immutable.
+          IMM="public,max-age=31536000,immutable"
+          # Icons: rarely change, a day in the browser.
+          ICO="public,max-age=86400,s-maxage=31536000"
+          aws s3 sync . "$DEST" --exclude "v/*" --exclude "icons/*" --exclude "*.wasm" --cache-control "$CC"
+          aws s3 sync icons "$DEST/icons" --cache-control "$ICO"
+          # .wasm must be served as application/wasm.
+          aws s3 sync . "$DEST" --exclude "*" --include "*.wasm" --exclude "v/*" \
+            --content-type application/wasm --cache-control "$CC"
+          aws s3 sync v "$DEST/v" --exclude "*.wasm" --cache-control "$IMM"
+          aws s3 sync v "$DEST/v" --exclude "*" --include "*.wasm" \
+            --content-type application/wasm --cache-control "$IMM"
+          # Big files gzip-compressed (CloudFront does not compress >10 MB)
+          # and the brotli twins of the app and the engine.
+          "$GITHUB_WORKSPACE/scripts/deploy/web-gzip-big.sh" "$DEST" "$CC" "$IMM"
+          # index.html last: a release without it is never switched to.
+          aws s3 cp index.html "$DEST/index.html" --cache-control "$CC"
+
+      - name: Switch the live release (index.html last)
+        if: steps.store.outputs.arn != ''
+        env:
+          ARN: ${{ steps.store.outputs.arn }}
+          SHA: ${{ github.sha }}
+          B: s3://${{ secrets.WEB_BUCKET }}
+        run: |
+          R=scripts/deploy/web-release.sh
+          PREV=$($R get "$ARN" web_release)
+          PATHS=$(ls -1 apps/mobile/build/web | paste -sd, -)
+          [ ${#PATHS} -lt 1000 ] || { echo "top-level names do not fit the store (1 KB)"; exit 1; }
+          $R put "$ARN" web_app_paths "$PATHS"
+          # The brotli twins of this release exist (the CloudFront function
+          # serves them only to releases marked here; older ones have none).
+          if command -v brotli >/dev/null 2>&1; then $R put "$ARN" "br_$SHA" 1; fi
+          if [ -n "$PREV" ] && [ "$PREV" != "$SHA" ]; then $R put "$ARN" web_previous "$PREV"; fi
+          $R put "$ARN" web_release "$SHA"
+          # The error page (a real 404 shows the app) is the root index.html.
+          aws s3 cp "$B/releases/$SHA/index.html" "$B/index.html" --cache-control "no-cache"
+          echo "Live web release: $SHA (previous: ${PREV:-none})"
+
+      # AWS cleanup audit 2026-10-23: old releases/<sha>/ folders (with their
+      # v/<sha>/ and .br twins) and their br_<sha> markers are removed, but
+      # never the live / previous release, the newest WEB_KEEP_RELEASES
+      # (repository variable, default 30), or anything younger than 3 days
+      # (open tabs ask for their own v/<sha>/ files). A failure here must not
+      # stop the CDN reset below.
+      - name: Remove old releases
+        if: steps.store.outputs.arn != ''
+        continue-on-error: true
+        env:
+          KEEP: ${{ vars.WEB_KEEP_RELEASES || '30' }}
+          MIN_AGE_DAYS: "3"
+        run: scripts/deploy/web-prune-releases.sh "${{ secrets.WEB_BUCKET }}" "${{ steps.store.outputs.arn }}"
+
+      - name: Reset the CDN cache for the error page
+        if: steps.store.outputs.arn != ''
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
+          --paths "/index.html"
+
+      # ---- The old root layout: only while the release switch does not
+      # exist yet (infra/modules/web not applied). Remove after the apply.
+
+      # Files that never change under the same name are cached for a year;
+      # everything else (the page, the engine, the app) is asked again, so a
+      # release shows up at once.
+      - name: Upload long-lived files
+        if: steps.store.outputs.arn == ''
+        working-directory: apps/mobile/build/web
+        run: |
+          rm -f spa.html
+          # v/<sha>/ has the release in its url: a year, immutable.
+          aws s3 sync v "s3://${{ secrets.WEB_BUCKET }}/v" \
+            --exclude "*.wasm" --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync v "s3://${{ secrets.WEB_BUCKET }}/v" \
+            --exclude "*" --include "*.wasm" --content-type application/wasm \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync icons "s3://${{ secrets.WEB_BUCKET }}/icons" \
+            --cache-control "public,max-age=86400"
+
+      # The public pages (SEO pages + the company site, seo-deploy.yml) live
+      # in the same bucket; public-paths.txt lists their names so --delete
+      # never removes them.
+      - name: Upload the rest (always revalidated) and drop what is gone
+        if: steps.store.outputs.arn == ''
+        working-directory: apps/mobile/build/web
+        run: |
+          KEEP=(--exclude "public-paths.txt" --exclude "lawyers/*" --exclude "attorneys/*" \
+            --exclude "practice-areas/*" --exclude "sitemap.xml" --exclude "robots.txt" \
+            --exclude "releases/*")
+          if aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/public-paths.txt" /tmp/public-paths.txt 2>/dev/null; then
+            while read -r p; do
+              [ -n "$p" ] && KEEP+=(--exclude "$p" --exclude "$p/*")
+            done < /tmp/public-paths.txt
+          fi
+          aws s3 sync . "s3://${{ secrets.WEB_BUCKET }}" \
+            --delete \
+            --exclude "v/*" --exclude "icons/*" \
+            "${KEEP[@]}" \
+            --cache-control "no-cache"
+          # .wasm must be served as application/wasm.
+          aws s3 cp "s3://${{ secrets.WEB_BUCKET }}/" "s3://${{ secrets.WEB_BUCKET }}/" \
+            --recursive --exclude "*" --include "*.wasm" --exclude "releases/*" --exclude "v/*" \
+            --content-type application/wasm --metadata-directive REPLACE \
+            --cache-control "no-cache"
+          # Big files gzip-compressed (CloudFront does not compress >10 MB).
+          "$GITHUB_WORKSPACE/scripts/deploy/web-gzip-big.sh" "s3://${{ secrets.WEB_BUCKET }}" "no-cache" "public,max-age=31536000,immutable"
+
+      - name: Reset the CDN cache for the page and the app
+        if: steps.store.outputs.arn == ''
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
+          --paths "/index.html" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/boot_head.js" "/boot_end.js" "/version.json" "/manifest.json"

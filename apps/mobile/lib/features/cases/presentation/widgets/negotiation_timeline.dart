@@ -96,19 +96,24 @@ class _OfferBubble extends StatelessWidget {
       OfferStatus.declined => t.t('cases.timeline.declined'),
       _ => t.t('cases.timeline.superseded'),
     };
-    final amount =
-        CaseFormat.terms(t, formats, offer.feeType, offer.amountCents);
+    final amount = CaseFormat.terms(
+      t,
+      formats,
+      offer.feeType,
+      offer.amountCents,
+      percentBps: offer.percentBps,
+    );
     final pending = offer.status == OfferStatus.pending;
 
     final bubble = Container(
       padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: mine ? colors.goldTint : colors.surface,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(AppRadii.card),
-          topRight: const Radius.circular(AppRadii.card),
-          bottomLeft: Radius.circular(mine ? AppRadii.card : AppSpacing.xs),
-          bottomRight: Radius.circular(mine ? AppSpacing.xs : AppRadii.card),
+        borderRadius: BorderRadiusDirectional.only(
+          topStart: const Radius.circular(AppRadii.card),
+          topEnd: const Radius.circular(AppRadii.card),
+          bottomStart: Radius.circular(mine ? AppRadii.card : AppSpacing.xs),
+          bottomEnd: Radius.circular(mine ? AppSpacing.xs : AppRadii.card),
         ),
         border: Border.all(
           color: pending ? colors.gold : colors.border,
@@ -138,8 +143,10 @@ class _OfferBubble extends StatelessWidget {
           ),
           if (offer.message != null && offer.message!.trim().isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(offer.message!,
-                style: typography.bodySmall.copyWith(color: colors.text)),
+            Text(
+              offer.message!,
+              style: typography.bodySmall.copyWith(color: colors.text),
+            ),
           ],
           const SizedBox(height: AppSpacing.sm),
           Text(
@@ -188,8 +195,9 @@ class _OfferBubble extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.md),
                 child: Align(
-                  alignment:
-                      mine ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: mine
+                      ? AlignmentDirectional.centerEnd
+                      : AlignmentDirectional.centerStart,
                   child: FractionallySizedBox(widthFactor: 0.92, child: bubble),
                 ),
               ),
@@ -220,7 +228,7 @@ class _SystemLine extends StatelessWidget {
             width: AppSpacing.xl,
             child: AppIcon(
               positive
-                  ? AppIcons.verifiedRounded
+                  ? AppIcons.verifiedUserOutlined
                   : AppIcons.removeCircleOutlineRounded,
               size: AppSizes.iconSm,
               color: color,

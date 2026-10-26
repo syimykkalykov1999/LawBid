@@ -191,6 +191,47 @@ describe('Admin integrations & API keys (e2e, owner 2026-10-01)', () => {
     expect(JSON.stringify(audit)).not.toContain(SECRET_2);
   });
 
+  it('a Sentry DSN pasted in the admin is saved, goes live as «configured» and is removable', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    await prisma.integrationCredential.deleteMany({
+      where: { provider: 'sentry' },
+    });
+    await api()
+      .post('/api/v1/admin/auth/step-up')
+      .set(admin.auth)
+      .send({ code: totpCode(admin.totpSecret, Date.now() + 30_000) })
+      .expect(200);
+    const dsn = 'https://abcdef0123456789@o123456.ingest.sentry.io/4501234';
+    const bad = await api()
+      .post('/api/v1/admin/integrations/sentry/versions')
+      .set(admin.auth)
+      .send({ values: { dsn: 'not-a-dsn' } });
+    expect(bad.status).toBe(400);
+    const v1 = await api()
+      .post('/api/v1/admin/integrations/sentry/versions')
+      .set(admin.auth)
+      .send({ values: { dsn } })
+      .expect(201);
+    expect(JSON.stringify(v1.body)).not.toContain('abcdef0123456789');
+    await api()
+      .post('/api/v1/admin/integrations/sentry/versions/1/activate')
+      .set(admin.auth)
+      .send({})
+      .expect(200);
+    // The telemetry start reads it from here (a restart applies it).
+    expect(await secrets.field('sentry', 'dsn')).toBe(dsn);
+    const overview = (
+      await api().get('/api/v1/admin/integrations').set(admin.auth).expect(200)
+    ).body as { data: { storageEnabled: boolean } };
+    expect(overview.data.storageEnabled).toBe(true);
+    await api()
+      .delete('/api/v1/admin/integrations/sentry')
+      .set(admin.auth)
+      .send({ confirm: 'sentry' })
+      .expect(204);
+    expect(await secrets.field('sentry', 'dsn')).not.toBe(dsn);
+  });
+
   it('a stripe key needs a passed test before it goes live', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
     await api()
@@ -225,7 +266,7 @@ describe('Admin integrations & API keys (e2e, owner 2026-10-01)', () => {
 
   it('only super admins; app users never reach it', async () => {
     const support = await adminSession(base, prisma, 'support');
-    await api().get('/api/v1/admin/integrations').set(support.auth).expect(403);
+    await api().get('/api/v1/admin/integrations').set(support.auth).expect(404);
     const user = await prisma.user.create({ data: { role: 'client' } });
     const t = tokens.signAccessToken({
       sub: user.id,

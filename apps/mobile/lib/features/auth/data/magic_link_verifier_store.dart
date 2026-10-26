@@ -15,8 +15,8 @@ const _kVerifierKey = 'magic_link_verifier';
 /// anyone in on another device.
 class MagicLinkVerifierStore {
   MagicLinkVerifierStore([FlutterSecureStorage? storage, Random? random])
-    : _storage = storage ?? const FlutterSecureStorage(),
-      _random = random ?? Random.secure();
+      : _storage = storage ?? const FlutterSecureStorage(),
+        _random = random ?? Random.secure();
 
   final FlutterSecureStorage _storage;
   final Random _random;
@@ -24,7 +24,8 @@ class MagicLinkVerifierStore {
   /// Generates and stores a new verifier (replacing any previous one) and
   /// returns its challenge for `OtpRequestDto.linkChallenge`.
   Future<String> createChallenge() async {
-    final verifier = _base64UrlNoPad(List<int>.generate(32, (_) => _random.nextInt(256)));
+    final verifier =
+        _base64UrlNoPad(List<int>.generate(32, (_) => _random.nextInt(256)));
     await _storage.write(key: _kVerifierKey, value: verifier);
     return challengeFor(verifier);
   }

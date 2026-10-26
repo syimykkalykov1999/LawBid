@@ -20,7 +20,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const EXPECTED = {
-  dev: { id: 'com.lawbid.lawbid.dev', name: 'LawBid Dev' },
+  dev: { id: 'com.lawbid.lawbid.dev', name: 'LawBid' },
   staging: { id: 'com.lawbid.lawbid.staging', name: 'LawBid Staging' },
   prod: { id: 'com.lawbid.lawbid', name: 'LawBid' },
 };

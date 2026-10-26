@@ -1,0 +1,1 @@
+Uri baseUri() => Uri.base;

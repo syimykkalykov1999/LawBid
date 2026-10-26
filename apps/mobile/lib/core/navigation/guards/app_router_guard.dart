@@ -1,21 +1,26 @@
 import 'package:flutter/foundation.dart';
-
-import '../../../features/auth/auth_routes.dart';
-import '../../../features/onboarding/application/current_user_controller.dart';
-import '../../../features/onboarding/domain/current_user.dart';
-import '../../../features/onboarding/domain/onboarding_step_id.dart';
-import '../../../features/onboarding/onboarding_routes.dart';
-import '../../../features/profile/domain/verification_gate.dart';
-import '../../../shared/domain/user_role.dart';
-import '../../startup/app_startup.dart';
-import '../app_routes.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/domain/current_user.dart';
+import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/features/onboarding/onboarding_routes.dart';
+import 'package:lawbid/features/profile/domain/verification_gate.dart';
+import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// OQ-048: where an assistant stands — still loading, joined an
 /// attorney, or not (→ the join screen).
 enum AssistantGate { notAssistant, loading, active, notJoined }
 
 /// Routes an assistant never uses (the attorney's billing / verification).
-const _assistantBlocked = ['/profile/settings/subscription', '/verification'];
+const _assistantBlocked = [
+  '/profile/settings/subscription',
+  '/verification',
+  '/trust/me',
+];
 const _assistantJoin = '/assistant/join';
 
 /// Everything the guard decides on — a plain value so the redirect table
@@ -28,9 +33,20 @@ class GuardSnapshot {
     required this.hasSession,
     required this.user,
     this.assistant = AssistantGate.notAssistant,
+    this.guestBrowsing = false,
+    this.returnTo,
   });
 
   final StartupStatus startup;
+
+  /// Owner 2026-10-22 (decision A1): the `guest_browsing` flag — without a
+  /// session the feed, search and public profiles stay open and the splash
+  /// lands on the feed instead of the welcome screen.
+  final bool guestBrowsing;
+
+  /// Where a guest was when they tapped something that needs an account
+  /// (`guestReturnProvider`): the first screen after sign-in + onboarding.
+  final String? returnTo;
 
   /// OQ-048: an assistant's team state (`GET /assistants/me`).
   final AssistantGate assistant;
@@ -46,8 +62,12 @@ class GuardSnapshot {
 /// "Гейты навигации только в AppRouterGuard"; docs/01_FOUNDATION_AUTH.md
 /// §11 "Guard-логика навигации"):
 ///
-/// ```
+/// ```text
 /// нет токена                      → /welcome
+/// нет токена, guest_browsing      → /feed, /search, /lawyer/*, /u/*,
+///                                   /post/*, /c/* open; всё остальное →
+///                                   /welcome (Owner 2026-10-22, A1)
+/// токен есть, пароль не задан     → /auth/set-password (Owner 2026-10-13)
 /// токен есть, нет согласий/18+    → /onboarding/consents
 /// нет роли                        → /onboarding/role
 /// клиент без подтверждённых
@@ -55,6 +75,8 @@ class GuardSnapshot {
 /// адвокат без подтверждённого
 /// телефона                        → /onboarding/contacts
 /// онбординг не завершён           → /onboarding/{текущий шаг}
+/// всё готово, но есть непринятые
+/// юридические документы           → /legal-accept (Owner 2026-10-05)
 /// attorney + unverified           → главное меню доступно, «Кейсы» (Моё)
 ///                                   показывает экран верификации
 /// attorney не verified + «+»      → /create/verification-required
@@ -76,6 +98,10 @@ abstract final class AppRouterGuard {
     AuthRoutes.phone,
     AuthRoutes.email,
     AuthRoutes.otp,
+    AuthRoutes.assistant,
+    AuthRoutes.login,
+    AuthRoutes.forgotPassword,
+    AuthRoutes.webQr,
   };
 
   static String? redirect(String location, GuardSnapshot s) {
@@ -88,7 +114,21 @@ abstract final class AppRouterGuard {
 
     // Row 1: no token → /welcome.
     if (!s.hasSession) {
-      if (isLegal || publicAuthRoutes.contains(location)) return null;
+      if (isLegal ||
+          publicAuthRoutes.contains(location) ||
+          // Owner 2026-10-20: the website's sign-in QR opened by an
+          // ordinary camera shows the "open the app" page without a login
+          // (`/q/<id>`, and `/qr/<nonce>` since 2026-10-22).
+          AppRoutes.isWebLoginLink(location)) {
+        return null;
+      }
+      // Owner 2026-10-22 (guest browsing): the public screens stay open;
+      // the splash lands on the feed; an account-only screen asks to sign
+      // in.
+      if (s.guestBrowsing) {
+        if (isGuestRoute(location)) return null;
+        if (location == AppRoutes.splash) return AppRoutes.feed;
+      }
       return AuthRoutes.welcome;
     }
 
@@ -106,12 +146,30 @@ abstract final class AppRouterGuard {
 
     if (isLegal) return null;
 
+    // Owner 2026-10-13: an account that signed in with a code may set a
+    // password. Owner 2026-10-22 (audit #4 §2, WhatsApp / Telegram): it is
+    // optional — no forced step after the code; «Задать пароль» lives in
+    // Settings and the screen stays open while there is no password yet.
+    if (user.passwordRequired && location == AuthRoutes.setPassword) {
+      return null;
+    }
+
     final required = requiredStep(user);
     if (required == null) {
+      // Owner 2026-10-05 (legal documents): a new or materially changed
+      // document of the user's role is not accepted yet — the acceptance
+      // screen is the only place to be (reading a document stays possible,
+      // /legal/* returned above). The API blocks nothing else except
+      // publishing a case and placing a bid.
+      if (user.pendingLegalDocuments.isNotEmpty) {
+        return location == AppRoutes.legalAccept ? null : AppRoutes.legalAccept;
+      }
+      if (location == AppRoutes.legalAccept) return AppRoutes.feed;
       // Rows 7-8: fully onboarded. Auth/onboarding/splash → feed; every
       // app route (incl. the verification screens) stays reachable.
       final onEntryRoute = location == AppRoutes.splash ||
           publicAuthRoutes.contains(location) ||
+          location == AuthRoutes.setPassword ||
           OnboardingRoutes.stepOf(location) != null;
       // OQ-048: an assistant works only inside an attorney's account.
       if (user.role == UserRole.assistant) {
@@ -128,7 +186,8 @@ abstract final class AppRouterGuard {
             }
         }
       }
-      if (onEntryRoute) return AppRoutes.feed;
+      // Owner 2026-10-22 (guest browsing): back to where the guest was.
+      if (onEntryRoute) return s.returnTo ?? AppRoutes.feed;
       // docs/03 §6.4 (stage 3.9): "+" is "Post to feed" for attorneys;
       // before verification it opens the "Complete verification" gate.
       if (location == AppRoutes.create && attorneyNeedsVerification(user)) {
@@ -178,13 +237,10 @@ abstract final class AppRouterGuard {
     if (missing.contains(MissingRequirement.role) || user.role == null) {
       return OnboardingStepId.role;
     }
-    if (user.isClient &&
-        (missing.contains(MissingRequirement.phoneVerified) ||
-            missing.contains(MissingRequirement.emailVerified))) {
+    if (user.isClient && missing.contains(MissingRequirement.phoneVerified)) {
       return OnboardingStepId.contacts;
     }
-    if ((user.isAttorney || user.role == UserRole.assistant) &&
-        missing.contains(MissingRequirement.phoneVerified)) {
+    if (user.isAttorney && missing.contains(MissingRequirement.phoneVerified)) {
       return OnboardingStepId.contacts;
     }
     if (completed) return null;
@@ -192,15 +248,17 @@ abstract final class AppRouterGuard {
     final order = OnboardingStepId.orderFor(user.role);
     final roleIndex = order.indexOf(OnboardingStepId.role);
     OnboardingStepId effective;
+    // The first step after the role (contacts; profile for an assistant).
+    final afterRole = order[roleIndex + 1];
     if (saved == null) {
-      effective = OnboardingStepId.contacts;
+      effective = afterRole;
     } else if (!order.contains(saved)) {
       // A step that doesn't exist for this role (e.g. `verification` saved
       // for a client) → the last step.
       effective = order.last;
     } else if (order.indexOf(saved) <= roleIndex) {
       // language/consents/role are already satisfied (rows 2-3 passed).
-      effective = OnboardingStepId.contacts;
+      effective = afterRole;
     } else {
       effective = saved;
     }
@@ -216,11 +274,23 @@ abstract final class AppRouterGuard {
     return effective;
   }
 
-  static bool _canRevisit(String location, OnboardingStepId required, CurrentUser user) {
+  static bool _canRevisit(
+    String location,
+    OnboardingStepId required,
+    CurrentUser user,
+  ) {
     if (location == AppRoutes.verification ||
         location == AppRoutes.verificationWizard) {
       return required == OnboardingStepId.verification;
     }
+    // Owner 2026-10-11: "All plans" on the subscription offer opens the
+    // plans screen from the verification step.
+    if (location == SubscriptionRoutes.subscription) {
+      return required == OnboardingStepId.verification;
+    }
+    // Owner 2026-10-04: practice areas and the subscription offer are
+    // stages shown in place on the verification step (no pushed screens
+    // to come back from), so nothing else is reachable mid-onboarding.
     final step = OnboardingRoutes.stepOf(location);
     if (step == null) return false;
     final order = OnboardingStepId.orderFor(user.role);

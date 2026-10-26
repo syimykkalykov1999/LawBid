@@ -1,11 +1,16 @@
+import { forEachDatabase } from '../../sharding/for-each-database';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { BidPacksService } from '../bid-packs/bid-packs.service';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { Bid, BidOffer, PartyRole, Prisma } from '@prisma/client';
+import { BUMP_VERSION } from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -18,12 +23,61 @@ import {
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
+import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
+import { EntitlementsService } from '../plans/entitlements.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { assertContingency, contingencyPolicy } from '../cases/cases.public';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidDto } from './dto/bid-responses.dto';
 import type { CounterOfferDto, CreateBidDto } from './dto/bid-requests.dto';
+import { touchClientActive } from '../cases/cases.public';
+import { ConflictCheckService } from './conflict/conflict-check.service';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
+
+/** Journal reason of the hourly subscription-lapse withdrawal. */
+export const WITHDRAW_REASON_SUBSCRIPTION_LAPSED = 'subscription_lapsed';
+
+function bidAlreadyExists(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.BID_ALREADY_EXISTS,
+    message: 'You already have a bid on this case.',
+  });
+}
+
+/**
+ * May the attorney's earlier bid row on this (open) case be reused as a
+ * new bid? Only when the system ended it, not a party:
+ *  - `rejected_auto` on a case that is open again: the case was archived
+ *    (auto/admin/suspension) and then restored — no other path brings a
+ *    case with auto-rejected bids back to `open`;
+ *  - `withdrawn` by the subscription-lapse job (journal reason).
+ * The attorney's own withdrawal and the client's rejection stay final.
+ */
+export async function reusableBid(
+  tx: Prisma.TransactionClient,
+  caseId: string,
+  attorneyId: string,
+  bid: { id: string; status: Bid['status'] },
+): Promise<boolean> {
+  if (bid.status === 'rejected_auto') return true; // caller checked `open`
+  if (bid.status !== 'withdrawn') return false;
+  const rows = await tx.caseJournal.findMany({
+    where: {
+      case_id: caseId,
+      attorney_id: attorneyId,
+      event_type: 'bid_withdrawn',
+    },
+    orderBy: { created_at: 'desc' },
+    select: { payload: true },
+    take: 20,
+  });
+  const last = rows
+    .map((r) => r.payload as { bidId?: unknown; reason?: unknown } | null)
+    .find((p) => p?.bidId === bid.id);
+  return last?.reason === WITHDRAW_REASON_SUBSCRIPTION_LAPSED;
+}
 
 /**
  * docs/04_CASES_BIDS.md §5–§6 (stage 4.4): bid creation, withdraw,
@@ -42,11 +96,51 @@ export class BidsService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly caseAccess: CaseAccessPolicy,
     private readonly chat: ChatSystemMessages,
+    private readonly trust: AttorneyTrustService,
+    // Owner 2026-10-05: the plan's terms (offers in any state, offer limit).
+    @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-14: offers bought in packs, spent above the plan's limit.
+    @Optional() private readonly packs?: BidPacksService,
+    // Owner 2026-10-17: the percent cap and where a percent is not allowed.
+    @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-20: the conflict-of-interest record kept on each bid.
+    @Optional() private readonly conflicts?: ConflictCheckService,
+    // Owner 2026-10-25: per-day / per-hour caps against scripts.
+    @Optional() private readonly limits?: UsageLimitsService,
   ) {}
+
+  /** Codes of the case's topics (the first and the extras). */
+  private async casePracticeCodes(caseId: string): Promise<string[]> {
+    const kase = await this.prisma.case.findUnique({
+      where: { id: caseId },
+      select: {
+        practice_area: { select: { code: true } },
+        extra_practices: {
+          select: { practice_area: { select: { code: true } } },
+        },
+      },
+    });
+    if (!kase) return [];
+    return [
+      kase.practice_area.code,
+      ...kase.extra_practices.map((e) => e.practice_area.code),
+    ];
+  }
+
+  /** One bought offer for a new offer above the plan's limit. */
+  private async spendCredit(
+    userId: string,
+    mark: () => void,
+  ): Promise<boolean> {
+    const ok = (await this.packs?.consume(userId)) ?? false;
+    if (ok) mark();
+    return ok;
+  }
 
   /** POST /cases/:caseId/bids (§5.1). One active-or-ever bid per attorney
    * per case (UQ bids(case_id, attorney_id)): a second attempt — even
-   * after the first was withdrawn — is BID_ALREADY_EXISTS. */
+   * after the first was withdrawn — is BID_ALREADY_EXISTS, except when
+   * the system (not a party) ended the first one: see reusableBid(). */
   async create(
     user: RequestUser,
     caseId: string,
@@ -58,28 +152,141 @@ export class BidsService {
         message: 'Only attorneys can place bids.',
       });
     }
+    await this.limits?.consume('bid_create', user.sub);
     const amountCents = normalizeAmount(dto);
     if (dto.startAvailability === 'custom_date') {
       assertNotPast(dto.startDate);
     }
-    // Deny by default: the same eligibility (verified + licensed state +
-    // matching practice) that governs seeing the case governs bidding on
-    // it (§2, §4.1). Case status is re-checked below: a participant
-    // (e.g. an existing withdrawn bid) can still "see" a since-closed
-    // case, but must not be able to bid on it.
+    // Deny by default: the attorney must be able to see the case (a
+    // verified attorney, no block either way). Case status is re-checked
+    // below: a participant (e.g. an existing withdrawn bid) can still
+    // "see" a since-closed case, but must not be able to bid on it.
     const access = await this.caseAccess.assertCanView(
       { userId: user.sub, role: 'attorney' },
       caseId,
     );
+    // Owner 2026-10-04: any open case can be viewed; an offer outside the
+    // states of a verified licence needs the plan's "offers in any state"
+    // (owner 2026-10-05, plan builder — on by default).
+    if (
+      access.kind === 'attorney_browser' &&
+      this.entitlements &&
+      !(await this.entitlements.has(user.sub, 'bids_any_state'))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.LICENSE_STATE_REQUIRED,
+        message:
+          'You can send an offer only in states where you hold a verified licence.',
+      });
+    }
+    // Owner 2026-10-17: a percent bid — within the admin cap, never on a
+    // case whose topics forbid it (criminal, family by default).
+    const percentBps =
+      dto.feeType === 'contingency'
+        ? assertContingency(
+            await contingencyPolicy(this.settings),
+            await this.casePracticeCodes(caseId),
+            dto.percentBps,
+            'percentBps',
+          )
+        : null;
     // Owner 2026-09-30: bids outside the attorney's practices are allowed
     // and marked (the client is warned).
     const outsidePractice = access.kind !== 'owner' && !access.inPractice;
+    const outsideLicensedStates =
+      access.kind !== 'owner' && !access.inLicensedState;
     // §2: bidding needs an active subscription/trial.
     if (!(await this.subscriptions.isActive(user.sub))) {
       throw new ForbiddenException({
         code: ErrorCode.SUBSCRIPTION_REQUIRED,
         message: 'An active subscription or trial is required to bid.',
       });
+    }
+    // Owner 2026-10-05 (anti-fraud): the bid gate — `trust.bids_require_cleared`
+    // and no hold (a client's fraud complaint) / suspension.
+    await this.trust.assertCanBid(user.sub);
+    // Owner 2026-10-05 (plan builder): the plan may cap open offers.
+    const maxActive = await this.entitlements?.limit(
+      user.sub,
+      'max_active_bids',
+    );
+    if (maxActive && maxActive > 0) {
+      const open = await this.prisma.bid.count({
+        where: { attorney_id: user.sub, status: 'active' },
+      });
+      if (open >= maxActive) {
+        throw new ConflictException({
+          code: ErrorCode.BID_LIMIT_REACHED,
+          message: 'Your plan allows no more open offers at once.',
+          details: { limit: maxActive, open },
+        });
+      }
+    }
+
+    let spent = false;
+    // Owner 2026-10-14: the free trial ends by days or by the plan's number
+    // of offers, whichever comes first.
+    const trialBids = await this.entitlements?.limit(user.sub, 'trial_bids');
+    if (trialBids && trialBids > 0) {
+      const sub = await this.prisma.subscription.findUnique({
+        where: { user_id: user.sub },
+        select: { status: true, trial_started_at: true, created_at: true },
+      });
+      if (sub?.status === 'trialing') {
+        const used = await this.prisma.bid.count({
+          where: {
+            attorney_id: user.sub,
+            created_at: { gte: sub.trial_started_at ?? sub.created_at },
+          },
+        });
+        if (
+          used >= trialBids &&
+          !(await this.spendCredit(user.sub, () => (spent = true)))
+        ) {
+          throw new ConflictException({
+            code: ErrorCode.BID_TRIAL_LIMIT_REACHED,
+            message: 'The offers of your free trial are used up.',
+            details: { limit: trialBids, used },
+          });
+        }
+      }
+    }
+    // Owner 2026-10-14 (spam): new offers per calendar month (UTC) by plan;
+    // changing an offer already sent on this case is not a new offer.
+    const perMonth = await this.entitlements?.limit(user.sub, 'bids_per_month');
+    if (perMonth && perMonth > 0) {
+      const already = await this.prisma.bid.findUnique({
+        where: {
+          case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+        },
+        select: { id: true },
+      });
+      if (!already) {
+        const now = new Date();
+        const monthStart = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+        );
+        const used = await this.prisma.bid.count({
+          where: { attorney_id: user.sub, created_at: { gte: monthStart } },
+        });
+        if (
+          used >= perMonth &&
+          !spent &&
+          !(await this.spendCredit(user.sub, () => (spent = true)))
+        ) {
+          throw new ConflictException({
+            code: ErrorCode.BID_MONTHLY_LIMIT_REACHED,
+            message: 'You have used all offers of this month on your plan.',
+            details: {
+              limit: perMonth,
+              used,
+              resetsAt: new Date(
+                Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+              ).toISOString(),
+            },
+          });
+        }
+      }
     }
 
     try {
@@ -97,22 +304,50 @@ export class BidsService {
           });
         }
         const now = new Date();
-        const created = await tx.bid.create({
-          data: {
-            case_id: caseId,
-            attorney_id: user.sub,
-            status: 'active',
-            fee_type: dto.feeType,
-            amount_cents: amountCents,
-            message: dto.message,
-            start_availability: dto.startAvailability,
-            start_date: dto.startDate ? new Date(dto.startDate) : null,
-            estimated_duration_days: dto.estimatedDurationDays ?? null,
-            round_count: 0,
-            turn: 'client',
-            outside_practice: outsidePractice,
+        const fresh = {
+          status: 'active',
+          fee_type: dto.feeType,
+          amount_cents: amountCents,
+          percent_bps: percentBps,
+          message: dto.message,
+          start_availability: dto.startAvailability,
+          start_date: dto.startDate ? new Date(dto.startDate) : null,
+          estimated_duration_days: dto.estimatedDurationDays ?? null,
+          round_count: 0,
+          turn: 'client',
+          outside_practice: outsidePractice,
+          outside_licensed_states: outsideLicensedStates,
+        } satisfies Prisma.BidUncheckedUpdateInput;
+        const previous = await tx.bid.findUnique({
+          where: {
+            case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
           },
+          select: { id: true, status: true },
         });
+        let created: Bid;
+        if (previous) {
+          if (!(await reusableBid(tx, caseId, user.sub, previous))) {
+            throw bidAlreadyExists();
+          }
+          // The system ended the old bid (case archived then restored, or
+          // a subscription lapse): it becomes a brand-new bid. Its old
+          // rounds go — the journal keeps that history — so round_no
+          // restarts at 0 (§6.1 invariant round_no = round_count).
+          await tx.bidOffer.deleteMany({ where: { bid_id: previous.id } });
+          created = await tx.bid.update({
+            where: { id: previous.id },
+            data: {
+              ...fresh,
+              decided_at: null,
+              created_at: now,
+              ...BUMP_VERSION,
+            },
+          });
+        } else {
+          created = await tx.bid.create({
+            data: { case_id: caseId, attorney_id: user.sub, ...fresh },
+          });
+        }
         const offer = await tx.bidOffer.create({
           data: {
             bid_id: created.id,
@@ -120,6 +355,7 @@ export class BidsService {
             from_role: 'attorney',
             fee_type: dto.feeType,
             amount_cents: amountCents,
+            percent_bps: percentBps,
             message: dto.message,
             status: 'pending',
             created_at: now,
@@ -128,9 +364,15 @@ export class BidsService {
         await tx.case.update({
           where: { id: caseId },
           data: {
-            bids_count: { increment: 1 },
+            // bids_count counts bid rows; a reused row is already counted.
+            ...(previous ? {} : { bids_count: { increment: 1 } }),
             last_activity_at: now,
           },
+        });
+        // Owner 2026-10-05: a bid answers the client's pending invite.
+        await tx.caseInvite.updateMany({
+          where: { case_id: caseId, attorney_id: user.sub, status: 'pending' },
+          data: { status: 'accepted', bid_id: created.id, decided_at: now },
         });
         await this.journal.append(tx, {
           caseId,
@@ -142,6 +384,7 @@ export class BidsService {
             bidId: created.id,
             feeType: created.fee_type,
             amountCents: created.amount_cents,
+            percentBps: created.percent_bps,
           },
         });
         await this.notifications.emit(
@@ -158,14 +401,14 @@ export class BidsService {
       await this.prisma.bidDraft
         .deleteMany({ where: { attorney_id: user.sub, case_id: caseId } })
         .catch(() => undefined);
+      // Owner 2026-10-20: the conflict check of this bid, kept as the
+      // attorney's own record (a warning, never a block).
+      await this.conflicts?.onBid(user.sub, caseId, bid.id);
       return toBidDto(bid);
     } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new ConflictException({
-          code: ErrorCode.BID_ALREADY_EXISTS,
-          message: 'You already have a bid on this case.',
-        });
-      }
+      // The offer did not go through: the bought one comes back.
+      if (spent) await this.packs?.refund(user.sub);
+      if (isUniqueViolation(error)) throw bidAlreadyExists();
       throw error;
     }
   }
@@ -181,6 +424,8 @@ export class BidsService {
   /** POST /bids/:id/decline (§6.3) — client only. */
   async decline(user: RequestUser, bidId: string): Promise<BidDto> {
     const bid = await this.loadForActor(bidId, user, 'client');
+    // OQ-054: declining is the client's own action on the case.
+    await touchClientActive(this.prisma, bid.case_id, user.sub);
     return this.applyAndRespond(bid.id, 'decline', 'client', {});
   }
 
@@ -190,11 +435,40 @@ export class BidsService {
     user: RequestUser,
     bidId: string,
     dto: CounterOfferDto,
+    expectedVersion?: number,
   ): Promise<BidDto> {
+    await this.limits?.consume('bid_counter', user.sub);
     const { bid, by } = await this.loadForEitherParty(bidId, user);
+    // OQ-054: a counter from the client is their own action on the case.
+    if (by === 'client') {
+      await touchClientActive(this.prisma, bid.case_id, user.sub);
+    }
+    // Owner 2026-10-17: a contingency bid is negotiated in percent.
+    if (bid.fee_type === 'contingency') {
+      const policy = await contingencyPolicy(this.settings);
+      const bps = assertContingency(
+        { ...policy, blockedPractices: [] },
+        [],
+        dto.percentBps,
+        'percentBps',
+      );
+      return this.applyAndRespond(bid.id, 'counter', by, {
+        percentBps: bps,
+        message: dto.message ?? null,
+        expectedVersion,
+      });
+    }
+    if (dto.amountCents === undefined) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'amountCents is required.',
+        details: { fields: ['amountCents'] },
+      });
+    }
     return this.applyAndRespond(bid.id, 'counter', by, {
       amountCents: dto.amountCents,
       message: dto.message ?? null,
+      expectedVersion,
     });
   }
 
@@ -220,6 +494,17 @@ export class BidsService {
    * treats as "not active") still withdraws stale active bids.
    */
   async withdrawActiveBidsForAttorney(attorneyId: string): Promise<number> {
+    // Shard-ready step 8: the attorney's bids sit on every database that
+    // holds a case they bid on; one transaction per database.
+    const counts = await forEachDatabase(this.prisma, () =>
+      this.withdrawActiveBidsOnThisDatabase(attorneyId),
+    );
+    return counts.reduce((a, b) => a + b, 0);
+  }
+
+  private async withdrawActiveBidsOnThisDatabase(
+    attorneyId: string,
+  ): Promise<number> {
     return withTxRetry(this.prisma, async (tx) => {
       const targets = await tx.bid.findMany({
         where: { attorney_id: attorneyId, status: 'active' },
@@ -245,13 +530,29 @@ export class BidsService {
           actor: { userId: null, role: null },
           attorneyId,
           event: r.plan.event,
-          payload: { bidId: r.id, reason: 'subscription_lapsed' },
+          payload: {
+            bidId: r.id,
+            reason: WITHDRAW_REASON_SUBSCRIPTION_LAPSED,
+          },
         });
         await this.notifications.emit(
           {
             type: 'bid_rejected',
             recipientId: clientId,
             payload: { caseId: r.case_id, bidId: r.id, reason: 'withdrawn' },
+          },
+          tx,
+        );
+        // The attorney is told why their bid is gone.
+        await this.notifications.emit(
+          {
+            type: 'bid_rejected',
+            recipientId: attorneyId,
+            payload: {
+              caseId: r.case_id,
+              bidId: r.id,
+              reason: WITHDRAW_REASON_SUBSCRIPTION_LAPSED,
+            },
           },
           tx,
         );
@@ -264,7 +565,12 @@ export class BidsService {
     bidId: string,
     action: 'withdraw' | 'decline' | 'counter',
     by: PartyRole,
-    extra: { amountCents?: number; message?: string | null },
+    extra: {
+      amountCents?: number;
+      percentBps?: number;
+      message?: string | null;
+      expectedVersion?: number;
+    },
   ): Promise<BidDto> {
     const chat: ChatChange[] = [];
     const result = await withTxRetry(this.prisma, async (tx) => {
@@ -283,7 +589,9 @@ export class BidsService {
         action,
         by,
         amountCents: extra.amountCents,
+        percentBps: extra.percentBps,
         message: extra.message,
+        expectedVersion: extra.expectedVersion,
       });
       await this.journal.append(tx, {
         caseId: before.case_id,
@@ -300,6 +608,9 @@ export class BidsService {
           to: plan.to,
           ...(extra.amountCents !== undefined
             ? { amountCents: extra.amountCents }
+            : {}),
+          ...(extra.percentBps !== undefined
+            ? { percentBps: extra.percentBps }
             : {}),
         },
       });
@@ -348,6 +659,32 @@ export class BidsService {
     tx: Prisma.TransactionClient;
   }): Promise<void> {
     const { caseId, attorneyId, clientId, bidId, action, by, plan, tx } = input;
+    // Owner 2026-10-19: a counter-offer puts the bid's chat in the other
+    // side's «Ожидают ответа» (and takes it out of the sender's); any other
+    // end of the round takes it out for both.
+    const actorId = by === 'client' ? clientId : attorneyId;
+    const otherId = by === 'client' ? attorneyId : clientId;
+    const chats = await tx.conversation.findMany({
+      where: { bid_id: bidId },
+      select: { id: true },
+    });
+    for (const { id } of chats) {
+      if (action === 'counter') {
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: otherId, waiting_since: null },
+          data: { waiting_since: new Date() },
+        });
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: actorId },
+          data: { waiting_since: null },
+        });
+      } else {
+        await tx.conversationParticipant.updateMany({
+          where: { conversation_id: id, user_id: { in: [actorId, otherId] } },
+          data: { waiting_since: null },
+        });
+      }
+    }
     if (plan.to === 'failed_negotiation') {
       // §6.2: both sides, "Стороны не договорились" (notif.bids.* text,
       // file 05 delivery).
@@ -440,6 +777,8 @@ export class BidsService {
 
 export function normalizeAmount(dto: CreateBidDto): number {
   if (dto.feeType === 'free_consultation') return 0;
+  // Owner 2026-10-17: a contingency bid is a percent (percent_bps).
+  if (dto.feeType === 'contingency') return 0;
   if (dto.amountCents === undefined || dto.amountCents <= 0) {
     throw new BadRequestException({
       code: ErrorCode.VALIDATION_ERROR,
@@ -487,6 +826,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
     status: bid.status,
     feeType: bid.fee_type,
     amountCents: bid.amount_cents,
+    percentBps: bid.percent_bps,
     message: bid.message,
     startAvailability: bid.start_availability,
     startDate: bid.start_date
@@ -494,8 +834,10 @@ export function toBidDto(bid: BidWithOffers): BidDto {
       : null,
     estimatedDurationDays: bid.estimated_duration_days,
     roundCount: bid.round_count,
+    version: bid.version,
     turn: bid.turn,
     outsidePractice: bid.outside_practice,
+    outsideLicensedStates: bid.outside_licensed_states,
     decidedAt: bid.decided_at?.toISOString() ?? null,
     createdAt: bid.created_at.toISOString(),
     offers: bid.offers
@@ -507,6 +849,7 @@ export function toBidDto(bid: BidWithOffers): BidDto {
         fromRole: o.from_role,
         feeType: o.fee_type,
         amountCents: o.amount_cents,
+        percentBps: o.percent_bps,
         message: o.message,
         status: o.status,
         createdAt: o.created_at.toISOString(),

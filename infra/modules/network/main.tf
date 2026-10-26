@@ -1,6 +1,9 @@
 # docs/06 §6.1 — VPC with two AZs: public subnets (ALB, NAT), private
 # subnets (ECS tasks, ElastiCache). VPC endpoints keep image pulls, logs
-# and secrets off the NAT path (cost + no public egress needed for them).
+# and secrets off the NAT path (cost + no public egress needed for them):
+# S3 gateway (free; ECR image layers live in S3) + interface endpoints for
+# ecr.api, ecr.dkr, logs, secretsmanager (and kms on full size).
+# https://docs.aws.amazon.com/AmazonECR/latest/userguide/vpc-endpoints.html
 terraform {
   required_providers {
     aws = { source = "hashicorp/aws", version = "~> 5.60" }
@@ -21,6 +24,11 @@ variable "nat_per_az" {
 variable "interface_endpoints" {
   type    = list(string)
   default = ["ecr.api", "ecr.dkr", "logs", "secretsmanager", "kms"]
+}
+variable "interface_endpoint_azs" {
+  type        = number
+  default     = 0
+  description = "In how many AZs the interface endpoints get a network interface (each costs $0.01/h). 0 = every AZ (prod availability); 1 = the first AZ only, the same AZ as the single NAT of the launch size (half the price, other AZ's traffic crosses AZs)."
 }
 variable "tags" {
   type    = map(string)
@@ -137,12 +145,13 @@ resource "aws_vpc_endpoint" "interface" {
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.key}"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
+  subnet_ids          = slice(aws_subnet.private[*].id, 0, var.interface_endpoint_azs == 0 ? length(var.azs) : min(var.interface_endpoint_azs, length(var.azs)))
   security_group_ids  = [aws_security_group.endpoints.id]
   private_dns_enabled = true
   tags                = merge(var.tags, { Name = "${var.name}-${each.key}" })
 }
 
+output "nat_gateway_ids" { value = aws_nat_gateway.this[*].id }
 output "vpc_id" { value = aws_vpc.this.id }
 output "vpc_cidr" { value = aws_vpc.this.cidr_block }
 output "public_subnet_ids" { value = aws_subnet.public[*].id }

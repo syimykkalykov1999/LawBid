@@ -1,8 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsBoolean,
   IsIn,
+  IsISO8601,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -13,6 +18,10 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import {
+  POST_CONTENT_CLASSES,
+  type PostContentClass,
+} from '../posts/content-filter.service';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -38,14 +47,78 @@ export class AdminListQueryDto {
   cursor?: string;
 }
 
-export class AdminPostsQueryDto extends AdminListQueryDto {
+/** Owner 2026-10-04 (bulk moderation): narrow a moderation list to one
+ * author and / or a time window, so a whole batch can be selected. */
+export class AdminContentFilterQueryDto extends AdminListQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Only this author.' })
+  @IsOptional()
+  @IsUUID('all')
+  authorId?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Created at or after (inclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Created before (exclusive).',
+  })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
+export class AdminPostsQueryDto extends AdminContentFilterQueryDto {
   @ApiPropertyOptional({ enum: ['post', 'news'], enumName: 'AdminPostKind' })
   @IsOptional()
   @IsIn(['post', 'news'])
   kind?: 'post' | 'news';
+
+  @ApiPropertyOptional({
+    enum: ['video'],
+    description: 'Only posts that carry a video (the former "reels")',
+  })
+  @IsOptional()
+  @IsIn(['video'])
+  media?: 'video';
+
+  /** Owner 2026-10-05: legal or general (personal) posts only. */
+  @ApiPropertyOptional({
+    enum: POST_CONTENT_CLASSES,
+    enumName: 'PostContentClass',
+  })
+  @IsOptional()
+  @IsIn(POST_CONTENT_CLASSES)
+  contentClass?: PostContentClass;
 }
 
-export class AdminCommentsQueryDto extends AdminListQueryDto {
+export const ADMIN_POST_CLASS_ACTIONS = ['legal', 'general', 'auto'] as const;
+export type AdminPostClassAction = (typeof ADMIN_POST_CLASS_ACTIONS)[number];
+
+/** Owner 2026-10-05: moderation reclassifies posts. legal / general sticks
+ * (the author's edits no longer change it); auto = back to the topic rule. */
+export class AdminClassifyPostsDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 200 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  ids!: string[];
+
+  @ApiProperty({
+    enum: ADMIN_POST_CLASS_ACTIONS,
+    enumName: 'AdminPostClassAction',
+  })
+  @IsIn(ADMIN_POST_CLASS_ACTIONS)
+  contentClass!: AdminPostClassAction;
+}
+
+export class AdminCommentsQueryDto extends AdminContentFilterQueryDto {
   @ApiPropertyOptional({
     enum: ['post', 'case'],
     enumName: 'AdminCommentThread',
@@ -81,12 +154,12 @@ export class AdminBidsQueryDto extends AdminListQueryDto {
 }
 
 export class AdminRemoveDto {
-  @ApiProperty({ maxLength: 500 })
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
   @Transform(trim)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  reason!: string;
+  reason = '';
 }
 
 export class AdminRemoveCommentDto extends AdminRemoveDto {
@@ -105,9 +178,21 @@ export class AdminPostRowDto {
   @ApiPropertyOptional({ type: String, nullable: true }) practice!:
     string | null;
   @ApiProperty({ enum: ['published', 'hidden', 'removed'] }) status!: string;
+  @ApiProperty({ enum: POST_CONTENT_CLASSES, enumName: 'PostContentClass' })
+  contentClass!: PostContentClass;
+  @ApiProperty({ description: 'Set by moderation (author edits keep it).' })
+  contentClassLocked!: boolean;
   @ApiProperty({ type: 'integer' }) likes!: number;
   @ApiProperty({ type: 'integer' }) comments!: number;
   @ApiProperty() deleted!: boolean;
+  @ApiProperty({
+    description: 'Owner 2026-10-18: the author keeps it in «Архив»',
+  })
+  archived!: boolean;
+  @ApiProperty({ description: 'The post carries a video' }) hasVideo!: boolean;
+  @ApiProperty({ type: 'integer', description: 'Documents (PDF, Word…)' })
+  attachments!: number;
+  @ApiProperty({ type: 'integer' }) photos!: number;
   @ApiProperty() createdAt!: string;
 }
 
@@ -129,7 +214,10 @@ export class AdminReviewRowDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ type: 'integer' }) rating!: number;
   @ApiPropertyOptional({ type: String, nullable: true }) body!: string | null;
+  @ApiProperty({ format: 'uuid' }) attorneyId!: string;
   @ApiProperty() attorneyName!: string;
+  /** The review's author. */
+  @ApiProperty({ format: 'uuid' }) clientId!: string;
   @ApiProperty() clientName!: string;
   /** null = an open review (no shared case, owner 2026-10-01). */
   @ApiPropertyOptional({ type: String, nullable: true })
@@ -227,10 +315,26 @@ export class CreateBroadcastDto {
   @IsIn(BROADCAST_AUDIENCES)
   audience!: (typeof BROADCAST_AUDIENCES)[number];
 
-  @ApiPropertyOptional({ example: 'IL', description: 'Only this state.' })
+  @ApiPropertyOptional({
+    example: 'IL',
+    description: 'Only this state (older clients; prefer stateCodes).',
+  })
   @IsOptional()
-  @Matches(/^[A-Z]{2}$/)
+  @Matches(/^[A-Z0-9]{2}$/)
   stateCode?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['IL', 'NY', 'CA'],
+    maxItems: 60,
+    description:
+      'Owner 2026-10-04: only these states (empty or missing = every state). Wins over stateCode.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(60)
+  @Matches(/^[A-Z0-9]{2}$/, { each: true })
+  stateCodes?: string[];
 }
 
 export class BroadcastDto {
@@ -240,6 +344,11 @@ export class BroadcastDto {
   @ApiProperty() audience!: string;
   @ApiPropertyOptional({ type: String, nullable: true }) stateCode!:
     string | null;
+  @ApiProperty({
+    type: [String],
+    description: 'The chosen states (empty = every state).',
+  })
+  stateCodes!: string[];
   @ApiProperty({ type: 'integer' }) recipients!: number;
   @ApiProperty() createdAt!: string;
 }
@@ -249,6 +358,7 @@ export const EXPORT_ENTITIES = [
   'cases',
   'bids',
   'payments',
+  'case_payments',
   'posts',
   'teams',
 ] as const;
@@ -277,4 +387,107 @@ export class AdminOverviewDto {
   @ApiProperty({ type: 'integer' }) tasksOpen!: number;
   @ApiProperty({ type: 'integer' }) tasksDone30d!: number;
   @ApiProperty({ type: 'integer' }) requestsPending!: number;
+}
+
+// --- Audit 2026-10-02: restore, client reviews --------------------------------
+
+/** A moderation reason for the audit log (10–500 characters). */
+export class AdminReasonDto {
+  @ApiPropertyOptional({ type: String, maxLength: 500 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(500)
+  reason = '';
+}
+
+export class AdminClientReviewsQueryDto extends AdminContentFilterQueryDto {
+  @ApiPropertyOptional({
+    enum: ['published', 'hidden', 'removed'],
+    enumName: 'AdminReviewStatus',
+  })
+  @IsOptional()
+  @IsIn(['published', 'hidden', 'removed'])
+  status?: 'published' | 'hidden' | 'removed';
+}
+
+export class AdminClientReviewRowDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ type: 'integer' }) rating!: number;
+  @ApiPropertyOptional({ type: String, nullable: true }) body!: string | null;
+  @ApiProperty({ format: 'uuid' }) authorId!: string;
+  @ApiProperty() authorName!: string;
+  @ApiProperty({ enum: ['attorney', 'client', 'assistant'] })
+  authorRole!: string;
+  @ApiProperty({ format: 'uuid' }) clientId!: string;
+  @ApiProperty() clientName!: string;
+  @ApiPropertyOptional({ type: String, nullable: true })
+  caseTitle!: string | null;
+  @ApiProperty({ enum: ['published', 'hidden', 'removed'] }) status!: string;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    enum: ['pending', 'accepted', 'rejected', 'auto_removed'],
+    description: "The reviewed client's appeal, if any.",
+  })
+  appealStatus!: string | null;
+  @ApiProperty() createdAt!: string;
+}
+
+// --- Owner 2026-10-04: bulk moderation ---------------------------------------
+
+export const BULK_MAX = 500;
+
+export const BULK_CONTENT_TYPES = [
+  'post',
+  'comment',
+  'case_comment',
+  'review',
+  'client_review',
+] as const;
+export type BulkContentType = (typeof BULK_CONTENT_TYPES)[number];
+
+export const BULK_CONTENT_ACTIONS = ['remove', 'hide', 'restore'] as const;
+export type BulkContentAction = (typeof BULK_CONTENT_ACTIONS)[number];
+
+/** Many ids and one reason (10–500 characters, same as single actions). */
+export class AdminBulkReasonDto extends AdminReasonDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: BULK_MAX })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(BULK_MAX)
+  @IsUUID('all', { each: true })
+  ids!: string[];
+}
+
+export class AdminBulkContentDto extends AdminBulkReasonDto {
+  @ApiProperty({
+    enum: BULK_CONTENT_ACTIONS,
+    enumName: 'AdminBulkContentAction',
+    description:
+      'remove: posts and comments (the author is told why); hide: any type (the author is told why); restore: back to visible.',
+  })
+  @IsIn(BULK_CONTENT_ACTIONS)
+  action!: BulkContentAction;
+
+  @ApiProperty({ enum: BULK_CONTENT_TYPES, enumName: 'AdminBulkContentType' })
+  @IsIn(BULK_CONTENT_TYPES)
+  type!: BulkContentType;
+}
+
+export class AdminBulkSkippedDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ enum: ['not_found', 'invalid_state', 'failed'] })
+  reason!: string;
+}
+
+export class AdminBulkResultDto {
+  @ApiProperty({ type: [String], format: 'uuid' })
+  done!: string[];
+
+  @ApiProperty({
+    type: [AdminBulkSkippedDto],
+    description: 'Ids that were missing or not in a state to change.',
+  })
+  skipped!: AdminBulkSkippedDto[];
 }

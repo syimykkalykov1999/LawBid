@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/persistence/local_kv_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'local_kv_store.dart';
 
 /// Resolved [SharedPreferences] instance. Has no default implementation —
 /// `main.dart` MUST override this in `ProviderScope(overrides: [...])` after

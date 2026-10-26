@@ -1,4 +1,9 @@
-import { dedupeKeyFor, quietHoursEnd } from './notification-rules';
+import {
+  ALWAYS_PUSH,
+  QUIET_EXEMPT,
+  dedupeKeyFor,
+  quietHoursEnd,
+} from './notification-rules';
 
 const time = (hhmm: string) => new Date(`1970-01-01T${hhmm}:00.000Z`);
 
@@ -37,5 +42,13 @@ describe('notification rules (docs/05 §9.4, §9.5)', () => {
         timezone: 'Mars/Olympus',
       }),
     ).toBeNull();
+  });
+
+  it('a task reminder is not held by quiet hours and not by a muted category (Owner 2026-10-15)', () => {
+    expect(QUIET_EXEMPT.has('task_reminder')).toBe(true);
+    expect(ALWAYS_PUSH.has('task_reminder')).toBe(true);
+    // Ordinary notifications still wait and still obey the switch.
+    expect(QUIET_EXEMPT.has('bid_accepted')).toBe(false);
+    expect(ALWAYS_PUSH.has('bid_accepted')).toBe(false);
   });
 });

@@ -14,7 +14,7 @@ import { RatingReconcileJob } from '../src/jobs/handlers/rating-reconcile.job';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stage 3.7 acceptance, against real
- * CockroachDB/Redis:
+ * PostgreSQL/Redis:
  *  - no review without an accepted bid and a closed case;
  *  - a second review for the same case is rejected;
  *  - the rating is recalculated on create, edit and hide;

@@ -1,5 +1,5 @@
 import { assertNoBlockBetween } from '../../blocks/block-check';
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import type { PartyRole, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -17,6 +17,8 @@ import {
 } from '../../chat/chat-system.service';
 import { CaseJournalService } from '../../journal/case-journal.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { ReferralsService } from '../../referrals/referrals.service';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
 import { SubscriptionAccessService } from '../../subscriptions/subscription-access.service';
 import {
   BidStateMachine,
@@ -26,6 +28,7 @@ import {
 import { toBidDto } from '../bids.service';
 import type { BidDto } from '../dto/bid-responses.dto';
 import { disclosedFieldsOf } from './contact-disclosure.util';
+import { touchClientActive } from '../../cases/cases.public';
 
 /** docs/04 §7 step 8: why the losing bids were rejected. */
 export const REJECT_REASON_ANOTHER_BID = 'another_bid_accepted';
@@ -39,7 +42,7 @@ export const WITHDRAW_REASON_ATTORNEY_INACTIVE = 'attorney_inactive';
  * answering BID_ATTORNEY_INACTIVE.
  */
 class AttorneyInactive extends Error {
-  constructor(readonly why: 'not_verified' | 'no_license' | 'no_subscription') {
+  constructor(readonly why: 'not_verified' | 'no_subscription' | 'on_hold') {
     super(`attorney inactive: ${why}`);
   }
 }
@@ -70,6 +73,8 @@ export class BidAcceptanceService {
     private readonly notifications: NotificationsService,
     private readonly subscriptions: SubscriptionAccessService,
     private readonly chat: ChatSystemMessages,
+    private readonly trust: AttorneyTrustService,
+    @Optional() private readonly referrals?: ReferralsService,
   ) {}
 
   /** POST /bids/:id/accept — the client accepts the attorney's offer, or
@@ -88,6 +93,22 @@ export class BidAcceptanceService {
         return this.acceptInTx(tx, bidId, by, user.sub, meta, chat);
       });
       this.chat.publish(chat);
+      // OQ-054: accepting is the client's own action on the case.
+      if (by === 'client') {
+        await touchClientActive(this.prisma, result.case_id, user.sub);
+      }
+      // Owner 2026-10-05: the client hired someone — a qualifying event of
+      // the partner program (idempotent; never throws).
+      const hired = await this.prisma.case.findUnique({
+        where: { id: result.case_id },
+        select: { client_id: true },
+      });
+      if (hired) {
+        await this.referrals?.onQualifyingEvent(
+          hired.client_id,
+          'bid_accepted',
+        );
+      }
       return toBidDto(result);
     } catch (error) {
       if (error instanceof AttorneyInactive) {
@@ -147,8 +168,10 @@ export class BidAcceptanceService {
     // eligibility re-check so a finished bid never gets "withdrawn".
     planBidTransition(bid, 'accept', by, now);
 
-    // §7 step 2 — the attorney must still be verified, licensed in a
-    // state of the case and subscribed at the moment of acceptance.
+    // §7 step 2 — the attorney must still be verified and subscribed at the
+    // moment of acceptance. Owner 2026-10-14: a licence in the case's state
+    // is NOT required (a client in Illinois may hire their California
+    // attorney); the bid card only warns about it.
     const profile = await tx.attorneyProfile.findUnique({
       where: { user_id: attorneyId },
       select: { verification_status: true },
@@ -156,17 +179,13 @@ export class BidAcceptanceService {
     if (profile?.verification_status !== 'verified') {
       throw new AttorneyInactive('not_verified');
     }
-    const license = await tx.attorneyLicense.findFirst({
-      where: {
-        attorney_id: attorneyId,
-        license_status: 'verified',
-        state_code: { in: kase.states.map((s) => s.state_code) },
-      },
-      select: { id: true },
-    });
-    if (!license) throw new AttorneyInactive('no_license');
     if (!(await this.subscriptions.isActive(attorneyId, tx))) {
       throw new AttorneyInactive('no_subscription');
+    }
+    // Owner 2026-10-05 (trust levels): a hold or a level below the bid
+    // gate stops the hire too.
+    if (!(await this.trust.bidGate(attorneyId)).ok) {
+      throw new AttorneyInactive('on_hold');
     }
 
     // §7 step 3: pending offer → accepted, bid → accepted, decided_at.
@@ -183,6 +202,8 @@ export class BidAcceptanceService {
       acceptedBidId: bidId,
       now,
     });
+    // OQ-048: assistants' bid drafts for this case can't be sent now.
+    await tx.bidDraft.deleteMany({ where: { case_id: caseId } });
     // §7 step 5: every other active bid → rejected_auto, its pending
     // offer → superseded.
     const rejected = await this.bidMachine.applyToActive(
@@ -317,12 +338,19 @@ export class BidAcceptanceService {
         ? {
             type: 'bid_accepted',
             recipientId: attorneyId,
-            payload: { caseId, bidId },
+            // Owner 2026-10-06: a tap opens the chat with the client,
+            // where the system message already says the bid was accepted.
+            payload: { caseId, bidId, conversationId: conversation.id },
           }
         : {
             type: 'offer_accepted',
             recipientId: clientId,
-            payload: { caseId, bidId, attorneyId },
+            payload: {
+              caseId,
+              bidId,
+              attorneyId,
+              conversationId: conversation.id,
+            },
           },
       tx,
     );
@@ -379,6 +407,19 @@ export class BidAcceptanceService {
           type: 'bid_rejected',
           recipientId: ref.case.client_id,
           payload: { caseId: ref.case_id, bidId, reason: 'withdrawn' },
+        },
+        tx,
+      );
+      // ...and the attorney, so the bid doesn't just vanish.
+      await this.notifications.emit(
+        {
+          type: 'bid_rejected',
+          recipientId: ref.attorney_id,
+          payload: {
+            caseId: ref.case_id,
+            bidId,
+            reason: WITHDRAW_REASON_ATTORNEY_INACTIVE,
+          },
         },
         tx,
       );

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { keyStrengthProblem, weakKeysInList } from './key-strength';
 import {
   isDeployedEnv,
   resolveEmailProvider,
@@ -89,7 +90,54 @@ export const envSchema = z
     // case_journal only) used by the monthly journal retention job. Unset
     // (dev / e2e): the job runs on DATABASE_URL and logs a warning.
     RETENTION_DATABASE_URL: z.string().min(1).optional(),
+    // Owner 2026-10-05 (demo mode, src/common/demo): the demo world's own
+    // database. Unset → `<DATABASE_URL database>_demo`, created and
+    // migrated by the API itself; `off` → no demo world.
+    DEMO_DATABASE_URL: z.string().min(1).optional(),
+    // Own PgBouncer (docs/architecture/DB_POOLER.md). Set by infra when
+    // `db_pooler_enabled = true`: DATABASE_URL is sent to this host:port
+    // (src/prisma/pooler-url.ts). Unset = direct database connection.
+    DB_POOLER_HOST: z.string().min(1).optional(),
+    DB_POOLER_PORT: z.coerce.number().int().positive().optional(),
+    DB_POOLER_QUERY: z.string().optional(),
+    // Read replica seam (src/prisma/prisma-read.service.ts). The replica is
+    // used only while it is at most DB_REPLICA_MAX_LAG_MS behind (default
+    // 5000); DB_REPLICA_POOLER_HOST sends the replica URL through a PgBouncer
+    // IN FRONT OF THE REPLICA (never the primary's one).
+    DB_REPLICA_MAX_LAG_MS: z.coerce.number().int().nonnegative().optional(),
+    DB_REPLICA_POOLER_HOST: z.string().min(1).optional(),
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
+    // How long one Redis command may wait before failing. The e2e harness
+    // raises it: a busy CI runner stalls the event loop past 2 s while an
+    // app boots, and the timer then fires before the reply is read.
+    REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
+    // Batch C item 9 (2026-10-24): a separate allkeys-lru Redis for pure
+    // caches (search results, translations, link previews …) so cache keys
+    // can never fill the queue Redis (noeviction). Unset = caches use
+    // REDIS_URL. Command timeout is short: a slow cache is skipped.
+    REDIS_CACHE_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    REDIS_CACHE_COMMAND_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(500),
+    // Owner 2026-10-22 (server load audit, finding 5): the Socket.IO Redis
+    // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
+    // instances holding its room); `classic` = the old pub/sub, a rollback
+    // switch. Set the same value on the API and the worker.
+    // Redis Cluster switch (docs/architecture/REDIS_CLUSTER_READY.md): true =
+    // REDIS_URL is the configuration endpoint of an ElastiCache "cluster mode
+    // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
+    // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
+    REDIS_CLUSTER: envBoolean(false),
+    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
+    // the load test; false = old behaviour) and an optional single BullMQ
+    // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
+    REDIS_AUTOPIPELINE: envBoolean(false),
+    REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
+    // Local docker cluster only: JSON natMap for announced addresses.
+    REDIS_CLUSTER_NAT_MAP: z.string().optional(),
+    SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()
       .int()
@@ -123,6 +171,20 @@ export const envSchema = z
     OTP_CODE_SECRET: z.string().min(32),
     OTP_KEY_PEPPER: z.string().min(32),
     AUTH_EVENT_PEPPER: z.string().min(32),
+    // Security research #5 (2026-10-22), A7: HMAC pepper for the stored
+    // phone-book hashes (contacts-sync). Optional so a deploy never fails
+    // for it; without it the API warns at boot on production and stores
+    // the plain hashes as before.
+    CONTACTS_PEPPER: z.string().min(32).optional(),
+    // BUG-1 (2026-10-25, package N-12b): HMAC key of the chat search blind
+    // index (common/secrets/message-search-index.ts). Optional like
+    // CONTACTS_PEPPER so a deploy never fails for it; without it sealed
+    // chats are searchable by name / case title only (a boot warning says
+    // so). Deployed environments also run the key-strength check below.
+    SEARCH_INDEX_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().min(32).optional(),
+    ),
     OTP_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
     OTP_LOCKOUT_SECONDS: z.coerce.number().int().positive().default(900),
@@ -132,6 +194,15 @@ export const envSchema = z
       .positive()
       .default(5),
     OTP_RATE_LIMIT_PER_IP_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(10),
+    // Owner 2026-10-07: codes sent to one phone / e-mail in a rolling 24 h.
+    // Fallback only: the admin setting `security.otp_per_identifier_per_day`
+    // (Система → Настройки) wins when an admin has saved it. Positive like
+    // the other OTP limits — there is no "0 = unlimited".
+    OTP_RATE_LIMIT_PER_IDENTIFIER_PER_DAY: z.coerce
       .number()
       .int()
       .positive()
@@ -187,6 +258,12 @@ export const envSchema = z
     // anywhere (not even logs) — 'test' carries the same "never a real
     // deployed environment" guarantee as 'development' for this purpose.
     OTP_DEV_FIXED_CODE: envBoolean(false),
+    // Owner 2026-10-02: local stand-in for Bunny Stream (tools/fake-bunny.mjs)
+    // so reels can be tried end to end on the emulator without keys.
+    DEV_FAKE_BUNNY: envBoolean(false),
+    // The host:port the fake CDN is reached at from the client: the Android
+    // emulator sees the Mac as 10.0.2.2, a browser on the Mac as localhost.
+    DEV_FAKE_BUNNY_HOST: z.string().optional(),
 
     // --- SMS provider (stage 1.4; auto-selection: provider-selection.ts) ---
     // auto (default): twilio once every TWILIO_* credential below is set,
@@ -286,6 +363,12 @@ export const envSchema = z
       /^whsec_[A-Za-z0-9]+$/,
       'STRIPE_WEBHOOK_SECRET must start with whsec_',
     ),
+    // Owner 2026-10-05: the Connect webhook endpoint (client → attorney
+    // payments) signs with its own secret.
+    STRIPE_CONNECT_WEBHOOK_SECRET: optionalMatching(
+      /^whsec_[A-Za-z0-9]+$/,
+      'STRIPE_CONNECT_WEBHOOK_SECRET must start with whsec_',
+    ),
     STRIPE_PRICE_ID: optionalMatching(
       /^price_[A-Za-z0-9]+$/,
       'STRIPE_PRICE_ID must start with price_',
@@ -294,6 +377,11 @@ export const envSchema = z
     STRIPE_PRICE_SEAT_ID: optionalMatching(
       /^price_[A-Za-z0-9]+$/,
       'STRIPE_PRICE_SEAT_ID must start with price_',
+    ),
+    // Owner 2026-10-02: the client's gold badge, $10/month.
+    STRIPE_PRICE_VERIFIED_ID: optionalMatching(
+      /^price_/,
+      'STRIPE_PRICE_VERIFIED_ID must start with price_',
     ),
     STRIPE_PRICE_YEARLY_ID: optionalMatching(
       /^price_[A-Za-z0-9]+$/,
@@ -313,6 +401,12 @@ export const envSchema = z
       s3BucketPattern,
       'S3_BUCKET_DOCUMENTS must be a valid S3 bucket name',
     ),
+    // Owner 2026-10-25: bucket of the public status page (status.json is
+    // pushed there every minute); empty = nothing is published.
+    STATUS_PAGE_BUCKET: optionalMatching(
+      s3BucketPattern,
+      'STATUS_PAGE_BUCKET must be a valid S3 bucket name',
+    ),
     S3_BUCKET_MEDIA: optionalMatching(
       s3BucketPattern,
       'S3_BUCKET_MEDIA must be a valid S3 bucket name',
@@ -324,6 +418,45 @@ export const envSchema = z
     MEDIA_CDN_BASE_URL: optionalMatching(
       /^https:\/\/[^\s/]+$/,
       'MEDIA_CDN_BASE_URL must be an https origin without a path',
+    ),
+    // Owner 2026-10-22 (systems checklist §22): private media (documents
+    // bucket) through CloudFront signed URLs. The three go together; unset
+    // keeps presigned S3 GET links. The PEM may be pasted with literal \n.
+    CLOUDFRONT_PRIVATE_DOMAIN: optionalMatching(
+      /^[a-z0-9.-]+\.[a-z]{2,}$/i,
+      'CLOUDFRONT_PRIVATE_DOMAIN must be a host name (no scheme, no path)',
+    ),
+    CLOUDFRONT_PRIVATE_KEY_ID: optionalMatching(
+      /^[A-Z0-9]{10,20}$/,
+      'CLOUDFRONT_PRIVATE_KEY_ID must be a CloudFront public key id',
+    ),
+    CLOUDFRONT_PRIVATE_KEY_PEM: optionalMatching(
+      /-----BEGIN (RSA )?PRIVATE KEY-----/,
+      'CLOUDFRONT_PRIVATE_KEY_PEM must be a PEM private key',
+    ),
+    // Owner 2026-10-22 (passkeys): the WebAuthn relying party. Defaults:
+    // RP ID = host of APP_LINK_BASE_URL (lawbid.dev, which also covers
+    // admin.lawbid.dev and both native apps), origins = web.allowed_origins
+    // + ADMIN_ORIGINS + https://<rpId>. WEBAUTHN_ORIGINS adds the Android
+    // apps (`android:apk-key-hash:<base64url sha256 of the signing cert>`).
+    WEBAUTHN_RP_ID: optionalMatching(
+      /^[a-z0-9.-]+$/i,
+      'WEBAUTHN_RP_ID must be a bare domain (no scheme, no port)',
+    ),
+    WEBAUTHN_ORIGINS: optionalMatching(
+      /^(https?:\/\/[^\s,]+|android:apk-key-hash:[A-Za-z0-9_-]+)(,(https?:\/\/[^\s,]+|android:apk-key-hash:[A-Za-z0-9_-]+))*$/,
+      'WEBAUTHN_ORIGINS must be a comma-separated list of https origins or android:apk-key-hash:… values',
+    ),
+    // Owner 2026-10-22 (SECURITY_TODO «KMS-wrapped keys»): the KMS key and
+    // encryption context used to unwrap `kid:kms:…` entries of
+    // MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS at boot (common/secrets/kms-env.ts).
+    DATA_KEYS_KMS_KEY_ARN: optionalMatching(
+      /^arn:aws:kms:[a-z0-9-]+:\d{12}:key\/[\w-]+$/,
+      'DATA_KEYS_KMS_KEY_ARN must be a KMS key ARN',
+    ),
+    DATA_KEYS_KMS_APP: optionalMatching(
+      /^[\w-]{1,64}$/,
+      'DATA_KEYS_KMS_APP must be the stack name',
     ),
     // MinIO root user/password locally; on AWS leave empty (IAM role).
     S3_ACCESS_KEY_ID: optionalMatching(
@@ -348,9 +481,19 @@ export const envSchema = z
       /-----BEGIN PRIVATE KEY-----/,
       'FCM_PRIVATE_KEY must be the PEM "private_key" field of the service-account JSON',
     ),
-
-    // --- Stage 1.4: fraud/attestation seam (flag-gated, no-op today) ---
-    FEATURE_ATTESTATION: envBoolean(false),
+    // Owner 2026-10-17: APNs auth key for iPhone VoIP (call) pushes.
+    APNS_KEY_ID: optionalMatching(
+      /^[A-Z0-9]{10}$/,
+      'APNS_KEY_ID must be the 10-character Key ID of the APNs key',
+    ),
+    APNS_TEAM_ID: optionalMatching(
+      /^[A-Z0-9]{10}$/,
+      'APNS_TEAM_ID must be the 10-character Apple Developer Team ID',
+    ),
+    APNS_PRIVATE_KEY: optionalMatching(
+      /-----BEGIN PRIVATE KEY-----/,
+      'APNS_PRIVATE_KEY must be the contents of the AuthKey_XXXX.p8 file',
+    ),
 
     // --- Background jobs (docs/01 §5.2 BullMQ; docs/06 §6 `worker`
     // service; src/jobs/) ---
@@ -358,6 +501,22 @@ export const envSchema = z
     // worker. Set false on API tasks once the dedicated worker service
     // (node dist/src/worker.js) runs; worker.ts ignores this flag.
     JOBS_ENABLED: envBoolean(true),
+    // Owner 2026-10-15 (speed, no cost): answers over 1 KB are gzip/brotli
+    // compressed (JSON shrinks 5–10x on a phone's network). Set false to
+    // switch it off without a release.
+    HTTP_COMPRESSION: envBoolean(true),
+    // Owner 2026-10-15: ETag on JSON answers (the phone gets 304 when
+    // nothing changed). false = no tags, a safe off-switch.
+    HTTP_ETAG: envBoolean(true),
+    // Owner 2026-10-15: a database call slower than this many ms is written
+    // to the log (operation name and time only, never the values). 0 = off.
+    DB_SLOW_QUERY_MS: z.coerce.number().int().min(0).default(300),
+    // Owner 2026-10-22 (server load audit, finding 1): request log lines.
+    // Failures (status >= 400) are always written; of the fast successful
+    // requests only this share (%, 0-100) is, and a request slower than
+    // HTTP_LOG_SLOW_MS ms always is (docs/COST_PROTECTION.md).
+    HTTP_LOG_SAMPLE_PERCENT: z.coerce.number().min(0).max(100).default(1),
+    HTTP_LOG_SLOW_MS: z.coerce.number().int().min(0).default(1000),
     // docs/02 §3.3 monthly disposable-domain refresh: plain text, one
     // domain per line, '#' comments (the open disposable-email-domains
     // blocklist by default).
@@ -384,7 +543,7 @@ export const envSchema = z
       .nonnegative()
       .default(30),
     BUDGET_SMS_DAILY_MAX: z.coerce.number().int().nonnegative().default(300),
-    BUDGET_SMS_MONTHLY_MAX: z.coerce.number().int().nonnegative().default(5000),
+    BUDGET_SMS_MONTHLY_MAX: z.coerce.number().int().nonnegative().default(9000),
     BUDGET_EMAIL_PER_MINUTE_MAX: z.coerce
       .number()
       .int()
@@ -395,7 +554,7 @@ export const envSchema = z
       .number()
       .int()
       .nonnegative()
-      .default(30000),
+      .default(60000),
     BUDGET_ID_CHECK_PER_MINUTE_MAX: z.coerce
       .number()
       .int()
@@ -427,6 +586,84 @@ export const envSchema = z
       .int()
       .nonnegative()
       .default(100000),
+    // Google Translate (chat): one unit per uncached message translation.
+    BUDGET_TRANSLATE_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(60),
+    BUDGET_TRANSLATE_DAILY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(5000),
+    BUDGET_TRANSLATE_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(50000),
+    // Bunny Stream (reels): one unit per video upload session.
+    BUDGET_VIDEO_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(30),
+    BUDGET_VIDEO_DAILY_MAX: z.coerce.number().int().nonnegative().default(1000),
+    BUDGET_VIDEO_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(10000),
+    // Owner 2026-10-22 (audit #4 §6): daily spend caps in US cents on top
+    // of the per-call caps. Global = every paid provider together; user =
+    // one person's own spend (translations, uploads, video). 0 = no money
+    // cap. Per provider: BUDGET_<PROVIDER>_DAILY_CENTS, else the call cap
+    // above converted with the price table (cost-prices.ts).
+    BUDGET_GLOBAL_DAILY_CENTS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(50_000),
+    BUDGET_USER_DAILY_CENTS: z.coerce.number().int().nonnegative().default(500),
+    BUDGET_SMS_DAILY_CENTS: z.coerce.number().int().nonnegative().optional(),
+    BUDGET_EMAIL_DAILY_CENTS: z.coerce.number().int().nonnegative().optional(),
+    BUDGET_ID_CHECK_DAILY_CENTS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional(),
+    BUDGET_STORAGE_DAILY_CENTS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional(),
+    BUDGET_TRANSLATE_DAILY_CENTS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional(),
+    BUDGET_VIDEO_DAILY_CENTS: z.coerce.number().int().nonnegative().optional(),
+    BUDGET_IMAGE_MODERATION_DAILY_CENTS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .optional(),
+    // Owner 2026-10-22: AWS Rekognition — one unit per image checked.
+    BUDGET_IMAGE_MODERATION_PER_MINUTE_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(300),
+    BUDGET_IMAGE_MODERATION_DAILY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(20000),
+    BUDGET_IMAGE_MODERATION_MONTHLY_MAX: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(300000),
     // POST /files/presign per authenticated user (docs/03 stage 3.2): a
     // verification request needs ~10 files, a post up to 10 photos.
     FILES_PRESIGN_LIMIT_PER_USER_PER_HOUR: z.coerce
@@ -507,18 +744,119 @@ export const envSchema = z
         .optional(),
     ),
     SECRETS_ACTIVE_KID: z.preprocess(blankToUndefined, z.string().optional()),
+    // Scaling TZ point 11 (2026-10-04): chat message texts encrypted at
+    // rest (MessageBodyCipher). Required on staging/production.
+    MESSAGE_ENC_KEYS: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .regex(
+          jwtKeysPattern,
+          'MESSAGE_ENC_KEYS must be "kid:secret[,kid:secret...]" with each secret >= 32 chars',
+        )
+        .optional(),
+    ),
+    MESSAGE_ENC_ACTIVE_KID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // Owner 2026-10-01: Bunny Stream (video posts) — normally set in the
     // admin → Integrations; these are only the fallback.
     BUNNY_LIBRARY_ID: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_CDN_HOSTNAME: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-04: chat translation; normally saved in the admin.
+    GOOGLE_TRANSLATE_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     BUNNY_TOKEN_AUTH_KEY: z.preprocess(blankToUndefined, z.string().optional()),
     BUNNY_WEBHOOK_TOKEN: z.preprocess(blankToUndefined, z.string().optional()),
+    // Audit #4: Bunny's Read-Only API key — verifies X-BunnyStream-Signature.
+    BUNNY_READ_ONLY_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Owner 2026-10-22 (audit #4 §5): image moderation and CSAM reporting
+    // (env fallbacks of the admin integrations aws_rekognition / photodna /
+    // ncmec; docs/SECURITY_TODO.md).
+    REKOGNITION_REGION: optionalMatching(
+      awsRegionPattern,
+      'REKOGNITION_REGION must be an AWS region, e.g. us-east-1',
+    ),
+    REKOGNITION_ACCESS_KEY_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    REKOGNITION_SECRET_ACCESS_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    PHOTODNA_SUBSCRIPTION_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    PHOTODNA_ENDPOINT: z.preprocess(blankToUndefined, z.string().optional()),
+    NCMEC_USERNAME: z.preprocess(blankToUndefined, z.string().optional()),
+    NCMEC_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+    NCMEC_ENVIRONMENT: z.preprocess(
+      blankToUndefined,
+      z.enum(['test', 'production']).optional(),
+    ),
     // OQ-041: STUN / TURN for in-app calls (TURN can also be set in the
     // admin → Integrations).
     STUN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
+    // Cloudflare Realtime TURN (also settable in admin -> Integrations).
+    CLOUDFLARE_TURN_KEY_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_TURN_API_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Batch C item 11: usage alerts (GraphQL Analytics, «Account Analytics:
+    // Read»); also settable in admin -> Integrations -> Cloudflare TURN.
+    CLOUDFLARE_ANALYTICS_ACCOUNT_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_ANALYTICS_API_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Batch C item 16: Bunny account API key for the usage poll.
+    BUNNY_ACCOUNT_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Cloudflare Realtime SFU for group calls (also settable in admin ->
+    // Integrations -> Cloudflare SFU); used when calls.video_provider =
+    // cloudflare.
+    CLOUDFLARE_SFU_APP_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_SFU_APP_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Owner 2026-10-22: LiveKit (open-source SFU) for big calls; used only
+    // when `calls.video_provider` = livekit (admin → Settings). Also
+    // settable in admin → Integrations → LiveKit.
+    LIVEKIT_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    LIVEKIT_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
+    LIVEKIT_API_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-24 (search-ready): the search engine behind the
+    // `search.engine` switch (admin → Settings); also settable in admin →
+    // Integrations → Search engine. Unused while the switch is `postgres`.
+    OPENSEARCH_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_USERNAME: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_REPLICAS: z.preprocess(blankToUndefined, z.string().optional()),
     // docs/06 §2.1 (stage 6.2): encrypts admin TOTP secrets at rest
     // (admin_credentials.totp_secret_enc). Admin sign-in is 503 until set.
     ADMIN_TOTP_ENC_KEY: z.preprocess(
@@ -538,7 +876,8 @@ export const envSchema = z
       blankToUndefined,
       z.string().min(8).optional(),
     ),
-    BAR_LOOKUP_API_KEY: z.preprocess(
+    // Optional Socrata app token of the NY attorney registry (data.ny.gov).
+    NY_OPEN_DATA_APP_TOKEN: z.preprocess(
       blankToUndefined,
       z.string().min(8).optional(),
     ),
@@ -555,6 +894,62 @@ export const envSchema = z
     ),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') {
+      const kids = (env.MESSAGE_ENC_KEYS ?? '')
+        .split(',')
+        .map((pair) => pair.slice(0, pair.indexOf(':')));
+      if (
+        !env.MESSAGE_ENC_ACTIVE_KID ||
+        !kids.includes(env.MESSAGE_ENC_ACTIVE_KID)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MESSAGE_ENC_KEYS'],
+          message:
+            'MESSAGE_ENC_KEYS with MESSAGE_ENC_ACTIVE_KID among its kids is required on staging/production (chat encryption at rest)',
+        });
+      }
+    }
+    // Owner 2026-10-14: the database link is encrypted on a deployed
+    // environment (PostgreSQL: sslmode=require or stricter).
+    if (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') {
+      const mode = /[?&]sslmode=([a-z-]+)/.exec(env.DATABASE_URL)?.[1];
+      if (!mode || !['require', 'verify-ca', 'verify-full'].includes(mode)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['DATABASE_URL'],
+          message:
+            'DATABASE_URL needs sslmode=require (or verify-ca / verify-full) on staging/production: the database connection must be encrypted',
+        });
+      }
+    }
+    // Security research #5 (2026-10-22), A12: the Redis link is TLS on a
+    // deployed environment (ElastiCache in-transit encryption, modules/
+    // redis writes rediss://). A plain redis:// there would send the
+    // auth token and every session / OTP key in clear text.
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      !env.REDIS_URL.startsWith('rediss://')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['REDIS_URL'],
+        message:
+          'REDIS_URL must be rediss:// (TLS) on staging/production: the Redis connection must be encrypted',
+      });
+    }
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      env.REDIS_CACHE_URL &&
+      !env.REDIS_CACHE_URL.startsWith('rediss://')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['REDIS_CACHE_URL'],
+        message:
+          'REDIS_CACHE_URL must be rediss:// (TLS) on staging/production',
+      });
+    }
     // Security audit 2026-10-01: deployed behind the ALB with 0 hops,
     // req.ip is the load balancer for everyone and every per-IP limit
     // (OTP, admin login, refresh) becomes one shared bucket.
@@ -579,6 +974,18 @@ export const envSchema = z
         path: ['OTP_DEV_FIXED_CODE'],
         message:
           'OTP_DEV_FIXED_CODE must never be true outside NODE_ENV=development or NODE_ENV=test',
+      });
+    }
+    if (
+      env.DEV_FAKE_BUNNY &&
+      env.NODE_ENV !== 'development' &&
+      env.NODE_ENV !== 'test'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DEV_FAKE_BUNNY'],
+        message:
+          'DEV_FAKE_BUNNY must never be true outside NODE_ENV=development or NODE_ENV=test',
       });
     }
     // SMS/email: credential-driven selection; never mock when deployed.
@@ -625,6 +1032,12 @@ export const envSchema = z
       ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'],
       ['S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'],
       ['FCM_PROJECT_ID', 'FCM_CLIENT_EMAIL', 'FCM_PRIVATE_KEY'],
+      ['APNS_KEY_ID', 'APNS_TEAM_ID', 'APNS_PRIVATE_KEY'],
+      [
+        'CLOUDFRONT_PRIVATE_DOMAIN',
+        'CLOUDFRONT_PRIVATE_KEY_ID',
+        'CLOUDFRONT_PRIVATE_KEY_PEM',
+      ],
     ] as const;
     for (const group of groups) {
       const present = group.filter((key) => env[key] !== undefined);
@@ -688,6 +1101,49 @@ export const envSchema = z
             code: 'custom',
             path: [key],
             message: `${key} still holds a placeholder/test value; generate a real secret (docs/KEYS_SETUP.md)`,
+          });
+        }
+      }
+    }
+    // S3-13: on a deployed environment the data keys must look random.
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      process.env.KEY_STRENGTH_CHECK !== 'off'
+    ) {
+      const lists = {
+        JWT_KEYS: env.JWT_KEYS,
+        SECRETS_MASTER_KEYS: env.SECRETS_MASTER_KEYS,
+        MESSAGE_ENC_KEYS: env.MESSAGE_ENC_KEYS,
+      } as const;
+      for (const [name, list] of Object.entries(lists)) {
+        // A placeholder is already reported above.
+        if (!list || placeholderSecretPattern.test(list)) continue;
+        for (const weak of weakKeysInList(list)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: `${name} key ${weak}; use base64 of 32 random bytes (openssl rand -base64 32) or a KMS-wrapped key`,
+          });
+        }
+      }
+      // BUG-1 (package N-12b): the chat search index key, same rule.
+      if (env.SEARCH_INDEX_KEY) {
+        const problem = keyStrengthProblem(env.SEARCH_INDEX_KEY);
+        if (problem) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['SEARCH_INDEX_KEY'],
+            message: `SEARCH_INDEX_KEY ${problem}; use base64 of 32+ random bytes (openssl rand -base64 48)`,
+          });
+        }
+      }
+      if (env.ADMIN_TOTP_ENC_KEY) {
+        const problem = keyStrengthProblem(env.ADMIN_TOTP_ENC_KEY);
+        if (problem) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['ADMIN_TOTP_ENC_KEY'],
+            message: `ADMIN_TOTP_ENC_KEY ${problem}; use base64 of 32 random bytes (openssl rand -base64 32)`,
           });
         }
       }

@@ -17,6 +17,7 @@ class ConversationCounterpartDto {
     this.displayName,
     this.username,
     this.avatarUrl,
+    this.avatarFullUrl,
     this.online,
     this.lastSeenAt,
   });
@@ -30,6 +31,9 @@ class ConversationCounterpartDto {
   final String? displayName;
   final String? username;
   final String? avatarUrl;
+
+  /// Owner 2026-10-18: the full-size photo (full-screen view).
+  final String? avatarFullUrl;
   final bool verifiedBadge;
 
   /// Owner 2026-10-01: online now; null = not shown (hidden activity status, anonymous client, pending request).

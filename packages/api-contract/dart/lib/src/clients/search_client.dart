@@ -8,13 +8,18 @@ import 'package:retrofit/retrofit.dart';
 import '../models/attorney_list_item_list_envelope.dart';
 import '../models/case_feed_item_list_envelope.dart';
 import '../models/latest_posts_sort.dart';
+import '../models/min_urgency.dart';
 import '../models/period.dart';
 import '../models/person_item_list_envelope.dart';
+import '../models/post_content_class.dart';
 import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
+import '../models/practice_match_list_envelope.dart';
 import '../models/role2.dart';
+import '../models/search_click_dto.dart';
 import '../models/sort2.dart';
 import '../models/sort3.dart';
+import '../models/suggestion_list_envelope.dart';
 import '../models/tag_list_envelope.dart';
 
 part 'search_client.g.dart';
@@ -36,6 +41,24 @@ abstract class SearchClient {
     @Query('state') String? state,
     @Query('minRating') num? minRating,
     @Query('language') String? language,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Type-ahead: topics, handles, practices by prefix.
+  ///
+  /// [q] - Hashtag prefix, with or without "#".
+  @GET('/search/suggest')
+  Future<SuggestionListEnvelope> suggest({
+    @Query('q') required String q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Practices whose name in any language starts with the query.
+  ///
+  /// [q] - Hashtag prefix, with or without "#".
+  @GET('/search/practices')
+  Future<PracticeMatchListEnvelope> practices({
+    @Query('q') required String q,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -71,7 +94,15 @@ abstract class SearchClient {
   ///
   /// [budgetUnknown] - Only cases with "clarify later".
   ///
+  /// [budgetPercent] - Include cases with a percent (contingency) budget. Combined with a dollar range or "clarify later" the options are OR-ed.
+  ///
+  /// [percentMax] - With budgetPercent: only percent budgets up to this whole percent.
+  ///
   /// [noBids] - Only cases nobody has bid on yet.
+  ///
+  /// [minUrgency] - Owner 2026-10-05: only cases at least this urgent today (a dated case by its days left; past dates excluded).
+  ///
+  /// [hasDeadline] - Owner 2026-10-05: only cases with a date (court hearing, filing deadline…) still ahead.
   @GET('/search/cases')
   Future<CaseFeedItemListEnvelope> cases({
     @Query('q') required String q,
@@ -83,7 +114,11 @@ abstract class SearchClient {
     @Query('budgetMin') num? budgetMin,
     @Query('budgetMax') num? budgetMax,
     @Query('budgetUnknown') bool? budgetUnknown,
+    @Query('budgetPercent') bool? budgetPercent,
+    @Query('percentMax') num? percentMax,
     @Query('noBids') bool? noBids,
+    @Query('minUrgency') MinUrgency? minUrgency,
+    @Query('hasDeadline') bool? hasDeadline,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -100,6 +135,8 @@ abstract class SearchClient {
   /// [state] - Only posts of attorneys licensed in this state.
   ///
   /// [withPhotos] - Only posts with photos.
+  ///
+  /// [briefsOnly] - Only text-only posts (Briefs).
   @GET('/search/posts')
   Future<PostListEnvelope> posts({
     @Query('q') required String q,
@@ -110,6 +147,7 @@ abstract class SearchClient {
     @Query('tag') String? tag,
     @Query('state') String? state,
     @Query('withPhotos') bool? withPhotos,
+    @Query('briefsOnly') bool? briefsOnly,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -131,18 +169,35 @@ abstract class SearchClient {
   /// [cursor] - meta.nextCursor of the previous page.
   ///
   /// [state] - Only posts of attorneys licensed in this state (newest first).
+  ///
+  /// [videoOnly] - Owner 2026-10-02: only reels (posts with a video), newest first.
   @GET('/tags/{tag}/posts')
   Future<PostListEnvelope> tagPosts({
     @Path('tag') required String tag,
     @Query('sort') Sort3? sort = Sort3.top,
     @Query('cursor') String? cursor,
     @Query('state') String? state,
+    @Query('videoOnly') bool? videoOnly,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A result opened after a query (owner 2026-10-15): the search learns topics from these
+  @POST('/search/clicks')
+  Future<void> click({
+    @Body() required SearchClickDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Newest posts, by state (OQ-034), qualification and News (owner 2026-09-30).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [states] - Owner 2026-10-06: several states at once (comma-separated) — posts of.
+  /// attorneys licensed in any of them. Joins `state` when both are sent.
+  ///
+  /// [practices] - Owner 2026-10-06: «Юр. посты» → «Только мои темы» — posts of any of.
+  /// these qualifications (comma-separated; a category includes its.
+  /// subcategories).
   ///
   /// [practice] - Owner 2026-09-30: a practice category or subcategory code; a.
   /// category includes its subcategories.
@@ -153,17 +208,26 @@ abstract class SearchClient {
   ///
   /// [withPhotos] - Only posts with photos.
   ///
-  /// [sort] - popular = likes + comments, then newest (offset cursor).
+  /// [briefsOnly] - Only text-only posts (Briefs).
+  ///
+  /// [sort] - popular = likes + comments, then newest (offset cursor); for_you = ranked for the viewer (owner 2026-10-13, offset cursor).
+  ///
+  /// [contentClass] - Owner 2026-10-05: only legal or only general (personal) posts — the.
+  /// "Posts" topic lists general ones. Absent = the viewer's feed setting.
   @GET('/search/latest-posts')
   Future<PostListEnvelope> latestPosts({
     @Query('period') Period? period = Period.all,
     @Query('cursor') String? cursor,
     @Query('state') String? state,
+    @Query('states') String? states,
+    @Query('practices') String? practices,
     @Query('practice') String? practice,
     @Query('tag') String? tag,
     @Query('kind') PostKind? kind,
     @Query('withPhotos') bool? withPhotos,
+    @Query('briefsOnly') bool? briefsOnly,
     @Query('sort') LatestPostsSort? sort,
+    @Query('contentClass') PostContentClass? contentClass,
     @Extras() Map<String, dynamic>? extras,
   });
 }

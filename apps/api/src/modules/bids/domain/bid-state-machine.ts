@@ -11,6 +11,10 @@ import type {
   PartyRole,
   Prisma,
 } from '@prisma/client';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { assertOfferTransition } from '../../negotiations/domain/offer-state-machine';
 
@@ -58,15 +62,6 @@ export const BID_ACTIONS = Object.keys(BID_ACTION_ACTORS) as BidAction[];
 
 /** §6.1: at most 5 counter-offers per bid (bids.round_count ≤ 5). */
 export const MAX_COUNTER_ROUNDS = 5;
-
-/** Only `active` bids can change; every other status is final (§5–§7). */
-export const BID_FINAL_STATUSES: readonly BidStatus[] = [
-  'accepted',
-  'rejected_by_client',
-  'rejected_auto',
-  'withdrawn',
-  'failed_negotiation',
-];
 
 /** §5.1: a new bid is active, round 0, the client's turn. */
 export const INITIAL_BID_STATE = {
@@ -242,8 +237,13 @@ export interface ApplyBidActionInput {
   /** counter only: the new amount in cents (§6.1: only the amount is
    * negotiated, the fee type stays). */
   amountCents?: number;
+  /** counter only, contingency bids: the new percent in basis points
+   * (owner 2026-10-17; the service checks the admin cap). */
+  percentBps?: number;
   /** counter only: optional note (≤500 chars, validated by the DTO). */
   message?: string | null;
+  /** If-Match from the client; a different stored version is 409 STALE_VERSION. */
+  expectedVersion?: number;
 }
 
 /** Negotiation operations lock the bid row (§6.3 "SELECT ... FOR UPDATE по
@@ -274,10 +274,20 @@ export class BidStateMachine {
     }
     const bid = await tx.bid.findUnique({ where: { id: input.bidId } });
     if (!bid) throw bidNotFound();
+    assertExpectedVersion(bid.version, input.expectedVersion);
     const plan = planBidTransition(bid, input.action, input.by, now);
 
-    const data: Prisma.BidUncheckedUpdateManyInput = { ...plan.data };
-    if (plan.newOffer) {
+    const data: Prisma.BidUncheckedUpdateManyInput = {
+      ...plan.data,
+      ...BUMP_VERSION,
+    };
+    if (plan.newOffer && bid.fee_type === 'contingency') {
+      const bps = input.percentBps;
+      if (bps === undefined || !Number.isInteger(bps) || bps <= 0) {
+        throw new Error('counter needs a positive integer percentBps');
+      }
+      data.percent_bps = bps;
+    } else if (plan.newOffer) {
       const amount = input.amountCents;
       if (amount === undefined || !Number.isInteger(amount) || amount <= 0) {
         throw new Error('counter needs a positive integer amountCents');
@@ -290,6 +300,7 @@ export class BidStateMachine {
         status: 'active',
         round_count: bid.round_count,
         turn: bid.turn,
+        version: bid.version,
       },
       data,
     });
@@ -313,7 +324,12 @@ export class BidStateMachine {
           round_no: plan.newOffer.round_no,
           from_role: plan.newOffer.from_role,
           fee_type: bid.fee_type,
-          amount_cents: data.amount_cents as number,
+          amount_cents:
+            bid.fee_type === 'contingency' ? 0 : (data.amount_cents as number),
+          percent_bps:
+            bid.fee_type === 'contingency'
+              ? (data.percent_bps as number)
+              : null,
           message: input.message ?? null,
           status: 'pending',
           created_at: now,
@@ -355,7 +371,7 @@ export class BidStateMachine {
     }));
     const { count } = await tx.bid.updateMany({
       where: { id: { in: bids.map((b) => b.id) }, status: 'active' },
-      data: results[0].plan.data,
+      data: { ...results[0].plan.data, ...BUMP_VERSION },
     });
     if (count !== bids.length) {
       throw conflict(

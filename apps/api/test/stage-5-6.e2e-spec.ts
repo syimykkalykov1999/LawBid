@@ -260,7 +260,7 @@ describe('Search (e2e, docs/05 §7, stage 5.6)', () => {
       .get('/api/v1/search/trending-tags')
       .set(viewer.auth);
     expect(trending.body.data).toEqual(
-      expect.arrayContaining([{ tag, postsCount: 2 }]),
+      expect.arrayContaining([expect.objectContaining({ tag, postsCount: 2 })]),
     );
   });
 
@@ -272,7 +272,7 @@ describe('Search (e2e, docs/05 §7, stage 5.6)', () => {
       FROM generate_series(1, 2000) AS g`;
     await prisma.$executeRaw`
       INSERT INTO attorney_profiles (user_id, username, username_lower, languages, updated_at)
-      SELECT id, 'bg_' || substr(id::STRING, 1, 12), 'bg_' || substr(id::STRING, 1, 12), ARRAY['en'], now()
+      SELECT id, 'bg_' || substr(id::TEXT, 1, 12), 'bg_' || substr(id::TEXT, 1, 12), ARRAY['en'], now()
       FROM users WHERE first_name LIKE 'bg%' AND role = 'attorney'
       ON CONFLICT DO NOTHING`;
     for (const t of ['users', 'attorney_profiles', 'posts']) {
@@ -281,21 +281,21 @@ describe('Search (e2e, docs/05 §7, stage 5.6)', () => {
     const plan = async (sql: string) =>
       (
         await prisma.$transaction(async (tx) => {
-          await tx.$executeRawUnsafe('SET LOCAL optimizer_use_forecasts = off');
-          return tx.$queryRawUnsafe<{ info: string }[]>(`EXPLAIN ${sql}`);
+          await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off');
+          return tx.$queryRawUnsafe<Record<string, string>[]>(`EXPLAIN ${sql}`);
         })
       )
-        .map((r) => r.info)
+        .map((r) => Object.values(r)[0])
         .join('\n');
 
     expect(
       await plan(
-        `SELECT user_id FROM attorney_profiles WHERE username_lower IS NOT NULL AND username_lower % '${token}'`,
+        `SELECT user_id FROM attorney_profiles WHERE username_lower % '${token}'`,
       ),
     ).toContain('attorney_profiles_username_trgm_idx');
     expect(
       await plan(
-        `SELECT id FROM users WHERE full_name_lower IS NOT NULL AND full_name_lower % '${token} lawyer'`,
+        `SELECT id FROM users WHERE full_name_lower % '${token} lawyer'`,
       ),
     ).toContain('users_full_name_trgm_idx');
     expect(

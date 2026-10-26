@@ -1,4 +1,10 @@
 # docs/06_PRODUCTION.md §4.4 (stage 6.1): pinned lock files, updates via PR.
+#
+# Security research #5 (2026-10-22), A1: `cooldown` — a release is only
+# proposed once it has been public for 7 days (14 for a new major), so a
+# package hijacked and fixed within days never reaches a PR. Security
+# updates ignore the cooldown by design. The same 7 days are
+# `min-release-age` in the root .npmrc.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -6,6 +12,9 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
       nestjs:
         patterns: ["@nestjs/*"]
@@ -13,11 +22,18 @@ updates:
     directory: "/apps/mobile"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: docker
     directory: "/apps/api"
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7

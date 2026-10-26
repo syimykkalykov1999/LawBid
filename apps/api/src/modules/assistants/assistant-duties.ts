@@ -38,5 +38,17 @@ export const DEFAULT_DUTIES: readonly AssistantDuty[] = [];
  * accepts responsibility for what the assistant does with it. */
 export const LIABILITY_DUTIES: readonly AssistantDuty[] = ASSISTANT_DUTIES;
 
+/** Owner 2026-10-22: one assistant holds at most this many duties unless
+ * the admin sets `assistants.max_duties` — more assistants, nobody with
+ * the whole account. */
+export const DEFAULT_MAX_DUTIES = 3;
+
+/** The admin value within 1..10 (a broken value falls back to 3). */
+export function clampMaxDuties(raw: unknown): number {
+  const n = typeof raw === 'number' ? Math.floor(raw) : NaN;
+  if (!Number.isFinite(n)) return DEFAULT_MAX_DUTIES;
+  return Math.min(ASSISTANT_DUTIES.length, Math.max(1, n));
+}
+
 /** Bumped when the warning text changes (stored with each acceptance). */
 export const LIABILITY_TERMS_VERSION = '2026-10-01';

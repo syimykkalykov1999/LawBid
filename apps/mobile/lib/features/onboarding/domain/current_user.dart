@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
@@ -11,6 +12,9 @@ enum MissingRequirement {
   name,
   phoneVerified,
   emailVerified,
+
+  /// Owner 2026-10-13: the profile e-mail (format only, no code).
+  email,
 
   /// A profile-step field the server requires before completion: the
   /// client's state of residence (`state`) or the attorney's licensed
@@ -27,6 +31,7 @@ enum MissingRequirement {
         'name' => name,
         'phone_verified' => phoneVerified,
         'email_verified' => emailVerified,
+        'email' => email,
         'state' || 'licensed_states' => profile,
         'photo' => photo,
         _ => null,
@@ -153,6 +158,9 @@ class CurrentUser {
     this.clientProfile,
     this.attorneyProfile,
     this.avatarUrl,
+    this.pendingLegalDocuments = const [],
+    this.passwordRequired = false,
+    this.analyticsConsent,
   });
 
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
@@ -183,6 +191,14 @@ class CurrentUser {
       uiLanguage: json['uiLanguage'] as String? ?? 'en',
       theme: json['theme'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      pendingLegalDocuments: json['pendingLegalDocuments'] is List
+          ? (json['pendingLegalDocuments'] as List)
+              .map(PendingLegalDocument.tryParse)
+              .whereType<PendingLegalDocument>()
+              .toList(growable: false)
+          : const [],
+      passwordRequired: json['passwordRequired'] as bool? ?? false,
+      analyticsConsent: json['analyticsConsent'] as bool?,
       requiredConsentsGranted:
           json['requiredConsentsGranted'] as bool? ?? false,
       onboarding: OnboardingProgress.fromJson(
@@ -227,16 +243,35 @@ class CurrentUser {
   /// JPEG); null when no photo is set.
   final String? avatarUrl;
 
+  /// Owner 2026-10-05: legal documents of the user's role not accepted at
+  /// their current version. Not empty → the guard shows the acceptance
+  /// screen; publishing a case and placing a bid answer
+  /// LEGAL_REACCEPT_REQUIRED meanwhile.
+  final List<PendingLegalDocument> pendingLegalDocuments;
+
+  /// Owner 2026-10-13: the account still signs in only with an SMS code
+  /// and has no password yet. True → the guard shows the set-password
+  /// screen before anything else (the code is used once; from then on the
+  /// person signs in with the password).
+  final bool passwordRequired;
+
+  /// Owner 2026-10-22 (audit #4 §5): my latest answer to the optional
+  /// «analytics» consent; null = never asked (or an older server). Usage
+  /// events are sent only after a yes (core/diagnostics/app_events.dart).
+  final bool? analyticsConsent;
+
   bool get isClient => role == UserRole.client;
   bool get isAttorney => role == UserRole.attorney;
 
   /// The verified contact a `POST /auth/reauth` code can be sent to —
   /// phone first, then email (see `AuthService.reauth` in apps/api).
   ({String channel, String identifier})? get reauthIdentifier {
-    if (phoneVerified && phone != null)
+    if (phoneVerified && phone != null) {
       return (channel: 'phone', identifier: phone!);
-    if (emailVerified && email != null)
+    }
+    if (emailVerified && email != null) {
       return (channel: 'email', identifier: email!);
+    }
     return null;
   }
 }

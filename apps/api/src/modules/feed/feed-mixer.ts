@@ -17,7 +17,10 @@ export function mixPage<T>(
   limit: number,
   hasFollows: boolean,
 ): T[] {
-  if (!hasFollows) return reco.slice(0, limit);
+  // An attorney who follows nobody still has the own-posts stream (the
+  // service adds the viewer to the followed authors): those must lead the
+  // page, otherwise a fresh post of their own never shows up in their feed.
+  if (!hasFollows && following.length === 0) return reco.slice(0, limit);
   const out: T[] = [];
   let f = 0;
   let r = 0;
@@ -43,6 +46,9 @@ export interface FeedCursor {
   r: number;
   /** Recommendation snapshot version the index belongs to. */
   v: string | null;
+  /** Last post served by the "everything else, newest first" tail, once
+   * followed posts and recommendations ran out; null = tail not started. */
+  l?: { t: string; id: string } | null;
 }
 
 export function encodeFeedCursor(c: FeedCursor): string {
@@ -68,10 +74,17 @@ export function decodeFeedCursor(raw: string): FeedCursor | null {
     ) {
       return null;
     }
+    if (
+      c.l != null &&
+      (typeof c.l?.t !== 'string' || typeof c.l?.id !== 'string')
+    ) {
+      return null;
+    }
     return {
       f: c.f,
       r: Math.floor(c.r),
       v: typeof c.v === 'string' ? c.v : null,
+      l: c.l ?? null,
     };
   } catch {
     return null;

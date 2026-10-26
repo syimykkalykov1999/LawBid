@@ -7,7 +7,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp, OPS_RIGHTS } from './support/admin-login';
 
 jest.setTimeout(90_000);
 
@@ -171,7 +171,16 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
 
   it('searches by name, email, phone, @username and id; filters; matrix', async () => {
     const support = await adminSession(baseUrl, prisma, 'support');
-    const verifier = await adminSession(baseUrl, prisma, 'verifier');
+    // No users toggle at all: the area is closed.
+    const verifier = await adminSession(
+      baseUrl,
+      prisma,
+      'verifier',
+      undefined,
+      {
+        verification: 'manage',
+      },
+    );
     const c = await client({ first: 'Zelda', last: 'Searchable' });
     const a = await attorney('zelda_esq');
 
@@ -219,7 +228,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     await api()
       .get('/api/v1/admin/users?q=zelda')
       .set(verifier.auth)
-      .expect(403);
+      .expect(404);
     await api().get('/api/v1/admin/users?q=zelda').set(c.auth).expect(401);
   });
 
@@ -293,14 +302,24 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .expect(404);
   });
 
-  it('support revokes sessions; only moderators warn (moderation_notice)', async () => {
-    const support = await adminSession(baseUrl, prisma, 'support');
-    const moderator = await adminSession(baseUrl, prisma, 'moderator');
+  it('only an admin with users:manage revokes sessions and warns (moderation_notice)', async () => {
+    const support = await adminSession(baseUrl, prisma, 'support'); // users: view
+    const moderator = await adminSession(
+      baseUrl,
+      prisma,
+      'moderator',
+      undefined,
+      OPS_RIGHTS,
+    );
     const c = await client();
     await api().get('/api/v1/users/me').set(c.auth).expect(200);
-    const r = await api()
+    await api()
       .post(`/api/v1/admin/users/${c.id}/sessions/revoke`)
       .set(support.auth)
+      .expect(404);
+    const r = await api()
+      .post(`/api/v1/admin/users/${c.id}/sessions/revoke`)
+      .set(moderator.auth)
       .expect(200);
     expect((r.body as Body).data).toMatchObject({ revokedSessions: 1 });
     const dead = await api().get('/api/v1/users/me').set(c.auth).expect(401);
@@ -310,7 +329,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .post(`/api/v1/admin/users/${c.id}/warn`)
       .set(support.auth)
       .send({ reason: 'Spam in bids' })
-      .expect(403);
+      .expect(404);
     await api()
       .post(`/api/v1/admin/users/${c.id}/warn`)
       .set(moderator.auth)
@@ -320,7 +339,10 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       where: { user_id: c.id, type: 'moderation_notice' },
     });
     expect(notice).toBeTruthy();
-    expect(JSON.stringify(notice?.payload)).not.toContain('Rude');
+    // Audit 2026-10-02 (b673d8ee): the user sees the moderator's reason.
+    expect(notice?.payload).toMatchObject({
+      reason: 'Rude messages to attorneys',
+    });
     expect(
       await prisma.moderationAction.count({
         where: { target_type: 'user', target_id: c.id, action: 'warn' },
@@ -347,22 +369,25 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     const c = await client();
     const other = await client();
     const fresh = nextPhone();
+    // Owner 2026-10-22: a phone change needs a fresh authenticator code.
+    await api()
+      .post(`/api/v1/admin/users/${c.id}/phone`)
+      .set(boss.auth)
+      .send({ phone: fresh, reason: 'Lost phone, ID checked' })
+      .expect(403);
+    await adminStepUp(baseUrl, boss);
     // Only a super admin; the number must be free; a reason is required.
     await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
       .set(moderator.auth)
       .send({ phone: fresh, reason: 'Lost phone, ID checked' })
-      .expect(403);
+      .expect(404);
     await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
       .set(boss.auth)
       .send({ phone: other.phone, reason: 'x' })
       .expect(409);
-    await api()
-      .post(`/api/v1/admin/users/${c.id}/phone`)
-      .set(boss.auth)
-      .send({ phone: fresh })
-      .expect(400);
+    // Owner 2026-10-05: the super admin may leave the reason out.
     const r = await api()
       .post(`/api/v1/admin/users/${c.id}/phone`)
       .set(boss.auth)
@@ -395,7 +420,13 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
   });
 
   it('suspends a client per §3.4: sessions revoked, login blocked, open cases archived + bids rejected, in_progress kept; restore keeps the archive', async () => {
-    const moderator = await adminSession(baseUrl, prisma, 'moderator');
+    const moderator = await adminSession(
+      baseUrl,
+      prisma,
+      'moderator',
+      undefined,
+      OPS_RIGHTS,
+    );
     const c = await client();
     const a = await attorney();
     const open1 = await kase(c.id);

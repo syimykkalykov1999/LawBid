@@ -346,6 +346,61 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
     });
   });
 
+  describe('post photos in every common format', () => {
+    // Owner 2026-10-16: a Mac screenshot (PNG) must go through like a JPEG.
+    const shot = (w: number, h: number) =>
+      sharp({
+        // A Mac screenshot: RGBA, Display P3 profile.
+        create: {
+          width: w,
+          height: h,
+          channels: 4,
+          background: { r: 233, g: 238, b: 245, alpha: 1 },
+        },
+      })
+        .composite([
+          {
+            input: Buffer.from(
+              `<svg width="${w}" height="${h}"><rect x="40" y="40" width="${w - 80}" height="120" fill="#1b2a4a"/><text x="60" y="110" font-size="48" fill="#fff">Screenshot</text></svg>`,
+            ),
+          },
+        ])
+        .withMetadata({ icc: 'p3' })
+        .png()
+        .toBuffer();
+
+    it('a retina-size PNG screenshot becomes a clean post photo', async () => {
+      const auth = await login();
+      const data = await shot(2880, 1800);
+      const f = await uploaded(auth, 'post_image', 'image/png', data);
+      await confirm(auth, f.fileId);
+      const done = await settled(auth, f.fileId);
+      expect(done.scanStatus).toBe('clean');
+    });
+
+    it.each([
+      [
+        'image/webp',
+        () =>
+          sharp({
+            create: {
+              width: 64,
+              height: 64,
+              channels: 3,
+              background: '#c8a24a',
+            },
+          })
+            .webp()
+            .toBuffer(),
+      ],
+    ])('%s is a clean post photo', async (mime, make) => {
+      const auth = await login();
+      const f = await uploaded(auth, 'post_image', mime, await make());
+      await confirm(auth, f.fileId);
+      expect((await settled(auth, f.fileId)).scanStatus).toBe('clean');
+    });
+  });
+
   describe('antivirus', () => {
     it('an EICAR document becomes infected, its object is deleted and it cannot be attached', async () => {
       const auth = await login();
@@ -409,7 +464,8 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       const done = await settled(auth, f.fileId);
       expect(done).toMatchObject({
         scanStatus: 'clean',
-        mime: 'image/jpeg',
+        // storage.image_format (default webp, owner 2026-10-05).
+        mime: 'image/webp',
         width: 1024,
         height: 1024,
       });
@@ -435,7 +491,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       expect(me.avatarFileId).toBe(f.fileId);
       const img = await fetch(me.avatarUrl);
       expect(img.status).toBe(200);
-      expect(img.headers.get('content-type')).toBe('image/jpeg');
+      expect(img.headers.get('content-type')).toBe('image/webp');
 
       await api()
         .patch('/api/v1/users/me')
@@ -524,7 +580,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       const view = await publicProfile();
       const main = await fetch(view.avatarUrl!);
       expect(main.status).toBe(200);
-      expect(main.headers.get('content-type')).toBe('image/jpeg');
+      expect(main.headers.get('content-type')).toBe('image/webp');
       const small = await fetch(view.avatarUrl256!);
       expect(small.status).toBe(200);
       const meta = await sharp(
@@ -607,7 +663,12 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
       await confirm(auth, avatar.fileId);
       await settled(auth, avatar.fileId);
       const endpoint = process.env.S3_ENDPOINT!;
-      for (const f of [doc, avatar]) {
+      for (const u of [doc, avatar]) {
+        // The row's key: identical bytes uploaded earlier share one object.
+        const row = await prisma.file.findUniqueOrThrow({
+          where: { id: u.fileId },
+        });
+        const f = { bucket: row.s3_bucket, key: row.s3_key };
         expect(await storage.head(f.bucket, f.key)).not.toBeNull();
         const res = await fetch(`${endpoint}/${f.bucket}/${f.key}`);
         expect(res.status).toBe(403);

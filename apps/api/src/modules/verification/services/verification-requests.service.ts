@@ -1,4 +1,12 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { BarAttemptsService } from './bar-attempts.service';
+import {
+  barShape,
+  checkBarNumber,
+  FORMAT_UNUSUAL_FLAG,
+  resolveFormats,
+} from '../bar-number-format';
+import { notAvailable } from '../../countries/countries.service';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import {
   Prisma,
   type VerificationDocType,
@@ -8,7 +16,10 @@ import { AppSettingsService } from '../../../common/app-settings/app-settings.se
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
+import { BarNumberBlocksService } from '../../attorney-trust/bar-number-blocks.service';
 import { FilesService } from '../../files/files.service';
+import { readUploadLimits } from '../../files/upload-limits';
 import {
   notFound,
   requireOwnAttorney,
@@ -24,10 +35,10 @@ import type {
   VerificationRequestDto,
 } from '../dto/verification-responses.dto';
 import {
+  ATTESTATION_VERSION,
   EDITABLE_REQUEST_STATUSES,
   IDENTITY_DOC_TYPES,
   IDENTITY_NEEDS_BACK,
-  MAX_FILES_PER_DOCUMENT,
   OPEN_REQUEST_STATUSES,
 } from '../verification.constants';
 import {
@@ -61,6 +72,7 @@ type RequestRow = Prisma.VerificationRequestGetPayload<{
 /** What is missing for submission (VERIFICATION_INCOMPLETE details). */
 export type MissingItem =
   | 'license'
+  | 'attestation'
   | 'identity_document'
   | 'identity_document_back'
   | 'selfie'
@@ -73,6 +85,12 @@ export type MissingItem =
  * resubmit. Licenses live on the attorney (`attorney_licenses`); the
  * licenses in `pending` belong to the open request (only one can be open).
  */
+interface LicenseLike {
+  license_status: string;
+  state_code: string;
+  registry_flag: string | null;
+}
+
 @Injectable()
 export class VerificationRequestsService {
   constructor(
@@ -80,20 +98,28 @@ export class VerificationRequestsService {
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
     private readonly checks: VerificationChecksService,
+    private readonly trust: AttorneyTrustService,
+    private readonly blocks: BarNumberBlocksService,
+    // Owner 2026-10-14: the number's shape and the stepped cooldown.
+    @Optional() private readonly attempts?: BarAttemptsService,
   ) {}
 
   /**
-   * ID + selfie are needed for a first verification and — owner decision
-   * 2026-09-30 (OQ-029) — for a verified attorney whose name no longer
-   * matches the verified one ("Confirm new name"); licenses alone
-   * otherwise. The profile stays verified while such a request is open.
+   * ID + selfie: owner 2026-10-04 ("только номер") — a first verification
+   * needs them only when `verification.require_identity` is on (off by
+   * default; the verifier can still ask for them with an info request).
+   * A verified attorney whose name no longer matches the verified one
+   * ("Confirm new name", OQ-029) always needs them. The profile stays
+   * verified while such a request is open.
    */
   private async identityRequired(
     userId: string,
     status: string,
     db: Pick<PrismaService, 'attorneyProfile'> = this.prisma,
   ): Promise<boolean> {
-    if (status !== 'verified') return true;
+    if (status !== 'verified') {
+      return this.settings.boolean('verification.require_identity');
+    }
     const row = await db.attorneyProfile.findUnique({
       where: { user_id: userId },
       select: { name_mismatch: true },
@@ -101,9 +127,44 @@ export class VerificationRequestsService {
     return row?.name_mismatch ?? false;
   }
 
+  /** Owner 2026-10-16: the bar card is asked for when the admin switched it
+   * on, for a number of an unusual shape, and for every state without an
+   * enabled registry (nobody else checks it). No license yet → asked. */
+  private async barDocumentNeeded(
+    latest: { attorney: { licenses: LicenseLike[] } } | null,
+  ): Promise<boolean> {
+    if (await this.barDocumentRequired()) return true;
+    if (
+      !(await this.settings.boolean(
+        'verification.bar_document_for_manual_states',
+      ))
+    ) {
+      return false;
+    }
+    const pending = (latest?.attorney.licenses ?? []).filter(
+      (l) => l.license_status === 'pending',
+    );
+    if (pending.length === 0) return true;
+    for (const l of pending) {
+      if (
+        l.registry_flag === FORMAT_UNUSUAL_FLAG ||
+        !(await this.checks.registryEnabled(l.state_code))
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Photo of the bar card per license: optional unless switched on. */
+  private barDocumentRequired(): Promise<boolean> {
+    return this.settings.boolean('verification.require_bar_document');
+  }
+
   async overview(
     userId: string,
     now = new Date(),
+    ip?: string,
   ): Promise<VerificationOverviewDto> {
     const { verificationStatus } = await requireOwnAttorney(
       this.prisma,
@@ -124,6 +185,10 @@ export class VerificationRequestsService {
       verificationStatus,
       request: latest ? toDto(latest) : null,
       identityRequired: await this.identityRequired(userId, verificationStatus),
+      barDocumentRequired: await this.barDocumentNeeded(latest),
+      barAttemptsRetryAfterSeconds: this.attempts
+        ? Math.max(0, await this.attempts.remainingSeconds(userId, ip))
+        : 0,
       submissionsLast30Days: used,
       maxSubmissions30Days: max,
     };
@@ -202,18 +267,79 @@ export class VerificationRequestsService {
     userId: string,
     requestId: string,
     dto: AddLicenseDto,
+    ip?: string,
   ): Promise<VerificationRequestDto> {
     await this.requireActiveAttorney(userId);
+    // Owner 2026-10-18: «Мой номер верный — отправить на проверку» — the
+    // attorney sends a number that does not fit for a person to check with
+    // the bar card. It is open while the attempts lock is on.
+    const manual = dto.manualReview === true;
+    // Owner 2026-10-14: cooling down after wrong numbers, then the state's
+    // own shape — a number that does not fit never reaches a reviewer.
+    if (this.attempts && !manual) {
+      const wait = await this.attempts.remainingSeconds(userId, ip);
+      if (wait > 0) {
+        throw httpError(
+          HttpStatus.TOO_MANY_REQUESTS,
+          ErrorCode.BAR_ATTEMPTS_COOLDOWN,
+          'Too many wrong bar numbers. Try again later.',
+          { retryAfterSeconds: wait },
+        );
+      }
+    }
+    const shape = checkBarNumber(
+      dto.stateCode,
+      dto.barNumber,
+      resolveFormats(await this.settings.string('verification.bar_formats')),
+    );
+    // Owner 2026-10-18: the format is never revealed. Junk (not 3–32 letters
+    // / digits with a digit) and a number that does not fit the state's rule
+    // are refused with the same generic «not found for this state», no
+    // example, and count as a failed attempt (5 → locked for an hour). The
+    // shape of a non-fitting number is logged so the admin can widen a rule.
+    const junk =
+      !/^[A-Z0-9]{3,32}$/.test(shape.normalized) ||
+      !/\d/.test(shape.normalized);
+    if (junk || (!shape.ok && !manual)) {
+      if (!junk) await this.logFormatMiss(dto.stateCode, dto.barNumber);
+      const cooldown =
+        this.attempts && !manual
+          ? await this.attempts.recordFailure(userId, ip)
+          : 0;
+      throw httpError(
+        cooldown > 0 ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_REQUEST,
+        cooldown > 0
+          ? ErrorCode.BAR_ATTEMPTS_COOLDOWN
+          : ErrorCode.BAR_NUMBER_FORMAT_INVALID,
+        cooldown > 0
+          ? 'Too many wrong bar numbers. Try again later.'
+          : 'Bar number not found for this state.',
+        cooldown > 0
+          ? { retryAfterSeconds: cooldown }
+          : { stateCode: dto.stateCode },
+      );
+    }
+    // Only a number the attorney insisted on reaches here without fitting.
+    const unusual = !shape.ok;
+    dto = { ...dto, barNumber: shape.normalized };
     const state = await this.prisma.state.findUnique({
       where: { code: dto.stateCode },
-      select: { code: true },
+      select: { code: true, country_code: true, country: true },
     });
     if (!state) {
       throw validationError('Unknown state.', { field: 'stateCode' });
     }
+    // Owner 2026-10-05: licenses only in switched-on countries.
+    if (state.country && !state.country.is_enabled) {
+      throw notAvailable(state.country_code);
+    }
+    // Owner 2026-10-05 07:00: a rejected / blocked bar number (or the
+    // contacts of a blocked account) cannot register again — 403.
+    await this.blocks.assertNotBlocked(userId, dto.stateCode, dto.barNumber);
     const expiresAt = dto.expiresAt
       ? new Date(`${dto.expiresAt}T00:00:00Z`)
       : null;
+    let duplicateOf: string | null = null;
     try {
       await withTxRetry(this.prisma, async (tx) => {
         const req = await this.load(tx, userId, requestId);
@@ -226,7 +352,34 @@ export class VerificationRequestsService {
             },
           },
         });
-        if (holder && holder.attorney_id !== userId) throw alreadyRegistered();
+        if (holder && holder.attorney_id !== userId) {
+          // Owner 2026-10-05 (trust levels): both sides are recorded and
+          // the holder's license goes to the registry queue.
+          duplicateOf = holder.attorney_id;
+          throw alreadyRegistered();
+        }
+        // Owner 2026-10-05 (audit): re-adding a state that is already
+        // verified would send it back to review; only an explicit renewal
+        // may do that.
+        if (!dto.renewal) {
+          const active = await tx.attorneyLicense.findFirst({
+            where: {
+              attorney_id: userId,
+              state_code: dto.stateCode,
+              license_status: 'verified',
+              OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+            },
+            select: { id: true },
+          });
+          if (active) {
+            throw httpError(
+              HttpStatus.CONFLICT,
+              ErrorCode.LICENSE_ALREADY_ADDED,
+              'This state is already verified.',
+              { licenseId: active.id, reason: 'already_verified' },
+            );
+          }
+        }
         const sameState = await tx.attorneyLicense.findFirst({
           where: {
             attorney_id: userId,
@@ -249,9 +402,14 @@ export class VerificationRequestsService {
             data: {
               license_status: 'pending',
               expires_at: expiresAt,
+              expires_source: expiresAt ? 'attorney' : null,
               rejection_code: null,
               rejection_note: null,
               auto_check_result: Prisma.DbNull,
+              ...(unusual && {
+                registry_flag: FORMAT_UNUSUAL_FLAG,
+                registry_flagged_at: new Date(),
+              }),
             },
           });
         } else {
@@ -261,11 +419,24 @@ export class VerificationRequestsService {
               state_code: dto.stateCode,
               bar_number: dto.barNumber,
               expires_at: expiresAt,
+              expires_source: expiresAt ? 'attorney' : null,
+              ...(unusual && {
+                registry_flag: FORMAT_UNUSUAL_FLAG,
+                registry_flagged_at: new Date(),
+              }),
             },
           });
         }
       });
     } catch (error) {
+      if (duplicateOf) {
+        await this.trust.onDuplicateClaim(
+          duplicateOf,
+          userId,
+          dto.stateCode,
+          dto.barNumber,
+        );
+      }
       // Another attorney inserted the same (state, bar number) after our read.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -355,10 +526,13 @@ export class VerificationRequestsService {
       const same = req.documents.filter(
         (d) => d.doc_type === dto.docType && d.state_code === shape.stateCode,
       ).length;
-      if (same >= MAX_FILES_PER_DOCUMENT) {
+      // Owner 2026-10-07 (bug 17): files per document — admin «Проверка».
+      const maxPerDoc = (await readUploadLimits(this.settings)).verification
+        .maxFiles;
+      if (same >= maxPerDoc) {
         throw validationError('Too many files for this document.', {
           reason: 'too_many_files',
-          max: MAX_FILES_PER_DOCUMENT,
+          max: maxPerDoc,
         });
       }
       await tx.verificationDocument.create({
@@ -368,6 +542,8 @@ export class VerificationRequestsService {
           file_id: dto.fileId,
           state_code: shape.stateCode,
           side: shape.side,
+          // Owner 2026-10-18: the attorney's note to the reviewer.
+          notes: dto.note?.trim() ? dto.note.trim() : null,
         },
       });
     });
@@ -405,20 +581,31 @@ export class VerificationRequestsService {
     userId: string,
     requestId: string,
     dto: SubmitVerificationRequestDto,
+    ip: string | null = null,
     now = new Date(),
   ): Promise<VerificationRequestDto> {
     const { verificationStatus } = await this.requireActiveAttorney(userId);
     const max = await this.settings.number('verification.max_submissions_30d');
+    const barDocRequired = await this.barDocumentRequired();
+    let identityRequired = false;
     const firstSubmission = await withTxRetry(this.prisma, async (tx) => {
       const req = await this.load(tx, userId, requestId);
       assertEditable(req.status);
       const fromDraft = req.status === 'draft';
+      identityRequired = await this.identityRequired(
+        userId,
+        verificationStatus,
+        tx,
+      );
       const missing = await this.missingItems(
         tx,
         req,
         fromDraft,
-        await this.identityRequired(userId, verificationStatus, tx),
+        identityRequired,
+        barDocRequired,
       );
+      // Owner 2026-10-04: a new submission carries the sworn statement.
+      if (fromDraft && dto.attestation !== true) missing.unshift('attestation');
       if (missing.length > 0) {
         throw httpError(
           HttpStatus.BAD_REQUEST,
@@ -433,7 +620,12 @@ export class VerificationRequestsService {
         where: { id: req.id },
         data: {
           status: 'submitted',
-          ...(fromDraft && { submitted_at: now }),
+          ...(fromDraft && {
+            submitted_at: now,
+            attested_at: now,
+            attestation_ip: ip,
+            attestation_version: ATTESTATION_VERSION,
+          }),
           ...(dto.applicantComment !== undefined && {
             applicant_comment: dto.applicantComment || null,
           }),
@@ -442,31 +634,80 @@ export class VerificationRequestsService {
       await syncProfileStatus(tx, userId, 'submitted', now);
       return fromDraft;
     });
-    if (firstSubmission) await this.checks.runOnSubmit(requestId);
+    if (firstSubmission) {
+      // Owner 2026-10-04: self-attestation — no registry or bar website is
+      // consulted; the attorney answers for the statement and verifiers
+      // only act on complaints. Off (or ID + selfie required) = the
+      // automatic checks / verifier queue as before.
+      const selfAttested =
+        !identityRequired &&
+        (await this.settings.boolean(
+          'verification.self_attestation_auto_approve',
+        ));
+      if (selfAttested) {
+        // Owner 2026-10-05: then the state registries that are switched on
+        // check the numbers and flag differences for an admin.
+        await this.checks.approveSelfAttested(requestId);
+      } else {
+        await this.checks.runOnSubmit(requestId);
+      }
+    }
     return this.get(userId, requestId);
   }
 
-  /** §2.1 completeness. A new submission needs ≥1 license (each with its
-   * bar document), plus — unless the attorney is already verified — an
-   * identity document (front, and back for driver license/state ID) and
-   * a selfie. Every attached file must still be `clean`. */
+  /** Owner 2026-10-16: counts the SHAPE of a number no rule recognised
+   * (never the number) so the admin can widen a rule without a release. */
+  private async logFormatMiss(state: string, raw: string): Promise<void> {
+    try {
+      const shape = barShape(raw);
+      await this.prisma.barFormatMiss.upsert({
+        where: { state_code_shape: { state_code: state, shape } },
+        create: { state_code: state, shape },
+        update: { hits: { increment: 1 }, last_seen: new Date() },
+      });
+    } catch (e) {
+      // A log failure must never block the attorney.
+      void e;
+    }
+  }
+
+  /** §2.1 completeness. A new submission needs ≥1 license; its bar
+   * document and the identity document (front, and back for driver
+   * license/state ID) + selfie only when required (see identityRequired,
+   * barDocumentRequired). Every attached file must still be `clean`. */
   private async missingItems(
     tx: Tx,
     req: RequestRow,
     fromDraft: boolean,
     identityRequired: boolean,
+    barDocRequired: boolean,
   ): Promise<MissingItem[]> {
     const missing: MissingItem[] = [];
+    const manualDoc = await this.settings.boolean(
+      'verification.bar_document_for_manual_states',
+    );
     if (fromDraft) {
       const pending = req.attorney.licenses.filter(
         (l) => l.license_status === 'pending',
       );
       if (pending.length === 0) missing.push('license');
       for (const l of pending) {
-        const has = req.documents.some(
-          (d) => d.doc_type === 'bar_license' && d.state_code === l.state_code,
-        );
-        if (!has) missing.push(`bar_license:${l.state_code}`);
+        // Owner 2026-10-16: the bar card is required where nobody checks the
+        // number for us (no registry for the state) and for a number whose
+        // shape no rule recognised.
+        // Owner 2026-10-18: a number the attorney sent for manual review
+        // always needs the card, whatever the setting.
+        const needsDoc =
+          barDocRequired ||
+          l.registry_flag === FORMAT_UNUSUAL_FLAG ||
+          (manualDoc && !(await this.checks.registryEnabled(l.state_code)));
+        if (needsDoc) {
+          const has = req.documents.some(
+            (d) =>
+              d.doc_type === 'bar_license' && d.state_code === l.state_code,
+          );
+          if (!has) missing.push(`bar_license:${l.state_code}`);
+        }
       }
       if (identityRequired) {
         const identity = identityCompleteness(req.documents);
@@ -641,6 +882,9 @@ export function toDto(row: RequestRow): VerificationRequestDto {
       expiresAt: isoDay(l.expires_at),
       rejectionCode: l.rejection_code,
       rejectionNote: l.rejection_note,
+      manualReview:
+        l.license_status === 'pending' &&
+        l.registry_flag === FORMAT_UNUSUAL_FLAG,
     })),
     documents: row.documents.map((d) => ({
       id: d.id,

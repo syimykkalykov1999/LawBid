@@ -6,10 +6,15 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'content_status.dart';
 import 'mention_dto.dart';
+import 'post_attachment_dto.dart';
 import 'post_author_dto.dart';
+import 'post_content_class.dart';
 import 'post_kind.dart';
+import 'post_location_dto.dart';
 import 'post_media_dto.dart';
 import 'post_practice_dto.dart';
+import 'post_promotion_cta_dto.dart';
+import 'post_reposter_dto.dart';
 import 'post_video_dto.dart';
 
 part 'post_dto.g.dart';
@@ -17,40 +22,70 @@ part 'post_dto.g.dart';
 @JsonSerializable()
 class PostDto {
   const PostDto({
-    required this.id,
-    required this.kind,
-    required this.author,
-    required this.body,
-    required this.media,
-    required this.tags,
     required this.mentions,
+    required this.createdAt,
+    required this.savedByMe,
+    required this.repostedByMe,
+    required this.likedByMe,
+    required this.body,
+    required this.repostCount,
+    required this.kind,
+    required this.viewCount,
+    required this.contentClass,
+    required this.author,
+    required this.id,
+    required this.media,
+    required this.attachments,
+    required this.saveCount,
+    required this.tags,
+    required this.shareCount,
     required this.status,
     required this.likeCount,
     required this.commentCount,
-    required this.saveCount,
-    required this.shareCount,
-    required this.likedByMe,
-    required this.savedByMe,
     required this.isMine,
-    required this.createdAt,
-    this.title,
+    this.likesHidden = false,
+    this.commentsEnabled = true,
+    this.viewsHidden = false,
+    this.promotionCta,
     this.practice,
-    this.video,
+    this.title,
+    this.archivedAt,
+    this.repostedBy,
+    this.location,
     this.editedAt,
+    this.pinSlot,
+    this.promotionId,
+    this.video,
   });
 
   factory PostDto.fromJson(Map<String, Object?> json) =>
       _$PostDtoFromJson(json);
 
   final String id;
+  final PostLocationDto? location;
+  final bool commentsEnabled;
+
+  /// Owner 2026-10-18: set while the author keeps the post in «Архив».
+  /// (nobody else gets an archived post).
+  final DateTime? archivedAt;
+
+  /// Owner 2026-10-15: the author hid this counter (counts are 0 for others).
+  final bool likesHidden;
+  final bool viewsHidden;
 
   /// Owner 2026-09-30; null on older posts (the app splits the body).
   final String? title;
   final PostKind kind;
   final PostPracticeDto? practice;
+
+  /// Owner 2026-10-05: legal or general (personal) post.
+  final PostContentClass contentClass;
   final PostAuthorDto author;
   final String body;
   final List<PostMediaDto> media;
+
+  /// Owner 2026-10-05: documents (reels: on the inner page).
+  final List<PostAttachmentDto> attachments;
 
   /// Owner 2026-10-01: a reel's video (null for photo/text posts).
   final PostVideoDto? video;
@@ -67,13 +102,34 @@ class PostDto {
 
   /// OQ-037.
   final int shareCount;
+
+  /// Owner 2026-10-12: views of a video post / reel.
+  final int viewCount;
+
+  /// Owner 2026-10-07: Threads-style reposts.
+  final int repostCount;
   final bool likedByMe;
+  final bool repostedByMe;
+
+  /// Set when the post reaches this list as someone's repost (a followed.
+  /// account in the feed, or the profile's own list).
+  final PostReposterDto? repostedBy;
   final bool savedByMe;
   final bool isMine;
   final String createdAt;
 
   /// "Изменено" (§3.3).
   final String? editedAt;
+
+  /// Owner 2026-10-12: 1..3 when pinned to the top of the author's list.
+  final int? pinSlot;
+
+  /// Owner 2026-10-05: set on a paid promoted post in the feed — the app.
+  /// shows «Реклама» and reports the open to POST /promotions/:id/click.
+  final String? promotionId;
+
+  /// Owner 2026-10-15: the button of a promoted post (null = none).
+  final PostPromotionCtaDto? promotionCta;
 
   Map<String, Object?> toJson() => _$PostDtoToJson(this);
 }

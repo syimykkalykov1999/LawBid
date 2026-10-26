@@ -1,10 +1,17 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { EntitlementsService } from '../plans/entitlements.service';
+import { subscriptionRowIsActive } from './subscription-rules';
+import {
+  type ActiveGrant,
+  findActiveGrant,
+  type GrantDb,
+} from './contract-grant.util';
 
-type Db = Pick<Prisma.TransactionClient, 'subscription'>;
+type Db = Pick<Prisma.TransactionClient, 'subscription' | 'contractGrant'>;
 
 const CACHE_TTL_SECONDS = 60;
 const key = (userId: string) => `sub:active:${userId}`;
@@ -15,7 +22,8 @@ const key = (userId: string) => `sub:active:${userId}`;
  * SubscriptionAccessService.isActive()"). True when `status IN
  * ('trialing','active')`, or `past_due` inside the grace period
  * (`grace_ends_at`, set from `subscription.past_due_grace_days` when the
- * payment failed). Cached in Redis for 60 s; the webhook handler and the
+ * payment failed), or an unrevoked contract grant with starts_at <= now <
+ * ends_at (owner 2026-10-02). Cached in Redis for 60 s; the webhook handler and the
  * admin actions call `invalidate`. A transaction client (`db`) bypasses
  * the cache — the bid-accept path re-checks inside its own transaction.
  */
@@ -23,7 +31,9 @@ const key = (userId: string) => `sub:active:${userId}`;
 export class SubscriptionAccessService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
+    // Owner 2026-10-05: the plan's terms are cached per user as well.
+    @Optional() private readonly entitlements?: EntitlementsService,
   ) {}
 
   async isActive(attorneyId: string, db?: Db): Promise<boolean> {
@@ -40,6 +50,7 @@ export class SubscriptionAccessService {
 
   async invalidate(attorneyId: string): Promise<void> {
     await this.redis.del(key(attorneyId)).catch(() => undefined);
+    await this.entitlements?.invalidateUser(attorneyId);
   }
 
   /** Pure rule over a row — shared with the sync service's transition check. */
@@ -47,13 +58,12 @@ export class SubscriptionAccessService {
     row: { status: string; grace_ends_at: Date | null } | null,
     now = new Date(),
   ): boolean {
-    if (!row) return false;
-    if (row.status === 'trialing' || row.status === 'active') return true;
-    return (
-      row.status === 'past_due' &&
-      !!row.grace_ends_at &&
-      row.grace_ends_at > now
-    );
+    return subscriptionRowIsActive(row, now);
+  }
+
+  /** Owner 2026-10-02: the attorney's active contract grant (uncached). */
+  activeGrant(attorneyId: string, db?: GrantDb): Promise<ActiveGrant | null> {
+    return findActiveGrant(db ?? this.prisma, attorneyId);
   }
 
   private async compute(attorneyId: string, db: Db): Promise<boolean> {
@@ -61,6 +71,8 @@ export class SubscriptionAccessService {
       where: { user_id: attorneyId },
       select: { status: true, grace_ends_at: true },
     });
-    return SubscriptionAccessService.rowIsActive(row);
+    if (SubscriptionAccessService.rowIsActive(row)) return true;
+    // Owner 2026-10-02: a free subscription under a contract.
+    return (await findActiveGrant(db, attorneyId)) !== null;
   }
 }

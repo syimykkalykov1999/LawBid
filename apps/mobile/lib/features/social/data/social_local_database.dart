@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
-import 'package:drift_flutter/drift_flutter.dart';
+import 'package:lawbid/core/persistence/drift_recovery.dart';
+import 'package:lawbid/core/persistence/drift_web.dart';
+import 'package:lawbid/core/persistence/saved_json.dart';
 
 part 'social_local_database.g.dart';
 
@@ -29,11 +31,20 @@ class ChatOutbox extends Table {
   /// show "не отправлено", never retried automatically.
   TextColumn get failedCode => text().nullable()();
 
+  /// Owner 2026-10-20: a reply quotes this message; a forward is labelled.
+  TextColumn get replyToId => text().nullable()();
+  BoolColumn get forwarded => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column> get primaryKey => {clientMessageId};
 }
 
 /// docs/05 §7.2: recent searches, local only, can be cleared.
+///
+/// Owner 2026-10-18: every Search tab has its OWN history. [ownerId] holds
+/// `<userId>` for rows saved before that (legacy: dropped, see
+/// `dropLegacyRecent`) or `<userId>#<tab>` for a tab's history, so no schema
+/// migration is needed and the primary key stays unique per tab.
 @DataClassName('RecentSearchRow')
 class RecentSearches extends Table {
   TextColumn get ownerId => text()();
@@ -45,22 +56,41 @@ class RecentSearches extends Table {
 }
 
 @DriftDatabase(tables: [CachedPages, ChatOutbox, RecentSearches])
-class SocialLocalDatabase extends _$SocialLocalDatabase {
+class SocialLocalDatabase extends _$SocialLocalDatabase
+    implements SavedPageStore {
   SocialLocalDatabase([QueryExecutor? executor])
-      : super(executor ?? driftDatabase(name: 'lawbid_social'));
+      : super(
+          executor ??
+              appDriftDatabase(
+                'lawbid_social',
+                recovery: DriftRecovery.quarantine,
+              ),
+        );
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(chatOutbox, chatOutbox.replyToId);
+            await m.addColumn(chatOutbox, chatOutbox.forwarded);
+          }
+        },
+      );
 
   static const _recentMax = 10;
 
   // --- cached pages ---------------------------------------------------
 
+  @override
   Future<String?> pageJson(String key) async =>
       (await (select(cachedPages)..where((p) => p.key.equals(key)))
               .getSingleOrNull())
           ?.json;
 
+  @override
   Future<void> savePage(String key, String json) =>
       into(cachedPages).insertOnConflictUpdate(
         CachedPagesCompanion.insert(
@@ -70,6 +100,16 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
         ),
       );
 
+  @override
+  Future<int> pagesBytes() async {
+    final sum = cachedPages.json.length.sum();
+    final row = await (selectOnly(cachedPages)..addColumns([sum])).getSingle();
+    return row.read(sum) ?? 0;
+  }
+
+  @override
+  Future<void> clearPages() => delete(cachedPages).go();
+
   // --- chat outbox ----------------------------------------------------
 
   Future<void> enqueue({
@@ -77,6 +117,8 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
     required String ownerId,
     required String conversationId,
     required String body,
+    String? replyToId,
+    bool forwarded = false,
   }) =>
       into(chatOutbox).insertOnConflictUpdate(
         ChatOutboxCompanion.insert(
@@ -85,6 +127,8 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
           conversationId: conversationId,
           body: body,
           createdAt: DateTime.now(),
+          replyToId: Value(replyToId),
+          forwarded: Value(forwarded),
         ),
       );
 
@@ -127,29 +171,53 @@ class SocialLocalDatabase extends _$SocialLocalDatabase {
 
   // --- recent searches ------------------------------------------------
 
-  Future<List<String>> recent(String ownerId) async => [
-        for (final r in await (select(recentSearches)
-              ..where((r) => r.ownerId.equals(ownerId))
-              ..orderBy([(r) => OrderingTerm.desc(r.usedAt)])
-              ..limit(_recentMax))
-            .get())
-          r.query,
-      ];
+  /// The storage key of one tab's history of one account.
+  static String recentKey(String ownerId, String tab) => '$ownerId#$tab';
 
-  Future<void> remember(String ownerId, String query) async {
+  /// [tab] = the Search tab ('attorneys', 'cases', 'posts', 'tags').
+  Future<List<String>> recent(String ownerId, String tab) async {
+    final key = recentKey(ownerId, tab);
+    return [
+      for (final r in await (select(recentSearches)
+            ..where((r) => r.ownerId.equals(key))
+            ..orderBy([(r) => OrderingTerm.desc(r.usedAt)])
+            ..limit(_recentMax))
+          .get())
+        r.query,
+    ];
+  }
+
+  Future<void> remember(String ownerId, String tab, String query) async {
+    final key = recentKey(ownerId, tab);
     await into(recentSearches).insertOnConflictUpdate(
       RecentSearchesCompanion.insert(
-        ownerId: ownerId,
+        ownerId: key,
         query: query,
         usedAt: DateTime.now(),
       ),
     );
-    final keep = await recent(ownerId);
+    final keep = await recent(ownerId, tab);
     await (delete(recentSearches)
-          ..where((r) => r.ownerId.equals(ownerId) & r.query.isNotIn(keep)))
+          ..where((r) => r.ownerId.equals(key) & r.query.isNotIn(keep)))
         .go();
   }
 
-  Future<void> clearRecent(String ownerId) =>
+  Future<void> forgetRecent(String ownerId, String tab, String query) =>
+      (delete(recentSearches)
+            ..where(
+              (r) =>
+                  r.ownerId.equals(recentKey(ownerId, tab)) &
+                  r.query.equals(query),
+            ))
+          .go();
+
+  Future<void> clearRecent(String ownerId, String tab) => (delete(
+        recentSearches,
+      )..where((r) => r.ownerId.equals(recentKey(ownerId, tab))))
+          .go();
+
+  /// History saved before the tabs had their own: one list for everything,
+  /// so there is no telling which tab a line belonged to. Dropped.
+  Future<void> dropLegacyRecent(String ownerId) =>
       (delete(recentSearches)..where((r) => r.ownerId.equals(ownerId))).go();
 }

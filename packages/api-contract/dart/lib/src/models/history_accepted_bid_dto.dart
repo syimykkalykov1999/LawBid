@@ -13,6 +13,7 @@ class HistoryAcceptedBidDto {
   const HistoryAcceptedBidDto({
     required this.amountCents,
     required this.feeType,
+    this.percentBps,
   });
 
   factory HistoryAcceptedBidDto.fromJson(Map<String, Object?> json) =>
@@ -20,6 +21,9 @@ class HistoryAcceptedBidDto {
 
   /// Final amount in cents.
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points.
+  final int? percentBps;
   final FeeType feeType;
 
   Map<String, Object?> toJson() => _$HistoryAcceptedBidDtoToJson(this);

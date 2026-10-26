@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../theme/app_typography_tokens.dart';
-import '../../tokens/app_fonts.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 
-/// Circular avatar (file 01 §15 component list): image when [imageUrl] is
+/// Circular avatar (file 01 §15 component list): image when `imageUrl` is
 /// given, otherwise initials on a `surface`-tinted circle. No network image
 /// loading logic here (that's the data layer's job in later stages) — this
 /// widget only lays out whatever [ImageProvider] it's handed.
@@ -47,22 +47,61 @@ class AppAvatar extends StatelessWidget {
         child: CircleAvatar(
           radius: size / 2,
           backgroundColor: colors.navy,
-          backgroundImage: imageProvider,
-          child: imageProvider == null && initials != null
-              ? Text(
-                  initials!,
-                  maxLines: 1,
-                  textScaler: TextScaler.noScaling,
-                  style: typography.body.copyWith(
-                    color: colors.goldLight,
-                    fontFamily: AppFontFamilies.serif,
-                    fontWeight: FontWeight.w600,
-                    fontSize: size * 0.38,
+          // Owner 2026-10-07: the letters sit under the photo, so a photo
+          // that fails to load (or is still loading) never leaves an empty
+          // navy circle.
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (initials != null)
+                Center(
+                  child: Text(
+                    initials!,
+                    maxLines: 1,
+                    textScaler: TextScaler.noScaling,
+                    style: typography.body.copyWith(
+                      color: colors.goldLight,
+                      fontFamily: AppFontFamilies.serif,
+                      fontWeight: FontWeight.w600,
+                      fontSize: size * 0.38,
+                    ),
                   ),
-                )
-              : null,
+                ),
+              if (imageProvider != null)
+                ClipOval(
+                  child: Image(
+                    // Decode at the size it is drawn, not at full resolution
+                    // (a 2000px photo for a 40dp circle froze the list).
+                    image: ResizeImage.resizeIfNeeded(
+                      (size * MediaQuery.devicePixelRatioOf(context)).round(),
+                      null,
+                      imageProvider!,
+                    ),
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// Owner 2026-10-05: the letters an avatar without a photo shows — the
+/// first letters of up to two words of the name ("Chris Walker" → "CW"),
+/// never the "@" of a bare handle ("@sima" → "S"); "?" when empty.
+String avatarInitials(String name) {
+  final words = name
+      // The invisible direction marks around a shown @handle too.
+      .replaceAll(RegExp('[@\u2066-\u2069]'), ' ')
+      .split(RegExp(r'[\s._-]+'))
+      .where((w) => w.isNotEmpty)
+      .toList();
+  if (words.isEmpty) return '?';
+  final first = words.first.characters.first;
+  final second = words.length > 1 ? words[1].characters.first : '';
+  return (first + second).toUpperCase();
 }

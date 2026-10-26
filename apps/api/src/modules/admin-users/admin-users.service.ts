@@ -1,11 +1,18 @@
 import {
+  countryInScope,
+  type CountryScope,
+  userInScope,
+} from '../countries/country-scope';
+import {
   ConflictException,
   ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -16,6 +23,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
+import type { AdminBulkResultDto } from '../admin-content/admin-content.dto';
+import { createdWindow } from '../admin-content/admin-content.service';
+import { eachId } from '../admin-content/bulk.util';
+import { PasswordAuthService } from '../auth/password-auth.service';
 import { OtpService } from '../auth/services/otp.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { SessionRevocationService } from '../auth/services/session-revocation.service';
@@ -28,6 +39,7 @@ import type {
   AdminUserContactsDto,
   AdminUserListItemDto,
   AdminUsersPage,
+  AdminUsersBulkDto,
   AdminUsersQueryDto,
   SanctionResultDto,
   PhoneChangedDto,
@@ -39,6 +51,7 @@ export const USERS_AUDIT = {
   suspend: 'users.suspend',
   restore: 'users.restore',
   phoneChanged: 'users.phone_changed',
+  passwordReset: 'users.password_reset',
 } as const;
 
 const LIST_DEFAULT = 20;
@@ -85,8 +98,10 @@ const LIST_SELECT = {
   status: true,
   first_name: true,
   last_name: true,
+  email: true,
   avatar_file_id: true,
   created_at: true,
+  country_code: true,
   attorney_profile: { select: { username: true, verification_status: true } },
 } as const;
 type ListRow = Prisma.UserGetPayload<{ select: typeof LIST_SELECT }>;
@@ -112,9 +127,17 @@ export class AdminUsersService {
     private readonly files: FilesService,
     private readonly otp: OtpService,
     private readonly rateLimit: RateLimitService,
+    // Owner 2026-10-13: «Сбросить пароль».
+    private readonly passwordAuth: PasswordAuthService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a block re-scores the
+    // accounts that share a phone, e-mail, card or device with this one.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
-  async search(q: AdminUsersQueryDto): Promise<AdminUsersPage> {
+  async search(
+    q: AdminUsersQueryDto,
+    countries: CountryScope = null,
+  ): Promise<AdminUsersPage> {
     const limit = q.limit ?? LIST_DEFAULT;
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
     const parsed = parseUserQuery(q.q);
@@ -134,10 +157,38 @@ export class AdminUsersService {
               : parsed.kind === 'name'
                 ? { full_name_lower: { contains: parsed.needle } }
                 : {};
+    // Owner 2026-10-05: staff of one country see only its people; the
+    // country filter narrows inside that.
+    const country: Prisma.UserWhereInput = q.countryCode
+      ? countryInScope(countries, q.countryCode)
+        ? { country_code: q.countryCode }
+        : { id: { in: [] } }
+      : userInScope(countries);
     const where: Prisma.UserWhereInput = {
+      // Owner 2026-10-05: placeholder rows of partners without an account
+      // are not people in the app.
+      placeholder_kind: null,
       ...byQuery,
+      ...country,
       ...(q.role ? { role: q.role } : {}),
       ...(q.status ? { status: q.status } : {}),
+      ...createdWindow(q),
+      ...(q.stateCode
+        ? {
+            AND: [
+              {
+                OR: [
+                  { client_profile: { state_code: q.stateCode } },
+                  {
+                    attorney_profile: {
+                      licenses: { some: { state_code: q.stateCode } },
+                    },
+                  },
+                ],
+              },
+            ],
+          }
+        : {}),
       ...(cursor
         ? {
             OR: [
@@ -167,9 +218,12 @@ export class AdminUsersService {
     };
   }
 
-  async card(id: string): Promise<AdminUserCardDto> {
-    const u = await this.prisma.user.findUnique({
-      where: { id },
+  async card(
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<AdminUserCardDto> {
+    const u = await this.prisma.user.findFirst({
+      where: { id, ...userInScope(countries) },
       select: {
         ...LIST_SELECT,
         suspended_reason: true,
@@ -188,8 +242,16 @@ export class AdminUsersService {
             followers_count: true,
             posts_count: true,
             licenses: {
-              select: { state_code: true, license_status: true },
+              select: {
+                state_code: true,
+                license_status: true,
+                bar_number: true,
+                expires_at: true,
+              },
               orderBy: { state_code: 'asc' },
+            },
+            practice_areas: {
+              select: { practice_area: { select: { name_en: true } } },
             },
           },
         },
@@ -290,6 +352,15 @@ export class AdminUsersService {
             licenses: u.attorney_profile.licenses.map(
               (l) => `${l.state_code}:${l.license_status}`,
             ),
+            licenseItems: u.attorney_profile.licenses.map((l) => ({
+              stateCode: l.state_code,
+              barNumber: l.bar_number,
+              status: l.license_status,
+              expiresAt: l.expires_at?.toISOString() ?? null,
+            })),
+            practices: u.attorney_profile.practice_areas
+              .map((p) => p.practice_area.name_en)
+              .sort((a, b) => a.localeCompare(b)),
             subscription: u.subscription
               ? {
                   status: u.subscription.status,
@@ -342,9 +413,12 @@ export class AdminUsersService {
   }
 
   /** The justified view (the interceptor writes the audit row). */
-  async contacts(id: string): Promise<AdminUserContactsDto> {
-    const u = await this.prisma.user.findUnique({
-      where: { id },
+  async contacts(
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<AdminUserContactsDto> {
+    const u = await this.prisma.user.findFirst({
+      where: { id, ...userInScope(countries) },
       select: {
         email: true,
         email_verified_at: true,
@@ -360,6 +434,30 @@ export class AdminUsersService {
       phone: u.phone_e164,
       phoneVerifiedAt: u.phone_verified_at?.toISOString() ?? null,
       preferredContactNote: u.client_profile?.preferred_contact_note ?? null,
+    };
+  }
+
+  /** Owner 2026-10-13: drops the user's password and every session; the
+   * person signs in with an SMS code once and sets a new password. */
+  async resetPassword(
+    admin: AdminActor,
+    id: string,
+  ): Promise<SanctionResultDto> {
+    const u = await this.target(id);
+    await this.passwordAuth.clearPasswordByAdmin(id, admin.id);
+    await this.audit.record({
+      adminId: admin.id,
+      action: USERS_AUDIT.passwordReset,
+      targetType: 'user',
+      targetId: id,
+      ip: admin.ip,
+    });
+    return {
+      userId: id,
+      status: u.status,
+      revokedSessions: 0,
+      archivedCases: 0,
+      withdrawnBids: 0,
     };
   }
 
@@ -534,6 +632,21 @@ export class AdminUsersService {
     };
   }
 
+  /**
+   * Owner 2026-10-04: suspend / restore / end sessions for many users at
+   * once. Each user goes through the single action (same checks, same audit
+   * row per user); one that can't change is skipped, never fails the batch.
+   */
+  bulk(admin: AdminActor, dto: AdminUsersBulkDto): Promise<AdminBulkResultDto> {
+    return eachId(dto.ids, (id) =>
+      dto.action === 'suspend'
+        ? this.suspend(admin, id, dto.reason)
+        : dto.action === 'restore'
+          ? this.restore(admin, id)
+          : this.revokeSessions(admin, id),
+    );
+  }
+
   /** §3.4 suspension. */
   async suspend(
     admin: AdminActor,
@@ -598,6 +711,7 @@ export class AdminUsersService {
       u.role === 'client'
         ? (await this.lifecycle.archiveOpenCasesOfClient(id)).length
         : 0;
+    void this.fraud?.onBanned(id);
     return {
       userId: id,
       status: 'suspended',
@@ -690,6 +804,8 @@ function presentListItem(r: ListRow, avatars: Avatars): AdminUserListItemDto {
     status: r.status,
     firstName: r.first_name,
     lastName: r.last_name,
+    email: r.email,
+    countryCode: r.country_code,
     username: r.attorney_profile?.username ?? null,
     verificationStatus: r.attorney_profile?.verification_status ?? null,
     avatarUrl: avatarOf(r.avatar_file_id, avatars),

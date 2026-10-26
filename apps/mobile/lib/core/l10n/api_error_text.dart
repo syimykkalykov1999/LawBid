@@ -1,5 +1,5 @@
-import '../network/api_error.dart';
-import 'translator.dart';
+import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/network/api_error.dart';
 
 /// Localized, user-facing text for an [ApiException] — docs/01_FOUNDATION_
 /// AUTH.md §7: "Клиент показывает локализованный текст по `code`, а не по
@@ -9,6 +9,16 @@ import 'translator.dart';
 /// (TOKEN_EXPIRED -> silent refresh, APP_UPDATE_REQUIRED -> forced-update
 /// screen, INTERNAL_ERROR, ...) fall back to the generic message.
 String apiErrorText(Translator t, ApiException error) {
+  // Owner 2026-10-22 (guest browsing): a request with no token that the API
+  // refused — «sign in to see this» / «try again a little later».
+  if (error.guest) {
+    if (error.code == ApiErrorCodes.unauthorized) {
+      return t.t('guest.error.signIn');
+    }
+    if (error.code == ApiErrorCodes.rateLimited) {
+      return t.t('guest.error.later');
+    }
+  }
   final key = _keys[error.code];
   if (key == null) return t.t('error.default.message');
   if (error.code == ApiErrorCodes.authOtpRequestLimit ||
@@ -17,6 +27,11 @@ String apiErrorText(Translator t, ApiException error) {
     if (retry is int && retry > 0) {
       return t.t('error.api.retryAfter', {'seconds': '$retry'});
     }
+  }
+  // Owner 2026-10-16: a registered number gets no SMS; say what to do.
+  if (error.code == ApiErrorCodes.authPhoneRegistered &&
+      error.details?['hasPassword'] == false) {
+    return t.t('error.api.AUTH_PHONE_NO_PASSWORD');
   }
   // docs/03 §4.1 / OQ-012: say which requirement blocks completion when
   // it is the attorney photo.
@@ -35,6 +50,25 @@ String apiErrorText(Translator t, ApiException error) {
     if (reason == 'number_type_not_allowed') {
       return t.t('error.api.PHONE_TYPE_NOT_ALLOWED');
     }
+    if (reason == 'country_not_allowed') {
+      return t.t('error.api.COUNTRY_NOT_AVAILABLE');
+    }
+  }
+  // Owner 2026-10-05: attorney trust — name the requirements the gate is
+  // missing ({gate, missing: [registry|identity|documents], current}).
+  if (error.code == ApiErrorCodes.trustLevelRequired) {
+    final missing = error.details?['missing'];
+    if (missing is List && missing.isNotEmpty) {
+      const known = {'registry', 'identity', 'documents'};
+      final names = [
+        for (final m in missing)
+          if (m is String && known.contains(m)) t.t('trust.req.$m'),
+      ];
+      if (names.isNotEmpty) {
+        return t.t(key, {'missing': names.join(', ')});
+      }
+    }
+    return t.t('error.api.TRUST_LEVEL_REQUIRED.plain');
   }
   return t.t(key);
 }
@@ -55,37 +89,75 @@ const _keys = <String, String>{
   ApiErrorCodes.authOtpExpired: 'error.api.AUTH_OTP_EXPIRED',
   ApiErrorCodes.authOtpLocked: 'error.api.AUTH_OTP_LOCKED',
   ApiErrorCodes.authOtpRequestLimit: 'error.api.AUTH_OTP_REQUEST_LIMIT',
+  ApiErrorCodes.authPhoneRegistered: 'error.api.AUTH_PHONE_REGISTERED',
   ApiErrorCodes.contactDomainBlocked: 'error.api.CONTACT_DOMAIN_BLOCKED',
   ApiErrorCodes.contactAlreadyExists: 'error.api.CONTACT_ALREADY_EXISTS',
   ApiErrorCodes.identifierAlreadyLinked: 'error.api.CONTACT_ALREADY_EXISTS',
   ApiErrorCodes.phoneCountryNotSupported:
       'error.api.PHONE_COUNTRY_NOT_SUPPORTED',
+  ApiErrorCodes.countryNotAvailable: 'error.api.COUNTRY_NOT_AVAILABLE',
   ApiErrorCodes.providerBudgetExceeded: 'error.api.PROVIDER_BUDGET_EXCEEDED',
   ApiErrorCodes.reviewCaseNotClosed: 'error.api.REVIEW_CASE_NOT_CLOSED',
   ApiErrorCodes.reviewNoAcceptedBid: 'error.api.REVIEW_NO_ACCEPTED_BID',
   ApiErrorCodes.reviewAlreadyExists: 'error.api.REVIEW_ALREADY_EXISTS',
+  ApiErrorCodes.qaAnswersEnough: 'qa.err.enough',
+  ApiErrorCodes.qaQuestionClosed: 'qa.err.closed',
+  ApiErrorCodes.forwardNotAllowed: 'error.api.FORWARD_NOT_ALLOWED',
+  ApiErrorCodes.contentProtected: 'error.api.CONTENT_PROTECTED',
+  ApiErrorCodes.unsupportedInTarget: 'error.api.UNSUPPORTED_IN_TARGET',
+  ApiErrorCodes.consultationSlotTaken: 'error.api.CONSULTATION_SLOT_TAKEN',
+  ApiErrorCodes.consultationNotAvailable:
+      'error.api.CONSULTATION_NOT_AVAILABLE',
+  ApiErrorCodes.consultationStateConflict:
+      'error.api.CONSULTATION_STATE_CONFLICT',
   ApiErrorCodes.reviewAppealExists: 'error.api.REVIEW_APPEAL_EXISTS',
   ApiErrorCodes.chatAttachmentsLocked: 'error.api.CHAT_ATTACHMENTS_LOCKED',
-  ApiErrorCodes.subscriptionPlanIncludesSeats: 'error.api.SUBSCRIPTION_PLAN_INCLUDES_SEATS',
+  ApiErrorCodes.subscriptionPlanIncludesSeats:
+      'error.api.SUBSCRIPTION_PLAN_INCLUDES_SEATS',
   ApiErrorCodes.assistantSeatsInUse: 'error.api.ASSISTANT_SEATS_IN_USE',
   ApiErrorCodes.assistantNoFreeSeat: 'error.api.ASSISTANT_NO_FREE_SEAT',
+  ApiErrorCodes.assistantTooManyDuties: 'error.api.ASSISTANT_TOO_MANY_DUTIES',
+  ApiErrorCodes.seatsTrialNotAllowed: 'error.api.SEATS_TRIAL_NOT_ALLOWED',
+  ApiErrorCodes.seatsNotPaidYet: 'error.api.SEATS_NOT_PAID_YET',
+  ApiErrorCodes.seatsPreviewStale: 'error.api.SEATS_PREVIEW_STALE',
   ApiErrorCodes.assistantNotAllowed: 'error.api.ASSISTANT_NOT_ALLOWED',
   ApiErrorCodes.assistantPhoneTaken: 'error.api.ASSISTANT_PHONE_TAKEN',
   ApiErrorCodes.assistantInviteNotFound: 'error.api.ASSISTANT_INVITE_NOT_FOUND',
+  ApiErrorCodes.assistantCodeInvalid: 'error.api.ASSISTANT_CODE_INVALID',
   ApiErrorCodes.assistantLiabilityRequired:
       'error.api.ASSISTANT_LIABILITY_REQUIRED',
   ApiErrorCodes.taskClosed: 'error.api.TASK_CLOSED',
   ApiErrorCodes.taskStepsLimit: 'error.api.TASK_STEPS_LIMIT',
+  ApiErrorCodes.filesCountLimit: 'error.api.FILES_COUNT_LIMIT',
+  ApiErrorCodes.postAttachmentsNotAllowed:
+      'error.api.POST_ATTACHMENTS_NOT_ALLOWED',
   ApiErrorCodes.reviewEditWindowExpired: 'error.api.REVIEW_EDIT_WINDOW_EXPIRED',
   ApiErrorCodes.reviewNotEditable: 'error.api.REVIEW_NOT_EDITABLE',
   // Uploads (docs/03 §2.2). A checksum mismatch or a missing upload means
   // the transfer broke: "try uploading again".
   ApiErrorCodes.fileTypeNotAllowed: 'error.api.FILE_TYPE_NOT_ALLOWED',
   ApiErrorCodes.fileTooLarge: 'error.api.FILE_TOO_LARGE',
+  ApiErrorCodes.storageQuotaExceeded: 'error.api.STORAGE_QUOTA_EXCEEDED',
+  ApiErrorCodes.chatStorageFull: 'error.api.CHAT_STORAGE_FULL',
+  // 2026-10-24: «too many uploads, try later» — the existing generic text.
+  ApiErrorCodes.dailyUploadLimitExceeded: 'error.api.RATE_LIMITED',
   // Owner 2026-10-01: reels and stickers.
   ApiErrorCodes.videoUnavailable: 'error.api.VIDEO_UNAVAILABLE',
+  ApiErrorCodes.translationUnavailable: 'error.api.TRANSLATION_UNAVAILABLE',
+  ApiErrorCodes.supportTicketClosed: 'error.api.SUPPORT_TICKET_CLOSED',
+  ApiErrorCodes.referralCodeInvalid: 'error.api.REFERRAL_CODE_INVALID',
+  ApiErrorCodes.referralNotAllowed: 'error.api.REFERRAL_NOT_ALLOWED',
+  ApiErrorCodes.promoCodeInvalid: 'error.api.PROMO_CODE_INVALID',
+  ApiErrorCodes.payoutAccountNotReady: 'error.api.PAYOUT_ACCOUNT_NOT_READY',
+  ApiErrorCodes.paymentInvalidState: 'error.api.PAYMENT_INVALID_STATE',
+  ApiErrorCodes.paymentAmountInvalid: 'error.api.PAYMENT_AMOUNT_INVALID',
+  ApiErrorCodes.paymentFeeMaxRoundsReached:
+      'error.api.PAYMENT_FEE_MAX_ROUNDS_REACHED',
+  ApiErrorCodes.refundNotAllowed: 'error.api.REFUND_NOT_ALLOWED',
   ApiErrorCodes.videoTooLong: 'error.api.VIDEO_TOO_LONG',
   ApiErrorCodes.videoNotReady: 'error.api.VIDEO_NOT_READY',
+  ApiErrorCodes.commentsDisabled: 'error.api.COMMENTS_DISABLED',
+  ApiErrorCodes.licenseStateRequired: 'error.api.LICENSE_STATE_REQUIRED',
   ApiErrorCodes.stickerLimitReached: 'error.api.STICKER_LIMIT_REACHED',
   ApiErrorCodes.fileChecksumMismatch: 'error.api.FILE_UPLOAD_FAILED',
   ApiErrorCodes.fileNotUploaded: 'error.api.FILE_UPLOAD_FAILED',
@@ -116,31 +188,72 @@ const _keys = <String, String>{
   ApiErrorCodes.bidMaxRoundsReached: 'error.api.BID_MAX_ROUNDS_REACHED',
   ApiErrorCodes.bidCounterNotAllowed: 'error.api.BID_COUNTER_NOT_ALLOWED',
   ApiErrorCodes.subscriptionRequired: 'error.api.SUBSCRIPTION_REQUIRED',
+  ApiErrorCodes.insufficientStars: 'error.api.INSUFFICIENT_STARS',
+  ApiErrorCodes.stickerPackNotOwned: 'error.api.STICKER_PACK_NOT_OWNED',
   ApiErrorCodes.caseNotAvailable: 'error.api.CASE_NOT_AVAILABLE',
   ApiErrorCodes.postNotFound: 'error.api.POST_NOT_FOUND',
   ApiErrorCodes.postNotAllowed: 'error.api.POST_NOT_ALLOWED',
+  ApiErrorCodes.repostOwnPost: 'error.api.REPOST_OWN_POST',
   ApiErrorCodes.commentNotFound: 'error.api.COMMENT_NOT_FOUND',
   ApiErrorCodes.followNotAllowed: 'error.api.FOLLOW_NOT_ALLOWED',
   ApiErrorCodes.conversationNotFound: 'error.api.CONVERSATION_NOT_FOUND',
   ApiErrorCodes.conversationClosed: 'error.api.CONVERSATION_CLOSED',
+  ApiErrorCodes.groupNotFound: 'error.api.GROUP_NOT_FOUND',
+  ApiErrorCodes.groupForbidden: 'error.api.GROUP_FORBIDDEN',
+  ApiErrorCodes.groupFull: 'error.api.GROUP_FULL',
+  ApiErrorCodes.groupUsernameTaken: 'error.api.GROUP_USERNAME_TAKEN',
+  ApiErrorCodes.pollClosed: 'error.api.POLL_CLOSED',
   ApiErrorCodes.messageTooLong: 'error.api.MESSAGE_TOO_LONG',
+  ApiErrorCodes.textTooLong: 'error.api.TEXT_TOO_LONG',
   ApiErrorCodes.featureDisabled: 'error.api.FEATURE_DISABLED',
+  ApiErrorCodes.bidLimitReached: 'error.api.BID_LIMIT_REACHED',
+  ApiErrorCodes.bidMonthlyLimitReached: 'error.api.BID_MONTHLY_LIMIT_REACHED',
+  ApiErrorCodes.bidTrialLimitReached: 'error.api.BID_TRIAL_LIMIT_REACHED',
+  ApiErrorCodes.barNumberFormatInvalid: 'error.api.BAR_NUMBER_FORMAT_INVALID',
+  ApiErrorCodes.barAttemptsCooldown: 'error.api.BAR_ATTEMPTS_COOLDOWN',
+  ApiErrorCodes.bidLicensePending: 'error.api.BID_LICENSE_PENDING',
+  ApiErrorCodes.firmAlreadyMember: 'error.api.FIRM_ALREADY_MEMBER',
+  ApiErrorCodes.firmFull: 'error.api.FIRM_FULL',
+  ApiErrorCodes.accountExistsUseOtherMethod:
+      'error.api.ACCOUNT_EXISTS_USE_OTHER_METHOD',
+  ApiErrorCodes.promotionAlreadyActive: 'error.api.PROMOTION_ALREADY_ACTIVE',
+  ApiErrorCodes.stickerPackNameTaken: 'error.api.STICKER_PACK_NAME_TAKEN',
+  ApiErrorCodes.planNotAvailable: 'error.api.PLAN_NOT_AVAILABLE',
+  ApiErrorCodes.contentInvalidState: 'error.api.CONTENT_INVALID_STATE',
   ApiErrorCodes.searchQueryTooShort: 'error.api.SEARCH_QUERY_TOO_SHORT',
   ApiErrorCodes.userBlocked: 'error.api.USER_BLOCKED',
+  ApiErrorCodes.privacyRestricted: 'error.api.PRIVACY_RESTRICTED',
+  ApiErrorCodes.appealNotAllowed: 'error.api.APPEAL_NOT_ALLOWED',
+  // Audit 2026-10-02: calls answered elsewhere / already gone.
+  ApiErrorCodes.callStateConflict: 'error.api.CALL_STATE_CONFLICT',
+  ApiErrorCodes.callNotFound: 'error.api.CALL_NOT_FOUND',
   ApiErrorCodes.directChatNotAllowed: 'error.api.DIRECT_CHAT_NOT_ALLOWED',
   ApiErrorCodes.messageRequestDeclined: 'error.api.MESSAGE_REQUEST_DECLINED',
   ApiErrorCodes.messageRequestLimit: 'error.api.MESSAGE_REQUEST_LIMIT',
+  ApiErrorCodes.contingencyNotAllowed: 'error.api.CONTINGENCY_NOT_ALLOWED',
   ApiErrorCodes.callNotAllowed: 'call.notAllowed',
   ApiErrorCodes.callInProgress: 'call.inProgress',
   ApiErrorCodes.bidAttorneyInactive: 'error.api.BID_ATTORNEY_INACTIVE',
+  ApiErrorCodes.trustLevelRequired: 'error.api.TRUST_LEVEL_REQUIRED',
+  ApiErrorCodes.attorneyOnHold: 'error.api.ATTORNEY_ON_HOLD',
+  ApiErrorCodes.barNumberBlocked: 'error.api.BAR_NUMBER_BLOCKED',
   ApiErrorCodes.contactsLocked: 'error.api.CONTACTS_LOCKED',
   ApiErrorCodes.contactIssueAlreadyOpen: 'error.api.CONTACT_ISSUE_ALREADY_OPEN',
   ApiErrorCodes.contactIssueInvalidState:
       'error.api.CONTACT_ISSUE_INVALID_STATE',
   ApiErrorCodes.bidAlreadyExists: 'error.api.BID_ALREADY_EXISTS',
+  ApiErrorCodes.inviteNotFound: 'error.api.INVITE_NOT_FOUND',
+  ApiErrorCodes.inviteInvalidState: 'error.api.INVITE_INVALID_STATE',
+  ApiErrorCodes.inviteAlreadyPending: 'error.api.INVITE_ALREADY_PENDING',
+  ApiErrorCodes.seatLimitRequestPending: 'error.api.SEAT_LIMIT_REQUEST_PENDING',
+  ApiErrorCodes.seatLimitRequestDecided: 'error.api.SEAT_LIMIT_REQUEST_DECIDED',
+  ApiErrorCodes.inviteAttorneyUnavailable:
+      'error.api.INVITE_ATTORNEY_UNAVAILABLE',
+  ApiErrorCodes.inviteLimitReached: 'error.api.INVITE_LIMIT_REACHED',
   ApiErrorCodes.caseContainsContactInfo: 'error.api.CASE_CONTAINS_CONTACT_INFO',
   ApiErrorCodes.clientContactSharingConsentRequired:
       'error.api.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
+  ApiErrorCodes.legalReacceptRequired: 'error.api.LEGAL_REACCEPT_REQUIRED',
   ApiErrorCodes.paymentsNotConfigured: 'error.api.PAYMENTS_NOT_CONFIGURED',
   ApiErrorCodes.subscriptionAlreadyActive:
       'error.api.SUBSCRIPTION_ALREADY_ACTIVE',
@@ -153,16 +266,23 @@ const _keys = <String, String>{
   ApiErrorCodes.contentBlocked: 'error.api.CONTENT_BLOCKED',
   ApiErrorCodes.reauthRequired: 'error.api.REAUTH_REQUIRED',
   ApiErrorCodes.reauthInvalid: 'error.api.REAUTH_INVALID',
+  // Owner 2026-10-22 (passkeys).
+  ApiErrorCodes.passkeyInvalid: 'error.api.PASSKEY_INVALID',
+  ApiErrorCodes.passkeyNotFound: 'error.api.PASSKEY_NOT_FOUND',
+  ApiErrorCodes.passkeyLimit: 'error.api.PASSKEY_LIMIT',
   ApiErrorCodes.clientContactsIncomplete:
       'error.api.CLIENT_CONTACTS_INCOMPLETE',
   ApiErrorCodes.onboardingIncomplete: 'error.api.ONBOARDING_INCOMPLETE',
   ApiErrorCodes.roleAlreadySet: 'error.api.ROLE_ALREADY_SET',
   ApiErrorCodes.i18nLanguageNotFound: 'error.api.I18N_LANGUAGE_NOT_FOUND',
   ApiErrorCodes.accountSuspended: 'error.api.ACCOUNT_SUSPENDED',
+  ApiErrorCodes.accountRestricted: 'error.api.ACCOUNT_RESTRICTED',
   ApiErrorCodes.accountDeleted: 'error.api.ACCOUNT_DELETED',
   ApiErrorCodes.authProviderDisabled: 'error.api.AUTH_PROVIDER_DISABLED',
+  ApiErrorCodes.authInvalidCredentials: 'error.api.AUTH_INVALID_CREDENTIALS',
   ApiErrorCodes.deviceAttestationRequired:
       'error.api.DEVICE_ATTESTATION_REQUIRED',
+  ApiErrorCodes.syncTooOld: 'error.api.SYNC_TOO_OLD',
   // Refresh-token theft signal (docs/01 §10.4): every session was revoked.
   ApiErrorCodes.authRefreshReuseDetected:
       'error.api.AUTH_REFRESH_REUSE_DETECTED',
@@ -183,6 +303,11 @@ const _keys = <String, String>{
   ApiErrorCodes.usernameTaken: 'error.api.USERNAME_TAKEN',
   ApiErrorCodes.usernameReserved: 'error.api.USERNAME_RESERVED',
   ApiErrorCodes.usernameChangeTooSoon: 'error.api.USERNAME_CHANGE_TOO_SOON',
+  // Owner 2026-10-05: demo mode (docs/ops/demo-world.md).
+  ApiErrorCodes.demoDisabled: 'error.api.DEMO_DISABLED',
+  ApiErrorCodes.demoLimitReached: 'error.api.DEMO_LIMIT_REACHED',
+  ApiErrorCodes.demoUnavailable: 'error.api.DEMO_UNAVAILABLE',
+  ApiErrorCodes.demoCodeInvalid: 'error.api.DEMO_CODE_INVALID',
   // Client-side synthetic code (contact_verification_controller.dart).
   'NO_REAUTH_CONTACT': 'error.api.NO_REAUTH_CONTACT',
 };

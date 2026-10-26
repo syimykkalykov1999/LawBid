@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   BidStatus,
   FeeType,
@@ -6,6 +6,53 @@ import {
   PartyRole,
   StartAvailability,
 } from '@prisma/client';
+import { RatingDto } from '../../profiles/dto/attorney-profile.dto';
+
+/** The bidding attorney as the client sees them on a bid card (docs/04
+ * §5.2: photo, name, blue check, rating and review count). Public profile
+ * content only (docs/03 §6) — never bar numbers or documents. */
+export class BidAttorneySummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  username!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  firstName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  lastName!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Signed link to the 256 px avatar; null when none.',
+  })
+  avatarUrl256!: string | null;
+
+  @ApiProperty({ description: 'Blue check (docs/03 §6.3).' })
+  verifiedBadge!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description: 'Owner 2026-10-05: trust level (what LawBid checked).',
+  })
+  trustLevel!: number;
+
+  @ApiProperty({
+    type: String,
+    isArray: true,
+    description:
+      'Owner 2026-10-04: 2-letter codes of the states where the attorney holds a verified licence.',
+  })
+  licensedStates!: string[];
+
+  @ApiProperty({ type: RatingDto })
+  rating!: RatingDto;
+}
 
 /** One round of the negotiation history (docs/04 §5.2, §6). */
 export class BidOfferDto {
@@ -23,6 +70,13 @@ export class BidOfferDto {
 
   @ApiProperty({ type: 'integer' })
   amountCents!: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points (3300 = 33 %).',
+  })
+  percentBps!: number | null;
 
   @ApiProperty({ type: String, nullable: true })
   message!: string | null;
@@ -57,6 +111,13 @@ export class BidDto {
   @ApiProperty({ type: 'integer' })
   amountCents!: number;
 
+  @ApiPropertyOptional({
+    type: 'integer',
+    nullable: true,
+    description: 'Owner 2026-10-17: contingency → basis points (3300 = 33 %).',
+  })
+  percentBps!: number | null;
+
   @ApiProperty()
   message!: string;
 
@@ -72,6 +133,10 @@ export class BidDto {
   @ApiProperty({ type: 'integer', minimum: 0, maximum: 5 })
   roundCount!: number;
 
+  /** Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION). */
+  @ApiProperty({ type: 'integer' })
+  version!: number;
+
   @ApiProperty({ enum: PartyRole, enumName: 'PartyRole' })
   turn!: PartyRole;
 
@@ -83,9 +148,18 @@ export class BidDto {
   @ApiProperty()
   outsidePractice!: boolean;
 
+  /** Owner 2026-10-04: the attorney holds no verified licence in the
+   * case's states — bidding is allowed, the client is told. */
+  @ApiProperty()
+  outsideLicensedStates!: boolean;
+
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
 
   @ApiProperty({ type: BidOfferDto, isArray: true })
   offers!: BidOfferDto[];
+
+  /** The attorney summary — only on GET /bids/:id. */
+  @ApiPropertyOptional({ type: BidAttorneySummaryDto })
+  attorney?: BidAttorneySummaryDto;
 }

@@ -32,6 +32,14 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
     'completion_requested',
   ],
   ['pending_completion', 'attorney_confirm', 'closed', 'completion_confirmed'],
+  [
+    'in_progress',
+    'attorney_complete',
+    'pending_completion',
+    'completion_requested',
+  ],
+  ['pending_completion', 'client_confirm', 'closed', 'completion_confirmed'],
+  ['pending_completion', 'client_dispute', 'disputed', 'disputed'],
   ['pending_completion', 'auto_close', 'closed', 'auto_closed'],
   ['pending_completion', 'attorney_dispute', 'disputed', 'disputed'],
   ['disputed', 'admin_resolve_close', 'closed', 'dispute_resolved'],
@@ -40,11 +48,31 @@ const ALLOWED: [CaseStatus, CaseAction, CaseStatus, string][] = [
   ['in_progress', 'account_deleted_close', 'closed', 'closed'],
   ['pending_completion', 'account_deleted_close', 'closed', 'closed'],
   ['disputed', 'account_deleted_close', 'closed', 'closed'],
+  // Audit 2026-10-02: admin panel actions on an open / archived case.
+  ['open', 'admin_close', 'closed', 'closed'],
+  ['open', 'admin_archive', 'archived', 'archived'],
+  ['archived', 'admin_restore', 'open', 'restored'],
   // In-place (§3.5, §10.2): edit / keep-alive only while open; delete only
   // from open or archived.
   ['open', 'client_edit', 'open', 'updated'],
+  // Owner 2026-10-05: the urgency / date also after an attorney is hired.
+  ['open', 'set_urgency', 'open', 'updated'],
+  ['in_progress', 'set_urgency', 'in_progress', 'updated'],
+  ['pending_completion', 'set_urgency', 'pending_completion', 'updated'],
+  // Audit 2026-10-19: the private details, also once hired.
+  ['open', 'client_set_private_details', 'open', 'updated'],
+  ['in_progress', 'client_set_private_details', 'in_progress', 'updated'],
+  [
+    'pending_completion',
+    'client_set_private_details',
+    'pending_completion',
+    'updated',
+  ],
+  ['disputed', 'client_set_private_details', 'disputed', 'updated'],
   ['open', 'client_keep_alive', 'open', 'updated'],
   ['open', 'system_stale_prompt', 'open', 'updated'],
+  ['open', 'system_stale_pause', 'open', 'updated'],
+  ['open', 'client_resume', 'open', 'updated'],
   ['open', 'client_delete', 'open', 'deleted'],
   ['archived', 'client_delete', 'archived', 'deleted'],
 ];
@@ -69,9 +97,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     CASE_ACTIONS.map((a) => [s, a] as const),
   );
 
-  it('covers every status × action pair (6 × 15)', () => {
-    expect(CASE_ACTIONS).toHaveLength(15);
-    expect(pairs).toHaveLength(90);
+  it('covers every status × action pair (6 × 25)', () => {
+    expect(CASE_ACTIONS).toHaveLength(25);
+    expect(pairs).toHaveLength(150);
   });
 
   it.each(pairs)('%s + %s', (from, action) => {
@@ -136,12 +164,47 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
       auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
       last_activity_at: now,
     });
+    // Owner 2026-10-02: symmetric completion — the attorney may mark first,
+    // then the client confirms.
+    expect(
+      planCaseTransition('in_progress', 'attorney_complete', ctx).data,
+    ).toEqual({
+      status: 'pending_completion',
+      attorney_confirmed_at: now,
+      auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
+      last_activity_at: now,
+    });
+    expect(
+      planCaseTransition('pending_completion', 'client_confirm', ctx).data,
+    ).toEqual({
+      status: 'closed',
+      client_completed_at: now,
+      closed_at: now,
+    });
     expect(AUTO_CLOSE_AFTER_MS).toBe(7 * 24 * 3600 * 1000);
     expect(planCaseTransition('archived', 'client_restore', ctx).data).toEqual({
       status: 'open',
       archived_at: null,
       last_activity_at: now,
       stale_prompt_sent_at: null,
+      client_active_at: now,
+      paused_at: null,
+    });
+    // OQ-054: only the client's own actions move client_active_at.
+    expect(planCaseTransition('open', 'client_edit', ctx).data).toEqual({
+      last_activity_at: now,
+      client_active_at: now,
+    });
+    expect(planCaseTransition('open', 'client_resume', ctx).data).toEqual({
+      client_active_at: now,
+      stale_prompt_sent_at: null,
+      paused_at: null,
+    });
+    expect(planCaseTransition('open', 'system_stale_prompt', ctx).data).toEqual(
+      { stale_prompt_sent_at: now },
+    );
+    expect(planCaseTransition('open', 'system_stale_pause', ctx).data).toEqual({
+      paused_at: now,
     });
     expect(
       planCaseTransition('pending_completion', 'attorney_confirm', ctx).data,
@@ -181,7 +244,9 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
     function fakeTx(status: CaseStatus | null, count = 1) {
       const tx = {
         case: {
-          findUnique: jest.fn().mockResolvedValue(status ? { status } : null),
+          findUnique: jest
+            .fn()
+            .mockResolvedValue(status ? { status, version: 2 } : null),
           updateMany: jest.fn().mockResolvedValue({ count }),
           findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'c1', status }),
         },
@@ -202,8 +267,51 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
         where: { id: 'c1', status: 'in_progress', deleted_at: null },
         data: expect.objectContaining({
           status: 'pending_completion',
+          version: { increment: 1 },
         }) as unknown,
       });
+    });
+
+    it('with If-Match: compare-and-sets on the version too', async () => {
+      const { tx, client } = fakeTx('open');
+      await machine.apply(client, {
+        caseId: 'c1',
+        action: 'client_edit',
+        now,
+        expectedVersion: 2,
+      });
+      expect(tx.case.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'c1', status: 'open', deleted_at: null, version: 2 },
+        }),
+      );
+    });
+
+    it('stale If-Match → 409 STALE_VERSION with the current version, nothing written', async () => {
+      const { tx, client } = fakeTx('open');
+      await expect(
+        machine.apply(client, {
+          caseId: 'c1',
+          action: 'client_edit',
+          expectedVersion: 1,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: ErrorCode.STALE_VERSION,
+          details: { currentVersion: 2 },
+        },
+      });
+      expect(tx.case.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("no If-Match keeps today's behaviour (no version in the where)", async () => {
+      const { tx, client } = fakeTx('open');
+      await machine.apply(client, { caseId: 'c1', action: 'client_edit', now });
+      expect(tx.case.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'c1', status: 'open', deleted_at: null },
+        }),
+      );
     });
 
     it('merges extra columns but never lets them override the transition', async () => {
@@ -216,7 +324,12 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
       });
       expect(tx.case.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: { title: 'New title', last_activity_at: now },
+          data: {
+            title: 'New title',
+            last_activity_at: now,
+            client_active_at: now,
+            version: { increment: 1 },
+          },
         }),
       );
     });

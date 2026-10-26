@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -14,9 +15,16 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import {
+  TOPIC_BLOCKS,
+  TOPIC_KEYS,
+  type TopicBlock,
+} from './notification-topics';
 
 export const CATEGORIES = [
   'messages',
+  'groups',
+  'channels',
   'calls',
   'following',
   'new_cases',
@@ -28,6 +36,9 @@ export const CATEGORIES = [
 ] as const;
 export type Category = (typeof CATEGORIES)[number];
 
+export const NOTIFICATION_GROUPS = ['important', 'other'] as const;
+export type NotificationGroup = (typeof NOTIFICATION_GROUPS)[number];
+
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export class NotificationsQueryDto {
@@ -36,6 +47,37 @@ export class NotificationsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package F): only the notifications created or read since (ISO), newest first — the catch-up after a reconnect (`group` applies, `q` and `cursor` are ignored). meta.syncedAt = pass it back next time; meta.deletedIds stays empty (old rows expire by age). Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
+
+  /** Owner 2026-10-06: the bell's "Важные" / "Остальные" tabs. */
+  @ApiPropertyOptional({
+    enum: NOTIFICATION_GROUPS,
+    enumName: 'NotificationGroup',
+    description:
+      'important: bids, cases, payments, account; other: likes, follows, comments, logins. Omit for all.',
+  })
+  @IsOptional()
+  @IsIn(NOTIFICATION_GROUPS)
+  group?: NotificationGroup;
+
+  /** Owner 2026-10-18: the search box above the bell's list. */
+  @ApiPropertyOptional({
+    description:
+      "Words from the stored text (a broadcast's title/body, a moderator's reason) or the name of the attorney in the notification, in any alphabet. Combines with `group`.",
+    maxLength: 100,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  q?: string;
 }
 
 export class NotificationActorDto {
@@ -104,6 +146,13 @@ export class ReadNotificationsDto {
 export class ReadNotificationsResultDto {
   @ApiProperty()
   updated!: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Owner 2026-10-22 (package F): the ids that were unread and are read now — the app flips exactly those rows.',
+  })
+  readIds?: string[];
 }
 
 export class BadgesDto {
@@ -115,6 +164,12 @@ export class BadgesDto {
 
   @ApiProperty()
   total!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-21: false = keep the app icon clear (the user switched the icon counter off).',
+  })
+  iconBadge?: boolean;
 }
 
 export class CategorySettingDto {
@@ -134,6 +189,38 @@ export class CategorySettingDto {
 export class CategorySettingViewDto extends CategorySettingDto {
   @ApiProperty({ description: '`system` can not be turned off (§9.5).' })
   locked!: boolean;
+}
+
+/** Owner 2026-10-21 (inbox 30): one switch of Settings → Notifications. */
+export class TopicSettingViewDto {
+  @ApiProperty({ enum: TOPIC_KEYS, enumName: 'NotificationTopic' })
+  topic!: string;
+
+  @ApiProperty({ enum: TOPIC_BLOCKS, enumName: 'NotificationTopicBlock' })
+  block!: TopicBlock;
+
+  @ApiProperty()
+  pushEnabled!: boolean;
+
+  @ApiProperty({ description: "Can't be turned off." })
+  locked!: boolean;
+
+  @ApiProperty({ description: 'Shown to attorneys only.' })
+  attorneyOnly!: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Needs this switch on too (shown nested under it).',
+  })
+  parent?: string;
+}
+
+/** Owner 2026-10-20: the device's IANA time zone. */
+export class TimezoneDto {
+  @ApiProperty({ example: 'America/New_York' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  timezone!: string;
 }
 
 export class QuietHoursDto {
@@ -169,6 +256,45 @@ export class NotificationSettingsDto {
 
   @ApiPropertyOptional({ type: QuietHoursDto, nullable: true })
   quietHours!: QuietHoursDto | null;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-21: the unread number on the app icon (default true).',
+  })
+  iconBadge!: boolean;
+
+  @ApiProperty({
+    type: [TopicSettingViewDto],
+    description:
+      'Owner 2026-10-21: a switch per kind of notification, in screen order.',
+  })
+  topics!: TopicSettingViewDto[];
+}
+
+export class TopicSettingDto {
+  @ApiProperty({ enum: TOPIC_KEYS, enumName: 'NotificationTopic' })
+  @IsIn(TOPIC_KEYS)
+  topic!: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  pushEnabled!: boolean;
+}
+
+export class UpdateTopicSettingsDto {
+  @ApiProperty({ type: [TopicSettingDto] })
+  @IsArray()
+  @ArrayMaxSize(TOPIC_KEYS.length)
+  @ValidateNested({ each: true })
+  @Type(() => TopicSettingDto)
+  items!: TopicSettingDto[];
+}
+
+/** Owner 2026-10-21 (inbox 29): «Счётчик на иконке в меню». */
+export class IconBadgeDto {
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 export class UpdateNotificationSettingsDto {
@@ -187,9 +313,62 @@ export class PushTokenDto {
   @MaxLength(4096)
   token!: string;
 
-  @ApiProperty({ enum: ['ios', 'android'] })
-  @IsIn(['ios', 'android'])
-  platform!: 'ios' | 'android';
+  @ApiProperty({ enum: ['ios', 'android', 'web'] })
+  @IsIn(['ios', 'android', 'web'])
+  platform!: 'ios' | 'android' | 'web';
+
+  @ApiPropertyOptional({
+    description:
+      'Owner 2026-10-20: this app keeps planner reminders locally and shows the reminder push itself (Android).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  localReminders?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Owner 2026-10-22: this app draws chat notifications itself (sender's photo, one per chat) from a data-only push (Android).",
+  })
+  @IsOptional()
+  @IsBoolean()
+  chatStyle?: boolean;
+}
+
+/** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */
+export class ArmedRemindersDto {
+  @ApiProperty({ description: 'FCM registration token of this device.' })
+  @IsString()
+  @MinLength(20)
+  @MaxLength(4096)
+  token!: string;
+
+  @ApiProperty({
+    type: [String],
+    description: '`<taskId>@<remindAt ms>` of each armed reminder.',
+  })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MaxLength(100, { each: true })
+  ids!: string[];
+}
+
+/** Owner 2026-10-17: an iPhone's PushKit (VoIP) token for calls. */
+export class VoipTokenDto {
+  @ApiProperty({ description: 'PushKit token, hex.' })
+  @Matches(/^[0-9a-f]{64,200}$/)
+  token!: string;
+
+  @ApiProperty({
+    description: "The app's bundle id (the VoIP topic is it + '.voip').",
+    example: 'com.lawbid.lawbid',
+  })
+  @Matches(/^com\.lawbid\.lawbid(\.[a-z]{2,12})?$/)
+  bundleId!: string;
+
+  @ApiProperty({ enum: ['sandbox', 'production'] })
+  @IsIn(['sandbox', 'production'])
+  environment!: 'sandbox' | 'production';
 }
 
 export class DeletePushTokenDto {
@@ -212,6 +391,12 @@ export class NewCaseAlertsDto {
 
   @ApiProperty({ type: [String], description: "The profile's qualifications." })
   profilePracticeAreaIds!: string[];
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-05: only urgent cases (urgent / very urgent, or a date that close).',
+  })
+  urgentOnly!: boolean;
 }
 
 export class UpdateNewCaseAlertsDto {
@@ -225,4 +410,10 @@ export class UpdateNewCaseAlertsDto {
   @ArrayMaxSize(300)
   @IsUUID('all', { each: true })
   practiceAreaIds?: string[];
+
+  /** Owner 2026-10-05: absent = unchanged. */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  urgentOnly?: boolean;
 }

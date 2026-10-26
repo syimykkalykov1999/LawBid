@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -20,6 +20,7 @@ import type {
   PreparePackageDto,
   UpdateDataRequestStatusDto,
 } from './admin-data-requests.dto';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 
 export const DATA_REQUEST_AUDIT = {
   create: 'data_request.create',
@@ -46,6 +47,7 @@ export class AdminDataRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   async list(cursor?: string): Promise<DataRequestsPage> {
@@ -311,7 +313,12 @@ export class AdminDataRequestsService {
         take: MESSAGES_MAX,
       });
       data.conversations = conversations;
-      data.messages = messages;
+      data.messages = messages.map((m) => ({
+        ...m,
+        body_original:
+          this.cipher?.open(m.body_original, m.id) ?? m.body_original,
+        body_display: this.cipher?.open(m.body_display, m.id) ?? m.body_display,
+      }));
       log.push(
         ...conversations.map((c) => ({
           entity_type: 'conversation',

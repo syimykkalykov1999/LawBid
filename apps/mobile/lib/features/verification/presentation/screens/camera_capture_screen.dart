@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/presentation/widgets/capture_guide_overlay.dart';
@@ -187,106 +189,122 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
       return Scaffold(backgroundColor: colors.bg, body: SafeArea(child: body));
     }
 
-    return Scaffold(
-      backgroundColor: colors.navy,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (shot != null)
-            Image.memory(shot, fit: BoxFit.cover)
-          else if (controller != null && controller.value.isInitialized)
-            FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: controller.value.previewSize?.height ?? 1,
-                height: controller.value.previewSize?.width ?? 1,
-                child: CameraPreview(controller),
-              ),
-            )
-          else
-            Center(child: CircularProgressIndicator(color: colors.gold)),
-          CaptureGuideOverlay(guide: widget.guide, captured: shot != null),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  child: Row(
-                    children: [
-                      AppIconButton(
-                        semanticLabel: t.t('common.close'),
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: AppIcon(
-                          AppIcons.closeRounded,
-                          color: colors.goldLight,
-                        ),
-                      ),
-                    ],
-                  ),
+    // Security research #5 (2026-10-22), B5: the document in the viewfinder
+    // stays out of screenshots and recordings.
+    return SecureScreenScope(
+      child: Scaffold(
+        backgroundColor: colors.navy,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (shot != null)
+              Image.memory(shot, fit: BoxFit.cover)
+            else if (controller != null && controller.value.isInitialized)
+              FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  // A phone's sensor reports landscape; the browser reports
+                  // the picture as it is (already upright on a phone).
+                  width: (kIsWeb
+                          ? controller.value.previewSize?.width
+                          : controller.value.previewSize?.height) ??
+                      1,
+                  height: (kIsWeb
+                          ? controller.value.previewSize?.height
+                          : controller.value.previewSize?.width) ??
+                      1,
+                  child: CameraPreview(controller),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                  ),
-                  child: Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      shot != null ? t.t('verification.camera.review') : hint,
-                      textAlign: TextAlign.center,
-                      style: typography.body.copyWith(color: colors.goldLight),
+              )
+            else
+              Center(child: CircularProgressIndicator(color: colors.gold)),
+            CaptureGuideOverlay(guide: widget.guide, captured: shot != null),
+            SafeArea(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        AppIconButton(
+                          semanticLabel: t.t('common.close'),
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: AppIcon(
+                            AppIcons.closeRounded,
+                            color: colors.goldLight,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenSide,
-                    0,
-                    AppSpacing.screenSide,
-                    AppSpacing.xl,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xl,
+                    ),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        shot != null ? t.t('verification.camera.review') : hint,
+                        textAlign: TextAlign.center,
+                        style:
+                            typography.body.copyWith(color: colors.goldLight),
+                      ),
+                    ),
                   ),
-                  child: shot != null
-                      ? Row(
-                          children: [
-                            Expanded(
-                              child: AppButton(
-                                label: t.t('verification.camera.retake'),
-                                variant: AppButtonVariant.secondary,
-                                icon: AppIcons.refreshRounded,
-                                onPressed: _retake,
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenSide,
+                      0,
+                      AppSpacing.screenSide,
+                      AppSpacing.xl,
+                    ),
+                    child: shot != null
+                        ? Row(
+                            children: [
+                              Expanded(
+                                child: AppButton(
+                                  label: t.t('verification.camera.retake'),
+                                  variant: AppButtonVariant.secondary,
+                                  icon: AppIcons.refreshRounded,
+                                  onPressed: _retake,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: AppButton(
-                                label: t.t('verification.camera.use'),
-                                icon: AppIcons.checkRounded,
-                                onPressed: _use,
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: AppButton(
+                                  label: t.t('verification.camera.use'),
+                                  icon: AppIcons.checkRounded,
+                                  onPressed: _use,
+                                ),
                               ),
-                            ),
-                          ],
-                        )
-                      : _Shutter(
-                          label: t.t('verification.camera.shutter'),
-                          busy: _busy,
-                          onTap: _takePicture,
-                        ),
-                ),
-              ],
+                            ],
+                          )
+                        : _Shutter(
+                            label: t.t('verification.camera.shutter'),
+                            busy: _busy,
+                            onTap: _takePicture,
+                          ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _Shutter extends StatelessWidget {
-  const _Shutter(
-      {required this.label, required this.busy, required this.onTap});
+  const _Shutter({
+    required this.label,
+    required this.busy,
+    required this.onTap,
+  });
 
   final String label;
   final bool busy;

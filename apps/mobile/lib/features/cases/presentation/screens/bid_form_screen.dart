@@ -2,25 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/tools/conflict_banner.dart';
+import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// docs/04 §5.1 limits.
 abstract final class BidLimits {
   static const messageMin = 20;
-  static const messageMax = 2000;
+  static int get messageMax => TextLimits.of(TextLimit.bidMessage);
   static const amountMaxDollars = 10000000;
   static const durationMax = 3650;
 }
@@ -28,9 +35,17 @@ abstract final class BidLimits {
 /// docs/04 §5.1 — "Сделать бид": fee type, amount (hidden for a free
 /// consultation), message, start, optional duration.
 class BidFormScreen extends ConsumerStatefulWidget {
-  const BidFormScreen({required this.caseId, super.key});
+  const BidFormScreen({
+    required this.caseId,
+    this.initialAmountCents,
+    super.key,
+  });
 
   final String caseId;
+
+  /// Owner 2026-10-05: answering a client's invite starts from the
+  /// client's budget.
+  final int? initialAmountCents;
 
   @override
   ConsumerState<BidFormScreen> createState() => _BidFormScreenState();
@@ -45,6 +60,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   final _duration = TextEditingController();
   bool _busy = false;
   String? _error;
+  String? _sendAs;
 
   /// OQ-048: who prepared the loaded draft (an assistant).
   String? _draftBy;
@@ -52,6 +68,8 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialAmountCents;
+    if (initial != null && initial > 0) _amount.text = '${initial ~/ 100}';
     _loadDraft();
   }
 
@@ -91,7 +109,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       await ref.read(teamRepositoryProvider).saveBidDraft(
             widget.caseId,
             feeType: _fee.json,
-            amountCents: _fee == FeeType.freeConsultation || _amountDollars == null
+            amountCents: _fee == FeeType.freeConsultation ||
+                    _isPercent ||
+                    _amountDollars == null
                 ? null
                 : _amountDollars! * 100,
             message: _message.text.trim().isEmpty ? null : _message.text,
@@ -114,9 +134,18 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
 
   int? get _amountDollars => int.tryParse(_amount.text);
 
+  /// Owner 2026-10-17: a contingency bid — percent of the recovery.
+  bool get _isPercent => _fee == FeeType.contingency;
+
+  int? get _percentBps =>
+      ContingencyRules.of(ref.read(featureFlagsControllerProvider))
+          .parse(_amount.text);
+
   bool get _amountOk =>
       _fee == FeeType.freeConsultation ||
-      (_amountDollars != null &&
+      (_isPercent && _percentBps != null) ||
+      (!_isPercent &&
+          _amountDollars != null &&
           _amountDollars! > 0 &&
           _amountDollars! <= BidLimits.amountMaxDollars);
 
@@ -146,7 +175,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final picked = await showAppDatePicker(
       context: context,
       initialDate: _startDate ?? now,
       firstDate: DateTime(now.year, now.month, now.day),
@@ -166,13 +195,15 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             widget.caseId,
             BidInput(
               feeType: _fee,
-              amountCents: _fee == FeeType.freeConsultation
+              amountCents: _fee == FeeType.freeConsultation || _isPercent
                   ? null
                   : _amountDollars! * 100,
+              percentBps: _isPercent ? _percentBps : null,
               message: _message.text,
               startAvailability: _start,
               startDate: _startDate,
               estimatedDurationDays: int.tryParse(_duration.text),
+              sendAsAttorneyId: _sendAs,
             ),
           );
       if (!mounted) return;
@@ -182,6 +213,15 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       if (!mounted) return;
       if (routeSubscriptionError(context, e, reason: 'bid')) {
         setState(() => _busy = false);
+        return;
+      }
+      // Owner 2026-10-14: the month's offers are used up — say so and offer
+      // the plans in the same bar.
+      if (e is ApiException &&
+          (e.code == ApiErrorCodes.bidMonthlyLimitReached ||
+              e.code == ApiErrorCodes.bidTrialLimitReached)) {
+        setState(() => _busy = false);
+        showErrorOrPlans(context, ref, e);
         return;
       }
       setState(() {
@@ -206,7 +246,9 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       backgroundColor: colors.bg,
       appBar: AppTopBar(
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'), onPressed: () => context.pop()),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => context.pop(),
+        ),
         title: Text(t.t('cases.bidForm.title')),
       ),
       body: ListView(
@@ -214,23 +256,24 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
         children: [
           WizardHeading(
             title: t.t('cases.bidForm.heading'),
-            subtitle: t.t(assistant
-                ? 'assistant.mode.noBids'
-                : 'cases.bidForm.subtitle'),
+            subtitle: t.t(
+              assistant ? 'assistant.mode.noBids' : 'cases.bidForm.subtitle',
+            ),
           ),
+          if (!assistant) ConflictBanner(caseId: widget.caseId),
           if (_draftBy != null) ...[
             Container(
               key: const ValueKey('bid-draft-banner'),
               padding: const EdgeInsets.all(AppSpacing.md),
               margin: const EdgeInsets.only(bottom: AppSpacing.lg),
               decoration: BoxDecoration(
-                color: colors.goldTint,
+                color: colors.iconTintFill,
                 borderRadius: BorderRadius.circular(AppRadii.field),
                 border: Border.all(color: colors.goldStroke),
               ),
               child: Row(
                 children: [
-                  AppIcon(AppIcons.editNoteRounded, color: colors.gold),
+                  AppIcon(AppIcons.editNoteRounded, color: colors.iconTint),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
@@ -242,18 +285,23 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               ),
             ),
           ],
-          Text(t.t('cases.bidForm.feeType'),
-              style:
-                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            t.t('cases.bidForm.feeType'),
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.sm),
           SegmentedChoice<FeeType>(
             value: _fee,
             options: [
               (FeeType.fixed, t.t('cases.fee.fixed')),
               (FeeType.hourly, t.t('cases.fee.hourly')),
+              (FeeType.contingency, t.t('cases.fee.percentShort')),
               (FeeType.freeConsultation, t.t('cases.fee.freeShort')),
             ],
-            onChanged: (v) => setState(() => _fee = v),
+            onChanged: (v) => setState(() {
+              if ((v == FeeType.contingency) != _isPercent) _amount.clear();
+              _fee = v;
+            }),
           ),
           AnimatedSize(
             duration:
@@ -265,25 +313,59 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                     padding: const EdgeInsets.only(top: AppSpacing.lg),
                     child: AppTextField(
                       controller: _amount,
-                      label: t.t(_fee == FeeType.hourly
-                          ? 'cases.bidForm.rate'
-                          : 'cases.bidForm.amount'),
-                      leading: Text('\$',
-                          style: typography.titleMedium
-                              .copyWith(color: colors.goldDark)),
-                      keyboardType: TextInputType.number,
+                      key: ValueKey(_isPercent),
+                      label: t.t(
+                        _isPercent
+                            ? 'cases.bidForm.percent'
+                            : _fee == FeeType.hourly
+                                ? 'cases.bidForm.rate'
+                                : 'cases.bidForm.amount',
+                      ),
+                      helperText:
+                          _isPercent ? t.t('cases.bidForm.percentHint') : null,
+                      leading: Text(
+                        _isPercent ? '%' : r'$',
+                        style: typography.titleMedium
+                            .copyWith(color: colors.goldDark),
+                      ),
+                      keyboardType: _isPercent
+                          ? const TextInputType.numberWithOptions(
+                              decimal: true,
+                            )
+                          : TextInputType.number,
                       inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(8),
+                        if (_isPercent)
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[0-9.,]'),
+                          )
+                        else
+                          FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(_isPercent ? 6 : 8),
                       ],
                       errorText: _amount.text.isNotEmpty && !_amountOk
-                          ? t.t('cases.bidForm.amountError')
+                          ? t.t(
+                              _isPercent
+                                  ? 'cases.bidForm.percentError'
+                                  : 'cases.bidForm.amountError',
+                              {
+                                'max': ContingencyRules.plain(
+                                  ContingencyRules.of(
+                                    ref.watch(featureFlagsControllerProvider),
+                                  ).maxBps,
+                                ),
+                              },
+                            )
                           : null,
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
           ),
           const SizedBox(height: AppSpacing.lg),
+          _FirmSender(
+            caseId: widget.caseId,
+            value: _sendAs,
+            onChanged: (v) => setState(() => _sendAs = v),
+          ),
           AppTextField(
             controller: _message,
             label: t.t('cases.bidForm.message'),
@@ -292,15 +374,18 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             maxLength: BidLimits.messageMax,
             textCapitalization: TextCapitalization.sentences,
             errorText: _message.text.isNotEmpty && !_messageOk
-                ? t.t('cases.bidForm.messageError',
-                    {'min': '${BidLimits.messageMin}'})
+                ? t.t(
+                    'cases.bidForm.messageError',
+                    {'min': '${BidLimits.messageMin}'},
+                  )
                 : null,
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Text(t.t('cases.bidForm.start'),
-              style:
-                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            t.t('cases.bidForm.start'),
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.sm),
           Wrap(
             spacing: AppSpacing.sm,
@@ -340,9 +425,10 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
             const SizedBox(height: AppSpacing.lg),
             Semantics(
               liveRegion: true,
-              child: Text(_error!,
-                  style:
-                      typography.bodySmall.copyWith(color: colors.dangerText)),
+              child: Text(
+                _error!,
+                style: typography.bodySmall.copyWith(color: colors.dangerText),
+              ),
             ),
           ],
         ],
@@ -362,10 +448,53 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
               label: t.t('cases.bidForm.submit'),
               strike: true,
               isLoading: _busy,
+              disabledHint: t.t('form.disabled.required'),
               isEnabled: _valid,
               onPressed: _submit,
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-14: a firm member picks which lawyer of the firm (with a
+/// matching verified licence) sends the bid.
+class _FirmSender extends ConsumerWidget {
+  const _FirmSender({
+    required this.caseId,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String caseId;
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final me = ref.watch(sessionControllerProvider)?.sub;
+    final fit = ref.watch(firmSendersProvider(caseId)).value ?? const [];
+    if (fit.isEmpty || (fit.length == 1 && fit.first.attorneyId == me)) {
+      return const SizedBox.shrink();
+    }
+    final current = value ?? (fit.any((m) => m.attorneyId == me) ? me : null);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      child: DropdownButtonFormField<String>(
+        initialValue: current ?? fit.first.attorneyId,
+        decoration: InputDecoration(labelText: t.t('firm.sendAs')),
+        items: [
+          for (final m in fit)
+            DropdownMenuItem(
+              value: m.attorneyId,
+              child: Text(
+                [m.firstName, m.lastName].whereType<String>().join(' ').trim(),
+              ),
+            ),
+        ],
+        onChanged: onChanged,
       ),
     );
   }

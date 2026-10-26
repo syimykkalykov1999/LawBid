@@ -5,6 +5,7 @@ import { AuditLogService } from '../../admin-access/audit-log.service';
 import { BidStateMachine } from '../../bids/domain/bid-state-machine';
 import { JournalModule } from '../../journal/journal.module';
 import { NotificationsModule } from '../../notifications/notifications.module';
+import { ReferralsCoreModule } from '../../referrals/referrals.module';
 import { ReviewsService } from '../../reviews/reviews.service';
 import { CaseStateMachine } from '../domain/case-state-machine';
 import { CaseLifecycleService } from './case-lifecycle.service';
@@ -21,6 +22,7 @@ import { CaseLifecycleService } from './case-lifecycle.service';
     NotificationsModule,
     AppSettingsModule,
     ChatSystemModule,
+    ReferralsCoreModule,
   ],
   providers: [
     CaseLifecycleService,

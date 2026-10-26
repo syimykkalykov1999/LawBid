@@ -1,0 +1,33 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'admin_support_reply_dto.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+AdminSupportReplyDto _$AdminSupportReplyDtoFromJson(
+  Map<String, dynamic> json,
+) => AdminSupportReplyDto(
+  body: json['body'] as String,
+  internal: json['internal'] as bool? ?? false,
+  attachments: (json['attachments'] as List<dynamic>?)
+      ?.map(
+        (e) => SupportAttachmentInputDto.fromJson(e as Map<String, dynamic>),
+      )
+      .toList(),
+  status: json['status'] == null
+      ? null
+      : AdminSupportReplyDtoStatus.fromJson(json['status'] as String),
+  macroId: json['macroId'] as String?,
+);
+
+Map<String, dynamic> _$AdminSupportReplyDtoToJson(
+  AdminSupportReplyDto instance,
+) => <String, dynamic>{
+  'body': instance.body,
+  'attachments': ?instance.attachments?.map((e) => e.toJson()).toList(),
+  'internal': instance.internal,
+  'status': ?instance.status?.toJson(),
+  'macroId': ?instance.macroId,
+};

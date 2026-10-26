@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module';
 import {
   CostGuardService,
   costCounterKey,
+  moneyCounterKey,
 } from '../src/common/cost-guard/cost-guard.service';
 import { AppConfigService } from '../src/modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -16,7 +17,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 /**
  * Cost protection (owner-approved extension 2026-09-27, docs/
- * OPEN_QUESTIONS.md) against REAL CockroachDB + Redis (DB 15, isolated
+ * OPEN_QUESTIONS.md) against REAL PostgreSQL + Redis (DB 15, isolated
  * throwaway database — test/support/*). Proves what the unit spec can't:
  * the Lua script's atomicity / no-over-increment / once-per-window
  * alerts, app_config-driven caps, US-only SMS, per-device and per-user
@@ -41,13 +42,21 @@ describe('Cost guard (e2e)', () => {
   const api = () => request(app.getHttpServer());
 
   async function clearBudgetState(): Promise<void> {
-    const keys = await redis.keys('budget:*');
+    const keys = [
+      ...(await redis.keys('budget:*')),
+      // Owner 2026-10-22: the daily money counters too.
+      ...(await redis.keys('money:*')),
+    ];
     if (keys.length) await redis.del(...keys);
     await prisma.appConfig.deleteMany({
       where: {
         OR: [
           { key: { startsWith: 'budget.' } },
-          { key: { startsWith: 'sms.' } },
+          // Owner 2026-10-16: the suites' sign-in switch stays.
+          {
+            key: { startsWith: 'sms.' },
+            NOT: { key: 'sms.login_code_enabled' },
+          },
         ],
       },
     });
@@ -130,6 +139,26 @@ describe('Cost guard (e2e)', () => {
       const dayKey = costCounterKey('id_check', 'daily', new Date());
       expect(await redis.get(dayKey)).toBe('5');
       expect(await redis.ttl(dayKey)).toBeGreaterThan(86_400);
+    });
+
+    // Owner 2026-10-22 (audit #4 §6): caps in money, against real Lua.
+    it('the global money cap (cents) refuses once spent; the call caps get their money back', async () => {
+      await setAppConfig('budget.id_check.daily_max', 100);
+      // $2.00 a day for everything; one identity check is $1.50.
+      await setAppConfig('budget.money.global_daily_cents', 200);
+      await guard.consume('id_check');
+      await expect(guard.consume('id_check')).rejects.toMatchObject({
+        status: 503,
+      });
+      expect(
+        await redis.get(moneyCounterKey('global', new Date(), 'all')),
+      ).toBe('150000');
+      // A person's own cap answers 429.
+      await setAppConfig('budget.money.global_daily_cents', 0);
+      await setAppConfig('budget.money.user_daily_cents', 1);
+      await expect(
+        guard.consume('translate', 1, { chars: 1000, userId: 'u-e2e' }),
+      ).rejects.toMatchObject({ status: 429 });
     });
 
     it('a multi-unit call that would overshoot is refused whole', async () => {

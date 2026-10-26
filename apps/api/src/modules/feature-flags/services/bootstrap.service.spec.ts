@@ -5,6 +5,8 @@ import {
 } from './bootstrap.service';
 import type { FeatureFlagsService } from './feature-flags.service';
 import type { AppConfigService } from './app-config.service';
+import { sanitizeUploadLimits } from '../../files/upload-limits';
+import { OWNER_CACHE_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 
 class MemoryRedis {
   readonly store = new Map<string, string>();
@@ -82,13 +84,36 @@ describe('BootstrapService.build', () => {
     const { service, prisma } = build();
     const result = await service.build();
 
-    expect(result.flags).toEqual({ apple_login: true, video_posts: false });
-    expect(result.app_config).toEqual({ min_app_version_ios: '0.1.0' });
+    expect(result.flags).toEqual({
+      apple_login: true,
+      video_posts: false,
+      // Owner 2026-10-05: one flag per translation zone, off without the
+      // translator flag and the Google key.
+      chat_translate: false,
+      translate_posts: false,
+      translate_cases: false,
+      translate_reviews: false,
+      translate_profiles: false,
+    });
+    expect(result.app_config).toEqual({
+      min_app_version_ios: '0.1.0',
+      // Owner 2026-10-07 (bug 17): always sent, defaults when unset.
+      'uploads.limits': sanitizeUploadLimits(undefined),
+      // Owner 2026-10-22 (client economy plan §5): the on-device cache
+      // ceilings, always sent (the defaults until the admin stores a value).
+      ...OWNER_CACHE_SETTINGS,
+      // Owner 2026-10-23: guest browsing - off in the apps, on for the web,
+      // always sent.
+      'client.guest_browse_app_enabled': false,
+      'client.guest_browse_web_enabled': true,
+    });
     expect(result.languages).toEqual([EN]);
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });
     expect(result.legal_documents).toEqual([TERMS]);
     expect(prisma.legalDocument.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { is_current: true } }),
+      expect.objectContaining({
+        where: { is_current: true, status: 'published' },
+      }),
     );
   });
 
@@ -110,8 +135,12 @@ describe('BootstrapService.build', () => {
       BOOTSTRAP_CACHE_KEY,
       expect.any(String),
       'EX',
-      BOOTSTRAP_CACHE_TTL_SECONDS,
+      // Jittered +/-20 % (load audit 6).
+      expect.any(Number),
     ]);
+    const ttl = redis.setCalls[0][3] as number;
+    expect(ttl).toBeGreaterThanOrEqual(BOOTSTRAP_CACHE_TTL_SECONDS * 0.8 - 1);
+    expect(ttl).toBeLessThanOrEqual(BOOTSTRAP_CACHE_TTL_SECONDS * 1.2 + 1);
     // Dates survive the JSON round trip as Date instances.
     expect(second).toEqual(first);
     expect(second.legal_documents[0].published_at).toBeInstanceOf(Date);
@@ -168,5 +197,38 @@ describe('BootstrapService.build', () => {
     const { service } = build({ redis });
     const result = await service.build();
     expect(result.translations_version).toEqual({ en: 3, ru: 1 });
+  });
+});
+
+describe('BootstrapService.turnstileSiteKey', () => {
+  function make(mode: string, siteKey?: string) {
+    return new BootstrapService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        get: jest
+          .fn()
+          .mockResolvedValue(siteKey ? { fields: { siteKey } } : null),
+      } as never,
+      undefined,
+      { string: jest.fn().mockResolvedValue(mode) } as never,
+    );
+  }
+
+  it('publishes the public site key in monitor and enforce', async () => {
+    expect(await make('monitor', '0x4AAA').turnstileSiteKey()).toEqual({
+      'turnstile.site_key': '0x4AAA',
+    });
+    expect(await make('enforce', '0x4AAA').turnstileSiteKey()).toEqual({
+      'turnstile.site_key': '0x4AAA',
+    });
+  });
+
+  it('publishes nothing when off, unknown, or no key is saved', async () => {
+    expect(await make('off', '0x4AAA').turnstileSiteKey()).toEqual({});
+    expect(await make('bogus', '0x4AAA').turnstileSiteKey()).toEqual({});
+    expect(await make('enforce').turnstileSiteKey()).toEqual({});
   });
 });

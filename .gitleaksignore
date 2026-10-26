@@ -1,0 +1,37 @@
+# False positives: practice-area i18n keys in an e2e fixture
+# ("i18n_key: 'practice.…'"), not secrets.
+05479892b7eb225b40b2c3a10eb163f3d4eb0577:apps/api/test/owner-case-invites.e2e-spec.ts:generic-api-key:63
+05479892b7eb225b40b2c3a10eb163f3d4eb0577:apps/api/test/owner-case-invites.e2e-spec.ts:generic-api-key:74
+# Test-only placeholder keys in specs of commit 5bf94bd (PR #43), replaced
+# by obvious test constants in the next commit. Not real credentials.
+5bf94bd6fe656d57350c21916e4b81ec09f647d2:apps/api/src/modules/verification/providers/bar-lookup/generic-rest.adapter.spec.ts:generic-api-key:72
+5bf94bd6fe656d57350c21916e4b81ec09f647d2:apps/api/src/modules/verification/services/state-registry.service.spec.ts:generic-api-key:91
+5bf94bd6fe656d57350c21916e4b81ec09f647d2:apps/api/src/modules/verification/services/state-registry.service.spec.ts:generic-api-key:106
+# Owner 2026-10-05: an i18n key in the plan-builder e2e test, not a secret.
+6bbabfd4ab4aa8f8f176bd5c61d793410c52e6b9:apps/api/test/owner-plan-builder.e2e-spec.ts:generic-api-key:83
+# Owner 2026-10-05 (approved by the owner): a practice-area i18n key in the
+# case-urgency e2e fixture, not a secret.
+acd09f1ad5b44e40d30c81fe759858932311daa3:apps/api/test/owner-case-urgency.e2e-spec.ts:generic-api-key:65
+# Owner 2026-10-06 (PR #82): synthetic PEM in the paste-cleanup spec — the
+# body is 100 × "A", not a key.
+b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:4
+b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:20
+b4fbb8672cdbb5a55466326646189a78b8f71216:apps/api/src/common/secrets/provider-registry.spec.ts:private-key:28
+
+# Owner 2026-10-14: an i18n key of a practice area in an e2e test, not a secret.
+e0ca2b9e1318d1417c5e4aaace2b297b0d15148f:apps/api/test/owner-firms.e2e-spec.ts:generic-api-key:210
+# i18nKey field name, not a secret
+ac627bb4e800fc525c963e5bcd26efd5233e9c0d:apps/mobile/lib/features/cases/presentation/widgets/case_wizard_steps.dart:generic-api-key:113
+# Owner 2026-10-19: a practice i18n key in the contingency e2e fixture
+# ("i18n_key: 'practice.family_law.e2e_ct_divorce'"), not a secret. Pinned to
+# this one commit, file and line; everything else is still scanned.
+27afdfc21fc8798d4751daec514eab2df333d898:apps/api/test/owner-contingency.e2e-spec.ts:generic-api-key:88
+# Owner 2026-10-20: a chat-folder i18n key in the chat-actions e2e fixture
+# ("i18n_key: '...'"), not a secret. Pinned to this one commit, file and line.
+7ccfb3f85fccdafb2945c37801f61981b519bc47:apps/api/test/owner-chat-actions.e2e-spec.ts:generic-api-key:94
+# Chat search blind index (#394): fixed test-only SEARCH_INDEX_KEY values in specs and
+# the e2e env helper, not secrets. Pinned to this one commit, file and line.
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/jobs/handlers/chat-search-backfill.job.spec.ts:generic-api-key:234
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/modules/chat/chat-search-query.spec.ts:generic-api-key:11
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/src/modules/chat/chat-search-tokens.spec.ts:generic-api-key:14
+c97c5fb3e4326122b5d395a7c9a7d14c94d86205:apps/api/test/support/blind-index-env.ts:generic-api-key:10

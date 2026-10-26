@@ -3,13 +3,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { FadeIn } from '@/components/legacy/fade-in';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/empty';
+import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
-import { CASE_STATUS, JOURNAL_EVENT, partyName } from '@/lib/labels';
+import { CASE_STATUS, JOURNAL_EVENT, label, PARTY_ROLE, partyName } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 
 /** docs/06 §2.3 item 5: chronology from case_journal + the decision. */
@@ -18,7 +20,7 @@ export default function DisputeCardPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { ask, dialog } = useReason();
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const q = useQuery({
     queryKey: ['dispute', id],
     queryFn: async () => (await api.GET('/admin/case-disputes/{id}', { params: { path: { id } } })).data!.data,
@@ -36,21 +38,30 @@ export default function DisputeCardPage() {
         danger: decision === 'closed',
       });
       if (!a) return null;
-      return api.POST('/admin/case-disputes/{id}/resolve', { params: { path: { id } }, body: { decision, note: a.text } });
+      await api.POST('/admin/case-disputes/{id}/resolve', { params: { path: { id } }, body: { decision, note: a.text } });
+      return decision;
     },
     onSuccess: (r) => {
       if (!r) return;
+      toast.success(r === 'closed' ? 'Спор решён, кейс закрыт' : 'Спор решён, кейс снова в работе');
       void qc.invalidateQueries({ queryKey: ['disputes'] });
+      void qc.invalidateQueries({ queryKey: ['dispute', id] });
       router.push('/cases');
     },
-    onError: (e) => setError(errorText(e)),
+    onError: (e) => toast.error(e),
   });
 
   if (!d) {
     return (
       <>
-        <PageHeader title="Спор" />
+        <PageHeader eyebrow="Кейсы · Спор" title="Спор" />
         <ErrorNote text={q.error ? errorText(q.error) : null} />
+        {q.isPending ? (
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Skeleton className="h-64 rounded-[var(--radius-lg)]" />
+            <Skeleton className="h-64 rounded-[var(--radius-lg)] lg:col-span-2" />
+          </div>
+        ) : null}
       </>
     );
   }
@@ -58,8 +69,9 @@ export default function DisputeCardPage() {
     <>
       {dialog}
       <PageHeader
+        eyebrow="Кейсы · Спор"
         title={d.case.title}
-        subtitle={`Спор ${d.id} · кейс ${CASE_STATUS[d.case.status] ?? d.case.status} · открыл ${d.openedByRole === 'client' ? 'клиент' : 'адвокат'} ${formatDateTime(d.createdAt)}`}
+        subtitle={`Кейс ${label(CASE_STATUS, d.case.status)} · открыл ${label(PARTY_ROLE, d.openedByRole)} ${formatDateTime(d.createdAt)}`}
         actions={
           d.status === 'open' ? (
             <>
@@ -71,35 +83,43 @@ export default function DisputeCardPage() {
               </Button>
             </>
           ) : (
-            <Badge>решён {formatDateTime(d.resolvedAt)}</Badge>
+            <Badge tone="success" dot>
+              решён {formatDateTime(d.resolvedAt)}
+            </Badge>
           )
         }
       />
-      <ErrorNote text={error} />
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
+        <FadeIn i={0}>
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Заявленная причина</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <p className="whitespace-pre-wrap">{d.reason}</p>
             {d.resolutionNote ? (
-              <p className="rounded-md bg-canvas p-2 text-xs">
+              <p className="rounded-xl bg-surface-2 p-2.5 text-xs">
                 <b>Решение:</b> {d.resolutionNote}
               </p>
             ) : null}
             <div className="text-xs text-muted">
               Клиент:{' '}
-              {d.case.client ? <Link className="text-navy underline" href={`/users/${d.case.client.id}`}>{partyName(d.case.client)}</Link> : '—'}
+              {d.case.client ? <Link className="text-gold-600 hover:underline" href={`/users/${d.case.client.id}`}>{partyName(d.case.client)}</Link> : '—'}
               <br />
               Адвокат:{' '}
-              {d.case.attorney ? <Link className="text-navy underline" href={`/users/${d.case.attorney.id}`}>{partyName(d.case.attorney)}</Link> : '—'}
+              {d.case.attorney ? <Link className="text-gold-600 hover:underline" href={`/users/${d.case.attorney.id}`}>{partyName(d.case.attorney)}</Link> : '—'}
               <br />
               Других споров у открывшего: {d.openerDisputes}
+              <br />
+              <Link className="text-gold-600 hover:underline" href={`/cases/${d.case.id}`}>
+                Открыть кейс →
+              </Link>
             </div>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        </FadeIn>
+        <FadeIn i={1} className="lg:col-span-2">
+        <Card className="h-full">
           <CardHeader>
             <CardTitle>Хронология кейса</CardTitle>
           </CardHeader>
@@ -109,15 +129,15 @@ export default function DisputeCardPage() {
                 <li key={j.id}>
                   <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-surface bg-gold" />
                   <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-medium">{JOURNAL_EVENT[j.eventType] ?? j.eventType}</span>
+                    <span className="font-medium text-heading">{JOURNAL_EVENT[j.eventType] ?? j.eventType}</span>
                     <span className="text-xs text-muted">
-                      {j.actorRole ?? 'система'} · {formatDateTime(j.createdAt)}
+                      {j.actorRole ? label(PARTY_ROLE, j.actorRole) : 'система'} · {formatDateTime(j.createdAt)}
                     </span>
                   </div>
                   {j.payload && Object.keys(j.payload as object).length ? (
                     <details className="text-xs text-muted">
                       <summary className="cursor-pointer">детали</summary>
-                      <pre className="mt-1 max-h-40 overflow-auto rounded bg-canvas p-2">{JSON.stringify(j.payload, null, 2)}</pre>
+                      <pre className="mt-1 max-h-40 overflow-auto rounded-lg bg-surface-2 p-2">{JSON.stringify(j.payload, null, 2)}</pre>
                     </details>
                   ) : null}
                 </li>
@@ -125,6 +145,7 @@ export default function DisputeCardPage() {
             </ol>
           </CardContent>
         </Card>
+        </FadeIn>
       </div>
     </>
   );

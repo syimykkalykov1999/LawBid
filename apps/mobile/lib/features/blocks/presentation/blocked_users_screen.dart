@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/blocks/data/blocks_repository.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
@@ -57,9 +58,8 @@ class BlockedUsersScreen extends ConsumerWidget {
                           url: u.avatarUrl,
                           initials: u.displayName.isEmpty
                               ? '?'
-                              : u.displayName.substring(0, 1).toUpperCase(),
+                              : avatarInitials(u.displayName),
                           size: 44,
-                          ring: false,
                         ),
                         const SizedBox(width: AppSpacing.md),
                         Expanded(
@@ -77,7 +77,9 @@ class BlockedUsersScreen extends ConsumerWidget {
                               ),
                               if (u.username != null)
                                 Text(
-                                  '@${u.username}',
+                                  atHandle(u.username),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: type.caption
                                       .copyWith(color: colors.textSecondary),
                                 ),
@@ -85,16 +87,21 @@ class BlockedUsersScreen extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
-                        AppButton(
-                          label: t.t('block.unblock'),
-                          variant: AppButtonVariant.secondary,
-                          height: AppSizes.touchTarget - 4,
-                          onPressed: () => toggleBlock(
-                            context,
-                            ref,
-                            userId: u.id,
-                            displayName: u.displayName,
-                            currentlyBlocked: true,
+                        // AppButton is full-width: bound it so it can't take
+                        // the name's room (a long label wraps inside).
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 140),
+                          child: AppButton(
+                            label: t.t('block.unblock'),
+                            variant: AppButtonVariant.secondary,
+                            height: AppSizes.touchTarget - 4,
+                            onPressed: () => toggleBlock(
+                              context,
+                              ref,
+                              userId: u.id,
+                              displayName: u.displayName,
+                              currentlyBlocked: true,
+                            ),
                           ),
                         ),
                       ],

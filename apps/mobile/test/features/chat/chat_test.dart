@@ -1,7 +1,9 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -10,8 +12,10 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
+import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+import '../../helpers/upload_queue_overrides.dart';
 import '../../helpers/ux_harness.dart';
 
 const _offline =
@@ -41,7 +45,13 @@ class _FakeChat implements ChatRepository {
       const CursorPage(items: []);
 
   @override
-  Future<ChatMessage> send(String id, String clientMessageId, String body) async {
+  Future<ChatMessage> send(
+    String id,
+    String clientMessageId,
+    String body, {
+    String? replyToId,
+    bool forwarded = false,
+  }) async {
     if (offline) throw _offline;
     final r = refuse;
     if (r != null) throw r;
@@ -63,14 +73,17 @@ class _FakeChat implements ChatRepository {
 
 ProviderContainer _container(_FakeChat chat) {
   final db = SocialLocalDatabase(NativeDatabase.memory());
-  final c = ProviderContainer(overrides: [
-    chatRepositoryProvider.overrideWithValue(chat),
-    socialLocalDatabaseProvider.overrideWithValue(db),
-    currentUserIdProvider.overrideWithValue('me'),
-    realtimeClientProvider.overrideWithValue(null),
-    networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
-    reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
-  ]);
+  final c = ProviderContainer(
+    overrides: [
+      chatRepositoryProvider.overrideWithValue(chat),
+      socialLocalDatabaseProvider.overrideWithValue(db),
+      ...uploadQueueOverrides(),
+      currentUserIdProvider.overrideWithValue('me'),
+      realtimeClientProvider.overrideWithValue(null),
+      networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
+      reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
+    ],
+  );
   addTearDown(() async {
     c.dispose();
     await db.close();
@@ -78,7 +91,8 @@ ProviderContainer _container(_FakeChat chat) {
   return c;
 }
 
-Future<void> _settle() => Future<void>.delayed(const Duration(milliseconds: 50));
+Future<void> _settle() =>
+    Future<void>.delayed(const Duration(milliseconds: 50));
 
 void main() {
   test('offline message waits in the outbox, then goes once (§8.4)', () async {
@@ -109,7 +123,10 @@ void main() {
       () async {
     final chat = _FakeChat()
       ..refuse = const ApiException(
-          code: 'CONVERSATION_CLOSED', message: 'closed', statusCode: 409);
+        code: 'CONVERSATION_CLOSED',
+        message: 'closed',
+        statusCode: 409,
+      );
     final c = _container(chat);
     final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
     addTearDown(sub.close);
@@ -121,6 +138,58 @@ void main() {
     final s = c.read(chatThreadProvider('c1'));
     expect(s.outbox.single.delivery, DeliveryState.failed);
     expect(s.outbox.single.failedCode, 'CONVERSATION_CLOSED');
+  });
+
+  test('a temporary failure retries on its own, no new message needed',
+      () async {
+    final chat = _FakeChat()
+      ..refuse = const ApiException(
+        code: 'SERVER',
+        message: 'down',
+        statusCode: 503,
+      );
+    final c = _container(chat);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    await c.read(chatThreadProvider('c1').notifier).send('Hi');
+    await _settle();
+    expect(chat.sends, isEmpty);
+    expect(
+      c.read(chatThreadProvider('c1')).outbox.single.delivery,
+      DeliveryState.sending,
+    );
+    // The server is back; nobody touches the app, the timer sends it.
+    chat.refuse = null;
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    expect(chat.sends, hasLength(1));
+    expect(c.read(chatThreadProvider('c1')).outbox, isEmpty);
+  });
+
+  test('401 and 408 are waited out, not shown as "not sent"', () async {
+    for (final code in [401, 408]) {
+      final chat = _FakeChat()
+        ..refuse = ApiException(code: 'X', message: 'x', statusCode: code);
+      final c = _container(chat);
+      final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+      addTearDown(sub.close);
+      await _settle();
+      await c.read(chatThreadProvider('c1').notifier).send('Hi');
+      await c.read(outboxSenderProvider).drain();
+      await _settle();
+      expect(
+        c.read(chatThreadProvider('c1')).outbox.single.delivery,
+        DeliveryState.sending,
+        reason: '$code',
+      );
+    }
+  });
+
+  test('outbox wait grows 1, 2, 4 … and stops at 30 s', () {
+    expect(
+      [for (var i = 1; i <= 8; i++) OutboxSender.backoff(i).inSeconds],
+      [1, 2, 4, 8, 16, 30, 30, 30],
+    );
   });
 
   test('clientMessageId is a v4 UUID', () {
@@ -135,25 +204,110 @@ void main() {
   test('notification taps open the right screen (§9.2)', () {
     expect(
       notificationRoute(
-          type: 'new_message',
-          payload: {'conversationId': 'c1'},
-          attorney: false),
+        type: 'new_message',
+        payload: {'conversationId': 'c1'},
+        attorney: false,
+      ),
       '/chat/c1',
     );
     expect(
       notificationRoute(
-          type: 'bid_received', payload: {'bidId': 'b1'}, attorney: false),
+        type: 'bid_received',
+        payload: {'bidId': 'b1'},
+        attorney: false,
+      ),
       '/bid/b1',
     );
     expect(
       notificationRoute(
-          type: 'post_like', payload: {'postId': 'p1'}, attorney: true),
+        type: 'post_like',
+        payload: {'postId': 'p1'},
+        attorney: true,
+      ),
       '/post/p1',
     );
     expect(
       notificationRoute(
-          type: 'case_closed', payload: {'caseId': 'k1'}, attorney: false),
+        type: 'case_closed',
+        payload: {'caseId': 'k1'},
+        attorney: false,
+      ),
       '/mine/case/k1',
     );
+  });
+
+  test('audit 2026-10-04: notification routes', () {
+    String? r(String type, Map<String, Object?> p, {bool attorney = true}) =>
+        notificationRoute(type: type, payload: p, attorney: attorney);
+    expect(r('case_updated', {'caseId': 'k1'}), AppRoutes.caseDetail('k1'));
+    expect(r('case_archived', {'caseId': 'k1'}), AppRoutes.caseDetail('k1'));
+    expect(r('case_closed', {'caseId': 'k1'}), AppRoutes.workCase('k1'));
+    expect(r('case_disputed', {'caseId': 'k1'}), AppRoutes.workCase('k1'));
+    expect(
+      r('case_disputed', {'caseId': 'k1'}, attorney: false),
+      AppRoutes.myCase('k1'),
+    );
+    expect(
+      r('bid_accepted', {'caseId': 'k1', 'bidId': 'b1'}),
+      AppRoutes.workCase('k1'),
+    );
+    expect(r('bid_accepted', {'bidId': 'b1'}), AppRoutes.bid('b1'));
+    // Owner 2026-10-06: an accepted bid opens the chat with that person.
+    expect(
+      r(
+        'bid_accepted',
+        {'caseId': 'k1', 'bidId': 'b1', 'conversationId': 'c9'},
+      ),
+      '/chat/c9',
+    );
+    expect(
+      r(
+        'offer_accepted',
+        {'caseId': 'k1', 'bidId': 'b1', 'conversationId': 'c9'},
+        attorney: false,
+      ),
+      '/chat/c9',
+    );
+    expect(
+      r('offer_accepted', {'caseId': 'k1', 'bidId': 'b1'}, attorney: false),
+      AppRoutes.bid('b1'),
+    );
+    expect(r('assistant_joined', {}), TeamRoutes.team);
+    // Push data carries strings.
+    expect(
+      r(
+        'review_received',
+        {'reply': 'true', 'actorUsername': 'anna'},
+        attorney: false,
+      ),
+      AppRoutes.lawyer('anna'),
+    );
+    expect(
+      r('review_received', {'reply': true}, attorney: false),
+      AppRoutes.profile,
+    );
+  });
+
+  test('audit 2026-10-04: a block applies except in an active case chat', () {
+    Conversation c({
+      String? caseId = 'k1',
+      bool unlocked = true,
+      ConversationStatus status = ConversationStatus.active,
+    }) =>
+        Conversation(
+          id: 'c1',
+          caseId: caseId,
+          caseTitle: null,
+          status: status,
+          contactsUnlocked: unlocked,
+          blocked: true,
+          counterpart: const Counterpart(isAttorney: false, verified: false),
+          unreadCount: 0,
+          updatedAt: DateTime(2026),
+        );
+    expect(c().blockedHere, isFalse);
+    expect(c(unlocked: false).blockedHere, isTrue);
+    expect(c(status: ConversationStatus.closed).blockedHere, isTrue);
+    expect(c(caseId: null).blockedHere, isTrue);
   });
 }

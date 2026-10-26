@@ -5,7 +5,10 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'budget_mode.dart';
+import 'case_deadline_kind.dart';
 import 'case_status.dart';
+import 'case_urgency.dart';
+import 'case_urgency_level.dart';
 import 'practice_area_ref_dto.dart';
 
 part 'case_summary_dto.g.dart';
@@ -16,6 +19,7 @@ class CaseSummaryDto {
     required this.id,
     required this.title,
     required this.practiceArea,
+    required this.extraPracticeCount,
     required this.primaryStateCode,
     required this.additionalStateCount,
     required this.status,
@@ -23,9 +27,20 @@ class CaseSummaryDto {
     required this.bidsCount,
     required this.createdAt,
     required this.lastActivityAt,
+    required this.stillNeededPending,
+    required this.canMakeNotUrgent,
     this.coverUrl,
     this.city,
     this.budgetCents,
+    this.budgetPercentBps,
+    this.coverKey,
+    this.urgency,
+    this.urgencyLevel,
+    this.deadlineAt,
+    this.deadlineKind,
+    this.pausedAt,
+    this.hidesAt,
+    this.archivesAt,
   });
 
   factory CaseSummaryDto.fromJson(Map<String, Object?> json) =>
@@ -37,6 +52,9 @@ class CaseSummaryDto {
   final String? coverUrl;
   final String title;
   final PracticeAreaRefDto practiceArea;
+
+  /// Topics besides the first (owner 2026-10-15): «+N».
+  final int extraPracticeCount;
   final String primaryStateCode;
 
   /// States besides the primary.
@@ -45,9 +63,41 @@ class CaseSummaryDto {
   final CaseStatus status;
   final BudgetMode budgetMode;
   final int? budgetCents;
+
+  /// Owner 2026-10-17: budgetMode = percent → basis points.
+  final int? budgetPercentBps;
+
+  /// Owner 2026-10-04: `art:0..3` / `icon:<name>`; null = from the id.
+  final String? coverKey;
+
+  /// Owner 2026-10-04/05: the client's choice — a level, or `by_date`.
+  /// (see deadlineAt); null when not set.
+  final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the level the case reads as today (a dated case's.
+  /// level follows from the days left; `overdue` once the date passed).
+  final CaseUrgencyLevel? urgencyLevel;
+
+  /// Owner 2026-10-05: the date the client needs it by (YYYY-MM-DD).
+  final DateTime? deadlineAt;
+
+  /// Owner 2026-10-05: what the date is (court hearing, filing…).
+  final CaseDeadlineKind? deadlineKind;
   final int bidsCount;
   final String createdAt;
   final String lastActivityAt;
+
+  /// OQ-054: paused = hidden from the attorneys' feed («На паузе»).
+  final String? pausedAt;
+  final bool stillNeededPending;
+  final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the.
+  /// attorneys' feed (null = no question waiting).
+  final String? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive (null = not paused).
+  final String? archivesAt;
 
   Map<String, Object?> toJson() => _$CaseSummaryDtoToJson(this);
 }

@@ -9,6 +9,10 @@ import type {
   CaseStatus,
   Prisma,
 } from '@prisma/client';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { withDeleted } from '../../../prisma/soft-delete.extension';
 
@@ -38,6 +42,11 @@ export type CaseAction =
   | 'client_complete'
   // §10.1 attorney "Подтвердить".
   | 'attorney_confirm'
+  // Owner 2026-10-02: completion is symmetric — the attorney may mark
+  // "Выполнено" first, then the client confirms (or disputes).
+  | 'attorney_complete'
+  | 'client_confirm'
+  | 'client_dispute'
   // §10.2 auto-close job: auto_close_at reached.
   | 'auto_close'
   // §10.1 attorney "Оспорить".
@@ -47,13 +56,29 @@ export type CaseAction =
   | 'admin_resolve_reopen'
   // docs/06 §5.1: account anonymization closes the cases still in work.
   | 'account_deleted_close'
+  // Audit 2026-10-02 (admin panel → Cases): support closes, archives
+  // (also the moderation "hide" — a case has no content status) and
+  // restores an open case. Same edges as the client/system actions.
+  | 'admin_close'
+  | 'admin_archive'
+  | 'admin_restore'
   // In-place actions (status unchanged): §3.5 edit and delete, §10.2
   // "Да, актуален".
   | 'client_edit'
+  // Owner 2026-10-05: the urgency / date, also after an attorney is hired.
+  | 'set_urgency'
+  // Audit 2026-10-19: the client's private details, also once hired.
+  | 'client_set_private_details'
   | 'client_keep_alive'
   | 'client_delete'
-  // §10.2 "Напоминание об актуальности" job: stale_prompt_sent_at = now().
-  | 'system_stale_prompt';
+  // OQ-054: the stale-case job asked «Вам ещё нужен адвокат?»
+  // (stale_prompt_sent_at = now()); not client activity.
+  | 'system_stale_prompt'
+  // OQ-054: no answer in time — the case is hidden from the attorneys'
+  // feed and search (paused_at = now(), status stays open), silently.
+  | 'system_stale_pause'
+  // OQ-054: the client brings a paused case back.
+  | 'client_resume';
 
 export interface CaseTransitionRule {
   readonly from: readonly CaseStatus[];
@@ -80,6 +105,21 @@ export const CASE_TRANSITIONS: Readonly<
     to: 'closed',
     event: 'completion_confirmed',
   },
+  attorney_complete: {
+    from: ['in_progress'],
+    to: 'pending_completion',
+    event: 'completion_requested',
+  },
+  client_confirm: {
+    from: ['pending_completion'],
+    to: 'closed',
+    event: 'completion_confirmed',
+  },
+  client_dispute: {
+    from: ['pending_completion'],
+    to: 'disputed',
+    event: 'disputed',
+  },
   auto_close: {
     from: ['pending_completion'],
     to: 'closed',
@@ -105,11 +145,26 @@ export const CASE_TRANSITIONS: Readonly<
     to: 'closed',
     event: 'closed',
   },
+  admin_close: { from: ['open'], to: 'closed', event: 'closed' },
+  admin_archive: { from: ['open'], to: 'archived', event: 'archived' },
+  admin_restore: { from: ['archived'], to: 'open', event: 'restored' },
   client_edit: { from: ['open'], to: null, event: 'updated' },
+  set_urgency: {
+    from: ['open', 'in_progress', 'pending_completion'],
+    to: null,
+    event: 'updated',
+  },
+  client_set_private_details: {
+    from: ['open', 'in_progress', 'pending_completion', 'disputed'],
+    to: null,
+    event: 'updated',
+  },
   client_keep_alive: { from: ['open'], to: null, event: 'updated' },
   // §3.5 / §10.1: deletion only from open and archived.
   client_delete: { from: ['open', 'archived'], to: null, event: 'deleted' },
   system_stale_prompt: { from: ['open'], to: null, event: 'updated' },
+  system_stale_pause: { from: ['open'], to: null, event: 'updated' },
+  client_resume: { from: ['open'], to: null, event: 'updated' },
 };
 
 export const CASE_ACTIONS = Object.keys(CASE_TRANSITIONS) as CaseAction[];
@@ -144,13 +199,6 @@ export function caseInvalidState(
   });
 }
 
-export function canApplyCaseAction(
-  status: CaseStatus,
-  action: CaseAction,
-): boolean {
-  return CASE_TRANSITIONS[action].from.includes(status);
-}
-
 /**
  * Pure: validates `action` from `status` and returns the target status,
  * the journal event and the column changes. Throws CASE_INVALID_STATE.
@@ -172,12 +220,15 @@ export function planCaseTransition(
       data = { accepted_bid_id: ctx.acceptedBidId, last_activity_at: now };
       break;
     case 'client_close':
+    case 'admin_close':
       data = { closed_at: now, last_activity_at: now };
       break;
     case 'auto_archive':
+    case 'admin_archive':
       data = { archived_at: now };
       break;
     case 'client_restore':
+    case 'admin_restore':
       // §10.1: last_activity_at = now(), archived_at = null. The stale
       // prompt is reset too (as for "Да, актуален", §10.2), otherwise the
       // §10.2 reminder (stale_prompt_sent_at IS NULL) never fires again.
@@ -185,6 +236,9 @@ export function planCaseTransition(
         archived_at: null,
         last_activity_at: now,
         stale_prompt_sent_at: null,
+        // OQ-054: the client is back — a fresh silent period, visible.
+        client_active_at: now,
+        paused_at: null,
       };
       break;
     case 'client_complete':
@@ -197,27 +251,68 @@ export function planCaseTransition(
     case 'attorney_confirm':
       data = { attorney_confirmed_at: now, closed_at: now };
       break;
+    case 'attorney_complete':
+      // The attorney marks first: attorney_confirmed_at is set, the
+      // client's mark (client_completed_at) is what is still missing.
+      data = {
+        attorney_confirmed_at: now,
+        auto_close_at: new Date(now.getTime() + AUTO_CLOSE_AFTER_MS),
+        last_activity_at: now,
+      };
+      break;
+    case 'client_confirm':
+      data = { client_completed_at: now, closed_at: now };
+      break;
     case 'auto_close':
     case 'admin_resolve_close':
     case 'account_deleted_close':
       data = { closed_at: now };
       break;
     case 'attorney_dispute':
+    case 'client_dispute':
       data = {};
       break;
     case 'admin_resolve_reopen':
       // Back to work: the completion request is void.
-      data = { client_completed_at: null, auto_close_at: null };
+      data = {
+        client_completed_at: null,
+        attorney_confirmed_at: null,
+        auto_close_at: null,
+      };
       break;
     case 'client_edit':
+    case 'client_set_private_details':
+      // OQ-054: editing the case is the client's own action.
+      data = { last_activity_at: now, client_active_at: now };
+      break;
+    case 'set_urgency':
+      // The attorney may change it too: the caller adds client_active_at
+      // through `extra` when the client does.
       data = { last_activity_at: now };
       break;
     case 'client_keep_alive':
-      data = { last_activity_at: now, stale_prompt_sent_at: null };
+      // OQ-054 «Да, нужен» / «Жду предложений получше»: a fresh silent
+      // period; the question and the pause are cleared.
+      data = {
+        last_activity_at: now,
+        client_active_at: now,
+        stale_prompt_sent_at: null,
+        paused_at: null,
+      };
+      break;
+    case 'client_resume':
+      data = {
+        client_active_at: now,
+        stale_prompt_sent_at: null,
+        paused_at: null,
+      };
       break;
     case 'system_stale_prompt':
-      // Not client activity: last_activity_at stays as it is.
+      // Not client activity: last_activity_at / client_active_at stay.
       data = { stale_prompt_sent_at: now };
+      break;
+    case 'system_stale_pause':
+      data = { paused_at: now };
       break;
     case 'client_delete':
       data = { deleted_at: now };
@@ -234,6 +329,8 @@ export interface ApplyCaseActionInput extends Partial<CaseTransitionContext> {
   /** Extra columns written with the transition (e.g. edited fields for
    * client_edit). Must not touch `status`. */
   extra?: Omit<Prisma.CaseUncheckedUpdateManyInput, 'status'>;
+  /** If-Match from the client; a different stored version is 409 STALE_VERSION. */
+  expectedVersion?: number;
 }
 
 @Injectable()
@@ -251,16 +348,26 @@ export class CaseStateMachine {
   ): Promise<{ case: Case; plan: CaseTransitionPlan }> {
     const current = await tx.case.findUnique({
       where: { id: input.caseId },
-      select: { status: true },
+      select: { status: true, version: true },
     });
     if (!current) throw caseNotFound();
+    assertExpectedVersion(current.version, input.expectedVersion);
     const plan = planCaseTransition(current.status, input.action, {
       now: input.now ?? new Date(),
       acceptedBidId: input.acceptedBidId,
     });
     const { count } = await tx.case.updateMany({
-      where: { id: input.caseId, status: current.status, deleted_at: null },
-      data: { ...input.extra, ...plan.data },
+      where: {
+        id: input.caseId,
+        status: current.status,
+        deleted_at: null,
+        // Compare-and-set on the version read above (the tx is serializable,
+        // this also covers callers on a weaker isolation level).
+        ...(input.expectedVersion !== undefined
+          ? { version: input.expectedVersion }
+          : {}),
+      },
+      data: { ...input.extra, ...plan.data, ...BUMP_VERSION },
     });
     if (count !== 1) throw caseInvalidState(input.action, current.status);
     // withDeleted: client_delete has just soft-deleted the row.

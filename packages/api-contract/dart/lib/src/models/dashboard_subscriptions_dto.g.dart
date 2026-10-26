@@ -12,7 +12,9 @@ DashboardSubscriptionsDto _$DashboardSubscriptionsDtoFromJson(
   trialing: (json['trialing'] as num).toInt(),
   active: (json['active'] as num).toInt(),
   pastDue: (json['pastDue'] as num).toInt(),
-  revenueEstimateUsd: (json['revenueEstimateUsd'] as num).toInt(),
+  live: (json['live'] as num).toInt(),
+  revenueEstimateCents: (json['revenueEstimateCents'] as num?)?.toInt(),
+  revenueEstimateUsd: (json['revenueEstimateUsd'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$DashboardSubscriptionsDtoToJson(
@@ -21,5 +23,7 @@ Map<String, dynamic> _$DashboardSubscriptionsDtoToJson(
   'trialing': instance.trialing,
   'active': instance.active,
   'pastDue': instance.pastDue,
-  'revenueEstimateUsd': instance.revenueEstimateUsd,
+  'live': instance.live,
+  'revenueEstimateCents': ?instance.revenueEstimateCents,
+  'revenueEstimateUsd': ?instance.revenueEstimateUsd,
 };

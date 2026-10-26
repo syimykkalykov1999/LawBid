@@ -1,8 +1,8 @@
-import '../domain/account_deletion_result.dart';
-import '../domain/otp_verify_result.dart';
-import '../domain/reauth_result.dart';
-import '../domain/social_login_result.dart';
-import 'auth_dtos.dart' show DeviceSession;
+import 'package:lawbid/features/auth/data/auth_dtos.dart' show DeviceSession;
+import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/password_auth_result.dart';
+import 'package:lawbid/features/auth/domain/reauth_result.dart';
 
 /// Auth operations needed by the onboarding screens (file 01 §10/11) plus
 /// session teardown (file 01 §10.5 `POST /auth/logout`).
@@ -15,10 +15,6 @@ import 'auth_dtos.dart' show DeviceSession;
 /// is no longer wired by default — swap back via an explicit provider
 /// override in a test, never by editing this interface's default
 /// implementation pointer.
-///
-/// Phase 3 (docs/CHANGELOG.md, continuing directly after stage-1.7-auth,
-/// commit 152e193) added [signInWithApple]/[signInWithGoogle] — native
-/// Apple/Google sign-in against `POST /auth/social`.
 ///
 /// Phase 4 (docs/CHANGELOG.md, continuing directly after Phase 3 social
 /// login, commit 2bbeba5) added [logoutAll], [listSessions]/
@@ -41,7 +37,16 @@ abstract interface class AuthRepository {
   /// Email magic link (`POST /auth/otp/verify-link`): the link's one-time
   /// [token] + the [verifier] stored by the email [requestOtp]. Same
   /// results and session handling as [verifyOtp].
-  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier});
+  Future<OtpVerifyResult> verifyEmailLink({
+    required String token,
+    required String verifier,
+  });
+
+  /// Owner 2026-10-04: an assistant signs in with the one-time code the
+  /// attorney got for their seat (`POST /auth/assistant/code`, no SMS).
+  /// Applies the session on success; a wrong / used / expired code is
+  /// `.invalid()`.
+  Future<OtpVerifyResult> signInWithAssistantCode(String code);
 
   /// Verifies [code] for [identifier] on [channel]; applies the session on
   /// success.
@@ -50,16 +55,6 @@ abstract interface class AuthRepository {
     required String code,
     String channel = 'phone',
   });
-
-  /// Native Apple sign-in (`sign_in_with_apple`) + `POST /auth/social`
-  /// exchange (file 07 §6.1). Returns `.cancelled()` rather than throwing
-  /// when the user dismisses the native sheet — see
-  /// `SocialAuthNativeClient`'s doc comment (data/
-  /// social_auth_native_client.dart).
-  Future<SocialLoginResult> signInWithApple();
-
-  /// Same as [signInWithApple], via Google (`google_sign_in`) instead.
-  Future<SocialLoginResult> signInWithGoogle();
 
   /// Logs out the current session (`POST /auth/logout`). Callers should
   /// clear local session state (`SessionController.clear()`) regardless of
@@ -93,7 +88,10 @@ abstract interface class AuthRepository {
   /// `@Public()` and accepts any channel/identifier — see
   /// `AuthApiClient.requestOtp`) before calling this with the code the
   /// person received.
-  Future<ReauthResult> reauthWithOtp({required String identifier, required String code});
+  Future<ReauthResult> reauthWithOtp({
+    required String identifier,
+    required String code,
+  });
 
   /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
   /// period. Requires a fresh, unused [reauthToken] from [reauthWithOtp].
@@ -102,4 +100,35 @@ abstract interface class AuthRepository {
   /// caller must clear local session state and route to Welcome, it will
   /// NOT get a chance to make another authenticated call first.
   Future<AccountDeletionResult> deleteAccount({required String reauthToken});
+
+  /// Owner 2026-10-13: signs in with a phone number or e-mail ([identifier],
+  /// E.164 / lower-case) and the password — no SMS. Applies the session on
+  /// success.
+  Future<PasswordAuthResult> signInWithPassword({
+    required String identifier,
+    required String password,
+  });
+
+  /// Owner 2026-10-13: one phone screen — null when the check failed (the
+  /// caller then falls back to the SMS code).
+  Future<({bool registered, bool hasPassword})?> phoneStatus(String phone);
+
+  /// Sets the password of the signed-in account (after the sign-up code).
+  Future<PasswordAuthResult> setPassword(
+    String password, {
+    String? currentPassword,
+    String? reauthToken,
+  });
+
+  /// Forgot password: sends a code to the account's verified e-mail, else
+  /// an SMS. [PasswordAuthResult.channel] says which.
+  Future<PasswordAuthResult> requestPasswordReset(String identifier);
+
+  /// Forgot password: the code + a new password; ends every other session
+  /// and applies the new session on success.
+  Future<PasswordAuthResult> resetPassword({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  });
 }

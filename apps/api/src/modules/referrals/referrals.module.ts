@@ -1,0 +1,27 @@
+import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { AdminAccessModule } from '../admin-access/admin-access.module';
+import { OutreachCoreModule } from '../outreach/outreach.module';
+import { PartnersCoreModule } from '../partners/partners.module';
+import { AdminReferralsController } from './admin-referrals.controller';
+import { AdminReferralsService } from './admin-referrals.service';
+import { ReferralsController } from './referrals.controller';
+import { ReferralsService } from './referrals.service';
+
+/** The referral service alone — imported by billing (first paid invoice),
+ * cases (first case), promotions (credit days) and the worker. Uses the
+ * global PAYMENT_PROVIDER when present. */
+@Module({
+  imports: [NotificationsModule, PartnersCoreModule, OutreachCoreModule],
+  providers: [ReferralsService],
+  exports: [ReferralsService],
+})
+export class ReferralsCoreModule {}
+
+/** Owner 2026-10-02: referral endpoints of the app and the admin. */
+@Module({
+  imports: [ReferralsCoreModule, PartnersCoreModule, AdminAccessModule],
+  controllers: [ReferralsController, AdminReferralsController],
+  providers: [AdminReferralsService],
+})
+export class ReferralsModule {}

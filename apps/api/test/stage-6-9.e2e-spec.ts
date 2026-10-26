@@ -13,10 +13,14 @@ import { AccountAnonymizationService } from '../src/modules/privacy/account-anon
 import { DataExportService } from '../src/modules/privacy/data-export.service';
 import { ExportsCleanupService } from '../src/modules/privacy/exports-cleanup.service';
 import { JournalIntegrityService } from '../src/modules/privacy/journal-integrity.service';
+import { rowsOnAnyDb } from './support/rows-on-any-db';
+import { shardContext } from '../src/sharding/shard-context';
 import { JournalRetentionService } from '../src/modules/privacy/journal-retention.service';
+import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
+import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 
 /**
- * docs/06 §5 / §13 stage 6.9 acceptance, against real CockroachDB / Redis /
+ * docs/06 §5 / §13 stage 6.9 acceptance, against real PostgreSQL / Redis /
  * MinIO:
  *  - after anonymization the DB holds no name/email/phone/document files
  *    of the user, the journal stays;
@@ -140,14 +144,16 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
     await prisma.caseState.create({
       data: { case_id: c.id, state_code: 'NJ', is_primary: true },
     });
-    await prisma.$transaction((tx) =>
-      journal.append(tx, {
-        caseId: c.id,
-        clientId,
-        actor: { userId: clientId, role: 'client' },
-        event: 'created',
-        payload: {},
-      }),
+    await shardContext.runForCase(c.id, () =>
+      prisma.$transaction((tx) =>
+        journal.append(tx, {
+          caseId: c.id,
+          clientId,
+          actor: { userId: clientId, role: 'client' },
+          event: 'created',
+          payload: {},
+        }),
+      ),
     );
     return c.id;
   }
@@ -225,7 +231,8 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
         data: {
           owner_user_id: attorney.id,
           purpose: 'avatar',
-          s3_bucket: 'lawbid-media',
+          // The run's own buckets (e2e-setup-env.ts), created at bootstrap.
+          s3_bucket: process.env.S3_BUCKET_MEDIA ?? 'lawbid-media',
           s3_key: `avatars/${attorney.id}/${randomUUID()}.jpg`,
           mime: 'image/jpeg',
           size_bytes: 10n,
@@ -237,7 +244,7 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
         data: {
           owner_user_id: attorney.id,
           purpose: 'verification_document',
-          s3_bucket: 'lawbid-documents',
+          s3_bucket: process.env.S3_BUCKET_DOCUMENTS ?? 'lawbid-documents',
           s3_key: `verification/${attorney.id}/${randomUUID()}.pdf`,
           mime: 'application/pdf',
           size_bytes: 10n,
@@ -300,8 +307,12 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
           SELECT deleted_at FROM files WHERE id = ${f.id}::UUID`;
         expect(row.deleted_at).not.toBeNull();
       }
-      const [p] = await prisma.$queryRaw<{ status: string }[]>`
-        SELECT status::STRING AS status FROM posts WHERE id = ${post.id}::UUID`;
+      const [p] = await rowsOnAnyDb(
+        prisma,
+        () =>
+          prisma.$queryRaw<{ status: string }[]>`
+        SELECT status::TEXT AS status FROM posts WHERE id = ${post.id}::UUID`,
+      );
       expect(p.status).toBe('removed');
       const m = await prisma.message.findUniqueOrThrow({
         where: { id: message.id },
@@ -366,6 +377,125 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
       });
       expect(u.status).toBe('deleted');
       expect(u.email).toBeNull();
+    });
+  });
+
+  // Owner 2026-10-22 (audit #4 §5, GDPR Art. 17): every media purpose,
+  // stories, Bunny videos and the Stripe customers go too.
+  describe('§5.1 media, stories, videos and Stripe on deletion', () => {
+    it('releases every content file, deletes stories, videos and customers', async () => {
+      const attorney = await user('attorney');
+      const purposes = [
+        'post_image',
+        'post_video',
+        'post_attachment',
+        'case_photo',
+        'case_attachment',
+        'review_photo',
+        'support_attachment',
+      ] as const;
+      const files = [];
+      for (const purpose of purposes) {
+        files.push(
+          await prisma.file.create({
+            data: {
+              owner_user_id: attorney.id,
+              purpose,
+              s3_bucket: process.env.S3_BUCKET_MEDIA ?? 'lawbid-media',
+              s3_key: `e2e/${attorney.id}/${purpose}/${randomUUID()}`,
+              mime: 'image/jpeg',
+              size_bytes: 10n,
+              sha256: 'c'.repeat(64),
+              scan_status: 'clean',
+            },
+          }),
+        );
+      }
+      // Admin content of the same person stays (not their personal data).
+      const template = await prisma.file.create({
+        data: {
+          owner_user_id: attorney.id,
+          purpose: 'document_template',
+          s3_bucket: process.env.S3_BUCKET_MEDIA ?? 'lawbid-media',
+          s3_key: `e2e/${attorney.id}/tpl/${randomUUID()}`,
+          mime: 'application/pdf',
+          size_bytes: 10n,
+          sha256: 'd'.repeat(64),
+          scan_status: 'clean',
+        },
+      });
+      const story = await prisma.story.create({
+        data: {
+          author_id: attorney.id,
+          kind: 'photo',
+          file_id: files[0].id,
+          expires_at: new Date(Date.now() + DAY),
+        },
+      });
+      const video = await prisma.videoAsset.create({
+        data: {
+          owner_user_id: attorney.id,
+          library_id: 'e2e-lib',
+          external_id: `e2e-${randomUUID()}`,
+          status: 'ready',
+          upload_expires_at: new Date(Date.now() + DAY),
+        },
+      });
+      const customerId = `cus_e2e_${randomUUID().slice(0, 8)}`;
+      await prisma.stripeCustomer.create({
+        data: { user_id: attorney.id, stripe_customer_id: customerId },
+      });
+      await prisma.connectedCustomer.create({
+        data: {
+          client_id: attorney.id,
+          stripe_account_id: 'acct_e2e',
+          stripe_customer_id: `${customerId}_c`,
+        },
+      });
+      await prisma.user.update({
+        where: { id: attorney.id },
+        data: {
+          status: 'deletion_pending',
+          deletion_requested_at: new Date(Date.now() - 15 * DAY),
+        },
+      });
+
+      expect(
+        await app.get(AccountAnonymizationService).anonymize(attorney.id),
+      ).toBe(true);
+
+      const rows = await prisma.$queryRaw<
+        { id: string; deleted_at: Date | null; deleted_reason: string | null }[]
+      >`SELECT id::TEXT AS id, deleted_at, deleted_reason FROM files
+        WHERE owner_user_id = ${attorney.id}::UUID`;
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      for (const f of files) {
+        expect(byId.get(f.id)?.deleted_at).not.toBeNull();
+        expect(byId.get(f.id)?.deleted_reason).toBe('account_deleted');
+      }
+      expect(byId.get(template.id)?.deleted_at).toBeNull();
+      expect(await prisma.story.count({ where: { id: story.id } })).toBe(0);
+      // Soft-deleted rows are hidden from plain model reads.
+      const [v] = await prisma.$queryRaw<
+        { status: string; deleted_at: Date | null }[]
+      >`SELECT status::TEXT AS status, deleted_at FROM video_assets
+        WHERE id = ${video.id}::UUID`;
+      expect(v.status).toBe('deleted');
+      expect(v.deleted_at).not.toBeNull();
+      const fake = app.get<FakePaymentProvider>(PAYMENT_PROVIDER);
+      if (fake.deletedCustomers) {
+        expect(fake.deletedCustomers.has(customerId)).toBe(true);
+        expect(fake.deletedCustomers.has(`${customerId}_c`)).toBe(true);
+      }
+      expect(
+        await prisma.connectedCustomer.count({
+          where: { client_id: attorney.id },
+        }),
+      ).toBe(0);
+      // Idempotent: a second run is a no-op.
+      expect(
+        await app.get(AccountAnonymizationService).anonymize(attorney.id),
+      ).toBe(false);
     });
   });
 
@@ -463,9 +593,13 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
       const client = await user('client');
       const oldCase = await kase(client.id);
       const liveCase = await kase(client.id);
-      await prisma.$executeRaw`
+      await shardContext.runForCase(
+        oldCase,
+        () =>
+          prisma.$executeRaw`
         UPDATE case_journal SET retain_until = now() - INTERVAL '1 day'
-        WHERE case_id = ${oldCase}::UUID`;
+        WHERE case_id = ${oldCase}::UUID`,
+      );
       const before = await prisma.caseJournal.count({
         where: { case_id: liveCase },
       });
@@ -483,21 +617,27 @@ describe('stage 6.9 — privacy and data lifecycle (e2e)', () => {
     it('the daily chain check finds a tampered row', async () => {
       const client = await user('client');
       const caseId = await kase(client.id);
-      await prisma.$transaction((tx) =>
-        journal.append(tx, {
-          caseId,
-          clientId: client.id,
-          actor: { userId: client.id, role: 'client' },
-          event: 'updated',
-          payload: { title: 'v2' },
-        }),
+      await shardContext.runForCase(caseId, () =>
+        prisma.$transaction((tx) =>
+          journal.append(tx, {
+            caseId,
+            clientId: client.id,
+            actor: { userId: client.id, role: 'client' },
+            event: 'updated',
+            payload: { title: 'v2' },
+          }),
+        ),
       );
       const clean = await app.get(JournalIntegrityService).run();
       expect(clean.broken.find((b) => b.caseId === caseId)).toBeUndefined();
 
-      await prisma.$executeRaw`
+      await shardContext.runForCase(
+        caseId,
+        () =>
+          prisma.$executeRaw`
         UPDATE case_journal SET payload = '{"title":"forged"}'::JSONB
-        WHERE case_id = ${caseId}::UUID AND event_type = 'updated'`;
+        WHERE case_id = ${caseId}::UUID AND event_type = 'updated'`,
+      );
       const result = await app.get(JournalIntegrityService).run();
       const hit = result.broken.find((b) => b.caseId === caseId);
       expect(hit?.brokenAt?.reason).toBe('hash_mismatch');

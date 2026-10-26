@@ -13,6 +13,7 @@ TeamDto _$TeamDtoFromJson(Map<String, dynamic> json) => TeamDto(
   seats: (json['seats'] as num).toInt(),
   used: (json['used'] as num).toInt(),
   plan: TeamDtoPlan.fromJson(json['plan'] as String),
+  maxDuties: (json['maxDuties'] as num).toInt(),
 );
 
 Map<String, dynamic> _$TeamDtoToJson(TeamDto instance) => <String, dynamic>{
@@ -20,4 +21,5 @@ Map<String, dynamic> _$TeamDtoToJson(TeamDto instance) => <String, dynamic>{
   'seats': instance.seats,
   'used': instance.used,
   'plan': instance.plan.toJson(),
+  'maxDuties': instance.maxDuties,
 };

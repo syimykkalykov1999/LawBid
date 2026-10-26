@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -6,8 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
-import 'package:lawbid/core/deeplinks/deep_link_placeholder_screen.dart';
 import 'package:lawbid/core/deeplinks/deep_link_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -20,11 +22,10 @@ import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
-import 'package:lawbid/shared/domain/user_role.dart';
-import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 import '../../features/auth/auth_test_harness.dart';
 import '../../helpers/fixtures.dart';
@@ -36,6 +37,7 @@ class MutableStartup extends AppStartupController {
   @override
   StartupStatus build() => _initial;
 
+  // ignore: use_setters_to_change_properties
   void set(StartupStatus s) => state = s;
 }
 
@@ -63,6 +65,7 @@ class MutableUser extends CurrentUserController {
   @override
   CurrentUserState build() => const CurrentUserState.idle();
 
+  // ignore: use_setters_to_change_properties
   void set(CurrentUserState s) => state = s;
 
   /// No backend in these tests: "reload" keeps whatever [set] put there.
@@ -101,6 +104,7 @@ void main() {
     bool signedIn = false,
     void Function(String)? navigate,
     String? magicLinkVerifier = _verifier,
+    bool guestBrowsing = false,
   }) async {
     final c = ProviderContainer(
       overrides: [
@@ -110,11 +114,14 @@ void main() {
           magicLinkVerifier: magicLinkVerifier,
         ),
         appStartupProvider.overrideWith(() => MutableStartup(startup)),
-        sessionControllerProvider.overrideWith(() => FakeSession(signedIn: signedIn)),
+        sessionControllerProvider
+            .overrideWith(() => FakeSession(signedIn: signedIn)),
         currentUserControllerProvider.overrideWith(MutableUser.new),
         deepLinkSourceProvider.overrideWithValue(source),
+        guestBrowsingEnabledProvider.overrideWithValue(guestBrowsing),
         socialRepositoryProvider.overrideWithValue(_OfflineSocialRepository()),
-        deepLinkNavigatorProvider.overrideWithValue(navigate ?? navigations.add),
+        deepLinkNavigatorProvider
+            .overrideWithValue(navigate ?? navigations.add),
       ],
     );
     addTearDown(() async {
@@ -126,7 +133,9 @@ void main() {
 
   const magic = 'lawbid://auth/email-code?token=$_token';
 
-  testWidgets('magic link + stored verifier → email code screen, verify-link with both', (tester) async {
+  testWidgets(
+      'magic link + stored verifier → email code screen, verify-link with both',
+      (tester) async {
     final c = await container();
     await c.read(deepLinkControllerProvider.notifier).start();
     source.controller.add(Uri.parse(magic));
@@ -143,7 +152,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
   });
 
-  testWidgets('magic link without a verifier (other device) → email screen, no request', (tester) async {
+  testWidgets(
+      'magic link without a verifier (other device) → email screen, no request',
+      (tester) async {
     final c = await container(magicLinkVerifier: null);
     c.read(deepLinkControllerProvider.notifier).handleUri(Uri.parse(magic));
     await tester.pump();
@@ -161,8 +172,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 10));
   });
 
-  testWidgets('cold-start link waits for the splash sequence, then runs', (tester) async {
-    source = FakeLinkSource(initial: Uri.parse('https://lawbid.app/auth/email-code?token=$_token'));
+  testWidgets('cold-start link waits for the splash sequence, then runs',
+      (tester) async {
+    source = FakeLinkSource(
+      initial: Uri.parse('https://lawbid.dev/auth/email-code?token=$_token'),
+    );
     final c = await container(startup: StartupStatus.running);
     await c.read(deepLinkControllerProvider.notifier).start();
     await tester.pump();
@@ -171,7 +185,8 @@ void main() {
     expect(repo.verifiedLinks, isEmpty);
     expect(c.read(deepLinkControllerProvider), isA<EmailCodeDeepLink>());
 
-    (c.read(appStartupProvider.notifier) as MutableStartup).set(StartupStatus.ready);
+    (c.read(appStartupProvider.notifier) as MutableStartup)
+        .set(StartupStatus.ready);
     await tester.pump();
     await tester.pump();
 
@@ -193,16 +208,48 @@ void main() {
     final c = await container();
     final ctl = c.read(deepLinkControllerProvider.notifier)
       ..handleUri(Uri.parse('https://evil.example/case/1'))
-      ..handleUri(Uri.parse('lawbid://auth/email-code?email=a@b.co&code=123456'))
+      ..handleUri(
+        Uri.parse('lawbid://auth/email-code?email=a@b.co&code=123456'),
+      )
       ..handleUri(Uri.parse('lawbid://auth/email-code?token=short'));
     await tester.pump();
     expect(ctl.state, isNull);
     expect(navigations, isEmpty);
   });
 
-  testWidgets('content link waits for sign-in + onboarding, then opens', (tester) async {
+  testWidgets('guest browsing: a profile / post link opens without a session',
+      (tester) async {
+    // Owner 2026-10-23: the app's guest browsing is a server switch.
+    final c = await container(guestBrowsing: true);
+    final ctl = c.read(deepLinkControllerProvider.notifier)
+      ..handleUri(Uri.parse('https://lawbid.dev/lawyer/anna'));
+    await tester.pump();
+    expect(navigations, ['/lawyer/anna']);
+    expect(ctl.state, isNull);
+    // An account-only link still waits for the sign-in.
+    ctl.handleUri(Uri.parse('https://lawbid.dev/case/abc-123'));
+    await tester.pump();
+    expect(navigations, ['/lawyer/anna']);
+    expect(c.read(deepLinkControllerProvider), isA<ContentDeepLink>());
+  });
+
+  testWidgets('guest browsing off (the app default): a profile link waits',
+      (tester) async {
     final c = await container();
-    c.read(deepLinkControllerProvider.notifier).handleUri(Uri.parse('https://lawbid.app/case/abc-123'));
+    c
+        .read(deepLinkControllerProvider.notifier)
+        .handleUri(Uri.parse('https://lawbid.dev/lawyer/anna'));
+    await tester.pump();
+    expect(navigations, isEmpty);
+    expect(c.read(deepLinkControllerProvider), isA<ContentDeepLink>());
+  });
+
+  testWidgets('content link waits for sign-in + onboarding, then opens',
+      (tester) async {
+    final c = await container();
+    c
+        .read(deepLinkControllerProvider.notifier)
+        .handleUri(Uri.parse('https://lawbid.dev/case/abc-123'));
     await tester.pump();
     expect(navigations, isEmpty); // signed out: kept
 
@@ -211,7 +258,11 @@ void main() {
     expect(navigations, isEmpty); // /users/me not loaded yet
 
     final users = c.read(currentUserControllerProvider.notifier) as MutableUser
-      ..set(CurrentUserState.ready(meFixture(role: UserRole.client, step: OnboardingStepId.contacts)));
+      ..set(
+        CurrentUserState.ready(
+          meFixture(role: UserRole.client, step: OnboardingStepId.contacts),
+        ),
+      );
     await tester.pump();
     expect(navigations, isEmpty); // onboarding not finished
 
@@ -235,7 +286,8 @@ void main() {
     expect(c.read(deepLinkControllerProvider), isNull);
   });
 
-  testWidgets('end to end: magic link lands on the email code screen and signs in', (
+  testWidgets(
+      'end to end: magic link lands on the email code screen and signs in', (
     tester,
   ) async {
     late GoRouter router;
@@ -255,14 +307,22 @@ void main() {
     expect(find.byType(OtpScreen), findsOneWidget);
     expect(find.text('Change email'), findsOneWidget);
     expect(repo.verifiedLinks.single, (token: _token, verifier: _verifier));
-    expect(c.read(onboardingFlowProvider).step, OnboardingStep.role); // new user signed in
+    expect(
+      c.read(onboardingFlowProvider).step,
+      OnboardingStep.role,
+    ); // new user signed in
   });
 
-  testWidgets('end to end: link on another device opens the email screen with the hint', (
+  testWidgets(
+      'end to end: link on another device opens the email screen with the hint',
+      (
     tester,
   ) async {
     late GoRouter router;
-    final c = await container(navigate: (loc) => router.go(loc), magicLinkVerifier: null);
+    final c = await container(
+      navigate: (loc) => router.go(loc),
+      magicLinkVerifier: null,
+    );
     router = GoRouter(
       initialLocation: AuthRoutes.welcome,
       routes: [...authRoutes(), ...deepLinkRoutes()],
@@ -277,7 +337,9 @@ void main() {
 
     expect(find.byType(EmailScreen), findsOneWidget);
     expect(
-      find.text('Open the link on the phone where you requested the code, or enter the code from the email.'),
+      find.text(
+        'Open the link on the phone where you requested the code, or enter the code from the email.',
+      ),
       findsOneWidget,
     );
     expect(repo.verifiedLinks, isEmpty);
@@ -285,12 +347,16 @@ void main() {
 
   // `/lawyer/:username` now opens the real attorney profile (docs/03 stage
   // 3.9) — covered in test/features/profile/profile_screens_test.dart.
-  testWidgets('the post route opens the post screen (docs/05) and can leave', (tester) async {
+  testWidgets('the post route opens the post screen (docs/05) and can leave',
+      (tester) async {
     final c = await container();
     final router = GoRouter(
       initialLocation: '/feed',
       routes: [
-        GoRoute(path: '/feed', builder: (_, __) => const Scaffold(body: Text('FEED'))),
+        GoRoute(
+          path: '/feed',
+          builder: (_, __) => const Scaffold(body: Text('FEED')),
+        ),
         ...deepLinkRoutes(),
       ],
     );
@@ -303,13 +369,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('FEED'), findsOneWidget);
   });
-
 }
 
 /// Every call fails as "no connection": enough for route tests.
 class _OfflineSocialRepository implements SocialRepository {
   @override
+  Future<bool> attachmentsAllowed() async => true;
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => Future<Never>.error(
-        const ApiException(code: ApiException.networkErrorCode, message: 'offline'),
+        const ApiException(
+          code: ApiException.networkErrorCode,
+          message: 'offline',
+        ),
       );
 }

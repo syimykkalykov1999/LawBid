@@ -13,7 +13,7 @@ import { BOOTSTRAP_CACHE_KEY } from '../src/modules/feature-flags/services/boots
  * Production hardening (ledger leaf-1.2 G1; docs/01 §7, §13): readiness
  * probe with real dependency checks, security headers, no API docs in
  * production, cached bootstrap, atomic idempotency, graceful shutdown.
- * Runs against the real (isolated) CockroachDB + Redis — see
+ * Runs against the real (isolated) PostgreSQL + Redis — see
  * test/support/e2e-global-setup.ts — and the exact main.ts wiring via
  * configureApp().
  */
@@ -169,7 +169,8 @@ describe('Security hardening (e2e)', () => {
       const first = await api().get('/api/v1/config/bootstrap').expect(200);
       const ttl = await redis.ttl(BOOTSTRAP_CACHE_KEY);
       expect(ttl).toBeGreaterThan(0);
-      expect(ttl).toBeLessThanOrEqual(30);
+      // Load audit 6: the 30 s TTL carries +/-20 % jitter (anti-stampede).
+      expect(ttl).toBeLessThanOrEqual(36);
 
       // A row written straight to the DB is NOT visible on repeat: the
       // repeat was answered from the cache, not by re-querying.

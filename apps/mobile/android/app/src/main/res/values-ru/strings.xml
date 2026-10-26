@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="channel_chats">Чаты</string>
+    <string name="channel_notifications">Уведомления</string>
+    <string name="channel_call">Текущий звонок</string>
+    <string name="call_ongoing">Текущий звонок</string>
+    <string name="call_connecting">Вызов…</string>
+    <string name="call_hangup">Завершить</string>
+    <!-- Owner 2026-10-22: the reader in a chat notification (MessagingStyle). -->
+    <string name="chat_me">Вы</string>
+</resources>

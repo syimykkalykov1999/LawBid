@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -64,7 +66,8 @@ class CurrentUserController extends Notifier<CurrentUserState> {
         if (next == null) {
           _inFlight = null;
           state = const CurrentUserState.idle();
-        } else if (previous != next) {
+        } else if (previous != next && !ref.read(startupProvidesMeProvider)) {
+          // Package G: during the splash `me` comes with GET /me/session.
           unawaited(load());
         }
       },
@@ -98,6 +101,9 @@ class CurrentUserController extends Notifier<CurrentUserState> {
       final user = await ref.read(onboardingRepositoryProvider).fetchMe();
       if (ref.read(sessionControllerProvider) == null) return null;
       state = CurrentUserState.ready(user);
+      // Owner 2026-10-22 (audit #4 §5): the account's analytics answer
+      // rules this device's usage events.
+      AppEvents.applyServerConsent(granted: user.analyticsConsent);
       return user;
     } catch (e) {
       if (state.user == null) state = CurrentUserState.failed(e);
@@ -110,12 +116,25 @@ class CurrentUserController extends Notifier<CurrentUserState> {
   Future<CurrentUser?> ensureLoaded() async => state.user ?? await load();
 
   /// Replaces the user with a fresh MeView returned by a mutation.
-  void apply(CurrentUser user) => state = CurrentUserState.ready(user);
+  void apply(CurrentUser user) {
+    state = CurrentUserState.ready(user);
+    AppEvents.applyServerConsent(granted: user.analyticsConsent);
+  }
+
+  /// Owner 2026-10-05, demo mode: the session was swapped for another
+  /// account in place (`SessionController.switchSession`). Drop the
+  /// previous user so the guard holds the splash until the new
+  /// `GET /users/me` lands, rather than routing by the old role.
+  void resetForNewSession() {
+    state = const CurrentUserState.loading();
+    unawaited(load());
+  }
 }
 
 final currentUserControllerProvider =
     NotifierProvider<CurrentUserController, CurrentUserState>(
-        CurrentUserController.new);
+  CurrentUserController.new,
+);
 
 /// The signed-in user's role (docs/01_FOUNDATION_AUTH.md §11), from
 /// `GET /users/me`, falling back to the access token's `role` claim while
@@ -125,5 +144,6 @@ final currentUserRoleProvider = Provider<UserRole?>((ref) {
       ref.watch(currentUserControllerProvider.select((s) => s.user?.role));
   if (fromMe != null) return fromMe;
   return parseUserRole(
-      ref.watch(sessionControllerProvider.select((s) => s?.role)));
+    ref.watch(sessionControllerProvider.select((s) => s?.role)),
+  );
 });

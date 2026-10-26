@@ -1,0 +1,73 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'admin_support_ticket_detail_dto.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+AdminSupportTicketDetailDto _$AdminSupportTicketDetailDtoFromJson(
+  Map<String, dynamic> json,
+) => AdminSupportTicketDetailDto(
+  id: json['id'] as String,
+  subject: json['subject'] as String,
+  category: AdminSupportTicketDetailDtoCategory.fromJson(
+    json['category'] as String,
+  ),
+  status: AdminSupportTicketDetailDtoStatus.fromJson(json['status'] as String),
+  priority: AdminSupportTicketDetailDtoPriority.fromJson(
+    json['priority'] as String,
+  ),
+  user: AdminSupportUserRefDto.fromJson(json['user'] as Map<String, dynamic>),
+  unreadByAdmin: json['unreadByAdmin'] as bool,
+  unreadByUser: json['unreadByUser'] as bool,
+  lastMessageAt: DateTime.parse(json['lastMessageAt'] as String),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  userSummary: AdminSupportUserSummaryDto.fromJson(
+    json['userSummary'] as Map<String, dynamic>,
+  ),
+  messages: (json['messages'] as List<dynamic>)
+      .map((e) => AdminSupportMessageDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  assigneeId: json['assigneeId'] as String?,
+  assigneeName: json['assigneeName'] as String?,
+  resolvedAt: json['resolvedAt'] == null
+      ? null
+      : DateTime.parse(json['resolvedAt'] as String),
+  slaDueAt: json['slaDueAt'] == null
+      ? null
+      : DateTime.parse(json['slaDueAt'] as String),
+  slaBreached: json['slaBreached'] as bool?,
+  firstResponseAt: json['firstResponseAt'] == null
+      ? null
+      : DateTime.parse(json['firstResponseAt'] as String),
+  clientContext: json['clientContext'] == null
+      ? null
+      : SupportClientContextDto.fromJson(
+          json['clientContext'] as Map<String, dynamic>,
+        ),
+);
+
+Map<String, dynamic> _$AdminSupportTicketDetailDtoToJson(
+  AdminSupportTicketDetailDto instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'subject': instance.subject,
+  'category': instance.category.toJson(),
+  'status': instance.status.toJson(),
+  'priority': instance.priority.toJson(),
+  'user': instance.user.toJson(),
+  'assigneeId': ?instance.assigneeId,
+  'assigneeName': ?instance.assigneeName,
+  'unreadByAdmin': instance.unreadByAdmin,
+  'unreadByUser': instance.unreadByUser,
+  'lastMessageAt': instance.lastMessageAt.toIso8601String(),
+  'createdAt': instance.createdAt.toIso8601String(),
+  'resolvedAt': ?instance.resolvedAt?.toIso8601String(),
+  'slaDueAt': ?instance.slaDueAt?.toIso8601String(),
+  'slaBreached': ?instance.slaBreached,
+  'firstResponseAt': ?instance.firstResponseAt?.toIso8601String(),
+  'userSummary': instance.userSummary.toJson(),
+  'clientContext': ?instance.clientContext?.toJson(),
+  'messages': instance.messages.map((e) => e.toJson()).toList(),
+};

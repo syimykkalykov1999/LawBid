@@ -1,4 +1,15 @@
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
+import {
+  OTP_LOCKOUT_MEMORY_SECONDS,
+  OTP_LOCKOUT_SCHEDULE_SECONDS,
+} from '../otp-limits';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import {
@@ -13,14 +24,18 @@ import { SMS_PROVIDER, EMAIL_PROVIDER } from '../providers/provider.tokens';
 import type { SmsProvider } from '../providers/sms/sms-provider.interface';
 import type { EmailProvider } from '../providers/email/email-provider.interface';
 import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
+import { SmsAbuseGuardService } from '../../../common/cost-guard/sms-abuse-guard.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { AppConfigService } from '../../feature-flags/services/app-config.service';
 import { checkSmsDestination } from '../dto/validators';
+import { CountriesService } from '../../countries/countries.service';
+import { OpsStateService } from '../../../common/ops/ops-state.service';
 import {
   buildAdminLoginCodeEmail,
   buildContactOtpEmail,
   buildLoginOtpEmail,
 } from '../notifications/email-templates';
+import { ck } from '../../../redis/redis-cluster-safe';
 
 const SMS_ALLOWED_COUNTRIES_CONFIG_KEY = 'sms.allowed_country_codes';
 
@@ -28,15 +43,18 @@ export type OtpChannel = 'phone' | 'email';
 /** Keeps a login OTP's Redis keys from colliding with a "verify new
  * contact" OTP for the same phone/email requested concurrently. */
 // OQ-048: 'assistant' — the code a joining assistant gets from the attorney.
-export type OtpPurpose = 'login' | 'contact' | 'admin' | 'assistant';
+// Owner 2026-10-13: 'reset' — the code of a forgotten-password reset.
+export type OtpPurpose = 'login' | 'contact' | 'admin' | 'assistant' | 'reset';
 
 export type OtpVerifyResult = 'ok' | 'invalid' | 'expired' | 'locked';
 
 // Single atomic round trip for verify — see docs/CHANGELOG.md stage 1.4
 // for the race this avoids (a naive get-then-check-then-incr has a TOCTOU
 // window where concurrent requests can both pass with 4 prior attempts).
-// KEYS: 1=code hash key, 2=attempts key, 3=lock key
-// ARGV: 1=candidateHash, 2=maxAttempts, 3=lockoutSeconds
+// KEYS: 1=code hash key, 2=attempts key, 3=lock key, 4=strikes key (how
+//       many times this identifier was locked — the ladder step)
+// ARGV: 1=candidateHash, 2=maxAttempts, 3=strikes memory seconds,
+//       4..n=lock seconds per step (the last one repeats)
 const VERIFY_LUA = `
 if redis.call('EXISTS', KEYS[3]) == 1 then
   return {'locked', redis.call('TTL', KEYS[3])}
@@ -51,17 +69,22 @@ end
 -- guessing the 6-digit code itself, which the attempt counter below
 -- already bounds at 5 tries.
 if stored == ARGV[1] then
-  redis.call('DEL', KEYS[1], KEYS[2])
+  redis.call('DEL', KEYS[1], KEYS[2], KEYS[4])
   return {'ok', 0}
 end
 local attempts = redis.call('INCR', KEYS[2])
 if attempts == 1 then
-  redis.call('EXPIRE', KEYS[2], ARGV[3])
+  redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3]))
 end
 if attempts >= tonumber(ARGV[2]) then
-  redis.call('SET', KEYS[3], '1', 'EX', ARGV[3])
-  redis.call('DEL', KEYS[1])
-  return {'locked', tonumber(ARGV[3])}
+  local strikes = redis.call('INCR', KEYS[4])
+  redis.call('EXPIRE', KEYS[4], tonumber(ARGV[3]))
+  local step = 3 + strikes
+  if step > #ARGV then step = #ARGV end
+  local lock = tonumber(ARGV[step])
+  redis.call('SET', KEYS[3], '1', 'EX', lock)
+  redis.call('DEL', KEYS[1], KEYS[2])
+  return {'locked', lock}
 end
 return {'invalid', tonumber(ARGV[2]) - attempts}
 `;
@@ -88,7 +111,6 @@ return {'invalid', tonumber(ARGV[2]) - attempts}
 export class OtpService {
   private readonly codeTtlSeconds: number;
   private readonly maxAttempts: number;
-  private readonly lockoutSeconds: number;
   private readonly devFixedCode: boolean;
   private readonly codeSecret: string;
   private readonly keyPepper: string;
@@ -101,12 +123,17 @@ export class OtpService {
     private readonly config: ConfigService,
     private readonly costGuard: CostGuardService,
     private readonly appConfig: AppConfigService,
+    @Optional() private readonly countries?: CountriesService,
+    @Optional() private readonly ops?: OpsStateService,
+    // Owner 2026-10-22 (audit #4 §7): OTP delivery SLO.
+    @Optional() private readonly slo?: SloMetricsService,
+    // 2026-10-24 (abuse batch B, item 10): prefix velocity + sign-up cap.
+    @Optional() private readonly smsAbuse?: SmsAbuseGuardService,
   ) {
     this.codeTtlSeconds = this.config.getOrThrow<number>(
       'OTP_CODE_TTL_SECONDS',
     );
     this.maxAttempts = this.config.getOrThrow<number>('OTP_MAX_ATTEMPTS');
-    this.lockoutSeconds = this.config.getOrThrow<number>('OTP_LOCKOUT_SECONDS');
     this.devFixedCode = this.config.getOrThrow<boolean>('OTP_DEV_FIXED_CODE');
     this.codeSecret = this.config.getOrThrow<string>('OTP_CODE_SECRET');
     this.keyPepper = this.config.getOrThrow<string>('OTP_KEY_PEPPER');
@@ -132,7 +159,38 @@ export class OtpService {
     // so dev/e2e exercise the same path production does).
     if (channel === 'phone') {
       await this.assertSmsDestinationAllowed(identifier);
-      await this.costGuard.consume('sms');
+      // Owner 2026-10-16 (economy guard): while third-party spend is above
+      // the rule, SMS goes only to sign-in / registration and password
+      // reset; contact checks and the like wait.
+      if (
+        purpose !== 'login' &&
+        purpose !== 'reset' &&
+        (await this.ops?.isEconomyLimited())
+      ) {
+        throw new HttpException(
+          {
+            code: ErrorCode.PROVIDER_BUDGET_EXCEEDED,
+            message:
+              'This service is temporarily unavailable. Try again later.',
+          },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      const country = this.countries?.countryOfPhone(identifier) ?? null;
+      // 2026-10-24 (abuse batch B, item 10): SMS pumping. A tripped prefix
+      // sends nothing but answers like a normal request (no signal to the
+      // attacker); the sign-up daily cap throws 503.
+      // Local dev and e2e (NODE_ENV development / test) send no real SMS and
+      // tests reuse one number range, so it is not pumping.
+      if (
+        this.smsAbuse &&
+        this.smsCostsMoney() &&
+        (await this.smsAbuse.check(identifier, purpose, country)) === 'blocked'
+      ) {
+        return;
+      }
+      // Owner 2026-10-22 (audit #4 §6): priced by the destination country.
+      await this.costGuard.consume('sms', 1, { country });
     } else {
       await this.costGuard.consume('email');
     }
@@ -151,6 +209,8 @@ export class OtpService {
 
     if (channel === 'phone') {
       await this.smsProvider.send(identifier, code);
+      // Owner 2026-10-22 (audit #4 §7): verified / sent = delivery SLO.
+      this.slo?.count('otpSent');
     } else {
       const email = this.normalize('email', identifier);
       const ttlMinutes = Math.ceil(this.codeTtlSeconds / 60);
@@ -187,15 +247,20 @@ export class OtpService {
 
     const result = (await this.redis.eval(
       VERIFY_LUA,
-      3,
+      4,
       this.codeKey(idHash),
       this.attemptsKey(idHash),
       this.lockKey(idHash),
+      this.strikesKey(idHash),
       candidateHash,
       this.maxAttempts,
-      this.lockoutSeconds,
+      OTP_LOCKOUT_MEMORY_SECONDS,
+      ...OTP_LOCKOUT_SCHEDULE_SECONDS,
     )) as [OtpVerifyResult, number];
 
+    if (result[0] === 'ok' && channel === 'phone') {
+      this.slo?.count('otpVerified');
+    }
     return result[0];
   }
 
@@ -247,16 +312,29 @@ export class OtpService {
     return token;
   }
 
+  /** False in local dev and e2e: no carrier is paid there, and tests reuse
+   * one number range (staging / production never run on the mock). */
+  private smsCostsMoney(): boolean {
+    const env = this.config.get<string>('NODE_ENV') ?? 'production';
+    return env !== 'development' && env !== 'test';
+  }
+
   /** Also used by support's phone change (admin-users). */
   async assertSmsDestinationAllowed(e164: string): Promise<void> {
     const allowed = await this.allowedSmsCountries();
     const verdict = checkSmsDestination(e164, allowed);
     if (verdict === 'ok') return;
+    // Owner 2026-10-05: the app offers "tell me when it opens" for the
+    // number's country when LawBid is not switched on there.
+    const countryCode = this.countries?.countryOfPhone(e164) ?? null;
     throw new HttpException(
       {
         code: ErrorCode.PHONE_COUNTRY_NOT_SUPPORTED,
-        message: 'SMS codes can only be sent to supported US mobile numbers.',
-        details: { reason: verdict, allowedCountries: allowed },
+        message:
+          verdict === 'country_not_allowed'
+            ? 'LawBid is not available in this country yet.'
+            : 'SMS codes can only be sent to supported mobile numbers.',
+        details: { reason: verdict, allowedCountries: allowed, countryCode },
       },
       HttpStatus.BAD_REQUEST,
     );
@@ -266,6 +344,20 @@ export class OtpService {
    * alpha-2 codes) if well-formed and non-empty, else the
    * SMS_ALLOWED_COUNTRY_CODES env fallback (default 'US'). */
   private async allowedSmsCountries(): Promise<string[]> {
+    const extra = await this.storedSmsCountries();
+    // Owner 2026-10-05: codes go to the countries switched on in Система →
+    // Страны; the stored list adds territories without their own regions.
+    if (this.countries) {
+      try {
+        return await this.countries.smsCountries(extra);
+      } catch {
+        // countries unreadable -> the stored list alone
+      }
+    }
+    return extra;
+  }
+
+  private async storedSmsCountries(): Promise<string[]> {
     let stored: unknown;
     try {
       stored = (await this.appConfig.getConfig())[
@@ -324,13 +416,17 @@ export class OtpService {
   }
 
   private codeKey(idHash: string): string {
-    return `otp:code:${idHash}`;
+    return ck(idHash, `otp:code:${idHash}`);
   }
   private attemptsKey(idHash: string): string {
-    return `otp:att:${idHash}`;
+    return ck(idHash, `otp:att:${idHash}`);
   }
+  private strikesKey(idHash: string): string {
+    return ck(idHash, `otp:strikes:${idHash}`);
+  }
+
   private lockKey(idHash: string): string {
-    return `otp:lock:${idHash}`;
+    return ck(idHash, `otp:lock:${idHash}`);
   }
   /** The raw link token never becomes a Redis key (same reason as
    * identifiers): only its HMAC does. */

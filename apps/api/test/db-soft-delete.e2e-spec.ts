@@ -18,11 +18,11 @@ import { IdentityService } from '../src/modules/auth/services/identity.service';
 /**
  * docs/02_DATABASE.md §1.4: reads exclude soft-deleted rows by default via
  * the Prisma extension (not by hand), with an explicit opt-out. Real
- * CockroachDB, the DI-provided PrismaService (the same instance every
+ * PostgreSQL, the DI-provided PrismaService (the same instance every
  * service gets), users / cases / posts / files / comments.
  */
 describe('DB soft delete (e2e) — docs/02 §1.4', () => {
-  // App boot + CockroachDB fixtures exceed Jest's 5 s default under load.
+  // App boot + PostgreSQL fixtures exceed Jest's 5 s default under load.
   jest.setTimeout(60_000);
 
   let app: INestApplication;
@@ -92,7 +92,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
       },
     });
     const mkCase = (deleted: boolean) =>
-      raw.case.create({
+      prisma.case.create({
         data: {
           client_id: liveUser.id,
           title: `case-${tag}`,
@@ -106,7 +106,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     liveCase = await mkCase(false);
     deadCase = await mkCase(true);
     const mkPost = (deleted: boolean) =>
-      raw.post.create({
+      prisma.post.create({
         data: {
           author_id: liveUser.id,
           body: `post-${tag}`,
@@ -115,7 +115,7 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
       });
     livePost = await mkPost(false);
     deadPost = await mkPost(true);
-    await raw.comment.createMany({
+    await prisma.comment.createMany({
       data: [
         { post_id: livePost.id, author_id: liveUser.id, body: 'live' },
         {
@@ -267,9 +267,11 @@ describe('DB soft delete (e2e) — docs/02 §1.4', () => {
     });
 
     it('rows are never physically deleted by the filter, and writes still reach them', async () => {
-      expect(await raw.case.count({ where: { client_id: liveUser.id } })).toBe(
-        2,
-      );
+      expect(
+        await prisma.case.count({
+          where: withDeleted({ client_id: liveUser.id }),
+        }),
+      ).toBe(2);
       // A restore is a plain update — writes are not filtered.
       await prisma.file.update({
         where: { id: deadFile.id },

@@ -13,12 +13,11 @@ import {
 } from 'class-validator';
 import { LicenseStatus, VerificationStatus } from '@prisma/client';
 import { ISO_639_1_CODES } from '../../users/iso-639-1';
-import {
-  BIO_MAX_LENGTH,
-  MAX_LANGUAGES,
-} from '../../users/dto/onboarding-profile.dto';
+import { MAX_LANGUAGES } from '../../users/dto/onboarding-profile.dto';
 import { USERNAME_PATTERN } from '../../users/services/username.util';
 import { SelectedPracticeAreaDto } from './practice-areas.dto';
+import { tidy } from '../../../common/utils/tidy-text';
+import { MaxTextChars } from '../../../common/app-settings/max-text-chars.decorator';
 
 /** docs/03 §4.1: first/last name 1-50, firm up to 80. */
 export const ATTORNEY_NAME_MAX = 50;
@@ -47,18 +46,20 @@ export class UpdateAttorneyProfileDto {
   @Transform(trim)
   @IsString()
   @Length(1, ATTORNEY_NAME_MAX)
+  @MaxTextChars('limits.name_chars')
   firstName?: string;
 
   @IsOptional()
   @Transform(trim)
   @IsString()
   @Length(1, ATTORNEY_NAME_MAX)
+  @MaxTextChars('limits.name_chars')
   lastName?: string;
 
   @IsOptional()
-  @Transform(trim)
+  @Transform(tidy)
   @IsString()
-  @MaxLength(BIO_MAX_LENGTH)
+  @MaxTextChars('limits.bio_chars')
   bio?: string;
 
   @IsOptional()
@@ -104,12 +105,54 @@ export class UsernameAvailableQueryDto {
   @IsString()
   @Length(1, 64)
   u!: string;
+
+  /** The name as typed on the form (suggestions); the saved one if absent. */
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  first?: string;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  last?: string;
+}
+
+/** GET /attorneys/username-suggestions?u=&first=&last= (owner
+ * 2026-10-18, «как в инсте»): free handles for the sign-up form. */
+export class UsernameSuggestionsQueryDto {
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(64)
+  u?: string;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  first?: string;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  last?: string;
+}
+
+export class UsernameSuggestionsDto {
+  @ApiProperty({ type: [String] })
+  suggestions!: string[];
 }
 
 export const USERNAME_UNAVAILABLE_REASONS = [
   'invalid',
   'reserved',
   'taken',
+  'held',
+  'similar',
 ] as const;
 export type UsernameUnavailableReason =
   (typeof USERNAME_UNAVAILABLE_REASONS)[number];
@@ -128,6 +171,13 @@ export class UsernameAvailabilityDto {
     description: 'Why it is not available; null when available.',
   })
   reason!: UsernameUnavailableReason | null;
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Free handles to offer instead (owner 2026-10-18); empty when available.',
+  })
+  suggestions!: string[];
 }
 
 export class StateRefDto {
@@ -144,6 +194,15 @@ export class RatingDto {
 
   @ApiProperty()
   count!: number;
+}
+
+/** Owner 2026-10-20: «Ответов: N, лучших: M» from «Вопрос юристу». */
+export class QaStatsDto {
+  @ApiProperty({ description: 'Published answers to public questions.' })
+  answers!: number;
+
+  @ApiProperty({ description: 'Of them chosen as the best answer.' })
+  best!: number;
 }
 
 export class ProfileCountersDto {
@@ -188,6 +247,10 @@ export class OwnAttorneyProfileDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
+  /** Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION). */
+  @ApiProperty({ type: 'integer' })
+  version!: number;
+
   @ApiProperty()
   username!: string;
 
@@ -219,6 +282,27 @@ export class OwnAttorneyProfileDto {
   })
   verifiedBadge!: boolean;
 
+  @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы).',
+  })
+  advertisingLabel!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares.',
+  })
+  publicUrl!: string;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description:
+      'Owner 2026-10-05: trust level — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both.',
+  })
+  trustLevel!: number;
+
   /** OQ-029: the current name is far from the verified one, so the blue
    * check is hidden until it is changed back (own profile only). */
   @ApiProperty()
@@ -248,7 +332,19 @@ export class OwnAttorneyProfileDto {
 
 /** GET /attorneys/:username — what any signed-in user may see
  * (docs/03 §4.2, §6). Never bar numbers, documents or contacts. */
+export class ProfileFirmDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+}
+
 export class PublicAttorneyProfileDto {
+  /** Owner 2026-10-14: the firm the lawyer works in (active member). */
+  @ApiProperty({ type: ProfileFirmDto, nullable: true })
+  firm!: ProfileFirmDto | null;
+
   @ApiProperty({ format: 'uuid' })
   id!: string;
 
@@ -293,6 +389,27 @@ export class PublicAttorneyProfileDto {
   verifiedBadge!: boolean;
 
   @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы).',
+  })
+  advertisingLabel!: boolean;
+
+  @ApiProperty({
+    description:
+      'Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares.',
+  })
+  publicUrl!: string;
+
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description:
+      'Owner 2026-10-05: what LawBid checked — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both (GET /trust/attorneys/:id for details).',
+  })
+  trustLevel!: number;
+
+  @ApiProperty({
     type: [StateRefDto],
     description: 'States of verified licenses only.',
   })
@@ -304,6 +421,9 @@ export class PublicAttorneyProfileDto {
   @ApiProperty({ type: RatingDto })
   rating!: RatingDto;
 
+  @ApiProperty({ type: QaStatsDto })
+  qa!: QaStatsDto;
+
   @ApiProperty({ type: ProfileCountersDto })
   counters!: ProfileCountersDto;
 
@@ -314,6 +434,10 @@ export class PublicAttorneyProfileDto {
     description: 'The viewer follows this attorney (docs/05 §6.2).',
   })
   isFollowing!: boolean;
+
+  /** Owner 2026-10-20: the attorney takes consultation bookings now. */
+  @ApiProperty()
+  consultationEnabled!: boolean;
 
   /** OQ-028: the viewer blocked this user. */
   @ApiProperty()

@@ -7,6 +7,9 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/trust/application/trust_providers.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
@@ -15,6 +18,7 @@ import 'package:lawbid/features/verification/presentation/screens/verification_w
 import 'package:lawbid/features/verification/verification_providers.dart';
 
 import '../../helpers/ux_harness.dart';
+import '../profile/profile_fakes.dart';
 
 const _states = {'AL': 'Alabama', 'AK': 'Alaska', 'NY': 'New York'};
 
@@ -42,9 +46,16 @@ class FakeVerificationBackend
   /// While set, uploads wait on it (an "unfinished" upload).
   Completer<void>? uploadGate;
 
+  /// Owner 2026-10-18: seconds of the server's lock on adding a bar
+  /// number (0 = none). A number 'NOFMT' does not fit its state's format.
+  int lockSeconds = 0;
+  bool? lastManualReview;
+  String? lastNote;
+
   int createCalls = 0;
   int submitCalls = 0;
   String? lastComment;
+  bool lastAttestation = false;
   final List<DocSlot> attached = [];
   final Map<String, ScanState> _files = {};
   int _seq = 0;
@@ -79,6 +90,7 @@ class FakeVerificationBackend
         identityRequired: identityRequired,
         submissionsLast30Days: submissionsLast30Days,
         maxSubmissions30Days: maxSubmissions30Days,
+        barAttemptsRetryAfterSeconds: lockSeconds,
       );
 
   @override
@@ -107,7 +119,23 @@ class FakeVerificationBackend
     required String stateCode,
     required String barNumber,
     DateTime? expiresAt,
+    bool manualReview = false,
   }) async {
+    lastManualReview = manualReview;
+    if (!manualReview && lockSeconds > 0) {
+      throw ApiException(
+        code: ApiErrorCodes.barAttemptsCooldown,
+        message: 'locked',
+        details: {'retryAfterSeconds': lockSeconds},
+      );
+    }
+    if (!manualReview && barNumber == 'NOFMT') {
+      throw const ApiException(
+        code: ApiErrorCodes.barNumberFormatInvalid,
+        message: 'Bar number not found for this state.',
+        details: {'stateCode': 'AL'},
+      );
+    }
     if (barNumber == 'TAKEN') {
       throw const ApiException(
         code: ApiErrorCodes.licenseAlreadyRegistered,
@@ -124,6 +152,7 @@ class FakeVerificationBackend
           barNumber: barNumber,
           status: LicenseStatus.pending,
           expiresAt: expiresAt,
+          manualReview: manualReview,
         ),
       ],
     );
@@ -149,7 +178,9 @@ class FakeVerificationBackend
     String requestId, {
     required String fileId,
     required DocSlot slot,
+    String? note,
   }) async {
+    lastNote = note;
     if (_files[fileId] != ScanState.clean) {
       throw const ApiException(
         code: ApiErrorCodes.fileNotAttachable,
@@ -184,10 +215,14 @@ class FakeVerificationBackend
   }
 
   @override
-  Future<VerificationRequest> submit(String requestId,
-      {String? comment}) async {
+  Future<VerificationRequest> submit(
+    String requestId, {
+    String? comment,
+    bool attestation = false,
+  }) async {
     submitCalls++;
     lastComment = comment;
+    lastAttestation = attestation;
     request = _copy(
       status: RequestStatus.submitted,
       submittedAt: DateTime.utc(2026, 9, 27),
@@ -257,7 +292,9 @@ class FakeDocumentSource implements DocumentSource {
 
   @override
   Future<PickedDocument?> capture(
-      BuildContext context, CaptureGuide guide) async {
+    BuildContext context,
+    CaptureGuide guide,
+  ) async {
     captures++;
     return _doc(guide == CaptureGuide.selfie ? 'selfie.jpg' : 'photo.jpg');
   }
@@ -279,6 +316,7 @@ Widget verificationApp({
   bool disableAnimations = true,
   double textScale = 1,
   List<Override> extra = const [],
+  OwnTrust? trust,
 }) {
   final router = GoRouter(
     initialLocation: initial,
@@ -297,12 +335,14 @@ Widget verificationApp({
     overrides: uxOverrides(
       extra: [
         verificationRepositoryProvider.overrideWithValue(backend),
+        practicesRepositoryProvider.overrideWithValue(FakePracticesRepo()),
         fileUploadRepositoryProvider.overrideWithValue(backend),
         documentSourceProvider
             .overrideWithValue(source ?? FakeDocumentSource()),
         scanPollingProvider.overrideWithValue(
           const ScanPolling(interval: Duration(milliseconds: 10), maxPolls: 3),
         ),
+        myTrustProvider.overrideWith((ref) async => trust ?? trustOf()),
         ...extra,
       ],
     ),
@@ -338,11 +378,68 @@ VerificationRequest draft({
       documents: [
         for (final s in states) doc(DocSlot.barLicense(s), id: 'doc-bar-$s'),
         if (identity) ...[
-          doc(DocSlot.identity(IdDocumentType.driversLicense, DocSide.front),
-              id: 'doc-id-front'),
-          doc(DocSlot.identity(IdDocumentType.driversLicense, DocSide.back),
-              id: 'doc-id-back'),
+          doc(
+            DocSlot.identity(IdDocumentType.driversLicense, DocSide.front),
+            id: 'doc-id-front',
+          ),
+          doc(
+            DocSlot.identity(IdDocumentType.driversLicense, DocSide.back),
+            id: 'doc-id-back',
+          ),
         ],
         if (selfie) doc(const DocSlot.selfie(), id: 'doc-selfie'),
       ],
+    );
+
+/// Owner 2026-10-07: the attorney's trust facts behind the status screen
+/// — [badge] is the blue check; off = a license declared under oath.
+OwnTrust trustOf({bool badge = true, bool licenseConfirmed = true}) => OwnTrust(
+      public: PublicTrust(
+        attorneyId: 'att-1',
+        level: badge ? 2 : 0,
+        badge: badge,
+        cleared: badge,
+        signals: TrustSignals(
+          selfAttested: true,
+          licenseConfirmed: licenseConfirmed,
+          licenseConfirmedBy:
+              licenseConfirmed ? LicenseConfirmedBy.registry : null,
+          documentsVerified: false,
+          stripeKyc: false,
+          stripeIdentity: false,
+          identityConfirmed: badge,
+          nameCheck: NameCheck.unknown,
+          firmLinkConfirmed: false,
+        ),
+        acceptsPayments: false,
+        canBid: true,
+        registryLinks: const [],
+      ),
+      bidsGate: const TrustGate(
+        ok: true,
+        reason: null,
+        missing: [],
+        currentLevel: 0,
+        hold: null,
+      ),
+      paymentsGate: const TrustGate(
+        ok: true,
+        reason: null,
+        missing: [],
+        currentLevel: 0,
+        hold: null,
+      ),
+      requirements: const {},
+      missing: const [],
+      staffStatus: TrustStaffStatus.selfDeclared,
+      documentsRequested: null,
+      payoutDelayDays: null,
+      nextSteps: const [],
+      firmLink: const FirmLink(
+        status: FirmLinkStatus.none,
+        source: null,
+        at: null,
+        emailDomain: null,
+      ),
+      stripeBusinessType: null,
     );

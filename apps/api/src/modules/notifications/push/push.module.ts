@@ -1,16 +1,22 @@
+import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
+import { FeatureFlagsModule } from '../../feature-flags/feature-flags.module';
 import { DynamicModule, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { createEmailProvider } from '../../auth/providers/email/email-provider.factory';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { NotificationsModule } from '../notifications.module';
+import { FilesModule } from '../../files/files.module';
 import { DynamicPushSender } from './fcm-push.sender';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { LoggingPushSender } from './logging-push.sender';
 import { NotificationTemplateService } from './notification-template.service';
 import { PushDispatcher, type PushModuleOptions } from './push-dispatcher';
 import { PushTokensService } from './push-tokens.service';
+import { ApnsVoipSender } from './apns-voip.sender';
+import { VoipTokensService } from './voip-tokens.service';
 import {
   NOTIFICATION_EMAIL,
   PUSH_MODULE_OPTIONS,
@@ -27,19 +33,31 @@ export class PushModule {
   static register(options: PushModuleOptions): DynamicModule {
     return {
       module: PushModule,
-      imports: [NotificationsModule],
+      // FeatureFlagsModule: «Вход и письма по почте» gates the e-mail leg.
+      // FilesModule (owner 2026-10-22): the sender's photo on a message push.
+      imports: [NotificationsModule, FeatureFlagsModule, FilesModule],
       providers: [
         { provide: PUSH_MODULE_OPTIONS, useValue: options },
         PushTokensService,
+        // Owner 2026-10-17: iPhone calls as VoIP pushes (APNs directly).
+        VoipTokensService,
+        ApnsVoipSender,
         {
           provide: PUSH_SENDER,
-          inject: [SecretsService, PushTokensService, REDIS_CLIENT, PinoLogger],
+          inject: [
+            SecretsService,
+            PushTokensService,
+            REDIS_CLIENT,
+            PinoLogger,
+            { token: SloMetricsService, optional: true },
+          ],
           // Owner 2026-10-01: FCM keys from the admin or the env, per send.
           useFactory: (
             secrets: SecretsService,
             tokens: PushTokensService,
             redis: Redis,
             logger: PinoLogger,
+            slo?: SloMetricsService,
           ): PushSender =>
             new DynamicPushSender(
               secrets,
@@ -47,11 +65,12 @@ export class PushModule {
               redis,
               logger,
               new LoggingPushSender(logger),
+              slo,
             ),
         },
         {
           provide: NOTIFICATION_EMAIL,
-          inject: [ConfigService, PinoLogger, SecretsService],
+          inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
           useFactory: createEmailProvider,
         },
         NotificationTemplateService,

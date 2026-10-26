@@ -19,6 +19,7 @@ class StickerPackDto {
     required this.installed,
     required this.stickerCount,
     required this.installCount,
+    required this.priceStars,
     required this.stickers,
   });
 
@@ -37,6 +38,9 @@ class StickerPackDto {
   final bool installed;
   final int stickerCount;
   final int installCount;
+
+  /// Stars to add the pack; 0 = free (owner 2026-10-20).
+  final int priceStars;
   final List<StickerDto> stickers;
 
   Map<String, Object?> toJson() => _$StickerPackDtoToJson(this);

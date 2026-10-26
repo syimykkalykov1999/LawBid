@@ -41,13 +41,19 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
     return (codeToId, {for (final e in codeToId.entries) e.value: e.key});
   }
 
-  Future<void> _save({required bool useProfile, List<String>? ids}) async {
+  Future<void> _save({
+    required bool useProfile,
+    List<String>? ids,
+    bool? urgentOnly,
+  }) async {
     final t = ref.read(translatorProvider);
     setState(() => _saving = true);
     try {
-      await ref
-          .read(notificationsRepositoryProvider)
-          .setNewCaseAlerts(useProfile: useProfile, practiceAreaIds: ids);
+      await ref.read(notificationsRepositoryProvider).setNewCaseAlerts(
+            useProfile: useProfile,
+            practiceAreaIds: ids,
+            urgentOnly: urgentOnly,
+          );
       ref.invalidate(newCaseAlertsProvider);
       if (mounted) showAppSnackBar(context, t.t('notif.newCases.saved'));
     } on Object catch (e) {
@@ -74,6 +80,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
       },
       multi: true,
       searchHint: t.t('notif.newCases.search'),
+      remoteSearch: practiceRemoteSearch(ref),
     );
     if (picked == null || !mounted) return;
     final ids = [
@@ -142,7 +149,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
                     selected
                         ? AppIcons.radioButtonCheckedRounded
                         : AppIcons.radioButtonUncheckedRounded,
-                    color: selected ? colors.goldDark : colors.textSecondary,
+                    color: selected ? colors.iconTint : colors.textSecondary,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
@@ -221,6 +228,30 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
               style: type.caption.copyWith(color: colors.dangerText),
             ),
           ),
+        // Owner 2026-10-05: only urgent cases (a level or a near date).
+        Semantics(
+          toggled: a.urgentOnly,
+          child: SwitchListTile.adaptive(
+            key: const ValueKey('alerts-urgent-only'),
+            contentPadding: EdgeInsets.zero,
+            value: a.urgentOnly,
+            activeTrackColor: colors.gold,
+            title: Text(
+              t.t('notif.newCases.urgentOnly'),
+              style: type.body.copyWith(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              t.t('notif.newCases.urgentOnly.hint'),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+            onChanged: _saving
+                ? null
+                : (v) => _save(useProfile: a.useProfile, urgentOnly: v),
+          ),
+        ),
         Wrap(
           spacing: AppSpacing.sm,
           children: [
@@ -228,7 +259,7 @@ class _NewCaseAlertsSectionState extends ConsumerState<NewCaseAlertsSection> {
               key: const ValueKey('alerts-choose'),
               onPressed:
                   _saving || tree.isEmpty ? null : () => _choose(a, tree),
-              icon: AppIcon(AppIcons.tuneRounded, color: colors.goldDark),
+              icon: AppIcon(AppIcons.tuneRounded, color: colors.iconTint),
               label: Text(
                 t.t('notif.newCases.choose'),
                 style: TextStyle(color: colors.goldDark),

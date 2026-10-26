@@ -1,35 +1,67 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/video_prefetch.dart';
+import 'package:lawbid/core/navigation/shell/web_media_width.dart';
+import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
+import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
+import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
-import 'package:lawbid/features/social/social_routes.dart';
 
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
 /// for the next one, the current reel plays with sound and loops; tap
 /// pauses, double tap likes; actions on the right, author and caption at
-/// the bottom, a thin progress line.
+/// the bottom, a thin progress line. Owner 2026-10-05: a back arrow at the
+/// top left and a wide, low button pinned above the bottom ("Смотреть" /
+/// "Читать") that opens the reel's inner page — title, text, photos and
+/// documents.
 class ReelsScreen extends ConsumerStatefulWidget {
-  const ReelsScreen({this.initial = const [], this.initialIndex = 0, super.key});
+  const ReelsScreen({
+    this.initial = const [],
+    this.initialIndex = 0,
+    this.embedded = false,
+    this.filter,
+    this.practice,
+    super.key,
+  });
+
+  /// Owner 2026-10-12: the Reels tab of the feed — the player without its
+  /// own back row, under the feed's filter row.
+  final bool embedded;
+
+  /// Keeps only the reels it accepts (the tab's content-mode filter).
+  final bool Function(Post)? filter;
+
+  /// The tab's topic: a practice category, filtered by the server with the
+  /// same hidden-tag algorithm as the feed.
+  final String? practice;
 
   /// Opened from a feed card: that reel first, then the reels feed.
   final List<Post> initial;
   final int initialIndex;
 
+  /// Owner 2026-10-15: pushed on the tab's own navigator, so the bottom nav
+  /// bar stays (as on the Reels tab); from a screen already over the tabs
+  /// there is no bar, and the player takes the whole screen.
   static Future<void> open(BuildContext context, {Post? from}) =>
-      Navigator.of(context, rootNavigator: true).push(
+      Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ReelsScreen(initial: [if (from != null) from]),
         ),
@@ -48,26 +80,89 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   bool _loading = false;
   Object? _error;
   int _index = 0;
+  late final ReelPlayersOpen _open = ref.read(reelPlayersOpenProvider.notifier);
+  bool _counted = false;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
     _load();
+    if (!widget.embedded) {
+      _counted = true;
+      Future.microtask(_open.opened);
+    }
+  }
+
+  /// Owner 2026-10-23 (Instagram): the first bytes of the next three reels
+  /// are fetched before the finger gets to them (the players of the two
+  /// neighbours are already open — see WarmPlan).
+  void _warmAhead(List<Post> items, int index) {
+    if (kIsWeb) return;
+    HlsPrefetcher.instance.prefetchAll([
+      for (final i in WarmPlan.at(index, items.length).prefetch)
+        if (items[i].video?.ready ?? false) items[i].video!.playbackUrl!,
+    ]);
   }
 
   @override
   void dispose() {
     _pages.dispose();
+    if (_counted) Future.microtask(_open.closed);
     super.dispose();
+  }
+
+  /// The bottom nav bar is on screen under this player (it is a tab's page,
+  /// not a screen over the tabs).
+  bool get _underNavBar =>
+      Navigator.of(context) != Navigator.of(context, rootNavigator: true);
+
+  /// Owner 2026-10-19 (Instagram): while the viewer watches, fresh reels
+  /// join the stream on their own — when the next page loads, the newest
+  /// page is read too (at most every [_freshGap]) and the reels not seen
+  /// yet come in a few reels ahead, never under the one playing.
+  DateTime _freshAt = DateTime.now();
+  static const _freshGap = Duration(minutes: 3);
+
+  Future<void> _mixFresh() async {
+    if (DateTime.now().difference(_freshAt) < _freshGap) return;
+    _freshAt = DateTime.now();
+    try {
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            practice: widget.practice,
+          );
+      if (!mounted) return;
+      final seen = _items.map((p) => p.id).toSet();
+      final fresh = [
+        for (final p in page.items)
+          if (!seen.contains(p.id)) p,
+      ];
+      if (fresh.isEmpty) return;
+      // After the reel on screen and the next one (already warmed).
+      final deleted = ref.read(deletedPostsProvider);
+      final shown = [
+        for (final p in _items)
+          if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
+      ];
+      final current = _index < shown.length ? shown[_index] : null;
+      final at = current == null
+          ? _items.length
+          : (_items.indexOf(current) + 2).clamp(0, _items.length);
+      setState(() => _items.insertAll(at, fresh));
+    } on Object {
+      // Quiet: the stream goes on without them.
+    }
   }
 
   Future<void> _load() async {
     if (_loading || !_more) return;
+    unawaited(_mixFresh());
     setState(() => _loading = true);
     try {
-      final page =
-          await ref.read(reelsRepositoryProvider).reels(cursor: _cursor);
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            cursor: _cursor,
+            practice: widget.practice,
+          );
       final seen = _items.map((p) => p.id).toSet();
       setState(() {
         _items.addAll(page.items.where((p) => !seen.contains(p.id)));
@@ -82,88 +177,217 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     }
   }
 
+  /// Owner 2026-10-19 (Instagram): pull down on the first reel (or tap the
+  /// open tab in the nav bar) — the newest reels from the start.
+  Future<void> _refresh() async {
+    try {
+      final page = await ref.read(reelsRepositoryProvider).reels(
+            practice: widget.practice,
+          );
+      if (!mounted) return;
+      // A reel opened from a feed card stays first.
+      final keep = [...widget.initial];
+      final seen = keep.map((p) => p.id).toSet();
+      setState(() {
+        _items
+          ..clear()
+          ..addAll(keep)
+          ..addAll(page.items.where((p) => !seen.contains(p.id)));
+        _cursor = page.nextCursor;
+        _more = page.hasMore;
+        _error = null;
+        _index = 0;
+        _freshAt = DateTime.now();
+      });
+      if (_pages.hasClients) _pages.jumpToPage(0);
+    } on Object catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  /// The player under a pull-to-refresh (white on the dark video).
+  Widget _refreshable(Widget child) => RefreshIndicator(
+        color: Colors.white,
+        backgroundColor: Colors.black54,
+        edgeOffset: MediaQuery.paddingOf(context).top + 48,
+        onRefresh: _refresh,
+        child: child,
+      );
+
   @override
   Widget build(BuildContext context) {
+    // Owner 2026-10-19: the reel I just published comes right after the one
+    // on screen (and stays in the list), once its video is ready.
+    ref.listen(freshOwnReelProvider, (_, post) {
+      if (post == null || _items.any((p) => p.id == post.id)) return;
+      setState(() {
+        final at = (_index + 1).clamp(0, _items.length);
+        _items.insert(at, post);
+      });
+    });
     final t = ref.watch(translatorProvider);
     final muted = ref.watch(reelsMutedProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            if (_items.isEmpty)
-              Center(
-                child: _loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const AppIcon(AppIcons.filmReelOutlined,
-                                size: 48, color: Colors.white70),
-                            const SizedBox(height: AppSpacing.md),
-                            Text(
-                              _error != null
-                                  ? errorText(t, _error!)
-                                  : t.t('reels.empty'),
-                              textAlign: TextAlign.center,
-                              style:
-                                  type.body.copyWith(color: Colors.white70),
-                            ),
-                          ],
+    // A reel deleted from its "⋯" menu leaves the list.
+    final deleted = ref.watch(deletedPostsProvider);
+    final items = [
+      for (final p in _items)
+        if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
+    ];
+    if (widget.embedded) {
+      return ColoredBox(
+        color: reelsBackdrop(
+          context,
+          Theme.of(context).scaffoldBackgroundColor,
+        ),
+        child: Padding(
+          padding: EdgeInsets.zero,
+          child: items.isEmpty
+              ? Center(
+                  child: _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text(
+                          _error != null
+                              ? errorText(t, _error!)
+                              : t.t('reels.empty'),
+                          textAlign: TextAlign.center,
+                          style: type.body.copyWith(color: Colors.white70),
+                        ),
+                )
+              : _refreshable(
+                  PageView.builder(
+                    controller: _pages,
+                    scrollDirection: Axis.vertical,
+                    itemCount: items.length,
+                    // Owner 2026-10-15: the neighbours are built (and warmed).
+                    allowImplicitScrolling: true,
+                    onPageChanged: (i) {
+                      setState(() => _index = i);
+                      if (i >= items.length - 3) _load();
+                      _warmAhead(items, i);
+                    },
+                    itemBuilder: (_, i) => WebReelFrame(
+                      child: _ReelPage(
+                        key: ValueKey(items[i].id),
+                        post: items[i],
+                        active: i == _index,
+                        warm: (i - _index).abs() == 1,
+                        muted: muted,
+                        embedded: true,
+                        soundButton: true,
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+      );
+    }
+    return SystemNavBandColor(
+      color: Colors.black,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light,
+        child: Scaffold(
+          backgroundColor: reelsBackdrop(
+            context,
+            Theme.of(context).scaffoldBackgroundColor,
+          ),
+          body: Stack(
+            children: [
+              if (items.isEmpty)
+                Center(
+                  child: _loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Padding(
+                          padding: const EdgeInsets.all(AppSpacing.xl),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const AppIcon(
+                                AppIcons.filmReelOutlined,
+                                size: 48,
+                                color: Colors.white70,
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              Text(
+                                _error != null
+                                    ? errorText(t, _error!)
+                                    : t.t('reels.empty'),
+                                textAlign: TextAlign.center,
+                                style:
+                                    type.body.copyWith(color: Colors.white70),
+                              ),
+                            ],
+                          ),
+                        ),
+                )
+              else
+                _refreshable(
+                  PageView.builder(
+                    controller: _pages,
+                    scrollDirection: Axis.vertical,
+                    itemCount: items.length,
+                    // Owner 2026-10-15: the neighbours are built (and warmed).
+                    allowImplicitScrolling: true,
+                    onPageChanged: (i) {
+                      setState(() => _index = i);
+                      if (i >= items.length - 3) _load();
+                      _warmAhead(items, i);
+                    },
+                    itemBuilder: (_, i) => WebReelFrame(
+                      child: _ReelPage(
+                        key: ValueKey(items[i].id),
+                        post: items[i],
+                        active: i == _index,
+                        warm: (i - _index).abs() == 1,
+                        muted: muted,
+                        embedded: _underNavBar,
+                      ),
+                    ),
+                  ),
+                ),
+              SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: t.t('common.back'),
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const AppIcon(
+                          AppIcons.arrowBackRounded,
+                          color: Colors.white,
+                          size: 26,
                         ),
                       ),
-              )
-            else
-              PageView.builder(
-                controller: _pages,
-                scrollDirection: Axis.vertical,
-                itemCount: _items.length,
-                onPageChanged: (i) {
-                  setState(() => _index = i);
-                  if (i >= _items.length - 3) _load();
-                },
-                itemBuilder: (_, i) => _ReelPage(
-                  post: _items[i],
-                  active: i == _index,
-                  muted: muted,
-                ),
-              ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: t.t('common.back'),
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const AppIcon(AppIcons.closeRounded,
-                          color: Colors.white),
-                    ),
-                    Text(
-                      t.t('reels.title'),
-                      style: type.titleMedium.copyWith(
-                          color: Colors.white, fontWeight: FontWeight.w700),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: t.t(muted ? 'reels.unmute' : 'reels.mute'),
-                      onPressed: () =>
-                          ref.read(reelsMutedProvider.notifier).toggle(),
-                      icon: AppIcon(
-                        muted ? AppIcons.speakerSlash : AppIcons.speakerHigh,
-                        color: Colors.white,
+                      Expanded(
+                        child: Text(
+                          t.t('reels.title'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.titleMedium.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      IconButton(
+                        tooltip: t.t(muted ? 'reels.unmute' : 'reels.mute'),
+                        onPressed: () =>
+                            ref.read(reelsMutedProvider.notifier).toggle(),
+                        icon: AppIcon(
+                          muted ? AppIcons.speakerSlash : AppIcons.speakerHigh,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -175,20 +399,43 @@ class _ReelPage extends ConsumerStatefulWidget {
     required this.post,
     required this.active,
     required this.muted,
+    this.warm = false,
+    this.embedded = false,
+    this.soundButton = false,
+    super.key,
   });
 
   final Post post;
   final bool active;
   final bool muted;
 
+  /// Owner 2026-10-19 (Instagram): the small speaker above the middle of
+  /// the reel (the Reels tab; the pushed player has it in its top bar).
+  final bool soundButton;
+
+  /// The next or previous reel: its stream is opened ahead.
+  final bool warm;
+
+  /// The Reels tab: the compact «Watch» strip sits right above the nav bar.
+  final bool embedded;
+
   @override
   ConsumerState<_ReelPage> createState() => _ReelPageState();
 }
 
 class _ReelPageState extends ConsumerState<_ReelPage> {
+  /// The viewer paused it (tap on the reel).
   bool _paused = false;
-  bool _expanded = false;
+
+  /// Owner 2026-10-19 (Instagram): paused while the finger is held down.
+  bool _held = false;
   final _progress = ValueNotifier<double>(0);
+
+  /// Owner 2026-10-20 (Instagram): a view is 3 s of real playback
+  /// (ReelVideo's onViewed); the server counts one per viewer per 24 h.
+  void _viewed() {
+    if (mounted) ref.read(socialActionsProvider).recordView(widget.post);
+  }
 
   @override
   void didUpdateWidget(_ReelPage old) {
@@ -203,204 +450,664 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     super.dispose();
   }
 
+  /// The inner page; the reel waits paused and plays on when back (see
+  /// `covered` in [build]).
+  Future<void> _openInside(Post p) => showPostAttachmentsSheet(
+        context,
+        media: p.media,
+        documents: p.attachments,
+      );
+
   @override
   Widget build(BuildContext context) {
     final p = ref.watch(
-            postOverridesProvider.select((m) => m[widget.post.id])) ??
+          postOverridesProvider.select((m) => m[widget.post.id]),
+        ) ??
         widget.post;
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final actions = ref.read(socialActionsProvider);
+    // Owner 2026-10-13: «Смотреть» only when the reel has attachments; with
+    // none the strip goes and the author, text and rail drop down.
+    final more = p.hasInner && ref.watch(innerCardsEnabledProvider);
+    // Owner 2026-10-20 (Instagram): the bottom block stands 12 dp above the
+    // nav bar (the shell already reports the bar as the bottom padding), the
+    // author drops to the bottom when there is no caption and rises by
+    // exactly the caption's height when there is one.
+    final moreSpace = more ? kReelMoreButtonSpace : AppSpacing.md;
     Future<void> run(Future<Object?> Function() a) async {
       final e = await a();
-      if (e != null && context.mounted) showAppSnackBar(context, errorText(t, e));
+      if (e != null && context.mounted) {
+        showAppSnackBar(context, errorText(t, e));
+      }
     }
 
+    // Owner 2026-10-05: anything opened over the reel (comments, the
+    // share sheet, the "⋯" menu, the author's profile, the inside) pauses
+    // it; back on the reel it plays on, unless the viewer paused it.
+    final covered = !(ModalRoute.of(context)?.isCurrent ?? true);
     final video = p.video;
+    // The title is not drawn twice when the text starts with it.
+    final title = (p.title ?? '').trim();
+    final body = p.body.trim();
     final caption = [
-      if ((p.title ?? '').trim().isNotEmpty) p.title!.trim(),
-      if (p.body.trim().isNotEmpty) p.body.trim(),
+      if (title.isNotEmpty && !body.startsWith(title)) title,
+      if (body.isNotEmpty) body,
     ].join('\n');
     const shadow = [Shadow(blurRadius: 8, color: Colors.black54)];
 
-    Widget rail(IconData icon, String label, int? count, VoidCallback onTap,
-            {Color? color}) =>
+    Widget rail(
+      IconData icon,
+      String label,
+      int? count,
+      VoidCallback onTap, {
+      Color? color,
+      VoidCallback? onCountTap,
+    }) =>
         Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
-          child: Semantics(
-            button: true,
-            label: label,
-            excludeSemantics: true,
-            child: GestureDetector(
-              onTap: onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                children: [
-                  AppIcon(icon, size: 30, color: color ?? Colors.white),
-                  if (count != null && count > 0) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      SocialFormat.count(f, count),
-                      style: type.caption.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          shadows: shadow),
+          // Owner 2026-10-13: Instagram-like rail — the count in 12, a tight
+          // step, whatever the system text size; the icon [kReelRailIcon]
+          // (owner 2026-10-19: bigger).
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          child: MediaQuery.withNoTextScaling(
+            child: Semantics(
+              button: true,
+              label: label,
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: onTap,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  children: [
+                    AppIcon(
+                      icon,
+                      size: kReelRailIcon,
+                      color: color ?? Colors.white,
                     ),
+                    if (count != null && count > 0) ...[
+                      const SizedBox(height: 2),
+                      GestureDetector(
+                        onTap: onCountTap ?? onTap,
+                        behavior: HitTestBehavior.opaque,
+                        child: Text(
+                          SocialFormat.count(f, count),
+                          style: type.caption.copyWith(
+                            fontSize: 13,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            shadows: shadow,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
         );
 
-    return DoubleTapLike(
-      onLike: () => run(() => actions.like(p)),
-      child: GestureDetector(
-        onTap: () => setState(() => _paused = !_paused),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (video != null)
-              ReelVideo(
-                video: video,
-                active: widget.active && video.ready,
-                muted: widget.muted,
-                paused: _paused,
-                onProgress: (v) => _progress.value = v,
-              ),
-            if (video != null && !video.ready)
-              Center(
-                child: Text(
-                  t.t('reels.processing'),
-                  style: type.body.copyWith(color: Colors.white70),
-                ),
-              ),
-            if (_paused)
-              const Center(
-                child: AppIcon(AppIcons.playArrowRounded,
-                    size: 72, color: Colors.white70),
-              ),
-            // Bottom shade so the caption reads on any video.
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 260,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [Colors.black87, Colors.transparent],
+    // The button sits outside the double-tap area: it opens at once.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        DoubleTapLike(
+          onLike: () => run(() => actions.like(p)),
+          // Owner 2026-10-19: tap = pause / play (the sound is the speaker
+          // button); hold = pause, let go = plays on.
+          child: GestureDetector(
+            onTap: () => setState(() => _paused = !_paused),
+            onLongPressStart: (_) => setState(() => _held = true),
+            onLongPressEnd: (_) => setState(() => _held = false),
+            onLongPressCancel: () => setState(() => _held = false),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (video != null)
+                  ReelVideo(
+                    video: video,
+                    active: widget.active && video.ready,
+                    warm: widget.warm && video.ready,
+                    muted: widget.muted,
+                    paused: _paused || _held || covered,
+                    zoomable: true,
+                    onProgress: (v) => _progress.value = v,
+                    onViewed: _viewed,
+                  ),
+                if (video != null && !video.ready)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.screenSide,
+                      ),
+                      child: Text(
+                        t.t('reels.processing'),
+                        textAlign: TextAlign.center,
+                        style: type.body.copyWith(color: Colors.white70),
+                      ),
+                    ),
+                  ),
+                // Owner 2026-10-19: the play button and, above it, the small
+                // sound button — one look with the app (PlayerRoundButton);
+                // they fade in and out together with the pause. A tap on the
+                // play button plays (the reel's own tap); the speaker only
+                // switches the sound.
+                Center(
+                  child: AnimatedOpacity(
+                    opacity: _paused ? 1 : 0,
+                    duration: context.reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 160),
+                    child: IgnorePointer(
+                      ignoring: !_paused,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.soundButton && video != null) ...[
+                            PlayerRoundButton(
+                              icon: widget.muted
+                                  ? AppIcons.speakerSlash
+                                  : AppIcons.speakerHigh,
+                              size: 34,
+                              semanticLabel: t.t(
+                                widget.muted ? 'reels.unmute' : 'reels.mute',
+                              ),
+                              onTap: () => ref
+                                  .read(reelsMutedProvider.notifier)
+                                  .toggle(),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                          ],
+                          const IgnorePointer(
+                            child: PlayerRoundButton(
+                              icon: AppIcons.playArrowRounded,
+                              size: 64,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            Positioned(
-              right: AppSpacing.md,
-              bottom: AppSpacing.xxl + MediaQuery.paddingOf(context).bottom,
-              child: Column(
-                children: [
-                  rail(
-                    p.likedByMe
-                        ? AppIcons.favoriteRounded
-                        : AppIcons.favoriteBorderRounded,
-                    t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
-                    p.likeCount,
-                    () => run(() => actions.toggleLike(p)),
-                    color: p.likedByMe ? colors.danger : null,
-                  ),
-                  rail(AppIcons.modeCommentOutlined, t.t('post.comments'),
-                      p.commentCount, () {
-                    setState(() => _paused = true);
-                    context.push(SocialRoutes.post(p.id));
-                  }),
-                  rail(AppIcons.sendOutlined, t.t('post.share'),
-                      p.shareCount, () => sharePost(context, ref, p)),
-                  rail(
-                    p.savedByMe
-                        ? AppIcons.bookmarkRounded
-                        : AppIcons.bookmarkBorderRounded,
-                    t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
-                    null,
-                    () => run(() => actions.toggleSave(p)),
-                    color: p.savedByMe ? colors.gold : null,
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              left: AppSpacing.lg,
-              right: 72,
-              bottom: AppSpacing.xl + MediaQuery.paddingOf(context).bottom,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundColor: Colors.white24,
-                        backgroundImage: p.author.avatarUrl == null
-                            ? null
-                            : CachedNetworkImageProvider(p.author.avatarUrl!),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Flexible(
-                        child: Text(
-                          p.author.displayName,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.body.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              shadows: shadow),
+                // Bottom shade so the caption reads on any video.
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 260,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [Colors.black87, Colors.transparent],
                         ),
                       ),
-                      if (p.author.verified) ...[
-                        const SizedBox(width: 4),
-                        AppIcon(AppIcons.verifiedRounded,
-                            size: 16, color: colors.gold),
+                    ),
+                  ),
+                ),
+                PositionedDirectional(
+                  end: AppSpacing.md,
+                  // The rail's last item keeps its own 12 dp: its icon ends at
+                  // the same line as the author block.
+                  bottom: moreSpace -
+                      AppSpacing.md +
+                      MediaQuery.paddingOf(context).bottom,
+                  child: Column(
+                    children: [
+                      // Owner 2026-10-12: the view counter above the actions.
+                      if (p.viewCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                          child: Column(
+                            children: [
+                              const AppIcon(
+                                AppIcons.visibilityOutlined,
+                                size: kReelRailIcon,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                SocialFormat.count(f, p.viewCount),
+                                style: type.caption.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  shadows: shadow,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      rail(
+                        p.likedByMe
+                            ? AppIcons.favoriteRounded
+                            : AppIcons.favoriteBorderRounded,
+                        t.t(p.likedByMe ? 'post.unlike' : 'post.like'),
+                        showLikeCount(ref, p) ? p.likeCount : null,
+                        () => run(() => actions.toggleLike(p)),
+                        color: p.likedByMe ? colors.danger : null,
+                      ),
+                      // Owner 2026-10-07: comments off → no comments
+                      // button (the server refuses them anyway).
+                      if (p.commentsEnabled)
+                        rail(
+                          AppIcons.modeCommentOutlined,
+                          t.t('post.comments'),
+                          p.commentCount,
+                          () => showCommentsSheet(
+                            context,
+                            postId: p.id,
+                            commentsEnabled: p.commentsEnabled,
+                          ),
+                        ),
+                      // Owner 2026-10-18: the same ↻ flow as in the feed.
+                      rail(
+                        AppIcons.autoModeRounded,
+                        t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
+                        p.repostCount,
+                        () => showRepostSheet(context, ref, p),
+                        color: p.repostedByMe ? colors.success : null,
+                        onCountTap: () => showRepostersList(context, p.id),
+                      ),
+                      rail(
+                        AppIcons.sendOutlined,
+                        t.t('post.share'),
+                        p.shareCount,
+                        () => sharePost(context, ref, p),
+                      ),
+                      rail(
+                        p.savedByMe
+                            ? AppIcons.bookmarkRounded
+                            : AppIcons.bookmarkBorderRounded,
+                        t.t(p.savedByMe ? 'post.unsave' : 'post.save'),
+                        null,
+                        () => run(() => actions.toggleSave(p)),
+                        color: p.savedByMe ? colors.gold : null,
+                      ),
+                      rail(
+                        AppIcons.moreHorizRounded,
+                        t.t('post.menu'),
+                        null,
+                        () => showPostMenu(context, ref, p),
+                      ),
+                    ],
+                  ),
+                ),
+                PositionedDirectional(
+                  start: AppSpacing.lg,
+                  // Owner 2026-10-15: the text and «Follow» reach out to the
+                  // right, 8 dp short of the icon column.
+                  end: 60,
+                  bottom: moreSpace + MediaQuery.paddingOf(context).bottom,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Owner 2026-10-15: the advertiser's button.
+                      if (p.promotionId != null && p.promotionCta != null) ...[
+                        PromotionCtaButton(
+                          promotionId: p.promotionId!,
+                          cta: p.promotionCta!,
+                          authorId: p.author.id,
+                          onDark: true,
+                          onProfile: () => openAuthorProfile(
+                            context,
+                            ref,
+                            p.author,
+                            fromPostId: p.id,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
+                      // The shared author row: Follow at its right edge.
+                      // Owner 2026-10-19: a tap on the author counts as a
+                      // profile visit from this reel (post insights).
+                      PostSourceScope(
+                        postId: p.id,
+                        child: AuthorHeader(
+                          author: p.author,
+                          onDark: true,
+                          shadows: shadow,
+                          avatarSize: 32,
+                          gap: AppSpacing.sm,
+                          followMaxWidth: 140,
+                          showFollow: !p.isMine,
+                          boostPostId: p.isMine ? p.id : null,
+                          // Owner 2026-10-19: no @username (only in the
+                          // profile and search) and no role word «Клиент»
+                          // (only on the welcome screen's role choice).
+                          subtitle: p.promotionId != null
+                              ? t.t('promote.sponsored')
+                              : p.locationName ??
+                                  (p.author.verified && !p.author.isClient
+                                      ? t.t('post.licensedAttorney')
+                                      : ''),
+                        ),
+                      ),
+                      if (caption.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        // A short caption; the whole text is inside (the
+                        // button below) — or, with no attachments, opens in
+                        // place over the video (owner 2026-10-13).
+                        if (more)
+                          GestureDetector(
+                            onTap:
+                                widget.embedded ? () => _openInside(p) : null,
+                            child: Text(
+                              caption,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.body.copyWith(
+                                color: Colors.white,
+                                shadows: shadow,
+                              ),
+                            ),
+                          )
+                        else
+                          _ReelCaption(
+                            text: caption,
+                            moreLabel: t.t('post.more'),
+                            style: type.body.copyWith(
+                              color: Colors.white,
+                              shadows: shadow,
+                            ),
+                            onMore: () => showPostTextSheet(context, p),
+                          ),
                       ],
                     ],
                   ),
-                  if (caption.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    GestureDetector(
-                      onTap: () => setState(() => _expanded = !_expanded),
-                      child: Text(
-                        caption,
-                        maxLines: _expanded ? 12 : 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: type.body.copyWith(
-                            color: Colors.white, shadows: shadow),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  // In the Reels tab the nav bar floats over the video's
+                  // bottom edge: the thin line sits at the very bottom.
+                  bottom: widget.embedded
+                      ? 0
+                      : MediaQuery.paddingOf(context).bottom,
+                  // Owner 2026-10-19 (smooth): the bar moves every frame —
+                  // only it repaints, not the reel's text and icons.
+                  child: RepaintBoundary(
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _progress,
+                      builder: (_, v, __) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 2,
+                        backgroundColor: Colors.white24,
+                        color: Colors.white,
                       ),
                     ),
-                  ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (more)
+          PositionedDirectional(
+            start: AppSpacing.lg,
+            end: AppSpacing.lg,
+            bottom: AppSpacing.md + MediaQuery.paddingOf(context).bottom,
+            child: ReelMoreButton(
+              label: t.t(reelMoreLabelKey(p)),
+              onTap: () => _openInside(p),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Owner 2026-10-05: «Подписаться» on a reel — a white outline that reads
+/// on any video; after a tap it shows the check and «Вы подписаны» (tap
+/// again to unfollow). Same follow state as the feed card's button.
+class ReelFollowButton extends ConsumerWidget {
+  const ReelFollowButton({
+    required this.attorneyId,
+    required this.initial,
+    super.key,
+  });
+
+  final String attorneyId;
+  final bool initial;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final following =
+        ref.watch(followOverridesProvider.select((m) => m[attorneyId])) ??
+            initial;
+    final label = t.t(following ? 'follow.following' : 'follow.follow');
+    return Semantics(
+      button: true,
+      toggled: following,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () async {
+          final error = await ref
+              .read(socialActionsProvider)
+              .setFollowing(attorneyId, !following);
+          if (error != null && context.mounted) {
+            showAppSnackBar(context, errorText(t, error));
+          }
+        },
+        // A 40 dp tap target around a 28 dp pill.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Container(
+            height: 28,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: following
+                  ? Colors.white.withValues(alpha: 0.18)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white70),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (following) ...[
+                  const AppIcon(
+                    AppIcons.checkRounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ],
+                // Owner 2026-10-15: once followed, only the check stays
+                // (Instagram) so the author's name keeps its room.
+                if (!following)
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-19: the reel's action icons on the side, as big as on
+/// Instagram.
+const kReelRailIcon = 28.0;
+
+/// Owner 2026-10-15: in the feed's Reels tab the video runs under the
+/// floating nav bar (46 dp plus its margins); the caption, the icon column
+/// and the «more» button stand above it.
+const kReelNavTop = 54.0;
+const kReelNavGap = -4.0;
+
+/// Added to the usual bottom spacing (AppSpacing.md) so the last line
+/// stands [kReelNavGap] above the bar.
+const kReelNavClearance = kReelNavTop + kReelNavGap - AppSpacing.md;
+
+/// Height of the pinned button plus its gap to the bottom.
+const kReelMoreButtonSpace = 44.0 + AppSpacing.md;
+
+/// "Смотреть" when the reel has photos or documents inside, else "Читать".
+String reelMoreLabelKey(Post p) =>
+    p.media.isNotEmpty || p.attachments.isNotEmpty
+        ? 'reels.more.watch'
+        : 'reels.more.read';
+
+/// Owner 2026-10-05: the wide, low button over the bottom of a reel.
+class ReelMoreButton extends StatelessWidget {
+  const ReelMoreButton({required this.label, required this.onTap, super.key});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Colors.white38),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Row(
+                children: [
+                  const AppIcon(
+                    AppIcons.bookOpenTextOutlined,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.body.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const AppIcon(
+                    AppIcons.chevronRightRounded,
+                    size: 20,
+                    color: Colors.white,
+                  ),
                 ],
               ),
             ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: MediaQuery.paddingOf(context).bottom,
-              child: ValueListenableBuilder<double>(
-                valueListenable: _progress,
-                builder: (_, v, __) => LinearProgressIndicator(
-                  value: v,
-                  minHeight: 2,
-                  backgroundColor: Colors.white24,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-13: a reel without attachments — two lines and a grey
+/// «ещё» that opens the description sheet.
+class _ReelCaption extends StatelessWidget {
+  const _ReelCaption({
+    required this.text,
+    required this.moreLabel,
+    required this.style,
+    required this.onMore,
+  });
+
+  final String text;
+  final String moreLabel;
+  final TextStyle style;
+  final VoidCallback onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.trim().isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Measured with the style the Text draws (DefaultTextStyle merged).
+        final base = DefaultTextStyle.of(context).style.merge(style);
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: base),
+          maxLines: 2,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: box.maxWidth);
+        if (!painter.didExceedMaxLines) return Text(text, style: style);
+        // "… more" ends the second line, never a third one.
+        bool fits(int n) {
+          final shown =
+              n >= text.length ? text : '${text.substring(0, n).trimRight()}…';
+          final p = TextPainter(
+            text: TextSpan(
+              style: base,
+              children: [
+                TextSpan(text: '$shown '),
+                TextSpan(
+                  text: moreLabel,
+                  style: base.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+            maxLines: 2,
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout(maxWidth: box.maxWidth);
+          return !p.didExceedMaxLines;
+        }
+
+        var lo = 0;
+        var hi = text.length;
+        while (lo < hi) {
+          final mid = (lo + hi + 1) ~/ 2;
+          if (fits(mid)) {
+            lo = mid;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        return GestureDetector(
+          onTap: onMore,
+          child: Text.rich(
+            TextSpan(
+              style: style,
+              children: [
+                TextSpan(text: '${text.substring(0, lo).trimRight()}… '),
+                TextSpan(
+                  text: moreLabel,
+                  style: style.copyWith(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

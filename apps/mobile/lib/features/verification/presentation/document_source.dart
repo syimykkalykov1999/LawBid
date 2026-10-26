@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/screens/camera_capture_screen.dart';
 
@@ -44,17 +46,38 @@ class DeviceDocumentSource implements DocumentSource {
   @override
   Future<PickedDocument?> pickFile({required bool allowPdf}) async {
     final result = await FilePicker.pickFiles(
+      // Web: a big file from iCloud or a HEIC to convert arrives after the
+      // window gets focus back; don't drop it.
+      cancelUploadOnWindowBlur: false,
       type: allowPdf ? FileType.custom : FileType.image,
       allowedExtensions:
-          allowPdf ? const ['jpg', 'jpeg', 'png', 'heic', 'heif', 'pdf'] : null,
+          // Owner 2026-10-19: WebP too (saved web pictures).
+          allowPdf
+              ? [
+                  'jpg',
+                  'jpeg',
+                  'png',
+                  // The browser can't show a HEIC; without it iPhone Safari
+                  // hands over a JPEG.
+                  if (!kIsWeb) ...['heic', 'heif'],
+                  'webp',
+                  'pdf',
+                ]
+              : null,
       withData: true,
     );
     final file = result?.files.singleOrNull;
     final bytes = file?.bytes;
     if (file == null || bytes == null) return null;
-    // Photo-library images may come without a known extension; they are
-    // JPEG then (the API re-checks the real type by magic bytes).
-    final mime = mimeForFileName(file.name) ?? 'image/jpeg';
+    // Owner 2026-10-19: the real type from the first bytes (a WebP / PNG
+    // picture named or labelled as JPEG was refused by the server's byte
+    // check); the name only for a PDF; JPEG as the last guess.
+    final pdf = bytes.length >= 4 &&
+        String.fromCharCodes(bytes.sublist(0, 4)) == '%PDF';
+    final mime = sniffImageMime(bytes) ??
+        (pdf ? 'application/pdf' : null) ??
+        mimeForFileName(file.name) ??
+        'image/jpeg';
     if (!allowPdf && mime == 'application/pdf') return null;
     return PickedDocument(name: file.name, mime: mime, bytes: bytes);
   }

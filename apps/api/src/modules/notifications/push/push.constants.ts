@@ -16,6 +16,8 @@ export const NO_PUSH_TYPES: ReadonlySet<NotificationType> = new Set([
   'case_updated',
   'post_like',
   'comment_like',
+  // Owner 2026-10-07: reposts are like likes (list only).
+  'post_repost',
 ]);
 
 /** Job options: delayed so the emitting transaction has committed before
@@ -28,6 +30,25 @@ export const PUSH_JOB_OPTS = {
   backoff: { type: 'exponential', delay: 2_000 },
   removeOnComplete: { count: 1000 },
   removeOnFail: { count: 1000 },
+} as const;
+
+/**
+ * S10-5: BullMQ job priorities of the `push` queue (1 = served first, docs.
+ * bullmq.io/guide/jobs/prioritized). WhatsApp/Telegram keep a call ring out
+ * of the message path; with one FIFO queue a 50 000-subscriber channel post
+ * made a call ring (and an on-call alert) wait behind its push batch.
+ */
+export const PUSH_PRIORITY = {
+  /** A ringing call, a call-end and an on-call alert: seconds matter. */
+  urgent: 1,
+  /** A chat message. */
+  message: 3,
+  /** A stored notification (one person). */
+  notification: 5,
+  /** A group message's batches. */
+  group: 7,
+  /** Bulk fan-out of a notification type (a channel post's subscribers). */
+  bulk: 10,
 } as const;
 
 /** A stored notification: realtime + badge always, push when `push`
@@ -47,7 +68,14 @@ export interface MessageJobData {
   recipientId: string;
   conversationId: string;
   messageId: string;
+  /** Owner 2026-10-20: a group chat message (conversationId = the group). */
+  groupId?: string;
   deferred?: boolean;
+  /** Owner 2026-10-20: a reaction to / an edit of an existing message
+   * (grouped under the message instead of a new alert each time). */
+  event?: 'reaction' | 'edit';
+  actorId?: string;
+  emoji?: string;
 }
 
 /** OQ-041: ring the callee's devices (push-only, never stored). */
@@ -58,7 +86,58 @@ export interface CallJobData {
   deferred?: boolean;
 }
 
-export type PushJobData = NotificationJobData | MessageJobData | CallJobData;
+/** Push 2026-10-19: the call stopped ringing (hung up, missed, declined
+ * or answered on another device) — phones still showing the system call
+ * screen (app asleep / closed, no socket) take it down. */
+export interface CallEndJobData {
+  kind: 'call_end';
+  recipientId: string;
+  callId: string;
+  /** The ANSWERED call is over (not just the ringing): its own job and
+   * dedupe key, so the answer's "stop ringing" push does not swallow it. */
+  ended?: boolean;
+  deferred?: boolean;
+}
+
+/** Owner 2026-10-22 (server load audit, finding 7): one group message for
+ * up to [GROUP_PUSH_BATCH] members — the same gates as [MessageJobData]
+ * per member, then one parallel send (PushSender.sendMany). */
+export interface GroupMessagesJobData {
+  kind: 'group_messages';
+  groupId: string;
+  messageId: string;
+  recipientIds: string[];
+  /** Unused: a member held by quiet hours is deferred as a
+   * [MessageJobData] of their own. */
+  deferred?: boolean;
+}
+
+/** Members per `group_messages` job (FCM's multicast size). */
+export const GROUP_PUSH_BATCH = 500;
+
+/** Owner 2026-10-22: an on-call alert about an incident of «Состояние
+ * системы». Push-only (never stored), never held by quiet hours or the
+ * category switches; optionally mailed too. */
+export interface OpsAlertJobData {
+  kind: 'ops_alert';
+  recipientId: string;
+  title: string;
+  body: string;
+  incidentId: string;
+  /** opened | reminder | resolved */
+  event: string;
+  /** Also e-mail it (the dispatcher looks up the address). */
+  email?: boolean;
+  deferred?: boolean;
+}
+
+export type PushJobData =
+  | OpsAlertJobData
+  | NotificationJobData
+  | MessageJobData
+  | CallJobData
+  | CallEndJobData
+  | GroupMessagesJobData;
 
 export interface PushMessage {
   userId: string;
@@ -68,15 +147,82 @@ export interface PushMessage {
   data: Record<string, string>;
   /** iOS app icon number = badge total (docs/05 §10). */
   badge?: number;
+  /** Owner 2026-10-21 (inbox 29): false = «Счётчик на иконке в меню» is
+   * off — Android shows the alert through the twin channel that puts no
+   * badge / dot on the launcher icon ([NO_BADGE_CHANNEL_SUFFIX]). */
+  iconBadge?: boolean;
   /** OQ-041: an incoming call — Android gets a data-only high-priority
    * message (the app shows the full-screen ringing UI itself); iOS a
    * time-sensitive alert. */
   call?: boolean;
+  /** Push 2026-10-19: a silent data-only "stop ringing" for [data.callId]
+   * (no alert on any platform). */
+  callEnd?: boolean;
+  /** `message` for chats, `notification` for everything else (calls ring
+   * on their own). Owner 2026-10-07: both play the phone's own default
+   * sound — LawBid ships no sounds of its own. */
+  sound?: PushSoundKind;
+  /** Owner 2026-10-20: a planner reminder. iOS gets it time-sensitive
+   * (breaks through Focus); an Android device that keeps its own local
+   * copy of the reminder gets a data-only message the app shows under the
+   * same id as its alarm (never twice); other devices a normal alert
+   * grouped per task (`data.taskId`). */
+  reminder?: boolean;
+  /** Owner 2026-10-17: FCM tokens not to send to (iPhones already rung by
+   * a VoIP push — no double ring). */
+  skipTokens?: string[];
+  /** Owner 2026-10-20: notifications sharing a key replace each other on the
+   * phone (Android tag + collapse key, iOS collapse id + thread id) — one
+   * alert per message however many reactions or edits follow. */
+  collapseKey?: string;
+  /** Owner 2026-10-21: the alert is worth nothing after this many seconds
+   * (a call from a group chat: about a minute) — the push service drops it. */
+  ttlSec?: number;
+  /** Owner 2026-10-22 (WhatsApp): a chat message whose `data` carries the
+   * sender, their photo and the text (chat-push.ts). An Android app that
+   * draws chat notifications itself (`push_tokens.chat_style`) gets it
+   * data-only and shows a MessagingStyle notification per chat; every
+   * other device gets the normal alert. */
+  chat?: boolean;
+  /** Owner 2026-10-22: the iPhone's notification stack (`thread-id`) — one
+   * per chat, so a chat's messages are grouped like WhatsApp. Defaults to
+   * [collapseKey]. */
+  threadId?: string;
 }
+
+export type PushSoundKind = 'message' | 'notification';
+
+/** Owner 2026-10-21 (inbox 29): the twin of each Android channel created
+ * with setShowBadge(false) in MainActivity.kt ("chats_nobadge",
+ * "general_nobadge"); a channel's badge can't be changed once made. */
+export const NO_BADGE_CHANNEL_SUFFIX = '_nobadge';
+
+/** Android channel ids (created in MainActivity.kt) and the sound per kind:
+ * the phone's default notification sound on both platforms. */
+export const PUSH_SOUNDS: Record<
+  PushSoundKind,
+  { channelId: string; android: string; ios: string }
+> = {
+  message: {
+    channelId: 'chats',
+    android: 'default',
+    ios: 'default',
+  },
+  notification: {
+    channelId: 'general',
+    android: 'default',
+    ios: 'default',
+  },
+};
 
 /** Delivery to the user's devices (FCM when configured, else a log).
  * [dedupeKey] names the logical push: a retry never re-sends to a device
  * that already got it. */
 export interface PushSender {
   send(message: PushMessage, dedupeKey: string): Promise<void>;
+  /** Owner 2026-10-22 (server load audit, finding 7): the same logical push
+   * to many people at once (a group message), devices in parallel in
+   * chunks of FCM's multicast size. Optional: callers fall back to
+   * [send] per message. */
+  sendMany?(messages: PushMessage[], dedupeKey: string): Promise<void>;
 }

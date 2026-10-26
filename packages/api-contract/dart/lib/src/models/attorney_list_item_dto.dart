@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'attorney_list_item_dto_reason.dart';
 import 'rating_dto.dart';
 
 part 'attorney_list_item_dto.g.dart';
@@ -14,6 +15,7 @@ class AttorneyListItemDto {
     required this.id,
     required this.username,
     required this.verifiedBadge,
+    required this.trustLevel,
     required this.rating,
     required this.states,
     required this.practiceI18nKeys,
@@ -21,6 +23,8 @@ class AttorneyListItemDto {
     this.firstName,
     this.lastName,
     this.avatarUrl,
+    this.identityRejected,
+    this.reason,
   });
 
   factory AttorneyListItemDto.fromJson(Map<String, Object?> json) =>
@@ -32,6 +36,10 @@ class AttorneyListItemDto {
   final String? lastName;
   final String? avatarUrl;
   final bool verifiedBadge;
+
+  /// Trust level.
+  final int trustLevel;
+  final bool? identityRejected;
   final RatingDto rating;
 
   /// Verified license state codes.
@@ -42,6 +50,9 @@ class AttorneyListItemDto {
 
   /// The viewer follows this attorney.
   final bool isFollowing;
+
+  /// Why this person is suggested, when worth a caption: "contacts" = in my address book.
+  final AttorneyListItemDtoReason? reason;
 
   Map<String, Object?> toJson() => _$AttorneyListItemDtoToJson(this);
 }

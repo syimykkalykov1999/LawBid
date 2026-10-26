@@ -42,6 +42,7 @@ apps/mobile/config/*.json
 apps/mobile/ios/Flutter/Secrets.xcconfig
 apps/mobile/ios/Runner/GoogleService-Info.plist
 apps/mobile/android/app/google-services.json
+apps/mobile/android/app/src/*/google-services.json
 # Symlinked node_modules (git worktrees)
 node_modules
 
@@ -49,3 +50,15 @@ node_modules
 .unlazy/
 .unlazy-hook-state.json
 .claude/settings.local.json
+
+# Dev stand-in for Bunny (tools/fake-bunny.mjs)
+apps/api/.fake-bunny/
+
+# Redis dumps (a stray redis-server writes dump.rdb into its working folder)
+dump.rdb
+
+# Load test results of local runs (loadtest/run-local.sh)
+loadtest/results/
+
+# Local dev caches (tsc incremental, eslint, hash-skip stamps) - scripts/dev
+.cache/

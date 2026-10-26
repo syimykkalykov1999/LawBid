@@ -8,6 +8,7 @@ import 'package:retrofit/retrofit.dart';
 import '../models/bid_draft_body_dto.dart';
 import '../models/bid_draft_envelope.dart';
 import '../models/bid_envelope.dart';
+import '../models/conflict_check_envelope.dart';
 import '../models/counter_offer_dto.dart';
 import '../models/create_bid_dto.dart';
 
@@ -17,18 +18,18 @@ part 'bids_client.g.dart';
 abstract class BidsClient {
   factory BidsClient(Dio dio, {String? baseUrl}) = _BidsClient;
 
+  /// Attorney: does this case clash with a client or a case of yours? (a warning, never a block)
+  @GET('/cases/{caseId}/conflict-check')
+  Future<ConflictCheckEnvelope> conflictCheck({
+    @Path('caseId') required String caseId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Place a bid on an open case (attorney)
   @POST('/cases/{caseId}/bids')
   Future<BidEnvelope> createBid({
     @Path('caseId') required String caseId,
     @Body() required CreateBidDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Bid details and full negotiation history
-  @GET('/bids/{id}')
-  Future<BidEnvelope> getBid({
-    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -46,11 +47,14 @@ abstract class BidsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Counter-offer, whichever party's turn it is (max 5 rounds)
+  /// Counter-offer, whichever party's turn it is (max 5 rounds).
+  ///
+  /// [ifMatch] - Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.
   @POST('/bids/{id}/counter')
   Future<BidEnvelope> counter({
     @Path('id') required String id,
     @Body() required CounterOfferDto body,
+    @Header('If-Match') int? ifMatch,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -79,6 +83,13 @@ abstract class BidsClient {
   /// Discard the bid draft
   @DELETE('/cases/{id}/bid-draft')
   Future<void> deleteBidDraft({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bid details, full negotiation history and the attorney summary
+  @GET('/bids/{id}')
+  Future<BidEnvelope> getBid({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

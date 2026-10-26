@@ -121,6 +121,20 @@ void main() {
         ),
         WizardStep.intro,
       );
+      // Owner 2026-10-05 (audit): sworn statement only → no intro screen.
+      expect(
+        resumeStep(
+          const VerificationRequest(
+            id: 'r',
+            status: RequestStatus.draft,
+            licenses: [],
+            documents: [],
+          ),
+          identityRequired: false,
+          barDocumentRequired: false,
+        ),
+        WizardStep.licenses,
+      );
       expect(resumeStep(draft(), identityRequired: true), WizardStep.identity);
       expect(
         resumeStep(draft(identity: true), identityRequired: true),
@@ -132,6 +146,37 @@ void main() {
       );
       // An already verified attorney adding a state: no ID/selfie steps.
       expect(resumeStep(draft(), identityRequired: false), WizardStep.review);
+    });
+
+    test('owner 2026-10-04: state + bar number are enough without a bar card',
+        () {
+      const numberOnly = VerificationRequest(
+        id: 'r',
+        status: RequestStatus.draft,
+        licenses: [],
+        documents: [],
+      );
+      final withLicense = VerificationRequest(
+        id: 'r',
+        status: RequestStatus.draft,
+        licenses: [license('NY')],
+        documents: const [],
+      );
+      expect(withLicense.licensesComplete, isFalse);
+      expect(withLicense.licensesReady(barDocumentRequired: false), isTrue);
+      expect(numberOnly.licensesReady(barDocumentRequired: false), isFalse);
+      expect(
+        resumeStep(
+          withLicense,
+          identityRequired: false,
+          barDocumentRequired: false,
+        ),
+        WizardStep.review,
+      );
+      expect(
+        resumeStep(withLicense, identityRequired: false),
+        WizardStep.licenses,
+      );
       expect(
         resumeStep(
           draft(status: RequestStatus.needsMoreInfo),
@@ -144,6 +189,7 @@ void main() {
 
   test('MissingItem.parse maps the API details', () {
     expect(MissingItem.parse('license'), isA<MissingLicense>());
+    expect(MissingItem.parse('attestation'), isA<MissingAttestation>());
     expect(
       MissingItem.parse('identity_document_back'),
       isA<MissingIdentity>().having((m) => m.back, 'back', true),
@@ -203,11 +249,11 @@ void main() {
     backend.request = draft();
     await ready();
     uploads.pendingPolls = 2;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     expect(uploads.polls, greaterThanOrEqualTo(2));
     expect(now().uploads, isEmpty);
-    expect(now().request.docsFor(DocSlot.barLicense('AL')), hasLength(2));
+    expect(now().request.docsFor(const DocSlot.barLicense('AL')), hasLength(2));
   });
 
   test(
@@ -216,7 +262,7 @@ void main() {
     backend.request = draft();
     await ready();
     uploads.pendingPolls = 100;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     final task = now().uploads.single;
     expect(task.phase, UploadPhase.failed);
@@ -234,7 +280,7 @@ void main() {
     backend.request = draft();
     await ready();
     uploads.failUploads = 1;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     final task = now().uploads.single;
     expect(task.phase, UploadPhase.failed);
@@ -264,7 +310,7 @@ void main() {
     backend.request = draft();
     await ready();
     backend.nextScan = ScanState.infected;
-    ctrl().upload(DocSlot.barLicense('AL'), _file());
+    ctrl().upload(const DocSlot.barLicense('AL'), _file());
     await settle();
     expect(now().uploads.single.phase, UploadPhase.infected);
     expect(now().blocker, SubmitBlocker.uploadsFailed);
@@ -326,7 +372,11 @@ void main() {
 
 class _IncompleteBackend extends FakeVerificationBackend {
   @override
-  Future<VerificationRequest> submit(String requestId, {String? comment}) =>
+  Future<VerificationRequest> submit(
+    String requestId, {
+    String? comment,
+    bool attestation = false,
+  }) =>
       throw const ApiException(
         code: ApiErrorCodes.verificationIncomplete,
         message: 'incomplete',

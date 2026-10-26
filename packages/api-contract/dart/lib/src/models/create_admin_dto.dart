@@ -5,18 +5,34 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'create_admin_dto_role.dart';
+import 'permissions_permissions.dart';
 
 part 'create_admin_dto.g.dart';
 
 @JsonSerializable()
 class CreateAdminDto {
-  const CreateAdminDto({required this.email, required this.role});
+  const CreateAdminDto({
+    required this.email,
+    required this.role,
+    this.permissions,
+    this.canManageAdmins,
+    this.noPii,
+  });
 
   factory CreateAdminDto.fromJson(Map<String, Object?> json) =>
       _$CreateAdminDtoFromJson(json);
 
   final String email;
   final CreateAdminDtoRole role;
+
+  /// Starting toggles; omitted = the defaults of the role. Money, keys and admin sections are never grantable.
+  final Map<String, PermissionsPermissions>? permissions;
+
+  /// Super admin only: lets this admin create and manage other admins within their own access.
+  final bool? canManageAdmins;
+
+  /// Super admin only: «без персональных данных» — phones, emails and names come back masked.
+  final bool? noPii;
 
   Map<String, Object?> toJson() => _$CreateAdminDtoToJson(this);
 }

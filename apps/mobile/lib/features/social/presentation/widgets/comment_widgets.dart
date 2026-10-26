@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -19,6 +20,8 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:lawbid/features/translation/data/content_translation_repository.dart';
+import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 
 /// Who a new comment answers (§5.1: one level; a reply to a reply goes to
 /// the top-level comment, the server prefixes "@username").
@@ -31,12 +34,17 @@ class CommentTile extends ConsumerStatefulWidget {
     required this.comment,
     required this.onReply,
     this.isReply = false,
+    this.threads = false,
     super.key,
   });
 
   final Comment comment;
   final void Function(ReplyTarget target) onReply;
   final bool isReply;
+
+  /// Owner 2026-10-12 (Threads): the reply as a Threads one — avatar with a
+  /// thread line, name row with "…", like and reply under the text.
+  final bool threads;
 
   @override
   ConsumerState<CommentTile> createState() => _CommentTileState();
@@ -57,6 +65,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     if (_busy) return;
     final before = _c;
     final liked = !before.likedByMe;
+    // ignore: unawaited_futures
     HapticFeedback.selectionClick();
     setState(() {
       _busy = true;
@@ -87,7 +96,8 @@ class _CommentTileState extends ConsumerState<CommentTile> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            if (_c.canDelete)
+            // Audit 2026-10-02: assistants never delete in the attorney's name.
+            if (_c.canDelete && !ref.read(isAssistantProvider))
               AppListRow(
                 icon: AppIcons.deleteOutlineRounded,
                 label: t.t('comment.delete'),
@@ -113,6 +123,11 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                     if (_c.parentId != null) {
                       ref.invalidate(repliesProvider(_c.parentId!));
                     }
+                    // Audit 2026-10-02: the post's count drops too (the
+                    // server removes the comment with its replies).
+                    if (!isCaseRef(_c.postId)) {
+                      await syncPostCounts(ref, _c.postId);
+                    }
                   } on Object catch (e) {
                     if (mounted) showAppSnackBar(context, errorText(t, e));
                   }
@@ -122,6 +137,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
               AppListRow(
                 icon: AppIcons.flagOutlined,
                 label: t.t('post.menu.report'),
+                destructive: true,
                 showChevron: false,
                 onTap: () {
                   Navigator.of(sheet).pop();
@@ -142,12 +158,13 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final a = _c.author;
+    if (widget.threads) return _threadsTile(context, t, f, colors, type);
     final avatarSize = widget.isReply ? 28.0 : 36.0;
     return Padding(
-      padding: EdgeInsets.only(
-        left:
+      padding: EdgeInsetsDirectional.only(
+        start:
             widget.isReply ? AppSpacing.screenSide + 44 : AppSpacing.screenSide,
-        right: AppSpacing.md,
+        end: AppSpacing.md,
         top: AppSpacing.sm,
         bottom: AppSpacing.sm,
       ),
@@ -168,7 +185,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                     url: a.avatarUrl,
                     initials: a.displayName.isEmpty
                         ? '?'
-                        : a.displayName.substring(0, 1).toUpperCase(),
+                        : avatarInitials(a.displayName),
                     size: avatarSize,
                     ring: a.verified,
                   ),
@@ -194,66 +211,93 @@ class _CommentTileState extends ConsumerState<CommentTile> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: type.bodySmall.copyWith(
-                                  color: colors.text,
-                                  fontWeight: FontWeight.w600),
+                                color: colors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           if (a.verified) ...[
                             const SizedBox(width: 3),
                             VerifiedCheck(
-                                label: t.t('post.verified'), size: 13),
+                              label: t.t('post.verified'),
+                              size: 13,
+                              gold: !a.isAttorney,
+                            ),
                           ],
                           const SizedBox(width: AppSpacing.sm),
-                          Text(
-                            SocialFormat.ago(t, f, _c.createdAt),
-                            style: type.caption
-                                .copyWith(color: colors.textSecondary),
+                          Flexible(
+                            child: Text(
+                              SocialFormat.ago(t, f, _c.createdAt),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 2),
                       // OQ-042: #tags and @mentions are tappable.
-                      PostBodyText(
-                        body: _c.body,
-                        expanded: true,
-                        mentions: _c.mentions,
-                        height: 1.4,
+                      // Owner 2026-10-05: «Перевести» (posts zone).
+                      TranslatableText(
+                        kind: TranslatableKind.comment,
+                        id: _c.id,
+                        text: _c.body,
+                        enabled: !_c.isMine,
+                        builder: (context, body) => PostBodyText(
+                          body: body,
+                          expanded: true,
+                          mentions: _c.mentions,
+                          height: 1.4,
+                        ),
                       ),
+                      // One row; long translations shrink, nothing moves.
                       Row(
                         children: [
-                          TextButton(
-                            onPressed: () => widget.onReply((
-                              parentId: _c.parentId ?? _c.id,
-                              name: a.username ?? a.displayName,
-                            )),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(0, AppSizes.touchTarget),
-                              foregroundColor: colors.textSecondary,
-                            ),
-                            child: Text(t.t('comment.reply')),
-                          ),
-                          if (!widget.isReply && _c.replyCount > 0) ...[
-                            const SizedBox(width: AppSpacing.lg),
-                            TextButton(
-                              onPressed: () =>
-                                  setState(() => _showReplies = !_showReplies),
+                          Flexible(
+                            child: TextButton(
+                              onPressed: () => widget.onReply(
+                                (
+                                  parentId: _c.parentId ?? _c.id,
+                                  name: a.username ?? a.displayName,
+                                ),
+                              ),
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize:
                                     const Size(0, AppSizes.touchTarget),
                                 foregroundColor: colors.textSecondary,
                               ),
-                              child: Text(t.t(
-                                _showReplies
-                                    ? 'comment.hideReplies'
-                                    : 'comment.showReplies',
-                                {
-                                  'count': SocialFormat.count(
-                                      ref.watch(l10nFormatsProvider),
-                                      _c.replyCount),
-                                },
-                              )),
+                              child: FitText(t.t('comment.reply')),
+                            ),
+                          ),
+                          if (!widget.isReply && _c.replyCount > 0) ...[
+                            const SizedBox(width: AppSpacing.lg),
+                            Flexible(
+                              child: TextButton(
+                                onPressed: () => setState(
+                                  () => _showReplies = !_showReplies,
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize:
+                                      const Size(0, AppSizes.touchTarget),
+                                  foregroundColor: colors.textSecondary,
+                                ),
+                                child: FitText(
+                                  t.t(
+                                    _showReplies
+                                        ? 'comment.hideReplies'
+                                        : 'comment.showReplies',
+                                    {
+                                      'count': SocialFormat.count(
+                                        ref.watch(l10nFormatsProvider),
+                                        _c.replyCount,
+                                      ),
+                                    },
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         ],
@@ -288,13 +332,230 @@ class _CommentTileState extends ConsumerState<CommentTile> {
       ),
     );
   }
+
+  void _replyToThis() {
+    final a = _c.author;
+    widget.onReply(
+      (parentId: _c.parentId ?? _c.id, name: a.username ?? a.displayName),
+    );
+  }
+
+  Widget _threadsTile(
+    BuildContext context,
+    Translator t,
+    L10nFormats f,
+    AppColorTokens colors,
+    AppTypographyTokens type,
+  ) {
+    final a = _c.author;
+    final name = a.isCaseOwner
+        ? t.t('cases.comments.owner')
+        : a.isAttorney
+            ? a.displayName
+            : (isCaseRef(_c.id) ? t.t('person.client') : a.displayName);
+    final hasReplies = !widget.isReply && _c.replyCount > 0;
+    final line = _showReplies && hasReplies;
+    Widget action(Widget icon, int count) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            if (count > 0)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: AppSpacing.md),
+                child: Text(
+                  SocialFormat.count(f, count),
+                  style: type.bodySmall.copyWith(color: colors.textSecondary),
+                ),
+              ),
+          ],
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: AppSpacing.screenSide,
+            end: AppSpacing.sm,
+            top: AppSpacing.md,
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Column(
+                    children: [
+                      AppPressable(
+                        onTap: a.isAttorney && a.username != null
+                            ? () => context.push(AppRoutes.lawyer(a.username!))
+                            : () {},
+                        child: GoldRingAvatar(
+                          url: a.avatarUrl,
+                          initials: a.displayName.isEmpty
+                              ? '?'
+                              : avatarInitials(a.displayName),
+                          size: 36,
+                          ring: a.verified,
+                        ),
+                      ),
+                      if (line)
+                        Expanded(
+                          child: Container(
+                            width: 2,
+                            margin: const EdgeInsets.only(top: AppSpacing.xs),
+                            decoration: BoxDecoration(
+                              color: colors.border,
+                              borderRadius: BorderRadius.circular(1),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: type.bodySmall.copyWith(
+                                      color: colors.text,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                if (a.verified) ...[
+                                  const SizedBox(width: 3),
+                                  VerifiedCheck(
+                                    label: t.t('post.verified'),
+                                    size: 13,
+                                    gold: !a.isAttorney,
+                                  ),
+                                ],
+                                const SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  SocialFormat.ago(t, f, _c.createdAt),
+                                  maxLines: 1,
+                                  style: type.caption
+                                      .copyWith(color: colors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                          AppIconButton(
+                            icon: const AppIcon(
+                              AppIcons.moreHorizRounded,
+                              size: 18,
+                            ),
+                            semanticLabel: t.t('post.menu'),
+                            onPressed: _menu,
+                          ),
+                        ],
+                      ),
+                      TranslatableText(
+                        kind: TranslatableKind.comment,
+                        id: _c.id,
+                        text: _c.body,
+                        enabled: !_c.isMine,
+                        builder: (context, body) => PostBodyText(
+                          body: body,
+                          expanded: true,
+                          mentions: _c.mentions,
+                          height: 1.4,
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          action(
+                            BounceIcon(
+                              active: _c.likedByMe,
+                              icon: AppIcons.favoriteBorderRounded,
+                              activeIcon: AppIcons.favoriteRounded,
+                              activeColor: colors.danger,
+                              size: 20,
+                              label: t.t(
+                                _c.likedByMe ? 'post.unlike' : 'post.like',
+                              ),
+                              onTap: _toggleLike,
+                            ),
+                            _c.likeCount,
+                          ),
+                          action(
+                            BounceIcon(
+                              active: false,
+                              icon: AppIcons.modeCommentOutlined,
+                              activeIcon: AppIcons.modeCommentOutlined,
+                              size: 20,
+                              label: t.t('comment.reply'),
+                              onTap: _replyToThis,
+                            ),
+                            0,
+                          ),
+                        ],
+                      ),
+                      if (hasReplies)
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: TextButton(
+                            onPressed: () =>
+                                setState(() => _showReplies = !_showReplies),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(0, AppSizes.touchTarget),
+                              textStyle: type.bodySmall,
+                              foregroundColor: colors.textSecondary,
+                            ),
+                            child: FitText(
+                              t.t(
+                                _showReplies
+                                    ? 'comment.hideReplies'
+                                    : 'comment.showReplies',
+                                {'count': SocialFormat.count(f, _c.replyCount)},
+                              ),
+                            ),
+                          ),
+                        )
+                      else
+                        const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_showReplies)
+          _Replies(
+            commentId: _c.id,
+            onReply: widget.onReply,
+            threads: true,
+          ),
+        Divider(height: 1, color: colors.border),
+      ],
+    );
+  }
 }
 
 class _Replies extends ConsumerWidget {
-  const _Replies({required this.commentId, required this.onReply});
+  const _Replies({
+    required this.commentId,
+    required this.onReply,
+    this.threads = false,
+  });
 
   final String commentId;
   final void Function(ReplyTarget target) onReply;
+  final bool threads;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -308,7 +569,8 @@ class _Replies extends ConsumerWidget {
           child: SizedBox.square(
             dimension: AppSizes.footerSpinner,
             child: CircularProgressIndicator(
-                strokeWidth: AppSizes.footerSpinnerStroke),
+              strokeWidth: AppSizes.footerSpinnerStroke,
+            ),
           ),
         ),
       ),
@@ -324,6 +586,7 @@ class _Replies extends ConsumerWidget {
               key: ValueKey(r.id),
               comment: r,
               isReply: true,
+              threads: threads,
               onReply: onReply,
             ),
           if (page.canLoadMore)
@@ -358,6 +621,8 @@ class CommentComposer extends ConsumerStatefulWidget {
 }
 
 class _CommentComposerState extends ConsumerState<CommentComposer> {
+  bool get _isCase => widget.postId.startsWith(kCaseThreadPrefix);
+
   final _text = TextEditingController();
   bool _sending = false;
 
@@ -373,6 +638,30 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     final t = ref.read(translatorProvider);
     setState(() => _sending = true);
     final reply = widget.replyTo;
+    // Audit 2026-10-02: the approval request needs "posts" (or "cases" in a
+    // case thread) — say so before the text is lost to a 403.
+    if (ref.read(isAssistantProvider) &&
+        !ref.read(canDoProvider(AssistantDuty.publish)) &&
+        !ref.read(
+          canDoProvider(
+            isCaseRef(widget.postId)
+                ? AssistantDuty.cases
+                : AssistantDuty.posts,
+          ),
+        )) {
+      setState(() => _sending = false);
+      showAppSnackBar(
+        context,
+        errorText(
+          t,
+          const ApiException(
+            code: ApiErrorCodes.assistantNotAllowed,
+            message: 'duty',
+          ),
+        ),
+      );
+      return;
+    }
     // OQ-048: an assistant's comment waits for the attorney's approval.
     if (ref.read(isAssistantProvider) &&
         !ref.read(canDoProvider(AssistantDuty.publish))) {
@@ -411,18 +700,17 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
       if (reply == null) {
         ref.read(commentsProvider(widget.postId).notifier).add(c);
       } else {
-        ref.invalidate(repliesProvider(reply.parentId));
+        // Package F: the answer is the reply — under its parent at once.
+        ref.read(repliesProvider(reply.parentId).notifier).add(c);
+        // The parent's reply count lives in the comments page (no event
+        // for it yet): that list is read again.
         ref.invalidate(commentsProvider(widget.postId));
       }
-      // Case threads (OQ-034) have no post to bump.
-      final post = isCaseRef(widget.postId)
-          ? null
-          : ref.read(postOverridesProvider)[widget.postId] ??
-              ref.read(postProvider(widget.postId)).value;
-      if (post != null) {
-        ref
-            .read(postOverridesProvider.notifier)
-            .put(post.copyWith(commentCount: post.commentCount + 1));
+      // Case threads (OQ-034) have no post to bump. Audit 2026-10-02: the
+      // count also updates when the post isn't cached (commenting from the
+      // feed) — re-read it from the server.
+      if (!isCaseRef(widget.postId)) {
+        await syncPostCounts(ref, widget.postId);
       }
       widget.onClearReply();
     } on Object catch (e) {
@@ -439,103 +727,165 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final reply = widget.replyTo;
     // The send button is part of the field: tapping it keeps the keyboard.
-    return TextFieldTapRegion(child: Material(
-      color: colors.surface,
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Divider(height: 1, color: colors.border),
-            if (reply != null)
+    return TextFieldTapRegion(
+      child: Material(
+        color: colors.surface,
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Divider(height: 1, color: colors.border),
+              if (reply != null)
+                Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                    0,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          t.t('comment.replyingTo', {'name': reply.name}),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: type.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ),
+                      AppIconButton(
+                        icon: const AppIcon(AppIcons.closeRounded, size: 18),
+                        semanticLabel: t.t('common.cancel'),
+                        onPressed: widget.onClearReply,
+                      ),
+                    ],
+                  ),
+                ),
+              // OQ-042: "@…" suggests people to mention.
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenSide, AppSpacing.sm, AppSpacing.sm, 0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenSide,
+                ),
+                child: MentionSuggestions(controller: _text),
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppSpacing.screenSide,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                  AppSpacing.sm,
+                ),
                 child: Row(
                   children: [
+                    // Owner 2026-10-12: a live "n/1000" while typing;
+                    // 2026-10-19: inside the field, bottom right.
                     Expanded(
-                      child: Text(
-                        t.t('comment.replyingTo', {'name': reply.name}),
-                        style:
-                            type.caption.copyWith(color: colors.textSecondary),
+                      child: ListenableBuilder(
+                        listenable: _text,
+                        builder: (context, _) => InsideCounter(
+                          controller: _text,
+                          max: kCommentMaxChars,
+                          showFrom: 1,
+                          end: AppSpacing.lg,
+                          bottom: 5,
+                          child: TextField(
+                            onTapOutside: hideKeyboardOnTapOutside,
+                            controller: _text,
+                            focusNode: widget.focusNode,
+                            minLines: 1,
+                            maxLines: 4,
+                            maxLength: kCommentMaxChars,
+                            buildCounter: noFieldCounter,
+                            textCapitalization: TextCapitalization.sentences,
+                            style: type.body.copyWith(color: colors.text),
+                            decoration: InputDecoration(
+                              // Owner 2026-10-15: under a case: «Ask a
+                              // question…».
+                              hintText: _isCase
+                                  ? t.t('cases.comments.ask')
+                                  : t.t('comment.hint'),
+                              isDense: true,
+                              // M3 dense outline padding + room for the counter
+                              // once there is text.
+                              contentPadding: EdgeInsetsDirectional.fromSTEB(
+                                12,
+                                16,
+                                12,
+                                8 +
+                                    (_text.text.isEmpty
+                                        ? 0
+                                        : kInsideCounterRoom),
+                              ),
+                              filled: true,
+                              fillColor: colors.bg,
+                              border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                borderSide: BorderSide(color: colors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                borderSide: BorderSide(color: colors.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadii.pill),
+                                borderSide: BorderSide(color: colors.gold),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    AppIconButton(
-                      icon: const AppIcon(AppIcons.closeRounded, size: 18),
-                      semanticLabel: t.t('common.cancel'),
-                      onPressed: widget.onClearReply,
+                    const SizedBox(width: AppSpacing.xs),
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _text,
+                      builder: (context, v, _) {
+                        final enabled = v.text.trim().isNotEmpty && !_sending;
+                        return AppIconButton(
+                          icon: AppIcon(
+                            AppIcons.arrowUpwardRounded,
+                            color: enabled
+                                ? colors.iconTint
+                                : colors.textSecondary,
+                          ),
+                          isLoading: _sending,
+                          semanticLabel: _isCase
+                              ? t.t('cases.comments.send')
+                              : t.t('comment.send'),
+                          onPressed: enabled ? _send : null,
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
-            // OQ-042: "@…" suggests people to mention.
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppSpacing.screenSide),
-              child: MentionSuggestions(controller: _text),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-                  AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      onTapOutside: hideKeyboardOnTapOutside,
-                      controller: _text,
-                      focusNode: widget.focusNode,
-                      minLines: 1,
-                      maxLines: 4,
-                      maxLength: kCommentMaxChars,
-                      buildCounter: (_,
-                              {required currentLength,
-                              required isFocused,
-                              maxLength}) =>
-                          null,
-                      textCapitalization: TextCapitalization.sentences,
-                      style: type.body.copyWith(color: colors.text),
-                      decoration: InputDecoration(
-                        hintText: t.t('comment.hint'),
-                        isDense: true,
-                        filled: true,
-                        fillColor: colors.bg,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.pill),
-                          borderSide: BorderSide(color: colors.gold),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _text,
-                    builder: (context, v, _) {
-                      final enabled = v.text.trim().isNotEmpty && !_sending;
-                      return AppIconButton(
-                        icon: AppIcon(
-                          AppIcons.arrowUpwardRounded,
-                          color: enabled ? colors.gold : colors.textSecondary,
-                        ),
-                        isLoading: _sending,
-                        semanticLabel: t.t('comment.send'),
-                        onPressed: enabled ? _send : null,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ));
+    );
+  }
+}
+
+/// Audit 2026-10-02: re-reads a post after a comment change so every card
+/// shows the server's comment count (keeps the viewer's like/save state).
+Future<void> syncPostCounts(WidgetRef ref, String postId) async {
+  try {
+    final fresh = await ref.read(socialRepositoryProvider).post(postId);
+    final known = ref.read(postOverridesProvider)[postId];
+    ref.read(postOverridesProvider.notifier).put(
+          known == null
+              ? fresh
+              : fresh.copyWith(
+                  likedByMe: known.likedByMe,
+                  savedByMe: known.savedByMe,
+                ),
+        );
+  } on Object {
+    // Offline: the next refresh corrects it.
   }
 }

@@ -1,4 +1,6 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { FORMAT_UNUSUAL_FLAG } from '../bar-number-format';
+import { type CountryScope, userInScope } from '../../countries/country-scope';
+import { HttpStatus, Injectable, Optional } from '@nestjs/common';
 import type {
   AttorneyLicense,
   Prisma,
@@ -12,6 +14,11 @@ import {
 } from '../../../common/pagination/cursor.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
+import {
+  BLOCK_SOURCE,
+  BarNumberBlocksService,
+} from '../../attorney-trust/bar-number-blocks.service';
 import { AuditLogService } from '../../admin-access/audit-log.service';
 import { BidStateMachine } from '../../bids/domain/bid-state-machine';
 import { CaseJournalService } from '../../journal/case-journal.service';
@@ -28,18 +35,25 @@ import {
   type DocumentUrlDto,
   type LicenseDecisionDto,
   type LicenseRecheckDto,
+  type RegistryCheckDto,
+  type RegistryFlagItemDto,
   type RejectRequestDto,
   type VerificationQueuePage,
   type VerificationQueueQueryDto,
 } from '../dto/admin-verification.dto';
 import { VerificationProviderSelector } from '../providers/verification-provider.selector';
+import type { CheckOutcome } from '../providers/verification-providers';
 import {
   AUDIT_ACTION,
   DOCUMENT_URL_LIMIT_PER_ADMIN_PER_HOUR,
   LICENSE_RECHECK_NOTE_PREFIX,
   OPEN_REQUEST_STATUSES,
   VERIFICATION_NOTIFICATION_KIND as KIND,
+  IDENTITY_DOC_TYPES,
 } from '../verification.constants';
+import { stateBarLookupUrl } from '../state-bar-links';
+import { licenseRenewalState } from '../license-renewal';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   httpError,
   invalidStatus,
@@ -94,16 +108,47 @@ export class VerificationAdminService {
     private readonly rateLimit: RateLimitService,
     private readonly bidMachine: BidStateMachine,
     private readonly journal: CaseJournalService,
+    private readonly trust: AttorneyTrustService,
+    private readonly blocks: BarNumberBlocksService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
+
+  /** Grace period and reminder window for the renewal state of a license. */
+  private async renewalOpts(now = new Date()): Promise<RenewalOpts> {
+    return {
+      now,
+      graceDays: this.settings
+        ? Math.max(
+            0,
+            Math.floor(
+              await this.settings.number(
+                'verification.license_expiry_grace_days',
+              ),
+            ),
+          )
+        : 0,
+      notifyDays: this.settings
+        ? await this.settings.numberList(
+            'verification.license_expiry_notify_days',
+          )
+        : [],
+    };
+  }
 
   /** §2.5.1: oldest submission first; keyset cursor on (submitted_at, id). */
   async queue(
     query: VerificationQueueQueryDto,
+    countries: CountryScope = null,
   ): Promise<VerificationQueuePage> {
     const limit = query.limit ?? QUEUE_PAGE_DEFAULT;
     const after = query.cursor ? decodeCursor(query.cursor) : null;
     const rows = await this.prisma.verificationRequest.findMany({
       where: {
+        // Owner 2026-10-05: a verifier for one country sees only its
+        // attorneys.
+        ...(countries && {
+          AND: [{ attorney: { user: userInScope(countries) } }],
+        }),
         status: {
           in: query.status ? [query.status] : ['submitted', 'needs_more_info'],
         },
@@ -130,7 +175,7 @@ export class VerificationAdminService {
             user: { select: { first_name: true, last_name: true } },
             licenses: {
               where: { license_status: 'pending' },
-              select: { state_code: true },
+              select: { state_code: true, registry_flag: true },
               orderBy: { state_code: 'asc' },
             },
           },
@@ -152,6 +197,9 @@ export class VerificationAdminService {
           verificationStatus: r.attorney.verification_status,
         },
         stateCodes: [...new Set(r.attorney.licenses.map((l) => l.state_code))],
+        formatReview: r.attorney.licenses.some(
+          (l) => l.registry_flag === FORMAT_UNUSUAL_FLAG,
+        ),
         reviewerId: r.reviewed_by,
         adminNote: r.admin_note,
       })),
@@ -163,12 +211,19 @@ export class VerificationAdminService {
   }
 
   /** §2.5.2 request card. */
-  async card(requestId: string): Promise<AdminVerificationRequestDto> {
-    const row = await this.prisma.verificationRequest.findUnique({
-      where: { id: requestId },
+  async card(
+    requestId: string,
+    countries: CountryScope = null,
+  ): Promise<AdminVerificationRequestDto> {
+    const row = await this.prisma.verificationRequest.findFirst({
+      where: {
+        id: requestId,
+        ...(countries && { attorney: { user: userInScope(countries) } }),
+      },
       include: CARD_INCLUDE,
     });
     if (!row) throw notFound('Verification request not found.');
+    const renewal = await this.renewalOpts();
     const history = await this.prisma.verificationRequest.findMany({
       where: { attorney_id: row.attorney_id, id: { not: row.id } },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -181,6 +236,9 @@ export class VerificationAdminService {
       submittedAt: row.submitted_at?.toISOString() ?? null,
       reviewedAt: row.reviewed_at?.toISOString() ?? null,
       reviewerId: row.reviewed_by,
+      attestedAt: row.attested_at?.toISOString() ?? null,
+      attestationIp: row.attestation_ip,
+      attestationVersion: row.attestation_version,
       applicantComment: row.applicant_comment,
       infoRequestMessage: row.info_request_message,
       rejectionCode: row.rejection_code,
@@ -194,7 +252,7 @@ export class VerificationAdminService {
         username: row.attorney.username,
         verificationStatus: row.attorney.verification_status,
       },
-      licenses: row.attorney.licenses.map(licenseDto),
+      licenses: row.attorney.licenses.map((l) => licenseDto(l, renewal)),
       documents: row.documents.map((d) => ({
         id: d.id,
         docType: d.doc_type,
@@ -203,6 +261,7 @@ export class VerificationAdminService {
         mime: d.file.mime,
         sizeBytes: Number(d.file.size_bytes),
         scanStatus: d.file.scan_status,
+        notes: d.notes,
         createdAt: d.created_at.toISOString(),
       })),
       checks: row.checks.map((c) => ({
@@ -345,6 +404,11 @@ export class VerificationAdminService {
               verifier: { connect: { id: admin.id } },
               rejection_code: null,
               rejection_note: dto.note || null,
+              // A person looked at the document: an unusual shape is settled.
+              ...(license.registry_flag === 'format_unusual' && {
+                registry_flag: null,
+                registry_flagged_at: null,
+              }),
             }
           : {
               license_status: 'rejected',
@@ -374,6 +438,11 @@ export class VerificationAdminService {
           },
           ip: admin.ip,
         },
+        tx,
+      );
+      await this.trust.recompute(
+        req.attorney_id,
+        { type: 'admin', id: admin.id },
         tx,
       );
     });
@@ -436,6 +505,35 @@ export class VerificationAdminService {
         requestId: req.id,
         partial,
       });
+      // Owner 2026-10-05 (trust levels): a verifier who approved a request
+      // carrying an identity document and a selfie has checked the
+      // documents — identity confirmed by staff.
+      const docs = await tx.verificationDocument.findMany({
+        where: { request_id: req.id },
+        select: { doc_type: true },
+      });
+      const types = new Set<string>(docs.map((d) => d.doc_type));
+      const identity = IDENTITY_DOC_TYPES.some((t) => types.has(t));
+      const actor = { type: 'admin' as const, id: admin.id, ip: admin.ip };
+      if (identity && types.has('selfie')) {
+        await this.trust.confirmDocuments(
+          req.attorney_id,
+          actor,
+          `request ${req.id}`,
+          tx,
+        );
+      }
+      // Owner 2026-10-05 05:53: a verifier who approved the request by hand
+      // has vouched for the attorney — the same «Подтвердить» as in the
+      // anti-fraud queue: badge and payments open, no re-checks except
+      // complaints, and the decision (who, when, what they saw) is recorded.
+      // The attorney already got the `approved` notice.
+      await this.trust.clearByStaff(
+        req.attorney_id,
+        actor,
+        `request ${req.id}`,
+        { tx, notify: false },
+      );
     });
     return this.card(requestId);
   }
@@ -518,6 +616,11 @@ export class VerificationAdminService {
           data: { verification_status: 'unverified' },
         });
       }
+      await this.trust.recompute(
+        req.attorney_id,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       await this.audit.record(
         {
           adminId: admin.id,
@@ -539,6 +642,17 @@ export class VerificationAdminService {
         requestId: req.id,
         rejectionCode: dto.rejectionCode,
       });
+      // Owner 2026-10-05 07:00: the rejected bar numbers stay blocked for
+      // re-registration until staff unblock them (`trust.block_on_reject`).
+      if (await this.blocks.blockOnReject()) {
+        await this.blocks.blockAttorney(
+          req.attorney_id,
+          { type: 'admin', id: admin.id, ip: admin.ip },
+          dto.comment || `Verification rejected: ${dto.rejectionCode}`,
+          BLOCK_SOURCE.verificationReject,
+          tx,
+        );
+      }
     });
     return this.card(requestId);
   }
@@ -579,49 +693,10 @@ export class VerificationAdminService {
       lastName: license.attorney.user.last_name ?? '',
     });
     const requestId = await withTxRetry(this.prisma, async (tx) => {
-      let queuedIn: string | null = null;
-      if (outcome.result !== 'pass') {
-        await tx.attorneyLicense.update({
-          where: { id: license.id },
-          data: { license_status: 'pending' },
-        });
-        const open = await tx.verificationRequest.findFirst({
-          where: {
-            attorney_id: license.attorney_id,
-            status: { in: [...OPEN_REQUEST_STATUSES] },
-          },
-          select: { id: true },
-        });
-        queuedIn =
-          open?.id ??
-          (
-            await tx.verificationRequest.create({
-              data: {
-                attorney_id: license.attorney_id,
-                status: 'submitted',
-                submitted_at: now,
-                admin_note: `${LICENSE_RECHECK_NOTE_PREFIX}: ${license.state_code} ${license.id}`,
-              },
-              select: { id: true },
-            })
-          ).id;
-        await tx.verificationCheck.create({
-          data: {
-            request_id: queuedIn,
-            check_type: 'bar_lookup',
-            provider: 'manual',
-            result: outcome.result,
-            details: {
-              ...outcome.details,
-              lookupProvider: provider.name,
-              licenseId: license.id,
-              stateCode: license.state_code,
-              recheck: true,
-            },
-            checked_at: now,
-          },
-        });
-      }
+      const queuedIn =
+        outcome.result !== 'pass'
+          ? await this.queueForReview(tx, license, outcome, provider.name, now)
+          : null;
       await this.audit.record(
         {
           adminId: admin.id,
@@ -645,7 +720,279 @@ export class VerificationAdminService {
       where: { id: license.id },
       include: { state: true },
     });
-    return { license: licenseDto(fresh), result: outcome.result, requestId };
+    return {
+      license: licenseDto(fresh, await this.renewalOpts()),
+      result: outcome.result,
+      requestId,
+    };
+  }
+
+  /**
+   * Owner 2026-10-05: licenses the state registry disagreed with after a
+   * self-attested approval (Admin → Проверка → "Сверка с реестром"),
+   * newest first. They stay verified until an admin acts.
+   */
+  async registryFlags(limit = 100): Promise<RegistryFlagItemDto[]> {
+    const rows = await this.prisma.attorneyLicense.findMany({
+      where: { registry_flag: { not: null } },
+      orderBy: [{ registry_flagged_at: 'desc' }, { id: 'asc' }],
+      take: Math.max(limit, 500),
+      include: {
+        state: true,
+        attorney: {
+          include: {
+            user: { select: { first_name: true, last_name: true } },
+            verification_requests: {
+              orderBy: { created_at: 'desc' },
+              take: 1,
+              select: { id: true },
+            },
+          },
+        },
+      },
+    });
+    // Owner 2026-10-14: the riskiest first — a number the registry does
+    // not know, then a different name, then a lapsed licence; newest first
+    // inside a group (the query order is kept by the stable sort).
+    const risk = (flag: string | null) =>
+      flag === 'not_found' ? 3 : flag === 'name_mismatch' ? 2 : 1;
+    rows.sort((x, y) => risk(y.registry_flag) - risk(x.registry_flag));
+    const renewal = await this.renewalOpts();
+    return rows.slice(0, limit).map((l) => ({
+      attorney: {
+        id: l.attorney.user_id,
+        firstName: l.attorney.user.first_name,
+        lastName: l.attorney.user.last_name,
+        username: l.attorney.username,
+        verificationStatus: l.attorney.verification_status,
+      },
+      license: licenseDto(l, renewal),
+      latestRequestId: l.attorney.verification_requests[0]?.id ?? null,
+    }));
+  }
+
+  /**
+   * Owner 2026-10-05: "Проверить по реестру" — one lookup now, whatever the
+   * license status; the result is stored on the license and, for a
+   * verified license, sets or clears its registry flag. Nothing else
+   * changes (unlike `recheck`, which queues a non-pass for review).
+   */
+  async registryCheck(
+    admin: AdminActor,
+    licenseId: string,
+  ): Promise<RegistryCheckDto> {
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+      include: {
+        attorney: {
+          select: { user: { select: { first_name: true, last_name: true } } },
+        },
+      },
+    });
+    if (!license) throw notFound('License not found.');
+    const provider = await this.selector.barLookup();
+    const outcome = await this.checks.barLookup(provider, license, null, {
+      firstName: license.attorney.user.first_name ?? '',
+      lastName: license.attorney.user.last_name ?? '',
+    });
+    if (license.license_status === 'verified') {
+      await this.checks.applyRegistryFlag(license.id, outcome);
+    }
+    await this.audit.record({
+      adminId: admin.id,
+      action: AUDIT_ACTION.registryCheck,
+      targetType: 'attorney_license',
+      targetId: license.id,
+      before: { flag: license.registry_flag },
+      after: {
+        result: outcome.result,
+        reason:
+          typeof outcome.details.reason === 'string'
+            ? outcome.details.reason
+            : null,
+      },
+      ip: admin.ip,
+    });
+    const fresh = await this.prisma.attorneyLicense.findUniqueOrThrow({
+      where: { id: license.id },
+      include: { state: true },
+    });
+    return {
+      license: licenseDto(fresh, await this.renewalOpts()),
+      result: outcome.result,
+      details: outcome.details,
+    };
+  }
+
+  /** Owner 2026-10-05: the admin looked at a registry difference and
+   * keeps the license as it is. */
+  async clearRegistryFlag(
+    admin: AdminActor,
+    licenseId: string,
+  ): Promise<AdminLicenseDto> {
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+    });
+    if (!license) throw notFound('License not found.');
+    const updated = await this.prisma.attorneyLicense.update({
+      where: { id: licenseId },
+      data: { registry_flag: null, registry_flagged_at: null },
+      include: { state: true },
+    });
+    await this.audit.record({
+      adminId: admin.id,
+      action: AUDIT_ACTION.registryFlagClear,
+      targetType: 'attorney_license',
+      targetId: license.id,
+      before: { flag: license.registry_flag },
+      after: { flag: null },
+      ip: admin.ip,
+    });
+    await this.trust.recompute(license.attorney_id, {
+      type: 'admin',
+      id: admin.id,
+    });
+    return licenseDto(updated, await this.renewalOpts());
+  }
+
+  /**
+   * Owner 2026-10-24: the admin enters (or clears) the expiry date of a
+   * license by hand — a state without a registry date. Source = admin
+   * (the registry never overwrites it). The badge is recomputed, so
+   * moving the date into the future brings it back at once.
+   */
+  async setLicenseExpiry(
+    admin: AdminActor,
+    licenseId: string,
+    expiresAt: string | null,
+  ): Promise<AdminLicenseDto> {
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+    });
+    if (!license) throw notFound('License not found.');
+    if (license.license_status === 'expired') {
+      throw httpError(
+        HttpStatus.CONFLICT,
+        ErrorCode.VERIFICATION_INVALID_STATUS,
+        'The license has expired: it is renewed through a new verification.',
+        { licenseStatus: license.license_status },
+      );
+    }
+    const date = expiresAt ? new Date(`${expiresAt}T00:00:00Z`) : null;
+    if (date && Number.isNaN(date.getTime())) {
+      throw httpError(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_ERROR,
+        'expiresAt must be a real date.',
+      );
+    }
+    const updated = await this.prisma.attorneyLicense.update({
+      where: { id: licenseId },
+      data: { expires_at: date, expires_source: date ? 'admin' : null },
+      include: { state: true },
+    });
+    await this.audit.record({
+      adminId: admin.id,
+      action: AUDIT_ACTION.licenseExpiry,
+      targetType: 'attorney_license',
+      targetId: license.id,
+      before: { expiresAt: isoDay(license.expires_at) },
+      after: { expiresAt },
+      ip: admin.ip,
+    });
+    await this.trust.recompute(license.attorney_id, {
+      type: 'admin',
+      id: admin.id,
+    });
+    return licenseDto(updated, await this.renewalOpts());
+  }
+
+  /**
+   * Owner 2026-10-04: monthly re-check of verified licenses in states with
+   * an enabled registry (job `licenses.registry-recheck`). Only a definite
+   * `fail` (number gone, status no longer "Currently registered") queues
+   * the license for a verifier exactly like the manual re-check; a name
+   * difference or a registry error changes nothing. Returns the lookup
+   * result, or null when automatic lookups are off.
+   */
+  async registryRecheck(
+    licenseId: string,
+    now = new Date(),
+  ): Promise<CheckOutcome['result'] | null> {
+    const provider = await this.selector.barLookup();
+    const license = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+      include: {
+        attorney: {
+          select: { user: { select: { first_name: true, last_name: true } } },
+        },
+      },
+    });
+    if (!license || license.license_status !== 'verified') return null;
+    if (!(await provider.supports(license.state_code))) return null;
+    const outcome = await this.checks.barLookup(provider, license, null, {
+      firstName: license.attorney.user.first_name ?? '',
+      lastName: license.attorney.user.last_name ?? '',
+    });
+    if (outcome.result === 'fail') {
+      await withTxRetry(this.prisma, (tx) =>
+        this.queueForReview(tx, license, outcome, provider.name, now),
+      );
+    }
+    return outcome.result;
+  }
+
+  /** Puts [license] back to `pending` inside the attorney's open request,
+   * or a new `submitted` one (admin_note `license_recheck: …`), with the
+   * lookup stored as its `bar_lookup` check. Returns the request id. */
+  private async queueForReview(
+    tx: Tx,
+    license: Pick<AttorneyLicense, 'id' | 'attorney_id' | 'state_code'>,
+    outcome: CheckOutcome,
+    lookupProvider: string,
+    now: Date,
+  ): Promise<string> {
+    await tx.attorneyLicense.update({
+      where: { id: license.id },
+      data: { license_status: 'pending' },
+    });
+    const open = await tx.verificationRequest.findFirst({
+      where: {
+        attorney_id: license.attorney_id,
+        status: { in: [...OPEN_REQUEST_STATUSES] },
+      },
+      select: { id: true },
+    });
+    const queuedIn =
+      open?.id ??
+      (
+        await tx.verificationRequest.create({
+          data: {
+            attorney_id: license.attorney_id,
+            status: 'submitted',
+            submitted_at: now,
+            admin_note: `${LICENSE_RECHECK_NOTE_PREFIX}: ${license.state_code} ${license.id}`,
+          },
+          select: { id: true },
+        })
+      ).id;
+    await tx.verificationCheck.create({
+      data: {
+        request_id: queuedIn,
+        check_type: 'bar_lookup',
+        provider: 'manual',
+        result: outcome.result,
+        details: {
+          ...outcome.details,
+          lookupProvider,
+          licenseId: license.id,
+          stateCode: license.state_code,
+          recheck: true,
+        },
+        checked_at: now,
+      },
+    });
+    return queuedIn;
   }
 
   /**
@@ -735,6 +1082,22 @@ export class VerificationAdminService {
         tx,
       );
       await this.notify(tx, attorneyId, { kind: KIND.suspended });
+      await this.trust.recompute(
+        attorneyId,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
+      // Owner 2026-10-05 07:00: a blocked account's bar numbers cannot be
+      // registered again under a new account (`trust.block_on_reject`).
+      if (await this.blocks.blockOnReject()) {
+        await this.blocks.blockAttorney(
+          attorneyId,
+          { type: 'admin', id: admin.id, ip: admin.ip },
+          reason,
+          BLOCK_SOURCE.suspend,
+          tx,
+        );
+      }
       return {
         attorneyId,
         verificationStatus: 'suspended',
@@ -804,6 +1167,11 @@ export class VerificationAdminService {
         tx,
       );
       await this.notify(tx, attorneyId, { kind: KIND.restored });
+      await this.trust.recompute(
+        attorneyId,
+        { type: 'admin', id: admin.id },
+        tx,
+      );
       return { attorneyId, verificationStatus: restored, withdrawnBids: 0 };
     }
   }
@@ -845,7 +1213,16 @@ export class VerificationAdminService {
   }
 }
 
-function licenseDto(l: AttorneyLicense & { state: State }): AdminLicenseDto {
+interface RenewalOpts {
+  graceDays: number;
+  notifyDays: readonly number[];
+  now: Date;
+}
+
+function licenseDto(
+  l: AttorneyLicense & { state: State },
+  renewal?: RenewalOpts,
+): AdminLicenseDto {
   return {
     id: l.id,
     stateCode: l.state_code,
@@ -853,11 +1230,29 @@ function licenseDto(l: AttorneyLicense & { state: State }): AdminLicenseDto {
     barNumber: l.bar_number,
     status: l.license_status,
     expiresAt: isoDay(l.expires_at),
+    expiresSource: l.expires_source,
+    renewalState: renewal
+      ? licenseRenewalState(
+          l.license_status,
+          l.expires_at,
+          renewal.now,
+          renewal,
+        )
+      : null,
+    graceEndsAt:
+      renewal && l.expires_at
+        ? isoDay(
+            new Date(l.expires_at.getTime() + renewal.graceDays * 86_400_000),
+          )
+        : null,
     autoCheckResult: asObject(l.auto_check_result),
+    lookupUrl: stateBarLookupUrl(l.state_code, l.bar_number),
     rejectionCode: l.rejection_code,
     rejectionNote: l.rejection_note,
     verifiedAt: l.verified_at?.toISOString() ?? null,
     decidedBy: l.verified_by,
+    registryFlag: (l.registry_flag as AdminLicenseDto['registryFlag']) ?? null,
+    registryFlaggedAt: l.registry_flagged_at?.toISOString() ?? null,
   };
 }
 

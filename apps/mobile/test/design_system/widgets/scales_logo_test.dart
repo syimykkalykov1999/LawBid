@@ -17,15 +17,20 @@ void main() {
     );
   }
 
-  testWidgets('static (non-animated) mode never creates a ticking controller', (tester) async {
+  testWidgets('static (non-animated) mode never creates a ticking controller',
+      (tester) async {
     await tester.pumpWidget(wrap(const ScalesLogo(size: 100)));
     await tester.pump(const Duration(seconds: 2));
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('animated mode does not throw with disableAnimations set', (tester) async {
+  testWidgets('animated mode does not throw with disableAnimations set',
+      (tester) async {
     await tester.pumpWidget(
-      wrap(const ScalesLogo(size: 100, animated: true), disableAnimations: true),
+      wrap(
+        const ScalesLogo(size: 100, animated: true),
+        disableAnimations: true,
+      ),
     );
     await tester.pump(const Duration(seconds: 2));
     expect(tester.takeException(), isNull);

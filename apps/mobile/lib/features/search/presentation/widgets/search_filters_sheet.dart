@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
@@ -13,6 +11,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dar
 import 'package:lawbid/features/feed/presentation/widgets/topic_filter_bar.dart'
     show topicName;
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
 
@@ -29,6 +28,9 @@ Future<SearchFilters?> showSearchFilters(
       isScrollControlled: true,
       builder: (_) => _FiltersSheet(initial: initial, kind: kind),
     );
+
+/// Owner 2026-10-18: «до N %» choices for percent budgets.
+const _percentCaps = <int>[10, 20, 33, 50];
 
 /// Budget ranges offered for cases (whole dollars; null = open end).
 const _budgets = <(int?, int?)>[
@@ -71,9 +73,14 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
     Object? budgetMin = _keep,
     Object? budgetMax = _keep,
     bool? budgetUnknown,
+    bool? budgetPercent,
+    Object? percentMax = _keep,
     bool? noBids,
+    Object? minUrgency = _keep,
+    bool? hasDeadline,
     Object? caseStatus = _keep,
     bool? withPhotos,
+    bool? briefsOnly,
     PostSort? postSort,
     TopicKind? topicKind,
     TopicSort? topicSort,
@@ -92,9 +99,14 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       budgetMin: pick(budgetMin, _f.budgetMin),
       budgetMax: pick(budgetMax, _f.budgetMax),
       budgetUnknown: budgetUnknown ?? _f.budgetUnknown,
+      budgetPercent: budgetPercent ?? _f.budgetPercent,
+      percentMax: pick(percentMax, _f.percentMax),
       noBids: noBids ?? _f.noBids,
+      minUrgency: pick(minUrgency, _f.minUrgency),
+      hasDeadline: hasDeadline ?? _f.hasDeadline,
       caseStatus: pick(caseStatus, _f.caseStatus),
       withPhotos: withPhotos ?? _f.withPhotos,
+      briefsOnly: briefsOnly ?? _f.briefsOnly,
       postSort: postSort ?? _f.postSort,
       topicKind: topicKind ?? _f.topicKind,
       topicSort: topicSort ?? _f.topicSort,
@@ -129,6 +141,22 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
         ],
       ],
       initial: {if (_f.practiceAreaId != null) _f.practiceAreaId!},
+      // Any language (the options are ids; the server names codes).
+      remoteSearch: (q) async {
+        final byCode = await practiceRemoteSearch(ref)(q);
+        final ids = <String, String?>{};
+        for (final c in tree) {
+          if (byCode.containsKey(practiceCodeOf(c.i18nKey))) {
+            ids[c.id] = byCode[practiceCodeOf(c.i18nKey)];
+          }
+          for (final l in c.children) {
+            if (byCode.containsKey(practiceCodeOf(l.i18nKey))) {
+              ids[l.id] = byCode[practiceCodeOf(l.i18nKey)];
+            }
+          }
+        }
+        return ids;
+      },
     );
     if (picked == null || !mounted) return;
     final id = picked.isEmpty ? null : picked.first;
@@ -142,6 +170,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
       searchHint: ref.read(translatorProvider).t('practice.search.hint'),
       // Audit 2026-10-01: every category and subcategory.
       options: practiceOptions(ref),
+      remoteSearch: practiceRemoteSearch(ref),
       initial: {if (_f.practiceCategory != null) _f.practiceCategory!},
     );
     if (picked == null || !mounted) return;
@@ -187,18 +216,22 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
-                  style: type.bodySmall.copyWith(
-                      color: colors.textSecondary,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                title,
+                style: type.bodySmall.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: AppSpacing.sm),
               child,
             ],
           ),
         );
 
+    // ignore: avoid_positional_boolean_parameters
     Widget picker(String label, bool selected, VoidCallback onTap) => Align(
-          alignment: Alignment.centerLeft,
+          alignment: AlignmentDirectional.centerStart,
           child: AppChip(
             label: label,
             selected: selected,
@@ -222,6 +255,7 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           ],
         );
 
+    // ignore: avoid_positional_boolean_parameters
     Widget toggle(String label, bool value, void Function(bool) on) => Padding(
           padding: const EdgeInsets.only(top: AppSpacing.sm),
           child: Semantics(
@@ -253,9 +287,15 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
                 ),
               ),
               if (_f.state != null)
-                TextButton(
-                  onPressed: () => _set((_) => _with(state: null)),
-                  child: Text(any),
+                Flexible(
+                  child: TextButton(
+                    onPressed: () => _set((_) => _with(state: null)),
+                    child: Text(
+                      any,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -297,23 +337,28 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
               _f.role,
               // Audit 2026-10-01: clients have no practice / rating /
               // language — switching to clients clears those filters.
-              (r) => _set((_) => r == 'client'
-                  ? _with(
-                      role: r,
-                      practiceAreaId: null,
-                      practiceLabel: null,
-                      minRating: null,
-                      language: null,
-                    )
-                  : _with(role: r)),
+              (r) => _set(
+                (_) => r == 'client'
+                    ? _with(
+                        role: r,
+                        practiceAreaId: null,
+                        practiceLabel: null,
+                        minRating: null,
+                        language: null,
+                      )
+                    : _with(role: r),
+              ),
             ),
           ),
           stateSection(t.t('search.filter.state')),
           if (_f.role != 'client') ...[
             section(
               t.t('search.filter.practice'),
-              picker(_f.practiceLabel ?? any, _f.practiceAreaId != null,
-                  _pickPracticeLeaf),
+              picker(
+                _f.practiceLabel ?? any,
+                _f.practiceAreaId != null,
+                _pickPracticeLeaf,
+              ),
             ),
             section(
               t.t('search.filter.minRating'),
@@ -333,12 +378,18 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
             ),
             section(
               t.t('search.filter.language'),
-              picker(_languageName(_f.language) ?? any, _f.language != null,
-                  _pickLanguage),
+              picker(
+                _languageName(_f.language) ?? any,
+                _f.language != null,
+                _pickLanguage,
+              ),
             ),
           ],
-          toggle(t.t('search.filter.verifiedOnly'), _f.verifiedOnly,
-              (v) => _set((_) => _with(verifiedOnly: v))),
+          toggle(
+            t.t('search.filter.verifiedOnly'),
+            _f.verifiedOnly,
+            (v) => _set((_) => _with(verifiedOnly: v)),
+          ),
         ],
       SearchFilterKind.cases => [
           categorySection(t.t('search.filter.practice')),
@@ -354,10 +405,55 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
               (b) => _set((_) => _with(budgetMin: b.$1, budgetMax: b.$2)),
             ),
           ),
-          toggle(t.t('search.filter.budgetUnknown'), _f.budgetUnknown,
-              (v) => _set((_) => _with(budgetUnknown: v))),
-          toggle(t.t('search.filter.noBids'), _f.noBids,
-              (v) => _set((_) => _with(noBids: v))),
+          toggle(
+            t.t('search.filter.budgetUnknown'),
+            _f.budgetUnknown,
+            (v) => _set((_) => _with(budgetUnknown: v)),
+          ),
+          // Owner 2026-10-18: percent (contingency) budgets, optionally up
+          // to N percent; OR-ed with the range and «уточню позже».
+          toggle(
+            t.t('search.filter.budgetPercent'),
+            _f.budgetPercent,
+            (v) => _set((_) => _with(budgetPercent: v, percentMax: null)),
+          ),
+          if (_f.budgetPercent)
+            section(
+              t.t('search.filter.percentMax'),
+              choices<int?>(
+                [
+                  (null, any),
+                  for (final n in _percentCaps)
+                    (n, t.t('search.filter.percentUpTo', {'n': '$n'})),
+                ],
+                _f.percentMax,
+                (n) => _set((_) => _with(percentMax: n)),
+              ),
+            ),
+          toggle(
+            t.t('search.filter.noBids'),
+            _f.noBids,
+            (v) => _set((_) => _with(noBids: v)),
+          ),
+          // Owner 2026-10-05: "urgent and above", "with a date".
+          section(
+            t.t('search.filter.urgency'),
+            choices<String?>(
+              [
+                (null, any),
+                ('soon', t.t('search.filter.urgency.soon')),
+                ('urgent', t.t('search.filter.urgency.urgent')),
+                ('very_urgent', t.t('search.filter.urgency.very_urgent')),
+              ],
+              _f.minUrgency,
+              (u) => _set((_) => _with(minUrgency: u)),
+            ),
+          ),
+          toggle(
+            t.t('search.filter.hasDeadline'),
+            _f.hasDeadline,
+            (v) => _set((_) => _with(hasDeadline: v)),
+          ),
         ],
       SearchFilterKind.myCases => [
           section(
@@ -389,8 +485,16 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
               (s) => _set((_) => _with(postSort: s)),
             ),
           ),
-          toggle(t.t('search.filter.withPhotos'), _f.withPhotos,
-              (v) => _set((_) => _with(withPhotos: v))),
+          toggle(
+            t.t('search.filter.withPhotos'),
+            _f.withPhotos,
+            (v) => _set((_) => _with(withPhotos: v)),
+          ),
+          toggle(
+            t.t('feed.briefs'),
+            _f.briefsOnly,
+            (v) => _set((_) => _with(briefsOnly: v)),
+          ),
         ],
       SearchFilterKind.topics => [
           section(
@@ -424,8 +528,12 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
           maxHeight: MediaQuery.sizeOf(context).height * 0.85,
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.screenSide,
-              AppSpacing.md, AppSpacing.screenSide, AppSpacing.lg),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenSide,
+            AppSpacing.md,
+            AppSpacing.screenSide,
+            AppSpacing.lg,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -439,9 +547,17 @@ class _FiltersSheetState extends ConsumerState<_FiltersSheet> {
                       style: type.titleMedium.copyWith(color: colors.text),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => setState(() => _f = const SearchFilters()),
-                    child: Text(t.t('search.filter.reset')),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 160),
+                    child: TextButton(
+                      onPressed: () =>
+                          setState(() => _f = const SearchFilters()),
+                      child: Text(
+                        t.t('search.filter.reset'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
                 ],
               ),

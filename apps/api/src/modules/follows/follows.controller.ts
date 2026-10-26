@@ -22,7 +22,9 @@ import {
 import {
   AttorneyIdParamDto,
   AttorneyListItemDto,
-  FollowsQueryDto,
+  FollowStateDto,
+  PeopleListQueryDto,
+  SuggestionsQueryDto,
   type AttorneyListPage,
   type PeoplePage,
   PersonItemDto,
@@ -39,9 +41,13 @@ const E = ErrorCode;
 export class FollowsController {
   constructor(private readonly follows: FollowsService) {}
 
+  // Owner 2026-10-22 (client economy plan, package D): both answers carry
+  // {following, followersCount} (200) so the app edits the profile row
+  // locally; older apps ignore the body.
   @Post('attorneys/:id/follow')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Follow an attorney (idempotent, docs/05 §6.1)' })
+  @ApiEnvelopeResponse(FollowStateDto)
   @ApiErrors({
     404: [E.NOT_FOUND],
     422: [E.FOLLOW_NOT_ALLOWED],
@@ -50,17 +56,18 @@ export class FollowsController {
   followAttorney(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-  ): Promise<void> {
+  ): Promise<FollowStateDto> {
     return this.follows.follow(user, p.id);
   }
 
   @Delete('attorneys/:id/follow')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Unfollow (idempotent)' })
+  @ApiEnvelopeResponse(FollowStateDto)
   unfollowAttorney(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-  ): Promise<void> {
+  ): Promise<FollowStateDto> {
     return this.follows.unfollow(user, p.id);
   }
 
@@ -72,9 +79,9 @@ export class FollowsController {
   listFollowers(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-    @Query() q: FollowsQueryDto,
+    @Query() q: PeopleListQueryDto,
   ): Promise<PeoplePage> {
-    return this.follows.followers(user.sub, p.id, q.cursor);
+    return this.follows.followers(user.sub, p.id, q.cursor, q.q);
   }
 
   @Get('attorneys/:id/following')
@@ -85,9 +92,9 @@ export class FollowsController {
   listFollowing(
     @CurrentUser() user: RequestUser,
     @Param() p: AttorneyIdParamDto,
-    @Query() q: FollowsQueryDto,
+    @Query() q: PeopleListQueryDto,
   ): Promise<PeoplePage> {
-    return this.follows.following(user.sub, p.id, q.cursor);
+    return this.follows.following(user.sub, p.id, q.cursor, q.q);
   }
 
   @Get('users/me/following')
@@ -95,9 +102,9 @@ export class FollowsController {
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
   listMyFollowing(
     @CurrentUser() user: RequestUser,
-    @Query() q: FollowsQueryDto,
+    @Query() q: PeopleListQueryDto,
   ): Promise<AttorneyListPage> {
-    return this.follows.mine(user.sub, q.cursor);
+    return this.follows.mine(user.sub, q.cursor, q.q);
   }
 
   @Get('suggestions/attorneys')
@@ -105,8 +112,8 @@ export class FollowsController {
   @ApiEnvelopeResponse(AttorneyListItemDto, { isArray: true })
   listSuggestedAttorneys(
     @CurrentUser() user: RequestUser,
-    @Query() q: FollowsQueryDto,
+    @Query() q: SuggestionsQueryDto,
   ): Promise<AttorneyListPage> {
-    return this.follows.suggestions(user, q.cursor);
+    return this.follows.suggestions(user, q.cursor, q.limit);
   }
 }

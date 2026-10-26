@@ -1,41 +1,56 @@
 'use client';
 
+import { Fingerprint } from '@phosphor-icons/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import QRCode from 'qrcode';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ErrorNote } from '@/components/page-header';
+import { RecoveryCodes, TotpQr } from '@/components/totp-qr';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
 import { ApiError, errorText, publicApi } from '@/lib/api/client';
+import { safeNextPath } from '@/lib/safe-next';
+import { PASSKEY_CANCELLED_TEXT, passkeyCancelled, passkeysSupported, signWithPasskey } from '@/lib/webauthn';
 
 type Step =
-  | { kind: 'email' }
-  | { kind: 'code'; email: string }
-  | {
-      kind: 'totp';
-      ticket: string;
-      enrollment: { secret: string; otpauthUri: string } | null;
-      useRecovery: boolean;
-    }
-  | { kind: 'recovery-codes'; codes: string[] };
+  | { kind: 'password' }
+  | { kind: 'forgot-login' }
+  | { kind: 'forgot-answer'; login: string; question: string }
+  | { kind: 'totp'; ticket: string; useRecovery: boolean; passkey: boolean }
+  | { kind: 'setup'; ticket: string; secret: string | null; uri: string | null }
+  | { kind: 'codes'; codes: string[] };
 
 /**
- * docs/06 §2.1: email → emailed code → mandatory TOTP. On the first
- * sign-in the API returns an enrollment (QR + secret); after the code is
- * accepted, ten recovery codes are shown exactly once. The final exchange
- * happens in app/api/auth/session so the admin JWT lands in an httpOnly
- * cookie, never in JS.
+ * Sign-in (owner 2026-10-22): login + password, THEN the code from the
+ * authenticator app — for every admin. An admin without an authenticator
+ * yet sets it up right here (QR + ten recovery codes) before the panel
+ * opens. The old "code from the email" sign-in is gone. The super admin
+ * can reset a forgotten password by answering the security question (the
+ * authenticator is still asked afterwards). Owner 2026-10-22: an admin
+ * who added a passkey (Face ID / Touch ID / Windows Hello / hardware key)
+ * can pass step 2 with it instead of the code.
+ *
+ * A finished sign-in puts the admin JWT in an httpOnly cookie — set by
+ * app/api/auth/session, never by JS.
  */
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [step, setStep] = useState<Step>({ kind: 'email' });
-  const [email, setEmail] = useState('');
+  const [step, setStep] = useState<Step>({ kind: 'password' });
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
+  const [answer, setAnswer] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set after mount: the server render must not differ from the browser's.
+  const [canPasskey, setCanPasskey] = useState(false);
+  useEffect(() => setCanPasskey(passkeysSupported()), []);
 
-  const go = () => router.replace(params.get('next') || '/');
+  // Only same-site paths: `//evil.com` or `/\evil.com` would be an open redirect.
+  const next = params.get('next');
+  const go = () => router.replace(safeNextPath(next));
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -45,42 +60,66 @@ export function LoginForm() {
     } catch (e) {
       setError(errorText(e));
       if (e instanceof ApiError && e.code === 'ADMIN_TICKET_INVALID') {
-        setStep({ kind: 'email' });
+        setStep({ kind: 'password' });
       }
     } finally {
       setBusy(false);
     }
   };
 
-  const start = () =>
+  const signInWithPassword = () =>
     run(async () => {
-      await publicApi.POST('/admin/auth/login/start', { body: { email } });
-      setCode('');
-      setStep({ kind: 'code', email });
-    });
-
-  const verify = () =>
-    run(async () => {
-      const { data } = await publicApi.POST('/admin/auth/login/verify', {
-        body: { email, code },
+      const { data } = await publicApi.POST('/admin/auth/login/password', {
+        body: { login: login.trim(), password },
       });
       const d = data!.data;
+      setPassword('');
       setCode('');
-      setStep({
-        kind: 'totp',
-        ticket: d.ticket,
-        enrollment: d.totpEnrollment ?? null,
-        useRecovery: false,
-      });
+      setNotice(null);
+      if (!d.ticket) throw new ApiError(401, 'ADMIN_TICKET_INVALID', '');
+      if (!d.totpSetupRequired) {
+        setStep({ kind: 'totp', ticket: d.ticket, useRecovery: false, passkey: d.passkeyAvailable === true });
+        return;
+      }
+      // First sign-in without an authenticator: set it up now.
+      const ticket = d.ticket;
+      setStep({ kind: 'setup', ticket, secret: null, uri: null });
+      const setup = await publicApi.POST('/admin/auth/login/totp-setup', { body: { ticket } });
+      const s = setup.data!.data;
+      setStep({ kind: 'setup', ticket, secret: s.secret, uri: s.otpauthUri });
     });
 
-  const finish = (ticket: string, useRecovery: boolean) =>
+  const askQuestion = () =>
+    run(async () => {
+      const { data } = await publicApi.POST('/admin/auth/recover/question', {
+        body: { login: login.trim() },
+      });
+      setStep({ kind: 'forgot-answer', login: login.trim(), question: data!.data.question });
+    });
+
+  const resetPassword = (loginName: string) =>
+    run(async () => {
+      await publicApi.POST('/admin/auth/recover/password', {
+        body: { login: loginName, answer, newPassword },
+      });
+      setAnswer('');
+      setNewPassword('');
+      setPassword('');
+      setNotice('Пароль обновлён, все сессии завершены. Войдите с новым паролем.');
+      setStep({ kind: 'password' });
+    });
+
+  const finish = (ticket: string, mode: 'totp' | 'recovery' | 'setup') =>
     run(async () => {
       const res = await fetch('/api/auth/session', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(
-          useRecovery ? { ticket, recoveryCode: code } : { ticket, code },
+          mode === 'recovery'
+            ? { ticket, recoveryCode: code }
+            : mode === 'setup'
+              ? { ticket, setupCode: code }
+              : { ticket, code },
         ),
       });
       const body = (await res.json()) as {
@@ -99,82 +138,241 @@ export function LoginForm() {
           body.error?.details,
         );
       }
-      if (body.data?.recoveryCodes?.length) {
-        setStep({ kind: 'recovery-codes', codes: body.data.recoveryCodes });
-      } else {
-        go();
-      }
+      setCode('');
+      const codes = body.data?.recoveryCodes;
+      if (mode === 'setup' && codes?.length) setStep({ kind: 'codes', codes });
+      else go();
     });
 
-  if (step.kind === 'email') {
+  /** Step 2 with the passkey: options bound to the ticket → the browser prompt → the session cookie. */
+  const finishWithPasskey = (ticket: string) =>
+    run(async () => {
+      const { data } = await publicApi.POST('/admin/auth/login/passkey/options', { body: { ticket } });
+      const { challengeId, options } = data!.data;
+      let response;
+      try {
+        response = await signWithPasskey(options);
+      } catch (e) {
+        if (passkeyCancelled(e)) {
+          setError(PASSKEY_CANCELLED_TEXT);
+          return;
+        }
+        throw e;
+      }
+      const res = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ticket, passkey: { challengeId, response } }),
+      });
+      const body = (await res.json()) as {
+        error?: { code: string; message: string; details?: Record<string, unknown> };
+      };
+      if (!res.ok) {
+        throw new ApiError(
+          res.status,
+          body.error?.code ?? 'INTERNAL_ERROR',
+          body.error?.message ?? '',
+          body.error?.details,
+        );
+      }
+      go();
+    });
+
+  if (step.kind === 'setup') {
     return (
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          void start();
+          void finish(step.ticket, 'setup');
         }}
       >
+        <p className="text-sm text-muted">
+          Вход в админку теперь всегда с кодом из приложения-аутентификатора. Привяжите его один раз — это займёт
+          минуту.
+        </p>
+        {step.secret && step.uri ? (
+          <TotpQr secret={step.secret} uri={step.uri} />
+        ) : (
+          <p className="text-sm text-muted">Готовим QR-код…</p>
+        )}
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="setup-code">Код из приложения</Label>
           <Input
-            id="email"
-            type="email"
-            autoComplete="username"
+            id="setup-code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
             required
             autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           />
         </div>
         <ErrorNote text={error} />
-        <Button type="submit" className="w-full" disabled={busy}>
-          Получить код
+        <Button type="submit" className="w-full" disabled={busy || code.length !== 6 || !step.secret}>
+          Подключить и войти
         </Button>
       </form>
     );
   }
 
-  if (step.kind === 'code') {
+  if (step.kind === 'codes') {
+    return <RecoveryCodes codes={step.codes} onDone={go} />;
+  }
+
+  if (step.kind === 'password') {
     return (
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          void verify();
+          void signInWithPassword();
         }}
       >
-        <p className="text-sm text-muted">
-          Код отправлен на <b className="text-ink">{step.email}</b>.
-        </p>
+        {notice ? (
+          <p className="rounded-xl bg-success-soft px-3.5 py-2.5 text-sm text-success">{notice}</p>
+        ) : null}
         <div className="space-y-1.5">
-          <Label htmlFor="code">Код из письма</Label>
+          <Label htmlFor="login">Логин</Label>
           <Input
-            id="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="\d{6}"
-            maxLength={6}
+            id="login"
+            autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             required
             autoFocus
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Пароль</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
         </div>
         <ErrorNote text={error} />
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={busy || code.length !== 6}
-        >
+        <Button type="submit" className="w-full" disabled={busy || !login.trim() || !password}>
           Продолжить
+        </Button>
+        <div className="flex items-center justify-between text-sm text-muted">
+          <button
+            type="button"
+            className="underline-offset-2 hover:underline"
+            onClick={() => {
+              setError(null);
+              setNotice(null);
+              setStep({ kind: 'forgot-login' });
+            }}
+          >
+            Забыли пароль?
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  if (step.kind === 'forgot-login') {
+    return (
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void askQuestion();
+        }}
+      >
+        <p className="text-sm text-muted">
+          Восстановление пароля — только для супер-админа: ответьте на секретный вопрос. Остальным админам пароль задаёт
+          супер-админ или тот, кому он дал право управлять админами.
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="forgot-login">Логин</Label>
+          <Input
+            id="forgot-login"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            autoFocus
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
+          />
+        </div>
+        <ErrorNote text={error} />
+        <Button type="submit" className="w-full" disabled={busy || !login.trim()}>
+          Показать вопрос
         </Button>
         <button
           type="button"
           className="w-full text-sm text-muted underline-offset-2 hover:underline"
-          onClick={() => setStep({ kind: 'email' })}
+          onClick={() => {
+            setError(null);
+            setStep({ kind: 'password' });
+          }}
         >
-          Другой email
+          Назад ко входу
+        </button>
+      </form>
+    );
+  }
+
+  if (step.kind === 'forgot-answer') {
+    return (
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void resetPassword(step.login);
+        }}
+      >
+        <div className="rounded-[var(--radius-md)] border border-line bg-surface-2 px-3.5 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-faint">Секретный вопрос</div>
+          <div className="mt-1 text-sm text-ink">{step.question}</div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="answer">Ответ</Label>
+          <Input
+            id="answer"
+            autoComplete="off"
+            required
+            autoFocus
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="new-password">Новый пароль</Label>
+          <Input
+            id="new-password"
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <p className="text-xs text-faint">От 10 символов, буквы и цифры.</p>
+        </div>
+        <ErrorNote text={error} />
+        <Button type="submit" className="w-full" disabled={busy || !answer.trim() || newPassword.length < 10}>
+          Сменить пароль
+        </Button>
+        <button
+          type="button"
+          className="w-full text-sm text-muted underline-offset-2 hover:underline"
+          onClick={() => {
+            setError(null);
+            setAnswer('');
+            setNewPassword('');
+            setStep({ kind: 'password' });
+          }}
+        >
+          Назад ко входу
         </button>
       </form>
     );
@@ -186,15 +384,9 @@ export function LoginForm() {
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          void finish(step.ticket, step.useRecovery);
+          void finish(step.ticket, step.useRecovery ? 'recovery' : 'totp');
         }}
       >
-        {step.enrollment ? (
-          <Enrollment
-            secret={step.enrollment.secret}
-            uri={step.enrollment.otpauthUri}
-          />
-        ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="totp">
             {step.useRecovery
@@ -221,73 +413,32 @@ export function LoginForm() {
         <Button type="submit" className="w-full" disabled={busy}>
           Войти
         </Button>
-        {!step.enrollment ? (
-          <button
+        {step.passkey && canPasskey ? (
+          <Button
             type="button"
-            className="w-full text-sm text-muted underline-offset-2 hover:underline"
-            onClick={() => {
-              setCode('');
-              setStep({ ...step, useRecovery: !step.useRecovery });
-            }}
+            variant="outline"
+            className="w-full"
+            disabled={busy}
+            onClick={() => void finishWithPasskey(step.ticket)}
           >
-            {step.useRecovery
-              ? 'Использовать аутентификатор'
-              : 'Нет доступа к аутентификатору?'}
-          </button>
+            <Fingerprint size={16} /> Войти с ключом доступа
+          </Button>
         ) : null}
+        <button
+          type="button"
+          className="w-full text-sm text-muted underline-offset-2 hover:underline"
+          onClick={() => {
+            setCode('');
+            setStep({ ...step, useRecovery: !step.useRecovery });
+          }}
+        >
+          {step.useRecovery
+            ? 'Использовать аутентификатор'
+            : 'Нет доступа к аутентификатору?'}
+        </button>
       </form>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <p className="text-sm">
-        Аутентификатор привязан. Сохраните recovery-коды — они показываются{' '}
-        <b>один раз</b> и понадобятся, если потеряете доступ к приложению.
-      </p>
-      <ul className="grid grid-cols-2 gap-1 rounded-[var(--radius-md)] bg-canvas p-3 font-mono text-sm">
-        {step.codes.map((c) => (
-          <li key={c}>{c}</li>
-        ))}
-      </ul>
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        onClick={() =>
-          void navigator.clipboard.writeText(step.codes.join('\n'))
-        }
-      >
-        Скопировать
-      </Button>
-      <Button type="button" className="w-full" onClick={go}>
-        Я сохранил коды
-      </Button>
-    </div>
-  );
-}
-
-function Enrollment({ secret, uri }: { secret: string; uri: string }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    if (canvas.current) {
-      void QRCode.toCanvas(canvas.current, uri, { width: 180, margin: 1 });
-    }
-  }, [uri]);
-  return (
-    <div className="space-y-2 rounded-[var(--radius-md)] border border-line p-3">
-      <p className="text-sm">
-        Первый вход: отсканируйте QR в приложении-аутентификаторе (Google
-        Authenticator, 1Password, Authy) и введите код ниже.
-      </p>
-      <canvas
-        ref={canvas}
-        className="mx-auto block"
-        aria-label="QR-код для аутентификатора"
-      />
-      <p className="break-all text-center font-mono text-xs text-muted">
-        {secret}
-      </p>
-    </div>
-  );
+  return null;
 }

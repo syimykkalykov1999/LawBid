@@ -30,7 +30,11 @@ export class DynamicPaymentProvider {
     const key = c?.fields.secretKey;
     if (key) {
       if (c.fingerprint !== this.fingerprint) {
-        this.current = new StripePaymentProvider(key, c.fields.webhookSecret);
+        this.current = new StripePaymentProvider(
+          key,
+          c.fields.webhookSecret,
+          c.fields.connectWebhookSecret,
+        );
         this.fingerprint = c.fingerprint;
       }
       return this.current;
@@ -92,9 +96,44 @@ const ASYNC_METHODS = new Set([
   'createCheckoutSession',
   'retrieveCheckoutSession',
   'setSeatQuantity',
+  // Owner 2026-10-22: seats charged now / removed at the period end.
+  'previewSeatIncrease',
+  'chargeSeatIncrease',
+  'voidInvoice',
+  // Owner 2026-10-22: account deletion removes the Stripe customer.
+  'deleteCustomer',
   'switchToYearly',
   'retrieveInvoice',
   'retrieveCharge',
+  'createCoupon',
+  'deleteCoupon',
+  'refund',
+  'creditCustomerBalance',
+  'createOneTimeCheckout',
+  // Owner 2026-10-22: our own card page (PaymentIntents), cancel / restart.
+  'createPaymentIntent',
+  'retrievePaymentIntent',
+  'cancelPaymentIntent',
+  'expireCheckoutSession',
+  'setSubscriptionPaymentMethod',
+  'createPrice',
+  'replaceItemPrice',
+  // Owner 2026-10-22: Stripe Tax.
+  'updateCustomerTaxLocation',
+  'customerTaxSupported',
+  'calculateTax',
+  'recordTaxTransaction',
+  'updatePaymentIntent',
+  // Owner 2026-10-05: Stripe Connect (client → attorney payments).
+  'createConnectAccount',
+  'createAccountOnboardingLink',
+  'createAccountLoginLink',
+  'retrieveConnectAccount',
+  'updateConnectPayoutDelay',
+  'createConnectedCheckout',
+  'retrieveConnectedCheckout',
+  'refundConnected',
+  'retrieveConnectedCharge',
 ]);
 
 /** Refreshes a dynamic provider (no-op for a plain one). */

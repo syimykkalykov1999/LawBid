@@ -20,6 +20,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.goldStroke,
     required this.goldLight,
     required this.goldDark,
+    required this.goldAccent,
     required this.navy,
     required this.panFill,
     required this.panText,
@@ -39,6 +40,16 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     required this.onDanger,
     required this.dangerText,
     required this.dangerFill,
+    required this.chip,
+    required this.sheet,
+    required this.inverseText,
+    required this.barFill,
+    required this.successText,
+    required this.verifiedGold,
+    required this.verifiedGreen,
+    this.headerFill,
+    this.headerGradient,
+    this.onHeader,
   });
 
   factory AppColorTokens.light() => const AppColorTokens(
@@ -55,6 +66,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsLight.goldStroke,
         goldLight: AppColorsLight.goldLight,
         goldDark: AppColorsLight.goldDark,
+        goldAccent: Color(0xFF9C7A35),
         navy: AppColorsLight.navy,
         panFill: AppColorsLight.panFill,
         panText: AppColorsLight.panText,
@@ -74,6 +86,13 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         onDanger: AppColorsLight.onDanger,
         dangerText: AppColorsLight.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsLight.skeletonBase,
+        sheet: AppColorsLight.surface,
+        inverseText: AppColorsLight.bg,
+        barFill: AppColorsLight.bg,
+        successText: AppColorsStatus.success,
+        verifiedGold: Color(0xFF9C7A35),
+        verifiedGreen: Color(0xFF1F9D67),
       );
 
   factory AppColorTokens.dark() => const AppColorTokens(
@@ -90,6 +109,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         goldStroke: AppColorsDark.goldStroke,
         goldLight: AppColorsDark.goldLight,
         goldDark: AppColorsDark.goldDark,
+        goldAccent: Color(0xFFE6CE98),
         navy: AppColorsDark.navy,
         panFill: AppColorsDark.panFill,
         panText: AppColorsDark.panText,
@@ -109,6 +129,103 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
         onDanger: AppColorsDark.onDanger,
         dangerText: AppColorsDark.dangerText,
         dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsDark.skeletonBase,
+        sheet: AppColorsDark.surface,
+        inverseText: AppColorsDark.bg,
+        barFill: AppColorsDark.bg,
+        successText: AppColorsStatus.success,
+        verifiedGold: Color(0xFFE6CE98),
+        verifiedGreen: Color(0xFF1F9D67),
+      );
+
+  /// Blue: the Citi app look (owner 2026-10-23), built like Night: a solid
+  /// deep-blue page, white ink, lighter-blue cards, a white button.
+  factory AppColorTokens.blue() => const AppColorTokens(
+        bg: AppColorsBlue.bg,
+        surface: AppColorsBlue.surface,
+        text: AppColorsBlue.text,
+        textSecondary: AppColorsBlue.textSecondary,
+        border: AppColorsBlue.border,
+        accent: AppColorsBlue.accent,
+        onAccent: AppColorsBlue.onAccent,
+        ctaBright: AppColorsBlue.accent,
+        onCtaBright: AppColorsBlue.onAccent,
+        gold: AppColorsBlue.gold,
+        goldStroke: AppColorsBlue.goldStroke,
+        goldLight: AppColorsBlue.goldLight,
+        goldDark: AppColorsBlue.goldDark,
+        goldAccent: AppColorsBlue.goldLight,
+        navy: AppColorsBlue.navy,
+        panFill: AppColorsBlue.accent,
+        panText: AppColorsBlue.onAccent,
+        watermarkOpacity: AppColorsBlue.watermarkOpacity,
+        focusRingGlow: AppColorsDark.focusRingGlow,
+        danger: AppColorsBlue.danger,
+        success: AppColorsBlue.success,
+        warning: AppColorsBlue.warning,
+        info: AppColorsBlue.info,
+        shadow: AppColorsBlue.shadow,
+        goldTint: AppColorsBlue.goldTint,
+        dangerTint: AppColorsBlue.dangerTint,
+        successTint: AppColorsBlue.successTint,
+        infoTint: AppColorsBlue.infoTint,
+        skeletonBase: AppColorsBlue.skeletonBase,
+        skeletonHighlight: AppColorsBlue.skeletonHighlight,
+        onDanger: AppColorsDark.onDanger,
+        dangerText: AppColorsBlue.dangerText,
+        dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsBlue.chip,
+        sheet: AppColorsBlue.surface,
+        inverseText: AppColorsBlue.bg,
+        barFill: AppColorsBlue.bar,
+        successText: AppColorsBlue.success,
+        verifiedGold: Color(0xFFFFC629),
+        verifiedGreen: Color(0xFF1F9D67),
+      );
+
+  /// Green: the Credit Karma look (owner 2026-10-23), built like Night: a
+  /// solid green page, white ink, darker-green cards, a white button.
+  factory AppColorTokens.green() => const AppColorTokens(
+        bg: AppColorsGreen.bg,
+        surface: AppColorsGreen.surface,
+        text: AppColorsGreen.text,
+        textSecondary: AppColorsGreen.textSecondary,
+        border: AppColorsGreen.border,
+        accent: AppColorsGreen.accent,
+        onAccent: AppColorsGreen.onAccent,
+        ctaBright: AppColorsGreen.accent,
+        onCtaBright: AppColorsGreen.onAccent,
+        gold: AppColorsGreen.gold,
+        goldStroke: AppColorsGreen.goldStroke,
+        goldLight: AppColorsGreen.goldLight,
+        goldDark: AppColorsGreen.goldDark,
+        goldAccent: AppColorsGreen.goldLight,
+        navy: AppColorsGreen.navy,
+        panFill: AppColorsGreen.accent,
+        panText: AppColorsGreen.onAccent,
+        watermarkOpacity: AppColorsGreen.watermarkOpacity,
+        focusRingGlow: AppColorsDark.focusRingGlow,
+        danger: AppColorsGreen.danger,
+        success: AppColorsGreen.success,
+        warning: AppColorsGreen.warning,
+        info: AppColorsGreen.info,
+        shadow: AppColorsGreen.shadow,
+        goldTint: AppColorsGreen.goldTint,
+        dangerTint: AppColorsGreen.dangerTint,
+        successTint: AppColorsGreen.successTint,
+        infoTint: AppColorsGreen.infoTint,
+        skeletonBase: AppColorsGreen.skeletonBase,
+        skeletonHighlight: AppColorsGreen.skeletonHighlight,
+        onDanger: AppColorsDark.onDanger,
+        dangerText: AppColorsGreen.dangerText,
+        dangerFill: AppColorsStatus.dangerFill,
+        chip: AppColorsGreen.chip,
+        sheet: AppColorsGreen.surface,
+        inverseText: AppColorsGreen.bg,
+        barFill: AppColorsGreen.bar,
+        successText: AppColorsGreen.success,
+        verifiedGold: Color(0xFFFFC629),
+        verifiedGreen: Color(0xFF1F9D67),
       );
 
   final Color bg;
@@ -124,6 +241,27 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   final Color goldStroke;
   final Color goldLight;
   final Color goldDark;
+
+  /// The gold of selected icons and the gold check: a shade per theme so
+  /// it stays visible on that theme's bars (contrast ≥ 3:1).
+  final Color goldAccent;
+
+  /// Owner 2026-10-20: gold for SMALL TEXT (links, captions): the deep gold
+  /// on the light theme (the plain gold is 2.3:1 on white), the plain gold on
+  /// the dark ones. Big icons and buttons keep [gold].
+  Color get goldText {
+    return bg.computeLuminance() > 0.5 ? goldDark : gold;
+  }
+
+  /// Owner 2026-10-20: the colour of tinted icons (tile icons, selected tab,
+  /// picked rows): the theme's own ink, the deep navy on the light theme.
+  /// Never gold: gold stays for the client check and rating stars only.
+  Color get iconTint => bg.computeLuminance() > 0.5 ? accent : text;
+
+  /// Soft fill behind a tinted icon (icon circles, tiles): [iconTint] at a
+  /// low alpha, so it follows the theme instead of the gold wash.
+  Color get iconTintFill => iconTint.withValues(alpha: 0.12);
+
   final Color navy;
   final Color panFill;
   final Color panText;
@@ -152,6 +290,45 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
   /// AA fill behind [onDanger] text (see AppColorsStatus.dangerFill).
   final Color dangerFill;
 
+  /// Small chip / tag fill (tags, counters, segmented backgrounds).
+  final Color chip;
+
+  /// Background of a bottom sheet / dialog.
+  final Color sheet;
+
+  /// Text / icon on a fill made of [text] (snackbar, banners).
+  final Color inverseText;
+
+  /// Fill of the top bar / bottom action bar (the page colour).
+  final Color barFill;
+
+  /// Readable green for TEXT on a success tint .
+  final Color successText;
+
+  /// Verified (client) check: saturated gold, >= 3:1 on the page and card
+  /// of every theme (WCAG 1.4.11). Owner 2026-10-26.
+  final Color verifiedGold;
+
+  /// Attorney verified badge green: >= 3:1 against the white icon on it
+  /// (WCAG 1.4.11), in every theme.
+  final Color verifiedGreen;
+
+  /// Owner 2026-10-22 (Blue, Green): the top bar is a deep-to-light wash
+  /// with white ink, over a light page. null = the plain [barFill] bar with
+  /// [text] ink (Day, Night).
+  final Color? headerFill;
+  final List<Color>? headerGradient;
+  final Color? onHeader;
+
+  /// True when the top bar is a coloured wash with its own ink.
+  bool get hasHeaderWash => headerGradient != null;
+
+  /// Fill of the top bar.
+  Color get headerBg => headerFill ?? barFill;
+
+  /// Ink of the title and icons on the top bar.
+  Color get headerInk => onHeader ?? text;
+
   @override
   AppColorTokens copyWith({
     Color? bg,
@@ -167,6 +344,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? goldStroke,
     Color? goldLight,
     Color? goldDark,
+    Color? goldAccent,
     Color? navy,
     Color? panFill,
     Color? panText,
@@ -186,6 +364,16 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
     Color? onDanger,
     Color? dangerText,
     Color? dangerFill,
+    Color? chip,
+    Color? sheet,
+    Color? inverseText,
+    Color? barFill,
+    Color? successText,
+    Color? verifiedGold,
+    Color? verifiedGreen,
+    Color? headerFill,
+    List<Color>? headerGradient,
+    Color? onHeader,
   }) {
     return AppColorTokens(
       bg: bg ?? this.bg,
@@ -201,6 +389,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       goldStroke: goldStroke ?? this.goldStroke,
       goldLight: goldLight ?? this.goldLight,
       goldDark: goldDark ?? this.goldDark,
+      goldAccent: goldAccent ?? this.goldAccent,
       navy: navy ?? this.navy,
       panFill: panFill ?? this.panFill,
       panText: panText ?? this.panText,
@@ -220,6 +409,16 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       onDanger: onDanger ?? this.onDanger,
       dangerText: dangerText ?? this.dangerText,
       dangerFill: dangerFill ?? this.dangerFill,
+      chip: chip ?? this.chip,
+      sheet: sheet ?? this.sheet,
+      inverseText: inverseText ?? this.inverseText,
+      barFill: barFill ?? this.barFill,
+      successText: successText ?? this.successText,
+      verifiedGold: verifiedGold ?? this.verifiedGold,
+      verifiedGreen: verifiedGreen ?? this.verifiedGreen,
+      headerFill: headerFill ?? this.headerFill,
+      headerGradient: headerGradient ?? this.headerGradient,
+      onHeader: onHeader ?? this.onHeader,
     );
   }
 
@@ -240,6 +439,7 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       goldStroke: Color.lerp(goldStroke, other.goldStroke, t)!,
       goldLight: Color.lerp(goldLight, other.goldLight, t)!,
       goldDark: Color.lerp(goldDark, other.goldDark, t)!,
+      goldAccent: Color.lerp(goldAccent, other.goldAccent, t)!,
       navy: Color.lerp(navy, other.navy, t)!,
       panFill: Color.lerp(panFill, other.panFill, t)!,
       panText: Color.lerp(panText, other.panText, t)!,
@@ -256,11 +456,24 @@ final class AppColorTokens extends ThemeExtension<AppColorTokens> {
       successTint: Color.lerp(successTint, other.successTint, t)!,
       infoTint: Color.lerp(infoTint, other.infoTint, t)!,
       skeletonBase: Color.lerp(skeletonBase, other.skeletonBase, t)!,
-      skeletonHighlight:
-          Color.lerp(skeletonHighlight, other.skeletonHighlight, t)!,
+      skeletonHighlight: Color.lerp(
+        skeletonHighlight,
+        other.skeletonHighlight,
+        t,
+      )!,
       onDanger: Color.lerp(onDanger, other.onDanger, t)!,
       dangerText: Color.lerp(dangerText, other.dangerText, t)!,
       dangerFill: Color.lerp(dangerFill, other.dangerFill, t)!,
+      chip: Color.lerp(chip, other.chip, t)!,
+      sheet: Color.lerp(sheet, other.sheet, t)!,
+      inverseText: Color.lerp(inverseText, other.inverseText, t)!,
+      barFill: Color.lerp(barFill, other.barFill, t)!,
+      successText: Color.lerp(successText, other.successText, t)!,
+      verifiedGold: Color.lerp(verifiedGold, other.verifiedGold, t)!,
+      verifiedGreen: Color.lerp(verifiedGreen, other.verifiedGreen, t)!,
+      headerFill: Color.lerp(headerFill, other.headerFill, t),
+      headerGradient: t < 0.5 ? headerGradient : other.headerGradient,
+      onHeader: Color.lerp(onHeader, other.onHeader, t),
     );
   }
 }

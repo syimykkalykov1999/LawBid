@@ -8,13 +8,33 @@ part of 'call_dto.dart';
 
 CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
   id: json['id'] as String,
-  conversationId: json['conversationId'] as String,
+  conversationId: json['conversationId'] as String?,
+  groupId: json['groupId'] as String?,
   callerId: json['callerId'] as String,
   calleeId: json['calleeId'] as String,
   status: CallStatus.fromJson(json['status'] as String),
   outgoing: json['outgoing'] as bool,
   peer: CallPeerDto.fromJson(json['peer'] as Map<String, dynamic>),
+  participants: (json['participants'] as List<dynamic>)
+      .map((e) => CallParticipantDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   createdAt: DateTime.parse(json['createdAt'] as String),
+  video: json['video'] as bool? ?? false,
+  group: json['group'] as bool? ?? false,
+  moderated: json['moderated'] as bool? ?? false,
+  channelId: json['channelId'] as String?,
+  mediaProvider: json['mediaProvider'] == null
+      ? null
+      : CallDtoMediaProvider.fromJson(json['mediaProvider'] as String),
+  mediaFallback: json['mediaFallback'] == null
+      ? null
+      : CallMediaFallbackDto.fromJson(
+          json['mediaFallback'] as Map<String, dynamic>,
+        ),
+  hostId: json['hostId'] as String?,
+  vote: json['vote'] == null
+      ? null
+      : CallVoteDto.fromJson(json['vote'] as Map<String, dynamic>),
   answeredAt: json['answeredAt'] == null
       ? null
       : DateTime.parse(json['answeredAt'] as String),
@@ -26,12 +46,22 @@ CallDto _$CallDtoFromJson(Map<String, dynamic> json) => CallDto(
 
 Map<String, dynamic> _$CallDtoToJson(CallDto instance) => <String, dynamic>{
   'id': instance.id,
-  'conversationId': instance.conversationId,
+  'conversationId': ?instance.conversationId,
+  'groupId': ?instance.groupId,
+  'channelId': ?instance.channelId,
   'callerId': instance.callerId,
   'calleeId': instance.calleeId,
   'status': instance.status.toJson(),
   'outgoing': instance.outgoing,
+  'video': instance.video,
   'peer': instance.peer.toJson(),
+  'group': instance.group,
+  'mediaProvider': ?instance.mediaProvider?.toJson(),
+  'mediaFallback': ?instance.mediaFallback?.toJson(),
+  'hostId': ?instance.hostId,
+  'participants': instance.participants.map((e) => e.toJson()).toList(),
+  'moderated': instance.moderated,
+  'vote': ?instance.vote?.toJson(),
   'createdAt': instance.createdAt.toIso8601String(),
   'answeredAt': ?instance.answeredAt?.toIso8601String(),
   'endedAt': ?instance.endedAt?.toIso8601String(),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 
 /// Faint background scales watermark (file 07 §4): outline-only, no fill, no
 /// text, 200x180 default, opacity from [AppColorTokens.watermarkOpacity].
@@ -38,6 +38,7 @@ class _WatermarkPainter extends CustomPainter {
     // animate).
     final scale = size.width / 300;
     canvas.save();
+    // ignore: cascade_invocations
     canvas.scale(scale, scale);
 
     final paint = Paint()
@@ -48,6 +49,7 @@ class _WatermarkPainter extends CustomPainter {
       ..strokeJoin = StrokeJoin.round;
 
     canvas.drawCircle(const Offset(150, 16), 5, paint);
+    // ignore: cascade_invocations
     canvas.drawLine(const Offset(150, 21), const Offset(150, 192), paint);
     canvas.drawLine(const Offset(112, 192), const Offset(188, 192), paint);
     canvas.drawLine(const Offset(122, 203), const Offset(178, 203), paint);
@@ -60,21 +62,30 @@ class _WatermarkPainter extends CustomPainter {
     final leftBowl = Path()
       ..moveTo(12, 118)
       ..lineTo(88, 118)
-      ..arcToPoint(const Offset(12, 118), radius: const Radius.elliptical(38, 34), clockwise: true);
+      ..arcToPoint(
+        const Offset(12, 118),
+        radius: const Radius.elliptical(38, 34),
+      );
     canvas.drawPath(leftBowl, paint);
 
     // Right pan wireframe.
+    // ignore: cascade_invocations
     canvas.drawLine(const Offset(250, 44), const Offset(214, 118), paint);
     canvas.drawLine(const Offset(250, 44), const Offset(286, 118), paint);
     final rightBowl = Path()
       ..moveTo(212, 118)
       ..lineTo(288, 118)
-      ..arcToPoint(const Offset(212, 118), radius: const Radius.elliptical(38, 34), clockwise: true);
+      ..arcToPoint(
+        const Offset(212, 118),
+        radius: const Radius.elliptical(38, 34),
+      );
     canvas.drawPath(rightBowl, paint);
 
+    // ignore: cascade_invocations
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _WatermarkPainter oldDelegate) => oldDelegate.colors != colors;
+  bool shouldRepaint(covariant _WatermarkPainter oldDelegate) =>
+      oldDelegate.colors != colors;
 }

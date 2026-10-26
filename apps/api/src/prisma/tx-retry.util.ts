@@ -2,7 +2,7 @@ import {
   PrismaClientKnownRequestError,
   PrismaClientUnknownRequestError,
 } from '@prisma/client/runtime/library';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { PrismaService } from './prisma.service';
 import pino from 'pino';
 
@@ -15,9 +15,10 @@ const retryLog = pino({
 
 /**
  * docs/06_PRODUCTION.md §12 (.cursorrules): "Транзакции с несколькими
- * записями только через withTxRetry(); короткие." CockroachDB uses
- * SERIALIZABLE isolation and can abort a transaction under contention with
- * SQLSTATE 40001 ("restart transaction") — the client is expected to retry.
+ * записями только через withTxRetry(); короткие." Every transaction here runs
+ * SERIALIZABLE (what the code was written against; PostgreSQL's default is
+ * READ COMMITTED) and PostgreSQL can abort one under contention with
+ * SQLSTATE 40001 — the client is expected to retry.
  * This wraps prisma.$transaction with bounded retries + jittered backoff
  * for exactly that case. Any other error rethrows immediately.
  *
@@ -30,9 +31,24 @@ const retryLog = pino({
 export interface TxRetryOptions {
   maxAttempts?: number;
   baseDelayMs?: number;
+  /** Interactive-transaction timeout (Prisma default 5 s) for big jobs. */
+  timeoutMs?: number;
+  /**
+   * Isolation level. Default `serializable` (money, bids, accept flows and
+   * everything written against it). `readCommitted` (PostgreSQL's own
+   * default) is for transactions that already serialize themselves with an
+   * explicit row lock (`SELECT ... FOR UPDATE`, advisory xact lock) or whose
+   * writes are idempotent: it avoids SSI predicate-lock overhead and 40001
+   * aborts under load (DB-ops hardening S5-7). In that mode a deadlock
+   * (40P01) is retried too.
+   */
+  isolation?: 'serializable' | 'readCommitted';
+  /** Call-site name; added to the retry log line (CloudWatch metric tag). */
+  op?: string;
 }
 
-const COCKROACH_SERIALIZATION_FAILURE = '40001';
+const SERIALIZATION_FAILURE = '40001';
+const DEADLOCK_DETECTED = '40P01';
 
 export async function withTxRetry<T>(
   prisma: PrismaService,
@@ -43,20 +59,35 @@ export async function withTxRetry<T>(
   const maxAttempts = options.maxAttempts ?? 5;
   const baseDelayMs = options.baseDelayMs ?? 25;
 
+  const readCommitted = options.isolation === 'readCommitted';
   let attempt = 0;
 
   while (true) {
     attempt += 1;
     try {
-      return await prisma.$transaction(fn);
+      return await prisma.$transaction(fn, {
+        isolationLevel: readCommitted
+          ? Prisma.TransactionIsolationLevel.ReadCommitted
+          : Prisma.TransactionIsolationLevel.Serializable,
+        ...(options.timeoutMs
+          ? { timeout: options.timeoutMs, maxWait: 10_000 }
+          : {}),
+      });
     } catch (error) {
-      if (!isSerializationFailure(error) || attempt >= maxAttempts) {
+      const retriable =
+        isSerializationFailure(error) || (readCommitted && isDeadlock(error));
+      if (!retriable || attempt >= maxAttempts) {
         throw error;
       }
       const jitter = Math.random() * baseDelayMs;
       const delay = baseDelayMs * 2 ** (attempt - 1) + jitter;
       retryLog.info(
-        { attempt, delayMs: Math.round(delay) },
+        {
+          attempt,
+          delayMs: Math.round(delay),
+          ...(options.op ? { op: options.op } : {}),
+          ...(readCommitted ? { isolation: 'readCommitted' } : {}),
+        },
         'transaction retried',
       );
       await sleep(delay);
@@ -67,12 +98,21 @@ export async function withTxRetry<T>(
 function isSerializationFailure(error: unknown): boolean {
   if (error instanceof PrismaClientKnownRequestError) {
     const meta = error.meta as { code?: string } | undefined;
-    return (
-      error.code === 'P2034' || meta?.code === COCKROACH_SERIALIZATION_FAILURE
-    );
+    return error.code === 'P2034' || meta?.code === SERIALIZATION_FAILURE;
   }
   if (error instanceof PrismaClientUnknownRequestError) {
-    return error.message.includes(COCKROACH_SERIALIZATION_FAILURE);
+    return error.message.includes(SERIALIZATION_FAILURE);
+  }
+  return false;
+}
+
+function isDeadlock(error: unknown): boolean {
+  if (error instanceof PrismaClientKnownRequestError) {
+    const meta = error.meta as { code?: string } | undefined;
+    return meta?.code === DEADLOCK_DETECTED;
+  }
+  if (error instanceof PrismaClientUnknownRequestError) {
+    return error.message.includes(DEADLOCK_DETECTED);
   }
   return false;
 }

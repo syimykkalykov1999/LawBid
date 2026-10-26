@@ -73,7 +73,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       );
     } else {
       body = _SplashLoading(
-          key: const ValueKey('loading'), label: t.t('splash.loading'));
+        key: const ValueKey('loading'),
+        label: t.t('splash.loading'),
+      );
     }
 
     return Scaffold(

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../theme/app_color_tokens.dart';
-import '../../tokens/app_motion.dart';
-import '../../tokens/app_radii.dart';
-import '../motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:lawbid/core/design_system/tokens/app_radii.dart';
+import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
 
 /// Social-login icon button (file 07 §4 "AppIconButton"): 44x44, radius 12,
 /// `surface` fill, 1px `border`, 20px icon in `text` color.
@@ -16,13 +16,14 @@ import '../motion/app_tap_target.dart';
 /// phone button. Optional and additive — no existing call site changes.
 class AppIconButton extends StatefulWidget {
   const AppIconButton({
-    super.key,
     required this.icon,
     required this.onPressed,
     required this.semanticLabel,
+    super.key,
     this.onTapDown,
     this.isLoading = false,
     this.plain = true,
+    this.compact = false,
   });
 
   final Widget icon;
@@ -35,6 +36,12 @@ class AppIconButton extends StatefulWidget {
   /// no border) — the default. The pre-app welcome screen passes `false`
   /// to keep its framed squares (docs/07 §4, owner: pre-app unchanged).
   final bool plain;
+
+  /// Owner 2026-10-19: icons standing side by side in a row (the Cases
+  /// screen's «i», search and bookmark): a 34 px slot instead of 44, so a
+  /// small gap stays between them and the chips beside get the room. The
+  /// touch area stays 48 x 48 (it reaches a little over the neighbour).
+  final bool compact;
 
   @override
   State<AppIconButton> createState() => _AppIconButtonState();
@@ -72,7 +79,11 @@ class _AppIconButtonState extends State<AppIconButton> {
             scale: _pressed ? AppMotion.pressScaleFactor : 1.0,
             duration: AppMotion.pressScale,
             child: Container(
-              constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              constraints: BoxConstraints(
+                minWidth:
+                    widget.compact ? _compactWidth : (widget.plain ? 44 : 38),
+                minHeight: widget.plain ? 44 : 38,
+              ),
               decoration: widget.plain
                   ? null
                   : BoxDecoration(
@@ -86,10 +97,12 @@ class _AppIconButtonState extends State<AppIconButton> {
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: colors.text),
+                        strokeWidth: 2,
+                        color: colors.text,
+                      ),
                     )
                   : IconTheme(
-                      data: IconThemeData(size: 20, color: colors.text),
+                      data: IconThemeData(size: 22, color: colors.text),
                       child: widget.icon,
                     ),
             ),
@@ -99,3 +112,5 @@ class _AppIconButtonState extends State<AppIconButton> {
     );
   }
 }
+
+const double _compactWidth = 34;

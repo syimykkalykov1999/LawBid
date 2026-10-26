@@ -1,0 +1,122 @@
+[
+  {
+    "file": "common/cost-guard/cost-autoscale.service.ts",
+    "kind": "mget",
+    "reason": "Daily and monthly counters of ONE provider share the {provider} hash tag (costCounterKey): one slot."
+  },
+  {
+    "file": "common/cost-guard/cost-guard.service.ts",
+    "kind": "mget",
+    "reason": "Money counters all carry the {m} hash tag (moneyCounterKey): one slot."
+  },
+  {
+    "file": "common/cost-guard/cost-guard.service.ts",
+    "kind": "eval-spread-keys",
+    "reason": "CONSUME_LUA keys are the windows of one provider ({provider} tag) plus their :warn/:x suffixes; MONEY_LUA keys all carry {m}: one slot per script."
+  },
+  {
+    "file": "common/ops/status/incidents.service.ts",
+    "kind": "multi",
+    "reason": "The two streak keys of a component are built with ck(component): one slot in cluster mode."
+  },
+  {
+    "file": "jobs/handlers/otp-cleanup.job.ts",
+    "kind": "scan",
+    "reason": "Cluster mode scans every master node (nodes('master')); standalone scans the one node."
+  },
+  {
+    "file": "jobs/handlers/otp-cleanup.job.ts",
+    "kind": "lua-multi-key",
+    "reason": "In cluster mode the Lua runs with exactly one key per call; standalone keeps the batch."
+  },
+  {
+    "file": "jobs/handlers/otp-cleanup.job.ts",
+    "kind": "eval-spread-keys",
+    "reason": "Batch size is 1 in cluster mode (see the lua-multi-key note)."
+  },
+  {
+    "file": "modules/admin-auth/admin-session.service.ts",
+    "kind": "del-multi",
+    "reason": "The DEL runs inside the revoke() MULTI; sess/meta/stepup/user-set keys are all ck('adm', ...): one slot."
+  },
+  {
+    "file": "modules/admin-auth/admin-session.service.ts",
+    "kind": "multi",
+    "reason": "Every admin session key is ck('adm', ...) (tiny volume), so create/revoke MULTI stays in one slot."
+  },
+  {
+    "file": "modules/auth/services/otp.service.ts",
+    "kind": "lua-multi-key",
+    "reason": "VERIFY_LUA keys (code, attempts, lock, strikes) are built by one helper family that wraps them in ck(idHash)."
+  },
+  {
+    "file": "modules/calls/sfu-state.store.ts",
+    "kind": "multi",
+    "reason": "MULTI of HSET+EXPIRE on the same single key."
+  },
+  {
+    "file": "modules/cases/services/case-view-tracking.service.ts",
+    "kind": "multi",
+    "reason": "Restores HINCRBY on the single cv:pending key."
+  },
+  {
+    "file": "modules/cases/services/case-view-tracking.service.ts",
+    "kind": "lua-multi-key",
+    "reason": "RECORD_VIEW keys cv:seen:<case> and cv:pending are both ck('cv', ...): one slot."
+  },
+  {
+    "file": "modules/counters/counter-aggregator.service.ts",
+    "kind": "multi",
+    "reason": "Restores HINCRBY on the single pending hash."
+  },
+  {
+    "file": "modules/counters/counter-aggregator.service.ts",
+    "kind": "lua-multi-key",
+    "reason": "BUMP keys (pending hash, touched set) of an entity are both ck(entity, ...): one slot."
+  },
+  {
+    "file": "modules/feed/feed-reco.job.ts",
+    "kind": "multi",
+    "reason": "Snapshot key and the current-pointer key are both ck('reco', ...): one slot."
+  },
+  {
+    "file": "modules/feed/feed.service.ts",
+    "kind": "multi",
+    "reason": "MULTI over the single seen:<user> key."
+  },
+  {
+    "file": "modules/moderation/rule-based-moderation.hook.ts",
+    "kind": "multi",
+    "reason": "INCR+EXPIRE on one key."
+  },
+  {
+    "file": "modules/notifications/badges.service.ts",
+    "kind": "multi",
+    "reason": "HSET+EXPIRE on one key."
+  },
+  {
+    "file": "modules/presence/presence.service.ts",
+    "kind": "multi",
+    "reason": "All commands of each MULTI use the one presence key of the user."
+  },
+  {
+    "file": "modules/realtime/realtime.gateway.ts",
+    "kind": "multi",
+    "reason": "SADD+EXPIRE on one viewing key."
+  },
+  {
+    "file": "throttler/redis-throttler-storage.service.ts",
+    "kind": "multi",
+    "reason": "INCR/PEXPIRE/PTTL on the single hits key."
+  },
+  {
+    "file": "throttler/redis-throttler-storage.service.ts",
+    "kind": "lua-multi-key",
+    "reason": "hits and block keys share the tag of the throttled subject (ck(tag, ...))."
+  },
+  {
+    "file": "modules/realtime/realtime-event-log.ts",
+    "kind": "lua-multi-key",
+    "reason": "NEXT_SEQ_LUA keys rt:seq and rt:epoch both go through ck('rtseq', ...): one slot in cluster mode."
+  }
+]

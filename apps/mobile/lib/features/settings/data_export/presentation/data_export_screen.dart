@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -70,9 +71,12 @@ class _ExportBody extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final state = ref.watch(dataExportControllerProvider);
     final job = state.value;
-    final email = ref.watch(
-      currentUserControllerProvider.select((s) => s.user?.email),
-    );
+    // Admin «Вход и письма по почте» off: the link is not e-mailed.
+    final email = ref.watch(emailFlowsEnabledProvider)
+        ? ref.watch(
+            currentUserControllerProvider.select((s) => s.user?.email),
+          )
+        : null;
     final busy = state.isLoading || (job?.status.inProgress ?? false);
     final items = [
       'dataExport.includes.profile',
@@ -124,7 +128,7 @@ class _ExportBody extends ConsumerWidget {
                           child: AppIcon(
                             AppIcons.checkRounded,
                             size: AppSizes.iconSm,
-                            color: colors.gold,
+                            color: colors.iconTint,
                           ),
                         ),
                       ),
@@ -252,17 +256,22 @@ class _StatusCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              StatusPill(
-                key: const ValueKey('export-status'),
-                label: t.t('dataExport.status.${job.status.name}'),
-                tone: exportTone(job.status),
+              // Capped: the pill ellipsizes instead of squeezing the title.
+              AppTrailingCap(
+                child: StatusPill(
+                  key: const ValueKey('export-status'),
+                  label: t.t('dataExport.status.${job.status.name}'),
+                  tone: exportTone(job.status),
+                ),
               ),
             ],
           ),
           if (line.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
-            Text(line,
-                style: typography.body.copyWith(color: colors.textSecondary)),
+            Text(
+              line,
+              style: typography.body.copyWith(color: colors.textSecondary),
+            ),
           ],
           if (job.status == DataExportStatus.ready && job.url != null) ...[
             const SizedBox(height: AppSpacing.lg),

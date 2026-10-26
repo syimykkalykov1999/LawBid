@@ -1,4 +1,15 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { textLimitCeiling } from '../../../common/app-settings/text-limits';
+import {
+  CountriesService,
+  notAvailable,
+} from '../../countries/countries.service';
+import {
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import {
   ContactMethod,
   Prisma,
@@ -10,7 +21,6 @@ import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   ATTORNEY_ONLY_FIELDS,
-  BIO_MAX_LENGTH,
   CLIENT_ONLY_FIELDS,
   CONTACT_NOTE_MAX_LENGTH,
   FIRM_NAME_MAX_LENGTH,
@@ -82,6 +92,7 @@ export class UserProfilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usernames: UsernameRegistry,
+    @Optional() private readonly countries?: CountriesService,
   ) {}
 
   async facts(
@@ -118,7 +129,9 @@ export class UserProfilesService {
       });
       return {
         ...none,
-        attorneyHasLicensedStates: licensedStates.length > 0,
+        // Owner 2026-10-11: licensed states are entered only on the License
+        // step; a saved attorney profile no longer needs them.
+        attorneyHasLicensedStates: licensedStates.length > 0 || row !== null,
         view: row
           ? {
               username: row.username,
@@ -175,6 +188,9 @@ export class UserProfilesService {
     } else {
       await this.saveAttorney(userId, dto, extras);
     }
+    // Owner 2026-10-05: the person now works in the country of the state /
+    // province they live in (client) or are licensed in first (attorney).
+    await this.countries?.followRegion(userId, states[0]);
   }
 
   /**
@@ -256,10 +272,30 @@ export class UserProfilesService {
           preferred_contact_note: dto.contactNote || null,
         }),
       };
+      // Owner 2026-10-18: a chosen @username only during sign-up (after
+      // onboarding the profile edit and its cooldown apply).
+      const signedUp =
+        existing &&
+        (
+          await tx.onboardingState.findUnique({
+            where: { user_id: userId },
+            select: { completed_at: true },
+          })
+        )?.completed_at;
+      const chosen =
+        dto.username === undefined || signedUp
+          ? null
+          : await this.chosenUsername(tx, userId, dto.username);
       if (existing) {
         await tx.clientProfile.update({
           where: { user_id: userId },
-          data: fields,
+          data: {
+            ...fields,
+            ...(chosen && {
+              username: chosen,
+              username_lower: chosen.toLowerCase(),
+            }),
+          },
         });
       } else {
         if (!dto.stateCode) {
@@ -272,12 +308,14 @@ export class UserProfilesService {
           where: { id: userId },
           select: { first_name: true, last_name: true },
         });
-        const username = await this.usernames.allocate(
-          tx,
-          user.first_name,
-          user.last_name,
-          CLIENT_USERNAME_FALLBACK,
-        );
+        const username =
+          chosen ??
+          (await this.usernames.allocate(
+            tx,
+            user.first_name,
+            user.last_name,
+            CLIENT_USERNAME_FALLBACK,
+          ));
         await tx.clientProfile.create({
           data: {
             preferred_languages: [],
@@ -351,19 +389,42 @@ export class UserProfilesService {
             }),
             ...(dto.languages !== undefined && { languages: dto.languages }),
           };
+          // Owner 2026-10-18: a chosen @username is taken during sign-up
+          // only; after onboarding a change goes through the profile edit
+          // (with its cooldown), never through this step.
+          const signedUp =
+            existing &&
+            (
+              await tx.onboardingState.findUnique({
+                where: { user_id: userId },
+                select: { completed_at: true },
+              })
+            )?.completed_at;
+          const chosen =
+            dto.username === undefined || signedUp
+              ? null
+              : await this.chosenUsername(tx, userId, dto.username, reserved);
           if (existing) {
             await tx.attorneyProfile.update({
               where: { user_id: userId },
-              data: fields,
+              data: {
+                ...fields,
+                ...(chosen && {
+                  username: chosen,
+                  username_lower: chosen.toLowerCase(),
+                }),
+              },
             });
           } else {
-            const username = await this.usernames.allocate(
-              tx,
-              user.first_name,
-              user.last_name,
-              USERNAME_FALLBACK,
-              reserved,
-            );
+            const username =
+              chosen ??
+              (await this.usernames.allocate(
+                tx,
+                user.first_name,
+                user.last_name,
+                USERNAME_FALLBACK,
+                reserved,
+              ));
             await tx.attorneyProfile.create({
               data: {
                 languages: [],
@@ -386,11 +447,73 @@ export class UserProfilesService {
     }
   }
 
+  /**
+   * Owner 2026-10-18 («как в инсте»): the handle picked on the sign-up
+   * form — refused like an edit when reserved or held by anyone else of
+   * either role (OQ-026). Not an edit: no cooldown is stamped.
+   */
+  private async chosenUsername(
+    tx: Tx,
+    userId: string,
+    username: string,
+    reserved?: ReadonlySet<string>,
+  ): Promise<string> {
+    const lower = username.toLowerCase();
+    if (
+      reserved ? reserved.has(lower) : await this.usernames.isReserved(lower)
+    ) {
+      throw new HttpException(
+        {
+          code: ErrorCode.USERNAME_RESERVED,
+          message: 'This username is reserved.',
+          details: { field: 'username' },
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    if (
+      (await this.usernames.isTaken(tx, lower, userId)) ||
+      (await this.usernames.blocker(tx, lower, userId))
+    ) {
+      throw new HttpException(
+        {
+          code: ErrorCode.USERNAME_TAKEN,
+          message: 'This username is already taken.',
+          details: { field: 'username' },
+        },
+        HttpStatus.CONFLICT,
+      );
+    }
+    return username;
+  }
+
   private async updateNames(
     tx: Tx,
     userId: string,
     dto: OnboardingProfileDto,
   ): Promise<{ first_name: string | null; last_name: string | null }> {
+    if (dto.email !== undefined) {
+      const current = await tx.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { email: true },
+      });
+      if (current.email !== dto.email) {
+        const taken = await tx.user.findFirst({
+          where: { email: dto.email, NOT: { id: userId } },
+          select: { id: true },
+        });
+        if (taken) {
+          throw new ConflictException({
+            code: ErrorCode.CONTACT_ALREADY_EXISTS,
+            message: 'This e-mail is already in use on another account.',
+          });
+        }
+        await tx.user.update({
+          where: { id: userId },
+          data: { email: dto.email, email_verified_at: null },
+        });
+      }
+    }
     if (dto.firstName === undefined && dto.lastName === undefined) {
       return tx.user.findUniqueOrThrow({
         where: { id: userId },
@@ -462,6 +585,12 @@ export class UserProfilesService {
     if (invalid.length > 0) {
       throw validation('Unknown state code.', { states: invalid });
     }
+    // Owner 2026-10-05: only regions of switched-on countries.
+    const closed = await this.prisma.state.findFirst({
+      where: { code: { in: unique }, country: { is_enabled: false } },
+      select: { country_code: true },
+    });
+    if (closed) throw notAvailable(closed.country_code);
   }
 
   /** Best-effort read of the pre-structured `data.profile` JSON (older
@@ -507,7 +636,8 @@ export class UserProfilesService {
     }
     if (role === 'attorney') {
       return {
-        bio: str(raw.bio, BIO_MAX_LENGTH),
+        // The DTO already held the admin's limit; this only bounds old data.
+        bio: str(raw.bio, textLimitCeiling('limits.bio_chars')),
         firmName: str(raw.firm, FIRM_NAME_MAX_LENGTH),
         languages,
         licensedStates: await knownStates(

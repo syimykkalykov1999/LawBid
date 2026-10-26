@@ -50,7 +50,8 @@ class SmartAuthSmsCodeRetriever implements SmsCodeRetriever {
   @override
   Future<String?> listenForCode() async {
     if (!isSupported) return null;
-    final result = await _smartAuth.getSmsWithRetrieverApi(matcher: codeMatcher);
+    final result =
+        await _smartAuth.getSmsWithRetrieverApi(matcher: codeMatcher);
     final code = result.data?.code;
     return (code != null && RegExp(r'^\d{6}$').hasMatch(code)) ? code : null;
   }
@@ -68,4 +69,5 @@ class SmartAuthSmsCodeRetriever implements SmsCodeRetriever {
   }
 }
 
-final smsCodeRetrieverProvider = Provider<SmsCodeRetriever>((ref) => SmartAuthSmsCodeRetriever());
+final smsCodeRetrieverProvider =
+    Provider<SmsCodeRetriever>((ref) => SmartAuthSmsCodeRetriever());

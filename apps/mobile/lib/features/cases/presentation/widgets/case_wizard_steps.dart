@@ -1,15 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
+import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
+import 'package:lawbid/features/practice/practice_matches.dart';
+import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 
@@ -31,13 +37,17 @@ class WizardHeading extends StatelessWidget {
       children: [
         Semantics(
           header: true,
-          child: Text(title,
-              style: typography.titleLarge.copyWith(color: colors.text)),
+          child: Text(
+            title,
+            style: typography.titleMedium.copyWith(color: colors.text),
+          ),
         ),
-        const SizedBox(height: AppSpacing.sm),
-        Text(subtitle,
-            style: typography.body.copyWith(color: colors.textSecondary)),
-        const SizedBox(height: AppSpacing.xl),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          subtitle,
+          style: typography.bodySmall.copyWith(color: colors.textSecondary),
+        ),
+        const SizedBox(height: AppSpacing.lg),
       ],
     );
   }
@@ -58,21 +68,96 @@ class PracticeStep extends ConsumerStatefulWidget {
 class _PracticeStepState extends ConsumerState<PracticeStep> {
   final _search = TextEditingController();
   String _query = '';
-  String? _openCategory;
+  String _remoteQuery = '';
+  Timer? _debounce;
+  // Owner 2026-10-15: every group opens and closes on its own arrow; the
+  // group of a chosen topic starts open.
+  final Set<String> _open = {};
+  bool _seeded = false;
+
+  /// Owner 2026-10-15: up to this many topics (admin: `case.max_practices`).
+  int get _max => ref
+      .read(featureFlagsControllerProvider)
+      .configInt('case.max_practices', 3);
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
-  void _pick(PracticeLeaf leaf) => widget.onChange(
-        (d) => d.copyWith(
-          practiceAreaId: leaf.id,
-          practiceI18nKey: leaf.i18nKey,
-          practiceNameEn: leaf.nameEn,
+  void _onQuery(String v) {
+    setState(() => _query = v);
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => mounted ? setState(() => _remoteQuery = v) : null,
+    );
+  }
+
+  bool _isChosen(String id) =>
+      widget.draft.practiceAreaId == id ||
+      widget.draft.extraPractices.any((p) => p.id == id);
+
+  /// Owner 2026-10-15: a second tap takes a topic off; up to [_max] topics;
+  /// «Not sure» excludes the others (and they it).
+  void _toggle(PracticeLeaf leaf, {bool notSure = false}) {
+    final d = widget.draft;
+    var all = <CaseDraftPractice>[
+      if (d.practiceAreaId != null)
+        CaseDraftPractice(
+          id: d.practiceAreaId!,
+          i18nKey: d.practiceI18nKey ?? '',
+          nameEn: d.practiceNameEn ?? '',
+          code: d.practiceCode,
         ),
+      ...d.extraPractices,
+    ];
+    if (all.any((p) => p.id == leaf.id)) {
+      all = [
+        for (final p in all)
+          if (p.id != leaf.id) p,
+      ];
+    } else {
+      final pick = CaseDraftPractice(
+        id: leaf.id,
+        i18nKey: leaf.i18nKey,
+        nameEn: leaf.nameEn,
+        code: leaf.code,
       );
+      if (notSure) {
+        all = [pick];
+      } else {
+        // «Not sure» is not a topic to combine with others.
+        all = [
+          for (final p in all)
+            if (!p.i18nKey.endsWith('not_sure_or_other')) p,
+        ];
+        if (all.length >= _max) {
+          showAppSnackBar(
+            context,
+            ref
+                .read(translatorProvider)
+                .t('cases.create.practice.upTo', {'n': '$_max'}),
+          );
+          return;
+        }
+        all = [...all, pick];
+      }
+    }
+    widget.onChange(
+      (d) => all.isEmpty
+          ? d.copyWith(clearPractice: true, extraPractices: const [])
+          : d.copyWith(
+              practiceAreaId: all.first.id,
+              practiceI18nKey: all.first.i18nKey,
+              practiceNameEn: all.first.nameEn,
+              practiceCode: all.first.code,
+              extraPractices: all.skip(1).toList(),
+            ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,19 +169,35 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
       onRetry: () => ref.invalidate(practiceTreeProvider),
       builder: (categories) {
         String name(String key, String en) => CaseFormat.practice(t, key, en);
+        if (!_seeded) {
+          _seeded = true;
+          for (final c in categories) {
+            if (c.children.any((l) => _isChosen(l.id))) _open.add(c.id);
+          }
+        }
         final q = _query.trim().toLowerCase();
         final notSure = [
           for (final c in categories)
             for (final l in c.children)
               if (l.i18nKey.endsWith('not_sure_or_other')) l,
         ].firstOrNull;
+        // Any-language search (owner 2026-10-15): the server says which
+        // practices a word in ANY language names; they join the matches.
+        final remote = q.isEmpty
+            ? const <String, String?>{}
+            : (ref.watch(practiceMatchesProvider(_remoteQuery)).value ??
+                const <String, String?>{});
+        bool byRemote(PracticeCategory c, PracticeLeaf l) =>
+            (l.code != null && remote.containsKey(l.code)) ||
+            remote.containsKey(practiceCodeOf(c.i18nKey));
         final matches = q.isEmpty
             ? const <(PracticeCategory, PracticeLeaf)>[]
             : [
                 for (final c in categories)
                   for (final l in c.children)
                     if (name(l.i18nKey, l.nameEn).toLowerCase().contains(q) ||
-                        name(c.i18nKey, c.nameEn).toLowerCase().contains(q))
+                        name(c.i18nKey, c.nameEn).toLowerCase().contains(q) ||
+                        byRemote(c, l))
                       (c, l),
               ];
         return ListView(
@@ -111,13 +212,30 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               title: t.t('cases.create.practice.title'),
               subtitle: t.t('cases.create.practice.subtitle'),
             ),
+            // Owner 2026-10-15: how many topics fit.
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: Text(
+                t.t('cases.create.practice.upTo', {'n': '$_max'}),
+                key: const ValueKey('practice-up-to'),
+                style: Theme.of(context)
+                    .extension<AppTypographyTokens>()!
+                    .caption
+                    .copyWith(
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+              ),
+            ),
             AppTextField(
+              compact: true,
               controller: _search,
               label: t.t('cases.create.practice.search'),
               hintText: t.t('cases.create.practice.searchHint'),
               leading: const AppIcon(AppIcons.searchRounded),
               textInputAction: TextInputAction.search,
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: _onQuery,
             ),
             const SizedBox(height: AppSpacing.lg),
             if (notSure != null && q.isEmpty) ...[
@@ -125,17 +243,40 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
                 label: t.t('cases.create.practice.notSure'),
                 caption: t.t('cases.create.practice.notSureHint'),
                 icon: AppIcons.helpOutlineRounded,
-                selected: widget.draft.practiceAreaId == notSure.id,
-                onTap: () => _pick(notSure),
+                selected: _isChosen(notSure.id),
+                onTap: () => _toggle(notSure, notSure: true),
               ),
               const SizedBox(height: AppSpacing.lg),
             ],
+            // Owner 2026-10-19: the icon above the text, both centred (the
+            // full-screen empty state overlapped them inside this list).
             if (q.isNotEmpty && matches.isEmpty)
               Padding(
+                key: const ValueKey('practice-no-match'),
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                child: AppEmptyState(
-                  icon: AppIcons.searchOffRounded,
-                  message: t.t('cases.create.practice.noMatch'),
+                child: Column(
+                  children: [
+                    AppIcon(
+                      AppIcons.searchOffRounded,
+                      size: 40,
+                      color: Theme.of(context)
+                          .extension<AppColorTokens>()!
+                          .textSecondary,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      t.t('cases.create.practice.noMatch'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .extension<AppTypographyTokens>()!
+                          .body
+                          .copyWith(
+                            color: Theme.of(context)
+                                .extension<AppColorTokens>()!
+                                .textSecondary,
+                          ),
+                    ),
+                  ],
                 ),
               ),
             if (q.isNotEmpty)
@@ -144,27 +285,29 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
                   padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                   child: _LeafTile(
                     label: name(l.i18nKey, l.nameEn),
-                    caption: name(c.i18nKey, c.nameEn),
-                    selected: widget.draft.practiceAreaId == l.id,
-                    onTap: () => _pick(l),
+                    caption: remote[l.code] ??
+                        remote[practiceCodeOf(c.i18nKey)] ??
+                        name(c.i18nKey, c.nameEn),
+                    selected: _isChosen(l.id),
+                    onTap: () => _toggle(l),
                   ),
                 )
             else
               for (final c in categories)
                 _CategoryTile(
                   label: name(c.i18nKey, c.nameEn),
-                  open: _openCategory == c.id ||
-                      c.children
-                          .any((l) => l.id == widget.draft.practiceAreaId),
+                  open: _open.contains(c.id),
                   onToggle: () => setState(
-                    () => _openCategory = _openCategory == c.id ? null : c.id,
+                    () => _open.contains(c.id)
+                        ? _open.remove(c.id)
+                        : _open.add(c.id),
                   ),
                   children: [
                     for (final l in c.children)
                       _LeafTile(
                         label: name(l.i18nKey, l.nameEn),
-                        selected: widget.draft.practiceAreaId == l.id,
-                        onTap: () => _pick(l),
+                        selected: _isChosen(l.id),
+                        onTap: () => _toggle(l),
                         dense: true,
                       ),
                   ],
@@ -214,7 +357,8 @@ class _CategoryTile extends StatelessWidget {
                 onTap: onToggle,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
-                      minHeight: AppSizes.hitTarget + AppSpacing.sm),
+                    minHeight: AppSizes.hitTarget + AppSpacing.sm,
+                  ),
                   child: Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
@@ -233,8 +377,10 @@ class _CategoryTile extends StatelessWidget {
                           turns: open ? 0.5 : 0,
                           duration: motion,
                           curve: AppMotion.enterCurve,
-                          child: AppIcon(AppIcons.expandMoreRounded,
-                              color: colors.textSecondary),
+                          child: AppIcon(
+                            AppIcons.expandMoreRounded,
+                            color: colors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -311,24 +457,29 @@ class _LeafTile extends StatelessWidget {
                 ? null
                 : Border.all(
                     color: selected ? colors.gold : colors.border,
-                    width: selected ? 1.5 : 1),
+                    width: selected ? 1.5 : 1,
+                  ),
           ),
           child: Row(
             children: [
               if (icon != null) ...[
-                AppIcon(icon, color: colors.goldDark, size: AppSizes.iconSm),
+                AppIcon(icon, color: colors.iconTint, size: AppSizes.iconSm),
                 const SizedBox(width: AppSpacing.md),
               ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label,
-                        style: typography.body.copyWith(color: colors.text)),
+                    Text(
+                      label,
+                      style: typography.body.copyWith(color: colors.text),
+                    ),
                     if (caption != null)
-                      Text(caption!,
-                          style: typography.caption
-                              .copyWith(color: colors.textSecondary)),
+                      Text(
+                        caption!,
+                        style: typography.caption
+                            .copyWith(color: colors.textSecondary),
+                      ),
                   ],
                 ),
               ),
@@ -346,9 +497,14 @@ class _LeafTile extends StatelessWidget {
                     width: AppSizes.iconSm,
                     height: AppSizes.iconSm,
                     decoration: BoxDecoration(
-                        color: colors.gold, shape: BoxShape.circle),
-                    child: AppIcon(AppIcons.checkRounded,
-                        size: AppSpacing.md + 1, color: colors.navy),
+                      color: colors.gold,
+                      shape: BoxShape.circle,
+                    ),
+                    child: AppIcon(
+                      AppIcons.checkRounded,
+                      size: AppSpacing.md + 1,
+                      color: colors.navy,
+                    ),
                   ),
                 ),
               ),
@@ -388,6 +544,8 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
   late final _title = TextEditingController(text: widget.draft.title);
   late final _description =
       TextEditingController(text: widget.draft.description);
+  late final _details =
+      TextEditingController(text: widget.draft.privateDetails);
   bool _touchedTitle = false;
   bool _touchedDescription = false;
 
@@ -395,6 +553,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
   void dispose() {
     _title.dispose();
     _description.dispose();
+    _details.dispose();
     super.dispose();
   }
 
@@ -414,49 +573,179 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
           title: t.t('cases.create.essence.title'),
           subtitle: t.t('cases.create.essence.subtitle'),
         ),
-        AppTextField(
-          controller: _title,
-          label: t.t('cases.field.title'),
-          hintText: t.t('cases.field.titleHint'),
-          maxLength: CaseLimits.titleMax,
-          textCapitalization: TextCapitalization.sentences,
-          textInputAction: TextInputAction.next,
-          errorText: _touchedTitle && !d.titleValid
-              ? t.t('cases.field.titleError', {
-                  'min': '${CaseLimits.titleMin}',
-                  'max': '${CaseLimits.titleMax}',
-                })
-              : null,
-          onChanged: (v) {
-            _touchedTitle = true;
-            widget.onChange((x) => x.copyWith(title: v));
-          },
+        // Owner 2026-10-18: two blocks — what every attorney sees, and what
+        // only the accepted attorney sees.
+        _StepBlock(
+          key: const ValueKey('case-public-block'),
+          icon: AppIcons.visibilityOutlined,
+          title: t.t('cases.block.public.title'),
+          note: t.t('cases.block.public.note'),
+          children: [
+            AppTextField(
+              controller: _title,
+              label: t.t('cases.field.title'),
+              hintText: t.t('cases.field.titleHint'),
+              maxLength: CaseLimits.titleMax,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.next,
+              errorText: _touchedTitle && !d.titleValid
+                  ? t.t('cases.field.titleError', {
+                      'min': '${CaseLimits.titleMin}',
+                      'max': '${CaseLimits.titleMax}',
+                    })
+                  : null,
+              onChanged: (v) {
+                _touchedTitle = true;
+                widget.onChange((x) => x.copyWith(title: v));
+              },
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AppTextField(
+              controller: _description,
+              label: t.t('cases.field.brief'),
+              hintText: t.t('cases.field.briefHint'),
+              helperText: t.t('cases.field.noContacts'),
+              tapAnywhere: true,
+              maxLines: 6,
+              maxLength: CaseLimits.descriptionMax,
+              textCapitalization: TextCapitalization.sentences,
+              errorText: widget.contactError ??
+                  (_touchedDescription && !d.descriptionValid
+                      ? t.t('cases.field.descriptionError', {
+                          'min': '${CaseLimits.descriptionMin}',
+                        })
+                      : null),
+              onChanged: (v) {
+                _touchedDescription = true;
+                widget.onChange((x) => x.copyWith(description: v));
+              },
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        AppTextField(
-          controller: _description,
-          label: t.t('cases.field.description'),
-          hintText: t.t('cases.field.descriptionHint'),
-          helperText: t.t('cases.field.noContacts'),
-          maxLines: 8,
-          maxLength: CaseLimits.descriptionMax,
-          textCapitalization: TextCapitalization.sentences,
-          errorText: widget.contactError ??
-              (_touchedDescription && !d.descriptionValid
-                  ? t.t('cases.field.descriptionError', {
-                      'min': '${CaseLimits.descriptionMin}',
-                    })
-                  : null),
-          onChanged: (v) {
-            _touchedDescription = true;
-            widget.onChange((x) => x.copyWith(description: v));
-          },
+        _StepBlock(
+          key: const ValueKey('case-private-block'),
+          icon: AppIcons.lockOutlineRounded,
+          title: t.t('cases.block.private.title'),
+          children: [
+            AppTextField(
+              controller: _details,
+              label: t.t('cases.field.privateDetails'),
+              hintText: t.t('cases.field.privateDetailsHint'),
+              tapAnywhere: true,
+              maxLines: 6,
+              maxLength: CaseLimits.privateDetailsMax,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (v) =>
+                  widget.onChange((x) => x.copyWith(privateDetails: v)),
+            ),
+            if (widget.footer != null) ...[
+              const SizedBox(height: AppSpacing.lg),
+              widget.footer!,
+            ],
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              t.t('cases.block.private.footer'),
+              style: Theme.of(context)
+                  .extension<AppTypographyTokens>()!
+                  .caption
+                  .copyWith(
+                    color: Theme.of(context)
+                        .extension<AppColorTokens>()!
+                        .textSecondary,
+                  ),
+            ),
+          ],
         ),
-        if (widget.footer != null) ...[
-          const SizedBox(height: AppSpacing.lg),
-          widget.footer!,
-        ],
+        const SizedBox(height: AppSpacing.lg),
+        Text(
+          t.t('cases.visibility.legal'),
+          key: const ValueKey('case-legal-notice'),
+          textAlign: TextAlign.center,
+          style: Theme.of(context)
+              .extension<AppTypographyTokens>()!
+              .caption
+              .copyWith(
+                color: Theme.of(context)
+                    .extension<AppColorTokens>()!
+                    .textSecondary,
+              ),
+        ),
       ],
+    );
+  }
+}
+
+/// A theme-coloured card with a header (icon + title [+ muted note]).
+class _StepBlock extends StatelessWidget {
+  const _StepBlock({
+    required this.icon,
+    required this.title,
+    required this.children,
+    this.note,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? note;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.card),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ExcludeSemantics(
+                  child: AppIcon(
+                    icon,
+                    size: AppSizes.iconSm,
+                    color: colors.iconTint,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      text: title,
+                      style: type.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      children: [
+                        if (note != null)
+                          TextSpan(
+                            text: ' $note',
+                            style: type.body.copyWith(
+                              color: colors.textSecondary,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ...children,
+        ],
+      ),
     );
   }
 }
@@ -464,7 +753,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
 // --- Step 3: place ----------------------------------------------------------
 
 String stateName(String code) =>
-    kUsStates.where((s) => s.code == code).map((s) => s.name).firstOrNull ??
+    kRegions.where((s) => s.code == code).map((s) => s.name).firstOrNull ??
     code;
 
 /// Searchable state list in a sheet (50 states + DC).
@@ -496,14 +785,10 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    final q = _q.trim().toLowerCase();
+    // Owner 2026-10-18: «Нью-Йорк», "new yrok", "NY" — any alphabet.
     final list = [
-      for (final s in kUsStates)
-        if (!widget.exclude.contains(s.code) &&
-            (q.isEmpty ||
-                s.name.toLowerCase().contains(q) ||
-                s.code.toLowerCase() == q))
-          s,
+      for (final s in kRegions)
+        if (!widget.exclude.contains(s.code) && s.matches(_q)) s,
     ];
     return SafeArea(
       child: SizedBox(
@@ -520,6 +805,7 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
               const AppSheetHandle(),
               const SizedBox(height: AppSpacing.lg),
               AppTextField(
+                compact: true,
                 label: widget.t.t('cases.field.state'),
                 hintText: widget.t.t('cases.field.stateSearch'),
                 leading: const AppIcon(AppIcons.searchRounded),
@@ -540,7 +826,8 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
                         onTap: () => Navigator.of(context).pop(s.code),
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(
-                              minHeight: AppSizes.hitTarget),
+                            minHeight: AppSizes.hitTarget,
+                          ),
                           child: Row(
                             children: [
                               SizedBox(
@@ -554,9 +841,11 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
                                 ),
                               ),
                               Expanded(
-                                child: Text(s.name,
-                                    style: typography.body
-                                        .copyWith(color: colors.text)),
+                                child: Text(
+                                  s.name,
+                                  style: typography.body
+                                      .copyWith(color: colors.text),
+                                ),
                               ),
                             ],
                           ),
@@ -600,9 +889,10 @@ class PickerField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style:
-                  typography.bodySmall.copyWith(color: colors.textSecondary)),
+          Text(
+            label,
+            style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.xs + 2),
           Semantics(
             button: true,
@@ -624,12 +914,16 @@ class PickerField extends StatelessWidget {
                     Expanded(
                       child: Text(
                         value ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: typography.body
-                            .copyWith(color: colors.text, fontSize: 16),
+                            .copyWith(color: colors.text, fontSize: 14),
                       ),
                     ),
-                    AppIcon(AppIcons.expandMoreRounded,
-                        color: colors.textSecondary),
+                    AppIcon(
+                      AppIcons.expandMoreRounded,
+                      color: colors.textSecondary,
+                    ),
                   ],
                 ),
               ),
@@ -637,9 +931,10 @@ class PickerField extends StatelessWidget {
           ),
           if (helper != null) ...[
             const SizedBox(height: AppSpacing.xs),
-            Text(helper!,
-                style:
-                    typography.caption.copyWith(color: colors.textSecondary)),
+            Text(
+              helper!,
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
           ],
         ],
       ),
@@ -704,10 +999,14 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
           enabled: !locked,
           helper: locked ? t.t('cases.edit.statesLocked') : null,
           onTap: () async {
-            final code = await pickState(context, t,
-                exclude: d.additionalStateCodes.toSet());
-            if (code != null)
+            final code = await pickState(
+              context,
+              t,
+              exclude: d.additionalStateCodes.toSet(),
+            );
+            if (code != null) {
               widget.onChange((x) => x.copyWith(primaryStateCode: code));
+            }
           },
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -730,8 +1029,11 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
                 selected: true,
                 trailing: locked
                     ? null
-                    : AppIcon(AppIcons.closeRounded,
-                        size: AppSpacing.lg, color: colors.textSecondary),
+                    : AppIcon(
+                        AppIcons.closeRounded,
+                        size: AppSpacing.lg,
+                        color: colors.textSecondary,
+                      ),
                 onTap: locked
                     ? null
                     : () => widget.onChange(
@@ -747,16 +1049,21 @@ class _PlaceStepState extends ConsumerState<PlaceStep> {
                 d.additionalStateCodes.length < CaseLimits.maxAdditionalStates)
               AppChip(
                 label: t.t('cases.field.addState'),
-                leading: AppIcon(AppIcons.addRounded,
-                    size: AppSpacing.lg, color: colors.goldDark),
+                leading: AppIcon(
+                  AppIcons.addRounded,
+                  size: AppSpacing.lg,
+                  color: colors.iconTint,
+                ),
                 onTap: () async {
                   final code = await pickState(context, t, exclude: taken());
                   if (code != null) {
                     widget.onChange(
-                      (x) => x.copyWith(additionalStateCodes: [
-                        ...x.additionalStateCodes,
-                        code
-                      ]),
+                      (x) => x.copyWith(
+                        additionalStateCodes: [
+                          ...x.additionalStateCodes,
+                          code,
+                        ],
+                      ),
                     );
                   }
                 },
@@ -780,14 +1087,29 @@ class BudgetStep extends ConsumerStatefulWidget {
   ConsumerState<BudgetStep> createState() => _BudgetStepState();
 }
 
+/// Owner 2026-10-17: «Сумма», «Проценты», «Уточню позже».
+enum _BudgetKind { amount, percent, later }
+
 class _BudgetStepState extends ConsumerState<BudgetStep> {
   late final _amount = TextEditingController(
     text: widget.draft.budgetDollars?.toString() ?? '',
   );
+  late final _percent = TextEditingController(
+    text: widget.draft.budgetPercentBps == null
+        ? ''
+        : ContingencyRules.plain(widget.draft.budgetPercentBps!),
+  );
+
+  _BudgetKind _kindOf(CaseDraft d) => d.budgetIsPercent
+      ? _BudgetKind.percent
+      : d.budgetIsAmount
+          ? _BudgetKind.amount
+          : _BudgetKind.later;
 
   @override
   void dispose() {
     _amount.dispose();
+    _percent.dispose();
     super.dispose();
   }
 
@@ -797,6 +1119,20 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final d = widget.draft;
+    final rules =
+        ContingencyRules.of(ref.watch(featureFlagsControllerProvider));
+    // Ethics rules forbid a percent for some topics (admin list).
+    final percentAllowed = !rules.blockedFor(d.practiceCodes);
+    if (!percentAllowed && d.budgetIsPercent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onChange(
+            (x) => x.copyWith(budgetIsPercent: false, clearBudgetPercent: true),
+          );
+        }
+      });
+    }
+    final kind = _kindOf(d);
     return ListView(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
@@ -809,70 +1145,137 @@ class _BudgetStepState extends ConsumerState<BudgetStep> {
           title: t.t('cases.create.budget.title'),
           subtitle: t.t('cases.create.budget.subtitle'),
         ),
-        SegmentedChoice<bool>(
-          value: d.budgetIsAmount,
+        SegmentedChoice<_BudgetKind>(
+          value: kind,
           options: [
-            (true, t.t('cases.budget.specify')),
-            (false, t.t('cases.budget.clarifyLater')),
+            (_BudgetKind.amount, t.t('cases.budget.specify')),
+            (_BudgetKind.percent, t.t('cases.budget.percent')),
+            (_BudgetKind.later, t.t('cases.budget.clarifyLater')),
           ],
-          onChanged: (v) =>
-              widget.onChange((x) => x.copyWith(budgetIsAmount: v)),
+          // Owner 2026-10-19: shown greyed with a note, not hidden.
+          disabled: {if (!percentAllowed) _BudgetKind.percent},
+          onChanged: (v) => widget.onChange(
+            (x) => x.copyWith(
+              budgetIsAmount: v == _BudgetKind.amount,
+              budgetIsPercent: v == _BudgetKind.percent,
+            ),
+          ),
         ),
+        if (!percentAllowed) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            t.t('cases.budget.percentForbidden'),
+            key: const ValueKey('budget-percent-forbidden'),
+            style: typography.caption.copyWith(color: colors.textSecondary),
+          ),
+        ],
         const SizedBox(height: AppSpacing.xl),
-        AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          child: d.budgetIsAmount
-              ? AppTextField(
-                  key: const ValueKey('amount'),
-                  controller: _amount,
-                  label: t.t('cases.field.budgetAmount'),
-                  hintText: '600',
-                  leading: Text('\$',
-                      style: typography.titleMedium
-                          .copyWith(color: colors.goldDark)),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(8),
-                  ],
-                  errorText: _amount.text.isNotEmpty && !d.budgetValid
-                      ? t.t('cases.field.budgetError', {
-                          'max': CaseFormat.money(
-                              ref.watch(l10nFormatsProvider),
-                              CaseLimits.budgetMaxDollars * 100),
+        // Owner 2026-10-18: the three choices share one box as tall as the
+        // tallest, so nothing below jumps when switching (they cross-fade).
+        _SameHeightSwitch(
+          index: kind.index,
+          children: [
+            AppTextField(
+              key: const ValueKey('amount-field'),
+              controller: _amount,
+              label: t.t('cases.field.budgetAmount'),
+              leading: Text(
+                r'$',
+                style: typography.titleMedium.copyWith(color: colors.goldDark),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(8),
+              ],
+              errorText: _amount.text.isNotEmpty && !d.budgetValid
+                  ? t.t('cases.field.budgetError', {
+                      'max': CaseFormat.money(
+                        ref.watch(l10nFormatsProvider),
+                        CaseLimits.budgetMaxDollars * 100,
+                      ),
+                    })
+                  : null,
+              onChanged: (v) {
+                final n = int.tryParse(v);
+                widget.onChange(
+                  (x) => n == null
+                      ? x.copyWith(clearBudgetDollars: true)
+                      : x.copyWith(budgetDollars: n),
+                );
+              },
+            ),
+            AppTextField(
+              key: const ValueKey('percent'),
+              controller: _percent,
+              label: t.t('cases.field.budgetPercent'),
+              helperText: t.t('cases.create.budget.percentHint'),
+              leading: Text(
+                '%',
+                style: typography.titleMedium.copyWith(color: colors.goldDark),
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
+                LengthLimitingTextInputFormatter(6),
+              ],
+              errorText:
+                  _percent.text.isNotEmpty && rules.parse(_percent.text) == null
+                      ? t.t('cases.field.budgetPercentError', {
+                          'max': ContingencyRules.plain(rules.maxBps),
                         })
                       : null,
-                  onChanged: (v) {
-                    final n = int.tryParse(v);
-                    widget.onChange(
-                      (x) => n == null
-                          ? x.copyWith(clearBudgetDollars: true)
-                          : x.copyWith(budgetDollars: n),
-                    );
-                  },
-                )
-              : Container(
-                  key: const ValueKey('later'),
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: colors.goldTint,
-                    borderRadius: BorderRadius.circular(AppRadii.card),
+              onChanged: (v) {
+                final bps = rules.parse(v);
+                widget.onChange(
+                  (x) => bps == null
+                      ? x.copyWith(clearBudgetPercent: true)
+                      : x.copyWith(budgetPercentBps: bps),
+                );
+              },
+            ),
+            Container(
+              key: const ValueKey('later'),
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              // Owner 2026-10-18: the theme's own surface.
+              decoration: BoxDecoration(
+                color: colors.chip,
+                borderRadius: BorderRadius.circular(AppRadii.card),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  AppIcon(
+                    AppIcons.forumOutlined,
+                    color: colors.iconTint,
                   ),
-                  child: Row(
-                    children: [
-                      AppIcon(AppIcons.forumOutlined, color: colors.goldDark),
-                      const SizedBox(width: AppSpacing.md),
-                      Expanded(
-                        child: Text(
-                          t.t('cases.create.budget.laterHint'),
-                          style:
-                              typography.bodySmall.copyWith(color: colors.text),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Text(
+                      t.t('cases.create.budget.laterHint'),
+                      style: typography.bodySmall.copyWith(color: colors.text),
+                    ),
                   ),
-                ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        // Owner 2026-10-04: shown large on the attorney's card.
+        const SizedBox(height: AppSpacing.xl),
+        Text(
+          t.t('cases.create.urgency.title'),
+          style: typography.body.copyWith(
+            color: colors.text,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        // Owner 2026-10-05: a level, or a concrete date (court hearing…).
+        CaseUrgencyPicker(
+          value: CaseUrgencyChoice.ofDraft(d),
+          onChanged: (v) => widget.onChange(v.applyTo),
         ),
       ],
     );
@@ -885,12 +1288,16 @@ class SegmentedChoice<T> extends StatelessWidget {
     required this.value,
     required this.options,
     required this.onChanged,
+    this.disabled = const {},
     super.key,
   });
 
   final T value;
   final List<(T, String)> options;
   final ValueChanged<T> onChanged;
+
+  /// Options shown greyed that cannot be picked.
+  final Set<T> disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -910,10 +1317,11 @@ class SegmentedChoice<T> extends StatelessWidget {
           final w = box.maxWidth / options.length;
           return Stack(
             children: [
-              AnimatedPositioned(
+              // Directional so the pill tracks the Row's order in RTL.
+              AnimatedPositionedDirectional(
                 duration: motion,
                 curve: AppMotion.enterCurve,
-                left: w * (index < 0 ? 0 : index),
+                start: w * (index < 0 ? 0 : index),
                 top: 0,
                 bottom: 0,
                 width: w,
@@ -931,26 +1339,39 @@ class SegmentedChoice<T> extends StatelessWidget {
                       child: Semantics(
                         button: true,
                         selected: i == index,
+                        enabled: !disabled.contains(options[i].$1),
                         label: options[i].$2,
                         excludeSemantics: true,
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => onChanged(options[i].$1),
+                          onTap: disabled.contains(options[i].$1)
+                              ? null
+                              : () => onChanged(options[i].$1),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(
-                                minHeight: AppSizes.touchTarget),
+                              minHeight: AppSizes.touchTarget,
+                            ),
                             child: Center(
-                              child: AnimatedDefaultTextStyle(
-                                duration: motion,
-                                style: typography.button.copyWith(
-                                  color: i == index
-                                      ? colors.onAccent
-                                      : colors.textSecondary,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.xs,
                                 ),
-                                child: Text(
-                                  options[i].$2,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
+                                child: AnimatedDefaultTextStyle(
+                                  duration: motion,
+                                  style: typography.button.copyWith(
+                                    color: i == index
+                                        ? colors.onAccent
+                                        : disabled.contains(options[i].$1)
+                                            ? colors.textSecondary
+                                                .withValues(alpha: 0.4)
+                                            : colors.textSecondary,
+                                  ),
+                                  child: Text(
+                                    options[i].$2,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ),
                             ),
@@ -964,6 +1385,41 @@ class SegmentedChoice<T> extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Owner 2026-10-18: shows [children] one at a time in a box as tall as
+/// the tallest of them (a Stack sizes to its largest child), cross-fading
+/// between them — the content below never moves. Hidden ones take no
+/// taps, focus or screen-reader time.
+class _SameHeightSwitch extends StatelessWidget {
+  const _SameHeightSwitch({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final fade = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    return Stack(
+      children: [
+        for (var i = 0; i < children.length; i++)
+          IgnorePointer(
+            ignoring: i != index,
+            child: ExcludeFocus(
+              excluding: i != index,
+              child: ExcludeSemantics(
+                excluding: i != index,
+                child: AnimatedOpacity(
+                  opacity: i == index ? 1 : 0,
+                  duration: fade,
+                  child: children[i],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

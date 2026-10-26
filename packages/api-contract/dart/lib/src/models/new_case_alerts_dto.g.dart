@@ -15,6 +15,7 @@ NewCaseAlertsDto _$NewCaseAlertsDtoFromJson(Map<String, dynamic> json) =>
       profilePracticeAreaIds: (json['profilePracticeAreaIds'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
+      urgentOnly: json['urgentOnly'] as bool,
     );
 
 Map<String, dynamic> _$NewCaseAlertsDtoToJson(NewCaseAlertsDto instance) =>
@@ -22,4 +23,5 @@ Map<String, dynamic> _$NewCaseAlertsDtoToJson(NewCaseAlertsDto instance) =>
       'useProfile': instance.useProfile,
       'practiceAreaIds': instance.practiceAreaIds,
       'profilePracticeAreaIds': instance.profilePracticeAreaIds,
+      'urgentOnly': instance.urgentOnly,
     };

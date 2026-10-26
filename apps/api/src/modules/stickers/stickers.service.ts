@@ -11,6 +11,8 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
+import { StarsService } from '../stars/stars.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
 import type {
   StickerDto,
   StickerLibraryDto,
@@ -42,6 +44,7 @@ export class StickersService {
     private readonly files: FilesService,
     private readonly settings: AppSettingsService,
     private readonly limits: UsageLimitsService,
+    private readonly stars: StarsService,
   ) {}
 
   /** GET /stickers — recent + my installed packs. */
@@ -87,6 +90,42 @@ export class StickersService {
       recent: recent.map((r) => this.sticker(r.sticker, urls)),
       packs: packs.map((p) => this.pack(p, userId, true, urls)),
     };
+  }
+
+  /** Delta audit P7: the inputs of GET /stickers/featured's cheap ETag:
+   * the official packs and their stickers, plus this person's installs
+   * (the `installed` flag). Aggregates only, no rows, no presigning. */
+  async featuredStamp(
+    userId: string,
+  ): Promise<(string | number | Date | null)[]> {
+    const official = { is_official: true, status: 'active', deleted_at: null };
+    const [packs, stickers, mine] = await Promise.all([
+      this.prisma.stickerPack.aggregate({
+        where: official,
+        _max: { updated_at: true },
+        _sum: { install_count: true },
+        _count: { _all: true },
+      }),
+      this.prisma.sticker.aggregate({
+        where: { deleted_at: null, pack: official },
+        _max: { created_at: true },
+        _count: { _all: true },
+      }),
+      this.prisma.userStickerPack.aggregate({
+        where: { user_id: userId },
+        _max: { installed_at: true },
+        _count: { _all: true },
+      }),
+    ]);
+    return [
+      packs._max.updated_at,
+      packs._sum.install_count,
+      packs._count._all,
+      stickers._max.created_at,
+      stickers._count._all,
+      mine._max.installed_at,
+      mine._count._all,
+    ];
   }
 
   /** GET /stickers/featured — official packs, most installed first. */
@@ -231,15 +270,20 @@ export class StickersService {
     });
     if (!has) {
       await this.assertInstallRoom(userId);
-      await this.prisma.$transaction([
-        this.prisma.userStickerPack.create({
+      // Owner 2026-10-20: a paid pack takes its stars (once — a pack added
+      // before costs nothing again) in the same transaction as the install.
+      await withTxRetry(this.prisma, async (tx) => {
+        if (pack.owner_user_id !== userId) {
+          await this.stars.chargeStickerPack(tx, userId, pack);
+        }
+        await tx.userStickerPack.create({
           data: { user_id: userId, pack_id: pack.id, position: -1 },
-        }),
-        this.prisma.stickerPack.update({
+        });
+        await tx.stickerPack.update({
           where: { id: pack.id },
           data: { install_count: { increment: 1 } },
-        }),
-      ]);
+        });
+      });
     }
     return this.get(userId, pack.id);
   }
@@ -280,6 +324,19 @@ export class StickersService {
         code: ErrorCode.NOT_FOUND,
         message: 'Sticker not found.',
       });
+    }
+    // Owner 2026-10-20: a paid pack is sent only once it is added (bought).
+    if (s.pack.price_stars > 0 && s.pack.owner_user_id !== userId) {
+      const has = await this.prisma.userStickerPack.findUnique({
+        where: { user_id_pack_id: { user_id: userId, pack_id: s.pack_id } },
+        select: { pack_id: true },
+      });
+      if (!has) {
+        throw new ForbiddenException({
+          code: ErrorCode.STICKER_PACK_NOT_OWNED,
+          message: 'Add this sticker pack first.',
+        });
+      }
     }
     await this.prisma.userRecentSticker.upsert({
       where: { user_id_sticker_id: { user_id: userId, sticker_id: s.id } },
@@ -394,6 +451,7 @@ export class StickersService {
       installed,
       stickerCount: p.stickers.length,
       installCount: Math.max(0, p.install_count),
+      priceStars: p.price_stars,
       stickers: p.stickers.map((s) => this.sticker(s, urls)),
     };
   }

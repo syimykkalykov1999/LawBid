@@ -1,0 +1,377 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:dio/dio.dart';
+import 'package:retrofit/retrofit.dart';
+
+import '../models/admin_billing_reason_dto.dart';
+import '../models/admin_billing_subscription_row_list_envelope.dart';
+import '../models/admin_payment_list_envelope.dart';
+import '../models/admin_plan_prices_envelope.dart';
+import '../models/admin_plan_result_envelope.dart';
+import '../models/admin_plans_envelope.dart';
+import '../models/admin_seat_change_list_envelope.dart';
+import '../models/admin_seat_limit_request_list_envelope.dart';
+import '../models/admin_set_plan_price_result_envelope.dart';
+import '../models/apply_plan_dto.dart';
+import '../models/apply_plan_result_envelope.dart';
+import '../models/approve_seat_limit_dto.dart';
+import '../models/assistant_seat_change_status.dart';
+import '../models/billing_overview_envelope.dart';
+import '../models/contract_grant_envelope.dart';
+import '../models/contract_grant_list_envelope.dart';
+import '../models/contract_grant_status.dart';
+import '../models/create_contract_grant_dto.dart';
+import '../models/create_plan_dto.dart';
+import '../models/create_promo_code_dto.dart';
+import '../models/create_refund_dto.dart';
+import '../models/extend_contract_grant_dto.dart';
+import '../models/move_plan_subscribers_dto.dart';
+import '../models/move_plan_subscribers_result_envelope.dart';
+import '../models/new_entitlement_dto.dart';
+import '../models/new_entitlement_result_envelope.dart';
+import '../models/payment_status.dart';
+import '../models/plan.dart';
+import '../models/plan_fields_dto.dart';
+import '../models/plan_kind.dart';
+import '../models/post_attachments_mode_dto.dart';
+import '../models/post_attachments_mode_envelope.dart';
+import '../models/promo_code_envelope.dart';
+import '../models/promo_code_filter.dart';
+import '../models/promo_code_list_envelope.dart';
+import '../models/promo_delete_result_envelope.dart';
+import '../models/promo_redemption_list_envelope.dart';
+import '../models/refund_envelope.dart';
+import '../models/refund_list_envelope.dart';
+import '../models/reject_seat_limit_dto.dart';
+import '../models/save_bid_packs_dto.dart';
+import '../models/save_bid_packs_envelope.dart';
+import '../models/seat_limit_request_envelope.dart';
+import '../models/seat_limit_request_status.dart';
+import '../models/seats.dart';
+import '../models/set_plan_price_dto.dart';
+import '../models/status8.dart';
+import '../models/update_promo_code_dto.dart';
+
+part 'admin_billing_client.g.dart';
+
+@RestApi()
+abstract class AdminBillingClient {
+  factory AdminBillingClient(Dio dio, {String? baseUrl}) = _AdminBillingClient;
+
+  /// MRR, subscription counts, grants, 30-day revenue and refunds
+  @GET('/admin/billing/overview')
+  Future<BillingOverviewEnvelope> getBillingOverview({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Subscriptions with user, seats and grant (cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Name or email.
+  ///
+  /// [hasContractGrant] - Only with / without an active grant.
+  ///
+  /// [trialEndsWithinDays] - Trial ends within N days (trialing only).
+  ///
+  /// [seats] - Paid assistant seats: none (0), some, full (the admin seat limit or the yearly plan).
+  ///
+  /// [cancelAtPeriodEnd] - Only (not) set to cancel at period end.
+  ///
+  /// [renewsWithinDays] - Current period ends within N days.
+  ///
+  /// [hadTrial] - Has (not) ever had a trial.
+  @GET('/admin/billing/subscriptions')
+  Future<AdminBillingSubscriptionRowListEnvelope> listBillingSubscriptions({
+    @Query('cursor') String? cursor,
+    @Query('status') Status8? status,
+    @Query('plan') Plan? plan,
+    @Query('q') String? q,
+    @Query('hasContractGrant') bool? hasContractGrant,
+    @Query('trialEndsWithinDays') num? trialEndsWithinDays,
+    @Query('seats') Seats? seats,
+    @Query('cancelAtPeriodEnd') bool? cancelAtPeriodEnd,
+    @Query('renewsWithinDays') num? renewsWithinDays,
+    @Query('hadTrial') bool? hadTrial,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Contract (free) subscriptions, newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/contract-grants')
+  Future<ContractGrantListEnvelope> listContractGrants({
+    @Query('cursor') String? cursor,
+    @Query('status') ContractGrantStatus? status,
+    @Query('userId') String? userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Give an attorney a free subscription for 3–12 months
+  @POST('/admin/billing/contract-grants')
+  Future<ContractGrantEnvelope> createContractGrant({
+    @Body() required CreateContractGrantDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// An attorney's contract grants (all, newest first)
+  @GET('/admin/billing/contract-grants/users/{userId}')
+  Future<ContractGrantListEnvelope> getUserContractGrants({
+    @Path('userId') required String userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Add months to a grant (24 months at most)
+  @POST('/admin/billing/contract-grants/{id}/extend')
+  Future<ContractGrantEnvelope> extendContractGrant({
+    @Path('id') required String id,
+    @Body() required ExtendContractGrantDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Revoke a grant now (reason ≥ 10 chars)
+  @POST('/admin/billing/contract-grants/{id}/revoke')
+  Future<ContractGrantEnvelope> revokeContractGrant({
+    @Path('id') required String id,
+    @Body() required AdminBillingReasonDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Promo codes, newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Code prefix.
+  @GET('/admin/billing/promo-codes')
+  Future<PromoCodeListEnvelope> listPromoCodes({
+    @Query('cursor') String? cursor,
+    @Query('status') PromoCodeFilter? status,
+    @Query('q') String? q,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create a promo code (+ a Stripe coupon when configured)
+  @POST('/admin/billing/promo-codes')
+  Future<PromoCodeEnvelope> createPromoCode({
+    @Body() required CreatePromoCodeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Edit description, active, max redemptions, expiry
+  @PATCH('/admin/billing/promo-codes/{id}')
+  Future<PromoCodeEnvelope> updatePromoCode({
+    @Path('id') required String id,
+    @Body() required UpdatePromoCodeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a promo code: removed for good when unused, archived (off + hidden) when already used
+  @DELETE('/admin/billing/promo-codes/{id}')
+  Future<PromoDeleteResultEnvelope> deletePromoCode({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Switch a promo code off
+  @POST('/admin/billing/promo-codes/{id}/deactivate')
+  Future<PromoCodeEnvelope> deactivatePromoCode({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Bring an archived promo code back (switched off)
+  @POST('/admin/billing/promo-codes/{id}/restore')
+  Future<PromoCodeEnvelope> restorePromoCode({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Who used a promo code (cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/promo-codes/{id}/redemptions')
+  Future<PromoRedemptionListEnvelope> listPromoRedemptions({
+    @Path('id') required String id,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Payments with refunded amounts (cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [from] - created_at ≥.
+  ///
+  /// [to] - created_at <.
+  @GET('/admin/billing/payments')
+  Future<AdminPaymentListEnvelope> listBillingPayments({
+    @Query('cursor') String? cursor,
+    @Query('status') PaymentStatus? status,
+    @Query('userId') String? userId,
+    @Query('from') DateTime? from,
+    @Query('to') DateTime? to,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Assistant seat purchases and removals with the Stripe invoice (owner 2026-10-22, cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/seat-changes')
+  Future<AdminSeatChangeListEnvelope> listSeatChanges({
+    @Query('cursor') String? cursor,
+    @Query('status') AssistantSeatChangeStatus? status,
+    @Query('userId') String? userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Refunds, newest first (cursor).
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/refunds')
+  Future<RefundListEnvelope> listBillingRefunds({
+    @Query('cursor') String? cursor,
+    @Query('paymentId') String? paymentId,
+    @Query('userId') String? userId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Refund part or all of a payment (reason ≥ 10 chars)
+  @POST('/admin/billing/refunds')
+  Future<RefundEnvelope> createRefund({
+    @Body() required CreateRefundDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Plan prices, subscribers and change history
+  @GET('/admin/billing/prices')
+  Future<AdminPlanPricesEnvelope> listPlanPrices({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set a plan price: new purchases pay it, current subscribers keep theirs
+  @PUT('/admin/billing/prices/{kind}')
+  Future<AdminSetPlanPriceResultEnvelope> setPlanPrice({
+    @Path('kind') required PlanKind kind,
+    @Body() required SetPlanPriceDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Move current subscribers to today's price from their next renewal
+  @POST('/admin/billing/prices/{kind}/move-subscribers')
+  Future<MovePlanSubscribersResultEnvelope> movePlanSubscribers({
+    @Path('kind') required PlanKind kind,
+    @Body() required MovePlanSubscribersDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Every plan with its entitlements, price and subscribers
+  @GET('/admin/billing/plans')
+  Future<AdminPlansEnvelope> adminListPlans({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create a plan (draft unless status is given)
+  @POST('/admin/billing/plans')
+  Future<AdminPlanResultEnvelope> adminCreatePlan({
+    @Body() required CreatePlanDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Edit a plan: texts, entitlements, price, status (subscribers keep their terms)
+  @PUT('/admin/billing/plans/{id}')
+  Future<AdminPlanResultEnvelope> adminUpdatePlan({
+    @Path('id') required String id,
+    @Body() required PlanFieldsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete a plan nobody ever bought
+  @DELETE('/admin/billing/plans/{id}')
+  Future<AdminPlansEnvelope> adminDeletePlan({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Archive: no new purchases, subscribers keep their terms
+  @POST('/admin/billing/plans/{id}/archive')
+  Future<AdminPlansEnvelope> adminArchivePlan({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Give current subscribers the plan's terms as they are now
+  @POST('/admin/billing/plans/{id}/apply-to-subscribers')
+  Future<ApplyPlanResultEnvelope> adminApplyPlanToSubscribers({
+    @Path('id') required String id,
+    @Body() required ApplyPlanDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create a plan feature (stored as data)
+  @POST('/admin/billing/entitlements')
+  Future<NewEntitlementResultEnvelope> createEntitlement({
+    @Body() required NewEntitlementDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Remove a feature created in the admin
+  @DELETE('/admin/billing/entitlements/{key}')
+  Future<NewEntitlementResultEnvelope> removeEntitlement({
+    @Path('key') required String key,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The attachments-in-posts mode
+  @GET('/admin/billing/post-attachments')
+  Future<PostAttachmentsModeEnvelope> getPostAttachmentsMode({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the attachments-in-posts mode
+  @PUT('/admin/billing/post-attachments')
+  Future<PostAttachmentsModeEnvelope> setPostAttachmentsMode({
+    @Body() required PostAttachmentsModeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Requests for more assistant seats, newest first.
+  ///
+  /// [cursor] - meta.nextCursor of the previous page.
+  @GET('/admin/billing/seat-limit-requests')
+  Future<AdminSeatLimitRequestListEnvelope> listSeatLimitRequests({
+    @Query('status') SeatLimitRequestStatus? status,
+    @Query('cursor') String? cursor,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Approve: set the attorney's own seat limit
+  @POST('/admin/billing/seat-limit-requests/{id}/approve')
+  Future<SeatLimitRequestEnvelope> approveSeatLimitRequest({
+    @Path('id') required String id,
+    @Body() required ApproveSeatLimitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Reject a seat limit request
+  @POST('/admin/billing/seat-limit-requests/{id}/reject')
+  Future<SeatLimitRequestEnvelope> rejectSeatLimitRequest({
+    @Path('id') required String id,
+    @Body() required RejectSeatLimitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Offer packs: sizes and prices
+  @GET('/admin/billing/bid-packs')
+  Future<SaveBidPacksEnvelope> listBidPacks({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Save the offer packs
+  @PUT('/admin/billing/bid-packs')
+  Future<SaveBidPacksEnvelope> saveBidPacks({
+    @Body() required SaveBidPacksDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+}

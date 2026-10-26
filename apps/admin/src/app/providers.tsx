@@ -1,8 +1,12 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MotionConfig } from 'motion/react';
 import { useState } from 'react';
-import { ApiError } from '@/lib/api/client';
+import { SentryInit } from '@/components/sentry-init';
+import { ToastProvider } from '@/components/ui/toast';
+import { queryRetryDelay, shouldRetryQuery } from '@/lib/query-retry';
+import { ThemeProvider } from '@/lib/theme';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -12,12 +16,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: 30_000,
             refetchOnWindowFocus: false,
-            retry: (count, error) =>
-              // Never retry a 4xx (401 redirects, 403 is final).
-              !(error instanceof ApiError && error.status < 500) && count < 2,
+            // Backoff with jitter, never a 4xx (lib/query-retry.ts). A failed
+            // request does not flip the UI to "offline": the query keeps its
+            // previous data and tries again.
+            retry: shouldRetryQuery,
+            retryDelay: (attempt) => queryRetryDelay(attempt),
+            networkMode: 'offlineFirst',
           },
         },
       }),
   );
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <ThemeProvider>
+      <MotionConfig reducedMotion="user">
+        <QueryClientProvider client={client}>
+          <ToastProvider>{children}</ToastProvider>
+          <SentryInit />
+        </QueryClientProvider>
+      </MotionConfig>
+    </ThemeProvider>
+  );
 }

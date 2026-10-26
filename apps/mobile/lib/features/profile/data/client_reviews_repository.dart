@@ -1,13 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid_api/lawbid_api.dart' as api;
-
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/profile/data/profile_mappers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// OQ-038: attorneys' reviews of clients.
 class ClientReviewsRepository {
@@ -55,10 +54,12 @@ class ClientReviewsRepository {
     }
   }
 
-  Future<ClientReview> save(String caseId,
-          {required int rating,
-          String? body,
-          List<String>? photoIds}) async =>
+  Future<ClientReview> save(
+    String caseId, {
+    required int rating,
+    String? body,
+    List<String>? photoIds,
+  }) async =>
       ProfileMappers.clientReview(
         (await guardApiCall(
           () => _api.upsertClientReview(
@@ -76,10 +77,12 @@ class ClientReviewsRepository {
 
 extension OpenClientReviews on ClientReviewsRepository {
   /// Owner 2026-09-30: anyone reviews a client once (an edit replaces it).
-  Future<ClientReview> saveOpen(String clientId,
-          {required int rating,
-          String? body,
-          List<String>? photoIds}) async =>
+  Future<ClientReview> saveOpen(
+    String clientId, {
+    required int rating,
+    String? body,
+    List<String>? photoIds,
+  }) async =>
       ProfileMappers.clientReview(
         (await guardApiCall(
           () => client.upsertOpenClientReview(
@@ -111,32 +114,44 @@ extension OpenClientReviews on ClientReviewsRepository {
   /// Owner 2026-10-01 (Google-style): the reviewed person replies
   /// publicly (null removes the reply).
   Future<ClientReview> reply(String reviewId, String? body) async =>
-      ProfileMappers.clientReview((await guardApiCall(() => body == null
+      ProfileMappers.clientReview(
+        (await guardApiCall(
+          () => body == null
               ? client.deleteClientReviewReply(id: reviewId)
               : client.replyToClientReview(
                   id: reviewId,
                   body: api.ReviewReplyDto(body: body.trim()),
-                )))
-          .data);
+                ),
+        ))
+            .data,
+      );
 
   Future<ClientReview> helpful(String reviewId, {required bool on}) async =>
-      ProfileMappers.clientReview((await guardApiCall(
-              () => client.markClientReviewHelpful(
-                    id: reviewId,
-                    body: api.ReviewHelpfulDto(helpful: on),
-                  )))
-          .data);
+      ProfileMappers.clientReview(
+        (await guardApiCall(
+          () => client.markClientReviewHelpful(
+            id: reviewId,
+            body: api.ReviewHelpfulDto(helpful: on),
+          ),
+        ))
+            .data,
+      );
 
   /// Flag against the policy → admin moderation.
-  Future<void> report(String reviewId, ReviewReportReason reason,
-          {String? note}) =>
-      guardApiCall(() => client.reportClientReview(
-            id: reviewId,
-            body: api.ReportReviewDto(
-              reason: api.ReportReason.fromJson(reason.wire),
-              note: note,
-            ),
-          ));
+  Future<void> report(
+    String reviewId,
+    ReviewReportReason reason, {
+    String? note,
+  }) =>
+      guardApiCall(
+        () => client.reportClientReview(
+          id: reviewId,
+          body: api.ReportReviewDto(
+            reason: api.ReportReason.fromJson(reason.wire),
+            note: note,
+          ),
+        ),
+      );
 }
 
 final clientReviewsRepositoryProvider = Provider<ClientReviewsRepository>(

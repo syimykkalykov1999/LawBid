@@ -13,8 +13,11 @@ void main() {
 
   test('ApiErrorCodes.all is exactly the generated ErrorCode enum', () {
     expect(ApiErrorCodes.all.toSet(), generated);
-    expect(ApiErrorCodes.all, hasLength(ApiErrorCodes.all.toSet().length),
-        reason: 'no duplicates');
+    expect(
+      ApiErrorCodes.all,
+      hasLength(ApiErrorCodes.all.toSet().length),
+      reason: 'no duplicates',
+    );
   });
 
   test('the generated enum still knows the codes the app branches on', () {
@@ -31,6 +34,10 @@ void main() {
   group('user-visible codes have their own localized text (en + ru)', () {
     const visible = [
       ApiErrorCodes.deviceAttestationRequired,
+      // Owner 2026-10-22: passkeys.
+      ApiErrorCodes.passkeyInvalid,
+      ApiErrorCodes.passkeyNotFound,
+      ApiErrorCodes.passkeyLimit,
       ApiErrorCodes.authRefreshReuseDetected,
       ApiErrorCodes.authSessionRevoked,
       ApiErrorCodes.authRefreshExpired,
@@ -64,7 +71,10 @@ void main() {
       ApiErrorCodes.caseContainsContactInfo,
       ApiErrorCodes.clientContactSharingConsentRequired,
     ];
-    for (final translator in const [StaticTranslatorEn(), StaticTranslatorRu()]) {
+    for (final translator in const [
+      StaticTranslatorEn(),
+      StaticTranslatorRu(),
+    ]) {
       final fallback = translator.t('error.default.message');
       for (final code in visible) {
         test('${translator.runtimeType} $code', () {
@@ -73,7 +83,11 @@ void main() {
             ApiException(code: code, message: 'server text'),
           );
           expect(text, isNot(fallback));
-          expect(text, isNot(contains('error.api.')), reason: 'key must resolve');
+          expect(
+            text,
+            isNot(contains('error.api.')),
+            reason: 'key must resolve',
+          );
           expect(text, isNot('server text'));
         });
       }

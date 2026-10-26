@@ -35,22 +35,48 @@ void main() {
       await dio.get<dynamic>('/c', options: RequestFlags.createOptions());
 
       expect(adapter.requests[0].headers['Idempotency-Key'], 'key-1');
-      expect(adapter.requests[1].headers.containsKey('Idempotency-Key'), isFalse);
-      expect(adapter.requests[2].headers.containsKey('Idempotency-Key'), isFalse);
+      expect(
+        adapter.requests[1].headers.containsKey('Idempotency-Key'),
+        isFalse,
+      );
+      expect(
+        adapter.requests[2].headers.containsKey('Idempotency-Key'),
+        isFalse,
+      );
     });
 
     test('keeps a caller-supplied key', () async {
       await dio.post<dynamic>(
         '/a',
-        options: Options(extra: const {RequestFlags.createsResource: true}, headers: {'idempotency-key': 'mine'}),
+        options: Options(
+          extra: const {RequestFlags.createsResource: true},
+          headers: {'idempotency-key': 'mine'},
+        ),
       );
       expect(adapter.requests.single.headers['idempotency-key'], 'mine');
+      expect(keySeq, 0);
+    });
+
+    // Owner 2026-10-22 (audit #4 §3): a queued reel publishes with its job
+    // id as the key, so a repeat after a restart is the same post.
+    test('uses the key given in extras', () async {
+      await dio.post<dynamic>(
+        '/a',
+        options: Options(
+          extra: const {
+            RequestFlags.createsResource: true,
+            RequestFlags.idempotencyKey: 'job-1',
+          },
+        ),
+      );
+      expect(adapter.requests.single.headers['Idempotency-Key'], 'job-1');
       expect(keySeq, 0);
     });
   });
 
   group('RetryInterceptor', () {
-    test('retries an idempotent GET on network errors with exponential backoff', () async {
+    test('retries an idempotent GET on network errors with exponential backoff',
+        () async {
       var calls = 0;
       adapter.handler = (o) async {
         calls++;
@@ -61,20 +87,57 @@ void main() {
       expect(res.data!['data'], {'n': 3});
       expect(calls, 3);
       expect(sleeps, hasLength(2));
-      expect(sleeps[0], greaterThanOrEqualTo(const Duration(milliseconds: 100)));
+      expect(
+        sleeps[0],
+        greaterThanOrEqualTo(const Duration(milliseconds: 100)),
+      );
       expect(sleeps[0], lessThan(const Duration(milliseconds: 131)));
-      expect(sleeps[1], greaterThanOrEqualTo(const Duration(milliseconds: 200)));
+      expect(
+        sleeps[1],
+        greaterThanOrEqualTo(const Duration(milliseconds: 200)),
+      );
     });
 
-    test('gives up after maxRetries (4 attempts total)', () async {
+    test('gives up after maxRetries (3 attempts total)', () async {
       adapter.handler = (o) async => throwConnectionError(o);
       await expectLater(dio.get<dynamic>('/x'), throwsA(isA<DioException>()));
-      expect(adapter.requests, hasLength(4));
+      expect(adapter.requests, hasLength(3));
     });
 
-    test('never retries a plain POST (e.g. /auth/refresh — reuse detection)', () async {
+    test('defaults to 2 retries starting at 1 s', () {
+      final r = RetryInterceptor(Dio());
+      expect(r.maxRetries, 2);
+      expect(r.baseDelay, const Duration(seconds: 1));
+    });
+
+    test('waits for Retry-After (seconds), capped at 10 s', () async {
+      ResponseBody busy(String retryAfter) => ResponseBody.fromString(
+            '"busy"',
+            503,
+            headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType],
+              'retry-after': [retryAfter],
+            },
+          );
+      var calls = 0;
+      adapter.handler = (o) async {
+        calls++;
+        if (calls == 1) return busy('3');
+        if (calls == 2) return busy('120');
+        return ok(const {});
+      };
+      await dio.get<dynamic>('/x');
+      expect(calls, 3);
+      expect(sleeps, [const Duration(seconds: 3), const Duration(seconds: 10)]);
+    });
+
+    test('never retries a plain POST (e.g. /auth/refresh — reuse detection)',
+        () async {
       adapter.handler = (o) async => throwConnectionError(o);
-      await expectLater(dio.post<dynamic>('/auth/refresh'), throwsA(isA<DioException>()));
+      await expectLater(
+        dio.post<dynamic>('/auth/refresh'),
+        throwsA(isA<DioException>()),
+      );
       expect(adapter.requests, hasLength(1));
     });
 
@@ -85,7 +148,10 @@ void main() {
         if (calls == 1) throwConnectionError(o);
         return ok(const {});
       };
-      await dio.post<dynamic>('/users/me/consents', options: RequestFlags.createOptions());
+      await dio.post<dynamic>(
+        '/users/me/consents',
+        options: RequestFlags.createOptions(),
+      );
       expect(adapter.requests, hasLength(2));
       expect(
         adapter.requests.map((r) => r.headers['Idempotency-Key']).toSet(),
@@ -108,6 +174,17 @@ void main() {
       expect(adapter.requests, hasLength(1));
     });
 
+    test('retries 503 SERVER_BUSY (the server sheds load, come back)',
+        () async {
+      var calls = 0;
+      adapter.handler = (o) async {
+        calls++;
+        return calls == 1 ? apiError(503, 'SERVER_BUSY') : ok(const {});
+      };
+      await dio.get<dynamic>('/x');
+      expect(calls, 2);
+    });
+
     test('does not retry 4xx or opted-out requests', () async {
       adapter.handler = (o) async => apiError(400, 'VALIDATION_ERROR');
       await expectLater(dio.get<dynamic>('/x'), throwsA(isA<DioException>()));
@@ -116,7 +193,10 @@ void main() {
       adapter.requests.clear();
       adapter.handler = (o) async => throwConnectionError(o);
       await expectLater(
-        dio.get<dynamic>('/y', options: Options(extra: const {RequestFlags.noRetry: true})),
+        dio.get<dynamic>(
+          '/y',
+          options: Options(extra: const {RequestFlags.noRetry: true}),
+        ),
         throwsA(isA<DioException>()),
       );
       expect(adapter.requests, hasLength(1));

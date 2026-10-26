@@ -9,6 +9,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
@@ -37,6 +38,7 @@ class _VerificationWizardScreenState
   Timer? _commentSave;
   String? _stepError;
   String? _blockMessage;
+  bool _attested = false;
   bool _submitting = false;
 
   VerificationWizardController get _c =>
@@ -58,8 +60,8 @@ class _VerificationWizardScreenState
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: colors.surface,
+      builder: (ctx) => AppAlertDialog(
+        backgroundColor: colors.sheet,
         title: Text(title),
         content: Text(body),
         actions: [
@@ -124,9 +126,31 @@ class _VerificationWizardScreenState
   }
 
   Future<void> _addLicense(WizardState s) async {
+    final now = DateTime.now();
     await AddLicenseSheet.show(
       context,
-      s.request.pendingLicenses.map((l) => l.stateCode).toSet(),
+      {
+        for (final l in s.request.licenses)
+          // Owner 2026-10-05 (audit): verified states aren't offered again
+          // (re-adding would send them back to review).
+          if (l.status == LicenseStatus.pending ||
+              (l.status == LicenseStatus.verified &&
+                  (l.expiresAt == null || l.expiresAt!.isAfter(now))))
+            l.stateCode,
+      },
+    );
+    if (mounted) setState(() => _stepError = null);
+  }
+
+  /// "⋯ → Edit" on a license card: the same form, filled; saving replaces it.
+  Future<void> _editLicense(WizardState s, VerificationLicense l) async {
+    await AddLicenseSheet.show(
+      context,
+      {
+        for (final other in s.request.licenses)
+          if (other.id != l.id) other.stateCode,
+      },
+      initial: l,
     );
     if (mounted) setState(() => _stepError = null);
   }
@@ -145,17 +169,21 @@ class _VerificationWizardScreenState
     final r = s.request;
     switch (s.step) {
       case WizardStep.licenses:
-        if (r.pendingLicenses.isEmpty)
+        if (r.pendingLicenses.isEmpty) {
           return _t.t('verification.missing.license');
-        if (!r.licensesComplete) return _t.t('verification.licenses.needDocs');
+        }
+        if (!r.licensesReady(barDocumentRequired: s.barDocumentRequired)) {
+          return _t.t('verification.licenses.needDocs');
+        }
       case WizardStep.identity:
         final front =
             r.docsFor(DocSlot.identity(s.idType, DocSide.front)).isNotEmpty;
         final back =
             r.docsFor(DocSlot.identity(s.idType, DocSide.back)).isNotEmpty;
         if (!front) return _t.t('verification.missing.id');
-        if (s.idType.needsBack && !back)
+        if (s.idType.needsBack && !back) {
           return _t.t('verification.missing.idBack');
+        }
       case WizardStep.selfie:
         if (!r.selfieComplete) return _t.t('verification.missing.selfie');
       case WizardStep.intro:
@@ -185,7 +213,13 @@ class _VerificationWizardScreenState
     }
     if (s.localMissing.isNotEmpty) {
       setState(
-          () => _blockMessage = _t.t('verification.submit.blocked.missing'));
+        () => _blockMessage = _t.t('verification.submit.blocked.missing'),
+      );
+      return;
+    }
+    final attestationNeeded = s.request.isDraft;
+    if (attestationNeeded && !_attested) {
+      setState(() => _blockMessage = _t.t('verification.attest.required'));
       return;
     }
     setState(() {
@@ -194,10 +228,20 @@ class _VerificationWizardScreenState
     });
     _commentSave?.cancel();
     try {
-      final sent = await _c.submit(_comment.text.trim());
+      final sent = await _c.submit(
+        _comment.text.trim(),
+        attestation: attestationNeeded && _attested,
+      );
       if (sent == null || !mounted) return;
       ref.invalidate(verificationOverviewProvider);
-      showAppSnackBar(context, _t.t('verification.submit.success'));
+      showAppSnackBar(
+        context,
+        _t.t(
+          sent.status == RequestStatus.approved
+              ? 'verification.submit.confirmed'
+              : 'verification.submit.success',
+        ),
+      );
       if (context.canPop()) {
         context.pop();
       } else {
@@ -233,61 +277,65 @@ class _VerificationWizardScreenState
     }
     final atFirst = data == null || data.stepIndex <= 0;
 
-    return PopScope(
-      canPop: atFirst,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _back();
-      },
-      child: Scaffold(
-        backgroundColor: colors.bg,
-        appBar: AppTopBar(
-          title: Text(t.t('verification.title')),
-          leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: _back,
+    // Security research #5 (2026-10-22), B5: licence / ID photos — no
+    // screenshots or recordings of this screen (core/platform/secure_screen).
+    return SecureScreenScope(
+      child: PopScope(
+        canPop: atFirst,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _back();
+        },
+        child: Scaffold(
+          backgroundColor: colors.bg,
+          appBar: AppTopBar(
+            title: Text(t.t('verification.title')),
+            leading: AppBackButton(
+              semanticLabel: t.t('common.back'),
+              onPressed: _back,
+            ),
+            actions: [
+              if (!atFirst)
+                AppIconButton(
+                  semanticLabel: t.t('verification.wizard.close'),
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: AppIcon(AppIcons.closeRounded, color: colors.text),
+                ),
+            ],
           ),
-          actions: [
-            if (!atFirst)
-              AppIconButton(
-                semanticLabel: t.t('verification.wizard.close'),
-                onPressed: () => Navigator.of(context).maybePop(),
-                icon: AppIcon(AppIcons.closeRounded, color: colors.text),
-              ),
-          ],
-        ),
-        body: AnimatedSwitcher(
-          duration:
-              context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-          child: switch (async) {
-            AsyncData(:final value) => KeyedSubtree(
-                key: const ValueKey('wizard-data'),
-                child: _wizard(t, value),
-              ),
-            AsyncError(:final error) => KeyedSubtree(
-                key: const ValueKey('wizard-error'),
-                child: isOfflineError(error)
-                    ? AppOfflineState(
-                        title: t.t('offline.title'),
-                        message: t.t('offline.message'),
-                        action: AppButton(
-                          label: t.t('error.retry'),
-                          icon: AppIcons.refreshRounded,
-                          variant: AppButtonVariant.secondary,
-                          height: AppSizes.touchTarget,
-                          onPressed: () =>
+          body: AnimatedSwitcher(
+            duration:
+                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+            child: switch (async) {
+              AsyncData(:final value) => KeyedSubtree(
+                  key: const ValueKey('wizard-data'),
+                  child: _wizard(t, value),
+                ),
+              AsyncError(:final error) => KeyedSubtree(
+                  key: const ValueKey('wizard-error'),
+                  child: isOfflineError(error)
+                      ? AppOfflineState(
+                          title: t.t('offline.title'),
+                          message: t.t('offline.message'),
+                          action: AppButton(
+                            label: t.t('error.retry'),
+                            icon: AppIcons.refreshRounded,
+                            variant: AppButtonVariant.secondary,
+                            height: AppSizes.touchTarget,
+                            onPressed: () =>
+                                ref.invalidate(verificationWizardProvider),
+                          ),
+                        )
+                      : AppErrorState(
+                          title: t.t('verification.wizard.error'),
+                          message: errorText(t, error),
+                          retryLabel: t.t('error.retry'),
+                          onRetry: () =>
                               ref.invalidate(verificationWizardProvider),
                         ),
-                      )
-                    : AppErrorState(
-                        title: t.t('verification.wizard.error'),
-                        message: errorText(t, error),
-                        retryLabel: t.t('error.retry'),
-                        onRetry: () =>
-                            ref.invalidate(verificationWizardProvider),
-                      ),
-              ),
-            _ => const _WizardSkeleton(key: ValueKey('wizard-loading')),
-          },
+                ),
+              _ => const _WizardSkeleton(key: ValueKey('wizard-loading')),
+            },
+          ),
         ),
       ),
     );
@@ -305,6 +353,7 @@ class _VerificationWizardScreenState
       cancel: (u) => _c.cancel(u.localId),
       addLicense: () => _addLicense(s),
       removeLicense: _removeLicense,
+      editLicense: (l) => _editLicense(s, l),
       selectIdType: _c.selectIdType,
       goTo: (step) {
         setState(() => _stepError = null);
@@ -312,7 +361,11 @@ class _VerificationWizardScreenState
       },
     );
     final body = switch (s.step) {
-      WizardStep.intro => IntroStep(t: t, identityRequired: s.identityRequired),
+      WizardStep.intro => IntroStep(
+          t: t,
+          identityRequired: s.identityRequired,
+          barDocumentRequired: s.barDocumentRequired,
+        ),
       WizardStep.licenses => LicensesStep(t: t, state: s, actions: actions),
       WizardStep.identity => IdentityStep(t: t, state: s, actions: actions),
       WizardStep.selfie => SelfieStep(t: t, state: s, actions: actions),
@@ -323,6 +376,11 @@ class _VerificationWizardScreenState
           comment: _comment,
           onCommentChanged: _onCommentChanged,
           blockMessage: _blockMessage,
+          attested: _attested,
+          onAttestedChanged: (v) => setState(() {
+            _attested = v;
+            if (v) _blockMessage = null;
+          }),
         ),
     };
     final isReview = s.step == WizardStep.review;
@@ -396,12 +454,20 @@ class _VerificationWizardScreenState
                       WizardStep.review => t.t(
                           s.isSupplement
                               ? 'verification.submit.supplement'
-                              : 'verification.submit',
+                              : s.attestationOnly
+                                  ? 'verification.submit.confirm'
+                                  : 'verification.submit',
                         ),
                       _ => t.t('verification.next'),
                     },
                     icon: isReview ? AppIcons.gavelRounded : null,
                     isLoading: _submitting,
+                    // Owner 2026-10-11: grey until the step is complete.
+                    isEnabled: isReview
+                        ? s.blocker == null &&
+                            s.localMissing.isEmpty &&
+                            (!s.request.isDraft || _attested)
+                        : _stepProblem(s) == null,
                     onPressed: isReview ? () => _submit(s) : () => _next(s),
                   ),
                 ],

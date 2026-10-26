@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/attorney_list_item_list_envelope.dart';
+import '../models/follow_state_envelope.dart';
 import '../models/person_item_list_envelope.dart';
 
 part 'follows_client.g.dart';
@@ -16,14 +17,14 @@ abstract class FollowsClient {
 
   /// Follow an attorney (idempotent, docs/05 §6.1)
   @POST('/attorneys/{id}/follow')
-  Future<void> followAttorney({
+  Future<FollowStateEnvelope> followAttorney({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Unfollow (idempotent)
   @DELETE('/attorneys/{id}/follow')
-  Future<void> unfollowAttorney({
+  Future<FollowStateEnvelope> unfollowAttorney({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
@@ -31,37 +32,49 @@ abstract class FollowsClient {
   /// Attorney followers — attorneys and clients (OQ-026).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.
   @GET('/attorneys/{id}/followers')
   Future<PersonItemListEnvelope> listFollowers({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Whom a user follows — attorneys and clients (OQ-038).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.
   @GET('/attorneys/{id}/following')
   Future<PersonItemListEnvelope> listFollowing({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// My follows (docs/05 §6.2).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.
   @GET('/users/me/following')
   Future<AttorneyListItemListEnvelope> listMyFollowing({
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Recommended attorneys (docs/05 §6.3).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [limit] - Page size.
   @GET('/suggestions/attorneys')
   Future<AttorneyListItemListEnvelope> listSuggestedAttorneys({
+    @Query('limit') int? limit = 20,
     @Query('cursor') String? cursor,
     @Extras() Map<String, dynamic>? extras,
   });

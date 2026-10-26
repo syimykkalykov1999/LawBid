@@ -2,22 +2,24 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
-import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show CountPill;
+import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
-import 'package:lawbid/features/search/presentation/widgets/flip_search_bar.dart';
+import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 
 /// Owner 2026-09-30: one square of the "Mine" grid — the case's first photo
 /// (or our art of its qualification), a short title and its status.
@@ -31,7 +33,14 @@ class MineTileData {
     this.practiceCode,
     this.categoryCode,
     this.badge,
+    this.coverKey,
+    this.coverSeed,
   });
+
+  /// Owner 2026-10-04: the case's cover (client cases); null seed = the
+  /// practice photo.
+  final String? coverKey;
+  final String? coverSeed;
 
   final String title;
   final String statusLabel;
@@ -58,9 +67,11 @@ class MineTile extends StatelessWidget {
         (data.practiceCode == null
             ? null
             : practiceCategoryOf(data.practiceCode!));
-    final Widget art = PracticePhoto(
+    final Widget art = CaseCover(
       categoryCode: category,
       practiceCode: data.practiceCode,
+      coverKey: data.coverKey,
+      seed: data.coverSeed,
     );
     final dot = switch (data.statusTone) {
       StatusTone.gold => colors.gold,
@@ -70,6 +81,7 @@ class MineTile extends StatelessWidget {
       StatusTone.danger => colors.danger,
       StatusTone.neutral => colors.textSecondary,
     };
+    final hasBadge = (data.badge ?? 0) > 0;
     return Semantics(
       button: true,
       label: '${data.title}, ${data.statusLabel}',
@@ -81,10 +93,9 @@ class MineTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               if (data.coverUrl != null)
-                Image.network(
-                  data.coverUrl!,
+                Image(
+                  image: appNetworkImage(data.coverUrl!, 360),
                   fit: BoxFit.cover,
-                  cacheWidth: 360,
                   errorBuilder: (_, __, ___) => art,
                 )
               else
@@ -99,49 +110,59 @@ class MineTile extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                left: 6,
+              // Bounded on both sides (leaving room for the count badge) so a
+              // long status ellipsizes instead of running under the badge.
+              PositionedDirectional(
+                start: 6,
+                end: hasBadge ? 40 : 6,
                 top: 6,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xB30A1A3F),
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration:
-                            BoxDecoration(color: dot, shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 4),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 84),
-                        child: Text(
-                          data.statusLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption.copyWith(
-                              color: Colors.white, fontSize: 10, height: 1.2),
+                child: Align(
+                  alignment: AlignmentDirectional.topStart,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xB30A1A3F),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: dot,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            data.statusLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.caption.copyWith(
+                              color: Colors.white,
+                              fontSize: 10,
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              if ((data.badge ?? 0) > 0)
-                Positioned(
-                  right: 6,
+              if (hasBadge)
+                PositionedDirectional(
+                  end: 6,
                   top: 6,
                   child: CountPill(count: data.badge!),
                 ),
-              Positioned(
-                left: 6,
-                right: 6,
+              PositionedDirectional(
+                start: 6,
+                end: 6,
                 bottom: 6,
                 child: Text(
                   data.title,
@@ -163,21 +184,29 @@ class MineTile extends StatelessWidget {
 }
 
 /// A paged 3-column grid with pull-to-refresh, loading, error, empty and
-/// "load more" near the end.
+/// "load more" near the end. With [rowOf] it is a list of compact rows
+/// instead (owner 2026-10-07, "My cases").
 class MinePagedGrid<T> extends ConsumerWidget {
   const MinePagedGrid({
     required this.value,
-    required this.tileOf,
     required this.empty,
     required this.onRefresh,
     required this.onLoadMore,
     required this.onRetryMore,
+    this.tileOf,
+    this.rowOf,
     this.header,
+    this.edgeToEdge = false,
     super.key,
-  });
+  }) : assert(tileOf != null || rowOf != null, 'tileOf or rowOf');
+
+  /// Rows touch the screen edges and each other (a hairline between), like
+  /// the feed's cards.
+  final bool edgeToEdge;
 
   final AsyncValue<PaginatedList<T>> value;
-  final MineTileData Function(T item) tileOf;
+  final MineTileData Function(T item)? tileOf;
+  final Widget Function(T item)? rowOf;
   final Widget empty;
   final Future<void> Function() onRefresh;
   final VoidCallback onLoadMore;
@@ -198,13 +227,15 @@ class MinePagedGrid<T> extends ConsumerWidget {
       }
     }
 
-    final Widget body = switch (value) {
+    final body = switch (value) {
       AsyncData(:final value) => RefreshIndicator(
           color: colors.gold,
-          backgroundColor: colors.surface,
+          backgroundColor: colors.sheet,
           onRefresh: pull,
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
+              // The search and chips above hide on scroll down.
+              FeedChrome.maybeOf(context)?.onScroll(n);
               if (n.metrics.extentAfter < 600 && value.canLoadMore) {
                 onLoadMore();
               }
@@ -216,6 +247,22 @@ class MinePagedGrid<T> extends ConsumerWidget {
                 if (header != null) SliverToBoxAdapter(child: header),
                 if (value.items.isEmpty && !value.hasMore)
                   SliverFillRemaining(child: empty)
+                else if (rowOf != null)
+                  SliverPadding(
+                    padding: edgeToEdge
+                        ? EdgeInsets.zero
+                        : const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.xs,
+                          ),
+                    sliver: SliverList.separated(
+                      itemCount: value.items.length,
+                      separatorBuilder: (_, __) => edgeToEdge
+                          ? const SizedBox.shrink()
+                          : const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (context, i) => rowOf!(value.items[i]),
+                    ),
+                  )
                 else
                   SliverPadding(
                     padding: const EdgeInsets.all(2),
@@ -228,7 +275,7 @@ class MinePagedGrid<T> extends ConsumerWidget {
                       ),
                       itemCount: value.items.length,
                       itemBuilder: (context, i) =>
-                          MineTile(data: tileOf(value.items[i])),
+                          MineTile(data: tileOf!(value.items[i])),
                     ),
                   ),
                 if (value.isLoadingMore)
@@ -265,7 +312,8 @@ class MinePagedGrid<T> extends ConsumerWidget {
                     ),
                   ),
                 const SliverToBoxAdapter(
-                    child: SizedBox(height: AppSpacing.xxl)),
+                  child: SizedBox(height: AppSpacing.xxl),
+                ),
               ],
             ),
           ),
@@ -274,6 +322,16 @@ class MinePagedGrid<T> extends ConsumerWidget {
           error: error,
           t: t,
           onRetry: pull,
+        ),
+      _ when rowOf != null => ListView.separated(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg,
+            vertical: AppSpacing.xs,
+          ),
+          itemCount: 5,
+          separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+          itemBuilder: (_, __) =>
+              const AppSkeleton(height: 86, borderRadius: AppRadii.card),
         ),
       _ => GridView.count(
           crossAxisCount: 3,
@@ -284,7 +342,9 @@ class MinePagedGrid<T> extends ConsumerWidget {
         ),
     };
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: KeyedSubtree(key: ValueKey(value.runtimeType), child: body),
     );
   }
@@ -297,11 +357,30 @@ class MineSearchBar extends ConsumerStatefulWidget {
   const MineSearchBar({
     required this.search,
     required this.onChanged,
+    this.action,
+    this.onClose,
+    this.padded = true,
+    this.hintKey = 'mine.search.hint',
     super.key,
   });
 
+  /// Audit 2026-10-18: the placeholder says what this box searches (my
+  /// cases / my bids / saved cases) — the screen picks the key.
+  final String hintKey;
+
   final MineSearch search;
   final ValueChanged<MineSearch> onChanged;
+
+  /// Owner 2026-10-15: a button right of the field (the attorney's «Saved»).
+  final Widget? action;
+
+  /// Owner 2026-10-16: when set, the field sits in the chips row — it takes
+  /// focus on open and the magnifier at its end becomes a ✕ that clears the
+  /// query and calls this.
+  final VoidCallback? onClose;
+
+  /// Outer padding of the standalone bar; off inside [MineChipsSearchRow].
+  final bool padded;
 
   @override
   ConsumerState<MineSearchBar> createState() => _MineSearchBarState();
@@ -313,6 +392,25 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
   final _focus = FocusNode();
   Timer? _debounce;
   late String _last = widget.search.q;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.onClose != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focus.requestFocus();
+      });
+    }
+  }
+
+  void _close() {
+    _debounce?.cancel();
+    _focus.unfocus();
+    if (widget.search.q.isNotEmpty) {
+      widget.onChanged(widget.search.copyWith(q: ''));
+    }
+    widget.onClose?.call();
+  }
 
   @override
   void dispose() {
@@ -381,6 +479,7 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
         context,
         title: t.t('mine.search.practice'),
         searchHint: t.t('practice.search.hint'),
+        remoteSearch: practiceRemoteSearch(ref),
         initial: {if (s.practice != null) s.practice!},
         options: [
           PickerOption(value: '', label: t.t('mine.search.any')),
@@ -399,8 +498,13 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
       initial: {if (s.state != null) s.state!},
       options: [
         PickerOption(value: '', label: t.t('mine.search.any')),
-        for (final st in kUsStates)
-          PickerOption(value: st.code, label: st.name, sublabel: st.code),
+        for (final st in kRegions)
+          PickerOption(
+            value: st.code,
+            label: st.name,
+            sublabel: st.code,
+            keywords: st.aliases,
+          ),
       ],
     );
     if (picked == null) return;
@@ -416,37 +520,136 @@ class _MineSearchBarState extends ConsumerState<MineSearchBar> {
     // Owner 2026-09-30: like Search — the filter button inside the field
     // on the left, the magnifier on the right.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
-      child: FlipSearchBar(
-        key: const ValueKey('mine-search'),
-        controller: _text,
-        focusNode: _focus,
-        semanticLabel: t.t('mine.search.hint'),
-        cancelLabel: t.t('common.cancel'),
-        clearLabel: t.t('search.clear'),
-        showCancel: false,
-        height: AppSizes.searchField,
-        hints: [t.t('mine.search.hint')],
-        leading: Badge(
-          isLabelVisible: count > 0,
-          label: Text('$count'),
-          backgroundColor: colors.gold,
-          textColor: colors.navy,
-          child: AppIconButton(
-            key: const ValueKey('mine-filters'),
-            plain: true,
-            icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
-            semanticLabel: t.t('mine.search.filters'),
-            onPressed: _filters,
+      padding: widget.padded
+          ? const EdgeInsets.fromLTRB(
+              AppSpacing.screenSide,
+              AppSpacing.sm,
+              AppSpacing.screenSide,
+              0,
+            )
+          : EdgeInsets.zero,
+      child: Row(
+        children: [
+          Expanded(
+            child: FlipSearchBar(
+              key: const ValueKey('mine-search'),
+              controller: _text,
+              focusNode: _focus,
+              semanticLabel: t.t(widget.hintKey),
+              cancelLabel: t.t('common.cancel'),
+              clearLabel: t.t('search.clear'),
+              showCancel: false,
+              hints: [t.t(widget.hintKey)],
+              leading: Badge(
+                isLabelVisible: count > 0,
+                label: Text(ref.watch(l10nFormatsProvider).number(count)),
+                backgroundColor: colors.gold,
+                textColor: colors.navy,
+                child: AppIconButton(
+                  key: const ValueKey('mine-filters'),
+                  icon: AppIcon(AppIcons.tuneRounded, color: colors.text),
+                  semanticLabel: t.t('mine.search.filters'),
+                  onPressed: _filters,
+                ),
+              ),
+              trailing: widget.onClose != null
+                  ? AppIconButton(
+                      key: const ValueKey('mine-search-close'),
+                      icon: AppIcon(AppIcons.closeRounded, color: colors.text),
+                      semanticLabel: t.t('common.cancel'),
+                      onPressed: _close,
+                    )
+                  : AppIconButton(
+                      icon: AppIcon(
+                        AppIcons.searchRounded,
+                        color: colors.iconTint,
+                      ),
+                      semanticLabel: t.t(widget.hintKey),
+                      onPressed: _focus.requestFocus,
+                    ),
+            ),
           ),
-        ),
-        trailing: AppIconButton(
-          plain: true,
-          icon: AppIcon(AppIcons.searchRounded, color: colors.goldDark),
-          semanticLabel: t.t('mine.search.hint'),
-          onPressed: () => _focus.requestFocus(),
-        ),
+          // Owner 2026-10-19: a small even gap, the chips get the room.
+          if (widget.action != null) widget.action!,
+        ],
+      ),
+    );
+  }
+}
+
+/// Owner 2026-10-16: the section chips (client: Active · Completed;
+/// attorney: Active · Bids · Completed) and the search share one row.
+/// Closed: the chips on the left, a magnifier on the right; a tap opens the
+/// field over the chips (filters button inside, ✕ at the end closes it).
+/// The field stays open while a query is typed. [action] (the attorney's
+/// «Saved») stays at the far end in both states. Without [chips] the field
+/// is always open.
+class MineChipsSearchRow extends ConsumerStatefulWidget {
+  const MineChipsSearchRow({
+    required this.search,
+    required this.onChanged,
+    this.chips,
+    this.action,
+    this.hintKey = 'mine.search.hint',
+    super.key,
+  });
+
+  /// What this row's search box searches (placeholder key).
+  final String hintKey;
+
+  /// The chips, built without their own outer padding.
+  final Widget? chips;
+  final MineSearch search;
+  final ValueChanged<MineSearch> onChanged;
+  final Widget? action;
+
+  @override
+  ConsumerState<MineChipsSearchRow> createState() => _MineChipsSearchRowState();
+}
+
+class _MineChipsSearchRowState extends ConsumerState<MineChipsSearchRow> {
+  late bool _open = widget.search.q.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final chips = widget.chips;
+    final open = _open || chips == null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        0,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: open
+                ? MineSearchBar(
+                    search: widget.search,
+                    onChanged: widget.onChanged,
+                    onClose: chips == null
+                        ? null
+                        : () => setState(() => _open = false),
+                    padded: false,
+                    hintKey: widget.hintKey,
+                  )
+                : chips,
+          ),
+          // Owner 2026-10-23: the «?» went away — «Вопросы» is a tab now.
+          if (!open)
+            AppIconButton(
+              key: const ValueKey('mine-search-open'),
+              compact: true,
+              icon: AppIcon(AppIcons.searchRounded, color: colors.iconTint),
+              semanticLabel: t.t(widget.hintKey),
+              onPressed: () => setState(() => _open = true),
+            ),
+          // Owner 2026-10-19: a small even gap, the chips get the room.
+          if (widget.action != null) widget.action!,
+        ],
       ),
     );
   }
@@ -472,7 +675,9 @@ class MineActiveFilters extends ConsumerWidget {
           onTap: onRemove,
           child: Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md, vertical: AppSpacing.xs + 2),
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.xs + 2,
+            ),
             decoration: BoxDecoration(
               color: colors.navy,
               borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -482,30 +687,44 @@ class MineActiveFilters extends ConsumerWidget {
               children: [
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 220),
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: Colors.white)),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: Colors.white),
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
-                const AppIcon(AppIcons.closeRounded, size: 14, color: Colors.white),
+                const AppIcon(
+                  AppIcons.closeRounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
               ],
             ),
           ),
         );
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenSide, AppSpacing.sm, AppSpacing.screenSide, 0),
+        AppSpacing.screenSide,
+        AppSpacing.sm,
+        AppSpacing.screenSide,
+        0,
+      ),
       child: Wrap(
         spacing: AppSpacing.sm,
         runSpacing: AppSpacing.xs,
         children: [
           if (search.practice != null)
-            chip(practiceLabel(ref, search.practice!),
-                () => onChanged(search.copyWith(practice: () => null))),
+            chip(
+              practiceLabel(ref, search.practice!),
+              () => onChanged(search.copyWith(practice: () => null)),
+            ),
           if (search.state != null)
-            chip(usStateByCode(search.state)?.name ?? search.state!,
-                () => onChanged(search.copyWith(state: () => null))),
+            chip(
+              usStateByCode(search.state)?.name ?? search.state!,
+              () => onChanged(search.copyWith(state: () => null)),
+            ),
         ],
       ),
     );

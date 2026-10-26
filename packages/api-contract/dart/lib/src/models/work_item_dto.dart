@@ -17,12 +17,15 @@ class WorkItemDto {
     required this.title,
     required this.status,
     required this.primaryStateCode,
+    required this.additionalStateCount,
     required this.practiceAreaNameEn,
     required this.practiceAreaI18nKey,
     required this.practiceAreaCode,
     required this.feeType,
     required this.amountCents,
     this.clientName,
+    this.clientAvatarUrl,
+    this.percentBps,
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
@@ -37,6 +40,9 @@ class WorkItemDto {
   final String title;
   final CaseStatus status;
   final String primaryStateCode;
+
+  /// States besides the primary.
+  final int additionalStateCount;
   final String practiceAreaNameEn;
   final String practiceAreaI18nKey;
 
@@ -45,8 +51,14 @@ class WorkItemDto {
 
   /// Client name; null while the subscription is inactive (contacts are locked, §8.3).
   final String? clientName;
+
+  /// Client avatar (small); null while the subscription is inactive, like the name.
+  final String? clientAvatarUrl;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points.
+  final int? percentBps;
   final String? autoCloseAt;
   final String? acceptedAt;
   final String? closedAt;

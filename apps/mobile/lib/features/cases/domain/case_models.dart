@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/cases/domain/case_urgency.dart';
 import 'package:lawbid_api/lawbid_api.dart'
     show
         BidStatus,
@@ -11,6 +12,7 @@ import 'package:lawbid_api/lawbid_api.dart'
         PartyRole,
         StartAvailability;
 
+export 'package:lawbid/features/cases/domain/case_urgency.dart';
 export 'package:lawbid_api/lawbid_api.dart'
     show
         BidStatus,
@@ -21,13 +23,11 @@ export 'package:lawbid_api/lawbid_api.dart'
         FeeType,
         OfferStatus,
         PartyRole,
-        StartAvailability;
+        StartAvailability,
+        StillNeededAnswer;
 
 /// docs/04 §6.1: at most 5 counter-offers per bid.
 const int kMaxNegotiationRounds = 5;
-
-/// docs/04 §4.2: a case younger than 24 hours shows NEW.
-const Duration kCaseNewBadgeAge = Duration(hours: 24);
 
 /// Practice area as the cases API returns it (leaf + its category).
 @immutable
@@ -56,15 +56,41 @@ class PracticeRef {
   String get artCode => categoryCode ?? code.split('.').first;
 }
 
-/// docs/04 §3.2 budget: whole-case amount in cents or "Clarify later".
+/// docs/04 §3.2 budget: whole-case amount in cents, a percent of the
+/// recovery (owner 2026-10-17) or "Clarify later".
 @immutable
 class CaseBudget {
-  const CaseBudget({required this.mode, this.amountCents});
+  const CaseBudget({required this.mode, this.amountCents, this.percentBps});
 
   final BudgetMode mode;
   final int? amountCents;
 
-  bool get isClarifyLater => mode != BudgetMode.amount || amountCents == null;
+  /// Basis points (3300 = 33 %) when [mode] is percent.
+  final int? percentBps;
+
+  bool get isPercent => mode == BudgetMode.percent && percentBps != null;
+
+  bool get isClarifyLater =>
+      !isPercent && (mode != BudgetMode.amount || amountCents == null);
+}
+
+/// OQ-054: the client's activity on an attorney's card. Absent when the
+/// client's activity status is hidden (reciprocal).
+@immutable
+class ClientActivity {
+  const ClientActivity({
+    this.online = false,
+    this.lastSeenDays,
+    this.respondsWithinDay = false,
+  });
+
+  final bool online;
+
+  /// Days since the client was last in the app (null = unknown / today).
+  final int? lastSeenDays;
+
+  /// The client usually answers bids and messages within a day.
+  final bool respondsWithinDay;
 }
 
 /// "Мои кейсы" card (docs/04 §11.1).
@@ -83,7 +109,45 @@ class CaseSummary {
     required this.createdAt,
     required this.lastActivityAt,
     this.coverUrl,
+    this.coverKey,
+    this.urgency,
+    this.urgencyDetail,
+    this.extraPracticeCount = 0,
+    this.pausedAt,
+    this.stillNeededPending = false,
+    this.canMakeNotUrgent = false,
+    this.hidesAt,
+    this.archivesAt,
   });
+
+  /// OQ-054: the case is hidden from the attorneys' feed («На паузе»).
+  final DateTime? pausedAt;
+  bool get paused => pausedAt != null;
+
+  /// OQ-054: «Вам ещё нужен адвокат?» waits for an answer.
+  final bool stillNeededPending;
+
+  /// OQ-054: «Сменить на «Не срочно»» is offered.
+  final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the feed.
+  final DateTime? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive.
+  final DateTime? archivesAt;
+
+  /// Owner 2026-10-15: topics besides the first — «+N» on the card.
+  final int extraPracticeCount;
+
+  /// Owner 2026-10-04: the chosen app cover (`art:N` / `icon:name`).
+  final String? coverKey;
+  final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the level today and the date, when the API sent
+  /// them; [urgencyInfo] falls back to [urgency] alone.
+  final CaseUrgencyInfo? urgencyDetail;
+  CaseUrgencyInfo get urgencyInfo =>
+      urgencyDetail ?? CaseUrgencyInfo(choice: urgency);
 
   /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
   /// may see photos; else the qualification's art is shown.
@@ -144,15 +208,64 @@ class OwnerCase {
     required this.lastActivityAt,
     this.archivedAt,
     this.clientCompletedAt,
+    this.attorneyConfirmedAt,
     this.autoCloseAt,
     this.closedAt,
     this.acceptedBid,
     this.conversationId,
     this.photos = const [],
+    this.privateDetails,
+    this.stalePromptSentAt,
+    this.coverKey,
+    this.urgency,
+    this.urgencyDetail,
+    this.extraPractices = const [],
+    this.pausedAt,
+    this.stillNeededPending = false,
+    this.canMakeNotUrgent = false,
+    this.hidesAt,
+    this.archivesAt,
   });
+
+  /// Owner 2026-10-18: the client's private details (null = none).
+  final String? privateDetails;
+
+  /// OQ-054: the case is hidden from the attorneys' feed; «Вернуть» brings
+  /// it back.
+  final DateTime? pausedAt;
+  bool get paused => pausedAt != null;
+
+  /// OQ-054: «Вам ещё нужен адвокат?» waits for an answer.
+  final bool stillNeededPending;
+
+  /// OQ-054: «Сменить на «Не срочно»» is offered (urgent, older than 7 days).
+  final bool canMakeNotUrgent;
+
+  /// OQ-054: when the unanswered question hides the case from the feed.
+  final DateTime? hidesAt;
+
+  /// OQ-054: when a paused case moves to the archive.
+  final DateTime? archivesAt;
+
+  /// Owner 2026-10-15: topics 2..N of the case (the first is [practice]).
+  final List<PracticeRef> extraPractices;
+
+  /// Audit 2026-10-04: when the "still relevant?" prompt went out for this
+  /// open case (null = not asked); the owner can answer on the case.
+  final DateTime? stalePromptSentAt;
 
   /// OQ-031: the case photos (the owner always sees them).
   final List<CasePhoto> photos;
+
+  /// Owner 2026-10-04: the chosen app cover (`art:N` / `icon:name`).
+  final String? coverKey;
+  final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the level today and the date, when the API sent
+  /// them; [urgencyInfo] falls back to [urgency] alone.
+  final CaseUrgencyInfo? urgencyDetail;
+  CaseUrgencyInfo get urgencyInfo =>
+      urgencyDetail ?? CaseUrgencyInfo(choice: urgency);
 
   final String id;
   final String title;
@@ -169,7 +282,19 @@ class OwnerCase {
   final DateTime lastActivityAt;
   final DateTime? archivedAt;
   final DateTime? clientCompletedAt;
+  final DateTime? attorneyConfirmedAt;
   final DateTime? autoCloseAt;
+
+  /// Owner 2026-10-02: who marked "Done" first while the case waits for
+  /// the other side — the client's mark or the attorney's.
+  bool get attorneyMarkedDone =>
+      status == CaseStatus.pendingCompletion &&
+      attorneyConfirmedAt != null &&
+      clientCompletedAt == null;
+  bool get clientMarkedDone =>
+      status == CaseStatus.pendingCompletion &&
+      clientCompletedAt != null &&
+      attorneyConfirmedAt == null;
   final DateTime? closedAt;
   final CaseBid? acceptedBid;
   final String? conversationId;
@@ -190,7 +315,16 @@ class BidAttorney {
     required this.verifiedBadge,
     required this.ratingAvg,
     required this.ratingCount,
+    this.licensedStates = const [],
+    this.trustLevel = 0,
   });
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
+
+  /// Owner 2026-10-04: 2-letter codes of the attorney's verified licences
+  /// (shown to the client when the case's state is not among them).
+  final List<String> licensedStates;
 
   final String id;
   final String username;
@@ -219,6 +353,7 @@ class BidOffer {
     required this.message,
     required this.status,
     required this.createdAt,
+    this.percentBps,
   });
 
   final String id;
@@ -226,6 +361,9 @@ class BidOffer {
   final PartyRole fromRole;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String? message;
   final OfferStatus status;
   final DateTime createdAt;
@@ -253,11 +391,17 @@ class CaseBid {
     this.attorney,
     this.offers = const [],
     this.outsidePractice = false,
+    this.outsideLicensedStates = false,
+    this.percentBps,
   });
 
   /// Owner 2026-09-30: the case's practice is outside the attorney's own —
   /// the client is told to discuss it before accepting.
   final bool outsidePractice;
+
+  /// Owner 2026-10-04: the attorney has no verified licence in the case's
+  /// states — allowed, the client is told before accepting.
+  final bool outsideLicensedStates;
 
   final String id;
   final String caseId;
@@ -265,6 +409,9 @@ class CaseBid {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;
@@ -287,6 +434,29 @@ class CaseBid {
   bool isTurnOf(PartyRole role) => isActive && turn == role;
 }
 
+/// Owner 2026-10-05: what the client has put into the case — counts only
+/// (the files open to the accepted attorney alone, OQ-031). Lets an
+/// attorney judge a case before bidding.
+@immutable
+class CaseDossier {
+  const CaseDossier({
+    this.imagesCount = 0,
+    this.documentsCount = 0,
+    this.descriptionLength = 0,
+    this.privateDetailsLength = 0,
+  });
+
+  static const empty = CaseDossier();
+
+  final int imagesCount;
+  final int documentsCount;
+  final int descriptionLength;
+
+  /// Owner 2026-10-18: length of the client's private details (0 = none);
+  /// the text opens to the accepted attorney only.
+  final int privateDetailsLength;
+}
+
 /// Attorney feed card and detail (docs/04 §4.2, §4.3). No client field
 /// ever exists here.
 @immutable
@@ -306,6 +476,7 @@ class FeedCase {
     required this.isNew,
     required this.hasOwnBid,
     this.description,
+    this.privateDetails,
     this.excerpt = '',
     this.isSaved = false,
     this.ownBidId,
@@ -314,17 +485,77 @@ class FeedCase {
     this.commentCount = 0,
     this.shareCount = 0,
     this.inMyPractice = true,
+    this.inMyLicensedStates = true,
+    this.bidAllowed = true,
+    this.promoted = false,
+    this.promotedUntil,
+    this.priorityClient = false,
+    this.extraPracticeCount = 0,
+    this.completionRequestedBy,
+    this.acceptedBidIsMine = false,
+    this.coverKey,
+    this.urgency,
+    this.urgencyDetail,
+    this.dossier = CaseDossier.empty,
+    this.clientActivity,
   });
+
+  /// OQ-054: the card's «В сети / Был …» line; null = hidden by privacy.
+  final ClientActivity? clientActivity;
+
+  /// Audit 2026-10-04 (detail only): this attorney's bid is the accepted
+  /// one — the case belongs on the work screen.
+  final bool acceptedBidIsMine;
+
+  /// Owner 2026-10-05: files and filled-in details (counts only).
+  final CaseDossier dossier;
+
+  /// Owner 2026-10-04: the client's cover choice (`art:N` / `icon:name`);
+  /// null = a variant picked from the id. Never the client's photo.
+  final String? coverKey;
+
+  /// Owner 2026-10-04: how soon the client needs an attorney.
+  final CaseUrgency? urgency;
+
+  /// Owner 2026-10-05: the level today and the date, when the API sent
+  /// them; [urgencyInfo] falls back to [urgency] alone.
+  final CaseUrgencyInfo? urgencyDetail;
+  CaseUrgencyInfo get urgencyInfo =>
+      urgencyDetail ?? CaseUrgencyInfo(choice: urgency);
+
+  /// Owner 2026-10-02: a paid promotion keeps this case near the top.
+  final bool promoted;
+
+  /// Owner 2026-10-15: the last paid day, «Реклама · до {date}».
+  final DateTime? promotedUntil;
+
+  /// Owner 2026-10-05 (plan builder): the client's plan puts the case
+  /// first in the feed (shown with a small «Приоритет» mark).
+  final bool priorityClient;
+
+  /// `client` / `attorney`: who marked "Done" first (waiting for the other).
+  final String? completionRequestedBy;
 
   /// Owner 2026-09-30: the case's practice is one of this attorney's
   /// (detail only; a bid from outside them warns the client).
   final bool inMyPractice;
+
+  /// Owner 2026-10-04: the attorney holds a verified licence in one of the
+  /// case's states (detail only; otherwise "Bid" notes the client sees it).
+  final bool inMyLicensedStates;
+
+  /// Owner 2026-10-04: an attorney may bid on any open case; the server
+  /// keeps this for older apps (always true).
+  final bool bidAllowed;
 
   /// OQ-034: comments under the case.
   final int commentCount;
 
   /// OQ-037: completed shares.
   final int shareCount;
+
+  /// Owner 2026-10-15: topics besides the first — «+N» on the card.
+  final int extraPracticeCount;
 
   final String id;
   final String title;
@@ -346,6 +577,10 @@ class FeedCase {
   /// OQ-031: how many photos the case has (every attorney sees this).
   final int photosCount;
   final String? description;
+
+  /// Owner 2026-10-18: the client's private details — only once this
+  /// attorney's bid was accepted (null otherwise).
+  final String? privateDetails;
 
   /// Owner 2026-09-30: short description preview for the feed card.
   final String excerpt;
@@ -369,6 +604,7 @@ class FeedCase {
         isNew: isNew,
         hasOwnBid: hasOwnBid,
         description: description,
+        privateDetails: privateDetails,
         isSaved: isSaved ?? this.isSaved,
         ownBidId: ownBidId,
         excerpt: excerpt,
@@ -376,6 +612,16 @@ class FeedCase {
         photosCount: photosCount,
         commentCount: commentCount,
         shareCount: shareCount,
+        inMyPractice: inMyPractice,
+        promoted: promoted,
+        priorityClient: priorityClient,
+        completionRequestedBy: completionRequestedBy,
+        coverKey: coverKey,
+        urgency: urgency,
+        urgencyDetail: urgencyDetail,
+        bidAllowed: bidAllowed,
+        acceptedBidIsMine: acceptedBidIsMine,
+        dossier: dossier,
       );
 }
 
@@ -423,6 +669,8 @@ class WorkItem {
     required this.clientName,
     required this.feeType,
     required this.amountCents,
+    this.clientAvatarUrl,
+    this.additionalStateCount = 0,
     this.autoCloseAt,
     this.acceptedAt,
     this.closedAt,
@@ -431,6 +679,7 @@ class WorkItem {
     this.practiceI18nKey,
     this.practiceNameEn,
     this.coverUrl,
+    this.percentBps,
   });
 
   /// Owner 2026-09-30: the first photo (the Mine grid) when this viewer
@@ -444,8 +693,17 @@ class WorkItem {
 
   /// Null while the subscription is inactive (§8.3).
   final String? clientName;
+
+  /// The client's small avatar (null while locked, like the name).
+  final String? clientAvatarUrl;
+
+  /// States besides the primary one.
+  final int additionalStateCount;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final DateTime? autoCloseAt;
   final DateTime? acceptedAt;
   final DateTime? closedAt;
@@ -543,6 +801,7 @@ class HistoryCase {
     this.closedAt,
     this.archivedAt,
     this.acceptedAmountCents,
+    this.acceptedPercentBps,
     this.acceptedFeeType,
   });
 
@@ -557,6 +816,7 @@ class HistoryCase {
   final DateTime? closedAt;
   final DateTime? archivedAt;
   final int? acceptedAmountCents;
+  final int? acceptedPercentBps;
   final FeeType? acceptedFeeType;
 }
 
@@ -570,6 +830,7 @@ class HistoryEvent {
     required this.createdAt,
     required this.actor,
     this.amountCents,
+    this.percentBps,
     this.feeType,
     this.roundNo,
     this.reason,
@@ -580,6 +841,7 @@ class HistoryEvent {
   final DateTime createdAt;
   final HistoryActor actor;
   final int? amountCents;
+  final int? percentBps;
   final FeeType? feeType;
   final int? roundNo;
   final String? reason;
@@ -620,7 +882,7 @@ class HistoryExport {
 /// Filters of "Мои кейсы" (docs/04 §11.1).
 /// Owner 2026-09-30: `open` and `inProgress` are the Mine tabs; `active`
 /// (both) stays for the profile grid and search.
-enum MyCasesFilter { active, open, inProgress, archived, closed }
+enum MyCasesFilter { active, open, inProgress, archived, closed, completed }
 
 /// Owner 2026-09-30: search and filters of the "Mine" lists.
 @immutable
@@ -661,6 +923,6 @@ class MineSearch {
 /// Sort of a case's bid list (docs/04 §5.2).
 enum BidsSort { newest, lowestPrice, highestRating }
 
-enum MyBidsFilter { active, finished }
+enum MyBidsFilter { active, finished, completed }
 
 enum WorkFilter { active, closed }

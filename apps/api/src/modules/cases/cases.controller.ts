@@ -13,6 +13,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { RequireLegalAcceptance } from '../legal-documents/legal-acceptance.guard';
 import type { Request } from 'express';
 import {
   ApiBearerAuth,
@@ -25,6 +26,10 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../common/dto/api-docs.decorators';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { IdempotencyInterceptor } from '../../idempotency/idempotency.interceptor';
 import { RequireIdempotencyKeyGuard } from '../../idempotency/require-idempotency-key.guard';
@@ -38,7 +43,10 @@ import {
   CaseIdParamDto,
   CreateCaseDto,
   ListMyCasesQueryDto,
+  StillNeededAnswerDto,
   UpdateCaseDto,
+  UpdateCaseUrgencyDto,
+  UpdatePrivateDetailsDto,
 } from './dto/case-requests.dto';
 import {
   CaseDeletedDto,
@@ -66,6 +74,7 @@ export class CasesController {
   constructor(private readonly cases: CasesService) {}
 
   @Post('cases')
+  @RequireLegalAcceptance()
   @UseGuards(RequireIdempotencyKeyGuard)
   @UseInterceptors(IdempotencyInterceptor)
   @ApiOperation({ summary: 'Publish a case (client, docs/04 §3.1-§3.4)' })
@@ -87,6 +96,8 @@ export class CasesController {
       E.CLIENT_CONTACTS_INCOMPLETE,
       E.ONBOARDING_INCOMPLETE,
       E.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED,
+      E.COUNTRY_NOT_AVAILABLE,
+      E.LEGAL_REACCEPT_REQUIRED,
     ],
     409: [E.IDEMPOTENCY_KEY_CONFLICT],
   })
@@ -99,20 +110,71 @@ export class CasesController {
   }
 
   @Patch('cases/:id')
+  @ApiIfMatchVersion()
   @ApiOperation({ summary: 'Edit an open case (client, docs/04 §3.5)' })
   @ApiEnvelopeResponse(CaseDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR, E.CASE_CONTAINS_CONTACT_INFO],
     403: [E.FORBIDDEN],
     404: [E.CASE_NOT_FOUND],
-    409: [E.CASE_INVALID_STATE],
+    409: [E.CASE_INVALID_STATE, E.STALE_VERSION],
   })
   updateCase(
     @CurrentUser() user: RequestUser,
     @Param() params: CaseIdParamDto,
     @Body() dto: UpdateCaseDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<CaseDto> {
-    return this.cases.update(user, params.id, dto);
+    return this.cases.update(user, params.id, dto, expectedVersion);
+  }
+
+  @Patch('cases/:id/private-details')
+  @ApiIfMatchVersion()
+  @ApiOperation({
+    summary:
+      'Change the private details («Подробности») — the client, while the case is open or in work (audit 2026-10-19)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE, E.STALE_VERSION],
+  })
+  updateCasePrivateDetails(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+    @Body() dto: UpdatePrivateDetailsDto,
+    @ExpectedVersion() expectedVersion?: number,
+  ): Promise<CaseDto> {
+    return this.cases.updatePrivateDetails(
+      user,
+      params.id,
+      dto,
+      expectedVersion,
+    );
+  }
+
+  @Patch('cases/:id/urgency')
+  @ApiIfMatchVersion()
+  @ApiOperation({
+    summary:
+      'Change how urgent a case is or its date — the client (open or hired) or the hired attorney; the other side is told (owner 2026-10-05)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE, E.STALE_VERSION],
+  })
+  updateCaseUrgency(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+    @Body() dto: UpdateCaseUrgencyDto,
+    @ExpectedVersion() expectedVersion?: number,
+  ): Promise<CaseDto> {
+    return this.cases.updateUrgency(user, params.id, dto, expectedVersion);
   }
 
   @Post('cases/:id/close')
@@ -184,6 +246,46 @@ export class CasesController {
     @Param() params: CaseIdParamDto,
   ): Promise<CaseDto> {
     return this.cases.keepAlive(user, params.id);
+  }
+
+  @Post('cases/:id/still-needed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Answer «Вам ещё нужен адвокат?» — still_needed / wait_better / not_needed (closes the case) / make_not_urgent (owner, OQ-054)',
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+  })
+  answerStillNeeded(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+    @Body() dto: StillNeededAnswerDto,
+  ): Promise<CaseDto> {
+    return this.cases.answerStillNeeded(user, params.id, dto.answer);
+  }
+
+  @Post('cases/:id/resume')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Bring a paused case back into the attorneys' feed (owner, OQ-054)",
+  })
+  @ApiEnvelopeResponse(CaseDto)
+  @ApiErrors({
+    403: [E.FORBIDDEN],
+    404: [E.CASE_NOT_FOUND],
+    409: [E.CASE_INVALID_STATE],
+  })
+  resumeCase(
+    @CurrentUser() user: RequestUser,
+    @Param() params: CaseIdParamDto,
+  ): Promise<CaseDto> {
+    return this.cases.resume(user, params.id);
   }
 
   @Get('users/me/cases')

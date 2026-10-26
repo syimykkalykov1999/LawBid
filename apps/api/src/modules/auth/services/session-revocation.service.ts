@@ -4,6 +4,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TokenService } from './token.service';
+import { publishSessionRevoked } from '../../../redis/session-revoked';
 
 export type RevokeReason =
   | 'logout'
@@ -14,7 +15,13 @@ export type RevokeReason =
   | 'account_deletion'
   // Owner 2026-10-01: one account, one device — a sign-in elsewhere ends
   // every other session (no sharing an attorney or assistant account).
-  | 'signed_in_elsewhere';
+  | 'signed_in_elsewhere'
+  // Owner 2026-10-22 (security audit #3, finding 5): the phone, e-mail or
+  // password changed — every other session ends, this one stays.
+  | 'credentials_changed'
+  // Owner 2026-10-22 (security audit #3, finding 6): the attorney (or the
+  // admin) removed the assistant — their own sign-ins end too.
+  | 'assistant_removed';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,
@@ -81,7 +88,39 @@ export class SessionRevocationService {
       where: { user_id: userId, revoked_at: null },
       data: { revoked_at: new Date(), revoked_reason: reason },
     });
-    await Promise.all(chainIds.map((id) => this.blacklist(id, reason)));
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason, userId)));
+    return chainIds;
+  }
+
+  /**
+   * Owner 2026-10-22 (security audit #3, finding 5; OWASP ASVS V3.3.3): after
+   * the phone, e-mail or password changes, a thief's session must not
+   * survive the owner's "I changed my number and password". Ends every
+   * session of the account except [keepChainId] (the one making the
+   * change); blacklisting publishes `session:revoked`, so their sockets
+   * drop at once.
+   */
+  async revokeOtherChainsForUser(
+    userId: string,
+    keepChainId: string | undefined,
+    reason: RevokeReason,
+  ): Promise<string[]> {
+    const active = await this.prisma.session.findMany({
+      where: {
+        user_id: userId,
+        revoked_at: null,
+        ...(keepChainId ? { session_chain_id: { not: keepChainId } } : {}),
+      },
+      select: { session_chain_id: true },
+      distinct: ['session_chain_id'],
+    });
+    const chainIds = active.map((s) => s.session_chain_id);
+    if (chainIds.length === 0) return chainIds;
+    await this.prisma.session.updateMany({
+      where: { session_chain_id: { in: chainIds }, revoked_at: null },
+      data: { revoked_at: new Date(), revoked_reason: reason },
+    });
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason, userId)));
     return chainIds;
   }
 
@@ -112,7 +151,7 @@ export class SessionRevocationService {
       where: { session_chain_id: { in: chainIds }, revoked_at: null },
       data: { revoked_at: new Date(), revoked_reason: reason },
     });
-    await Promise.all(chainIds.map((id) => this.blacklist(id, reason)));
+    await Promise.all(chainIds.map((id) => this.blacklist(id, reason, userId)));
     return chainIds;
   }
 
@@ -129,6 +168,7 @@ export class SessionRevocationService {
   private async blacklist(
     sessionChainId: string,
     reason: string = '1',
+    userId?: string,
   ): Promise<void> {
     await this.redis.set(
       this.blacklistKey(sessionChainId),
@@ -136,6 +176,13 @@ export class SessionRevocationService {
       'EX',
       this.blacklistTtlSeconds,
     );
+    // Owner 2026-10-22 (server load audit, finding 5): live sockets of the
+    // session are dropped by this message on every API instance, instead
+    // of each socket polling the blacklist every 45 s.
+    await publishSessionRevoked(this.redis, {
+      sessionId: sessionChainId,
+      ...(userId ? { userId } : {}),
+    });
   }
 
   private blacklistKey(sessionChainId: string): string {

@@ -2,9 +2,12 @@
 
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Label, Select } from '@/components/ui/input';
+import { Dialog } from '@/components/ui/dialog';
+import { Label, Select, Textarea } from '@/components/ui/input';
+import { useMe } from '@/lib/hooks';
+import { REASON_MIN, useReasonRequired } from '@/lib/reason-policy';
 
-export interface ReasonOptions {
+interface ReasonOptions {
   title: string;
   description?: string;
   label?: string;
@@ -17,9 +20,15 @@ export interface ReasonOptions {
   choiceLabel?: string;
   /** Text may be empty (the choice carries the decision). */
   optionalText?: boolean;
+  /** Text is needed even though it is labelled «Причина»: a message to
+   * a person, or the X-Justification for viewing personal data. */
+  required?: boolean;
+  /** Section of the action when it differs from the page's (e.g. a money
+   * action on a user's card): decides whether staff must give a reason. */
+  area?: string;
 }
 
-export type ReasonResult = { text: string; choice?: string } | null;
+type ReasonResult = { text: string; choice?: string } | null;
 
 /**
  * One promise-based dialog for every "enter a reason" step (docs/06 §2.1
@@ -58,39 +67,39 @@ function ReasonDialog({
   opts: ReasonOptions;
   onClose: (r: ReasonResult) => void;
 }) {
-  const min = opts.min ?? 10;
+  const isReason = !opts.label || opts.label.startsWith('Причина');
+  // Owner 2026-10-05: the owner never has to give a reason; staff do in the
+  // sections the owner switched on (Администраторы → «Обязательная причина»).
+  const policy = useReasonRequired(opts.area);
+  const min = opts.required ? (opts.min ?? 10) : isReason ? REASON_MIN : (opts.min ?? 10);
   const max = opts.max ?? 500;
   const [text, setText] = useState('');
   const [choice, setChoice] = useState(opts.choices?.[0]?.value ?? '');
   const trimmed = text.trim();
-  const ok =
-    (opts.optionalText || trimmed.length >= min) && trimmed.length <= max;
+  // Owner 2026-10-05: an admin never has to write a reason for an action;
+  // it is optional and stored empty when left blank.
+  // The X-Justification for personal data too: optional for the owner
+  // (the access is still logged).
+  const { data: me } = useMe();
+  const owner = me?.role === 'super_admin';
+  const optional = opts.optionalText || (opts.required ? owner && isReason : isReason && !policy);
+  const ok = (optional || trimmed.length >= min) && trimmed.length <= max;
 
   return (
-    <div
-      role="dialog"
-      aria-modal
-      aria-labelledby="reason-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-navy/60 p-4"
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose(null);
-      }}
+    <Dialog
+      open
+      onClose={() => onClose(null)}
+      title={opts.title}
+      description={opts.description}
+      eyebrow={opts.danger ? 'Подтверждение' : undefined}
     >
       <form
-        className="w-full max-w-md space-y-4 rounded-[var(--radius-lg)] bg-surface p-5 shadow-xl"
+        className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (ok) onClose({ text: trimmed, choice: choice || undefined });
         }}
       >
-        <div>
-          <h2 id="reason-title" className="text-lg font-semibold text-navy">
-            {opts.title}
-          </h2>
-          {opts.description ? (
-            <p className="mt-1 text-sm text-muted">{opts.description}</p>
-          ) : null}
-        </div>
         {opts.choices ? (
           <div className="space-y-1.5">
             <Label htmlFor="reason-choice">{opts.choiceLabel ?? 'Причина'}</Label>
@@ -109,22 +118,26 @@ function ReasonDialog({
         ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="reason-text">
-            {opts.label ?? 'Комментарий'}
-            {!opts.optionalText ? (
-              <span className="ml-1 text-xs text-muted">(не короче {min} символов)</span>
-            ) : null}
+            {opts.label ?? 'Причина'}
+            {optional ? (
+              opts.optionalText ? null : <span className="ml-1 text-xs font-normal text-muted">(необязательно)</span>
+            ) : (
+              <span className="ml-1 text-xs font-normal text-muted">(не короче {min} символов)</span>
+            )}
           </Label>
-          <textarea
+          <Textarea
             id="reason-text"
             autoFocus
             rows={4}
             maxLength={max}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="w-full rounded-[var(--radius-md)] border border-line bg-surface px-3 py-2 text-sm"
           />
-          <div className="text-right text-xs text-muted">
-            {trimmed.length}/{max}
+          <div className="flex justify-between text-xs text-faint">
+            <span>{!optional && trimmed.length < min ? `ещё ${min - trimmed.length}` : ''}</span>
+            <span>
+              {trimmed.length}/{max}
+            </span>
           </div>
         </div>
         <div className="flex justify-end gap-2">
@@ -136,6 +149,6 @@ function ReasonDialog({
           </Button>
         </div>
       </form>
-    </div>
+    </Dialog>
   );
 }

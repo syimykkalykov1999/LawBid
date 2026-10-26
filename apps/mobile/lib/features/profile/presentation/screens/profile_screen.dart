@@ -5,19 +5,26 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
+    show GiftHeaderButton;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Profile tab (docs/03 §8 «Профиль»): an attorney sees their own public
 /// profile (§4.2, with Edit/Share and — before verification — a
 /// "Complete verification" banner); a client sees the private client
 /// profile (§5). The gear opens Settings (docs/01 §3.6).
+/// The scales in the profile bar: the same size as in the feed header.
+const double _kProfileLogoSize = 28;
+
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -32,6 +39,13 @@ class ProfileScreen extends ConsumerWidget {
     final username =
         assistant?.attorneyUsername ?? user?.attorneyProfile?.username;
 
+    // Owner 2026-10-22 (guest browsing): the Profile tab asks to sign in.
+    if (ref.watch(isGuestProvider)) {
+      return Scaffold(
+        backgroundColor: colors.bg,
+        body: const SafeArea(child: GuestGateView()),
+      );
+    }
     final Widget body;
     if (user == null) {
       body = const AttorneyProfileSkeleton();
@@ -48,7 +62,9 @@ class ProfileScreen extends ConsumerWidget {
       );
     } else if (user.isAttorney && username != null) {
       body = AttorneyProfileBody(
-          username: username, needsVerification: needsVerification);
+        username: username,
+        needsVerification: needsVerification,
+      );
     } else if (user.isClient) {
       body = const ClientProfileView();
     } else {
@@ -68,15 +84,49 @@ class ProfileScreen extends ConsumerWidget {
       // left, the handle centered, settings on the right.
       appBar: ProfileHandleBar(
         handle: username ?? user?.clientProfile?.username,
-        leading: ExcludeSemantics(
-          child: ScalesLogo(
-            size: 40,
-            animated: true,
-            runFor: const Duration(seconds: 6),
-            semanticLabel: t.t('brand.name'),
-          ),
+        // Owner 2026-10-21: the gift second from the left, next to the
+        // scales; all four icons of the bar the size of the QR and the gear.
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ExcludeSemantics(
+              child: SizedBox.square(
+                dimension: AppSizes.touchTarget,
+                child: Center(
+                  // Owner 2026-10-23: still (no swing) and as big as the
+                  // feed header's logo (28); the 48 dp slot keeps the rest
+                  // of the bar where it was.
+                  child: ScalesLogo(
+                    size: _kProfileLogoSize,
+                    semanticLabel: t.t('brand.name'),
+                  ),
+                ),
+              ),
+            ),
+            if (user != null && assistant == null)
+              GiftHeaderButton(userId: user.id, isMe: true),
+          ],
         ),
         actions: [
+          // Owner 2026-10-20 (WeChat): "My QR code" next to the gear.
+          if (username != null || user?.clientProfile != null)
+            Semantics(
+              button: true,
+              label: t.t('qr.my.title'),
+              excludeSemantics: true,
+              child: AppPressable(
+                key: const ValueKey('profile-my-qr'),
+                onTap: () => context.push(AppRoutes.myQr),
+                child: SizedBox.square(
+                  dimension: AppSizes.touchTarget,
+                  child: AppIcon(
+                    AppIcons.qrCode,
+                    color: colors.text,
+                    size: AppSizes.iconMd,
+                  ),
+                ),
+              ),
+            ),
           Semantics(
             button: true,
             label: t.t('settings.title'),
@@ -85,8 +135,11 @@ class ProfileScreen extends ConsumerWidget {
               onTap: () => context.push(AppRoutes.profileSettings),
               child: SizedBox.square(
                 dimension: AppSizes.touchTarget,
-                child: AppIcon(AppIcons.settingsOutlined,
-                    color: colors.text, size: AppSizes.iconMd),
+                child: AppIcon(
+                  AppIcons.settingsOutlined,
+                  color: colors.text,
+                  size: AppSizes.iconMd,
+                ),
               ),
             ),
           ),

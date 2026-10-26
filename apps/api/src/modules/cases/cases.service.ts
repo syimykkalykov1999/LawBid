@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { notAvailable } from '../countries/countries.service';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { CasePhotosService } from './services/case-photos.service';
 import {
   BadRequestException,
@@ -6,15 +9,17 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { mineCaseWhere } from './mine/mine-filters';
+import { mineWhere } from './mine/mine-filters';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
-import type { Case, CaseState, Prisma } from '@prisma/client';
+import type { BudgetMode, Case, CaseState, Prisma } from '@prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestMeta } from '../auth/services/session.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -23,27 +28,57 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { OnboardingService } from '../users/services/onboarding.service';
 import { CaseStateMachine, caseNotFound } from './domain/case-state-machine';
 import {
+  DEFAULT_STALE_TIMERS,
+  archiveDueAt,
+  canMakeNotUrgent,
+  loadStaleTimers,
+  pauseDueAt,
+  type StaleTimers,
+} from './domain/case-staleness';
+import {
+  DEFAULT_URGENCY_THRESHOLDS,
+  hasUrgencyInput,
+  loadUrgencyThresholds,
+  resolveUrgencyInput,
+  UrgencyInputError,
+  urgencyFields,
+  type UrgencyInput,
+  type UrgencyThresholds,
+} from './domain/case-urgency';
+import {
   validateCaseStates,
   type CaseStateInput,
 } from './domain/case-states.rule';
 import { assertNoContactInfo } from './domain/contact-detector';
+import { assertContingency, contingencyPolicy } from './domain/contingency';
 import {
   ChatSystemMessages,
   type ChatChange,
 } from '../chat/chat-system.service';
 import { CaseJournalService } from '../journal/case-journal.service';
+import { ReferralsService } from '../referrals/referrals.service';
+import { EntitlementsService } from '../plans/entitlements.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { privateDetailsAad } from '../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import {
   MY_CASES_PAGE_DEFAULT,
   type CreateCaseDto,
   type ListMyCasesQueryDto,
   type MyCasesFilter,
+  type StillNeededAnswer,
   type UpdateCaseDto,
+  type UpdatePrivateDetailsDto,
 } from './dto/case-requests.dto';
 import type {
   CaseDto,
   CasePage,
   CaseSummaryDto,
 } from './dto/case-responses.dto';
+import {
+  CrossFamilyOutbox,
+  type OutboxTicket,
+} from '../../sharding/outbox/cross-family-outbox';
 
 /** docs/04 §11.1 tab filters -> case_status values. */
 const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
@@ -53,6 +88,7 @@ const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
     in_progress: { in: ['in_progress', 'pending_completion', 'disputed'] },
     archived: 'archived',
     closed: 'closed',
+    completed: { in: ['closed', 'archived'] },
   };
 
 const PRACTICE_AREA_SELECT = {
@@ -62,22 +98,34 @@ const PRACTICE_AREA_SELECT = {
   i18n_key: true,
 } satisfies Prisma.PracticeAreaSelect;
 
+/** Owner 2026-10-15: topics 2..N of a case, in a stable order. */
+const EXTRA_PRACTICES_INCLUDE = {
+  select: { practice_area: { select: PRACTICE_AREA_SELECT } },
+  orderBy: { practice_area: { sort: 'asc' } },
+} satisfies Prisma.Case$extra_practicesArgs;
+
 const CASE_DETAIL_INCLUDE = {
   practice_area: { select: PRACTICE_AREA_SELECT },
+  extra_practices: EXTRA_PRACTICES_INCLUDE,
   states: { select: { state_code: true, is_primary: true } },
 } satisfies Prisma.CaseInclude;
 
+type PracticeRef = {
+  id: string;
+  code: string;
+  name_en: string;
+  i18n_key: string;
+};
+
 type CaseWithDetails = Case & {
-  practice_area: {
-    id: string;
-    code: string;
-    name_en: string;
-    i18n_key: string;
-  };
+  practice_area: PracticeRef;
+  /** Topics 2..N (owner 2026-10-15); absent = none. */
+  extra_practices?: { practice_area: PracticeRef }[];
   states: Pick<CaseState, 'state_code' | 'is_primary'>[];
 };
 
 type CaseWithPracticeAndStates = Case & {
+  extra_practices?: { practice_area: PracticeRef }[];
   practice_area: {
     id: string;
     code: string;
@@ -117,10 +165,10 @@ function statesLocked(): ConflictException {
  * already keeps the two in sync on the wire, this is the one place the
  * dollars -> cents conversion (and its defense-in-depth check) happens. */
 export function budgetCentsOf(
-  mode: 'amount' | 'clarify_later',
+  mode: BudgetMode,
   amountDollars: number | undefined,
 ): number | null {
-  if (mode === 'clarify_later') return null;
+  if (mode !== 'amount') return null;
   if (!Number.isInteger(amountDollars) || (amountDollars as number) <= 0) {
     throw validationError('budgetAmountDollars is required for "amount".', {
       field: 'budgetAmountDollars',
@@ -129,17 +177,80 @@ export function budgetCentsOf(
   return (amountDollars as number) * 100;
 }
 
-function toCaseDto(kase: CaseWithDetails): CaseDto {
+/** The urgency columns for a request (400 VALIDATION_FAILED on a bad
+ * date or `by_date` without one). */
+export function urgencyColumnsOf(
+  dto: UrgencyInput,
+  current: Parameters<typeof resolveUrgencyInput>[1],
+  now: Date = new Date(),
+): ReturnType<typeof resolveUrgencyInput> {
+  try {
+    return resolveUrgencyInput(dto, current, now);
+  } catch (e) {
+    if (e instanceof UrgencyInputError) {
+      throw validationError(e.message, { field: e.field });
+    }
+    throw e;
+  }
+}
+
+/** Changed urgency columns of [current] (empty when nothing changes),
+ * recording old → new in [diff] for the journal. */
+export function urgencyDiff(
+  dto: UrgencyInput,
+  current: {
+    urgency: string | null;
+    deadline_at: Date | null;
+    deadline_kind: string | null;
+  },
+  diff: Record<string, { old: unknown; new: unknown }>,
+): Partial<ReturnType<typeof resolveUrgencyInput>> {
+  const before = urgencyFields(current);
+  const next = urgencyColumnsOf(
+    dto,
+    current as Parameters<typeof resolveUrgencyInput>[1],
+  );
+  const after = urgencyFields(next);
+  const out: Partial<ReturnType<typeof resolveUrgencyInput>> = {};
+  if (before.urgency !== after.urgency) {
+    out.urgency = next.urgency;
+    diff.urgency = { old: before.urgency, new: after.urgency };
+  }
+  if (before.deadlineAt !== after.deadlineAt) {
+    out.deadline_at = next.deadline_at;
+    diff.deadlineAt = { old: before.deadlineAt, new: after.deadlineAt };
+  }
+  if (before.deadlineKind !== after.deadlineKind) {
+    out.deadline_kind = next.deadline_kind;
+    diff.deadlineKind = { old: before.deadlineKind, new: after.deadlineKind };
+  }
+  return out;
+}
+
+function toCaseDto(
+  kase: CaseWithDetails,
+  t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  stale: StaleTimers = DEFAULT_STALE_TIMERS,
+): CaseDto {
   return {
     id: kase.id,
     title: kase.title,
     description: kase.description,
+    // Owner 2026-10-18: only ever built for the owner, the accepted
+    // attorney or an admin (never for the feed / search).
+    privateDetails: kase.private_details ?? null,
     practiceArea: {
       id: kase.practice_area.id,
       code: kase.practice_area.code,
       nameEn: kase.practice_area.name_en,
       i18nKey: kase.practice_area.i18n_key,
     },
+    extraPracticeAreas: (kase.extra_practices ?? []).map((e) => ({
+      id: e.practice_area.id,
+      code: e.practice_area.code,
+      nameEn: e.practice_area.name_en,
+      i18nKey: e.practice_area.i18n_key,
+    })),
     primaryStateCode: kase.primary_state_code,
     states: kase.states.map((s) => ({
       stateCode: s.state_code,
@@ -148,9 +259,13 @@ function toCaseDto(kase: CaseWithDetails): CaseDto {
     city: kase.city,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    budgetPercentBps: kase.budget_percent_bps,
+    coverKey: kase.cover_key,
+    ...urgencyFields(kase, new Date(), t),
     status: kase.status,
     viewCount: kase.view_count,
     bidsCount: kase.bids_count,
+    version: kase.version,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
     archivedAt: kase.archived_at?.toISOString() ?? null,
@@ -159,10 +274,60 @@ function toCaseDto(kase: CaseWithDetails): CaseDto {
     autoCloseAt: kase.auto_close_at?.toISOString() ?? null,
     closedAt: kase.closed_at?.toISOString() ?? null,
     deletedAt: kase.deleted_at?.toISOString() ?? null,
+    stalePromptSentAt: kase.stale_prompt_sent_at?.toISOString() ?? null,
+    ...stillNeededFields(kase, stale),
   };
 }
 
-function toSummaryDto(kase: CaseWithPracticeAndStates): CaseSummaryDto {
+/** OQ-054: what the client's screens need to draw the question / pause —
+ * including the dates: when an unanswered question hides the case, and
+ * when a paused case goes to the archive. */
+function stillNeededFields(
+  kase: Case,
+  timers: StaleTimers,
+): {
+  pausedAt: string | null;
+  stillNeededPending: boolean;
+  canMakeNotUrgent: boolean;
+  hidesAt: string | null;
+  archivesAt: string | null;
+} {
+  const open = kase.status === 'open';
+  // The question waits for an answer (a paused case shows «Вернуть»).
+  const pending = open && !kase.paused_at && kase.stale_prompt_sent_at !== null;
+  const facts = {
+    urgency: kase.urgency,
+    deadlineAt: kase.deadline_at,
+    clientActiveAt: kase.client_active_at,
+    promptSentAt: kase.stale_prompt_sent_at,
+    pausedAt: kase.paused_at,
+  };
+  return {
+    pausedAt: kase.paused_at?.toISOString() ?? null,
+    stillNeededPending: pending,
+    canMakeNotUrgent:
+      open && canMakeNotUrgent(kase.urgency, kase.created_at, new Date()),
+    // The prompt is shown even when the client acted after it (the flag
+    // above); the date then counts from the question itself.
+    hidesAt:
+      pending && kase.stale_prompt_sent_at
+        ? (pauseDueAt(
+            { ...facts, clientActiveAt: kase.stale_prompt_sent_at },
+            timers,
+          )?.toISOString() ?? null)
+        : null,
+    archivesAt:
+      open && kase.paused_at
+        ? (archiveDueAt(facts, timers)?.toISOString() ?? null)
+        : null,
+  };
+}
+
+function toSummaryDto(
+  kase: CaseWithPracticeAndStates,
+  t: UrgencyThresholds = DEFAULT_URGENCY_THRESHOLDS,
+  stale: StaleTimers = DEFAULT_STALE_TIMERS,
+): CaseSummaryDto {
   return {
     id: kase.id,
     title: kase.title,
@@ -172,15 +337,20 @@ function toSummaryDto(kase: CaseWithPracticeAndStates): CaseSummaryDto {
       nameEn: kase.practice_area.name_en,
       i18nKey: kase.practice_area.i18n_key,
     },
+    extraPracticeCount: kase.extra_practices?.length ?? 0,
     primaryStateCode: kase.primary_state_code,
     additionalStateCount: kase.states.filter((s) => !s.is_primary).length,
     city: kase.city,
     status: kase.status,
     budgetMode: kase.budget_mode,
     budgetCents: kase.budget_cents,
+    budgetPercentBps: kase.budget_percent_bps,
+    coverKey: kase.cover_key,
+    ...urgencyFields(kase, new Date(), t),
     bidsCount: kase.bids_count,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
+    ...stillNeededFields(kase, stale),
   };
 }
 
@@ -202,7 +372,46 @@ export class CasesService {
     private readonly chat: ChatSystemMessages,
     private readonly photos: CasePhotosService,
     @Optional() private readonly alerts?: SubscriptionAlertsService,
+    // Owner 2026-10-02: a published case qualifies a client referral.
+    @Optional() private readonly referrals?: ReferralsService,
+    // Owner 2026-10-05 (plan builder): the client's open-cases limit.
+    @Optional() private readonly entitlements?: EntitlementsService,
+    // Owner 2026-10-05: urgency thresholds (admin settings).
+    @Optional() private readonly settings?: AppSettingsService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
+    // publish; the case text is a repeat-account signal.
+    @Optional() private readonly fraud?: ClientFraudService,
+    // Shard-ready step 7: cross-family writes ride the outbox.
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Owner 2026-10-25: cases per day against scripts.
+    @Optional() private readonly limits?: UsageLimitsService,
+    // S3-5: «Личные данные» are stored sealed.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
+
+  /** The client's private details as plain text (legacy rows are plain). */
+  private openDetails(stored: string | null, caseId: string): string | null {
+    if (stored === null) return null;
+    return this.cipher?.openField(stored, privateDetailsAad(caseId)) ?? stored;
+  }
+
+  /** A case row with its private details opened, for the DTO builders. */
+  private withOpenDetails<
+    T extends { id: string; private_details: string | null },
+  >(kase: T): T {
+    return {
+      ...kase,
+      private_details: this.openDetails(kase.private_details, kase.id),
+    };
+  }
+
+  private async sealDetails(
+    plain: string | null,
+    caseId: string,
+  ): Promise<string | null> {
+    if (plain === null || !this.cipher) return plain;
+    return this.cipher.sealMetadata(plain, privateDetailsAad(caseId));
+  }
 
   /** POST /cases (§3.1–§3.4). */
   async create(
@@ -211,6 +420,9 @@ export class CasesService {
     meta: RequestMeta,
   ): Promise<CaseDto> {
     await this.assertClientReady(user.sub);
+    await this.fraud?.assertNotRestricted(user.sub);
+    await this.limits?.consume('case_create', user.sub);
+    await this.assertUnderCaseLimit(user.sub);
 
     assertNoContactInfo({
       title: dto.title,
@@ -228,9 +440,23 @@ export class CasesService {
     validateCaseStates(states);
     await this.assertValidStateCodes(states.map((s) => s.stateCode));
     const practiceArea = await this.assertLeafPracticeArea(dto.practiceAreaId);
+    const extraAreas = await this.assertExtraPracticeAreas(
+      dto.practiceAreaId,
+      dto.extraPracticeAreaIds ?? [],
+    );
     const budgetCents = budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
+    const budgetPercentBps =
+      dto.budgetMode === 'percent'
+        ? assertContingency(
+            await contingencyPolicy(this.settings),
+            [practiceArea.code, ...extraAreas.map((a) => a.code)],
+            dto.budgetPercentBps,
+            'budgetPercentBps',
+          )
+        : null;
+    const urgency = urgencyColumnsOf(dto, null);
 
-    // OQ-031: 0-9 of the author's own clean case photos.
+    // OQ-031: the author's own clean case photos (count: admin, bug 17).
     const photoIds = dto.photoFileIds ?? [];
     await this.photos.assertAttachable(user.sub, photoIds);
 
@@ -243,18 +469,31 @@ export class CasesService {
       });
     }
 
+    const tickets: Array<OutboxTicket | null> = [];
+    // S3-5: the id is chosen here so the sealed details are bound to it.
+    const newCaseId = randomUUID();
     const created = await withTxRetry(this.prisma, async (tx) => {
+      tickets.length = 0;
       const now = new Date();
       const kase = await tx.case.create({
         data: {
+          id: newCaseId,
           client_id: user.sub,
           title: dto.title,
           description: dto.description,
+          // Owner 2026-10-18: private; empty means none.
+          private_details: await this.sealDetails(
+            dto.privateDetails?.trim() || null,
+            newCaseId,
+          ),
           practice_area_id: dto.practiceAreaId,
           primary_state_code: dto.primaryStateCode,
           city: dto.city ?? null,
           budget_mode: dto.budgetMode,
           budget_cents: budgetCents,
+          budget_percent_bps: budgetPercentBps,
+          cover_key: dto.coverKey ?? null,
+          ...urgency,
           status: 'open',
           last_activity_at: now,
         },
@@ -266,6 +505,14 @@ export class CasesService {
           is_primary: s.isPrimary,
         })),
       });
+      if (extraAreas.length > 0) {
+        await tx.caseExtraPractice.createMany({
+          data: extraAreas.map((a) => ({
+            case_id: kase.id,
+            practice_area_id: a.id,
+          })),
+        });
+      }
       await this.photos.attach(tx, kase.id, photoIds);
       await this.journal.append(tx, {
         caseId: kase.id,
@@ -275,33 +522,71 @@ export class CasesService {
         payload: {
           title: kase.title,
           practiceAreaId: kase.practice_area_id,
+          extraPracticeAreaIds: extraAreas.map((a) => a.id),
           states: states as unknown as Prisma.InputJsonArray,
           budgetMode: kase.budget_mode,
           budgetCents: kase.budget_cents,
+          budgetPercentBps: kase.budget_percent_bps,
         },
       });
       if (!consentGranted) {
-        await tx.userConsent.create({
-          data: {
-            user_id: user.sub,
-            consent_type: 'client_contact_sharing',
-            granted: true,
-            ip: meta.ip ?? null,
-            device_id: meta.deviceId ?? null,
-          },
-        });
+        // Shard-ready step 7: the consent is a global-family row written
+        // next to a sharded one. On the primary database the outbox runs it
+        // right here in this transaction (as before); on another database it
+        // is an event applied on the primary one right after the commit.
+        if (this.outbox) {
+          tickets.push(
+            await this.outbox.emit(
+              tx,
+              'user.consent.record',
+              {
+                userId: user.sub,
+                consentType: 'client_contact_sharing',
+                ip: meta.ip ?? null,
+                deviceId: meta.deviceId ?? null,
+              },
+              `consent:client_contact_sharing:${user.sub}:${kase.id}`,
+            ),
+          );
+        } else {
+          await tx.userConsent.create({
+            data: {
+              user_id: user.sub,
+              consent_type: 'client_contact_sharing',
+              granted: true,
+              ip: meta.ip ?? null,
+              device_id: meta.deviceId ?? null,
+            },
+          });
+        }
       }
       return kase;
     });
+    await this.outbox?.flush(tickets);
     // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
     const alerts = this.alerts;
     alerts?.later(() => alerts.attorneysForCase(created.id));
+    try {
+      await this.referrals?.onQualifyingEvent(user.sub, 'case_published');
+    } catch {
+      // Referral bookkeeping never breaks case creation.
+    }
+    // Never throws; awaited so it does not outlive the request.
+    await this.fraud?.onCaseCreated(
+      user.sub,
+      `${dto.title}\n${dto.description}`,
+    );
 
-    return toCaseDto({
-      ...created,
-      practice_area: practiceArea,
-      states: statesRows(states),
-    });
+    return toCaseDto(
+      {
+        ...this.withOpenDetails(created),
+        practice_area: practiceArea,
+        extra_practices: extraAreas.map((a) => ({ practice_area: a })),
+        states: statesRows(states),
+      },
+      await this.thresholds(),
+      await this.staleTimers(),
+    );
   }
 
   /** PATCH /cases/:id (§3.5). */
@@ -309,6 +594,7 @@ export class CasesService {
     user: RequestUser,
     caseId: string,
     dto: UpdateCaseDto,
+    expectedVersion?: number,
   ): Promise<CaseDto> {
     this.assertClientRole(user);
     if (Object.keys(dto).length === 0) {
@@ -323,25 +609,47 @@ export class CasesService {
       budgetCentsOf(dto.budgetMode, dto.budgetAmountDollars);
     }
 
-    const hasPracticeChange = dto.practiceAreaId !== undefined;
+    const hasExtraChange = dto.extraPracticeAreaIds !== undefined;
+    const hasPracticeChange =
+      dto.practiceAreaId !== undefined || hasExtraChange;
     const hasStatesChange =
       dto.primaryStateCode !== undefined ||
       dto.additionalStateCodes !== undefined;
 
     // Validated outside the transaction (read-only lookups); the
     // transaction itself re-checks bids_count before writing.
-    const practiceArea = hasPracticeChange
-      ? await this.assertLeafPracticeArea(dto.practiceAreaId as string)
-      : null;
+    const practiceArea =
+      dto.practiceAreaId !== undefined
+        ? await this.assertLeafPracticeArea(dto.practiceAreaId)
+        : null;
+    // Owner 2026-10-05: files can be added/removed while the case is open.
+    if (dto.photoFileIds) {
+      await this.photos.assertAttachable(user.sub, dto.photoFileIds, caseId);
+    }
 
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
         where: { id: caseId },
         include: {
           states: { select: { state_code: true, is_primary: true } },
+          photos: { orderBy: { position: 'asc' }, select: { file_id: true } },
         },
       });
       if (!current || current.client_id !== user.sub) throw caseNotFound();
+      // Owner 2026-10-15: topics 2..N. Sent alone, they keep the first topic;
+      // sent with a new first topic, a repeat of it is dropped.
+      const nextPrimary = dto.practiceAreaId ?? current.practice_area_id;
+      const extraAreas = hasExtraChange
+        ? await this.assertExtraPracticeAreas(
+            nextPrimary,
+            dto.extraPracticeAreaIds ?? [],
+          )
+        : null;
+      const currentFiles = current.photos.map((p) => p.file_id);
+      const filesChanged =
+        dto.photoFileIds !== undefined &&
+        (dto.photoFileIds.length !== currentFiles.length ||
+          dto.photoFileIds.some((id, i) => id !== currentFiles[i]));
       if ((hasPracticeChange || hasStatesChange) && current.bids_count > 0) {
         throw statesLocked();
       }
@@ -379,35 +687,103 @@ export class CasesService {
         extra.description = dto.description;
         diff.description = { old: current.description, new: dto.description };
       }
+      // Owner 2026-10-18: private details; the journal never gets the text.
+      if (dto.privateDetails !== undefined) {
+        const next = dto.privateDetails.trim() || null;
+        if (next !== this.openDetails(current.private_details, caseId)) {
+          extra.private_details = await this.sealDetails(next, caseId);
+          diff.privateDetailsChanged = {
+            old: current.private_details !== null,
+            new: next !== null,
+          };
+        }
+      }
       if (dto.city !== undefined && dto.city !== current.city) {
         extra.city = dto.city;
         diff.city = { old: current.city, new: dto.city };
+      }
+      // Owner 2026-10-17: a percent budget is checked against the topics
+      // the case will have after this update.
+      const nextMode = dto.budgetMode ?? current.budget_mode;
+      if (
+        nextMode === 'percent' &&
+        (dto.budgetMode !== undefined || hasPracticeChange)
+      ) {
+        const extraIds =
+          extraAreas?.map((a) => a.id) ??
+          (
+            await tx.caseExtraPractice.findMany({
+              where: { case_id: caseId },
+              select: { practice_area_id: true },
+            })
+          ).map((e) => e.practice_area_id);
+        const codes = (
+          await tx.practiceArea.findMany({
+            where: { id: { in: [nextPrimary, ...extraIds] } },
+            select: { code: true },
+          })
+        ).map((a) => a.code);
+        assertContingency(
+          await contingencyPolicy(this.settings),
+          codes,
+          dto.budgetMode === undefined
+            ? (current.budget_percent_bps ?? undefined)
+            : dto.budgetPercentBps,
+          'budgetPercentBps',
+        );
       }
       if (dto.budgetMode !== undefined) {
         const budgetCents = budgetCentsOf(
           dto.budgetMode,
           dto.budgetAmountDollars,
         );
+        const budgetPercentBps =
+          dto.budgetMode === 'percent' ? (dto.budgetPercentBps ?? null) : null;
         if (
           dto.budgetMode !== current.budget_mode ||
-          budgetCents !== current.budget_cents
+          budgetCents !== current.budget_cents ||
+          budgetPercentBps !== current.budget_percent_bps
         ) {
           extra.budget_mode = dto.budgetMode;
           extra.budget_cents = budgetCents;
+          extra.budget_percent_bps = budgetPercentBps;
           diff.budget = {
-            old: { mode: current.budget_mode, cents: current.budget_cents },
-            new: { mode: dto.budgetMode, cents: budgetCents },
+            old: {
+              mode: current.budget_mode,
+              cents: current.budget_cents,
+              percentBps: current.budget_percent_bps,
+            },
+            new: {
+              mode: dto.budgetMode,
+              cents: budgetCents,
+              percentBps: budgetPercentBps,
+            },
           };
         }
       }
+      // Owner 2026-10-04: cover and urgency; null clears.
+      if (dto.coverKey !== undefined && dto.coverKey !== current.cover_key) {
+        extra.cover_key = dto.coverKey;
+        diff.coverKey = { old: current.cover_key, new: dto.coverKey };
+      }
+      // Owner 2026-10-05: a level or a date.
+      if (hasUrgencyInput(dto)) {
+        Object.assign(extra, urgencyDiff(dto, current, diff));
+      }
       if (
-        hasPracticeChange &&
+        dto.practiceAreaId !== undefined &&
         dto.practiceAreaId !== current.practice_area_id
       ) {
         extra.practice_area_id = dto.practiceAreaId;
         diff.practiceAreaId = {
           old: current.practice_area_id,
           new: dto.practiceAreaId,
+        };
+      }
+      if (filesChanged) {
+        diff.files = {
+          old: currentFiles.length,
+          new: dto.photoFileIds!.length,
         };
       }
       if (states) {
@@ -425,7 +801,29 @@ export class CasesService {
         caseId,
         action: 'client_edit',
         extra,
+        expectedVersion,
       });
+
+      if (extraAreas) {
+        diff.extraPracticeAreaIds = {
+          old: null,
+          new: extraAreas.map((a) => a.id),
+        };
+        await tx.caseExtraPractice.deleteMany({ where: { case_id: caseId } });
+        if (extraAreas.length > 0) {
+          await tx.caseExtraPractice.createMany({
+            data: extraAreas.map((a) => ({
+              case_id: caseId,
+              practice_area_id: a.id,
+            })),
+          });
+        }
+      }
+
+      if (filesChanged) {
+        await tx.casePhoto.deleteMany({ where: { case_id: caseId } });
+        await this.photos.attach(tx, caseId, dto.photoFileIds!);
+      }
 
       if (states) {
         await tx.caseState.deleteMany({ where: { case_id: caseId } });
@@ -475,11 +873,173 @@ export class CasesService {
       where: { case_id: caseId },
       select: { state_code: true, is_primary: true },
     });
-    return toCaseDto({
-      ...updated,
-      practice_area: finalPracticeArea,
-      states: finalStates,
+    const finalExtras = await this.prisma.caseExtraPractice.findMany({
+      where: { case_id: caseId },
+      ...EXTRA_PRACTICES_INCLUDE,
     });
+    return toCaseDto(
+      {
+        ...this.withOpenDetails(updated),
+        practice_area: finalPracticeArea,
+        extra_practices: finalExtras,
+        states: finalStates,
+      },
+      await this.thresholds(),
+      await this.staleTimers(),
+    );
+  }
+
+  /**
+   * PATCH /cases/:id/urgency (owner 2026-10-05): the level or the date
+   * alone. The client changes it while the case is open or in work; the
+   * hired attorney too (they often learn the court date first). The other
+   * side is told: the hired attorney or the client (`case_deadline_changed`),
+   * or, on an open case, the attorneys with an active bid (`case_updated`).
+   */
+  async updateUrgency(
+    user: RequestUser,
+    caseId: string,
+    dto: UrgencyInput,
+    expectedVersion?: number,
+  ): Promise<CaseDto> {
+    if (!hasUrgencyInput(dto)) {
+      throw validationError('Send urgency, deadlineAt or deadlineKind.');
+    }
+    if (user.role !== 'client' && user.role !== 'attorney') {
+      throw forbidden('Only the client or the hired attorney can do this.');
+    }
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        include: { accepted_bid: { select: { attorney_id: true } } },
+      });
+      if (!current || current.deleted_at) throw caseNotFound();
+      const hiredAttorney = current.accepted_bid?.attorney_id ?? null;
+      const isClient = user.role === 'client' && current.client_id === user.sub;
+      const isAttorney =
+        user.role === 'attorney' &&
+        hiredAttorney === user.sub &&
+        current.status !== 'open';
+      if (!isClient && !isAttorney) throw caseNotFound();
+
+      const diff: Record<string, { old: unknown; new: unknown }> = {};
+      const extra = urgencyDiff(dto, current, diff);
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'set_urgency',
+        expectedVersion,
+        // OQ-054: only the client's own change counts as their activity.
+        extra: isClient ? { ...extra, client_active_at: new Date() } : extra,
+      });
+      if (Object.keys(diff).length === 0) return afterCase;
+      await this.journal.append(tx, {
+        caseId,
+        clientId: current.client_id,
+        actor: { userId: user.sub, role: isClient ? 'client' : 'attorney' },
+        event: plan.event,
+        payload: diff as unknown as Prisma.InputJsonObject,
+      });
+      const deadlineAt = afterCase.deadline_at
+        ? afterCase.deadline_at.toISOString().slice(0, 10)
+        : null;
+      if (current.status === 'open') {
+        const bidders = await tx.bid.findMany({
+          where: { case_id: caseId, status: 'active' },
+          select: { attorney_id: true },
+          distinct: ['attorney_id'],
+        });
+        for (const { attorney_id } of bidders) {
+          await this.notifications.emit(
+            {
+              type: 'case_updated',
+              recipientId: attorney_id,
+              payload: { caseId },
+            },
+            tx,
+          );
+        }
+      } else {
+        const recipient = isClient ? hiredAttorney : current.client_id;
+        if (recipient) {
+          await this.notifications.emit(
+            {
+              type: 'case_deadline_changed',
+              recipientId: recipient,
+              payload: { caseId, actorId: user.sub, deadlineAt },
+            },
+            tx,
+          );
+        }
+      }
+      return afterCase;
+    });
+    return this.toFullDto(updated);
+  }
+
+  /** PATCH /cases/:id/private-details — audit 2026-10-19: the client's
+   * «Подробности» were write-once (the case edit is for open cases only).
+   * Now the client changes them while the case is open or in work; the
+   * hired attorney is told, the journal never gets the text. */
+  async updatePrivateDetails(
+    user: RequestUser,
+    caseId: string,
+    dto: UpdatePrivateDetailsDto,
+    expectedVersion?: number,
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        select: {
+          client_id: true,
+          deleted_at: true,
+          status: true,
+          private_details: true,
+          accepted_bid: { select: { attorney_id: true } },
+        },
+      });
+      if (!current || current.deleted_at || current.client_id !== user.sub) {
+        throw caseNotFound();
+      }
+      const next = dto.privateDetails.trim() || null;
+      const changed =
+        next !== this.openDetails(current.private_details, caseId);
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'client_set_private_details',
+        expectedVersion,
+        extra: changed
+          ? { private_details: await this.sealDetails(next, caseId) }
+          : {},
+      });
+      if (!changed) return afterCase;
+      await this.journal.append(tx, {
+        caseId,
+        clientId: user.sub,
+        actor: { userId: user.sub, role: 'client' },
+        event: plan.event,
+        payload: {
+          privateDetailsChanged: {
+            old: current.private_details !== null,
+            new: next !== null,
+          },
+        },
+      });
+      // Audit 2026-10-19: the hired attorney is told (ids only).
+      const attorney = current.accepted_bid?.attorney_id ?? null;
+      if (attorney && current.status !== 'open') {
+        await this.notifications.emit(
+          {
+            type: 'case_workspace_activity',
+            recipientId: attorney,
+            payload: { caseId, actorId: user.sub, kind: 'details' },
+          },
+          tx,
+        );
+      }
+      return afterCase;
+    });
+    return this.toFullDto(updated);
   }
 
   /** POST /cases/:id/close (§3.5 "Закрыть кейс"). */
@@ -528,8 +1088,47 @@ export class CasesService {
     return this.toFullDto(updated);
   }
 
-  /** POST /cases/:id/keep-alive (§10.2 "Да, актуален"). */
+  /** POST /cases/:id/keep-alive (§10.2 "Да, актуален") — same as the
+   * OQ-054 answer `still_needed`. */
   async keepAlive(user: RequestUser, caseId: string): Promise<CaseDto> {
+    return this.resetSilence(user, caseId, { keepAlive: true });
+  }
+
+  /**
+   * POST /cases/:id/still-needed (OQ-054, owner only): the client's answer
+   * to «Вам ещё нужен адвокат?».
+   * - `still_needed` («Да, нужен») and `wait_better` («Жду предложений
+   *   получше»): a fresh silent period; the question and a pause are
+   *   cleared.
+   * - `not_needed` («Уже не нужен»): the client withdraws the case — the
+   *   normal close path (bids rejected, chats closed).
+   * - `make_not_urgent` («Сменить на «Не срочно»»): urgent / very urgent
+   *   cases older than 7 days only; urgency becomes flexible, same reset.
+   */
+  async answerStillNeeded(
+    user: RequestUser,
+    caseId: string,
+    answer: StillNeededAnswer,
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    switch (answer) {
+      case 'not_needed':
+        return this.close(user, caseId);
+      case 'make_not_urgent':
+        return this.resetSilence(
+          user,
+          caseId,
+          { stillNeeded: answer },
+          { toFlexible: true },
+        );
+      default:
+        return this.resetSilence(user, caseId, { stillNeeded: answer });
+    }
+  }
+
+  /** POST /cases/:id/resume (OQ-054, owner only): bring a paused case back
+   * into the feed; the silent period starts over. */
+  async resume(user: RequestUser, caseId: string): Promise<CaseDto> {
     this.assertClientRole(user);
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const current = await tx.case.findUnique({
@@ -539,14 +1138,69 @@ export class CasesService {
       if (!current || current.client_id !== user.sub) throw caseNotFound();
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
-        action: 'client_keep_alive',
+        action: 'client_resume',
       });
       await this.journal.append(tx, {
         caseId,
         clientId: user.sub,
         actor: { userId: user.sub, role: 'client' },
         event: plan.event,
-        payload: { keepAlive: true },
+        payload: { resumed: true },
+      });
+      return afterCase;
+    });
+    return this.toFullDto(updated);
+  }
+
+  /** The shared body of «Да, нужен» / «Жду…» / «Сменить на «Не срочно»»:
+   * client_keep_alive, optionally with urgency → flexible. */
+  private async resetSilence(
+    user: RequestUser,
+    caseId: string,
+    payload: Prisma.InputJsonObject,
+    opts: { toFlexible?: boolean } = {},
+  ): Promise<CaseDto> {
+    this.assertClientRole(user);
+    const updated = await withTxRetry(this.prisma, async (tx) => {
+      const current = await tx.case.findUnique({
+        where: { id: caseId },
+        select: {
+          client_id: true,
+          urgency: true,
+          deadline_at: true,
+          deadline_kind: true,
+          created_at: true,
+          status: true,
+        },
+      });
+      if (!current || current.client_id !== user.sub) throw caseNotFound();
+      const diff: Record<string, { old: unknown; new: unknown }> = {};
+      let extra: Partial<ReturnType<typeof resolveUrgencyInput>> = {};
+      if (opts.toFlexible) {
+        if (
+          current.status === 'open' &&
+          !canMakeNotUrgent(current.urgency, current.created_at, new Date())
+        ) {
+          throw new ConflictException({
+            code: ErrorCode.CASE_INVALID_STATE,
+            message:
+              'Only an urgent case older than a week can be changed to not urgent.',
+            details: { reason: 'not_offered' },
+          });
+        }
+        extra = urgencyDiff({ urgency: 'flexible' }, current, diff);
+      }
+      const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
+        caseId,
+        action: 'client_keep_alive',
+        extra,
+      });
+      await this.journal.append(tx, {
+        caseId,
+        clientId: user.sub,
+        actor: { userId: user.sub, role: 'client' },
+        event: plan.event,
+        payload: { ...payload, ...(diff as unknown as Prisma.InputJsonObject) },
       });
       return afterCase;
     });
@@ -561,13 +1215,22 @@ export class CasesService {
     this.assertClientRole(user);
     const filter = query.filter ?? 'active';
     const limit = query.limit ?? MY_CASES_PAGE_DEFAULT;
-    const cursor = query.cursor ? decodeCursor(query.cursor) : undefined;
+    // Owner 2026-10-22 (client economy plan, package E): the delta — every
+    // case of mine changed since; the ones outside this tab now come back
+    // as deletedIds (the status moved them to another tab, or they are gone).
+    const since = parseUpdatedSince(query.updatedSince);
+    const cursor =
+      query.cursor && !since ? decodeCursor(query.cursor) : undefined;
     const rows = await this.prisma.case.findMany({
       where: {
         client_id: user.sub,
-        status: FILTER_STATUSES[filter],
-        // Owner 2026-09-30: search and filters in "Mine".
-        ...mineCaseWhere(query),
+        ...(since
+          ? { updated_at: { gte: since } }
+          : {
+              status: FILTER_STATUSES[filter],
+              // Owner 2026-09-30: search and filters in "Mine".
+              ...(await mineWhere(this.prisma, query)),
+            }),
         ...(cursor
           ? {
               OR: [
@@ -578,24 +1241,44 @@ export class CasesService {
           : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-      take: limit + 1,
+      take: since ? 500 : limit + 1,
       include: CASE_DETAIL_INCLUDE,
     });
-    const page = rows.slice(0, limit);
+    const inTab = (k: (typeof rows)[number]) => {
+      const s = FILTER_STATUSES[filter];
+      const allowed = Array.isArray(s)
+        ? (s as unknown[])
+        : typeof s === 'object' && s !== null && 'in' in s
+          ? ((s as { in: unknown[] }).in ?? [])
+          : [s];
+      return k.deleted_at === null && allowed.includes(k.status);
+    };
+    const page = since ? rows.filter(inTab) : rows.slice(0, limit);
     const last = page[page.length - 1];
     const covers = await this.photos.coverUrls(
       page.map((k) => k.id),
       user.sub,
     );
+    const t = await this.thresholds();
+    const stale = await this.staleTimers();
     return {
       items: page.map((k) => ({
-        ...toSummaryDto(k),
+        ...toSummaryDto(k, t, stale),
         coverUrl: covers.get(k.id) ?? null,
       })),
       nextCursor:
-        rows.length > limit && last
+        !since && rows.length > limit && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
+      ...(since
+        ? {
+            deletedIds: rows.filter((k) => !inTab(k)).map((k) => k.id),
+            syncedAt: syncedAt(
+              rows.map((k) => k.updated_at),
+              since,
+            ),
+          }
+        : {}),
     };
   }
 
@@ -610,17 +1293,38 @@ export class CasesService {
   /** §2 matrix: verified contacts + completed onboarding before a client
    * can post a case. Account status (active vs suspended/deleted) is
    * already gated at the session layer for every authenticated route. */
+  /** Owner 2026-10-05: the plan may cap open cases (0 = unlimited). */
+  private async assertUnderCaseLimit(userId: string): Promise<void> {
+    const limit = await this.entitlements?.limit(userId, 'max_active_cases');
+    if (!limit || limit <= 0) return;
+    const open = await this.prisma.case.count({
+      where: { client_id: userId, status: 'open' },
+    });
+    if (open >= limit) {
+      throw new ConflictException({
+        code: ErrorCode.CASE_LIMIT_REACHED,
+        message: 'Your plan allows no more open cases at once.',
+        details: { limit, open },
+      });
+    }
+  }
+
   private async assertClientReady(userId: string): Promise<void> {
     const me = await this.onboarding.getMe(userId);
     if (me.role !== 'client') throw forbidden('Only clients can post cases.');
-    if (!me.phoneVerified || !me.emailVerified) {
+    // Owner 2026-10-13: the e-mail is a profile field (no code); it is
+    // required only while getMe lists it as missing.
+    const emailMissing = me.missing.includes('email');
+    if (!me.phoneVerified || emailMissing) {
       throw new ForbiddenException({
         code: ErrorCode.CLIENT_CONTACTS_INCOMPLETE,
-        message: 'Verify your phone and email before posting a case.',
+        message: emailMissing
+          ? 'Verify your phone and add your email before posting a case.'
+          : 'Verify your phone before posting a case.',
         details: {
           missing: [
             ...(me.phoneVerified ? [] : ['phone_verified']),
-            ...(me.emailVerified ? [] : ['email_verified']),
+            ...(emailMissing ? ['email'] : []),
           ],
         },
       });
@@ -658,6 +1362,12 @@ export class CasesService {
         invalid,
       });
     }
+    // Owner 2026-10-05: new cases only in switched-on countries.
+    const closed = await db.state.findFirst({
+      where: { code: { in: codes }, country: { is_enabled: false } },
+      select: { country_code: true },
+    });
+    if (closed) throw notAvailable(closed.country_code);
   }
 
   private async assertLeafPracticeArea(
@@ -681,6 +1391,45 @@ export class CasesService {
     return area;
   }
 
+  /**
+   * Owner 2026-10-15: up to `case.max_practices` topics in all (the admin
+   * sets it). The extras are leaves too, distinct, and never the first topic.
+   */
+  private async assertExtraPracticeAreas(
+    primaryId: string,
+    ids: string[],
+  ): Promise<PracticeRef[]> {
+    const unique = [...new Set(ids)].filter((id) => id !== primaryId);
+    if (unique.length === 0) return [];
+    const max = Math.max(
+      1,
+      (await this.settings?.number('case.max_practices')) ?? 3,
+    );
+    if (unique.length + 1 > max) {
+      throw validationError(`A case can have up to ${max} topics.`, {
+        field: 'extraPracticeAreaIds',
+        max,
+      });
+    }
+    const areas = await this.prisma.practiceArea.findMany({
+      where: {
+        id: { in: unique },
+        is_active: true,
+        parent_id: { not: null },
+        parent: { is_active: true },
+      },
+      select: PRACTICE_AREA_SELECT,
+      orderBy: { sort: 'asc' },
+    });
+    if (areas.length !== unique.length) {
+      throw validationError(
+        'extraPracticeAreaIds must be active specializations (leaves).',
+        { field: 'extraPracticeAreaIds' },
+      );
+    }
+    return areas;
+  }
+
   private async practiceAreaOf(
     id: string,
   ): Promise<{ id: string; code: string; name_en: string; i18n_key: string }> {
@@ -691,14 +1440,37 @@ export class CasesService {
   }
 
   async toFullDto(kase: Case): Promise<CaseDto> {
-    const [practiceArea, states] = await Promise.all([
+    const [practiceArea, extras, states] = await Promise.all([
       this.practiceAreaOf(kase.practice_area_id),
+      this.prisma.caseExtraPractice.findMany({
+        where: { case_id: kase.id },
+        ...EXTRA_PRACTICES_INCLUDE,
+      }),
       this.prisma.caseState.findMany({
         where: { case_id: kase.id },
         select: { state_code: true, is_primary: true },
       }),
     ]);
-    return toCaseDto({ ...kase, practice_area: practiceArea, states });
+    return toCaseDto(
+      {
+        ...this.withOpenDetails(kase),
+        practice_area: practiceArea,
+        extra_practices: extras,
+        states,
+      },
+      await this.thresholds(),
+      await this.staleTimers(),
+    );
+  }
+
+  /** Owner 2026-10-05: the admin's urgency thresholds (days left). */
+  thresholds(): Promise<UrgencyThresholds> {
+    return loadUrgencyThresholds(this.settings);
+  }
+
+  /** OQ-054: the admin's stale-case timers (for the dates on the prompt). */
+  staleTimers(): Promise<StaleTimers> {
+    return loadStaleTimers(this.settings);
   }
 
   /** Shared body of close/delete: the state transition plus auto-rejecting
@@ -755,6 +1527,8 @@ export class CasesService {
           tx,
         );
       }
+      // OQ-048: assistants' bid drafts for this case can't be sent now.
+      await tx.bidDraft.deleteMany({ where: { case_id: caseId } });
       // docs/04 §9: pre-acceptance chats become read-only ("Кейс закрыт").
       chat.push(
         ...(await this.chat.post(

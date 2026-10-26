@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AnalyticsConsentService } from '../../analytics/analytics-consent.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { SaveConsentsDto } from '../dto/consents.dto';
 import type { RequestMeta } from '../../auth/services/session.service';
@@ -19,7 +20,11 @@ import type { RequestMeta } from '../../auth/services/session.service';
  */
 @Injectable()
 export class ConsentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Owner 2026-10-22: a new «analytics» answer applies at once.
+    @Optional() private readonly analytics?: AnalyticsConsentService,
+  ) {}
 
   async save(
     userId: string,
@@ -35,5 +40,8 @@ export class ConsentsService {
         ip: meta.ip,
       })),
     });
+    if (dto.consents.some((c) => c.type === 'analytics')) {
+      await this.analytics?.invalidate(userId);
+    }
   }
 }

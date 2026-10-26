@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Shared frame for every `/onboarding/<step>` screen (docs/01_FOUNDATION_
 /// AUTH.md §11: "Прогресс-бар сверху, кнопка «Назад» везде"):
@@ -26,11 +27,24 @@ class OnboardingScaffold extends ConsumerWidget {
     this.primaryLabel,
     this.onPrimary,
     this.primaryLoading = false,
+    this.primaryEnabled = true,
     this.secondary,
     this.onBack,
     this.error,
     this.footnote,
+    this.body,
+    this.progress,
   });
+
+  /// Replaces the scrolling [children] column with a widget that manages
+  /// its own scrolling and actions (e.g. the practices editor); the title
+  /// stays on top.
+  final Widget? body;
+
+  /// (current, total) override of the progress bar — the attorney's
+  /// verification step shows its own sub-steps (licence, practices,
+  /// subscription) as segments.
+  final (int, int)? progress;
 
   final OnboardingStepId step;
   final String title;
@@ -39,6 +53,9 @@ class OnboardingScaffold extends ConsumerWidget {
   final String? primaryLabel;
   final VoidCallback? onPrimary;
   final bool primaryLoading;
+
+  /// False while the form is incomplete: the button is grey and inert.
+  final bool primaryEnabled;
 
   /// Usually a text-style "Skip"/"Later" [AppButton] (secondary variant).
   final Widget? secondary;
@@ -59,117 +76,155 @@ class OnboardingScaffold extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final role = ref.watch(currentUserRoleProvider);
     final blocker = ref.watch(onboardingBlockerProvider);
-    final shownError =
-        error ?? (blocker?.step == step ? blocker!.error : null);
+    final shownError = error ?? (blocker?.step == step ? blocker!.error : null);
     final order = OnboardingStepId.orderFor(role);
     final index = order.indexOf(step);
-    final current = index < 0 ? order.length : index + 1;
+    // An attorney's verification step shows three sub-steps (licence,
+    // practices, subscription) instead of one segment: count them on every
+    // step so the bar has the same length from start to finish.
+    final extra = role == UserRole.attorney ? 2 : 0;
+    final (current, total) = progress ??
+        (
+          index < 0 ? order.length + extra : index + 1,
+          order.length + extra,
+        );
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.screenSide - AppSpacing.sm,
-                AppSpacing.sm,
-                AppSpacing.screenSide,
-                0,
-              ),
-              child: Row(
-                children: [
-                  if (onBack != null)
-                    AppBackButton(
-                        semanticLabel: t.t('common.back'), onPressed: onBack!)
-                  else
-                    const SizedBox(
-                        width: AppSizes.touchTarget,
-                        height: AppSizes.touchTarget),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: AppStepProgress(
-                      total: order.length,
-                      current: current,
-                      semanticLabel: t.t('common.stepOf', {
-                        'current': '$current',
-                        'total': '${order.length}',
-                      }),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  AppSpacing.xl,
-                  AppSpacing.screenSide,
-                  AppSpacing.xl,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: staggeredEntrance([
-                    Semantics(
-                      header: true,
-                      child: Text(title,
-                          style: typography.titleLarge
-                              .copyWith(color: colors.text)),
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        subtitle!,
-                        style: typography.body
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.xl),
-                    ...children,
-                  ]),
-                ),
-              ),
-            ),
-            if (primaryLabel != null || secondary != null || shownError != null)
+    return StepBackGesture(
+      onBack: onBack,
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  AppSpacing.screenSide - AppSpacing.sm,
                   AppSpacing.sm,
                   AppSpacing.screenSide,
-                  AppSpacing.lg,
+                  0,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: Row(
                   children: [
-                    if (shownError != null) ...[
-                      ActionErrorBanner(error: shownError),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
-                    if (primaryLabel != null)
-                      AppButton(
-                        label: primaryLabel!,
-                        isLoading: primaryLoading,
-                        onPressed: onPrimary,
+                    if (onBack != null)
+                      AppBackButton(
+                        semanticLabel: t.t('common.back'),
+                        onPressed: onBack!,
+                      )
+                    else
+                      const SizedBox(
+                        width: AppSizes.touchTarget,
+                        height: AppSizes.touchTarget,
                       ),
-                    if (footnote != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        footnote!,
-                        textAlign: TextAlign.center,
-                        style: typography.caption
-                            .copyWith(color: colors.textSecondary),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: AppStepProgress(
+                        total: total,
+                        current: current,
+                        semanticLabel: t.t('common.stepOf', {
+                          'current': '$current',
+                          'total': '$total',
+                        }),
                       ),
-                    ],
-                    if (secondary != null) ...[
-                      const SizedBox(height: AppSpacing.sm),
-                      secondary!,
-                    ],
+                    ),
                   ],
                 ),
               ),
-          ],
+              if (body != null) ...[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.lg,
+                    AppSpacing.screenSide,
+                    0,
+                  ),
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      title,
+                      style: typography.titleLarge.copyWith(color: colors.text),
+                    ),
+                  ),
+                ),
+                Expanded(child: body!),
+              ] else
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenSide,
+                      AppSpacing.xl,
+                      AppSpacing.screenSide,
+                      AppSpacing.xl,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: staggeredEntrance([
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            title,
+                            style: typography.titleLarge
+                                .copyWith(color: colors.text),
+                          ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            subtitle!,
+                            style: typography.body
+                                .copyWith(color: colors.textSecondary),
+                          ),
+                        ],
+                        const SizedBox(height: AppSpacing.xl),
+                        ...children,
+                      ]),
+                    ),
+                  ),
+                ),
+              if (primaryLabel != null ||
+                  secondary != null ||
+                  shownError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenSide,
+                    AppSpacing.sm,
+                    AppSpacing.screenSide,
+                    AppSpacing.lg,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (shownError != null) ...[
+                        ActionErrorBanner(error: shownError),
+                        const SizedBox(height: AppSpacing.md),
+                      ],
+                      if (primaryLabel != null)
+                        AppButton(
+                          label: primaryLabel!,
+                          isLoading: primaryLoading,
+                          // Owner 2026-10-11: grey and not tappable until the
+                          // required data is in.
+                          isEnabled: primaryEnabled,
+                          onPressed: onPrimary,
+                        ),
+                      if (footnote != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          footnote!,
+                          textAlign: TextAlign.center,
+                          style: typography.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
+                      ],
+                      if (secondary != null) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        secondary!,
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -206,14 +261,18 @@ class ActionErrorBanner extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AppIcon(
-                offline ? AppIcons.wifiOffRounded : AppIcons.errorOutlineRounded,
+                offline
+                    ? AppIcons.wifiOffRounded
+                    : AppIcons.errorOutlineRounded,
                 size: AppSizes.iconSm,
-                color: offline ? colors.goldDark : colors.danger,
+                color: offline ? colors.iconTint : colors.danger,
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text(message,
-                    style: typography.bodySmall.copyWith(color: colors.text)),
+                child: Text(
+                  message,
+                  style: typography.bodySmall.copyWith(color: colors.text),
+                ),
               ),
             ],
           ),
@@ -237,8 +296,10 @@ class StepSectionLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: Semantics(
         header: true,
-        child: Text(text,
-            style: typography.caption.copyWith(color: colors.textSecondary)),
+        child: Text(
+          text,
+          style: typography.caption.copyWith(color: colors.textSecondary),
+        ),
       ),
     );
   }

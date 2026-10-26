@@ -1,0 +1,346 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/features/support/application/support_providers.dart';
+import 'package:lawbid/features/support/domain/support_models.dart';
+import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
+import 'package:lawbid/features/support/presentation/support_attachment_widgets.dart';
+
+/// Owner 2026-10-02 — one request: the conversation with the team, a reply
+/// box while it is open, "Close request".
+class SupportTicketScreen extends ConsumerStatefulWidget {
+  const SupportTicketScreen({required this.ticketId, super.key});
+
+  final String ticketId;
+
+  @override
+  ConsumerState<SupportTicketScreen> createState() =>
+      _SupportTicketScreenState();
+}
+
+class _SupportTicketScreenState extends ConsumerState<SupportTicketScreen> {
+  final _text = TextEditingController();
+  late final SupportAttachController _files = SupportAttachController(ref);
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _files.addListener(_changed);
+    _text.addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _files
+      ..removeListener(_changed)
+      ..dispose();
+    _text
+      ..removeListener(_changed)
+      ..dispose();
+    super.dispose();
+  }
+
+  /// Words or at least one file, and every file finished uploading.
+  bool get _canSend =>
+      !_busy &&
+      _files.settled &&
+      (_text.text.trim().isNotEmpty || _files.attachments.isNotEmpty);
+
+  Future<void> _run(Future<void> Function() action) async {
+    final t = ref.read(translatorProvider);
+    setState(() => _busy = true);
+    try {
+      await action();
+      ref.invalidate(supportTicketProvider(widget.ticketId));
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final body = _text.text.trim();
+    if (!_canSend) return;
+    await _run(() async {
+      await ref.read(supportRepositoryProvider).reply(
+            widget.ticketId,
+            body,
+            attachments: _files.attachments,
+          );
+      _text.clear();
+      _files.clear();
+    });
+  }
+
+  /// Audit 2026-10-04: closing is permanent — confirm first.
+  Future<void> _close() async {
+    final t = ref.read(translatorProvider);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AppAlertDialog(
+        content: Text(t.t('support.close.confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(t.t('common.cancel')),
+          ),
+          TextButton(
+            key: const ValueKey('support-close-confirm'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(t.t('support.close')),
+          ),
+        ],
+      ),
+    );
+    if (!(ok ?? false) || !mounted) return;
+    await _run(
+      () => ref.read(supportRepositoryProvider).close(widget.ticketId),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final f = ref.watch(l10nFormatsProvider);
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final async = ref.watch(supportTicketProvider(widget.ticketId));
+
+    Widget bubble(SupportMessage m) {
+      final team = m.fromTeam;
+      return Align(
+        alignment: team
+            ? AlignmentDirectional.centerStart
+            : AlignmentDirectional.centerEnd,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.82,
+          ),
+          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: team ? colors.surface : colors.accent,
+            borderRadius: BorderRadius.circular(16),
+            border: team ? Border.all(color: colors.goldStroke) : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (team)
+                Text(
+                  m.authorName ?? t.t('support.team'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.caption.copyWith(
+                    color: colors.goldDark,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              if (m.body.isNotEmpty)
+                Text(
+                  m.body,
+                  style: type.body.copyWith(
+                    color: team ? colors.text : colors.onAccent,
+                    height: 1.35,
+                  ),
+                ),
+              SupportMessageFiles(attachments: m.attachments),
+              const SizedBox(height: 2),
+              Text(
+                f.dateTime(m.createdAt),
+                style: type.caption.copyWith(
+                  fontSize: 11,
+                  color: (team ? colors.textSecondary : colors.onAccent)
+                      .withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: colors.bg,
+      appBar: AppTopBar(
+        title: Text(async.value?.subject ?? t.t('support.title')),
+        leading: AppBackButton(
+          semanticLabel: t.t('common.back'),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        actions: [
+          if (async.value?.isOpen ?? false)
+            // Capped so a long translation can't squeeze the title away.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 140),
+              child: TextButton(
+                onPressed: _busy ? null : _close,
+                child: Text(
+                  t.t('support.close'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+        ],
+      ),
+      body: SafeArea(
+        top: false,
+        child: async.when(
+          loading: () =>
+              Center(child: CircularProgressIndicator(color: colors.gold)),
+          error: (e, _) => AppErrorState(
+            message: errorText(t, e),
+            retryLabel: t.t('error.retry'),
+            onRetry: () =>
+                ref.invalidate(supportTicketProvider(widget.ticketId)),
+          ),
+          data: (ticket) => Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(AppSpacing.screenSide),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: Text(
+                        '${t.t('support.category.${ticket.category.wire}')} · '
+                        '${t.t('support.status.${ticket.status.wire}')}',
+                        textAlign: TextAlign.center,
+                        style: type.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    for (final m in ticket.messages) bubble(m),
+                  ],
+                ),
+              ),
+              if (ticket.canReply)
+                Container(
+                  color: colors.surface,
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    AppSpacing.xs,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          start: AppSpacing.sm,
+                        ),
+                        child: SupportDraftStrip(controller: _files),
+                      ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          SupportAttachButton(
+                            controller: _files,
+                            enabled: !_busy,
+                          ),
+                          // Owner 2026-10-19: like the chat, the counter
+                          // shows near the limit, inside the field.
+                          Expanded(
+                            child: ListenableBuilder(
+                              listenable: _text,
+                              builder: (context, _) {
+                                final max =
+                                    TextLimits.of(TextLimit.supportMessage);
+                                final from = (max * 0.9).ceil();
+                                final near =
+                                    _text.text.characters.length >= from;
+                                return InsideCounter(
+                                  controller: _text,
+                                  max: max,
+                                  showFrom: from,
+                                  child: TextField(
+                                    controller: _text,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    maxLength: max,
+                                    buildCounter: noFieldCounter,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    style:
+                                        type.body.copyWith(color: colors.text),
+                                    decoration: InputDecoration(
+                                      hintText: t.t('support.reply'),
+                                      // M3 outline padding + counter room.
+                                      contentPadding:
+                                          EdgeInsetsDirectional.fromSTEB(
+                                        12,
+                                        20,
+                                        12,
+                                        12 + (near ? kInsideCounterRoom : 0),
+                                      ),
+                                      filled: true,
+                                      fillColor: colors.bg,
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.border),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.border),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(24),
+                                        borderSide:
+                                            BorderSide(color: colors.gold),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.xs),
+                          AppIconButton(
+                            icon: AppIcon(
+                              AppIcons.arrowUpwardRounded,
+                              color: _canSend
+                                  ? colors.iconTint
+                                  : colors.textSecondary,
+                            ),
+                            semanticLabel: t.t('support.send'),
+                            onPressed: _canSend ? _send : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: Text(
+                    t.t('support.closedNote'),
+                    textAlign: TextAlign.center,
+                    style: type.bodySmall.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -10,6 +9,9 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
+import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
+    show GiftHeaderButton;
+import 'package:lawbid/shared/presentation/guest_gate.dart';
 
 /// Loads `GET /attorneys/:username` and renders every screen state:
 /// skeleton, error + Retry, offline, "Profile unavailable" (404 — unknown,
@@ -35,14 +37,18 @@ class AttorneyProfileBody extends ConsumerWidget {
     void retry() => ref.invalidate(publicAttorneyProfileProvider(username));
 
     return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+      // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+      // swap at once (Instagram), no cross-fade.
+      duration: Duration.zero,
       child: profile.when(
         skipLoadingOnReload: true,
         loading: () => const AttorneyProfileSkeleton(key: ValueKey('loading')),
         error: (error, _) {
           if (error is ApiException && error.code == ApiErrorCodes.notFound) {
             return ProfileUnavailableState(
-                key: const ValueKey('404'), onBack: onBack);
+              key: const ValueKey('404'),
+              onBack: onBack,
+            );
           }
           if (isOfflineError(error)) {
             return AppOfflineState(
@@ -57,6 +63,25 @@ class AttorneyProfileBody extends ConsumerWidget {
                 onPressed: retry,
               ),
             );
+          }
+          // Owner 2026-10-22 (guest browsing): the profile is read with no
+          // token. The API says 401 when the guest switch is off, 429 when
+          // this address looked at too much — say that, with a way on.
+          if (error is ApiException && error.guest) {
+            if (error.code == ApiErrorCodes.unauthorized) {
+              return GuestGateView(
+                key: const ValueKey('guest'),
+                message: t.t('guest.profile.signIn'),
+              );
+            }
+            if (error.code == ApiErrorCodes.rateLimited) {
+              return AppErrorState(
+                key: const ValueKey('guest-later'),
+                message: apiErrorText(t, error),
+                retryLabel: t.t('error.retry'),
+                onRetry: retry,
+              );
+            }
           }
           return AppErrorState(
             key: const ValueKey('error'),
@@ -85,7 +110,7 @@ class AttorneyProfileBody extends ConsumerWidget {
 }
 
 /// `/lawyer/:username` — someone's public attorney profile, also the
-/// landing screen of the `lawbid.app/lawyer/:username` deep link.
+/// landing screen of the `lawbid.dev/lawyer/:username` deep link.
 class AttorneyProfileScreen extends ConsumerWidget {
   const AttorneyProfileScreen({
     required this.username,
@@ -117,10 +142,15 @@ class AttorneyProfileScreen extends ConsumerWidget {
       appBar: ProfileHandleBar(
         handle: username,
         leading: AppBackButton(
-            semanticLabel: t.t('common.back'),
-            onPressed: () => _leave(context)),
+          semanticLabel: t.t('common.back'),
+          onPressed: () => _leave(context),
+        ),
         // Owner 2026-09-30: "⋯" (Block / Report) opposite the @username.
         actions: [
+          // Owner 2026-10-21: their gifts behind an icon up here.
+          if (ref.watch(publicAttorneyProfileProvider(username)).value
+              case final p? when !(p.isBlocked || p.hasBlockedMe))
+            GiftHeaderButton(userId: p.id, isMe: p.isSelf),
           if (ref.watch(publicAttorneyProfileProvider(username)).value
               case final p? when !p.isSelf)
             AppIconButton(

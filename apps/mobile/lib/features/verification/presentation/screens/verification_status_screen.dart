@@ -7,6 +7,11 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/trust/application/trust_providers.dart';
+import 'package:lawbid/features/trust/domain/trust_models.dart';
+import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
@@ -30,8 +35,22 @@ class VerificationStatusScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final t = ref.watch(translatorProvider);
+    // Reload the signed-in user once verified, so the practices screen and the
+    // Cases tab stop treating the attorney as unverified.
+    ref.listen(verificationOverviewProvider, (_, next) {
+      final o = next.value;
+      if (o != null && viewOf(o) == VerificationView.verified) {
+        ref.read(currentUserControllerProvider.notifier).load();
+      }
+    });
     final async = ref.watch(verificationOverviewProvider);
     final controller = ref.read(verificationOverviewProvider.notifier);
+    // Owner 2026-10-07 (phone test): one source of truth — the screen says
+    // «verified» only when the profile has the blue check.
+    final trust =
+        async.value != null && viewOf(async.value!) == VerificationView.verified
+            ? ref.watch(myTrustProvider).value
+            : null;
     ref.listen(connectivityStatusProvider, (previous, next) {
       final current = ref.read(verificationOverviewProvider);
       if ((previous?.isOffline ?? false) && next.isOnline && current.hasError) {
@@ -49,23 +68,28 @@ class VerificationStatusScreen extends ConsumerWidget {
         ),
       ),
       body: AnimatedSwitcher(
-        duration: context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+        // Owner 2026-10-19 («мигание»): loading, data and tab bodies
+        // swap at once (Instagram), no cross-fade.
+        duration: Duration.zero,
         child: switch (async) {
           AsyncData(:final value) => KeyedSubtree(
               key: ValueKey('status-${viewOf(value).name}'),
               child: RefreshIndicator(
                 color: colors.gold,
                 onRefresh: () async {
+                  ref.invalidate(myTrustProvider);
                   try {
                     await controller.refresh();
                   } on Object catch (e) {
-                    if (context.mounted)
+                    if (context.mounted) {
                       showAppSnackBar(context, errorText(t, e));
+                    }
                   }
                 },
                 child: _StatusBody(
                   t: t,
                   overview: value,
+                  trust: trust,
                   onOpenWizard: () => _openWizard(context, ref),
                 ),
               ),
@@ -102,10 +126,15 @@ class _StatusBody extends StatelessWidget {
     required this.t,
     required this.overview,
     required this.onOpenWizard,
+    this.trust,
   });
 
   final Translator t;
   final VerificationOverview overview;
+
+  /// The attorney's trust facts; the blue check ([PublicTrust.badge]) is
+  /// what makes the screen say «verified». Null while loading.
+  final OwnTrust? trust;
   final VoidCallback onOpenWizard;
 
   @override
@@ -121,7 +150,6 @@ class _StatusBody extends StatelessWidget {
           label: label,
           icon: icon,
           isEnabled: enabled,
-          dimWhenDisabled: true,
           onPressed: enabled ? onOpenWizard : null,
         );
 
@@ -133,12 +161,18 @@ class _StatusBody extends StatelessWidget {
             title: t.t('verification.status.start.title'),
             body: t.t('verification.status.start.body'),
           ),
-          _NeedList(t: t, identity: overview.identityRequired),
-          primary(t.t('verification.status.start.cta'),
-              icon: AppIcons.arrowForwardRounded),
+          _NeedList(
+            t: t,
+            identity: overview.identityRequired,
+            barDocument: overview.barDocumentRequired,
+          ),
+          primary(
+            t.t('verification.status.start.cta'),
+            icon: AppIcons.arrowForwardRounded,
+          ),
         ]);
       case VerificationView.draft:
-        final parts = _draftParts(r!, overview.identityRequired);
+        final parts = _draftParts(r!, overview);
         children.addAll([
           _Hero(
             badge: const _HeroBadge.gold(AppIcons.editNoteRounded),
@@ -146,8 +180,10 @@ class _StatusBody extends StatelessWidget {
             body: t.t('verification.status.draft.body'),
           ),
           _DraftProgress(t: t, done: parts.$1, total: parts.$2),
-          primary(t.t('verification.status.draft.cta'),
-              icon: AppIcons.arrowForwardRounded),
+          primary(
+            t.t('verification.status.draft.cta'),
+            icon: AppIcons.arrowForwardRounded,
+          ),
         ]);
       case VerificationView.pending:
         children.addAll([
@@ -173,8 +209,10 @@ class _StatusBody extends StatelessWidget {
             message: r!.infoRequestMessage ??
                 t.t('verification.needsInfo.noMessage'),
           ),
-          primary(t.t('verification.status.needsInfo.cta'),
-              icon: AppIcons.uploadFileRounded),
+          primary(
+            t.t('verification.status.needsInfo.cta'),
+            icon: AppIcons.uploadFileRounded,
+          ),
           _Licenses(t: t, licenses: r.licenses),
         ]);
       case VerificationView.rejected:
@@ -221,13 +259,39 @@ class _StatusBody extends StatelessWidget {
                 r.status == RequestStatus.inReview ||
                 r.status == RequestStatus.needsMoreInfo ||
                 r.status == RequestStatus.draft);
+        final confirmed = trust?.public.badge ?? false;
+        final licenseConfirmed =
+            trust?.public.signals.licenseConfirmed ?? false;
         children.addAll([
-          _Hero(
-            badge: const _HeroBadge.verified(),
-            title: t.t('verification.status.verified.title'),
-            body: t.t('verification.status.verified.body'),
+          if (confirmed)
+            _Hero(
+              badge: const _HeroBadge.verified(),
+              title: t.t('verification.status.verified.title'),
+              body: t.t('verification.status.verified.body'),
+            )
+          else
+            _Hero(
+              badge: const _HeroBadge.gold(AppIcons.hourglassTopRounded),
+              title: t.t('verification.status.claimed.title'),
+              body: t.t(
+                licenseConfirmed
+                    ? 'verification.status.claimed.bodyIdentity'
+                    : 'verification.status.claimed.body',
+              ),
+            ),
+          _Licenses(
+            t: t,
+            licenses: r?.licenses ?? const [],
+            claimed: !licenseConfirmed,
           ),
-          _Licenses(t: t, licenses: r?.licenses ?? const []),
+          if (!confirmed)
+            AppButton(
+              key: const ValueKey('verification-whats-left'),
+              label: t.t('verification.status.claimed.cta'),
+              icon: AppIcons.chevronRightRounded,
+              variant: AppButtonVariant.secondary,
+              onPressed: () => context.push(TrustRoutes.me),
+            ),
           if (open)
             InlineNotice(
               tone: r.status == RequestStatus.needsMoreInfo
@@ -264,10 +328,27 @@ class _StatusBody extends StatelessWidget {
               onPressed: onOpenWizard,
             ),
           // docs/03 §8 step 6 / §3.3: verified attorneys pick practices next.
+          // Owner 2026-10-05 (audit): only while none are chosen yet.
+          Consumer(
+            builder: (context, ref, _) {
+              final chosen = ref.watch(myPracticesProvider).value;
+              if (chosen != null && chosen.isNotEmpty) {
+                return const SizedBox.shrink();
+              }
+              return AppButton(
+                label: t.t('verification.status.verified.choosePractices'),
+                icon: AppIcons.workOutlineRounded,
+                onPressed: () => context.push(AppRoutes.practices),
+              );
+            },
+          ),
+          // Owner 2026-10-04: a way forward, back to where it started
+          // (the onboarding checklist, which then moves on by itself).
           AppButton(
-            label: t.t('verification.status.verified.choosePractices'),
-            icon: AppIcons.workOutlineRounded,
-            onPressed: () => context.push(AppRoutes.practices),
+            label: t.t('onboarding.verification.continue'),
+            variant: AppButtonVariant.secondary,
+            onPressed: () =>
+                context.canPop() ? context.pop() : context.go(AppRoutes.feed),
           ),
         ]);
       case VerificationView.suspended:
@@ -297,10 +378,16 @@ class _StatusBody extends StatelessWidget {
     );
   }
 
-  static (int, int) _draftParts(VerificationRequest r, bool identity) {
+  static (int, int) _draftParts(
+    VerificationRequest r,
+    VerificationOverview overview,
+  ) {
     final parts = [
-      r.licensesComplete,
-      if (identity) ...[r.identityComplete, r.selfieComplete],
+      r.licensesReady(barDocumentRequired: overview.barDocumentRequired),
+      if (overview.identityRequired) ...[
+        r.identityComplete,
+        r.selfieComplete,
+      ],
     ];
     return (parts.where((p) => p).length, parts.length);
   }
@@ -328,7 +415,7 @@ class _HeroBadge {
   const _HeroBadge.warning(IconData icon) : this._(icon, _BadgeKind.warning);
   const _HeroBadge.danger(IconData icon) : this._(icon, _BadgeKind.danger);
   const _HeroBadge.verified()
-      : this._(AppIcons.verifiedRounded, _BadgeKind.verified);
+      : this._(AppIcons.verifiedUserOutlined, _BadgeKind.verified);
 
   final IconData icon;
   final _BadgeKind kind;
@@ -361,9 +448,11 @@ class _Hero extends StatelessWidget {
       alignment: Alignment.topCenter,
       children: [
         const Positioned(
-            top: 0,
-            child: ExcludeSemantics(
-                child: WatermarkScales(width: 180, height: 116))),
+          top: 0,
+          child: ExcludeSemantics(
+            child: WatermarkScales(width: 180, height: 116),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(top: AppSpacing.lg),
           child: Column(
@@ -385,8 +474,11 @@ class _Hero extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: AppIcon(badge.icon,
-                        size: AppSizes.stateIcon + AppSpacing.sm, color: fg),
+                    child: AppIcon(
+                      badge.icon,
+                      size: AppSizes.stateIcon + AppSpacing.sm,
+                      color: fg,
+                    ),
                   ),
                 ),
               ),
@@ -414,17 +506,27 @@ class _Hero extends StatelessWidget {
 }
 
 class _NeedList extends StatelessWidget {
-  const _NeedList({required this.t, required this.identity});
+  const _NeedList({
+    required this.t,
+    required this.identity,
+    required this.barDocument,
+  });
 
   final Translator t;
   final bool identity;
+  final bool barDocument;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final items = [
-      (AppIcons.balanceRounded, 'verification.intro.item.license'),
+      (
+        AppIcons.balanceRounded,
+        barDocument
+            ? 'verification.intro.item.license'
+            : 'verification.intro.item.licenseNumber'
+      ),
       if (identity) ...[
         (AppIcons.badgeOutlined, 'verification.intro.item.id'),
         (
@@ -458,8 +560,11 @@ class _NeedList extends StatelessWidget {
 }
 
 class _DraftProgress extends StatelessWidget {
-  const _DraftProgress(
-      {required this.t, required this.done, required this.total});
+  const _DraftProgress({
+    required this.t,
+    required this.done,
+    required this.total,
+  });
 
   final Translator t;
   final int done;
@@ -531,7 +636,8 @@ class _Timeline extends StatelessWidget {
                             child: Container(
                               width: 2,
                               margin: const EdgeInsets.symmetric(
-                                  vertical: AppSpacing.xs),
+                                vertical: AppSpacing.xs,
+                              ),
                               color: rows[i].$3 == _Mark.done
                                   ? colors.gold
                                   : colors.border,
@@ -595,7 +701,7 @@ class _TimelineDot extends StatelessWidget {
           shape: BoxShape.circle,
           color: switch (mark) {
             _Mark.done => colors.gold,
-            _Mark.current => colors.goldTint,
+            _Mark.current => colors.iconTintFill,
             _ => colors.surface,
           },
           border: Border.all(
@@ -604,14 +710,20 @@ class _TimelineDot extends StatelessWidget {
           ),
         ),
         child: mark == _Mark.done
-            ? AppIcon(AppIcons.checkRounded, size: AppSpacing.lg, color: colors.navy)
+            ? AppIcon(
+                AppIcons.checkRounded,
+                size: AppSpacing.lg,
+                color: colors.navy,
+              )
             : mark == _Mark.current
                 ? Center(
                     child: Container(
                       width: AppSpacing.sm,
                       height: AppSpacing.sm,
                       decoration: BoxDecoration(
-                          color: colors.gold, shape: BoxShape.circle),
+                        color: colors.gold,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   )
                 : null,
@@ -623,10 +735,18 @@ class _TimelineDot extends StatelessWidget {
 /// The attorney's licenses with their status (bar number is shown to its
 /// owner only, docs/03 §6.2).
 class _Licenses extends StatelessWidget {
-  const _Licenses({required this.t, required this.licenses});
+  const _Licenses({
+    required this.t,
+    required this.licenses,
+    this.claimed = false,
+  });
 
   final Translator t;
   final List<VerificationLicense> licenses;
+
+  /// Owner 2026-10-07: a license accepted on the sworn statement only is
+  /// «declared», not «verified», until the registry or staff confirm it.
+  final bool claimed;
 
   @override
   Widget build(BuildContext context) {
@@ -643,47 +763,63 @@ class _Licenses extends StatelessWidget {
           ),
           for (final l in licenses) ...[
             const SizedBox(height: AppSpacing.md),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AppIcon(
-                  switch (l.status) {
-                    LicenseStatus.verified => AppIcons.verifiedRounded,
-                    LicenseStatus.pending => AppIcons.hourglassTopRounded,
-                    _ => AppIcons.cancelOutlined,
-                  },
-                  size: AppSizes.iconSm,
-                  color: switch (l.status) {
-                    LicenseStatus.verified => colors.info,
-                    LicenseStatus.pending => colors.goldDark,
-                    _ => colors.dangerText,
-                  },
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${l.stateName} · ${l.barNumber}',
-                        style: typography.body.copyWith(color: colors.text),
+            Builder(
+              builder: (context) {
+                final declared = claimed && l.status == LicenseStatus.verified;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppIcon(
+                      declared
+                          ? AppIcons.hourglassTopRounded
+                          : switch (l.status) {
+                              LicenseStatus.verified =>
+                                AppIcons.verifiedUserOutlined,
+                              LicenseStatus.pending =>
+                                AppIcons.hourglassTopRounded,
+                              _ => AppIcons.cancelOutlined,
+                            },
+                      size: AppSizes.iconSm,
+                      color: declared
+                          ? colors.goldDark
+                          : switch (l.status) {
+                              LicenseStatus.verified => colors.info,
+                              LicenseStatus.pending => colors.goldDark,
+                              _ => colors.dangerText,
+                            },
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${l.stateName} · ${l.barNumber}',
+                            style: typography.body.copyWith(color: colors.text),
+                          ),
+                          Text(
+                            [
+                              t.t(
+                                declared
+                                    ? 'verification.license.status.claimed'
+                                    : 'verification.license.status.'
+                                        '${l.status.name}',
+                              ),
+                              if (l.rejectionCode != null)
+                                rejectText(t, l.rejectionCode!),
+                              if (l.rejectionNote != null &&
+                                  l.rejectionNote!.isNotEmpty)
+                                l.rejectionNote!,
+                            ].join(' · '),
+                            style: typography.caption
+                                .copyWith(color: colors.textSecondary),
+                          ),
+                        ],
                       ),
-                      Text(
-                        [
-                          t.t('verification.license.status.${l.status.name}'),
-                          if (l.rejectionCode != null)
-                            rejectText(t, l.rejectionCode!),
-                          if (l.rejectionNote != null &&
-                              l.rejectionNote!.isNotEmpty)
-                            l.rejectionNote!,
-                        ].join(' · '),
-                        style: typography.caption
-                            .copyWith(color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ],

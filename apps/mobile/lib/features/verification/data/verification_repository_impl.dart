@@ -1,7 +1,8 @@
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/verification/data/verification_mapper.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
@@ -51,6 +52,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
     required String stateCode,
     required String barNumber,
     DateTime? expiresAt,
+    bool manualReview = false,
   }) async {
     final response = await guardApiCall(
       () => _dio.post<Map<String, dynamic>>(
@@ -59,6 +61,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
           'stateCode': stateCode,
           'barNumber': barNumber,
           if (expiresAt != null) 'expiresAt': isoDay(expiresAt),
+          if (manualReview) 'manualReview': true,
         },
         options: RequestFlags.createOptions(),
       ),
@@ -87,6 +90,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
     String requestId, {
     required String fileId,
     required DocSlot slot,
+    String? note,
   }) =>
       _req(
         () => _client.attachVerificationDocument(
@@ -100,6 +104,7 @@ class VerificationRepositoryImpl implements VerificationRepository {
               null => null,
             },
             stateCode: slot.stateCode,
+            note: note,
           ),
           extras: _creates,
         ),
@@ -127,11 +132,18 @@ class VerificationRepositoryImpl implements VerificationRepository {
       );
 
   @override
-  Future<VerificationRequest> submit(String requestId, {String? comment}) =>
+  Future<VerificationRequest> submit(
+    String requestId, {
+    String? comment,
+    bool attestation = false,
+  }) =>
       _req(
         () => _client.submitVerificationRequest(
           id: requestId,
-          body: api.SubmitVerificationRequestDto(applicantComment: comment),
+          body: api.SubmitVerificationRequestDto(
+            attestation: attestation ? true : null,
+            applicantComment: comment,
+          ),
           // Not retried blindly: a replay after a lost response would hit
           // VERIFICATION_INVALID_STATUS; the user sees the result instead.
           extras: const {RequestFlags.noRetry: true},
@@ -145,15 +157,18 @@ String isoDay(DateTime d) => '${d.year.toString().padLeft(4, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
 
 /// docs/03 §2.2 pre-signed upload. The storage POST goes through
-/// [storageDio] — a bare client WITHOUT the app's interceptors: the bearer
+/// `storageDio` — a bare client WITHOUT the app's interceptors: the bearer
 /// token must never reach the storage host, and S3 refuses a POST-policy
 /// upload that also carries an Authorization header.
 class FileUploadRepositoryImpl implements FileUploadRepository {
-  FileUploadRepositoryImpl(Dio dio, this._storageDio)
-      : _files = api.FilesClient(dio);
+  FileUploadRepositoryImpl(Dio dio, Dio storageDio)
+      : _files = api.FilesClient(dio),
+        _uploader = StorageUploader.dio(dio, storageDio);
 
   final api.FilesClient _files;
-  final Dio _storageDio;
+
+  /// Owner 2026-10-22 (audit #4 §3): the shared uploader's steps.
+  final StorageUploader _uploader;
 
   @override
   Future<String> presignAndUpload(
@@ -163,50 +178,31 @@ class FileUploadRepositoryImpl implements FileUploadRepository {
     required UploadCancellation cancellation,
   }) async {
     if (cancellation.isCancelled) throw const UploadCancelledException();
-    final presigned = (await guardApiCall(
-      () => _files.presign(
-        body: api.PresignFileDto(
-          purpose: selfie
-              ? api.FilePurpose.verificationSelfie
-              : api.FilePurpose.verificationDocument,
-          mime: document.mime,
-          sizeBytes: document.sizeBytes,
-          sha256: sha256.convert(document.bytes).toString(),
-        ),
-        extras: const {RequestFlags.createsResource: true},
-      ),
-    ))
-        .data;
+    final target = await _uploader.presign(
+      purpose: selfie
+          ? api.FilePurpose.verificationSelfie
+          : api.FilePurpose.verificationDocument,
+      mime: document.mime,
+      sizeBytes: document.sizeBytes,
+      sha256: sha256Hex(document.bytes),
+    );
     if (cancellation.isCancelled) throw const UploadCancelledException();
-
     final token = CancelToken();
     cancellation.onCancel(token.cancel);
-    final form = FormData.fromMap({
-      ...presigned.upload.fields,
-      // The file must be the last field of a POST-policy upload.
-      'file': MultipartFile.fromBytes(
-        document.bytes,
-        filename: document.name,
-        contentType: DioMediaType.parse(document.mime),
-      ),
-    });
     try {
-      await _storageDio.post<void>(
-        presigned.upload.url,
-        data: form,
-        cancelToken: token,
-        onSendProgress: (sent, total) {
-          if (total > 0) onProgress(sent / total);
-        },
+      await _uploader.put(
+        target,
+        UploadBody.bytes(document.bytes),
+        mime: document.mime,
+        filename: document.name,
+        cancel: token,
+        onProgress: onProgress,
       );
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) throw const UploadCancelledException();
-      throw const ApiException(
-        code: ApiErrorCodes.fileNotUploaded,
-        message: 'Upload to storage failed.',
-      );
+      rethrow;
     }
-    return presigned.fileId;
+    return target.fileId;
   }
 
   @override

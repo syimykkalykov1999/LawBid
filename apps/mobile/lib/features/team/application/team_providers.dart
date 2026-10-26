@@ -2,11 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/cases/workspace/workspace_data.dart'
+    show caseWorkspaceClientProvider;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/team/data/seat_limit_repository.dart';
 import 'package:lawbid/features/team/data/team_repository.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -63,7 +67,7 @@ final actsAsAttorneyProvider = Provider<bool>((ref) {
       ref.watch(activeAssistantProvider) != null;
 });
 
-/// The assistant holds [duty] (always true for the attorney).
+/// The assistant holds `duty` (always true for the attorney).
 final canDoProvider = Provider.family<bool, AssistantDuty>((ref, duty) {
   if (!ref.watch(isAssistantProvider)) return true;
   return ref.watch(activeAssistantProvider)?.can(duty) ?? false;
@@ -93,8 +97,24 @@ class TeamController extends AsyncNotifier<TeamInfo> {
     if (ref.mounted) state = AsyncData(next);
   }
 
-  Future<void> add(String phone, {String? name}) =>
-      _apply(() => _repo.addAssistant(phone, name: name));
+  /// Owner 2026-10-04: a new seat with its one-time code; returns the
+  /// added member (the code is on it).
+  Future<TeamMember?> add({
+    String? name,
+    Set<AssistantDuty>? duties,
+    bool acceptLiability = false,
+  }) async {
+    final before = state.value?.members.map((m) => m.id).toSet() ?? {};
+    final next = await _repo.addAssistant(
+      name: name,
+      duties: duties,
+      acceptLiability: acceptLiability,
+    );
+    if (ref.mounted) state = AsyncData(next);
+    return next.members.where((m) => !before.contains(m.id)).firstOrNull;
+  }
+
+  Future<void> newCode(String id) => _apply(() => _repo.regenerateCode(id));
 
   Future<void> setDuties(
     String id,
@@ -157,6 +177,7 @@ class TeamRequestsNotifier extends PagedNotifier<AssistantRequest> {
     state = AsyncData(
       PaginatedList(
         items: [
+          // ignore: prefer_if_elements_to_conditional_expressions
           for (final r in current.items) r.id == id ? updated : r,
         ],
         nextCursor: current.nextCursor,
@@ -179,6 +200,47 @@ final pendingRequestsCountProvider =
 });
 
 // --- Tasks ----------------------------------------------------------------
+
+/// Owner 2026-10-15: the tasks of the cases in work (open ones, or the
+/// finished ones for the archive), as board cards. They arrive on their own,
+/// after the planner's; a failure shows nothing instead of hiding the planner.
+final taskBoardProvider =
+    FutureProvider.autoDispose.family<List<TaskItem>, bool>(
+  (ref, done) async {
+    try {
+      final res = await ref.watch(caseWorkspaceClientProvider).caseTaskBoard();
+      return [
+        for (final t in res.data)
+          if ((t.status == api.BoardCaseTaskDtoStatus.done) == done)
+            ApiTeamRepository.boardTask(t),
+      ];
+    } on Object {
+      return const <TaskItem>[];
+    }
+  },
+  retry: _noRetry,
+);
+
+/// The planner's list with the board's cards in it, in due order. What the
+/// Tasks tab shows; the controller below stays the planner's own.
+final mergedTasksProvider = Provider.autoDispose
+    .family<AsyncValue<List<TaskItem>>, TasksKey>((ref, key) {
+  final own = ref.watch(tasksProvider(key));
+  if (key.mine) return own;
+  final board = ref.watch(taskBoardProvider(key.done)).value;
+  if (board == null || board.isEmpty) return own;
+  return own.whenData((list) {
+    final all = [...list, ...board];
+    int cmp(TaskItem a, TaskItem b) {
+      final x = key.done ? b.doneAt : a.nextDueAt;
+      final y = key.done ? a.doneAt : b.nextDueAt;
+      if (x == null || y == null) return x == y ? 0 : (x == null ? 1 : -1);
+      return x.compareTo(y);
+    }
+
+    return all..sort(cmp);
+  });
+});
 
 /// Active (calendar) or done tasks; `mine` = an assistant's Results.
 typedef TasksKey = ({bool done, bool mine});
@@ -205,6 +267,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
           .tasks(done: key.done, mine: key.mine),
     );
     if (ref.mounted) state = next;
+    if (!key.mine) ref.invalidate(taskBoardProvider(key.done));
   }
 
   /// Applies a status change locally first (the checkbox feels instant),
@@ -224,7 +287,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
             rescheduleTo: rescheduleTo,
           );
       final current = state.value ?? const <TaskItem>[];
-      final keep = key.done ? !updated.status.active : updated.status.active;
+      final keep = key.done ? updated.archived : !updated.archived;
       if (ref.mounted) {
         state = AsyncData([
           for (final t in current)
@@ -243,7 +306,7 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
   /// (it moves to Done when its last step was checked).
   void _put(TaskItem updated) {
     final current = state.value ?? const <TaskItem>[];
-    final keep = key.done ? !updated.status.active : updated.status.active;
+    final keep = key.done ? updated.archived : !updated.archived;
     final had = current.any((t) => t.id == updated.id);
     if (!ref.mounted) return;
     state = AsyncData([
@@ -267,47 +330,29 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     if (ref.mounted && before != null) {
       state = AsyncData([
         for (final t in before)
+          // ignore: prefer_if_elements_to_conditional_expressions
           t.id != task.id
               ? t
-              : TaskItem(
-                  id: t.id,
-                  kind: t.kind,
-                  title: t.title,
-                  status: t.status,
-                  createdAt: t.createdAt,
-                  notes: t.notes,
-                  dueAt: t.dueAt,
-                  location: t.location,
-                  caseId: t.caseId,
-                  caseTitle: t.caseTitle,
-                  contactName: t.contactName,
-                  contactPhone: t.contactPhone,
-                  contactEmail: t.contactEmail,
-                  files: t.files,
-                  outcomeNote: t.outcomeNote,
-                  rescheduledTo: t.rescheduledTo,
-                  createdByName: t.createdByName,
-                  doneAt: t.doneAt,
-                  steps: [
-                    for (final s in t.steps)
-                      s.id != step.id
-                          ? s
-                          : TaskStep(
-                              id: s.id,
-                              title: s.title,
-                              status: status,
-                              kind: s.kind,
-                              dueAt: s.dueAt,
-                              location: s.location,
-                              contactName: s.contactName,
-                              contactPhone: s.contactPhone,
-                              contactEmail: s.contactEmail,
-                              note: note ?? s.note,
-                              doneAt: DateTime.now(),
-                              createdByName: s.createdByName,
-                            ),
-                  ],
-                ),
+              : t.withSteps([
+                  for (final s in t.steps)
+                    // ignore: prefer_if_elements_to_conditional_expressions
+                    s.id != step.id
+                        ? s
+                        : TaskStep(
+                            id: s.id,
+                            title: s.title,
+                            status: status,
+                            kind: s.kind,
+                            dueAt: s.dueAt,
+                            location: s.location,
+                            contactName: s.contactName,
+                            contactPhone: s.contactPhone,
+                            contactEmail: s.contactEmail,
+                            note: note ?? s.note,
+                            doneAt: DateTime.now(),
+                            createdByName: s.createdByName,
+                          ),
+                ]),
       ]);
     }
     try {
@@ -364,8 +409,51 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
   }
 }
 
-/// Open tasks count for the Mine → Tasks tab badge.
-final openTasksCountProvider = Provider.autoDispose<int>((ref) {
-  final list = ref.watch(tasksProvider((done: false, mine: false))).value;
-  return list?.length ?? 0;
-});
+/// Owner 2026-10-05: the same action on many tasks; both lists reload.
+Future<({int affected, int skipped})> bulkTasks(
+  WidgetRef ref,
+  List<String> ids,
+  TaskBulkAction action, {
+  TaskStatus? status,
+  TaskPriority? priority,
+  String? assigneeMembershipId,
+}) async {
+  final r = await ref.read(teamRepositoryProvider).bulkTasks(
+        ids,
+        action,
+        status: status,
+        priority: priority,
+        assigneeMembershipId: assigneeMembershipId,
+      );
+  invalidateAllTasks(ref);
+  return r;
+}
+
+/// Every task list (active, archive, an assistant's Results).
+void invalidateAllTasks(WidgetRef ref) {
+  for (final done in [false, true]) {
+    ref.invalidate(taskBoardProvider(done));
+    for (final mine in [false, true]) {
+      ref.invalidate(tasksProvider((done: done, mine: mine)));
+    }
+  }
+}
+
+/// Owner 2026-10-05: people to add (team, chats, contacts; attorneys by
+/// name when searching).
+final taskPeopleProvider =
+    FutureProvider.autoDispose.family<List<TaskPersonSuggestion>, String>(
+  (ref, q) => ref.watch(teamRepositoryProvider).taskPeople(q),
+  retry: _noRetry,
+);
+
+// --- Seat limit (owner 2026-10-05) ----------------------------------------
+
+final seatLimitRepositoryProvider = Provider<SeatLimitRepository>(
+  (ref) => ApiSeatLimitRepository(ref.watch(dioProvider)),
+);
+
+/// The attorney's assistant limit and their latest request for more.
+final seatLimitProvider = FutureProvider.autoDispose<SeatLimitState>(
+  (ref) => ref.watch(seatLimitRepositoryProvider).state(),
+);

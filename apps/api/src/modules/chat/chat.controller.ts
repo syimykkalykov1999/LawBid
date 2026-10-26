@@ -26,18 +26,26 @@ import {
   ConversationsQueryDto,
   MessageDto,
   MessagesQueryDto,
+  MuteCallsDto,
   MuteConversationDto,
+  SetDisappearingDto,
   ReadConversationDto,
+  DeliveredConversationDto,
+  DeliveredResultDto,
   ReadResultDto,
   RequestsCountDto,
   SendMessageDto,
+  TranslateMessageDto,
+  MessageTranslationDto,
   StartDirectChatDto,
   type ConversationPage,
   type MessagePage,
   ChatFolderCountsDto,
+  ChatStorageDto,
   OrganizeConversationDto,
 } from './chat.dto';
 import { ChatService } from './chat.service';
+import { ChatTranslationService } from './chat-translation.service';
 import {
   RequiresDuty,
   AttorneyOnly,
@@ -51,7 +59,10 @@ import {
 @RequiresDuty('chats')
 @Controller('conversations')
 export class ChatController {
-  constructor(private readonly chat: ChatService) {}
+  constructor(
+    private readonly chat: ChatService,
+    private readonly translation: ChatTranslationService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'My conversations, newest first (§8.1)' })
@@ -61,7 +72,7 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
     @Query() q: ConversationsQueryDto,
   ): Promise<ConversationPage> {
-    return this.chat.list(user, q.cursor, q.updatedSince, q.folder);
+    return this.chat.list(user, q.cursor, q.updatedSince, q.folder, q.q);
   }
 
   @Get('folders/counts')
@@ -87,7 +98,7 @@ export class ChatController {
   })
   @ApiEnvelopeResponse(ConversationDto)
   @ApiErrors({
-    403: [ErrorCode.USER_BLOCKED],
+    403: [ErrorCode.USER_BLOCKED, ErrorCode.PRIVACY_RESTRICTED],
     404: [ErrorCode.NOT_FOUND],
     409: [ErrorCode.DIRECT_CHAT_NOT_ALLOWED],
   })
@@ -148,14 +159,31 @@ export class ChatController {
     return this.chat.messages(user, p.id, q.cursor, q.afterId, q.only);
   }
 
+  @Get(':id/storage')
+  @ApiOperation({
+    summary: 'Files in this chat: how many of each kind, bytes, the cap',
+  })
+  @ApiEnvelopeResponse(ChatStorageDto)
+  @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
+  getConversationStorage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+  ): Promise<ChatStorageDto> {
+    return this.chat.storage(user, p.id);
+  }
+
   @Post(':id/messages')
   @ApiOperation({ summary: 'Send, idempotent on clientMessageId (§8.4)' })
   @ApiEnvelopeResponse(MessageDto, { status: 201 })
   @ApiErrors({
-    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.MESSAGE_TOO_LONG],
+    400: [
+      ErrorCode.VALIDATION_ERROR,
+      ErrorCode.MESSAGE_TOO_LONG,
+      ErrorCode.CHAT_STORAGE_FULL,
+    ],
     403: [ErrorCode.SUBSCRIPTION_REQUIRED, ErrorCode.MESSAGE_REQUEST_DECLINED],
     404: [ErrorCode.CONVERSATION_NOT_FOUND],
-    409: [ErrorCode.CONVERSATION_CLOSED, ErrorCode.MESSAGE_REQUEST_LIMIT],
+    409: [ErrorCode.CONVERSATION_CLOSED],
     429: [ErrorCode.RATE_LIMITED],
   })
   sendMessage(
@@ -180,6 +208,28 @@ export class ChatController {
     return this.chat.listened(user, p.id, p.messageId);
   }
 
+  @Post(':id/messages/:messageId/translate')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Translate one message into a language (owner 2026-10-04)',
+  })
+  @ApiEnvelopeResponse(MessageTranslationDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.ENTITLEMENT_REQUIRED],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+    429: [ErrorCode.RATE_LIMITED],
+    503: [ErrorCode.TRANSLATION_UNAVAILABLE],
+  })
+  async translateMessage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: MessageIdParamDto,
+    @Body() dto: TranslateMessageDto,
+  ): Promise<MessageTranslationDto> {
+    await this.chat.ensureMember(user, p.id);
+    return this.translation.translate(user, p.id, p.messageId, dto.target);
+  }
+
   @Post(':id/read')
   @HttpCode(200)
   @ApiOperation({ summary: 'Mark read up to a message (§8.4)' })
@@ -193,6 +243,23 @@ export class ChatController {
     @Body() dto: ReadConversationDto,
   ): Promise<{ lastReadMessageId: string | null }> {
     return this.chat.read(user, p.id, dto.lastReadMessageId);
+  }
+
+  @Post(':id/delivered')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'The device received messages up to this one (two grey ticks)',
+  })
+  @ApiEnvelopeResponse(DeliveredResultDto)
+  @ApiErrors({
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+  })
+  deliveredConversation(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: DeliveredConversationDto,
+  ): Promise<{ lastDeliveredMessageId: string | null }> {
+    return this.chat.delivered(user, p.id, dto.lastDeliveredMessageId);
   }
 
   // Audit 2026-10-02: these are the attorney's own chat settings.
@@ -215,8 +282,7 @@ export class ChatController {
     return this.chat.organize(user, p.id, dto);
   }
 
-  // Audit 2026-10-02: these are the attorney's own chat settings.
-  @AttorneyOnly()
+  // Owner 2026-10-21: muting is for both roles (Telegram / WhatsApp).
   @Patch(':id/mute')
   @ApiOperation({ summary: 'Mute push until a time; null unmutes (§8.4)' })
   @ApiEnvelopeResponse(ConversationDto)
@@ -227,5 +293,36 @@ export class ChatController {
     @Body() dto: MuteConversationDto,
   ): Promise<ConversationDto> {
     return this.chat.mute(user, p.id, dto.until ?? null);
+  }
+
+  @Patch(':id/calls-mute')
+  @ApiOperation({ summary: 'Calls of this chat ring silently (or not)' })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
+  muteChatCalls(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: MuteCallsDto,
+  ): Promise<ConversationDto> {
+    return this.chat.muteCalls(user, p.id, dto.muted);
+  }
+
+  @Patch(':id/disappearing')
+  @ApiOperation({
+    summary:
+      'Disappearing messages: 24 h / 7 d / 90 d for new messages; null = off',
+  })
+  @ApiEnvelopeResponse(ConversationDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FORBIDDEN],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND],
+  })
+  setDisappearing(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: SetDisappearingDto,
+  ): Promise<ConversationDto> {
+    return this.chat.setDisappearing(user, p.id, dto.afterS ?? null);
   }
 }

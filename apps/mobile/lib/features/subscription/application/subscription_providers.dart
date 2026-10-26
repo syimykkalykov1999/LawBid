@@ -1,16 +1,19 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
+import 'package:lawbid/features/subscription/data/payment_confirmer.dart';
 import 'package:lawbid/features/subscription/data/subscription_repository_impl.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -20,6 +23,23 @@ final subscriptionRepositoryProvider = Provider<SubscriptionRepository>(
 
 final cardCollectorProvider = Provider<CardCollector>(
   (ref) => StripeCardCollector(publishableKey: AppConfig.stripePublishableKey),
+);
+
+/// Owner 2026-10-22 (audit #3; App Review 3.1.1 / 3.1.1(a), US link-out):
+/// the iPhone app shows no payment screen at all — every purchase (the
+/// subscription, assistant seats, Boost) opens our card page in the browser
+/// with a one-time link, and the app re-reads the purchase when it is back.
+/// Android keeps the in-app card sheet for the subscription and seats
+/// (Google Play allows it in the US; fewer steps, no browser hop); the web
+/// build pays on the same card page in its own tab.
+final paymentsInBrowserProvider = Provider<bool>(
+  (ref) => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+);
+
+/// Owner 2026-10-22: 3-D Secure for a seat purchase charged at once.
+final paymentConfirmerProvider = Provider<PaymentConfirmer>(
+  (ref) =>
+      StripePaymentConfirmer(publishableKey: AppConfig.stripePublishableKey),
 );
 
 /// How often `GET /subscriptions/me` is re-read while the subscription is
@@ -105,12 +125,24 @@ enum SubscribePhase {
 typedef CheckoutLauncher = Future<bool> Function(Uri url);
 
 final checkoutLauncherProvider = Provider<CheckoutLauncher>(
-  (ref) => (url) => launchUrl(url, mode: LaunchMode.inAppBrowserView),
+  (ref) => openPaymentPage,
 );
 
 /// How often the open checkout session is checked; tests shorten it.
 final checkoutPollIntervalProvider =
     Provider<Duration>((ref) => const Duration(seconds: 3));
+
+/// Tells the subscribe controller the app is in front again.
+class _ResumeWatcher with WidgetsBindingObserver {
+  _ResumeWatcher(this._onResumed);
+
+  final VoidCallback _onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _onResumed();
+  }
+}
 
 /// The browser could not open the payment page.
 class CheckoutNotOpened implements Exception {
@@ -159,8 +191,22 @@ final subscribeControllerProvider =
 class SubscribeController extends Notifier<SubscribeState> {
   static const _maxPolls = 15;
 
+  /// Owner 2026-10-11 (bug: «Ожидаем оплату» never ended): when the app
+  /// comes back from the payment page the answer is known within moments —
+  /// paid (the check sees it) or not. After a short grace the wait stops by
+  /// itself instead of spinning for the full 15 minutes.
+  DateTime? _stopWaitingAfter;
+  late final _ResumeWatcher _resumeWatcher;
+
   @override
-  SubscribeState build() => const SubscribeState.idle();
+  SubscribeState build() {
+    _resumeWatcher = _ResumeWatcher(
+      () => _stopWaitingAfter = DateTime.now().add(const Duration(seconds: 8)),
+    );
+    WidgetsBinding.instance.addObserver(_resumeWatcher);
+    ref.onDispose(() => WidgetsBinding.instance.removeObserver(_resumeWatcher));
+    return const SubscribeState.idle();
+  }
 
   void _phase(SubscribePhase phase) {
     if (ref.mounted) state = SubscribeState._(phase, null);
@@ -174,13 +220,24 @@ class SubscribeController extends Notifier<SubscribeState> {
     required Future<bool> Function(int chargeNowCents) confirmChargeNow,
     required CardCollectionRequest Function(SubscriptionStart start)
         buildRequest,
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
   }) async {
     if (state.busy) return SubscribeOutcome.cancelled;
     final repo = ref.read(subscriptionRepositoryProvider);
     final collector = ref.read(cardCollectorProvider);
     try {
       _phase(SubscribePhase.starting);
-      final start = await repo.start();
+      final start = await repo.start(
+        plan: plan,
+        assistantSeats: assistantSeats,
+        assistantPhones: assistantPhones,
+        promoCode: promoCode,
+        planCode: planCode,
+      );
       var chargeNow = false;
       if (!start.trialEligible) {
         if (!await confirmChargeNow(start.priceCents)) {
@@ -238,12 +295,18 @@ class SubscribeController extends Notifier<SubscribeState> {
 
   /// OQ-048 (owner 2026-09-30): pay on Stripe's hosted page in the
   /// browser — plan, seats and assistant phones are fixed in the session.
+  /// Owner 2026-10-16: our own card page takes the app's theme and language
+  /// (in the fragment, so they never reach a server log).
+  Uri _withPayPageLook(Uri url) => withAppPayPageLook(ref.read, url);
+
   /// Waits (polling the session, 15 min max) until it is paid; the
-  /// attorney may stop waiting and come back later — [checkNow] on resume.
+  /// attorney may stop waiting and come back later — `checkNow` on resume.
   Future<SubscribeOutcome> subscribeWeb({
     required SubscriptionPlan plan,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
   }) async {
     if (state.busy) return SubscribeOutcome.cancelled;
     final repo = ref.read(subscriptionRepositoryProvider);
@@ -253,21 +316,26 @@ class SubscribeController extends Notifier<SubscribeState> {
         plan: plan,
         assistantSeats: assistantSeats,
         assistantPhones: assistantPhones,
+        promoCode: promoCode,
+        planCode: planCode,
       );
       _sessionId = checkout.sessionId;
       _stopWaiting = false;
+      _stopWaitingAfter = null;
+      final payUrl = _withPayPageLook(checkout.url);
       // Only https in production; the dev payment page is http://localhost.
       final okScheme = checkout.url.scheme == 'https' ||
           (kDebugMode && checkout.url.scheme == 'http');
-      if (!okScheme ||
-          !await ref.read(checkoutLauncherProvider)(checkout.url)) {
+      if (!okScheme || !await ref.read(checkoutLauncherProvider)(payUrl)) {
         throw const CheckoutNotOpened();
       }
       _phase(SubscribePhase.awaitingPayment);
       final interval = ref.read(checkoutPollIntervalProvider);
       final deadline = DateTime.now().add(const Duration(minutes: 15));
-      while (
-          ref.mounted && !_stopWaiting && DateTime.now().isBefore(deadline)) {
+      while (ref.mounted &&
+          !_stopWaiting &&
+          DateTime.now().isBefore(deadline) &&
+          !(_stopWaitingAfter?.isBefore(DateTime.now()) ?? false)) {
         final overview = await _check(repo);
         if (overview != null && overview.isActive) {
           if (!ref.mounted) return SubscribeOutcome.activated;

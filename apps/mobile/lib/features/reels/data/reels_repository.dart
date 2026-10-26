@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
@@ -47,6 +47,11 @@ class ReelsRepository {
     required int sizeBytes,
     required int durationSec,
     String? title,
+    // Owner 2026-10-05: the part the reel plays and the cover frame.
+    int? trimStartMs,
+    int? trimEndMs,
+    int? coverTimeMs,
+    String? coverFileId,
   }) async {
     final d = (await guardApiCall(
       () => _videos.createVideoUpload(
@@ -54,6 +59,10 @@ class ReelsRepository {
           sizeBytes: sizeBytes,
           durationSec: durationSec,
           title: title,
+          trimStartMs: trimStartMs,
+          trimEndMs: trimEndMs,
+          coverTimeMs: coverTimeMs,
+          coverFileId: coverFileId,
         ),
       ),
     ))
@@ -70,12 +79,18 @@ class ReelsRepository {
   }
 
   /// Uploads [file] to Bunny (TUS 1.0.0). Resumes from the server's offset
-  /// after a dropped connection; [onProgress] gets 0..1.
+  /// after a dropped connection; [onProgress] gets 0..1. An [XFile] so the
+  /// browser build reads its picked blob the same way (no dart:io there).
+  /// Owner 2026-10-22 (audit #4 §3): [resumeLocation] continues an upload
+  /// started before the app was closed (the queue saved it from
+  /// [onLocation]); a location Bunny no longer knows starts a new one.
   Future<void> upload(
-    File file,
+    XFile file,
     ReelUpload u, {
     void Function(double)? onProgress,
     CancelToken? cancel,
+    String? resumeLocation,
+    void Function(String location)? onLocation,
   }) async {
     final size = await file.length();
     final auth = {
@@ -86,62 +101,84 @@ class ReelsRepository {
       'Tus-Resumable': '1.0.0',
     };
     String b64(String v) => base64.encode(utf8.encode(v));
-    final created = await _tus.post<void>(
-      u.tusEndpoint,
-      cancelToken: cancel,
-      options: Options(headers: {
-        ...auth,
-        'Upload-Length': '$size',
-        'Upload-Metadata':
-            'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
-      }),
-    );
-    var location = created.headers.value('location');
-    if (location == null) {
-      throw const ApiException(code: 'VIDEO_UPLOAD_FAILED', message: 'tus');
+    var offset = 0;
+    String? location;
+    if (resumeLocation != null) {
+      try {
+        final head = await _tus.head<void>(
+          resumeLocation,
+          cancelToken: cancel,
+          options: Options(headers: auth),
+        );
+        offset = int.tryParse(head.headers.value('upload-offset') ?? '') ?? 0;
+        location = resumeLocation;
+        onProgress?.call(size == 0 ? 1 : offset / size);
+      } on DioException catch (e) {
+        if (CancelToken.isCancel(e)) rethrow;
+        final c = e.response?.statusCode;
+        // Gone (404 / 410): start again; anything else: try later.
+        if (c != 404 && c != 410) rethrow;
+      }
     }
-    if (!location.startsWith('http')) {
-      location = Uri.parse(u.tusEndpoint).resolve(location).toString();
+    if (location == null) {
+      final created = await _tus.post<void>(
+        u.tusEndpoint,
+        cancelToken: cancel,
+        options: Options(
+          headers: {
+            ...auth,
+            'Upload-Length': '$size',
+            'Upload-Metadata':
+                'filetype ${b64('video/mp4')},title ${b64(u.videoId)}',
+          },
+        ),
+      );
+      var fresh = created.headers.value('location');
+      if (fresh == null) {
+        throw const ApiException(code: 'VIDEO_UPLOAD_FAILED', message: 'tus');
+      }
+      if (!fresh.startsWith('http')) {
+        fresh = Uri.parse(u.tusEndpoint).resolve(fresh).toString();
+      }
+      location = fresh;
+      offset = 0;
+      onLocation?.call(location);
     }
 
-    var offset = 0;
     var failures = 0;
-    final raf = await file.open();
-    try {
-      while (offset < size) {
-        final len = math.min(_chunk, size - offset);
-        await raf.setPosition(offset);
-        final bytes = await raf.read(len);
-        try {
-          final r = await _tus.patch<void>(
-            location,
-            data: Stream.fromIterable([bytes]),
-            cancelToken: cancel,
-            options: Options(headers: {
+    while (offset < size) {
+      final len = math.min(_chunk, size - offset);
+      final bytes = <int>[];
+      await file.openRead(offset, offset + len).forEach(bytes.addAll);
+      try {
+        final r = await _tus.patch<void>(
+          location,
+          data: Stream.fromIterable([bytes]),
+          cancelToken: cancel,
+          options: Options(
+            headers: {
               ...auth,
               'Upload-Offset': '$offset',
               'Content-Type': 'application/offset+octet-stream',
               Headers.contentLengthHeader: '$len',
-            }),
-          );
-          offset = int.tryParse(r.headers.value('upload-offset') ?? '') ??
-              offset + len;
-          failures = 0;
-          onProgress?.call(offset / size);
-        } on DioException catch (e) {
-          if (CancelToken.isCancel(e) || ++failures > 5) rethrow;
-          await Future<void>.delayed(Duration(seconds: failures * 2));
-          final head = await _tus.head<void>(
-            location,
-            cancelToken: cancel,
-            options: Options(headers: auth),
-          );
-          offset = int.tryParse(head.headers.value('upload-offset') ?? '') ??
-              offset;
-        }
+            },
+          ),
+        );
+        offset = int.tryParse(r.headers.value('upload-offset') ?? '') ??
+            offset + len;
+        failures = 0;
+        onProgress?.call(offset / size);
+      } on DioException catch (e) {
+        if (CancelToken.isCancel(e) || ++failures > 5) rethrow;
+        await Future<void>.delayed(Duration(seconds: failures * 2));
+        final head = await _tus.head<void>(
+          location,
+          cancelToken: cancel,
+          options: Options(headers: auth),
+        );
+        offset =
+            int.tryParse(head.headers.value('upload-offset') ?? '') ?? offset;
       }
-    } finally {
-      await raf.close();
     }
   }
 
@@ -157,8 +194,10 @@ class ReelsRepository {
       guardApiCall(() => _videos.cancelVideoUpload(id: videoAssetId));
 
   /// The full-screen reels feed, newest first.
-  Future<CursorPage<Post>> reels({String? cursor}) async {
-    final env = await guardApiCall(() => _videos.listReels(cursor: cursor));
+  Future<CursorPage<Post>> reels({String? cursor, String? practice}) async {
+    final env = await guardApiCall(
+      () => _videos.listReels(cursor: cursor, practice: practice),
+    );
     return CursorPage(
       items: env.data.map(SocialMappers.post).toList(),
       nextCursor: env.meta?.nextCursor,

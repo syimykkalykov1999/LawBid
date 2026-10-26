@@ -51,17 +51,33 @@ final class AppLanguage {
 
   bool get isBuiltIn => values.contains(this);
 
-  /// `es-MX` / `es_MX` / `ES` → `es`. The server only knows bare ISO 639-1
-  /// codes (`UpdateProfileDto.uiLanguage`: `/^[a-z]{2}$/`).
+  /// `es-MX` / `es_MX` / `ES` → `es`. The one regional variant the server
+  /// keeps as its own language is Traditional Chinese: `zh-TW`, `zh_Hant`,
+  /// `zh-Hant-HK`, `zh-HK`, `zh-MO` → `zh-tw` (`zh` alone stays Simplified).
   static String normalizeCode(String raw) {
-    final trimmed = raw.trim().toLowerCase();
-    final cut = trimmed.indexOf(RegExp('[-_]'));
-    return cut < 0 ? trimmed : trimmed.substring(0, cut);
+    final parts = raw.trim().toLowerCase().split(RegExp('[-_]'));
+    if (parts.first == 'zh' &&
+        parts.skip(1).any(_traditionalChinese.contains)) {
+      return traditionalChinese;
+    }
+    return parts.first;
   }
 
+  /// Server code of Traditional Chinese (see [normalizeCode]).
+  static const traditionalChinese = 'zh-tw';
+  static const _traditionalChinese = {'hant', 'tw', 'hk', 'mo'};
+
   /// Whether [raw] is a syntactically valid language code for the server
-  /// (two lowercase letters after [normalizeCode]).
-  static bool isValidCode(String raw) => RegExp(r'^[a-z]{2}$').hasMatch(normalizeCode(raw));
+  /// (two lowercase letters, or `zh-tw`, after [normalizeCode]).
+  static bool isValidCode(String raw) =>
+      RegExp(r'^[a-z]{2}(-[a-z]{2,4})?$').hasMatch(normalizeCode(raw));
+
+  /// Right-to-left scripts. Used when the server's `is_rtl` flag is not set
+  /// for one of these (a language auto-created by an older import).
+  static const _rtlCodes = {'ar', 'he', 'fa', 'ur', 'ps'};
+
+  /// Whether this language is written right to left.
+  bool get isRtl => _rtlCodes.contains(code.split('-').first);
 
   @override
   bool operator ==(Object other) => other is AppLanguage && other.code == code;

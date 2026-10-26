@@ -7,8 +7,10 @@ import {
   Inject,
   Injectable,
   Module,
+  Optional,
   Post,
 } from '@nestjs/common';
+import { ClientFraudService } from '../client-fraud/client-fraud.service';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -32,6 +34,7 @@ import {
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
+import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { ModerationService } from '../moderation/moderation.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -48,6 +51,14 @@ const REPORTABLE: ReportTargetType[] = [
   'case_comment',
   'message',
   'user',
+  'sticker_pack',
+  // Owner 2026-10-20: stories, channels and channel posts.
+  'story',
+  'channel',
+  'channel_post',
+  // Owner 2026-10-20: «Вопрос юристу».
+  'legal_question',
+  'legal_answer',
 ];
 
 export class CreateReportDto {
@@ -86,6 +97,10 @@ export class ReportsService {
     private readonly limits: UsageLimitsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly moderation: ModerationService,
+    private readonly trust: AttorneyTrustService,
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): an attorney's complaint
+    // re-scores the client.
+    @Optional() private readonly fraud?: ClientFraudService,
   ) {}
 
   async create(userId: string, dto: CreateReportDto): Promise<void> {
@@ -120,6 +135,12 @@ export class ReportsService {
     });
     // docs/06 §3.3: the third distinct reporter hides the object.
     await this.moderation.autoHideIfThreshold(dto.targetType, dto.targetId);
+    // Owner 2026-10-05 (trust levels): a client's fraud / impersonation
+    // report on an attorney pauses their payments and bids for review.
+    if (dto.targetType === 'user') {
+      await this.trust.onComplaint(userId, dto.targetId, dto.reason);
+    }
+    await this.fraud?.onReport(dto.targetType, dto.targetId);
   }
 }
 
@@ -151,5 +172,8 @@ export class ReportsController {
   imports: [UsageLimitsModule],
   controllers: [ReportsController],
   providers: [ReportsService],
+  // Owner 2026-10-05 (legal): a DMCA notice against our content files a
+  // `copyright` report through the same path (dedup, auto-hide).
+  exports: [ReportsService],
 })
 export class ReportsModule {}

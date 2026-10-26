@@ -10,14 +10,30 @@ abstract interface class SubscriptionRepository {
   /// browser) — the store-compliant, cheapest way to pay.
   /// OQ-048: [plan], [assistantSeats] (monthly) and the phones of
   /// assistants who join without a code.
+  /// Owner 2026-10-05: [planCode] picks a plan of the plan builder;
+  /// [assistantSeats] are then the EXTRA seats beyond the included ones.
   Future<WebCheckout> checkout({
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
   });
 
-  /// OQ-048: monthly plan — change the number of assistant seats.
-  Future<SubscriptionOverview> setSeats(int seats);
+  /// Owner 2026-10-02: is [code] usable for [plan]?
+  Future<PromoCheck> validatePromo(String code, SubscriptionPlan plan);
+
+  /// Owner 2026-10-22: the price of [seats] extra seats now and per month.
+  Future<SeatPreview> previewSeats(int seats);
+
+  /// OQ-048 / owner 2026-10-22: set the extra assistant seats — more are
+  /// charged now (send the preview's [prorationDate]; 3-D Secure may be
+  /// asked), fewer go at the period end without a refund.
+  Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate});
+
+  /// Owner 2026-10-22 (App Store 3.1.1): the iPhone buys seats on our card
+  /// page in the browser — a one-time link for [seats] extra seats.
+  Future<Uri> seatsCheckoutUrl(int seats);
 
   /// Owner 2026-10-01: monthly → yearly Prime (the difference is charged).
   Future<SubscriptionOverview> switchToYearly();
@@ -25,8 +41,16 @@ abstract interface class SubscriptionRepository {
   /// Back from the browser: apply the paid session (no-op until paid).
   Future<SubscriptionOverview> completeCheckout(String sessionId);
 
-  /// Customer + SetupIntent for the PaymentSheet.
-  Future<SubscriptionStart> start();
+  /// Customer + SetupIntent for the PaymentSheet. Owner 2026-10-11: the
+  /// order (plan, seats, assistant phones, promo) is kept on the server
+  /// until the card is confirmed.
+  Future<SubscriptionStart> start({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
+  });
 
   /// Card confirmed → create the subscription. [chargeNow] is the explicit
   /// consent to be charged immediately when no trial is available

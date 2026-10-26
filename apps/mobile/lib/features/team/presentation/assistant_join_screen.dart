@@ -7,14 +7,15 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
-import 'package:lawbid/features/subscription/presentation/plan_picker.dart'
-    show phoneE164;
+import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.dart'
+    show AssistantCodeFormatter, isCompleteAssistantCode;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 
 /// OQ-048 (owner 2026-09-30): an assistant joins an attorney — at once
-/// when the attorney added this phone (at purchase or in Team), otherwise
-/// with a code sent to the attorney's phone that the attorney tells them.
+/// when the attorney added this phone (older apps), otherwise (owner
+/// 2026-10-04) with the one-time code the attorney got for the seat. No
+/// SMS anywhere.
 class AssistantJoinScreen extends ConsumerStatefulWidget {
   const AssistantJoinScreen({super.key});
 
@@ -24,15 +25,12 @@ class AssistantJoinScreen extends ConsumerStatefulWidget {
 }
 
 class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
-  final _phone = TextEditingController();
   final _code = TextEditingController();
-  bool _codeSent = false;
   bool _busy = false;
   String? _error;
 
   @override
   void dispose() {
-    _phone.dispose();
     _code.dispose();
     super.dispose();
   }
@@ -49,6 +47,7 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
       if (me != null) {
         ref.read(assistantMeProvider.notifier).apply(me);
         if (me.active) {
+          // ignore: unawaited_futures
           HapticFeedback.mediumImpact();
           showAppSnackBar(
             context,
@@ -81,9 +80,17 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
       appBar: AppTopBar(
         title: Text(t.t('assistant.join.title')),
         actions: [
-          TextButton(
-            onPressed: () => signOut(ref),
-            child: Text(t.t('assistant.leave')),
+          // Capped so a long label leaves room for the title.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: TextButton(
+              onPressed: () => signOut(ref),
+              child: Text(
+                t.t('assistant.leave'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ),
         ],
       ),
@@ -101,11 +108,14 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
               height: 84,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: colors.goldTint,
+                color: colors.iconTintFill,
                 border: Border.all(color: colors.gold),
               ),
-              child: AppIcon(AppIcons.supportAgentRounded,
-                  size: 40, color: colors.gold),
+              child: AppIcon(
+                AppIcons.supportAgentRounded,
+                size: 40,
+                color: colors.iconTint,
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -142,70 +152,26 @@ class _AssistantJoinScreenState extends ConsumerState<AssistantJoinScreen> {
             ),
             const SizedBox(height: AppSpacing.xl),
           ],
-          Text(
-            t.t('assistant.join.byCode'),
-            style: typography.body.copyWith(
-              color: colors.text,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
           AppTextField(
-            key: const ValueKey('join-phone'),
-            controller: _phone,
-            label: t.t('assistant.join.phone'),
-            hintText: '+13125550123',
-            keyboardType: TextInputType.phone,
-            enabled: !_codeSent,
-            leading: const AppIcon(AppIcons.gavelRounded),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp('[+0-9]')),
-            ],
+            key: const ValueKey('join-code'),
+            controller: _code,
+            label: t.t('assistant.code.field'),
+            hintText: 'XXXX-XXXX-XXXX',
+            textCapitalization: TextCapitalization.characters,
+            keyboardType: TextInputType.visiblePassword,
+            inputFormatters: const [AssistantCodeFormatter()],
+            leading: const AppIcon(AppIcons.supportAgentRounded),
+            onChanged: (_) => setState(() => _error = null),
           ),
           const SizedBox(height: AppSpacing.md),
-          if (!_codeSent)
-            AppButton(
-              key: const ValueKey('join-send'),
-              label: t.t('assistant.join.sendCode'),
-              variant: AppButtonVariant.secondary,
-              isLoading: _busy,
-              onPressed: () {
-                final p = _phone.text.trim();
-                if (!phoneE164.hasMatch(p)) {
-                  setState(() => _error = t.t('plans.phones.invalid'));
-                  return;
-                }
-                _run(() async {
-                  await repo.requestJoinCode(p);
-                  if (mounted) setState(() => _codeSent = true);
-                  return null;
-                });
-              },
-            )
-          else ...[
-            Text(
-              t.t('assistant.join.codeSent'),
-              style: typography.bodySmall.copyWith(color: colors.textSecondary),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppOtpField(
-              key: const ValueKey('join-code'),
-              controller: _code,
-              semanticLabel: t.t('assistant.join.code'),
-              onCompleted: (code) => _run(
-                () => repo.verifyJoinCode(_phone.text.trim(), code),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            AppButton(
-              key: const ValueKey('join-verify'),
-              label: t.t('assistant.join.verify'),
-              isLoading: _busy,
-              onPressed: () => _run(
-                () => repo.verifyJoinCode(_phone.text.trim(), _code.text),
-              ),
-            ),
-          ],
+          AppButton(
+            key: const ValueKey('join-verify'),
+            label: t.t('assistant.join.verify'),
+            isLoading: _busy,
+            disabledHint: t.t('form.disabled.code'),
+            isEnabled: isCompleteAssistantCode(_code.text),
+            onPressed: () => _run(() => repo.joinWithCode(_code.text)),
+          ),
           if (_error != null) ...[
             const SizedBox(height: AppSpacing.md),
             Text(

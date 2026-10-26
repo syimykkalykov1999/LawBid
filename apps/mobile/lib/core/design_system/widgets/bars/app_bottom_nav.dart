@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
-import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
@@ -10,8 +10,6 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
-import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 enum AppTabKey { feed, search, mine, profile }
 
@@ -63,7 +61,6 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
 
     // First 2 tabs, center "+", last 2 tabs — matches the spec's visual
     // order (Лента, Поиск, [+], Моё, Профиль).
@@ -80,8 +77,9 @@ class AppBottomNav extends StatelessWidget {
       final selected = index == currentIndex;
       // Label contrast (WCAG 4.5:1) on the tinted block: the selected
       // label uses the text colour, the icon carries the gold accent.
-      final color = selected ? colors.text : colors.textSecondary;
-      final iconColor = selected ? colors.goldDark : colors.textSecondary;
+      // Owner 2026-10-13: no tinted block under the selected tab; the icon
+      // itself turns gold (the gold of the client check).
+      final iconColor = selected ? colors.goldAccent : colors.textSecondary;
       return Expanded(
         child: Semantics(
           button: true,
@@ -94,57 +92,38 @@ class AppBottomNav extends StatelessWidget {
               if (!selected) HapticFeedback.selectionClick();
               onTabSelected(index);
             },
-            child: AnimatedContainer(
-              duration: stateDuration,
-              curve: AppMotion.enterCurve,
-              margin: const EdgeInsets.symmetric(
-                horizontal: 2,
-                vertical: AppSpacing.xs + 1,
-              ),
-              decoration: BoxDecoration(
-                color: selected
-                    ? colors.goldTint
-                    : colors.goldTint.withValues(alpha: 0),
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedSwitcher(
-                    duration: stateDuration,
-                    transitionBuilder: (child, animation) => ScaleTransition(
-                      scale:
-                          Tween<double>(begin: 0.85, end: 1).animate(animation),
-                      child: FadeTransition(opacity: animation, child: child),
-                    ),
-                    child: AppIcon(
-                      selected ? tab.activeIcon : tab.icon,
-                      key: ValueKey<bool>(selected),
-                      size: AppSizes.iconMd - 2,
-                      color: iconColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  AnimatedDefaultTextStyle(
-                    duration: stateDuration,
-                    style: typography.caption.copyWith(
-                      color: color,
-                      fontSize: 11,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                    // Tab labels grow with the system text size only up to
-                    // 1.35x (platform convention for tab bars, docs/01 §8.4).
-                    child: MediaQuery.withClampedTextScaling(
-                      maxScaleFactor: AppSizes.navLabelMaxTextScale,
-                      child: Text(
-                        tab.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+            // Owner 2026-10-12: a narrow pill (52) behind the icon, centred,
+            // not the whole fifth of the bar.
+            child: Center(
+              child: AnimatedContainer(
+                duration: stateDuration,
+                curve: AppMotion.enterCurve,
+                width: 52,
+                margin: const EdgeInsets.symmetric(vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedSwitcher(
+                      duration: stateDuration,
+                      transitionBuilder: (child, animation) => ScaleTransition(
+                        scale: Tween<double>(begin: 0.85, end: 1)
+                            .animate(animation),
+                        child: FadeTransition(opacity: animation, child: child),
+                      ),
+                      child: AppIcon(
+                        selected ? tab.activeIcon : tab.icon,
+                        key: ValueKey<bool>(selected),
+                        size: AppSizes.iconMd + 2,
+                        color: iconColor,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -162,67 +141,74 @@ class AppBottomNav extends StatelessWidget {
           AppSpacing.md,
           0,
         ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            border: Border.all(color: colors.border),
-            boxShadow: [
-              BoxShadow(
-                color: colors.shadow,
-                blurRadius: 18,
-                offset: const Offset(0, 6),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          child: DecoratedBox(
+              decoration: BoxDecoration(
+                // Owner 2026-10-12: see-through, the feed shows under it.
+                color: colors.surface.withValues(alpha: 0.96),
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                border: Border.all(color: colors.border),
               ),
-            ],
-          ),
-          child: SizedBox(
-            height: 60,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
-              child: Row(
-                children: [
-                  buildTab(left[0], 0),
-                  buildTab(left[1], 1),
-                  AppTapTarget(
-                    child: Semantics(
-                      button: true,
-                      label: createSemanticLabel,
-                      excludeSemantics: true,
-                      child: AppPressable(
-                        onTap: onCreatePressed,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.xs),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [colors.goldLight, colors.gold],
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: colors.gold.withValues(alpha: 0.35),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
+              child: SizedBox(
+                height: 46,
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: Row(
+                    children: [
+                      buildTab(left[0], 0),
+                      buildTab(left[1], 1),
+                      // Owner 2026-10-19 («кнопки прилипают к плюсу»): the
+                      // "+" takes one fifth of the bar like every tab, so
+                      // the five icons stand at equal distances.
+                      Expanded(
+                        child: Center(
+                          child: AppTapTarget(
+                            child: Semantics(
+                              button: true,
+                              label: createSemanticLabel,
+                              excludeSemantics: true,
+                              child: AppPressable(
+                                onTap: onCreatePressed,
+                                child: Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [colors.goldLight, colors.gold],
+                                    ),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color:
+                                            colors.gold.withValues(alpha: 0.35),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: AppIcon(
+                                    AppIcons.addRounded,
+                                    color: colors.navy,
+                                    size: 22,
+                                  ),
+                                ),
                               ),
-                            ],
+                            ),
                           ),
-                          alignment: Alignment.center,
-                          child: AppIcon(AppIcons.addRounded,
-                              color: colors.navy, size: 24),
                         ),
                       ),
-                    ),
+                      buildTab(right[0], 2),
+                      buildTab(right[1], 3),
+                    ],
                   ),
-                  buildTab(right[0], 2),
-                  buildTab(right[1], 3),
-                ],
+                ),
               ),
             ),
-          ),
         ),
       ),
     );

@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'bid_attorney_summary_dto.dart';
 import 'bid_case_ref_dto.dart';
 import 'bid_offer_dto.dart';
 import 'bid_status.dart';
@@ -27,12 +28,16 @@ class MyBidItemDto {
     required this.startDate,
     required this.estimatedDurationDays,
     required this.roundCount,
+    required this.version,
     required this.turn,
     required this.decidedAt,
     required this.outsidePractice,
+    required this.outsideLicensedStates,
     required this.createdAt,
     required this.caseValue,
     required this.lastOffer,
+    this.percentBps,
+    this.attorney,
     this.coverUrl,
   });
 
@@ -45,18 +50,31 @@ class MyBidItemDto {
   final BidStatus status;
   final FeeType feeType;
   final int amountCents;
+
+  /// Owner 2026-10-17: contingency → basis points (3300 = 33 %).
+  final int? percentBps;
   final String message;
   final StartAvailability startAvailability;
   final DateTime? startDate;
   final int? estimatedDurationDays;
   final int roundCount;
+
+  /// Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION).
+  final int version;
   final PartyRole turn;
   final DateTime? decidedAt;
 
   /// Owner 2026-09-30: the case's practice is outside the attorney's.
   /// own — the client is told to discuss it first.
   final bool outsidePractice;
+
+  /// Owner 2026-10-04: the attorney holds no verified licence in the.
+  /// case's states — bidding is allowed, the client is told.
+  final bool outsideLicensedStates;
   final DateTime createdAt;
+
+  /// The attorney summary — only on GET /bids/:id.
+  final BidAttorneySummaryDto? attorney;
 
   /// The name has been replaced because it contains a keyword. Original name: `case`.
   @JsonKey(name: 'case')

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -39,6 +41,96 @@ IconData practiceGlyph(String? categoryCode) => switch (categoryCode) {
       'animal_law' => AppIcons.petsRounded,
       _ => AppIcons.balanceRounded,
     };
+
+/// Owner 2026-10-15: every practice category has its own colour — the
+/// glow in the card's corner, the header band and the main chip. The key
+/// practices keep hand-picked hues; the others are spread by the golden
+/// angle so no two neighbours look alike. Muted, readable on dark and light.
+const _kPracticeHues = <String, double>{
+  'immigration': 216,
+  'family_law': 340,
+  'traffic_tickets': 38,
+  'dui_and_dwi': 22,
+  'intellectual_property': 255,
+  'real_estate': 152,
+  'criminal_defense': 8,
+  'business_and_corporate': 188,
+};
+
+final Map<String, double> _practiceHues = () {
+  final codes =
+      (kPracticeArtAssets.where((c) => !c.contains('.')).toList()..sort());
+  final used = <double>[..._kPracticeHues.values];
+  final out = <String, double>{..._kPracticeHues};
+  for (final (i, code) in codes.indexed) {
+    if (out.containsKey(code)) continue;
+    var hue = (i * 137.508 + 60) % 360;
+    // Never closer than 6 degrees to another practice's hue.
+    while (used.any((u) => ((u - hue + 540) % 360 - 180).abs() < 6)) {
+      hue = (hue + 7) % 360;
+    }
+    used.add(hue);
+    out[code] = hue;
+  }
+  return out;
+}();
+
+/// The practice's colour on a card whose background is [surface]: lighter
+/// on a dark theme, darker on a light one, and stepped until it stands out
+/// from the surface (contrast >= 3) in every theme (Day, Night, Navy, Glass).
+Color practiceAccent(String? categoryCode, {required Color surface}) {
+  final hue = _practiceHues[categoryCode] ?? 45.0;
+  final dark = surface.computeLuminance() < 0.4;
+  var l = dark ? 0.6 : 0.46;
+  Color at(double lightness) =>
+      HSLColor.fromAHSL(1, hue, 0.58, lightness).toColor();
+  double contrast(Color a, Color b) {
+    final x = a.computeLuminance();
+    final y = b.computeLuminance();
+    return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+  }
+
+  for (var i = 0; i < 12 && contrast(at(l), surface) < 3; i++) {
+    l = (l + (dark ? 0.03 : -0.03)).clamp(0.2, 0.85);
+  }
+  return at(l);
+}
+
+/// WCAG contrast ratio of two opaque colours.
+double contrastRatio(Color a, Color b) {
+  final x = a.computeLuminance();
+  final y = b.computeLuminance();
+  return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+}
+
+/// Owner 2026-10-15: [color] nudged (lighter on a dark [bg], darker on a
+/// light one) until it reads on [bg] with at least [min]:1 contrast — a
+/// practice colour on its own tinted header must never melt into it.
+Color readableOn(Color color, Color bg, {double min = 4.5}) {
+  if (contrastRatio(color, bg) >= min) return color;
+  final dark = bg.computeLuminance() < 0.4;
+  final hsl = HSLColor.fromColor(color);
+  var l = hsl.lightness;
+  for (var i = 0; i < 40; i++) {
+    l = (l + (dark ? 0.025 : -0.025)).clamp(0.0, 1.0);
+    final c = hsl.withLightness(l).toColor();
+    if (contrastRatio(c, bg) >= min) return c;
+  }
+  return dark ? Colors.white : Colors.black;
+}
+
+/// What a card really looks like on: its surface over the page.
+Color practiceCardBase(AppColorTokens colors) =>
+    Color.alphaBlend(colors.surface, colors.bg);
+
+/// Legible text on [accent].
+Color onPracticeAccent(Color accent) {
+  final l = accent.computeLuminance();
+  // White or near-black, whichever contrasts more.
+  final white = 1.05 / (l + 0.05);
+  final black = (l + 0.05) / 0.05;
+  return black > white ? Colors.black87 : Colors.white;
+}
 
 /// Bundled photo art (owner-supplied / licensed images), keyed by a leaf
 /// practice code (`traffic_tickets.cdl_violations`) or a category code
@@ -89,90 +181,6 @@ const Set<String> kPracticeArtAssets = {
   'workers_compensation',
 };
 
-/// The art layer: fills its box, fades to transparent towards the left.
-class PracticeArt extends StatelessWidget {
-  const PracticeArt({
-    required this.categoryCode,
-    this.practiceCode,
-    this.imageUrl,
-    super.key,
-  });
-
-  final String? categoryCode;
-
-  /// The leaf practice (owner 2026-09-30: a CDL case shows a truck, not
-  /// the generic traffic art).
-  final String? practiceCode;
-
-  /// A network image (e.g. a post's first photo) wins over the category art.
-  final String? imageUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final artKey = [practiceCode, categoryCode].firstWhere(
-        (c) => c != null && kPracticeArtAssets.contains(c),
-        orElse: () => null);
-    final asset = artKey == null ? null : 'assets/practice_art/$artKey.jpg';
-
-    Widget fallback() => Stack(
-          fit: StackFit.expand,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(0.55, -0.1),
-                  radius: 0.9,
-                  colors: [
-                    colors.gold.withValues(alpha: dark ? 0.22 : 0.18),
-                    colors.gold.withValues(alpha: 0),
-                  ],
-                ),
-              ),
-            ),
-            Align(
-              alignment: const Alignment(0.55, 0),
-              child: AppIcon(
-                practiceGlyph(categoryCode),
-                size: 120,
-                color: colors.gold.withValues(alpha: dark ? 0.22 : 0.20),
-              ),
-            ),
-          ],
-        );
-
-    final Widget picture = imageUrl != null
-        ? Image.network(
-            imageUrl!,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => fallback(),
-          )
-        : asset != null
-            ? Image.asset(asset,
-                fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback())
-            : fallback();
-
-    // Fade: transparent at the text side, visible at the right edge.
-    return ExcludeSemantics(
-      child: ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (rect) => LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            Colors.white.withValues(alpha: 0),
-            Colors.white.withValues(alpha: dark ? 0.55 : 0.75),
-            Colors.white.withValues(alpha: dark ? 0.8 : 0.95),
-          ],
-          stops: const [0, 0.55, 1],
-        ).createShader(rect),
-        child: picture,
-      ),
-    );
-  }
-}
-
 /// Owner 2026-09-30: our default photo for a practice, shown full-bleed at
 /// the bottom of feed cards (a post without photos, every case card — a
 /// client's own case photos stay private until a bid is accepted). The
@@ -182,42 +190,97 @@ class PracticePhoto extends StatelessWidget {
   const PracticePhoto({
     required this.categoryCode,
     this.practiceCode,
+    this.seed,
     super.key,
   });
 
   final String? categoryCode;
   final String? practiceCode;
 
+  /// Owner 2026-10-04: a case id. Each practice may have up to
+  /// [kPracticePhotoVariants] photos (`<code>.jpg`, `<code>_2.jpg`,
+  /// `<code>_3.jpg`); the id picks one so the feed does not repeat the
+  /// same picture. A variant not bundled falls back to `<code>.jpg`.
+  final String? seed;
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final artKey = [practiceCode, categoryCode].firstWhere(
-        (c) => c != null && kPracticeArtAssets.contains(c),
-        orElse: () => null);
-    final panel = DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.navy, colors.navy.withValues(alpha: 0.85)],
+      (c) => c != null && kPracticeArtAssets.contains(c),
+      orElse: () => null,
+    );
+    // Owner 2026-10-05: without a photo, a calm brand pattern with a
+    // small gold medallion — no giant glyph on flat navy.
+    final panel = Stack(
+      fit: StackFit.expand,
+      children: [
+        BrandPattern(seed: seed),
+        LayoutBuilder(
+          builder: (context, box) {
+            final side = box.biggest.shortestSide.isFinite
+                ? box.biggest.shortestSide
+                : 160.0;
+            final disc = math.min<double>(math.max(side * 0.3, 28), 64);
+            return Center(
+              child: Container(
+                width: disc,
+                height: disc,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      colors.gold.withValues(alpha: 0.22),
+                      colors.gold.withValues(alpha: 0.04),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: colors.gold.withValues(alpha: 0.8),
+                    width: 1.2,
+                  ),
+                ),
+                child: Center(
+                  child: AppIcon(
+                    practiceGlyph(categoryCode),
+                    size: disc * 0.48,
+                    color: colors.iconTint,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-      child: Center(
-        child: AppIcon(
-          practiceGlyph(categoryCode),
-          size: 72,
-          color: colors.goldLight,
-        ),
-      ),
+      ],
     );
     return ExcludeSemantics(
-      child: artKey == null
-          ? panel
-          : Image.asset(
-              'assets/practice_art/$artKey.jpg',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => panel,
-            ),
+      child: artKey == null ? panel : _variant(artKey, panel),
     );
   }
+
+  Widget _variant(String artKey, Widget panel) {
+    Widget base() => Image.asset(
+          'assets/practice_art/$artKey.jpg',
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => panel,
+        );
+    final n = seed == null ? 0 : practicePhotoVariant(seed!);
+    if (n == 0) return base();
+    return Image.asset(
+      'assets/practice_art/${artKey}_${n + 1}.jpg',
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => base(),
+    );
+  }
+}
+
+/// Photos per practice (the base one plus `_2`, `_3`).
+const int kPracticePhotoVariants = 3;
+
+/// FNV-1a over the id: the same case shows the same photo on every device.
+int practicePhotoVariant(String seed) {
+  var h = 0x811c9dc5;
+  for (final c in seed.codeUnits) {
+    h = ((h ^ c) * 0x01000193) & 0xffffffff;
+  }
+  return h % kPracticePhotoVariants;
 }

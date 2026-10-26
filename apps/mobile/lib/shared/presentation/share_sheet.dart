@@ -7,7 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// One place a link can go.
-typedef _Target = ({
+typedef ShareTarget = ({
   String key,
   Widget icon,
   String label,
@@ -28,17 +28,84 @@ Future<bool> showShareSheet(
   required String link,
   String? text,
 }) async {
-  final message = text == null || text.isEmpty ? link : '$text\n$link';
-  final enc = Uri.encodeComponent;
+  final targets = buildShareTargets(context, t: t, link: link, text: text);
+  final picked = await showAppBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheet) => _ShareSheet(t: t, link: link, targets: targets),
+  );
+  if (picked == null || !context.mounted) return false;
+  if (picked == 'copy') {
+    await copyShareLink(context, t: t, link: link);
+    return true;
+  }
+  if (picked == 'more') return shareLinkViaSystem(context, link: link);
+  return runShareTarget(
+    context,
+    t: t,
+    target: targets.firstWhere((x) => x.key == picked),
+  );
+}
+
+/// Owner 2026-10-21 (Instagram «Поделиться»): «Копировать ссылку» — the
+/// link on the clipboard and a «Link copied» message.
+Future<void> copyShareLink(
+  BuildContext context, {
+  required Translator t,
+  required String link,
+}) async {
+  await Clipboard.setData(ClipboardData(text: link));
+  if (context.mounted) showAppSnackBar(context, t.t('share.copied'));
+}
+
+/// The phone's own share sheet with [link]; true unless it was dismissed.
+Future<bool> shareLinkViaSystem(
+  BuildContext context, {
+  required String link,
+}) async {
   final box = context.findRenderObject() as RenderBox?;
   final origin = box == null || !box.hasSize
       ? null
       : box.localToGlobal(Offset.zero) & box.size;
+  final r = await SharePlus.instance.share(
+    ShareParams(
+      uri: Uri.parse(link),
+      sharePositionOrigin: origin,
+    ),
+  );
+  return r.status != ShareResultStatus.dismissed;
+}
+
+/// Runs [target]; says so when its app could not be opened.
+Future<bool> runShareTarget(
+  BuildContext context, {
+  required Translator t,
+  required ShareTarget target,
+}) async {
+  final ok = await target.go();
+  if (!ok && context.mounted) {
+    showAppSnackBar(context, t.t('share.cantOpen', {'app': target.label}));
+  }
+  return ok;
+}
+
+/// Owner 2026-10-21: the network targets of the share sheet (WhatsApp …
+/// e-mail), also the tail of the post share sheet's action row.
+List<ShareTarget> buildShareTargets(
+  BuildContext context, {
+  required Translator t,
+  required String link,
+  String? text,
+}) {
+  final message = text == null || text.isEmpty ? link : '$text\n$link';
+  const enc = Uri.encodeComponent;
 
   Future<bool> open(String url, {String? fallback}) async {
     try {
-      if (await launchUrl(Uri.parse(url),
-          mode: LaunchMode.externalApplication)) {
+      if (await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      )) {
         return true;
       }
     } on Object {
@@ -46,8 +113,10 @@ Future<bool> showShareSheet(
     }
     if (fallback == null) return false;
     try {
-      return await launchUrl(Uri.parse(fallback),
-          mode: LaunchMode.externalApplication);
+      return await launchUrl(
+        Uri.parse(fallback),
+        mode: LaunchMode.externalApplication,
+      );
     } on Object {
       return false;
     }
@@ -65,29 +134,35 @@ Future<bool> showShareSheet(
   Widget brand(FaIconData icon, Color color) =>
       FaIcon(icon, size: 24, color: color);
 
-  final targets = <_Target>[
+  return <ShareTarget>[
     (
       key: 'whatsapp',
       icon: brand(FontAwesomeIcons.whatsapp, const Color(0xFF25D366)),
       label: 'WhatsApp',
-      go: () => open('whatsapp://send?text=${enc(message)}',
-          fallback: 'https://wa.me/?text=${enc(message)}'),
+      go: () => open(
+            'whatsapp://send?text=${enc(message)}',
+            fallback: 'https://wa.me/?text=${enc(message)}',
+          ),
     ),
     (
       key: 'telegram',
       icon: brand(FontAwesomeIcons.telegram, const Color(0xFF29A9EB)),
       label: 'Telegram',
       go: () => open(
-          'tg://msg_url?url=${enc(link)}&text=${enc(text ?? '')}',
-          fallback:
-              'https://t.me/share/url?url=${enc(link)}&text=${enc(text ?? '')}'),
+            'tg://msg_url?url=${enc(link)}&text=${enc(text ?? '')}',
+            fallback:
+                'https://t.me/share/url?url=${enc(link)}&text=${enc(text ?? '')}',
+          ),
     ),
     (
       key: 'instagram',
       icon: brand(FontAwesomeIcons.instagram, const Color(0xFFE1306C)),
       label: 'Instagram',
-      go: () => copyAndOpen('instagram://direct-inbox',
-          'https://www.instagram.com/direct/inbox/', 'Instagram'),
+      go: () => copyAndOpen(
+            'instagram://direct-inbox',
+            'https://www.instagram.com/direct/inbox/',
+            'Instagram',
+          ),
     ),
     (
       key: 'tiktok',
@@ -107,22 +182,26 @@ Future<bool> showShareSheet(
       key: 'messenger',
       icon: brand(FontAwesomeIcons.facebookMessenger, const Color(0xFF0084FF)),
       label: 'Messenger',
-      go: () => open('fb-messenger://share?link=${enc(link)}',
-          fallback: 'https://www.messenger.com/'),
+      go: () => open(
+            'fb-messenger://share?link=${enc(link)}',
+            fallback: 'https://www.messenger.com/',
+          ),
     ),
     (
       key: 'x',
       icon: brand(FontAwesomeIcons.xTwitter, const Color(0xFF111111)),
       label: 'X',
       go: () => open(
-          'https://twitter.com/intent/tweet?url=${enc(link)}&text=${enc(text ?? '')}'),
+            'https://twitter.com/intent/tweet?url=${enc(link)}&text=${enc(text ?? '')}',
+          ),
     ),
     (
       key: 'linkedin',
       icon: brand(FontAwesomeIcons.linkedin, const Color(0xFF0A66C2)),
       label: 'LinkedIn',
       go: () => open(
-          'https://www.linkedin.com/sharing/share-offsite/?url=${enc(link)}'),
+            'https://www.linkedin.com/sharing/share-offsite/?url=${enc(link)}',
+          ),
     ),
     (
       key: 'viber',
@@ -141,34 +220,10 @@ Future<bool> showShareSheet(
       icon: brand(FontAwesomeIcons.envelope, AppColorsLight.goldDark),
       label: t.t('share.email'),
       go: () => open(
-          'mailto:?subject=${enc(text ?? 'LawBid')}&body=${enc(message)}'),
+            'mailto:?subject=${enc(text ?? 'LawBid')}&body=${enc(message)}',
+          ),
     ),
   ];
-
-  final picked = await showAppBottomSheet<String>(
-    context: context,
-    isScrollControlled: true,
-    builder: (sheet) => _ShareSheet(t: t, link: link, targets: targets),
-  );
-  if (picked == null || !context.mounted) return false;
-  switch (picked) {
-    case 'copy':
-      await Clipboard.setData(ClipboardData(text: link));
-      if (context.mounted) showAppSnackBar(context, t.t('share.copied'));
-      return true;
-    case 'more':
-      final r = await SharePlus.instance.share(ShareParams(
-        uri: Uri.parse(link),
-        sharePositionOrigin: origin,
-      ));
-      return r.status != ShareResultStatus.dismissed;
-  }
-  final target = targets.firstWhere((x) => x.key == picked);
-  final ok = await target.go();
-  if (!ok && context.mounted) {
-    showAppSnackBar(context, t.t('share.cantOpen', {'app': target.label}));
-  }
-  return ok;
 }
 
 class _ShareSheet extends StatelessWidget {
@@ -180,7 +235,7 @@ class _ShareSheet extends StatelessWidget {
 
   final Translator t;
   final String link;
-  final List<_Target> targets;
+  final List<ShareTarget> targets;
 
   @override
   Widget build(BuildContext context) {
@@ -235,7 +290,11 @@ class _ShareSheet extends StatelessWidget {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide, 0, AppSpacing.screenSide, AppSpacing.lg),
+          AppSpacing.screenSide,
+          0,
+          AppSpacing.screenSide,
+          AppSpacing.lg,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -254,8 +313,10 @@ class _ShareSheet extends StatelessWidget {
                 for (final x in targets) tile(x.key, x.icon, x.label),
                 tile(
                   'more',
-                  const AppIcon(AppIcons.moreHorizRounded,
-                      color: AppColorsLight.navy),
+                  const AppIcon(
+                    AppIcons.moreHorizRounded,
+                    color: AppColorsLight.navy,
+                  ),
                   t.t('share.more'),
                 ),
               ],
@@ -263,7 +324,7 @@ class _ShareSheet extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             // The link itself with a copy button.
             Container(
-              padding: const EdgeInsets.only(left: AppSpacing.md),
+              padding: const EdgeInsetsDirectional.only(start: AppSpacing.md),
               decoration: BoxDecoration(
                 color: colors.bg,
                 borderRadius: BorderRadius.circular(AppRadii.field),
@@ -271,7 +332,11 @@ class _ShareSheet extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  AppIcon(AppIcons.linkRounded, size: 18, color: colors.goldDark),
+                  AppIcon(
+                    AppIcons.linkRounded,
+                    size: 18,
+                    color: colors.iconTint,
+                  ),
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
@@ -282,14 +347,19 @@ class _ShareSheet extends StatelessWidget {
                           .copyWith(color: colors.textSecondary),
                     ),
                   ),
-                  TextButton(
-                    key: const ValueKey('share-copy'),
-                    onPressed: () => Navigator.of(context).pop('copy'),
-                    child: Text(
-                      t.t('share.copy'),
-                      style: TextStyle(
-                        color: colors.goldDark,
-                        fontWeight: FontWeight.w700,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: TextButton(
+                      key: const ValueKey('share-copy'),
+                      onPressed: () => Navigator.of(context).pop('copy'),
+                      child: Text(
+                        t.t('share.copy'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.goldDark,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),

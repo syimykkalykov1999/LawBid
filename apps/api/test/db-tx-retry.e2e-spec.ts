@@ -4,14 +4,13 @@ import type { PrismaService } from '../src/prisma/prisma.service';
 
 /**
  * docs/02_DATABASE.md §8 stage 2.7: withTxRetry against a REAL
- * CockroachDB 40001. crdb_internal.force_retry() makes the server abort
- * the transaction with a genuine serialization failure, so this proves
- * the error Prisma surfaces from Cockroach is recognized and retried (the
- * unit test only covers a hand-built error object). A plain SELECT runs
- * first so its result reaches the client; otherwise CockroachDB retries
- * the first statement server-side and the error never surfaces.
+ * PostgreSQL 40001. The server itself raises SQLSTATE 40001 inside the
+ * transaction, so this proves the error Prisma surfaces is recognized and
+ * retried (the unit test only covers a hand-built error object).
  */
-describe('withTxRetry — real 40001 from CockroachDB', () => {
+const FORCE_40001 = `DO $$ BEGIN RAISE EXCEPTION 'forced serialization failure' USING ERRCODE = '40001'; END $$`;
+
+describe('withTxRetry — real 40001 from PostgreSQL', () => {
   const prisma = new PrismaClient();
 
   afterAll(async () => {
@@ -26,14 +25,14 @@ describe('withTxRetry — real 40001 from CockroachDB', () => {
         attempts += 1;
         await tx.$queryRaw`SELECT 1`;
         if (attempts === 1) {
-          await tx.$queryRaw`SELECT crdb_internal.force_retry('1h'::INTERVAL)`;
+          await tx.$executeRawUnsafe(FORCE_40001);
         }
         return tx.$queryRaw<{ ok: bigint }[]>`SELECT 1 AS ok`;
       },
       { baseDelayMs: 1 },
     );
     expect(attempts).toBe(2);
-    expect(result[0].ok).toBe(1n);
+    expect(Number(result[0].ok)).toBe(1);
   });
 
   it('gives up after maxAttempts', async () => {
@@ -44,7 +43,7 @@ describe('withTxRetry — real 40001 from CockroachDB', () => {
         async (tx) => {
           attempts += 1;
           await tx.$queryRaw`SELECT 1`;
-          await tx.$queryRaw`SELECT crdb_internal.force_retry('1h'::INTERVAL)`;
+          await tx.$executeRawUnsafe(FORCE_40001);
         },
         { maxAttempts: 3, baseDelayMs: 1 },
       ),

@@ -41,7 +41,7 @@ class DetailSection extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Align(
-            alignment: Alignment.centerLeft,
+            alignment: AlignmentDirectional.centerStart,
             child: Container(
               width: AppSpacing.xl,
               height: 2,
@@ -84,7 +84,7 @@ class InfoRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AppIcon(icon, size: AppSizes.iconSm, color: colors.goldDark),
+            AppIcon(icon, size: AppSizes.iconSm, color: colors.iconTint),
             const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
@@ -147,32 +147,39 @@ class BottomActionBar extends StatelessWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     if (children.isEmpty) return const SizedBox.shrink();
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.bg,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenSide,
-            AppSpacing.md,
-            AppSpacing.screenSide,
-            AppSpacing.md,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const SizedBox(height: AppSpacing.sm),
-                children[i],
-              ],
-            ],
+        decoration: BoxDecoration(
+          color: colors.barFill,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          // Wide screens: the buttons stay a comfortable width, centred.
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                  AppSpacing.screenSide,
+                  AppSpacing.md,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var i = 0; i < children.length; i++) ...[
+                      if (i > 0) const SizedBox(height: AppSpacing.sm),
+                      children[i],
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -215,45 +222,47 @@ Future<bool> showConfirmSheet(
             AppSpacing.screenSide,
             AppSpacing.lg,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const AppSheetHandle(),
-              const SizedBox(height: AppSpacing.lg),
-              AppIconMedallion(
-                icon: destructive
-                    ? AppIcons.warningAmberRounded
-                    : AppIcons.gavelRounded,
-                tone: destructive
-                    ? AppMedallionTone.danger
-                    : AppMedallionTone.gold,
-                size: AppSizes.stateMedallion * 0.6,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: typography.titleMedium.copyWith(color: colors.text),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                message,
-                textAlign: TextAlign.center,
-                style: typography.body.copyWith(color: colors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              AppButton(
-                label: confirmLabel,
-                onPressed: () => Navigator.of(context).pop(true),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: t.t('common.cancel'),
-                variant: AppButtonVariant.secondary,
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                const SizedBox(height: AppSpacing.lg),
+                AppIconMedallion(
+                  icon: destructive
+                      ? AppIcons.warningAmberRounded
+                      : AppIcons.gavelRounded,
+                  tone: destructive
+                      ? AppMedallionTone.danger
+                      : AppMedallionTone.gold,
+                  size: AppSizes.stateMedallion * 0.6,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: typography.titleMedium.copyWith(color: colors.text),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: typography.body.copyWith(color: colors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                AppButton(
+                  label: confirmLabel,
+                  onPressed: () => Navigator.of(context).pop(true),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: t.t('common.cancel'),
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => Navigator.of(context).pop(false),
+                ),
+              ],
+            ),
           ),
         ),
       );

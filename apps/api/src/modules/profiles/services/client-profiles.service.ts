@@ -1,3 +1,5 @@
+import { PrivacySettingsService } from '../../privacy-settings/privacy-settings.service';
+import { activeClientBadgeIds } from '../../client-badge/client-badge.util';
 import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import {
   HttpException,
@@ -7,6 +9,11 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+  staleVersion,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
@@ -71,6 +78,8 @@ export class ClientProfilesService {
     private readonly files: FilesService,
     private readonly blocks: BlocksService,
     @Optional() private readonly counters?: CounterAggregator,
+    // Owner 2026-10-20: who sees my photo.
+    @Optional() private readonly privacy?: PrivacySettingsService,
   ) {}
 
   /** Audit 2026-10-02: counters shown = DB + deltas not yet flushed
@@ -94,6 +103,7 @@ export class ClientProfilesService {
         last_name: true,
         client_profile: {
           select: {
+            version: true,
             username: true,
             username_changed_at: true,
             preferred_languages: true,
@@ -118,6 +128,7 @@ export class ClientProfilesService {
     );
     return {
       id: user.id,
+      version: profile.version,
       username,
       usernameNextChangeAt: next?.toISOString() ?? null,
       firstName: user.first_name,
@@ -133,9 +144,24 @@ export class ClientProfilesService {
     userId: string,
     dto: UpdateClientProfileDto | UpdateContactPreferencesDto,
     now = new Date(),
+    expectedVersion?: number,
   ): Promise<ClientProfileDto> {
     const current = await this.getOwn(userId, now);
+    assertExpectedVersion(current.version, expectedVersion);
     const { username, ...rest } = dto as UpdateClientProfileDto;
+    // Claim the next version first (atomic compare-and-set), then write.
+    if (Object.keys(dto).length > 0) {
+      const { count } = await this.prisma.clientProfile.updateMany({
+        where: {
+          user_id: userId,
+          ...(expectedVersion !== undefined
+            ? { version: expectedVersion }
+            : {}),
+        },
+        data: BUMP_VERSION,
+      });
+      if (count !== 1) throw staleVersion(current.version + 1);
+    }
     if (username !== undefined && username !== current.username) {
       await this.changeUsername(userId, current, username, now);
     }
@@ -164,7 +190,7 @@ export class ClientProfilesService {
         { nextChangeAt: current.usernameNextChangeAt },
       );
     }
-    if ((await this.usernames.reserved()).has(lower)) {
+    if (await this.usernames.isReserved(lower)) {
       throw usernameError(
         ErrorCode.USERNAME_RESERVED,
         HttpStatus.BAD_REQUEST,
@@ -176,6 +202,12 @@ export class ClientProfilesService {
         if (
           lower !== current.username.toLowerCase() &&
           (await this.usernames.isTaken(tx, lower, userId))
+        ) {
+          throw usernameTaken();
+        }
+        if (
+          lower !== current.username.toLowerCase() &&
+          (await this.usernames.blocker(tx, lower, userId))
         ) {
           throw usernameTaken();
         }
@@ -201,8 +233,21 @@ export class ClientProfilesService {
 
   /** People-search rows in [ids] order; clients gone since caching drop
    * out. */
-  async presentMany(ids: string[]): Promise<ClientListItemDto[]> {
+  async presentMany(
+    ids: string[],
+    viewerId?: string,
+  ): Promise<ClientListItemDto[]> {
     if (ids.length === 0) return [];
+    const followed = new Set(
+      viewerId
+        ? (
+            await this.prisma.follow.findMany({
+              where: { follower_id: viewerId, followee_id: { in: ids } },
+              select: { followee_id: true },
+            })
+          ).map((f) => f.followee_id)
+        : [],
+    );
     const users = await this.prisma.user.findMany({
       where: { id: { in: ids }, ...LISTABLE_CLIENT },
       select: {
@@ -218,6 +263,7 @@ export class ClientProfilesService {
     const avatars = await this.files.avatarUrlsMany(
       users.map((u) => u.avatar_file_id),
     );
+    const gold = await activeClientBadgeIds(this.prisma, ids);
     const out: ClientListItemDto[] = [];
     for (const id of ids) {
       const u = byId.get(id);
@@ -232,7 +278,8 @@ export class ClientProfilesService {
           ? (avatars.get(u.avatar_file_id)?.url256 ?? null)
           : null,
         stateCode: p.state_code,
-        verifiedBadge: u.phone_verified_at !== null,
+        verifiedBadge: gold.has(id),
+        isFollowing: followed.has(id),
       });
     }
     return out;
@@ -280,6 +327,9 @@ export class ClientProfilesService {
       throw notFound();
     }
     const avatars = await this.files.avatarUrlsMany([row.user.avatar_file_id]);
+    const photoOk = this.privacy
+      ? await this.privacy.visibleTo(viewerId, [row.user_id], 'photo_from')
+      : new Set([row.user_id]);
     // Owner 2026-09-30: client reviews warn everyone — every signed-in
     // attorney or client sees them.
     const seeReviews =
@@ -291,13 +341,16 @@ export class ClientProfilesService {
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
-      avatarUrl: row.user.avatar_file_id
-        ? (avatars.get(row.user.avatar_file_id)?.url ?? null)
-        : null,
+      avatarUrl:
+        row.user.avatar_file_id && photoOk.has(row.user_id)
+          ? (avatars.get(row.user.avatar_file_id)?.url ?? null)
+          : null,
       state: { code: row.state.code, name: row.state.name },
       memberSince: row.user.created_at.toISOString().slice(0, 10),
       isSelf: row.user_id === viewerId,
-      verifiedBadge: row.user.phone_verified_at !== null,
+      verifiedBadge: (
+        await activeClientBadgeIds(this.prisma, [row.user_id])
+      ).has(row.user_id),
       ...(await this.blocks.relation(viewerId, row.user_id)),
       postsCount: await this.withPending(
         row.user_id,

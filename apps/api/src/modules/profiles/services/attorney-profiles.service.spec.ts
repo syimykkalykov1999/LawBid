@@ -7,6 +7,7 @@ import {
 } from './attorney-profiles.service';
 import type { PracticeAreasService } from './practice-areas.service';
 import type { FilesService } from '../../files/files.service';
+import { isValidHandle } from '../../usernames/username-rules';
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date('2026-09-27T12:00:00Z');
@@ -82,6 +83,46 @@ describe('AttorneyProfilesService', () => {
       isTaken: jest.fn((_db: unknown, _lower: string, except?: string) =>
         Promise.resolve(holder !== null && holder.user_id !== except),
       ),
+      suggest: jest.fn<Promise<string[]>, [unknown, unknown, string?]>(() =>
+        Promise.resolve(['anna.kim2026', 'anna_kim']),
+      ),
+      isReserved: jest.fn((lower: string) =>
+        Promise.resolve(['admin', 'lawbid'].includes(lower)),
+      ),
+      blocker: jest.fn(() => Promise.resolve(false)),
+    };
+    // The shared policy, reduced to what these tests decide: shape, reserved
+    // words, taken (via the registry stub) and the ideas.
+    const policy = {
+      check: jest.fn(
+        async (
+          raw: string,
+          _kind: string,
+          asker: { userId?: string },
+          seeds: { firstName?: string; lastName?: string },
+        ) => {
+          const lower = raw.trim().toLowerCase();
+          let reason: string | null = null;
+          if (!isValidHandle(lower, 'user')) reason = 'invalid';
+          else if (await usernames.isReserved(lower)) reason = 'reserved';
+          else if (await usernames.isTaken({}, lower, asker.userId)) {
+            reason = 'taken';
+          }
+          return {
+            username: lower,
+            available: reason === null,
+            reason,
+            suggestions:
+              reason === null
+                ? []
+                : await usernames.suggest(
+                    {},
+                    { ...seeds, typed: lower },
+                    asker.userId,
+                  ),
+          };
+        },
+      ),
     };
     const svc = new AttorneyProfilesService(
       prisma as unknown as PrismaService,
@@ -94,10 +135,13 @@ describe('AttorneyProfilesService', () => {
         relation: () =>
           Promise.resolve({ isBlocked: false, hasBlockedMe: false }),
       } as never,
+      undefined,
+      undefined,
+      policy as never,
     );
     // getOwn is covered by e2e; here only the write path matters.
     jest.spyOn(svc, 'getOwn').mockResolvedValue({} as never);
-    return { svc, tx, prisma };
+    return { svc, tx, prisma, usernames };
   }
 
   it('rejects a second username change within 30 days', async () => {
@@ -148,8 +192,18 @@ describe('AttorneyProfilesService', () => {
         username: 'Anna.Law',
         username_lower: 'anna.law',
         username_changed_at: now,
+        version: { increment: 1 },
       },
     });
+  });
+
+  it('a stale If-Match is a 409 STALE_VERSION and nothing is written', async () => {
+    const { svc, tx } = setup();
+    // setup()'s profile row has version 0 (or undefined in the stub): 99 never matches.
+    await expect(
+      svc.updateOwn('me', { bio: 'x' }, now, 99),
+    ).rejects.toMatchObject({ response: { code: 'STALE_VERSION' } });
+    expect(tx.attorneyProfile.update).not.toHaveBeenCalled();
   });
 
   it('same username is a no-op, not a change', async () => {
@@ -172,7 +226,27 @@ describe('AttorneyProfilesService', () => {
         username: u,
         available: false,
         reason,
+        suggestions: ['anna.kim2026', 'anna_kim'],
       });
+    });
+
+    it('suggests from the name on the form and what was typed', async () => {
+      const { svc, usernames } = setup({}, { user_id: 'other' });
+      await svc.availability('x.y.z', 'me', { first: 'Anna', last: 'Kim' });
+      expect(usernames.suggest).toHaveBeenCalledWith(
+        expect.anything(),
+        { firstName: 'Anna', lastName: 'Kim', typed: 'x.y.z' },
+        'me',
+      );
+    });
+
+    it('no suggestions when the handle is free', async () => {
+      const { svc, usernames } = setup({}, null);
+      await expect(svc.availability('x.y.z', 'me')).resolves.toMatchObject({
+        available: true,
+        suggestions: [],
+      });
+      expect(usernames.suggest).not.toHaveBeenCalled();
     });
 
     it('taken by someone else vs. own username', async () => {
@@ -190,6 +264,8 @@ describe('AttorneyProfilesService', () => {
       const prisma = {
         attorneyProfile: { findUnique: jest.fn(() => Promise.resolve(row)) },
         follow: { findUnique: jest.fn(() => Promise.resolve(null)) },
+        firmMember: { findFirst: jest.fn(() => Promise.resolve(null)) },
+        legalAnswer: { count: jest.fn(() => Promise.resolve(0)) },
       };
       return new AttorneyProfilesService(
         prisma as unknown as PrismaService,
@@ -221,6 +297,9 @@ describe('AttorneyProfilesService', () => {
       firm_name: null,
       languages: ['en'],
       verification_status: 'verified',
+      // Owner 2026-10-05: the badge follows the trust level, not the status.
+      trust_level: 2,
+      trust_badge: true,
       rating_avg: '4.50',
       rating_count: 2,
       posts_count: 1,
@@ -254,6 +333,8 @@ describe('AttorneyProfilesService', () => {
       const view = await withRow({
         ...base,
         verification_status: 'unverified',
+        trust_level: 0,
+        trust_badge: false,
         licenses: [],
       }).getPublic('saul', 'a');
       expect(view.verifiedBadge).toBe(false);

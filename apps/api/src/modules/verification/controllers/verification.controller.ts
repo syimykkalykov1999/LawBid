@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Ip,
   Param,
   Patch,
   Post,
@@ -76,8 +77,9 @@ export class VerificationController {
   @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
   getVerificationOverview(
     @CurrentUser() user: RequestUser,
+    @Ip() ip: string,
   ): Promise<VerificationOverviewDto> {
-    return this.requests.overview(user.sub);
+    return this.requests.overview(user.sub, new Date(), ip);
   }
 
   @Post('requests')
@@ -138,20 +140,23 @@ export class VerificationController {
   @ApiEnvelopeResponse(VerificationRequestDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     ...ATTORNEY_ERRORS,
-    400: [E.VALIDATION_ERROR],
+    400: [E.VALIDATION_ERROR, E.BAR_NUMBER_FORMAT_INVALID],
+    403: [E.FORBIDDEN, E.ATTORNEY_SUSPENDED, E.COUNTRY_NOT_AVAILABLE],
     409: [
       E.LICENSE_ALREADY_REGISTERED,
       E.LICENSE_ALREADY_ADDED,
       E.VERIFICATION_INVALID_STATUS,
       E.IDEMPOTENCY_KEY_CONFLICT,
     ],
+    429: [E.BAR_ATTEMPTS_COOLDOWN],
   })
   addVerificationLicense(
     @CurrentUser() user: RequestUser,
     @Param() params: RequestIdParamDto,
     @Body() dto: AddLicenseDto,
+    @Ip() ip: string,
   ): Promise<VerificationRequestDto> {
-    return this.requests.addLicense(user.sub, params.id, dto);
+    return this.requests.addLicense(user.sub, params.id, dto, ip);
   }
 
   @Delete('requests/:id/licenses/:licenseId')
@@ -226,7 +231,8 @@ export class VerificationController {
     @CurrentUser() user: RequestUser,
     @Param() params: RequestIdParamDto,
     @Body() dto: SubmitVerificationRequestDto,
+    @Ip() ip: string,
   ): Promise<VerificationRequestDto> {
-    return this.requests.submit(user.sub, params.id, dto);
+    return this.requests.submit(user.sub, params.id, dto, ip);
   }
 }

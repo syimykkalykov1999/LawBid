@@ -9,11 +9,10 @@ import 'package:lawbid/features/onboarding/presentation/screens/attorney_verific
 import 'package:lawbid/features/onboarding/presentation/screens/consents_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/push_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
-import 'package:lawbid/features/onboarding/presentation/screens/tour_step_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
+import '../../../helpers/email_flows_overrides.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/onboarding_harness.dart';
 
@@ -41,32 +40,46 @@ void main() {
     // name: (builder, user, hasInfiniteAnimation)
     'splash': (() => const SplashScreen(autoStart: false), null, true),
     'email': (() => const EmailScreen(), null, false),
-    'consents': (() => const ConsentsStepScreen(), meFixture(step: OnboardingStepId.consents), false),
+    'consents': (
+      () => const ConsentsStepScreen(),
+      meFixture(step: OnboardingStepId.consents),
+      false
+    ),
     'contacts_client': (() => const ContactsStepScreen(), client, false),
     'profile_client': (() => const ProfileStepScreen(), client, false),
     'profile_attorney': (() => const ProfileStepScreen(), attorney, false),
-    'push': (() => const PushStepScreen(), client, false),
-    'verification_attorney': (() => const AttorneyVerificationStepScreen(), attorney, false),
-    'tour_client': (() => const TourStepScreen(), client, false),
+    'verification_attorney': (
+      () => const AttorneyVerificationStepScreen(),
+      attorney,
+      false
+    ),
     'mine_attorney_unverified': (() => const MineScreen(), attorney, false),
   };
 
   for (final entry in screens.entries) {
     for (final brightness in [Brightness.light, Brightness.dark]) {
       final themeName = brightness == Brightness.light ? 'light' : 'dark';
-      final theme = brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
+      final theme =
+          brightness == Brightness.light ? AppTheme.light() : AppTheme.dark();
       final (build, user, infinite) = entry.value;
 
       testGoldens('${entry.key} - $themeName', (tester) async {
         await tester.pumpWidgetBuilder(
           build(),
-          wrapper: await onboardingWrapper(theme, user: user),
+          // The committed images show the e-mail card.
+          wrapper: await onboardingWrapper(
+            theme,
+            user: user,
+            extra: emailFlowsOnOverrides(),
+          ),
           surfaceSize: const Size(390, 844),
         );
         await screenMatchesGolden(
           tester,
           'onboarding_${entry.key}_$themeName',
-          customPump: infinite ? (tester) => tester.pump(const Duration(milliseconds: 600)) : null,
+          customPump: infinite
+              ? (tester) => tester.pump(const Duration(milliseconds: 600))
+              : null,
         );
         // Let drift's zero-duration stream-cleanup timers fire.
         await tester.pumpWidget(const SizedBox.shrink());

@@ -24,9 +24,14 @@ abstract final class AppVersion {
 
   static String _version = fallback;
   static String? _packageName;
+  static String _build = '1';
 
   /// Dotted version (`1.4.0`), without the build number.
   static String get current => _version;
+
+  /// Owner 2026-10-22: the build number (`CFBundleVersion` / `versionCode`),
+  /// so a crash in Sentry matches the uploaded symbols of that build.
+  static String get build => _build;
 
   /// `com.lawbid.lawbid` (+ `.dev`/`.staging`), or null before [load].
   static String? get packageName => _packageName;
@@ -38,6 +43,7 @@ abstract final class AppVersion {
       final version = info.version.trim();
       if (version.isNotEmpty) _version = version;
       if (info.packageName.isNotEmpty) _packageName = info.packageName;
+      if (info.buildNumber.trim().isNotEmpty) _build = info.buildNumber.trim();
     } catch (_) {
       // Keep [fallback] — see its doc comment.
     }
@@ -48,5 +54,6 @@ abstract final class AppVersion {
   static void resetForTest() {
     _version = fallback;
     _packageName = null;
+    _build = '1';
   }
 }

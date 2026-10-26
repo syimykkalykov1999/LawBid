@@ -33,6 +33,7 @@ Map<String, dynamic> _request({
           'expiresAt': '2027-03-31',
           'rejectionCode': null,
           'rejectionNote': null,
+          'manualReview': true,
         },
       ],
       'documents': documents,
@@ -66,6 +67,8 @@ void main() {
             ],
           ),
           'identityRequired': true,
+          'barDocumentRequired': false,
+          'barAttemptsRetryAfterSeconds': 2820,
           'submissionsLast30Days': 2,
           'maxSubmissions30Days': 5,
         });
@@ -76,6 +79,10 @@ void main() {
     expect(o.request!.documents.single.kind, DocKind.driversLicense);
     expect(o.request!.documents.single.side, DocSide.back);
     expect(o.submissionsLast30Days, 2);
+    expect(o.barDocumentRequired, isFalse);
+    // Owner 2026-10-18: the lock and the manual-review mark.
+    expect(o.barAttemptsRetryAfterSeconds, 2820);
+    expect(o.request!.licenses.single.manualReview, isTrue);
     expect(adapter.requests.single.path, '/verification/me');
   });
 
@@ -98,6 +105,35 @@ void main() {
     expect(r.headers['Idempotency-Key'], 'key-1');
   });
 
+  test('addLicense for manual review sends manualReview: true', () async {
+    await VerificationRepositoryImpl(dio).addLicense(
+      'req',
+      stateCode: 'NY',
+      barNumber: 'A1B2C3',
+      manualReview: true,
+    );
+    expect(adapter.requests.single.data, {
+      'stateCode': 'NY',
+      'barNumber': 'A1B2C3',
+      'manualReview': true,
+    });
+  });
+
+  test('attach sends the note of a bar card for manual review', () async {
+    await VerificationRepositoryImpl(dio).attach(
+      'req',
+      fileId: 'f1',
+      slot: const DocSlot.barLicense('NY'),
+      note: 'Issued in 1998',
+    );
+    expect(adapter.requests.single.data, {
+      'fileId': 'f1',
+      'docType': 'bar_license',
+      'stateCode': 'NY',
+      'note': 'Issued in 1998',
+    });
+  });
+
   test('attach sends docType/side/stateCode', () async {
     await VerificationRepositoryImpl(dio).attach(
       'req',
@@ -108,6 +144,21 @@ void main() {
     expect(r.path, '/verification/requests/req/documents');
     expect(r.data, {'fileId': 'f1', 'docType': 'state_id', 'side': 'back'});
     expect(r.headers['Idempotency-Key'], 'key-1');
+  });
+
+  test('submit sends the sworn statement only when ticked', () async {
+    final repo = VerificationRepositoryImpl(dio);
+    await repo.submit('req', comment: 'hi', attestation: true);
+    expect(adapter.requests.last.path, '/verification/requests/req/submit');
+    expect(adapter.requests.last.data, {
+      'attestation': true,
+      'applicantComment': 'hi',
+    });
+    await repo.submit('req');
+    expect(
+      (adapter.requests.last.data as Map).containsKey('attestation'),
+      isFalse,
+    );
   });
 
   test('submit error keeps the API code and details', () async {
@@ -202,7 +253,10 @@ void main() {
       await expectLater(
         FileUploadRepositoryImpl(dio, storageDio).presignAndUpload(
           PickedDocument(
-              name: 'a.pdf', mime: 'application/pdf', bytes: Uint8List(1)),
+            name: 'a.pdf',
+            mime: 'application/pdf',
+            bytes: Uint8List(1),
+          ),
           selfie: false,
           onProgress: (_) {},
           cancellation: c,

@@ -1,6 +1,14 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { CircuitBreaker } from '../../common/resilience/resilience';
+import {
+  Injectable,
+  Optional,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { SecretsService } from '../../common/secrets/secrets.service';
+import { BUNNY_TUS_ENDPOINT } from './bunny-signing';
+import { assertNotDemo } from '../../common/demo/demo-guards';
 
 export interface BunnyKeys {
   libraryId: string;
@@ -8,6 +16,9 @@ export interface BunnyKeys {
   apiKey: string;
   tokenAuthKey: string;
   webhookToken: string;
+  /** Bunny's Read-Only API key: verifies `X-BunnyStream-Signature`
+   * (audit #4). Optional — without it the URL token is the fallback. */
+  webhookSigningKey?: string;
 }
 
 /** Bunny's video object (only the fields we read). Status: 0 created,
@@ -25,6 +36,12 @@ export interface BunnyVideo {
 const API = 'https://video.bunnycdn.com';
 const TIMEOUT_MS = 8000;
 
+/** One per process: Bunny failing five calls in a row pauses it a minute. */
+const bunnyBreaker = new CircuitBreaker('bunny', {
+  threshold: 5,
+  openMs: 60_000,
+});
+
 /**
  * Owner 2026-10-01 — the few Bunny Stream calls we need. Keys are read on
  * every call (Admin → Integrations), so a changed key works at once.
@@ -32,9 +49,46 @@ const TIMEOUT_MS = 8000;
  */
 @Injectable()
 export class BunnyStreamClient {
-  constructor(private readonly secrets: SecretsService) {}
+  constructor(
+    private readonly secrets: SecretsService,
+    @Optional() private readonly config?: ConfigService,
+  ) {}
+
+  /** Dev only (never in production, see env.schema): the local stand-in
+   * for Bunny, tools/fake-bunny.mjs on :4010 — reachable as 10.0.2.2 from
+   * the Android emulator. */
+  get devFake(): boolean {
+    return this.config?.get<boolean>('DEV_FAKE_BUNNY') === true;
+  }
+
+  apiBase(): string {
+    return this.devFake ? 'http://localhost:4010' : API;
+  }
+
+  tusEndpoint(): string {
+    return this.devFake
+      ? `http://${this.devFakeHost()}/tusupload`
+      : BUNNY_TUS_ENDPOINT;
+  }
+
+  private devFakeHost(): string {
+    return this.config?.get<string>('DEV_FAKE_BUNNY_HOST') ?? '10.0.2.2:4010';
+  }
+
+  cdnScheme(): 'https' | 'http' {
+    return this.devFake ? 'http' : 'https';
+  }
 
   async keys(): Promise<BunnyKeys | null> {
+    if (this.devFake) {
+      return {
+        libraryId: 'dev',
+        cdnHostname: this.devFakeHost(),
+        apiKey: 'dev-api-key',
+        tokenAuthKey: 'dev-token-key',
+        webhookToken: 'dev-webhook',
+      };
+    }
     const c = await this.secrets.get('bunny_stream');
     const f = c?.fields ?? {};
     if (
@@ -52,13 +106,22 @@ export class BunnyStreamClient {
       apiKey: f.apiKey,
       tokenAuthKey: f.tokenAuthKey,
       webhookToken: f.webhookToken,
+      ...(f.readOnlyApiKey ? { webhookSigningKey: f.readOnlyApiKey } : {}),
     };
   }
 
-  async createVideo(title: string): Promise<string> {
+  /** [thumbnailTimeMs]: Bunny takes the cover frame at this moment
+   * (owner 2026-10-05: the author picks it). */
+  async createVideo(
+    title: string,
+    thumbnailTimeMs?: number | null,
+  ): Promise<string> {
     const k = await this.required();
     const res = await this.call(k, 'POST', `/library/${k.libraryId}/videos`, {
       title: title.slice(0, 100),
+      ...(thumbnailTimeMs != null
+        ? { thumbnailTime: Math.round(thumbnailTimeMs) }
+        : {}),
     });
     const body = (await res.json()) as { guid?: string };
     if (!body.guid) throw new Error('Bunny returned no video id');
@@ -108,10 +171,26 @@ export class BunnyStreamClient {
     body?: unknown,
     allow404 = false,
   ): Promise<Response> {
+    assertNotDemo('Video upload');
+    // Owner 2026-10-15: while Bunny keeps failing, calls pause for a minute
+    // instead of tying up connections (4xx answers are ours, not an outage).
+    return bunnyBreaker.run(
+      () => this.callOnce(k, method, path, body, allow404),
+      (e) => !/HTTP 4\d\d/.test(e instanceof Error ? e.message : ''),
+    );
+  }
+
+  private async callOnce(
+    k: BunnyKeys,
+    method: string,
+    path: string,
+    body: unknown,
+    allow404: boolean,
+  ): Promise<Response> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
-      const res = await fetch(`${API}${path}`, {
+      const res = await fetch(`${this.apiBase()}${path}`, {
         method,
         headers: {
           AccessKey: k.apiKey,

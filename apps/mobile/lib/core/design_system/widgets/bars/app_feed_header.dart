@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
+import 'package:lawbid/core/design_system/widgets/bars/header_ink.dart';
 
 /// Feed top bar. Owner decision 2026-09-29 (OQ-027, replaces docs/07 §10
 /// "scales logo left"): a centered TEXT wordmark "LawBid" in the brand
@@ -23,7 +24,15 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
     this.showLogo = true,
     this.leading,
     this.center,
+    this.onDark = false,
+    this.bare = false,
   });
+
+  /// Owner 2026-10-12: scrolled feed — no bar behind, only the icons.
+  final bool bare;
+
+  /// Owner 2026-10-12: over the Reels video — transparent, no hairline.
+  final bool onDark;
 
   /// Owner 2026-09-30: left slot (clients: the scales mark; attorneys:
   /// the wordmark).
@@ -50,14 +59,33 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final topInset = MediaQuery.paddingOf(context).top;
-    return Container(
+    final wash = colors.hasHeaderWash && !onDark && !bare;
+    final bar = Container(
       height: AppSizes.feedHeader + topInset,
       // Owner 2026-09-30: logo and chats closer to the screen edges.
-      padding: EdgeInsets.fromLTRB(AppSpacing.sm, topInset, AppSpacing.xs, 0),
-      decoration: BoxDecoration(
-        color: colors.bg,
-        border: Border(bottom: BorderSide(color: colors.border)),
+      padding: EdgeInsetsDirectional.fromSTEB(
+        AppSpacing.sm,
+        topInset,
+        AppSpacing.xs,
+        0,
       ),
+      decoration: onDark || bare
+          ? const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.transparent),
+              ),
+            )
+          : headerDecoration(
+              fill: colors.headerBg,
+              gradient: colors.headerGradient,
+              border: Border(
+                bottom: BorderSide(
+                  color: colors.hasHeaderWash
+                      ? Colors.transparent
+                      : colors.border,
+                ),
+              ),
+            ),
       child: center != null
           ? Row(
               children: [
@@ -96,7 +124,7 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 0.4,
                                   height: 1,
-                                  color: colors.text,
+                                  color: wash ? colors.headerInk : colors.text,
                                 ),
                               ),
                             )
@@ -113,6 +141,17 @@ class AppFeedHeader extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ],
             ),
+    );
+    // Owner 2026-10-13: no blur behind the header — the plain background
+    // of the current theme.
+    if (!wash) return bar;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: HeaderInk(
+        pageText: colors.text,
+        ink: colors.headerInk,
+        child: bar,
+      ),
     );
   }
 }

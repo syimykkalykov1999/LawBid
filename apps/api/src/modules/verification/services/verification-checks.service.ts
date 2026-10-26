@@ -1,4 +1,5 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import { BarAttemptsService } from './bar-attempts.service';
+import { HttpException, Injectable, Optional } from '@nestjs/common';
 import type {
   AttorneyLicense,
   Prisma,
@@ -6,9 +7,17 @@ import type {
   VerificationProvider,
 } from '@prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import { CostGuardService } from '../../../common/cost-guard/cost-guard.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { IDENTITY_DOC_TYPES } from '../verification.constants';
+import { withTxRetry } from '../../../prisma/tx-retry.util';
+import { AttorneyTrustService } from '../../attorney-trust/attorney-trust.service';
+import { NotificationsService } from '../../notifications/notifications.service';
+import {
+  IDENTITY_DOC_TYPES,
+  VERIFICATION_NOTIFICATION_KIND as KIND,
+} from '../verification.constants';
+import { syncProfileStatus } from '../verification.helpers';
 import { VerificationProviderSelector } from '../providers/verification-provider.selector';
 import type {
   BarLookupProvider,
@@ -16,21 +25,52 @@ import type {
 } from '../providers/verification-providers';
 
 /**
- * Automatic checks of docs/03 §2.4. They only HELP the verifier: every
- * outcome is stored in `verification_checks` (+ `attorney_licenses.
- * auto_check_result` for bar lookups) and nothing here changes a status.
- * With the flags off (default) no check runs and the request goes
- * straight to manual review. Provider errors and an exhausted CostGuard
- * budget are recorded as `manual_review` and never block the attorney.
+ * Automatic checks of docs/03 §2.4. Every outcome is stored in
+ * `verification_checks` (+ `attorney_licenses.auto_check_result` for bar
+ * lookups). Owner 2026-10-04 ("только номер"): when every license of the
+ * request passed its state registry lookup (states enabled in the admin,
+ * owner 2026-10-05) and any ID
+ * check that ran passed too, the request is approved without a verifier;
+ * anything else — another state, a name that differs, an error — stays in
+ * the manual queue. With the flags off no check runs. Provider errors and
+ * an exhausted CostGuard budget are recorded as `manual_review` and never
+ * block the attorney.
  */
+/** `verification_requests.admin_note` of a request approved by the
+ * registry check, without a verifier. */
+export const AUTO_APPROVED_NOTE =
+  'Одобрено автоматически: номер и имя совпали с реестром штата';
+
+/** `admin_note` of a request approved on the attorney's sworn statement
+ * (owner 2026-10-04, self-attestation). */
+export const SELF_ATTESTED_NOTE =
+  'Самоподтверждение: адвокат под присягой подтвердил лицензию, внешняя проверка не проводилась';
+
 @Injectable()
 export class VerificationChecksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly selector: VerificationProviderSelector,
+    private readonly notifications: NotificationsService,
+    private readonly trust: AttorneyTrustService,
     private readonly logger: PinoLogger,
+    // Owner 2026-10-14: a registry miss counts as a wrong number.
+    @Optional() private readonly attempts?: BarAttemptsService,
+    // 2026-10-24 (abuse batch B, item 13): a paid identity check (Persona /
+    // Stripe Identity) counts against the daily `id_check` cap.
+    @Optional() private readonly costGuard?: CostGuardService,
   ) {
     this.logger.setContext(VerificationChecksService.name);
+  }
+
+  /** Whether the state has an enabled automatic registry (owner
+   * 2026-10-16: where it has none, the bar card is required). */
+  async registryEnabled(stateCode: string): Promise<boolean> {
+    try {
+      return await (await this.selector.barLookup()).supports(stateCode);
+    } catch {
+      return false;
+    }
   }
 
   /** After a draft is submitted. Best effort: failures are logged. */
@@ -63,23 +103,48 @@ export class VerificationChecksService {
     if (!request) return;
 
     const bar = await this.selector.barLookup();
-    if (bar.name !== 'manual') {
-      for (const license of request.attorney.licenses) {
-        await this.barLookup(bar, license, request.id, {
-          firstName: request.attorney.user.first_name ?? '',
-          lastName: request.attorney.user.last_name ?? '',
-        });
+    const barResults: CheckOutcome['result'][] = [];
+    const licenses = request.attorney.licenses;
+    // Owner 2026-10-05: only states with an enabled registry are looked up;
+    // auto-approval needs every license of the request to pass.
+    let allSupported = licenses.length > 0;
+    for (const license of licenses) {
+      // Owner 2026-10-16: a number of an unusual shape waits for a person.
+      if (
+        license.registry_flag === 'format_unusual' ||
+        !(await bar.supports(license.state_code))
+      ) {
+        allSupported = false;
+        continue;
       }
+      const outcome = await this.barLookup(bar, license, request.id, {
+        firstName: request.attorney.user.first_name ?? '',
+        lastName: request.attorney.user.last_name ?? '',
+      });
+      barResults.push(outcome.result);
     }
+    const barPassed =
+      allSupported &&
+      barResults.length > 0 &&
+      barResults.every((r) => r === 'pass');
 
     const types = new Set(request.documents.map((d) => d.doc_type));
     const hasIdentity =
       IDENTITY_DOC_TYPES.some((t) => types.has(t)) && types.has('selfie');
     const { provider, impl } = await this.selector.idVerification();
-    if (!hasIdentity || provider === 'manual') return;
+    if (!hasIdentity || provider === 'manual') {
+      if (barPassed && !hasIdentity) await this.approve(request.id);
+      return;
+    }
 
     const input = { requestId: request.id, attorneyId: request.attorney_id };
-    const idCheck = await this.safe(() => impl.verify(input), provider);
+    // A refused budget is a PROVIDER_BUDGET_EXCEEDED that `safe` turns into
+    // `manual_review` (reason budget_exceeded): no provider session is
+    // opened and a person looks at the documents instead.
+    const idCheck = await this.safe(async () => {
+      await this.costGuard?.consume('id_check');
+      return impl.verify(input);
+    }, provider);
     await this.record(request.id, 'id_check', provider, idCheck);
     // No provider session when the budget refused the ID check.
     const faceMatch =
@@ -91,6 +156,142 @@ export class VerificationChecksService {
       where: { id: request.id },
       data: { provider },
     });
+    if (barPassed && idCheck.result === 'pass' && faceMatch.result === 'pass') {
+      await this.approve(request.id);
+    }
+  }
+
+  /**
+   * Approves a still-`submitted` request whose checks all passed: its
+   * pending licenses become verified (no verifier: `verified_by` null),
+   * the profile turns verified and the attorney is notified exactly as
+   * after a verifier's approval. `admin_note` marks it for the panel.
+   * Also used for self-attested submissions (SELF_ATTESTED_NOTE).
+   */
+  async approve(
+    requestId: string,
+    note: string = AUTO_APPROVED_NOTE,
+    now = new Date(),
+  ): Promise<void> {
+    await withTxRetry(this.prisma, async (tx) => {
+      const req = await tx.verificationRequest.findUnique({
+        where: { id: requestId },
+        select: { id: true, status: true, attorney_id: true },
+      });
+      if (!req || req.status !== 'submitted') return;
+      await tx.attorneyLicense.updateMany({
+        where: { attorney_id: req.attorney_id, license_status: 'pending' },
+        data: {
+          license_status: 'verified',
+          verified_at: now,
+          rejection_code: null,
+          rejection_note: null,
+        },
+      });
+      await tx.verificationRequest.update({
+        where: { id: req.id },
+        data: {
+          status: 'approved',
+          reviewed_at: now,
+          admin_note: note,
+        },
+      });
+      await syncProfileStatus(tx, req.attorney_id, 'approved', now);
+      await this.notifications.emit(
+        {
+          type: 'verification_update',
+          recipientId: req.attorney_id,
+          // Owner 2026-10-07 (phone test): a sworn statement is not a
+          // confirmed license — say so, not «Верификация пройдена».
+          payload: {
+            kind:
+              note === SELF_ATTESTED_NOTE ? KIND.selfAttested : KIND.approved,
+            requestId: req.id,
+            partial: false,
+          },
+        },
+        tx,
+      );
+    });
+    this.logger.info({ requestId, note }, 'Verification request auto-approved');
+    await this.trustRecompute(requestId);
+  }
+
+  /** Owner 2026-10-05: the trust level follows every verification change. */
+  private async trustRecompute(requestId: string): Promise<void> {
+    const req = await this.prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+      select: { attorney_id: true },
+    });
+    if (req) await this.trust.recompute(req.attorney_id);
+  }
+
+  /**
+   * Owner 2026-10-04/05: self-attestation approves at once; afterwards
+   * every license of the request in a state with an enabled registry is
+   * looked up. A match is just recorded; a difference (name, not found,
+   * not active) never rejects — the license stays verified and is flagged
+   * for an admin (`registry_flag`, Admin → Проверка → "Сверка с
+   * реестром"). Registry errors change nothing. Best effort.
+   */
+  async approveSelfAttested(requestId: string): Promise<void> {
+    const request = await this.prisma.verificationRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        attorney: {
+          select: {
+            user: { select: { first_name: true, last_name: true } },
+            licenses: { where: { license_status: 'pending' } },
+          },
+        },
+      },
+    });
+    await this.approve(requestId, SELF_ATTESTED_NOTE);
+    if (!request) return;
+    try {
+      const bar = await this.selector.barLookup();
+      for (const license of request.attorney.licenses) {
+        if (!(await bar.supports(license.state_code))) continue;
+        const outcome = await this.barLookup(bar, license, requestId, {
+          firstName: request.attorney.user.first_name ?? '',
+          lastName: request.attorney.user.last_name ?? '',
+        });
+        const flag = await this.applyRegistryFlag(license.id, outcome);
+        if (flag) await this.attempts?.recordFailure(license.attorney_id);
+        else if (flag === null) await this.attempts?.reset(license.attorney_id);
+      }
+    } catch (err) {
+      this.logger.warn(
+        { err, requestId },
+        'Registry check after self-attestation failed',
+      );
+    }
+  }
+
+  /**
+   * Owner 2026-10-05: the registry's verdict on a verified license. `pass`
+   * clears the flag; `fail` (not_found / not_active) and a name mismatch
+   * set it; a registry error or a state without a registry leaves it as it
+   * is. Returns the flag now on the license.
+   */
+  async applyRegistryFlag(
+    licenseId: string,
+    outcome: CheckOutcome,
+    now = new Date(),
+  ): Promise<string | null | undefined> {
+    const flag = registryFlagFor(outcome);
+    if (flag === undefined) return undefined;
+    const updated = await this.prisma.attorneyLicense.update({
+      where: { id: licenseId },
+      data: {
+        registry_flag: flag,
+        registry_flagged_at: flag ? now : null,
+      },
+      select: { attorney_id: true },
+    });
+    // Owner 2026-10-05: a registry match / flag moves the trust level.
+    await this.trust.recompute(updated.attorney_id);
+    return flag;
   }
 
   /**
@@ -127,6 +328,7 @@ export class VerificationChecksService {
         },
       },
     });
+    await this.fillRegistryExpiry(license.id, outcome);
     if (requestId) {
       // verification_provider has no bar-database values; the adapter
       // name is kept in details.lookupProvider.
@@ -141,6 +343,39 @@ export class VerificationChecksService {
       });
     }
     return outcome;
+  }
+
+  /**
+   * Owner 2026-10-24: a registry that publishes the next registration /
+   * renewal date (NY `next_registration`) fills `expires_at` itself
+   * (source 'registry'). It replaces an attorney's date but never an
+   * admin's, and only on a license still pending or verified. The badge
+   * is recomputed because the date may have moved in either direction.
+   */
+  private async fillRegistryExpiry(
+    licenseId: string,
+    outcome: CheckOutcome,
+  ): Promise<void> {
+    const iso = outcome.details.registryExpiresAt;
+    if (outcome.result !== 'pass' || typeof iso !== 'string') return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+    const { count } = await this.prisma.attorneyLicense.updateMany({
+      where: {
+        id: licenseId,
+        license_status: { in: ['pending', 'verified'] },
+        OR: [{ expires_source: null }, { expires_source: { not: 'admin' } }],
+      },
+      data: {
+        expires_at: new Date(`${iso}T00:00:00Z`),
+        expires_source: 'registry',
+      },
+    });
+    if (count === 0) return;
+    const row = await this.prisma.attorneyLicense.findUnique({
+      where: { id: licenseId },
+      select: { attorney_id: true },
+    });
+    if (row) await this.trust.recompute(row.attorney_id);
   }
 
   private async record(
@@ -184,4 +419,16 @@ export class VerificationChecksService {
       };
     }
   }
+}
+
+/** null = clear, a code = flag, undefined = leave as is (no verdict). */
+export function registryFlagFor(
+  outcome: CheckOutcome,
+): string | null | undefined {
+  const reason = outcome.details.reason;
+  if (outcome.result === 'pass') return null;
+  if (outcome.result === 'fail') {
+    return reason === 'not_active' ? 'not_active' : 'not_found';
+  }
+  return reason === 'name_mismatch' ? 'name_mismatch' : undefined;
 }

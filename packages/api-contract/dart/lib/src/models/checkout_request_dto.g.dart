@@ -8,9 +8,11 @@ part of 'checkout_request_dto.dart';
 
 CheckoutRequestDto _$CheckoutRequestDtoFromJson(Map<String, dynamic> json) =>
     CheckoutRequestDto(
+      planCode: json['planCode'] as String?,
       assistantPhones: (json['assistantPhones'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      promoCode: json['promoCode'] as String?,
       plan: json['plan'] == null
           ? SubscriptionPlan.monthly
           : SubscriptionPlan.fromJson(json['plan'] as String),
@@ -20,6 +22,8 @@ CheckoutRequestDto _$CheckoutRequestDtoFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$CheckoutRequestDtoToJson(CheckoutRequestDto instance) =>
     <String, dynamic>{
       'plan': instance.plan.toJson(),
+      'planCode': ?instance.planCode,
       'assistantSeats': instance.assistantSeats,
       'assistantPhones': ?instance.assistantPhones,
+      'promoCode': ?instance.promoCode,
     };

@@ -8,6 +8,7 @@ import type { Request } from 'express';
 import type Redis from 'ioredis';
 import { ConfigService } from '@nestjs/config';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   TokenService,
@@ -17,6 +18,14 @@ import {
 import type { RequestUser } from '../decorators/current-user.decorator';
 
 const REAUTH_HEADER = 'x-reauth-token';
+
+/** Owner 2026-10-22 (security audit #3): a sign-in this recent IS the
+ * re-authentication (the person has just typed the SMS / e-mail code or
+ * the password) — OWASP ASVS V3.7.1 accepts "a full, valid login session".
+ * It keeps sign-up one code long: the password and the first e-mail right
+ * after the sign-up code need no second code. Counted from the first
+ * session row of the chain, so refreshing never makes a session "fresh". */
+export const FRESH_SIGN_IN_SECONDS = 600;
 
 /**
  * Validates and consumes the single-use `X-Reauth-Token` (docs/01 §10.1,
@@ -30,7 +39,47 @@ export class ReauthVerifier {
     private readonly tokenService: TokenService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
+
+  /** True when the request carries an X-Reauth-Token header at all. */
+  hasToken(req: Request): boolean {
+    return Boolean(req.header(REAUTH_HEADER));
+  }
+
+  /**
+   * Owner 2026-10-22 (security audit #3, findings 1–2): sensitive account
+   * changes (a new contact, a password) need either a fresh single-use
+   * reauth token, or a sign-in made within [FRESH_SIGN_IN_SECONDS] on this
+   * very session. A stolen access token of an older session can no longer
+   * attach the thief's e-mail or password to the account.
+   */
+  async assertRecentAuthentication(
+    req: Request & { user?: RequestUser },
+  ): Promise<void> {
+    if (this.hasToken(req)) {
+      await this.assertAndConsume(req);
+      return;
+    }
+    if (await this.signedInRecently(req.user)) return;
+    throw new ForbiddenException({
+      code: ErrorCode.REAUTH_REQUIRED,
+      message: 'This action requires recent reauthentication.',
+    });
+  }
+
+  private async signedInRecently(user?: RequestUser): Promise<boolean> {
+    if (!user?.sid || !user.sub) return false;
+    const first = await this.prisma.session.findFirst({
+      where: { session_chain_id: user.sid, user_id: user.sub },
+      orderBy: { created_at: 'asc' },
+      select: { created_at: true },
+    });
+    return (
+      first !== null &&
+      Date.now() - first.created_at.getTime() <= FRESH_SIGN_IN_SECONDS * 1000
+    );
+  }
 
   /**
    * Validates the header token for the current session WITHOUT consuming

@@ -1,18 +1,21 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../features/auth/application/onboarding_flow.dart';
-import '../../features/auth/auth_routes.dart';
-import '../../features/auth/domain/onboarding_step.dart';
-import '../../features/onboarding/application/current_user_controller.dart';
-import '../config/app_environment.dart';
-import '../navigation/app_router.dart';
-import '../navigation/guards/app_router_guard.dart';
-import '../session/session_providers.dart';
-import '../startup/app_startup.dart';
-import 'deep_link.dart';
+import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/deeplinks/deep_link.dart';
+import 'package:lawbid/core/deeplinks/group_invite_handler.dart';
+import 'package:lawbid/core/navigation/app_router.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
+import 'package:lawbid/core/session/guest_mode.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:lawbid/features/auth/application/onboarding_flow.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:lawbid/features/auth/domain/onboarding_step.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 
 /// Where incoming link URIs come from. Production: `app_links` (custom
 /// scheme + universal links + App Links, cold start and while running).
@@ -25,7 +28,8 @@ abstract interface class DeepLinkSource {
 }
 
 class AppLinksDeepLinkSource implements DeepLinkSource {
-  AppLinksDeepLinkSource([AppLinks? appLinks]) : _appLinks = appLinks ?? AppLinks();
+  AppLinksDeepLinkSource([AppLinks? appLinks])
+      : _appLinks = appLinks ?? AppLinks();
 
   final AppLinks _appLinks;
 
@@ -36,13 +40,13 @@ class AppLinksDeepLinkSource implements DeepLinkSource {
   Stream<Uri> get links => _appLinks.uriLinkStream;
 }
 
-final deepLinkSourceProvider = Provider<DeepLinkSource>((ref) => AppLinksDeepLinkSource());
+final deepLinkSourceProvider =
+    Provider<DeepLinkSource>((ref) => AppLinksDeepLinkSource());
 
 /// Navigation used by [DeepLinkController] — the app router's `go`;
 /// overridable in tests.
 final deepLinkNavigatorProvider = Provider<void Function(String location)>(
-  (ref) =>
-      (location) => ref.read(appRouterProvider).go(location),
+  (ref) => (location) => ref.read(appRouterProvider).go(location),
 );
 
 /// Turns incoming links into app actions (docs/01_FOUNDATION_AUTH.md §12,
@@ -66,7 +70,10 @@ class DeepLinkController extends Notifier<DeepLink?> {
   DeepLink? build() {
     ref
       ..listen(appStartupProvider, (_, __) => _drain())
-      ..listen(sessionControllerProvider.select((s) => s?.sub), (_, __) => _drain())
+      ..listen(
+        sessionControllerProvider.select((s) => s?.sub),
+        (_, __) => _drain(),
+      )
       ..listen(currentUserControllerProvider, (_, __) => _drain())
       ..onDispose(() => _subscription?.cancel());
     return null;
@@ -78,7 +85,8 @@ class DeepLinkController extends Notifier<DeepLink?> {
     final source = ref.read(deepLinkSourceProvider);
     _subscription = source.links.listen(handleUri, onError: (Object _) {});
     try {
-      final initial = await source.initialLink();
+      // Web: the address the tab was opened on is the link.
+      final initial = kIsWeb ? Uri.base : await source.initialLink();
       if (initial != null) handleUri(initial);
     } catch (_) {
       // A malformed launch URI must never break startup.
@@ -87,7 +95,12 @@ class DeepLinkController extends Notifier<DeepLink?> {
 
   /// Parses [uri]; unknown/invalid links are ignored.
   void handleUri(Uri uri) {
-    final link = parseDeepLink(uri, host: ref.read(appEnvironmentProvider).deepLinkHost);
+    final link = parseDeepLink(
+      uri,
+      // Web: the page's own host is the app's link host.
+      host: kIsWeb ? uri.host : ref.read(appEnvironmentProvider).deepLinkHost,
+      webTabs: kIsWeb,
+    );
     if (link == null) return;
     state = link;
     _drain();
@@ -98,6 +111,9 @@ class DeepLinkController extends Notifier<DeepLink?> {
     if (link == null) return;
     if (ref.read(appStartupProvider) != StartupStatus.ready) return;
     final hasSession = ref.read(sessionControllerProvider) != null;
+    // Owner 2026-10-22 (guest browsing): a public screen opens for a guest
+    // too — a profile, a post, a channel (and the web's tab addresses).
+    final guest = !hasSession && ref.read(guestBrowsingEnabledProvider);
 
     switch (link) {
       case EmailCodeDeepLink(:final token):
@@ -106,12 +122,44 @@ class DeepLinkController extends Notifier<DeepLink?> {
         final navigate = ref.read(deepLinkNavigatorProvider);
         unawaited(
           ref.read(onboardingFlowProvider.notifier).verifyEmailMagicLink(
-            token,
-            show: (step) =>
-                navigate(step == OnboardingStep.email ? AuthRoutes.email : AuthRoutes.otp),
-          ),
+                token,
+                show: (step) => navigate(
+                  step == OnboardingStep.email
+                      ? AuthRoutes.email
+                      : AuthRoutes.otp,
+                ),
+              ),
         );
-      case ContentDeepLink(:final location):
+      case ReferralDeepLink(:final code):
+        if (!hasSession) return;
+        final user = ref.read(currentUserControllerProvider).user;
+        if (user == null || AppRouterGuard.requiredStep(user) != null) return;
+        state = null;
+        ref.read(deepLinkNavigatorProvider)(
+          '${AppRoutes.referral}?code=${Uri.encodeQueryComponent(code)}',
+        );
+      case WebLoginDeepLink(:final qrId):
+        // Owner 2026-10-20: the website's sign-in QR. A phone with a
+        // signed-in user gets the "Sign in on the web?" question (the QR
+        // lives two minutes, so a signed-out phone drops it instead of
+        // waiting); a browser gets the public "open the app" page.
+        state = null;
+        if (!kIsWeb && !hasSession) return;
+        ref.read(deepLinkNavigatorProvider)(AppRoutes.webLogin(qrId));
+      case GroupInviteDeepLink(:final token):
+        if (!hasSession) return;
+        final user = ref.read(currentUserControllerProvider).user;
+        if (user == null || AppRouterGuard.requiredStep(user) != null) return;
+        state = null;
+        ref.read(groupInviteHandlerProvider)?.call(token);
+      case ProfileDeepLink(:final location) ||
+            ContentDeepLink(:final location) ||
+            TabDeepLink(:final location):
+        if (guest && isGuestRoute(location)) {
+          state = null;
+          ref.read(deepLinkNavigatorProvider)(location);
+          return;
+        }
         if (!hasSession) return; // wait for sign-in
         final user = ref.read(currentUserControllerProvider).user;
         if (user == null || AppRouterGuard.requiredStep(user) != null) {
@@ -123,6 +171,7 @@ class DeepLinkController extends Notifier<DeepLink?> {
   }
 }
 
-final deepLinkControllerProvider = NotifierProvider<DeepLinkController, DeepLink?>(
+final deepLinkControllerProvider =
+    NotifierProvider<DeepLinkController, DeepLink?>(
   DeepLinkController.new,
 );

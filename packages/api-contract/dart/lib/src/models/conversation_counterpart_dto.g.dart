@@ -15,6 +15,7 @@ ConversationCounterpartDto _$ConversationCounterpartDtoFromJson(
   displayName: json['displayName'] as String?,
   username: json['username'] as String?,
   avatarUrl: json['avatarUrl'] as String?,
+  avatarFullUrl: json['avatarFullUrl'] as String?,
   online: json['online'] as bool?,
   lastSeenAt: json['lastSeenAt'] == null
       ? null
@@ -29,6 +30,7 @@ Map<String, dynamic> _$ConversationCounterpartDtoToJson(
   'displayName': ?instance.displayName,
   'username': ?instance.username,
   'avatarUrl': ?instance.avatarUrl,
+  'avatarFullUrl': ?instance.avatarFullUrl,
   'verifiedBadge': instance.verifiedBadge,
   'online': ?instance.online,
   'lastSeenAt': ?instance.lastSeenAt?.toIso8601String(),

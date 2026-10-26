@@ -7,6 +7,7 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/admin_member_duties_dto.dart';
 import '../models/admin_remove_member_dto.dart';
+import '../models/admin_seat_limit_dto.dart';
 import '../models/admin_team_envelope.dart';
 import '../models/admin_team_row_list_envelope.dart';
 
@@ -39,6 +40,16 @@ abstract class AdminTeamsClient {
   Future<AdminTeamEnvelope> removeAdminTeamMember({
     @Path('memberId') required String memberId,
     @Body() required AdminRemoveMemberDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Set the attorney's own assistant limit (null = global).
+  ///
+  /// [id] - The attorney user id.
+  @PATCH('/admin/teams/{id}/seat-limit')
+  Future<AdminTeamEnvelope> setAdminTeamSeatLimit({
+    @Path('id') required String id,
+    @Body() required AdminSeatLimitDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -4,22 +4,33 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-import 'totp_enrollment_dto.dart';
+import 'admin_session_dto.dart';
 
 part 'admin_login_verify_result_dto.g.dart';
 
 @JsonSerializable()
 class AdminLoginVerifyResultDto {
-  const AdminLoginVerifyResultDto({required this.ticket, this.totpEnrollment});
+  const AdminLoginVerifyResultDto({
+    required this.ticket,
+    required this.session,
+    required this.totpSetupRequired,
+    this.passkeyAvailable,
+  });
 
   factory AdminLoginVerifyResultDto.fromJson(Map<String, Object?> json) =>
       _$AdminLoginVerifyResultDtoFromJson(json);
 
-  /// Short-lived proof that the email code was accepted; exchange it with the TOTP code (or a recovery code).
-  final String ticket;
+  /// The ticket for step 2: the authenticator code (or a recovery code) at /totp — or, when totpSetupRequired, the forced setup at /login/totp-setup.
+  final String? ticket;
 
-  /// Present on the first sign-in (or after a 2FA reset): bind the authenticator app, then send its code to /totp.
-  final TotpEnrollmentDto? totpEnrollment;
+  /// Always null since owner 2026-10-22: the password alone never signs in.
+  final AdminSessionDto? session;
+
+  /// This admin has no authenticator yet: set it up now (QR + recovery codes) before anything else.
+  final bool totpSetupRequired;
+
+  /// Owner 2026-10-22: this admin has a passkey — step 2 may be /login/passkey/options + /login/passkey instead of the code.
+  final bool? passkeyAvailable;
 
   Map<String, Object?> toJson() => _$AdminLoginVerifyResultDtoToJson(this);
 }

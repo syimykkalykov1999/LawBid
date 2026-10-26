@@ -19,12 +19,12 @@
       }
     },
     {
-      "identity" : "appauth-ios",
+      "identity" : "cryptoswift",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/openid/AppAuth-iOS.git",
+      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
       "state" : {
-        "revision" : "a7caeda164dc5108bf4649472b28a5af65dc6f33",
-        "version" : "2.1.0"
+        "revision" : "f2a627b84c1ff96f21ac2fcb623ab36142dd5512",
+        "version" : "1.10.0"
       }
     },
     {
@@ -91,15 +91,6 @@
       }
     },
     {
-      "identity" : "googlesignin-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/google/GoogleSignIn-iOS.git",
-      "state" : {
-        "revision" : "08d8dcecafb575f98879ffdbb8302c1b9ad65d19",
-        "version" : "9.2.0"
-      }
-    },
-    {
       "identity" : "googleutilities",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/google/GoogleUtilities.git",
@@ -124,15 +115,6 @@
       "state" : {
         "revision" : "a2ab612cb980066ee56d90d60d8462992c07f24b",
         "version" : "3.5.0"
-      }
-    },
-    {
-      "identity" : "gtmappauth",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/google/GTMAppAuth.git",
-      "state" : {
-        "revision" : "56e0ccf09a6dd29dc7e68bdf729598240ca8aa16",
-        "version" : "5.0.0"
       }
     },
     {
@@ -172,12 +154,39 @@
       }
     },
     {
+      "identity" : "recaptcha-enterprise-mobile-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/GoogleCloudPlatform/recaptcha-enterprise-mobile-sdk.git",
+      "state" : {
+        "revision" : "85588690041e63784be7bcb4b631c32565127ba2",
+        "version" : "18.9.1"
+      }
+    },
+    {
       "identity" : "sdwebimage",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SDWebImage/SDWebImage",
       "state" : {
         "revision" : "2de3a496eaf6df9a1312862adcfd54acd73c39c0",
         "version" : "5.21.7"
+      }
+    },
+    {
+      "identity" : "sentry-cocoa",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/getsentry/sentry-cocoa",
+      "state" : {
+        "revision" : "4bb2282661ee6ca2212aa01d19a1214394cd3c45",
+        "version" : "9.30.2"
+      }
+    },
+    {
+      "identity" : "stripe-ios-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stripe/stripe-ios-spm",
+      "state" : {
+        "revision" : "ae3818759d770514b1a3547384837a9dc619fcbd",
+        "version" : "26.9.0"
       }
     },
     {

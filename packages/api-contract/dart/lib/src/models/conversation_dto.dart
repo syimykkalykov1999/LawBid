@@ -21,18 +21,24 @@ class ConversationDto {
     required this.contactsUnlocked,
     required this.counterpart,
     required this.unreadCount,
+    required this.callsMuted,
     required this.updatedAt,
     required this.folder,
     required this.folderAuto,
     required this.kind,
     required this.requestStatus,
     required this.requestedByMe,
+    required this.blocked,
     this.caseId,
     this.caseTitle,
     this.lastMessage,
     this.lastMessageAt,
+    this.disappearAfterS,
     this.mutedUntil,
     this.counterpartLastReadMessageId,
+    this.counterpartLastReadAt,
+    this.counterpartLastDeliveredMessageId,
+    this.matchedMessage,
     this.waitingSince,
     this.note,
     this.pinnedAt,
@@ -52,15 +58,30 @@ class ConversationDto {
   final MessageDto? lastMessage;
   final DateTime? lastMessageAt;
   final num unreadCount;
+
+  /// Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.
+  final num? disappearAfterS;
   final DateTime? mutedUntil;
+
+  /// Calls of this chat ring silently for me.
+  final bool callsMuted;
 
   /// For "Seen" on own messages (§8.2).
   final String? counterpartLastReadMessageId;
+
+  /// When the other side last read; "read at" for every message up to it.
+  final DateTime? counterpartLastReadAt;
+
+  /// Newest message that reached the other side's device (two grey ticks).
+  final String? counterpartLastDeliveredMessageId;
   final DateTime updatedAt;
   final ChatFolder folder;
 
   /// true = the folder is chosen automatically.
   final bool folderAuto;
+
+  /// Owner 2026-10-18: only with GET /chats?q=… — a ~80-char snippet around the first message hit; null when the name / @username / case title matched.
+  final String? matchedMessage;
   final DateTime? waitingSince;
   final String? note;
   final DateTime? pinnedAt;
@@ -71,6 +92,9 @@ class ConversationDto {
 
   /// The viewer sent this message request.
   final bool requestedByMe;
+
+  /// Either side blocked the other. Messages and calls still work in a case chat while the accepted case is not closed.
+  final bool blocked;
 
   Map<String, Object?> toJson() => _$ConversationDtoToJson(this);
 }

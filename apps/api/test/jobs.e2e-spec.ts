@@ -1,30 +1,33 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { PrismaClient } from '@prisma/client';
-import { QueueEvents, type Job } from 'bullmq';
+import { PrismaService } from '../src/prisma/prisma.service';
+import { QueueEvents, type Job, type Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { WorkerModule } from '../src/jobs/worker.module';
 import { JobsRunner } from '../src/jobs/jobs.runner';
 import {
   CRON_JOBS,
-  CRON_QUEUE,
+  CRON_LANES,
   CRON_SCHEDULES,
+  cronLaneOf,
   DISPOSABLE_DOMAINS_FETCHER,
+  type CronLane,
 } from '../src/jobs/jobs.constants';
 import { DISPOSABLE_MIN_DOMAINS } from '../src/jobs/disposable-domains/disposable-domains-refresh.job';
 
 /**
- * BullMQ `cron` queue end to end (real Redis + CockroachDB): schedules
+ * BullMQ `cron` queue end to end (real Redis + PostgreSQL): schedules
  * exist once no matter how many instances boot, and each job — run
  * through the real queue and worker — does its docs/02 §6.4 / §3.3 work.
  * The disposable-domain fetcher is a fake (no network).
  */
 describe('Background jobs (e2e) — BullMQ cron queue', () => {
-  // App boot + CockroachDB fixtures exceed Jest's 5 s default under load.
+  // App boot + PostgreSQL fixtures exceed Jest's 5 s default under load.
   jest.setTimeout(60_000);
 
-  const prisma = new PrismaClient();
+  // The app's routed client (sees both databases in two-DB mode).
+  let prisma: PrismaService;
   const redis = new Redis(process.env.REDIS_URL as string);
   const fetcher = {
     body: '' as string | Error,
@@ -38,7 +41,8 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
   };
   const apps: INestApplicationContext[] = [];
   let runner: JobsRunner;
-  let events: QueueEvents;
+  // S10-2: one QueueEvents per cron lane (a job finishes on its own lane).
+  const events = new Map<CronLane, QueueEvents>();
 
   async function boot(): Promise<INestApplicationContext> {
     const moduleRef = await Test.createTestingModule({
@@ -54,7 +58,10 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
 
   async function runJob(name: (typeof CRON_JOBS)[keyof typeof CRON_JOBS]) {
     const job: Job = await runner.runNow(name);
-    return (await job.waitUntilFinished(events, 60_000)) as unknown;
+    return (await job.waitUntilFinished(
+      events.get(cronLaneOf(name))!,
+      60_000,
+    )) as unknown;
   }
 
   beforeAll(async () => {
@@ -62,39 +69,53 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     const first = await boot();
     await boot();
     runner = first.get(JobsRunner);
-    events = new QueueEvents(CRON_QUEUE, {
-      connection: { url: process.env.REDIS_URL, maxRetriesPerRequest: null },
-    });
-    await events.waitUntilReady();
+    prisma = first.get(PrismaService);
+    for (const lane of CRON_LANES) {
+      const ev = new QueueEvents(lane, {
+        connection: { url: process.env.REDIS_URL, maxRetriesPerRequest: null },
+      });
+      await ev.waitUntilReady();
+      events.set(lane, ev);
+    }
   });
 
   afterAll(async () => {
-    await events.close();
+    for (const ev of events.values()) await ev.close();
     for (const app of apps) await app.close();
     await redis.quit();
-    await prisma.$disconnect();
   });
 
   it('registers each repeatable job exactly once across instances', async () => {
-    const queue = runner.cronQueue;
-    expect(queue).toBeDefined();
-    if (!queue) return;
-    const schedulers = await queue.getJobSchedulers();
-    expect(schedulers.map((s) => s.key).sort()).toEqual(
-      CRON_SCHEDULES.map((s) => s.name).sort(),
-    );
-    for (const s of schedulers) {
-      const want = CRON_SCHEDULES.find((c) => c.name === s.key)!;
-      expect(s.pattern).toBe(want.pattern);
-      expect(s.tz).toBe('UTC');
+    // S10-2: the schedules are spread over three lanes; each one sits on
+    // its own lane only.
+    const lanes = CRON_LANES.map((lane) => {
+      const queue = runner.laneQueue(lane);
+      expect(queue).toBeDefined();
+      return { lane, queue: queue! };
+    });
+    const all: string[] = [];
+    for (const { lane, queue } of lanes) {
+      for (const s of await queue.getJobSchedulers()) {
+        all.push(s.key);
+        expect(cronLaneOf(s.key)).toBe(lane);
+        const want = CRON_SCHEDULES.find((c) => c.name === s.key)!;
+        expect(s.pattern).toBe(want.pattern);
+        expect(s.tz).toBe('UTC');
+      }
     }
-    // One pending (delayed) run per scheduler, not one per instance.
-    expect(await queue.getDelayedCount()).toBe(CRON_SCHEDULES.length);
+    expect(all.sort()).toEqual(CRON_SCHEDULES.map((s) => s.name).sort());
+    // One pending run per scheduler, not one per instance.
+    for (const { lane, queue } of lanes)
+      await expectOnePendingRunPerScheduler(queue, lane);
 
     // A third boot (rolling deploy) is still idempotent.
     await boot();
-    expect((await queue.getJobSchedulers()).length).toBe(CRON_SCHEDULES.length);
-    expect(await queue.getDelayedCount()).toBe(CRON_SCHEDULES.length);
+    let total = 0;
+    for (const { lane, queue } of lanes) {
+      total += (await queue.getJobSchedulers()).length;
+      await expectOnePendingRunPerScheduler(queue, lane);
+    }
+    expect(total).toBe(CRON_SCHEDULES.length);
   });
 
   it('sessions.cleanup removes expired and long-revoked sessions, keeps live and rotated ones', async () => {
@@ -264,3 +285,60 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     );
   });
 });
+
+/**
+ * Every scheduler has its next run queued, and none has two. A run that
+ * comes due mid-test leaves «delayed» for waiting/active (and the scheduler
+ * queues the following one), so counting only delayed jobs is flaky near a
+ * minute boundary.
+ */
+async function expectOnePendingRunPerScheduler(
+  queue: Queue,
+  lane: CronLane,
+): Promise<void> {
+  // A scheduler hands its next run over a moment after the current one is
+  // promoted, so two future runs of one scheduler can coexist for a few
+  // hundred ms around a minute boundary. A real duplicate registration
+  // stays, so wait for the queue to settle (up to 15 s) and only then
+  // judge.
+  const duplicates = async (): Promise<string[]> => {
+    const delayed = await queue.getJobs(['delayed']);
+    const perKey = new Map<string, string[]>();
+    const now = Date.now();
+    for (const j of delayed) {
+      const due = j.timestamp + (j.delay ?? 0);
+      // Already due: not a pending run, the next one is queued.
+      if (due <= now) continue;
+      const key = j.repeatJobKey ?? j.name;
+      perKey.set(key, [...(perKey.get(key) ?? []), `${j.id}@${due}`]);
+    }
+    // Two runs of one scheduler at DIFFERENT due times are consecutive
+    // runs of a short (1-minute) cron, not a duplicate registration; a
+    // real duplicate holds two jobs for the same due time.
+    return [...perKey]
+      .filter(([, runs]) => {
+        const dues = runs.map((r) => r.split('@')[1]);
+        return new Set(dues).size < dues.length;
+      })
+      .map(([key, runs]) => `${key}: ${runs.join(', ')}`);
+  };
+  const deadline = Date.now() + 15_000;
+  let dup = await duplicates();
+  while (dup.length > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 250));
+    dup = await duplicates();
+  }
+  // Ids and due times go into the failure, so a CI log alone shows which
+  // scheduler really holds two runs.
+  expect(dup).toEqual([]);
+  const pending = await queue.getJobs([
+    'delayed',
+    'waiting',
+    'active',
+    'prioritized',
+  ]);
+  const covered = new Set(pending.map((j) => j.repeatJobKey ?? j.name));
+  // Only this lane's schedules run on this queue (S10-2).
+  for (const c of CRON_SCHEDULES.filter((x) => cronLaneOf(x.name) === lane))
+    expect(covered.has(c.name)).toBe(true);
+}

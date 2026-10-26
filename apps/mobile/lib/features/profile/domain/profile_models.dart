@@ -91,8 +91,12 @@ class PracticeLeaf {
     required this.id,
     required this.i18nKey,
     required this.nameEn,
+    this.code,
   });
   final String id;
+
+  /// `family_law.divorce` (picks the case cover art).
+  final String? code;
   final String i18nKey;
   final String nameEn;
 }
@@ -121,6 +125,7 @@ class PublicAttorneyProfile {
     required this.verifiedBadge,
     required this.rating,
     required this.isSelf,
+    this.trustLevel = 0,
     this.firstName,
     this.lastName,
     this.bio,
@@ -134,7 +139,25 @@ class PublicAttorneyProfile {
     this.isFollowing = false,
     this.isBlocked = false,
     this.hasBlockedMe = false,
+    this.consultationEnabled = false,
+    this.qaAnswers = 0,
+    this.qaBest = 0,
+    this.advertisingLabel = false,
+    this.publicUrl,
   });
+
+  /// Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): the attorney is
+  /// licensed in a state that requires the «Attorney Advertising» label on
+  /// the profile and posts; the server decides.
+  final bool advertisingLabel;
+
+  /// Owner 2026-10-22 (audit #4 §9): the canonical public page
+  /// (`https://…/attorneys/<username>/`, the SEO page) — the link «Share»
+  /// sends. Null on an older server: the app link `/lawyer/<username>`.
+  final String? publicUrl;
+
+  /// Owner 2026-10-20: the attorney takes consultation bookings.
+  final bool consultationEnabled;
 
   final String id;
   final String username;
@@ -149,8 +172,15 @@ class PublicAttorneyProfile {
 
   /// Blue check (docs/03 §6.3), decided by the server.
   final bool verifiedBadge;
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
   final List<StateRef> licensedStates;
   final List<SelectedPractice> practices;
+
+  /// «Вопрос юристу»: published answers and those marked best.
+  final int qaAnswers;
+  final int qaBest;
   final RatingInfo rating;
   final ProfileCounters counters;
   final bool isSelf;
@@ -180,6 +210,7 @@ class OwnAttorneyProfile {
     required this.username,
     required this.verification,
     required this.verifiedBadge,
+    this.trustLevel = 0,
     this.nameMismatch = false,
     this.firstName,
     this.lastName,
@@ -203,6 +234,9 @@ class OwnAttorneyProfile {
   final List<String> languages;
   final AttorneyVerification verification;
   final bool verifiedBadge;
+
+  /// Owner 2026-10-05: trust level 0..3 (docs/ATTORNEY_TRUST.md).
+  final int trustLevel;
 
   /// OQ-029: the name drifted from the verified one; the blue check is
   /// hidden until it matches again or the new name is confirmed.
@@ -252,11 +286,19 @@ enum UsernameIssue { invalid, reserved, taken }
 
 @immutable
 class UsernameCheck {
-  const UsernameCheck(
-      {required this.username, required this.available, this.issue});
+  const UsernameCheck({
+    required this.username,
+    required this.available,
+    this.issue,
+    this.suggestions = const [],
+  });
   final String username;
   final bool available;
   final UsernameIssue? issue;
+
+  /// Owner 2026-10-18 («как в инсте»): free handles to tap instead; empty
+  /// when [available].
+  final List<String> suggestions;
 }
 
 /// Review summary (docs/03 §7.4): average, count, distribution 5 → 1.
@@ -359,7 +401,7 @@ class Review {
 
   /// Owner 2026-10-01 (Google-style): the author edits any time while
   /// the review is not moderated.
-  bool canEdit(DateTime now) => editable != false;
+  bool canEdit(DateTime now) => editable ?? true;
 }
 
 /// A page of a cursor-paginated list (`meta.nextCursor`).
@@ -383,7 +425,9 @@ enum ReviewReportReason {
 
   /// `off_topic` …
   String get wire => name.replaceAllMapped(
-      RegExp('[A-Z]'), (m) => '_${m.group(0)!.toLowerCase()}');
+        RegExp('[A-Z]'),
+        (m) => '_${m.group(0)!.toLowerCase()}',
+      );
 }
 
 /// Owner 2026-10-01: Google-style review orders.

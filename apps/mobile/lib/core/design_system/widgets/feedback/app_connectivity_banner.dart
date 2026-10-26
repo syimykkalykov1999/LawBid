@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-
+import 'package:lawbid/core/design_system/icons/app_icon.dart';
+import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
@@ -14,8 +15,6 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
-import 'package:lawbid/core/design_system/icons/app_icon.dart';
-import 'package:lawbid/core/design_system/icons/app_icons.dart';
 
 /// What an [AppConnectivityBanner] is reporting.
 enum AppConnectivityBannerTone {
@@ -72,7 +71,7 @@ class AppConnectivityBanner extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final topInset = MediaQuery.paddingOf(context).top;
     final background = colors.text;
-    final foreground = colors.bg;
+    final foreground = colors.inverseText;
     // Gold on the navy-ink band (light theme) is 7.6:1; on the cream band
     // (dark theme) plain gold is only 2.1:1, so the darker gold is used
     // there (4.1:1) — both above the 3:1 non-text minimum.
@@ -94,7 +93,7 @@ class AppConnectivityBanner extends StatelessWidget {
           bottom: BorderSide(color: colors.goldStroke.withValues(alpha: 0.7)),
         ),
       ),
-      padding: EdgeInsets.fromLTRB(
+      padding: EdgeInsetsDirectional.fromSTEB(
         AppSpacing.screenSide,
         topInset + AppSpacing.xs,
         AppSpacing.lg,
@@ -172,9 +171,12 @@ class _BannerAction extends StatelessWidget {
         child: AppPressable(
           onTap: busy ? null : onTap,
           child: Container(
+            // maxWidth: a long translated action label must not squeeze
+            // the banner message to nothing.
             constraints: const BoxConstraints(
               minHeight: AppSizes.touchTarget,
               minWidth: AppSizes.touchTarget,
+              maxWidth: 140,
             ),
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
             alignment: Alignment.center,
@@ -197,6 +199,8 @@ class _BannerAction extends StatelessWidget {
                   : Text(
                       label,
                       key: const ValueKey('label'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: typography.bodySmall.copyWith(
                         color: foreground,
                         fontWeight: FontWeight.w600,

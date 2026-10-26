@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
@@ -80,9 +81,16 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         AvatarUploadState(stage: AvatarUploadStage.preparing, preview: bytes);
     try {
       final mime = sniffImageMime(bytes);
-      if (mime == null) throw _local(ApiErrorCodes.fileTypeNotAllowed);
-      if (bytes.length > kAvatarMaxBytes)
+      final limits = ref.read(uploadLimitsProvider)[UploadPlace.avatar];
+      // Owner 2026-10-19: a photo type the admin has off here is refused at
+      // once (not after the upload).
+      if (mime == null || !limits.photoMimes.contains(mime)) {
+        throw _local(ApiErrorCodes.fileTypeNotAllowed);
+      }
+      // Owner 2026-10-07 (bug 17): the admin's «Фото профиля» MB.
+      if (bytes.length > limits.fileBytes) {
         throw _local(ApiErrorCodes.fileTooLarge);
+      }
       final target = await repo.presign(
         mime: mime,
         sizeBytes: bytes.length,
@@ -105,19 +113,26 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         outcome = await repo.scanStatus(target.fileId);
       }
       if (cancellation.isCancelled) return;
-      if (outcome != ScanOutcome.clean)
+      if (outcome != ScanOutcome.clean) {
         throw _local(ApiErrorCodes.fileNotAttachable);
+      }
       final me = await repo.attach(target.fileId);
       if (!ref.mounted) return;
       ref.read(currentUserControllerProvider.notifier).apply(me);
       state = AvatarUploadState(
-          stage: AvatarUploadStage.done, progress: 1, preview: bytes);
+        stage: AvatarUploadStage.done,
+        progress: 1,
+        preview: bytes,
+      );
     } on UploadCancelledException {
       return;
     } catch (e) {
       if (ref.mounted && !cancellation.isCancelled) {
         state = AvatarUploadState(
-            stage: AvatarUploadStage.failed, preview: bytes, error: e);
+          stage: AvatarUploadStage.failed,
+          preview: bytes,
+          error: e,
+        );
       }
     } finally {
       if (identical(_cancellation, cancellation)) _cancellation = null;
@@ -127,7 +142,10 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
   void _set(AvatarUploadStage stage, double progress) {
     if (!ref.mounted) return;
     state = AvatarUploadState(
-        stage: stage, progress: progress, preview: state.preview);
+      stage: stage,
+      progress: progress,
+      preview: state.preview,
+    );
   }
 }
 

@@ -6,8 +6,8 @@ import 'package:lawbid/features/settings/active_devices/domain/device_session_in
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
 /// Drives `/profile/settings/devices` (docs/01 §10.4 "Активные
-/// устройства"): first page on build, cursor pagination ([loadMore] /
-/// [retryLoadMore]), pull-to-refresh that keeps the loaded rows on failure
+/// устройства"): first page on build, cursor pagination (`loadMore` /
+/// `retryLoadMore`), pull-to-refresh that keeps the loaded rows on failure
 /// (docs/01 §8.3 "показ кэша"), and the revoke / sign-out-everywhere
 /// actions. Depends on the domain repository only.
 final activeDevicesControllerProvider = AsyncNotifierProvider.autoDispose<

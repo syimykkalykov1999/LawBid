@@ -5,6 +5,8 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'profile_counters_dto.dart';
+import 'profile_firm_dto.dart';
+import 'qa_stats_dto.dart';
 import 'rating_dto.dart';
 import 'selected_practice_area_dto.dart';
 import 'state_ref_dto.dart';
@@ -14,6 +16,7 @@ part 'public_attorney_profile_dto.g.dart';
 @JsonSerializable()
 class PublicAttorneyProfileDto {
   const PublicAttorneyProfileDto({
+    required this.firm,
     required this.id,
     required this.username,
     required this.firstName,
@@ -25,12 +28,17 @@ class PublicAttorneyProfileDto {
     required this.avatarUrl256,
     required this.languages,
     required this.verifiedBadge,
+    required this.advertisingLabel,
+    required this.publicUrl,
+    required this.trustLevel,
     required this.licensedStates,
     required this.practiceAreas,
     required this.rating,
+    required this.qa,
     required this.counters,
     required this.isSelf,
     required this.isFollowing,
+    required this.consultationEnabled,
     required this.isBlocked,
     required this.hasBlockedMe,
   });
@@ -38,6 +46,8 @@ class PublicAttorneyProfileDto {
   factory PublicAttorneyProfileDto.fromJson(Map<String, Object?> json) =>
       _$PublicAttorneyProfileDtoFromJson(json);
 
+  /// Owner 2026-10-14: the firm the lawyer works in (active member).
+  final ProfileFirmDto? firm;
   final String id;
   final String username;
   final String? firstName;
@@ -58,10 +68,20 @@ class PublicAttorneyProfileDto {
   /// Blue check (docs/03 §6.3).
   final bool verifiedBadge;
 
+  /// Owner 2026-10-22 (audit #4 §5): show the «Attorney Advertising» label — the attorney is licensed in a state that requires it (NY Rule 7.1(f); admin: Страны → регионы).
+  final bool advertisingLabel;
+
+  /// Owner 2026-10-22 (audit #4 §9): the canonical public page of this attorney (https://…/attorneys/<username>/) — the link the app shares.
+  final String publicUrl;
+
+  /// Owner 2026-10-05: what LawBid checked — 0 self-attested, 1 license confirmed, 2 identity confirmed, 3 both (GET /trust/attorneys/:id for details).
+  final int trustLevel;
+
   /// States of verified licenses only.
   final List<StateRefDto> licensedStates;
   final List<SelectedPracticeAreaDto> practiceAreas;
   final RatingDto rating;
+  final QaStatsDto qa;
   final ProfileCountersDto counters;
 
   /// True when this is the caller's own profile.
@@ -69,6 +89,9 @@ class PublicAttorneyProfileDto {
 
   /// The viewer follows this attorney (docs/05 §6.2).
   final bool isFollowing;
+
+  /// Owner 2026-10-20: the attorney takes consultation bookings now.
+  final bool consultationEnabled;
 
   /// OQ-028: the viewer blocked this user.
   final bool isBlocked;

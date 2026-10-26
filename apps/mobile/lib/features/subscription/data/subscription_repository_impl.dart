@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/plans/data/plan_mappers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/domain/subscription_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -7,9 +8,12 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// `SubscriptionsClient` of the generated contract → domain models.
 class ApiSubscriptionRepository implements SubscriptionRepository {
-  ApiSubscriptionRepository(Dio dio) : _api = api.SubscriptionsClient(dio);
+  ApiSubscriptionRepository(Dio dio)
+      : _api = api.SubscriptionsClient(dio),
+        _billing = api.BillingClient(dio);
 
   final api.SubscriptionsClient _api;
+  final api.BillingClient _billing;
 
   static SubscriptionInfo _info(api.SubscriptionDto d) => SubscriptionInfo(
         id: d.id,
@@ -29,6 +33,12 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
   static SubscriptionOverview _overview(api.SubscriptionMeDto d) =>
       SubscriptionOverview(
         subscription: d.subscription == null ? null : _info(d.subscription!),
+        contractGrant: d.contractGrant == null
+            ? null
+            : ContractGrant(
+                endsAt: d.contractGrant!.endsAt,
+                assistantSeats: d.contractGrant!.assistantSeats,
+              ),
         isActive: d.isActive,
         canStart: d.canStart,
         trialEligible: d.trialEligible,
@@ -38,7 +48,15 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
           seatCents: d.prices.seatCents,
           yearlyCents: d.prices.yearlyCents,
           maxSeats: d.prices.maxSeats,
+          trialDays: d.prices.trialDays,
+          monthlyDiscount: PlanMappers.discount(d.prices.monthlyDiscount),
+          seatDiscount: PlanMappers.discount(d.prices.seatDiscount),
+          yearlyDiscount: PlanMappers.discount(d.prices.yearlyDiscount),
         ),
+        plan: d.plan == null ? null : PlanMappers.plan(d.plan!),
+        plans: PlanMappers.plans(d.plans),
+        entitlements: PlanMappers.entitlements(d.entitlements),
+        seats: PlanMappers.seats(d.seats),
       );
 
   static PaymentRecord _payment(api.PaymentDto p) => PaymentRecord(
@@ -49,7 +67,31 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
         paidAt: p.paidAt,
         failureCode: p.failureCode,
         createdAt: p.createdAt,
+        boostTarget: p.kind.json == 'boost' ? (p.boostTarget ?? 'post') : null,
+        boostDays: p.boostDays,
       );
+
+  @override
+  Future<PromoCheck> validatePromo(String code, SubscriptionPlan plan) async {
+    final d = (await guardApiCall(
+      () => _billing.validatePromoCode(
+        body: api.ValidatePromoDto(
+          code: code,
+          appliesTo: plan == SubscriptionPlan.yearly
+              ? api.PromoPurchase.yearly
+              : api.PromoPurchase.monthly,
+        ),
+      ),
+    ))
+        .data;
+    return PromoCheck(
+      valid: d.valid,
+      percentOff: d.percentOff,
+      amountOffCents: d.amountOffCents,
+      freeDays: d.freeDays,
+      reason: d.reason?.json,
+    );
+  }
 
   @override
   Future<SubscriptionOverview> overview() async =>
@@ -60,14 +102,22 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     int assistantSeats = 0,
     List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
   }) async {
     final d = (await guardApiCall(
       () => _api.createCheckout(
         body: api.CheckoutRequestDto(
+          promoCode: promoCode,
+          planCode: planCode,
           plan: plan == SubscriptionPlan.yearly
               ? api.SubscriptionPlan.yearly
               : api.SubscriptionPlan.monthly,
-          assistantSeats: plan == SubscriptionPlan.yearly ? 0 : assistantSeats,
+          // Legacy yearly Prime has every seat; a plan of the plan
+          // builder takes the extra seats as chosen.
+          assistantSeats: planCode == null && plan == SubscriptionPlan.yearly
+              ? 0
+              : assistantSeats,
           assistantPhones: assistantPhones.isEmpty ? null : assistantPhones,
         ),
       ),
@@ -101,20 +151,78 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
       );
 
   @override
-  Future<SubscriptionOverview> setSeats(int seats) async => _overview(
-        (await guardApiCall(
-          () => _api.setSeats(body: api.SetSeatsDto(seats: seats)),
-        ))
-            .data,
-      );
+  Future<Uri> seatsCheckoutUrl(int seats) async {
+    final d = (await guardApiCall(
+      () => _api.seatsCheckout(body: api.SeatPreviewRequestDto(seats: seats)),
+    ))
+        .data;
+    return Uri.parse(d.url);
+  }
+
+  @override
+  Future<SeatPreview> previewSeats(int seats) async {
+    final d = (await guardApiCall(
+      () => _api.previewSeats(body: api.SeatPreviewRequestDto(seats: seats)),
+    ))
+        .data;
+    return SeatPreview(
+      seats: d.seats,
+      currentSeats: d.currentSeats,
+      amountNowCents: d.amountNowCents,
+      currency: d.currency,
+      prorationDate: d.prorationDate,
+      periodEnd: d.periodEnd,
+      seatCents: d.seatCents,
+      monthlyIncreaseCents: d.monthlyIncreaseCents,
+      nextChargeCents: d.nextChargeCents,
+    );
+  }
+
+  @override
+  Future<SeatChangeOutcome> setSeats(int seats, {int? prorationDate}) async {
+    final d = (await guardApiCall(
+      () => _api.setSeats(
+        body: api.SetSeatsDto(seats: seats, prorationDate: prorationDate),
+      ),
+    ))
+        .data;
+    return SeatChangeOutcome(
+      status: SeatChangeStatus.parse(d.status.json),
+      clientSecret: d.clientSecret,
+      amountCents: d.amountCents,
+      effectiveAt: d.effectiveAt,
+      overview: _overview(d.overview),
+    );
+  }
 
   @override
   Future<SubscriptionOverview> switchToYearly() async =>
       _overview((await guardApiCall(_api.switchToYearly)).data);
 
   @override
-  Future<SubscriptionStart> start() async {
-    final d = (await guardApiCall(_api.startSubscription)).data;
+  Future<SubscriptionStart> start({
+    SubscriptionPlan plan = SubscriptionPlan.monthly,
+    int assistantSeats = 0,
+    List<String> assistantPhones = const [],
+    String? promoCode,
+    String? planCode,
+  }) async {
+    final d = (await guardApiCall(
+      () => _api.startSubscription(
+        body: api.CheckoutRequestDto(
+          promoCode: promoCode,
+          planCode: planCode,
+          plan: plan == SubscriptionPlan.yearly
+              ? api.SubscriptionPlan.yearly
+              : api.SubscriptionPlan.monthly,
+          assistantSeats: planCode == null && plan == SubscriptionPlan.yearly
+              ? 0
+              : assistantSeats,
+          assistantPhones: assistantPhones.isEmpty ? null : assistantPhones,
+        ),
+      ),
+    ))
+        .data;
     return SubscriptionStart(
       clientSecret: d.clientSecret,
       setupIntentId: d.setupIntentId,

@@ -19,6 +19,7 @@ class VerificationLicenseDto {
     required this.expiresAt,
     required this.rejectionCode,
     required this.rejectionNote,
+    required this.manualReview,
   });
 
   factory VerificationLicenseDto.fromJson(Map<String, Object?> json) =>
@@ -33,6 +34,9 @@ class VerificationLicenseDto {
   /// Rejection code (`verification.reject.<code>`).
   final String? rejectionCode;
   final String? rejectionNote;
+
+  /// Owner 2026-10-18: sent for manual review by the attorney (the number does not fit the state's format); a bar card photo is required.
+  final bool manualReview;
 
   Map<String, Object?> toJson() => _$VerificationLicenseDtoToJson(this);
 }

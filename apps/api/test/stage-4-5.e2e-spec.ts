@@ -11,7 +11,7 @@ import { SubscriptionAccessService } from '../src/modules/subscriptions/subscrip
 
 /**
  * docs/04_CASES_BIDS.md §16 stage 4.5 acceptance (integration + concurrency),
- * against real CockroachDB/Redis:
+ * against real PostgreSQL/Redis:
  *  - two parallel accepts of different bids on one case: exactly one wins,
  *    the other gets CASE_INVALID_STATE;
  *  - afterwards the other bids are rejected_auto, the case is in_progress
@@ -314,7 +314,7 @@ describe('Bid acceptance and client contacts (e2e, docs/04 §7–§8, stage 4.5)
     expect(client.id).toBeTruthy();
   });
 
-  it('an attorney who lost the license: BID_ATTORNEY_INACTIVE, bid withdrawn, case stays open', async () => {
+  it("an attorney without a licence in the case's state can still be hired (owner 2026-10-14)", async () => {
     const client = await user('client');
     await withClientContacts(client.id);
     const attorney = await user('attorney');
@@ -323,6 +323,24 @@ describe('Bid acceptance and client contacts (e2e, docs/04 §7–§8, stage 4.5)
     await prisma.attorneyLicense.updateMany({
       where: { attorney_id: attorney.id },
       data: { license_status: 'expired' },
+    });
+
+    const res = await accept(client.auth, bidId);
+    expect(res.status).toBe(200);
+    expect(
+      (await prisma.bid.findUniqueOrThrow({ where: { id: bidId } })).status,
+    ).toBe('accepted');
+  });
+
+  it('an attorney who is no longer verified: BID_ATTORNEY_INACTIVE, bid withdrawn, case stays open', async () => {
+    const client = await user('client');
+    await withClientContacts(client.id);
+    const attorney = await user('attorney');
+    const caseId = await kase(client.id);
+    const bidId = await bidOn(attorney.auth, caseId);
+    await prisma.attorneyProfile.update({
+      where: { user_id: attorney.id },
+      data: { verification_status: 'suspended' },
     });
 
     const res = await accept(client.auth, bidId);

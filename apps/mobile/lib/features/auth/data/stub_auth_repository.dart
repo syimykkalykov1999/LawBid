@@ -1,9 +1,9 @@
-import '../domain/account_deletion_result.dart';
-import '../domain/otp_verify_result.dart';
-import '../domain/reauth_result.dart';
-import '../domain/social_login_result.dart';
-import 'auth_dtos.dart' show DeviceSession;
-import 'auth_repository.dart';
+import 'package:lawbid/features/auth/data/auth_dtos.dart' show DeviceSession;
+import 'package:lawbid/features/auth/data/auth_repository.dart';
+import 'package:lawbid/features/auth/domain/account_deletion_result.dart';
+import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
+import 'package:lawbid/features/auth/domain/password_auth_result.dart';
+import 'package:lawbid/features/auth/domain/reauth_result.dart';
 
 /// Local-only stub kept for widget/golden tests (docs/CHANGELOG.md) — no
 /// longer `authRepositoryProvider`'s default as of the real-backend wiring
@@ -34,26 +34,68 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<OtpVerifyResult> verifyEmailLink({required String token, required String verifier}) async {
+  Future<PasswordAuthResult> signInWithPassword({
+    required String identifier,
+    required String password,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
+    return password == 'Demo1234!'
+        ? const PasswordAuthResult.success()
+        : const PasswordAuthResult(PasswordAuthStatus.invalidCredentials);
+  }
+
+  @override
+  Future<({bool registered, bool hasPassword})?> phoneStatus(
+    String phone,
+  ) async =>
+      (registered: false, hasPassword: false);
+
+  @override
+  Future<PasswordAuthResult> setPassword(
+    String password, {
+    String? currentPassword,
+    String? reauthToken,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return const PasswordAuthResult.success();
+  }
+
+  @override
+  Future<PasswordAuthResult> requestPasswordReset(String identifier) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return PasswordAuthResult.success(
+      channel: identifier.contains('@') ? 'email' : 'phone',
+    );
+  }
+
+  @override
+  Future<PasswordAuthResult> resetPassword({
+    required String identifier,
+    required String code,
+    required String newPassword,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    return code == _invalidCode
+        ? const PasswordAuthResult(PasswordAuthStatus.invalidCode)
+        : const PasswordAuthResult.success();
+  }
+
+  @override
+  Future<OtpVerifyResult> signInWithAssistantCode(String code) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (code.replaceAll('-', '').length < 12) {
+      return const OtpVerifyResult.invalid();
+    }
     return const OtpVerifyResult.success(isNewUser: true);
   }
 
-  /// Phase 3 (docs/CHANGELOG.md): always succeeds as a new user, same
-  /// simulated-latency convention as [verifyOtp]/[requestOtp] above — kept
-  /// in sync with [AuthRepository]'s interface purely so widget/golden
-  /// tests that override `authRepositoryProvider` with this stub keep
-  /// compiling; no test exercises the social buttons today.
   @override
-  Future<SocialLoginResult> signInWithApple() async {
+  Future<OtpVerifyResult> verifyEmailLink({
+    required String token,
+    required String verifier,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    return const SocialLoginResult.success(isNewUser: true);
-  }
-
-  @override
-  Future<SocialLoginResult> signInWithGoogle() async {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    return const SocialLoginResult.success(isNewUser: true);
+    return const OtpVerifyResult.success(isNewUser: true);
   }
 
   @override
@@ -94,14 +136,19 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<ReauthResult> reauthWithOtp({required String identifier, required String code}) async {
+  Future<ReauthResult> reauthWithOtp({
+    required String identifier,
+    required String code,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     if (code == _invalidCode) return const ReauthResult.invalid();
     return const ReauthResult.success(reauthToken: 'stub-reauth-token');
   }
 
   @override
-  Future<AccountDeletionResult> deleteAccount({required String reauthToken}) async {
+  Future<AccountDeletionResult> deleteAccount({
+    required String reauthToken,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     return const AccountDeletionResult.success();
   }

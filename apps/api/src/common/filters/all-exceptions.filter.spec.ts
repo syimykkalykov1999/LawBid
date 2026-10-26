@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import type { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
+import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
 function run(exception: unknown): { status: number; body: unknown } {
@@ -87,5 +88,34 @@ describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
         message: 'Internal server error.',
       },
     });
+  });
+
+  it('turns a failed Stripe call into 503 PAYMENTS_NOT_CONFIGURED', () => {
+    const err = Object.assign(new Error('Invalid API Key provided'), {
+      type: 'StripeAuthenticationError',
+    });
+    const { status, body } = run(err);
+    expect(status).toBe(503);
+    expect(body).toMatchObject({
+      error: { code: ErrorCode.PAYMENTS_NOT_CONFIGURED },
+    });
+  });
+
+  it('keeps a declined card behind INTERNAL_ERROR', () => {
+    const err = Object.assign(new Error('declined'), {
+      type: 'StripeCardError',
+    });
+    expect(run(err).status).toBe(500);
+  });
+
+  it('maps a paused or timed-out partner service to 503 SERVER_BUSY', () => {
+    for (const e of [
+      new CircuitOpenError('ses'),
+      new CallTimeoutError('ses', 1),
+    ]) {
+      const { status, body } = run(e);
+      expect(status).toBe(503);
+      expect(body).toMatchObject({ error: { code: 'SERVER_BUSY' } });
+    }
   });
 });

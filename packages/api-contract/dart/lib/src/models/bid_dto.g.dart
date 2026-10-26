@@ -22,15 +22,23 @@ BidDto _$BidDtoFromJson(Map<String, dynamic> json) => BidDto(
       : DateTime.parse(json['startDate'] as String),
   estimatedDurationDays: (json['estimatedDurationDays'] as num?)?.toInt(),
   roundCount: (json['roundCount'] as num).toInt(),
+  version: (json['version'] as num).toInt(),
   turn: PartyRole.fromJson(json['turn'] as String),
   decidedAt: json['decidedAt'] == null
       ? null
       : DateTime.parse(json['decidedAt'] as String),
   outsidePractice: json['outsidePractice'] as bool,
+  outsideLicensedStates: json['outsideLicensedStates'] as bool,
   createdAt: DateTime.parse(json['createdAt'] as String),
   offers: (json['offers'] as List<dynamic>)
       .map((e) => BidOfferDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  percentBps: (json['percentBps'] as num?)?.toInt(),
+  attorney: json['attorney'] == null
+      ? null
+      : BidAttorneySummaryDto.fromJson(
+          json['attorney'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$BidDtoToJson(BidDto instance) => <String, dynamic>{
@@ -40,14 +48,18 @@ Map<String, dynamic> _$BidDtoToJson(BidDto instance) => <String, dynamic>{
   'status': instance.status.toJson(),
   'feeType': instance.feeType.toJson(),
   'amountCents': instance.amountCents,
+  'percentBps': ?instance.percentBps,
   'message': instance.message,
   'startAvailability': instance.startAvailability.toJson(),
   'startDate': ?instance.startDate?.toIso8601String(),
   'estimatedDurationDays': ?instance.estimatedDurationDays,
   'roundCount': instance.roundCount,
+  'version': instance.version,
   'turn': instance.turn.toJson(),
   'decidedAt': ?instance.decidedAt?.toIso8601String(),
   'outsidePractice': instance.outsidePractice,
+  'outsideLicensedStates': instance.outsideLicensedStates,
   'createdAt': instance.createdAt.toIso8601String(),
   'offers': instance.offers.map((e) => e.toJson()).toList(),
+  'attorney': ?instance.attorney?.toJson(),
 };

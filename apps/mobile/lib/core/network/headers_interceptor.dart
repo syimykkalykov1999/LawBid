@@ -1,14 +1,17 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../app_update/app_version.dart';
-import '../l10n/app_language.dart';
-import '../l10n/language_providers.dart';
-import '../persistence/persistence_providers.dart';
+import 'package:lawbid/core/app_update/app_version.dart';
+import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/network/device_key.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 
 const _kDeviceIdKey = 'network.device_id';
 
@@ -35,7 +38,8 @@ class HeadersInterceptor extends Interceptor {
   /// `runApp` — see core/app_update/app_version.dart).
   static String get appVersion => AppVersion.current;
 
-  static String get platformName => Platform.isIOS ? 'ios' : 'android';
+  static String get platformName =>
+      kIsWeb ? 'web' : (Platform.isIOS ? 'ios' : 'android');
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -43,11 +47,29 @@ class HeadersInterceptor extends Interceptor {
     options.headers['X-App-Version'] = appVersion;
     options.headers['Accept-Language'] = _languageTag(_ref);
     options.headers['X-Device-Id'] = resolveDeviceId(_ref);
+    // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): see DeviceKey.
+    final deviceKey = DeviceKey.current;
+    if (deviceKey != null) options.headers['X-Device-Key'] = deviceKey;
+    applyWebSession(options, isWeb: kIsWeb);
     handler.next(options);
   }
 
+  /// Owner 2026-10-22 (audit #7): on the website the refresh token is an
+  /// HttpOnly cookie the API sets on `/auth/*`. Those calls ask for cookie
+  /// mode and let the browser send / store the cookie; every other call
+  /// stays cookie-free (Bearer only). A demo session is told apart by the
+  /// server (its header / token), so the flag is the same for all.
+  static void applyWebSession(RequestOptions options, {required bool isWeb}) {
+    if (!isWeb || !options.uri.path.contains('/auth/')) return;
+    options.headers[webSessionHeader] = '1';
+    options.extra['withCredentials'] = true;
+  }
+
+  static const webSessionHeader = 'X-LawBid-Web-Session';
+
   static String _languageTag(Ref ref) {
-    final language = ref.read(languageControllerProvider).value ?? AppLanguage.en;
+    final language =
+        ref.read(languageControllerProvider).value ?? AppLanguage.en;
     return language.code;
   }
 

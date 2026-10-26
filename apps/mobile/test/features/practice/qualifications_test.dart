@@ -1,3 +1,4 @@
+// ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -62,18 +63,25 @@ void main() {
   test('suggestions: label starts first, every word must match, group counts',
       () {
     final options = practicePickerOptions(t, tree);
-    expect(suggestOptions(options, 'arb').map((o) => o.value),
-        ['civil_litigation.arbitration_and_mediation_representation']);
+    expect(
+      suggestOptions(options, 'arb').map((o) => o.value),
+      ['civil_litigation.arbitration_and_mediation_representation'],
+    );
     // "civil appeals": the group (category) matches "civil".
-    expect(suggestOptions(options, 'civil appeals').map((o) => o.value),
-        ['civil_litigation.appeals']);
+    expect(
+      suggestOptions(options, 'civil appeals').map((o) => o.value),
+      ['civil_litigation.appeals'],
+    );
     expect(suggestOptions(options, 'zzz'), isEmpty);
     expect(suggestOptions(options, ''), options);
     // Starts-with ranks before contains.
-    final ranked = suggestOptions(const [
-      PickerOption(value: 'a', label: 'Tax disputes'),
-      PickerOption(value: 'b', label: 'Disputes about land'),
-    ], 'disp');
+    final ranked = suggestOptions(
+      const [
+        PickerOption(value: 'a', label: 'Tax disputes'),
+        PickerOption(value: 'b', label: 'Disputes about land'),
+      ],
+      'disp',
+    );
     expect(ranked.first.value, 'b');
   });
 
@@ -90,18 +98,21 @@ void main() {
     final c = ProviderContainer();
     addTearDown(c.dispose);
     final n = c.read(feedTopicsProvider.notifier);
+    // ignore: cascade_invocations
     n.set({'family_law'});
     n.set({
       'family_law',
-      'civil_litigation.arbitration_and_mediation_representation'
+      'civil_litigation.arbitration_and_mediation_representation',
     });
     expect(c.read(feedTopicsProvider), [
       'family_law',
       'civil_litigation.arbitration_and_mediation_representation',
     ]);
     n.set({'civil_litigation.arbitration_and_mediation_representation'});
-    expect(c.read(feedTopicsProvider),
-        ['civil_litigation.arbitration_and_mediation_representation']);
+    expect(
+      c.read(feedTopicsProvider),
+      ['civil_litigation.arbitration_and_mediation_representation'],
+    );
   });
 
   test('Mine search is a value (provider key) and counts filters', () {
@@ -118,12 +129,18 @@ void main() {
   test('opt-in alerts open the post / the case', () {
     expect(
       notificationRoute(
-          type: 'followed_post', payload: {'postId': 'p1'}, attorney: false),
+        type: 'followed_post',
+        payload: {'postId': 'p1'},
+        attorney: false,
+      ),
       '/post/p1',
     );
     expect(
       notificationRoute(
-          type: 'new_case', payload: {'caseId': 'k1'}, attorney: true),
+        type: 'new_case',
+        payload: {'caseId': 'k1'},
+        attorney: true,
+      ),
       isNotNull,
     );
   });

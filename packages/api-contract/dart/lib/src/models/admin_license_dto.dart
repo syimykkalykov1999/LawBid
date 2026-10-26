@@ -4,6 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_license_dto_expires_source.dart';
+import 'admin_license_dto_registry_flag.dart';
+import 'admin_license_dto_renewal_state.dart';
 import 'license_status.dart';
 
 part 'admin_license_dto.g.dart';
@@ -17,11 +20,17 @@ class AdminLicenseDto {
     required this.barNumber,
     required this.status,
     required this.expiresAt,
+    required this.expiresSource,
+    required this.renewalState,
+    required this.graceEndsAt,
     required this.autoCheckResult,
+    required this.lookupUrl,
     required this.rejectionCode,
     required this.rejectionNote,
     required this.verifiedAt,
     required this.decidedBy,
+    required this.registryFlag,
+    required this.registryFlaggedAt,
   });
 
   factory AdminLicenseDto.fromJson(Map<String, Object?> json) =>
@@ -34,12 +43,28 @@ class AdminLicenseDto {
   final LicenseStatus status;
   final DateTime? expiresAt;
 
+  /// Owner 2026-10-24: who set expiresAt.
+  final AdminLicenseDtoExpiresSource? expiresSource;
+
+  /// Owner 2026-10-24: renewal_due = the date passed, grace period running (badge hidden, «требует продления»); null = no date or not a verified license.
+  final AdminLicenseDtoRenewalState? renewalState;
+
+  /// Last day of the grace period (expiresAt + grace days).
+  final DateTime? graceEndsAt;
+
   /// Latest automatic bar lookup (§2.4), null if none ran.
   final dynamic autoCheckResult;
+
+  /// The state bar's public lookup page for this license (profile page when the state has one per number).
+  final String? lookupUrl;
   final String? rejectionCode;
   final String? rejectionNote;
   final DateTime? verifiedAt;
   final String? decidedBy;
+
+  /// Owner 2026-10-05: the state registry disagreed with this verified license (it stays verified).
+  final AdminLicenseDtoRegistryFlag? registryFlag;
+  final DateTime? registryFlaggedAt;
 
   Map<String, Object?> toJson() => _$AdminLicenseDtoToJson(this);
 }

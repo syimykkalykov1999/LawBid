@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:lawbid/core/files/file_types.dart';
+import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
@@ -32,7 +35,11 @@ class CasePhotoUpload {
 
   /// OQ-034: set for a document (PDF / Word) — shown as a file tile.
   final String? name;
-  bool get isDocument => name != null;
+
+  /// Owner 2026-10-19: a video counts with the photos.
+  bool get isVideo => isCaseVideoName(name);
+
+  bool get isDocument => name != null && !isVideo;
 
   /// Set once the upload passed the antivirus scan.
   final String? fileId;
@@ -40,9 +47,6 @@ class CasePhotoUpload {
 
   bool get uploading => fileId == null && !failed;
 }
-
-/// OQ-031: photos per case.
-const kCaseMaxPhotos = 9;
 
 class CreateCaseState {
   const CreateCaseState({
@@ -62,6 +66,10 @@ class CreateCaseState {
 
   bool get photosUploading => photos.any((p) => p.uploading);
 
+  /// Audit 2026-10-04: a failed upload blocks Next / Publish until it is
+  /// retried or removed (it would otherwise be silently dropped).
+  bool get photosFailed => photos.any((p) => p.failed);
+
   final CaseDraft draft;
   final bool loaded;
 
@@ -79,10 +87,15 @@ class CreateCaseState {
 
   bool get stepValid => switch (draft.step) {
         0 => draft.practiceValid,
-        1 => draft.titleValid && draft.descriptionValid && !photosUploading,
+        1 => draft.titleValid &&
+            draft.descriptionValid &&
+            !photosUploading &&
+            !photosFailed,
         2 => draft.placeValid,
-        3 => draft.budgetValid,
-        _ => !needsConsent || consentChecked,
+        3 => draft.budgetValid && draft.urgencyValid,
+        _ => (!needsConsent || consentChecked) &&
+            !photosUploading &&
+            !photosFailed,
       };
 
   CreateCaseState copyWith({
@@ -140,9 +153,27 @@ class CreateCaseController extends Notifier<CreateCaseState> {
     final raw = await ref.read(casesLocalDatabaseProvider).draftJson(_ownerId);
     final saved = CaseDraft.decode(raw);
     if (!ref.mounted) return;
-    state = saved == null || saved.isEmpty
-        ? state.copyWith(loaded: true)
-        : state.copyWith(draft: saved, loaded: true, restoredDraft: true);
+    if (saved == null || saved.isEmpty) {
+      state = state.copyWith(loaded: true);
+      return;
+    }
+    state = state.copyWith(
+      draft: saved,
+      loaded: true,
+      restoredDraft: true,
+      // Audit 2026-10-04: uploaded files come back with the draft (their
+      // bytes are not kept — photos show a placeholder tile).
+      photos: [
+        for (final f in saved.files)
+          CasePhotoUpload(
+            key: _photoKey++,
+            bytes: Uint8List(0),
+            fileId: f.fileId,
+            name: f.name,
+          ),
+        ...state.photos,
+      ],
+    );
   }
 
   void update(CaseDraft Function(CaseDraft d) change) {
@@ -152,15 +183,26 @@ class CreateCaseController extends Notifier<CreateCaseState> {
 
   int _photoKey = 0;
 
-  /// OQ-031: add picked photos (up to [kCaseMaxPhotos]) and upload each.
+  /// OQ-031: add picked photos (up to the admin's count) and upload each.
   void addPhotos(List<Uint8List> picked) => addFiles([
         for (final b in picked) (bytes: b, name: null),
       ]);
 
-  /// OQ-034: photos and documents share the 9 slots.
+  /// OQ-034 / owner 2026-10-19: photos (no `name`) and documents have
+  /// their own admin limits.
   void addFiles(List<({Uint8List bytes, String? name})> picked) {
-    final left = kCaseMaxPhotos - state.photos.length;
-    for (final f in picked.take(left)) {
+    final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+    bool doc(String? name) => name != null && !isCaseVideoName(name);
+    var media = state.photos.where((p) => !p.isDocument).length;
+    var docs = state.photos.length - media;
+    for (final f in picked) {
+      if (doc(f.name)) {
+        if (docs >= limits.maxFiles) continue;
+        docs++;
+      } else {
+        if (media >= limits.maxPhotos) continue;
+        media++;
+      }
       final item =
           CasePhotoUpload(key: _photoKey++, bytes: f.bytes, name: f.name);
       state = state.copyWith(photos: [...state.photos, item]);
@@ -171,35 +213,78 @@ class CreateCaseController extends Notifier<CreateCaseState> {
   Future<void> _upload(CasePhotoUpload item) async {
     CasePhotoUpload done;
     try {
-      final id = await ref
-          .read(socialActionsProvider)
-          .uploadPhoto(item.bytes, casePhoto: true);
+      final limits = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+      // Owner 2026-10-19: a format the admin has off fails here, on the
+      // tile of that file, not at «Опубликовать»; the others still upload.
+      final mime = sniffImageMime(item.bytes) ??
+          (item.name == null ? null : limits.mimeForName(item.name!));
+      if (mime != null && !limits.allowsMime(mime)) {
+        throw const ApiException(
+          code: ApiErrorCodes.fileTypeNotAllowed,
+          message: 'type',
+        );
+      }
+      final id = await ref.read(socialActionsProvider).uploadPhoto(
+            item.bytes,
+            casePhoto: true,
+            fileName: item.name,
+            maxBytes: limits.fileBytes,
+          );
       done = CasePhotoUpload(
-          key: item.key, bytes: item.bytes, fileId: id, name: item.name);
+        key: item.key,
+        bytes: item.bytes,
+        fileId: id,
+        name: item.name,
+      );
     } on Object {
       done = CasePhotoUpload(
-          key: item.key, bytes: item.bytes, failed: true, name: item.name);
+        key: item.key,
+        bytes: item.bytes,
+        failed: true,
+        name: item.name,
+      );
     }
     if (!ref.mounted) return;
-    state = state.copyWith(photos: [
-      for (final p in state.photos) p.key == item.key ? done : p,
-    ]);
+    state = state.copyWith(
+      photos: [
+        // ignore: prefer_if_elements_to_conditional_expressions
+        for (final p in state.photos) p.key == item.key ? done : p,
+      ],
+    );
+    if (done.fileId != null) _syncFiles();
   }
 
-  void removePhoto(int key) => state = state.copyWith(
-        photos: [
-          for (final p in state.photos)
-            if (p.key != key) p
-        ],
+  void removePhoto(int key) {
+    state = state.copyWith(
+      photos: [
+        for (final p in state.photos)
+          if (p.key != key) p,
+      ],
+    );
+    _syncFiles();
+  }
+
+  /// Audit 2026-10-04: mirrors the uploaded files into the saved draft.
+  void _syncFiles() => update(
+        (d) => d.copyWith(
+          files: [
+            for (final p in state.photos)
+              if (p.fileId != null)
+                CaseDraftFile(fileId: p.fileId!, name: p.name),
+          ],
+        ),
       );
 
   void retryPhoto(int key) {
     final p = state.photos.where((x) => x.key == key).firstOrNull;
     if (p == null || !p.failed) return;
     final again = CasePhotoUpload(key: p.key, bytes: p.bytes, name: p.name);
-    state = state.copyWith(photos: [
-      for (final x in state.photos) x.key == key ? again : x,
-    ]);
+    state = state.copyWith(
+      photos: [
+        // ignore: prefer_if_elements_to_conditional_expressions
+        for (final x in state.photos) x.key == key ? again : x,
+      ],
+    );
     unawaited(_upload(again));
   }
 
@@ -208,15 +293,22 @@ class CreateCaseController extends Notifier<CreateCaseState> {
 
   void next() {
     if (!state.stepValid || state.draft.step >= kCaseWizardSteps - 1) return;
-    update((d) => d.copyWith(step: d.step + 1));
+    _changeStep(state.draft.step + 1);
   }
 
   void back() {
     if (state.draft.step == 0) return;
-    update((d) => d.copyWith(step: d.step - 1));
+    _changeStep(state.draft.step - 1);
   }
 
-  void goTo(int step) => update((d) => d.copyWith(step: step));
+  void goTo(int step) => _changeStep(step);
+
+  /// The "Draft restored" banner shows on the step the draft reopened on
+  /// and goes away once the client moves on.
+  void _changeStep(int step) {
+    if (state.restoredDraft) state = state.copyWith(restoredDraft: false);
+    update((d) => d.copyWith(step: step));
+  }
 
   /// "Начать заново": drops the restored draft.
   Future<void> startOver() async {
@@ -226,6 +318,7 @@ class CreateCaseController extends Notifier<CreateCaseState> {
       draft: CaseDraft(primaryStateCode: user?.clientProfile?.stateCode),
       restoredDraft: false,
       clearError: true,
+      photos: const [],
     );
   }
 
@@ -255,9 +348,8 @@ class CreateCaseController extends Notifier<CreateCaseState> {
       );
       await ref.read(localKvStoreProvider).setString(_consentKey, '1');
       await ref.read(casesLocalDatabaseProvider).deleteDraft(_ownerId);
-      ref
-        ..invalidate(myCasesProvider)
-        ..invalidate(mineCasesProvider);
+      // Package E: the lists ask one `updatedSince` for the new case.
+      ref.read(caseListsTouchedProvider.notifier).bump();
       state = state.copyWith(isSubmitting: false, publishedCaseId: id);
       return true;
     } on ApiException catch (e) {
@@ -304,10 +396,29 @@ CaseDraft draftFromCase(OwnerCase c) => CaseDraft(
       practiceNameEn: c.practice.nameEn,
       title: c.title,
       description: c.description,
+      privateDetails: c.privateDetails ?? '',
       primaryStateCode: c.primaryStateCode,
       additionalStateCodes: c.additionalStateCodes,
       city: c.city ?? '',
-      budgetIsAmount: !c.budget.isClarifyLater,
+      budgetIsAmount: !c.budget.isClarifyLater && !c.budget.isPercent,
+      budgetIsPercent: c.budget.isPercent,
+      budgetPercentBps: c.budget.percentBps,
       budgetDollars:
           c.budget.amountCents == null ? null : c.budget.amountCents! ~/ 100,
+      practiceCode: c.practice.code,
+      extraPractices: [
+        for (final p in c.extraPractices)
+          CaseDraftPractice(
+            id: p.id,
+            i18nKey: p.i18nKey,
+            nameEn: p.nameEn,
+            code: p.code,
+          ),
+      ],
+      coverKey: c.coverKey,
+      urgency: c.urgency?.json,
+      deadlineAt: c.urgencyInfo.deadline == null
+          ? null
+          : isoDay(c.urgencyInfo.deadline!),
+      deadlineKind: c.urgencyInfo.kind?.json,
     );

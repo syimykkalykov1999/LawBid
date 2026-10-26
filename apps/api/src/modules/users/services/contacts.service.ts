@@ -1,7 +1,9 @@
+import { OTP_LIMIT_WINDOW_SECONDS } from '../../auth/otp-limits';
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { HttpException, HttpStatus } from '@nestjs/common';
@@ -11,12 +13,18 @@ import { withDeleted } from '../../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { OtpService } from '../../auth/services/otp.service';
+import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
+import { assertEmailFlowsOn } from '../../feature-flags/email-flows';
 import { IdentityService } from '../../auth/services/identity.service';
 import { RateLimitService } from '../../auth/services/rate-limit.service';
 import {
   AuthEventService,
   AUTH_EVENT_TYPES,
 } from '../../auth/services/auth-event.service';
+import {
+  SessionRevocationService,
+  SignInChangeNotifier,
+} from '../../auth/auth.public';
 
 /**
  * POST /users/me/contacts/request + /verify (docs/01_FOUNDATION_AUTH.md
@@ -45,6 +53,11 @@ export class ContactsService {
     private readonly authEvents: AuthEventService,
     private readonly rateLimit: RateLimitService,
     private readonly config: ConfigService,
+    @Optional() private readonly flags?: FeatureFlagsService,
+    // Owner 2026-10-22 (security audit #3): "your contact changed".
+    @Optional() private readonly signInChange?: SignInChangeNotifier,
+    // Owner 2026-10-22 (security audit #3): other sessions end on a change.
+    @Optional() private readonly revocation?: SessionRevocationService,
   ) {}
 
   /** True when the user already has a verified contact of this type —
@@ -66,6 +79,8 @@ export class ContactsService {
     type: 'phone' | 'email',
     value: string,
   ): Promise<void> {
+    // Admin «Вход и письма по почте» off: the code could not be delivered.
+    if (type === 'email') await assertEmailFlowsOn(this.flags);
     const normalized = this.normalize(type, value);
 
     if (type === 'email') {
@@ -83,6 +98,20 @@ export class ContactsService {
     }
 
     await this.enforceRequestLimits(userId, normalized);
+    // Tell the user now, not after they typed the code: a contact that
+    // belongs to another account can never be linked here.
+    const taken = await this.prisma.userIdentifier.findUnique({
+      where: {
+        provider_provider_uid: { provider: type, provider_uid: normalized },
+      },
+      select: { user_id: true },
+    });
+    if (taken && taken.user_id !== userId) {
+      throw new ConflictException({
+        code: ErrorCode.CONTACT_ALREADY_EXISTS,
+        message: 'This contact is already in use on another account.',
+      });
+    }
     await this.otp.requestOtp(type, normalized, 'contact');
     await this.authEvents.record({
       userId,
@@ -109,7 +138,7 @@ export class ContactsService {
     const perHour = await this.rateLimit.consumeFixedWindow(
       ['contact-otp', 'user', userId, 'h'],
       this.config.getOrThrow<number>('CONTACT_OTP_LIMIT_PER_USER_PER_HOUR'),
-      3600,
+      OTP_LIMIT_WINDOW_SECONDS,
     );
     const perDay = await this.rateLimit.consumeFixedWindow(
       ['contact-otp', 'user', userId, 'd'],
@@ -119,7 +148,7 @@ export class ContactsService {
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(normalized)],
       this.config.getOrThrow<number>('OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR'),
-      3600,
+      OTP_LIMIT_WINDOW_SECONDS,
     );
     const blocked = [perHour, perDay, perIdentifier].filter((r) => !r.allowed);
     if (blocked.length > 0) {
@@ -143,6 +172,8 @@ export class ContactsService {
     type: 'phone' | 'email',
     value: string,
     code: string,
+    /** The session making the change: it stays signed in. */
+    keepSessionId?: string,
   ): Promise<void> {
     const normalized = this.normalize(type, value);
     const result = await this.otp.verifyOtp(type, normalized, code, 'contact');
@@ -219,7 +250,15 @@ export class ContactsService {
         where: { id: userId },
         data:
           type === 'phone'
-            ? { phone_e164: normalized, phone_verified_at: now }
+            ? {
+                phone_e164: normalized,
+                phone_verified_at: now,
+                // Owner 2026-10-22: a new number is announced to the phone
+                // books that have it (contacts.joined job).
+                ...(previous !== normalized
+                  ? { contacts_announced_at: null }
+                  : {}),
+              }
             : { email: normalized, email_verified_at: now },
       });
       if (replaced) {
@@ -236,6 +275,24 @@ export class ContactsService {
       identifier: normalized,
       meta: { type, replaced },
     });
+    if (previous !== normalized) {
+      // Owner 2026-10-22 (security audit #3, finding 5; ASVS V3.3.3): a new
+      // phone / e-mail ends every other session — a thief's session must
+      // not outlive the owner's "I changed my number".
+      await this.revocation?.revokeOtherChainsForUser(
+        userId,
+        keepSessionId,
+        'credentials_changed',
+      );
+      // Owner 2026-10-22 (security audit #3, finding 2): told on every
+      // device and to the e-mail the account had before this change.
+      await this.signInChange?.notify({
+        userId,
+        kind: type,
+        previousEmail:
+          before.email && before.email_verified_at ? before.email : null,
+      });
+    }
   }
 
   private normalize(type: 'phone' | 'email', value: string): string {

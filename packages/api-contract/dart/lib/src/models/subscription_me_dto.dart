@@ -4,7 +4,11 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'contract_grant_info_dto.dart';
+import 'plan_entitlements_dto.dart';
 import 'plan_prices_dto.dart';
+import 'public_plan_dto.dart';
+import 'seat_summary_dto.dart';
 import 'subscription_dto.dart';
 
 part 'subscription_me_dto.g.dart';
@@ -13,17 +17,25 @@ part 'subscription_me_dto.g.dart';
 class SubscriptionMeDto {
   const SubscriptionMeDto({
     required this.subscription,
+    required this.contractGrant,
     required this.prices,
     required this.isActive,
     required this.canStart,
     required this.trialEligible,
     required this.priceCents,
+    required this.plan,
+    required this.plans,
+    required this.entitlements,
+    required this.seats,
   });
 
   factory SubscriptionMeDto.fromJson(Map<String, Object?> json) =>
       _$SubscriptionMeDtoFromJson(json);
 
   final SubscriptionDto? subscription;
+
+  /// An active free subscription under a contract (isActive is true while it runs).
+  final ContractGrantInfoDto? contractGrant;
   final PlanPricesDto prices;
   final bool isActive;
 
@@ -31,6 +43,10 @@ class SubscriptionMeDto {
   final bool canStart;
   final bool trialEligible;
   final int priceCents;
+  final PublicPlanDto? plan;
+  final List<PublicPlanDto> plans;
+  final PlanEntitlementsDto entitlements;
+  final SeatSummaryDto? seats;
 
   Map<String, Object?> toJson() => _$SubscriptionMeDtoToJson(this);
 }

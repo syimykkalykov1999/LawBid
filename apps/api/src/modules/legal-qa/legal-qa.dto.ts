@@ -1,0 +1,254 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { MaxTextChars } from '../../common/app-settings/max-text-chars.decorator';
+import { UpdatedSinceQuery } from '../../common/sync/sync.util';
+
+const trim = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim() : value;
+
+export const QUESTION_FILTERS = [
+  'all',
+  'unanswered',
+  'solved',
+  'mine',
+] as const;
+export type QuestionFilter = (typeof QUESTION_FILTERS)[number];
+
+/** Attorney feed: «Мои» = my practice areas and licensed states. */
+export const QUESTION_SCOPES = ['all', 'mine'] as const;
+export type QuestionScope = (typeof QUESTION_SCOPES)[number];
+
+export class AskQuestionDto {
+  @ApiProperty({ minLength: 5, maxLength: 160 })
+  @Transform(trim)
+  @IsString()
+  @Length(5, 160)
+  @MaxTextChars('limits.question_title_chars')
+  title!: string;
+
+  @ApiProperty({ minLength: 10, maxLength: 3000 })
+  @Transform(trim)
+  @IsString()
+  @Length(10, 3000)
+  @MaxTextChars('limits.question_body_chars')
+  body!: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'A practice area or its category',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  practiceAreaId?: string;
+
+  @ApiPropertyOptional({ example: 'NY' })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/)
+  stateCode?: string;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Others see «Anonymous».',
+  })
+  @IsOptional()
+  @IsBoolean()
+  anonymous?: boolean;
+}
+
+export class QuestionsQueryDto {
+  @ApiPropertyOptional({ maxLength: 80 })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  practiceAreaId?: string;
+
+  @ApiPropertyOptional({ example: 'NY' })
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/)
+  stateCode?: string;
+
+  @ApiPropertyOptional({
+    enum: QUESTION_FILTERS,
+    enumName: 'QuestionFilter',
+    default: 'all',
+  })
+  @IsOptional()
+  @IsIn(QUESTION_FILTERS)
+  filter?: QuestionFilter;
+
+  @ApiPropertyOptional({
+    enum: QUESTION_SCOPES,
+    enumName: 'QuestionScope',
+    default: 'all',
+    description:
+      'Attorneys only: «mine» keeps questions of my practice areas (with parent/child areas) and of states where I hold a verified licence; a question without an area or state stays. No areas set — same as «all».',
+  })
+  @IsOptional()
+  @IsIn(QUESTION_SCOPES)
+  scope?: QuestionScope;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (client economy plan, package F): with filter=mine only — my questions (a client) changed since (ISO), removed ones as meta.deletedIds; meta.syncedAt = pass it back next time. Ignored for the other tabs (pull). Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 50,
+    default: 20,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
+export class QuestionIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  id!: string;
+}
+
+export class AnswerParamDto extends QuestionIdParamDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  answerId!: string;
+}
+
+export class AnswerBodyDto {
+  @ApiProperty({ minLength: 10, maxLength: 4000 })
+  @Transform(trim)
+  @IsString()
+  @Length(10, 4000)
+  @MaxTextChars('limits.answer_chars')
+  body!: string;
+}
+
+export class BestAnswerDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  answerId!: string;
+}
+
+export class QaPracticeAreaDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() i18nKey!: string;
+  @ApiProperty() nameEn!: string;
+}
+
+export class QaStateDto {
+  @ApiProperty() code!: string;
+  @ApiProperty() name!: string;
+}
+
+export class QaPersonDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() displayName!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) username!:
+    string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) avatarUrl!:
+    string | null;
+}
+
+export class AnswerDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) questionId!: string;
+  @ApiProperty({ type: QaPersonDto }) attorney!: QaPersonDto;
+  @ApiProperty() body!: string;
+  @ApiProperty({ type: 'integer' }) likeCount!: number;
+  @ApiProperty() likedByMe!: boolean;
+  @ApiProperty() isBest!: boolean;
+  @ApiProperty() isMine!: boolean;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
+export class QuestionDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty() body!: string;
+  @ApiPropertyOptional({ type: QaPracticeAreaDto, nullable: true })
+  practiceArea!: QaPracticeAreaDto | null;
+  @ApiPropertyOptional({ type: QaStateDto, nullable: true })
+  state!: QaStateDto | null;
+  @ApiProperty() isAnonymous!: boolean;
+  @ApiPropertyOptional({
+    type: QaPersonDto,
+    nullable: true,
+    description:
+      'Null when the question is anonymous (the author sees themselves).',
+  })
+  author!: QaPersonDto | null;
+  @ApiProperty() isMine!: boolean;
+  @ApiProperty({ type: 'integer' }) answerCount!: number;
+  @ApiProperty({ description: 'Closed by the author or after 30 days.' })
+  closed!: boolean;
+  @ApiProperty({ description: 'The question has the most answers (10).' })
+  answersEnough!: boolean;
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  bestAnswerId!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  myAnswerId!: string | null;
+  @ApiProperty({
+    description: 'The viewer is a verified attorney who may answer now.',
+  })
+  canAnswer!: boolean;
+  @ApiProperty() createdAt!: string;
+}
+
+export class QuestionDetailDto extends QuestionDto {
+  @ApiProperty({ type: [AnswerDto] }) answers!: AnswerDto[];
+}
+
+export interface QuestionPage {
+  items: QuestionDto[];
+  nextCursor: string | null;
+  /** Owner 2026-10-22 (package F): with ?updatedSince (filter=mine). */
+  deletedIds?: string[];
+  syncedAt?: string;
+}
+
+/** Owner 2026-10-20: no pushes to attorneys; a quiet count instead. */
+export class QaSummaryDto {
+  @ApiProperty({
+    description:
+      'Unanswered questions of the last 24 hours in my practice areas and states (attorney; 0 for others)',
+  })
+  newCount!: number;
+  @ApiProperty({ description: 'Show the card among the feed posts' })
+  bannerEnabled!: boolean;
+  @ApiProperty({ description: 'Hours between two showings of the card' })
+  bannerIntervalHours!: number;
+  @ApiProperty({ description: 'Show the card from this many new questions' })
+  bannerMinNew!: number;
+  @ApiProperty({ description: 'Show the call line on the own profile' })
+  profileCtaEnabled!: boolean;
+}

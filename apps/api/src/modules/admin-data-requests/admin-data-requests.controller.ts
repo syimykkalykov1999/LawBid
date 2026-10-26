@@ -22,6 +22,7 @@ import {
   Justification,
   SkipAutoAudit,
   type AdminActor,
+  ALL_ADMIN_ROLES,
 } from '../admin-auth/admin-auth.decorators';
 import {
   CreateDataRequestDto,
@@ -48,7 +49,7 @@ class DataRequestsQueryDto {
 /** docs/06 §2.3 item 11 — super_admin only (§2.2). Writes their own
  * audit rows (before/after), the package additionally data_access_log. */
 @ApiTags('admin-data-requests')
-@AdminEndpoint('super_admin')
+@AdminEndpoint(...ALL_ADMIN_ROLES)
 @SkipAutoAudit()
 @Controller('admin/data-requests')
 export class AdminDataRequestsController {

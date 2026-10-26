@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -41,6 +42,46 @@ export class CreateVideoUploadDto {
   @IsString()
   @MaxLength(100)
   title?: string;
+
+  /** Owner 2026-10-05: the part of the video the reel plays (trim). */
+  @ApiPropertyOptional({ type: 'integer', minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3_600_000)
+  trimStartMs?: number;
+
+  @ApiPropertyOptional({ type: 'integer', minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3_600_000)
+  trimEndMs?: number;
+
+  /** Owner 2026-10-05: the cover = the frame at this moment. */
+  @ApiPropertyOptional({ type: 'integer', minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3_600_000)
+  coverTimeMs?: number;
+
+  /** Owner 2026-10-15: or a cover picked from the gallery (the id of the
+   * owner's uploaded `post_image` file). Wins over [coverTimeMs]. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  coverFileId?: string;
+
+  /** Owner 2026-10-23: `reel` (default, up to `video.reel_max_duration_sec`)
+   * or `post` (a longer video post, up to `video.post_max_duration_sec`). */
+  @ApiPropertyOptional({ enum: ['reel', 'post'], default: 'reel' })
+  @IsOptional()
+  @IsIn(['reel', 'post'])
+  kind?: 'reel' | 'post';
 }
 
 /** TUS credentials for one direct upload to Bunny. */
@@ -90,6 +131,12 @@ export class PostVideoDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   playbackUrl!: string | null;
 
+  /** Owner 2026-10-15 (web): the same video as a plain MP4 (Bunny's «MP4
+   * fallback», 720p). A browser plays it without an HLS library; the phone
+   * apps keep using [playbackUrl]. Null when the library has no MP4 copy. */
+  @ApiPropertyOptional({ type: String, nullable: true })
+  fallbackUrl!: string | null;
+
   @ApiPropertyOptional({ type: String, nullable: true })
   thumbnailUrl!: string | null;
 
@@ -101,6 +148,14 @@ export class PostVideoDto {
 
   @ApiPropertyOptional({ type: 'integer', nullable: true })
   height!: number | null;
+
+  /** Owner 2026-10-05: play only from here… */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  trimStartMs!: number | null;
+
+  /** …to here (null = to the end). */
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  trimEndMs!: number | null;
 }
 
 export class VideoIdParamDto {

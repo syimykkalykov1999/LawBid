@@ -1,17 +1,52 @@
 {
+  "webcredentials": {
+    "apps": [
+      "78T56RPM74.com.lawbid.lawbid"
+    ]
+  },
   "applinks": {
     "details": [
       {
         "appIDs": [
-          "TEAM_ID.com.lawbid.lawbid",
-          "TEAM_ID.com.lawbid.lawbid.staging",
-          "TEAM_ID.com.lawbid.lawbid.dev"
+          "78T56RPM74.com.lawbid.lawbid"
         ],
         "components": [
-          { "/": "/case/*", "comment": "Case (docs/04)" },
-          { "/": "/lawyer/*", "comment": "Attorney profile by @username (docs/03)" },
-          { "/": "/post/*", "comment": "Post (docs/05)" },
-          { "/": "/auth/email-code", "comment": "Email magic sign-in link (docs/01 §10.2 E/F)" }
+          {
+            "/": "/r/*",
+            "comment": "Referral link (lawbid.dev/r/<CODE>)"
+          },
+          {
+            "/": "/case/*",
+            "comment": "Case"
+          },
+          {
+            "/": "/lawyer/*",
+            "comment": "Attorney profile by @username"
+          },
+          {
+            "/": "/post/*",
+            "comment": "Post"
+          },
+          {
+            "/": "/u/*",
+            "comment": "Profile QR code: a user by @username"
+          },
+          {
+            "/": "/q/*",
+            "comment": "Website sign-in QR code"
+          },
+          {
+            "/": "/g/*",
+            "comment": "Group invitation"
+          },
+          {
+            "/": "/c/*",
+            "comment": "Channel (lawbid.dev/c/<username>)"
+          },
+          {
+            "/": "/auth/email-code",
+            "comment": "Email magic sign-in link"
+          }
         ]
       }
     ]

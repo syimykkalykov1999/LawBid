@@ -1,7 +1,31 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { RatingDto } from '../profiles/dto/attorney-profile.dto';
 import { ClientListItemDto } from '../profiles/dto/client-profile.dto';
+
+/** Owner 2026-10-22 (client economy plan, package D): POST / DELETE
+ * …/follow answer with the state, so the app fixes the profile locally
+ * instead of re-reading it. */
+export class FollowStateDto {
+  @ApiProperty({ description: 'Whether I follow this person now.' })
+  following!: boolean;
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Their followers now (not-yet-flushed deltas included).',
+  })
+  followersCount!: number;
+}
 
 export class AttorneyIdParamDto {
   @ApiProperty({ format: 'uuid' })
@@ -15,6 +39,41 @@ export class FollowsQueryDto {
   @IsString()
   @MaxLength(300)
   cursor?: string;
+}
+
+/** Owner 2026-10-18: followers / following lists with a search box. */
+export class PeopleListQueryDto extends FollowsQueryDto {
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description:
+      'Name (any alphabet, typos, word order) or @username prefix — only matching people are listed.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  q?: string;
+}
+
+/** Owner 2026-10-13: "More" sheet of Recommended — page size on top of the
+ * cursor. */
+export class SuggestionsQueryDto extends FollowsQueryDto {
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 1,
+    maximum: 50,
+    default: 20,
+    description: 'Page size.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }
 
 /** An attorney row in follower/following/suggestion lists (docs/05 §6). */
@@ -37,6 +96,17 @@ export class AttorneyListItemDto {
   @ApiProperty()
   verifiedBadge!: boolean;
 
+  @ApiProperty({
+    type: 'integer',
+    minimum: 0,
+    maximum: 3,
+    description: 'Trust level.',
+  })
+  trustLevel!: number;
+
+  @ApiProperty({ required: false })
+  identityRejected?: boolean;
+
   @ApiProperty({ type: RatingDto })
   rating!: RatingDto;
 
@@ -51,6 +121,13 @@ export class AttorneyListItemDto {
 
   @ApiProperty({ description: 'The viewer follows this attorney.' })
   isFollowing!: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['contacts'],
+    description:
+      'Why this person is suggested, when worth a caption: "contacts" = in my address book.',
+  })
+  reason?: 'contacts';
 }
 
 export interface AttorneyListPage {

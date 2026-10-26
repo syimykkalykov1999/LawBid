@@ -6,6 +6,16 @@ if (process.env.E2E_DATABASE_URL) {
   process.env.DATABASE_URL = process.env.E2E_DATABASE_URL;
 }
 process.env.REDIS_URL = e2eRedisUrl();
+// Shard-ready step 5: the second database of the two-DB mode (E2E_TWO_DB=1).
+if (process.env.E2E_DATABASE_URL_SHARDS) {
+  process.env.DATABASE_URL_SHARDS = process.env.E2E_DATABASE_URL_SHARDS;
+}
+
+// A shared CI runner can stall the event loop for seconds while an
+// AppModule boots; with the production 2 s command timeout the timer then
+// fires before Redis's (already sent) reply is read ("Command timed out").
+// Redis itself is fine, so the suite allows a longer wait.
+process.env.REDIS_COMMAND_TIMEOUT_MS ??= '15000';
 
 // Every request in the suite comes from 127.0.0.1, and the suite makes
 // more than the production per-IP OTP budget (10/h). No e2e scenario
@@ -20,6 +30,14 @@ process.env.OTP_VERIFY_LIMIT_PER_IP_PER_HOUR = '1000';
 // fallback is lifted; daily/monthly caps keep their real defaults and
 // cost-guard.e2e-spec.ts drives caps explicitly through app_config.
 process.env.BUDGET_SMS_PER_MINUTE_MAX = '1000';
+// A whole run sends hundreds of codes and mails; which suite crosses a real
+// daily cap depended on the order the suites ran in. Lifted here;
+// cost-guard.e2e-spec.ts sets its own caps through app_config.
+for (const k of ['SMS', 'EMAIL']) {
+  process.env[`BUDGET_${k}_DAILY_MAX`] = '1000000';
+  process.env[`BUDGET_${k}_MONTHLY_MAX`] = '1000000';
+  process.env[`BUDGET_${k}_PER_MINUTE_MAX`] = '1000000';
+}
 
 // docs/03 stage 3.2: uploads go to the local MinIO from docker-compose.yml
 // (dev-only credentials published there). Buckets are per isolation tag
@@ -51,3 +69,7 @@ if (!process.env.SECRETS_MASTER_KEYS) {
     'e2e1:e2e-integrations-master-key-0123456789abcdef';
   process.env.SECRETS_ACTIVE_KID = 'e2e1';
 }
+
+// Owner 2026-10-16: client → attorney payments are locked off in the product;
+// the suites of that dormant feature still run against the real code.
+process.env.CASE_PAYMENTS_UNLOCKED_FOR_TESTS = '1';
