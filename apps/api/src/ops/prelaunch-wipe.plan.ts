@@ -298,6 +298,10 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   // Owner 2026-10-22: maker-checker requests of the test period.
   admin_approvals:
     'second-admin approvals of test payouts / refunds (pending ones would run on real money)',
+  // Owner 2026-10-26: cloud change requests from the admin (infra switches).
+  // The applied state lives in growth.auto.tfvars.json on main, not here.
+  infra_change_requests:
+    'cloud change requests of the test period (plans, confirms, applies); the history starts clean at launch',
   // Owner 2026-10-22: automated media moderation of the test period.
   media_moderation_checks:
     'image / reel-thumbnail moderation verdicts of tester uploads',
