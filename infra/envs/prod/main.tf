@@ -184,6 +184,7 @@ module "stack" {
   unused_access_analyzer_enabled = var.unused_access_analyzer_enabled
   s3_account_block_public_access = var.s3_account_block_public_access
   critical_api_alerts_enabled    = var.critical_api_alerts_enabled
+  signing_guard_enabled          = var.signing_guard_enabled
   documents_data_events          = var.documents_data_events
   audit_logs_enabled             = var.audit_logs_enabled
   audit_logs_retention_days      = var.audit_logs_retention_days

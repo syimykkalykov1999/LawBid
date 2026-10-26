@@ -9,8 +9,13 @@ subset of §7.2's eventual PR-check list it covers today.
 
 | Workflow | Triggers | What it does |
 |---|---|---|
-| `api-ci.yml` | PR/push to `main`/`master` touching `apps/api/**`, root `package(-lock).json`, or `docker-compose.yml` | Starts PostgreSQL 16 + Redis 7 + Mailhog (matching `docker-compose.yml`), runs `npm ci`, `prisma generate`/`validate`/`migrate deploy`, `npm run lint` (+ a check that `--fix` didn't need to change anything), `tsc --noEmit`, `npm run test:cov`, `npm run test:e2e` against the real service containers, and a blocking `npm audit` gate at high severity (`scripts/ci/npm-audit-gate.mjs`, exceptions in `.github/npm-audit-allowlist.json`). |
+| `api-ci.yml` | PR / push / merge queue touching `apps/api/**`, root `package(-lock).json`, `scripts/ci/**` | S11-7: five parallel jobs, each with its own digest-pinned Postgres 16 + Redis 7 (+ Mailhog) services: `static` (migrations on a clean and on the previous release's DB, drift, expand/contract check, i18n, ERD, lint, tsc, unit tests with a `coverageThreshold` floor + ratchet note, OpenAPI breaking-change diff, contract, flag-first, audit), `e2e` (3-way matrix, one retry per failed suite, `flaky.json` artifact), `two-db`, `n1` (the PREVIOUS release's e2e smoke suites on the NEW schema, only when migrations change) and the single required check **`API CI`** that needs them all. `cancel-in-progress` for PRs only. |
 | `mobile-ci.yml` | PR/push to `main`/`master` touching `apps/mobile/**` | `analyze-and-test` (macOS runner — see file comment for why): `flutter pub get`, codegen (`build_runner`), `flutter analyze`, blocking hardcoded-string/hardcoded-color scans of `lib/` against a baseline (`apps/mobile/tool/ci/hardcoded_check.py`), `flutter test` (unit/widget/golden). `build-android` (Ubuntu) and `build-ios` (macOS) then each build an unsigned debug build as a build-check only — no signing, no store upload. |
+| `notify-failure.yml` | `workflow_call` (reusable) | S11-6: one "tell the owner" job used by deploy / rollback / web-deploy / self-check / drift / main scans / CI on main: GitHub issue `ci-alert` (one per kind, no spam) + SNS `lawbid-prod-alerts` (secret `AWS_NOTIFY_ROLE`) + chat webhook (secret `ALERT_WEBHOOK_URL`). |
+| `synthetic.yml` | cron every 5 min + manual | S11-5: `scripts/ops/synthetic-check.mjs` against production (health + version, bootstrap, sign-in validation; with `SYNTHETIC_IDENTIFIER/PASSWORD`: login, authenticated call, Socket.IO handshake, logout). Failure notifies. |
+| `ci-housekeeping.yml` | cron weekly + daily + manual | S11-6/8: Monday heartbeat "last green production deploy"; daily cancel of Deploy runs waiting for approval more than 12 h. |
+| `e2e-quarantine.yml` | cron nightly + manual | S11-15: runs only `apps/api/test/quarantine.json` suites; fails when one has been there more than 3 days. |
+| `dependabot-automerge.yml` | PR by dependabot | S11-11: minor/patch groups merge after the required checks through the queue (variable `DEPENDABOT_AUTOMERGE=true`). |
 | `secret-scan.yml` | PR/push to `main`/`master`, repo-wide | `gitleaks` — diff-only on PRs, full scan on push to a protected branch. |
 | `deploy.yml` | push to `main` touching api/admin/packages, or manual dispatch with an image tag | docs/06 §7.3: build + push `lawbid-api` / `lawbid-admin` images to ECR → staging (migrations task, rolling deploy, smoke) → `production` environment with required reviewers → backup freshness check → migrations task → rolling deploy → smoke. Rollback of a failed rollout is the ECS circuit breaker (infra). Scripts in `scripts/deploy/`. |
 | `terraform-drift.yml` | cron 03:00 America/Chicago (two UTC lines + hour guard) + manual | P1: read-only `terraform plan -detailed-exitcode` on prod (role `AWS_PLAN_ROLE`), never applies; drift -> one GitHub issue (`infra-drift`) and optional Slack; report has names only, no values. Runbook `docs/runbooks/DEPLOY_SAFETY.md`. |
@@ -43,10 +48,14 @@ subset of §7.2's eventual PR-check list it covers today.
 - `analyze-and-test` in `mobile-ci.yml` runs on `macos-latest`, not the
   usual `ubuntu-latest`, because this repo's golden tests render real
   embedded fonts and were generated on macOS — see the in-file comment.
-- Flutter/Dart version is `channel: stable` (unpinned), not a pinned exact
-  version, because `pubspec.yaml` only declares a floor and pinning the
-  historical floor risked breaking codegen against the newer analyzer the
-  project has since migrated to. See the in-file comment.
+- Flutter is pinned (S11-11) in ONE place, `apps/mobile/.fvmrc`; every Flutter
+  workflow reads it (`jq -r .flutter apps/mobile/.fvmrc`) and passes it as
+  `flutter-version`. Bump the file, not the workflows. Dart for the API
+  contract stays pinned in `api-ci.yml`.
+- Container images used by CI (`postgres`, `redis`, `mailhog`, `oasdiff`) and the
+  `node:22-alpine` base of the Dockerfiles are pinned by digest (S11-7/10).
+  Dependabot's `docker` ecosystem bumps the Dockerfiles; the digests inside
+  workflows are bumped by hand (`docker buildx imagetools inspect <image:tag>`).
 
 **Unverified end-to-end**: these workflows were authored and YAML-validated
 from a bridge with no access to a GitHub Actions runner, Docker, or the

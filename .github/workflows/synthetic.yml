@@ -1,0 +1,56 @@
+# S11-5: a synthetic user against production every 5 minutes (GitHub's shortest
+# cron; runs can be delayed by a few minutes under load) and after every deploy
+# (deploy.yml runs the same script). Anonymous probes always; the signed-in flow
+# when the secrets SYNTHETIC_IDENTIFIER / SYNTHETIC_PASSWORD (a dedicated test
+# account with a password) exist. Failure -> notify-failure.yml (issue + SNS
+# alerts topic + chat webhook), at most one reminder per 2 hours.
+# Read-only against prod: no AWS credentials, only PROD_API_URL.
+# A CloudWatch Synthetics canary is the AWS-native upgrade (docs/runbooks/synthetic-check.md).
+name: Synthetic check (production)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: Synthetic user
+    # Cost switch: OFF until the repository variable SYNTHETIC_ENABLED is 'true'.
+    # 288 runs a day (about 8 600 Actions minutes a month: free on a public repo,
+    # about $70 a month if the repo ever becomes private). The after-deploy run in
+    # deploy.yml does not depend on this switch.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.SYNTHETIC_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.4"
+      - name: Walk the user flow
+        env:
+          SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
+          SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
+        run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}"
+
+  notify:
+    needs: [synthetic]
+    if: ${{ always() && needs.synthetic.result == 'failure' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Production synthetic user check failed (health, sign-in, socket)"
+      kind: synthetic
+      remind_after_minutes: 120
+    secrets: inherit
