@@ -206,33 +206,6 @@ export class AdminPayrollService {
    * run. Through Stripe, Stripe's cost is taken from the person's payout
    * (gross − fee = net), never from the platform.
    */
-  /**
-   * Owner 2026-10-22 (maker-checker): the most a bulk run could pay, for
-   * the second-admin limit — each person's salary for this run (or their
-   * fixed amount) plus their pending commissions, every currency summed.
-   * Upper bound on purpose: people already paid this period still count.
-   */
-  async estimateBulkCents(dto: PayrollBulkPayDto): Promise<number> {
-    const ids = [...new Set(dto.employeeIds)];
-    const [people, pending] = await Promise.all([
-      this.prisma.payrollEmployee.findMany({
-        where: { id: { in: ids }, active: true },
-        select: { id: true, amount_cents: true },
-      }),
-      this.prisma.payrollAccrual.aggregate({
-        where: { employee_id: { in: ids }, status: 'pending' },
-        _sum: { amount_cents: true },
-      }),
-    ]);
-    const amounts = dto.amounts ?? {};
-    const base = people.reduce(
-      (s, p) =>
-        s + (Number.isInteger(amounts[p.id]) ? amounts[p.id] : p.amount_cents),
-      0,
-    );
-    return base + (pending._sum.amount_cents ?? 0);
-  }
-
   async payBulk(
     admin: AdminActor | null,
     dto: PayrollBulkPayDto,

@@ -343,6 +343,7 @@ type NumberKey =
   | 'deletedPostsMediaDays'
   | 'userQuotaMb'
   | 'chatQuotaMb'
+  | 'dailyUploadMbPerUser'
   | 'retentionAuthEventsDays'
   | 'retentionAssistantActivityDays'
   | 'notificationsRetentionDays'
@@ -381,6 +382,13 @@ const NUMBER_FIELDS: { key: NumberKey; label: string; hint: string; min: number;
     key: 'chatQuotaMb',
     label: 'Лимит файлов на чат, МБ',
     hint: '0 = без лимита. Текст сообщений не ограничен.',
+    min: 0,
+    max: 1048576,
+  },
+  {
+    key: 'dailyUploadMbPerUser',
+    label: 'Загрузок в сутки на человека, МБ',
+    hint: '0 = без лимита. Защита от цикла «загрузил — удалил».',
     min: 0,
     max: 1048576,
   },

@@ -199,6 +199,18 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
   // the newest (legitimately rotated-to) token.
   // -----------------------------------------------------------------
   describe('scenario 3: refresh-token reuse detection', () => {
+    // Reuse detection touches Redis and the database in one request; on a
+    // saturated CI runner the first call could meet a not-yet-ready
+    // dependency and answer 503. Start only once /health/ready says 200.
+    beforeAll(async () => {
+      const until = Date.now() + 30_000;
+      for (;;) {
+        const r = await api().get('/health/ready');
+        if (r.status === 200 || Date.now() > until) break;
+        await new Promise((res) => setTimeout(res, 500));
+      }
+    });
+
     it('revokes the whole chain on reuse, and the newest token from that chain also fails afterward', async () => {
       const identifier = '+12025553001';
       const login = await otpLogin(identifier);
