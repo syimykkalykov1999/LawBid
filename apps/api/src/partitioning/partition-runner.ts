@@ -41,7 +41,7 @@ export interface PartitionSpec {
 /**
  * Tables the online runner may convert later by MONTH (whitelist: no free SQL
  * names). audit_log, auth_events are ALREADY partitioned by month (migration
- * 20261026120000). messages, chat_group_messages and notifications are
+ * 20261031600000). messages, chat_group_messages and notifications are
  * converted by HASH only when the admin turns it on (HASH_PARTITIONED).
  */
 export const PARTITION_TABLES: readonly PartitionSpec[] = [

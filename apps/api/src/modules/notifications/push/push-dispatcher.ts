@@ -4,6 +4,7 @@ import {
 } from '../../../common/i18n/server-texts.service';
 import { ApnsVoipSender } from './apns-voip.sender';
 import { VoipTokensService } from './voip-tokens.service';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { FeatureFlagsService } from '../../feature-flags/services/feature-flags.service';
 import { emailFlowsOn } from '../../feature-flags/email-flows';
 import {
@@ -134,6 +135,8 @@ export class PushDispatcher
     @Optional() private readonly files?: FilesService,
     // Owner 2026-10-22 (audit #4 §4): push words in every app language.
     @Optional() private readonly texts?: ServerTextsService,
+    // S3-11: `push.chat_preview` (off = no message text in a push).
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {
     this.logger.setContext(PushDispatcher.name);
   }
@@ -206,6 +209,17 @@ export class PushDispatcher
     return data.kind === 'message'
       ? this.dispatchMessage(data, jobId)
       : this.dispatchNotification(data, jobId);
+  }
+
+  /** S3-11: with `push.chat_preview` off a chat push never carries the
+   * message text (Google / Apple see only «New message» or the kind of
+   * attachment). On by default = today's behaviour. */
+  private async chatPreviewOn(): Promise<boolean> {
+    try {
+      return (await this.appSettings?.boolean('push.chat_preview')) ?? true;
+    } catch {
+      return true;
+    }
   }
 
   /** Owner 2026-10-22: an on-call alert. An admin who switched «дежурный»
@@ -758,15 +772,22 @@ export class PushDispatcher
           : null;
       // Owner 2026-10-22: the display name, else the @username.
       const who = chatSenderName(sender);
-      const caption = [
-        ...(message.type === 'poll'
-          ? (message.poll?.question ?? '')
-          : message.body),
-      ]
-        .slice(0, MESSAGE_PREVIEW_CHARS)
-        .join('');
+      const previewOn = await this.chatPreviewOn();
+      const caption = previewOn
+        ? [
+            ...(message.type === 'poll'
+              ? (message.poll?.question ?? '')
+              : message.body),
+          ]
+            .slice(0, MESSAGE_PREVIEW_CHARS)
+            .join('')
+        : '';
       const kind = chatPushKind(message.type, message.file?.mime);
       let preview = chatPushPreview(kind, caption, t);
+      if (!preview) {
+        preview = (await this.templates.render('new_message', user.ui_language))
+          .body;
+      }
       if (mentioned) {
         preview = `@ ${fillVars(t.mentioned, { name: who || '' }).trim()}. ${preview}`;
       }
@@ -954,12 +975,14 @@ export class PushDispatcher
     const text = await this.templates.render('new_message', user.ui_language);
     // OQ-040: a voice note has no text — say what it is.
     const t = await this.pushTexts(user.ui_language);
-    const caption = [
-      ...(this.cipher?.open(message.body_display, data.messageId) ??
-        message.body_display),
-    ]
-      .slice(0, MESSAGE_PREVIEW_CHARS)
-      .join('');
+    const caption = (await this.chatPreviewOn())
+      ? [
+          ...(this.cipher?.open(message.body_display, data.messageId) ??
+            message.body_display),
+        ]
+          .slice(0, MESSAGE_PREVIEW_CHARS)
+          .join('')
+      : '';
     // Owner 2026-10-22: «📷 Фото» / «🎥 Видео» / «📎 Файл» / «🎤 …».
     const kind = chatPushKind(message.type, message.file?.mime);
     const preview = chatPushPreview(kind, caption, t, message.duration_ms);

@@ -10,6 +10,7 @@ import {
   profileEntity,
 } from '../counters/counter-aggregator.service';
 import { recalcAttorneyRating } from '../reviews/review-rating';
+import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 
 export type Tx = Prisma.TransactionClient;
@@ -184,7 +185,12 @@ export class ModerationService {
             m.type === 'voice'
               ? `[voice message, ${Math.round((m.duration_ms ?? 0) / 1000)} s]`
               : m.type === 'attachment'
-                ? `[file: ${m.file_name ?? 'file'}] ${body}`.trim()
+                ? `[file: ${
+                    (m.file_name === null
+                      ? null
+                      : (this.cipher?.openField(m.file_name, fileNameAad(id)) ??
+                        m.file_name)) || 'file'
+                  }] ${body}`.trim()
                 : body,
           context: {
             conversationId: m.conversation_id,
