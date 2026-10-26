@@ -82,11 +82,13 @@ class _StarsScreenState extends ConsumerState<StarsScreen>
     } on Object {
       // The balance below shows the truth on the next read.
     }
+    if (!mounted) return;
     ref.invalidate(starsOverviewProvider);
     unawaited(_history(reset: true));
   }
 
   Future<void> _buy(String packId) async {
+    if (_buying != null) return;
     final t = ref.read(translatorProvider);
     setState(() => _buying = packId);
     try {

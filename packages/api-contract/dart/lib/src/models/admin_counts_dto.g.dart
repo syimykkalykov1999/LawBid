@@ -12,7 +12,6 @@ AdminCountsDto _$AdminCountsDtoFromJson(Map<String, dynamic> json) =>
       openReports: (json['openReports'] as num).toInt(),
       supportUnread: (json['supportUnread'] as num).toInt(),
       trustQueue: (json['trustQueue'] as num).toInt(),
-      approvalsPending: (json['approvalsPending'] as num).toInt(),
     );
 
 Map<String, dynamic> _$AdminCountsDtoToJson(AdminCountsDto instance) =>
@@ -21,5 +20,4 @@ Map<String, dynamic> _$AdminCountsDtoToJson(AdminCountsDto instance) =>
       'openReports': instance.openReports,
       'supportUnread': instance.supportUnread,
       'trustQueue': instance.trustQueue,
-      'approvalsPending': instance.approvalsPending,
     };

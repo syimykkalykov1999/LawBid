@@ -6,12 +6,12 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum Status12 {
-  @JsonValue('pending')
-  pending('pending'),
-  @JsonValue('accepted')
-  accepted('accepted'),
-  @JsonValue('rejected')
-  rejected('rejected'),
+  @JsonValue('open')
+  open('open'),
+  @JsonValue('resolved')
+  resolved('resolved'),
+  @JsonValue('dismissed')
+  dismissed('dismissed'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

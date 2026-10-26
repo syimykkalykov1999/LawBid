@@ -123,7 +123,7 @@ export function covers(outer: Permissions, inner: Permissions): boolean {
 }
 
 /** Sidebar badge sources (see shell/use-nav-counts). */
-export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust' | 'approvals';
+export type CountKey = 'verification' | 'reports' | 'support' | 'appeals' | 'trust';
 
 /** An area key, `everyone` for the personal workspace, `partner` for the
  * country partner's page, `formTemplates` for the document forms, `config`
@@ -201,8 +201,6 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', ownerOnly: true, hint: 'планы подписок и их возможности' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту: чистая прибыль' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
-      // Owner 2026-10-22 (maker-checker): the check is off (one owner), the page stays for the history.
-      { href: '/approvals', label: 'Требуют подтверждения', icon: 'seal-check', area: 'approvals', count: 'approvals', hint: 'запросы на подтверждение (сейчас проверка выключена: всё выполняется сразу)' },
       { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
       { href: '/spend', label: 'Расходы', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'сколько денег уходит каждому сервису и сколько держать на счету' },
     ],
@@ -310,9 +308,6 @@ function opens(me: AccessSubject, s: Section): boolean {
   if (s.area === 'everyone') return true;
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
-  // Owner 2026-10-22: whoever can pay salaries or refund sees what waits
-  // for a second admin (the API shows each admin only their kinds).
-  if (s.area === 'approvals') return can(me, 'payroll', 'manage') || can(me, 'money', 'manage');
   // Document forms: the API lets only the super admin and moderators in.
   if (s.area === 'formTemplates') return me.role === 'super_admin' || me.role === 'moderator';
   return can(me, s.area);
