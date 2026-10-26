@@ -229,11 +229,21 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
 
       // Attacker replays the OLD (already-rotated-away) token once the 10 s
       // replay cache of the rotation is gone (S14-3: inside it an idempotent
-      // retry gets the same child pair) — genuine reuse detection.
+      // retry gets the same child pair) — genuine reuse detection. The
+      // grace window is also over: inside it a missing cache answers a
+      // retryable 503, never a chain-ending 401 (review R-64), so the
+      // rotated row is moved back past the window instead of waiting 10 s.
       await redis.del(
         ...(await redis.keys('auth:refresh-replay:*')),
         'auth:refresh-replay:none',
       );
+      await prisma.session.updateMany({
+        where: {
+          user_id: await findUserIdByPhone(identifier),
+          revoked_reason: 'rotated',
+        },
+        data: { updated_at: new Date(Date.now() - 60 * 60 * 1000) },
+      });
       const replay = await api()
         .post('/api/v1/auth/refresh')
         .send({

@@ -563,7 +563,7 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it('S14-8: wrong codes lock per address — another address still signs in', async () => {
-      const phone = '+12025558601';
+      const phone = '+12025558701';
       await api()
         .post('/api/v1/auth/otp/request')
         .set('X-Forwarded-For', ipOf(50))
@@ -594,7 +594,7 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it('S14-12: a re-authentication code is its own purpose, bound to the session', async () => {
-      const phone = '+12025558602';
+      const phone = '+12025558702';
       const tokens = await otpLogin('phone', phone, 'reauth-dev');
       const bearer = { Authorization: `Bearer ${tokens.accessToken}` };
       await setting('security.otp_legacy_purpose_fallback', false);
@@ -636,7 +636,7 @@ describe('Auth hardening (e2e)', () => {
           .set(bearer)
           .send({
             channel: 'phone',
-            identifier: '+12025558699',
+            identifier: '+12025558799',
             purpose: 'reauth',
           });
         expect(foreign.status).toBe(401);
@@ -647,7 +647,7 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it('S14-10: the session list says where from (masked address, country, browser)', async () => {
-      const phone = '+12025558603';
+      const phone = '+12025558703';
       await api()
         .post('/api/v1/auth/otp/request')
         .send({ channel: 'phone', identifier: phone })
@@ -681,7 +681,7 @@ describe('Auth hardening (e2e)', () => {
     });
 
     it('S14-4: a refresh from a new country alerts once; "this wasn\'t me" ends every session', async () => {
-      const phone = '+12025558604';
+      const phone = '+12025558704';
       await setting('security.new_country_alert_enabled', true);
       await api()
         .post('/api/v1/auth/otp/request')
