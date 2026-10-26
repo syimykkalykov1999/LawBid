@@ -1,14 +1,15 @@
 'use client';
 
 import {
-  ArrowUpRight, Briefcase, ChatsCircle, CrownSimple, Flag, Gavel, Lifebuoy, Phone, SealCheck, ShieldWarning,
+  ArrowClockwise, ArrowUpRight, Briefcase, ChatsCircle, CrownSimple, Flag, Gavel, Lifebuoy, Phone, SealCheck, ShieldWarning,
   UserPlus, Users, UsersThree, Wallet, type Icon,
 } from '@phosphor-icons/react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
 import { AnimatedNumber } from '@/components/ui/animated-number';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
 import { UpdatedAgo } from '@/components/updated-ago';
@@ -49,6 +50,13 @@ export default function DashboardPage() {
   const sq = useQuery({
     ...supportStatsQuery,
     enabled: me ? canOpen(me, '/support') : false,
+  });
+  const qc = useQueryClient();
+  // Owner 2026-10-25: the server recounts the totals once a day; the button
+  // is limited to once per 10 minutes there (a repeat press returns the stored value).
+  const refreshTotals = useMutation({
+    mutationFn: async () => (await api.POST('/admin/dashboard/totals/refresh')).data!.data,
+    onSuccess: (data) => qc.setQueryData(dashboardQuery.queryKey, data),
   });
   const d = dq.data;
   const o = oq.data;
@@ -101,6 +109,40 @@ export default function DashboardPage() {
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[132px] rounded-[var(--radius-lg)]" />)
         )}
       </div>
+
+      {d ? (
+        <Card className="mt-4 p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="font-serif text-lg font-semibold text-heading">Всего пользователей</h2>
+            <span className="flex items-center gap-3 text-xs text-faint">
+              <span>обновлено {formatDateTime(d.totals.computedAt)}</span>
+              {showMoney ? <Button variant="outline" size="sm" onClick={() => refreshTotals.mutate()} loading={refreshTotals.isPending}>
+                {refreshTotals.isPending ? null : <ArrowClockwise size={15} weight="light" />}
+                Обновить
+              </Button> : null}
+            </span>
+          </div>
+          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Всего пользователей', t: d.totals.all },
+              { label: 'Клиенты', t: d.totals.clients },
+              { label: 'Адвокаты', t: d.totals.attorneys },
+              { label: 'Помощники', t: d.totals.assistants },
+            ].map((x) => (
+              <li key={x.label}>
+                <span className="block text-[13px] text-muted">{x.label}</span>
+                <span className="block text-2xl font-semibold tabular-nums text-heading">
+                  <AnimatedNumber value={x.t.total} />
+                </span>
+                <span className="block text-xs text-faint">
+                  активных: {x.t.active}
+                  {x.t.verified !== null ? ` · проверенных: ${x.t.verified}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         {/* Queues needing a human */}

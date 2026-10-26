@@ -125,6 +125,50 @@ describe('CounterAggregator (S6-6)', () => {
     expect(hashes.get(legacyKey('post', 'like_count'))).toBeUndefined();
   });
 
+  it('a read during flushLocal still sees the delta once (read-your-writes)', async () => {
+    const { redis } = fakeRedis();
+    const { agg } = aggregator(redis);
+    const id = ID('4');
+    await agg.bump('post', id, 'like_count', 2);
+    // The Redis write is in flight: the delta is neither local nor in Redis.
+    const realEval = redis.eval.bind(redis);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    jest
+      .spyOn(redis, 'eval')
+      .mockImplementationOnce(async (...a: Parameters<Redis['eval']>) => {
+        await gate;
+        return realEval(...a);
+      });
+    const flushing = agg.flushLocal();
+    expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(2);
+    release();
+    await flushing;
+    expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(2);
+  });
+
+  it('a read while the database update runs still sees the drained delta once', async () => {
+    const { redis } = fakeRedis();
+    const { agg } = aggregator(redis);
+    const id = ID('5');
+    await agg.bump('post', id, 'like_count', 3);
+    await agg.flushLocal();
+    let during: number | undefined;
+    const prisma = (agg as unknown as { prisma: PrismaService }).prisma;
+    (prisma.$executeRaw as unknown as jest.Mock).mockImplementationOnce(
+      async () => {
+        during = (await agg.pending('post', 'like_count', [id])).get(id);
+        return 1;
+      },
+    );
+    await agg.flush();
+    expect(during).toBe(3);
+    // Committed: no longer pending (the row holds it now).
+    expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(
+      undefined,
+    );
+  });
+
   it('ids of different shards go to different hash keys, in one EVAL each', async () => {
     const { redis, hashes, evalCalls } = fakeRedis();
     const { agg } = aggregator(redis);

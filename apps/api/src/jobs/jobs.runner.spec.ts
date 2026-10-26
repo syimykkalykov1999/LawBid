@@ -262,7 +262,8 @@ describe('JobsRunner', () => {
     // Owner 2026-10-24: + search.index (every minute).
     // Day-one foundations: + ledger.reconcile (nightly).
     // S1-3: + chat.redeliver (every minute).
-    expect(upserts).toHaveLength(70);
+    // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
+    expect(upserts).toHaveLength(71);
     const byName = Object.fromEntries(
       upserts.map((c: unknown[]) => [c[0], c[1]]),
     );

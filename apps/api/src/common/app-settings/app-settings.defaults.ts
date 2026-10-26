@@ -739,6 +739,16 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   'calls.channel_live_enabled': false,
   'chat.link_preview_enabled': true,
   'chat.link_preview_denylist': [] as string[],
+  /** BUG-1 (package N-12b): chat text search through the blind index.
+   * prefix_tokens: also index 3..12-letter word beginnings («докум» finds
+   * «документ»); ~4× the index rows, so off by default; only new / edited
+   * / re-indexed messages get them. backfill_mode: the job that indexes
+   * old messages — off | on (every 5 minutes) | auto (default: at night,
+   * UTC 06–12, until done, then idles); rows_per_run is its ceiling per
+   * 5-minute tick. The «Пауза тяжёлых задач» switch also stops it. */
+  'chat.search.prefix_tokens': false,
+  'chat.search.backfill_mode': 'auto',
+  'chat.search.backfill_rows_per_run': 5000,
 };
 
 export const OWNER_STORAGE_SETTINGS = {
@@ -822,8 +832,9 @@ export const OWNER_OPS_SETTINGS = {
    * percent of the last 30 days' revenue … */
   'economy.max_spend_percent': 50,
   /** … but never less than this many dollars a month (a floor to run on
-   * while revenue is still small). */
-  'economy.min_threshold_usd': 150,
+   * while revenue is still small). Owner 2026-10-26: 350 — the launch
+   * stack must not sit in «limited» from day one. */
+  'economy.min_threshold_usd': 350,
   /** Autoscaling ceiling: 'auto' (follows the rule above) or 'manual'
    * (the numbers below, always within the Terraform cap). */
   'economy.ceiling_mode': 'auto',
@@ -984,6 +995,23 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
   'case_fanout.fraud_delay_minutes': 60,
 };
 
+/**
+ * Cost registry (owner 2026-10-25): three-state switches off | on | auto for
+ * the things that bill by use (admin «Расходы»). Default = auto.
+ * - `scale.capacity_ceiling.mode`: auto = the database / Redis autoscalers
+ *   may not grow past what the allowed monthly spend pays for (the economy
+ *   tick writes the ceiling into AWS SSM); off = only the Terraform ceiling.
+ * - `scale.bunny_hardstop.mode` / `scale.cloudflare_hardstop.mode`: auto =
+ *   new video uploads pause (Bunny) / group calls fall back to
+ *   device-to-device (Cloudflare) once the monthly traffic reaches the
+ *   urgent threshold (usage.*_crit_gb); on = stopped now; off = never.
+ */
+export const OWNER_COST_REGISTRY_SETTINGS = {
+  'scale.capacity_ceiling.mode': 'auto',
+  'scale.bunny_hardstop.mode': 'auto',
+  'scale.cloudflare_hardstop.mode': 'auto',
+};
+
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
   ...FILE_04_SETTINGS,
@@ -1028,6 +1056,7 @@ export const APP_SETTINGS = {
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
   ...OWNER_CASE_FANOUT_SETTINGS,
+  ...OWNER_COST_REGISTRY_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

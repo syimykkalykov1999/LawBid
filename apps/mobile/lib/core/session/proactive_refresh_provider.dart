@@ -21,24 +21,27 @@ final proactiveRefresherProvider = Provider<ProactiveTokenRefresher?>((ref) {
     timings: () => ref.read(realtimeTimingsProvider),
   );
 
-  void plan(String token, DateTime fallback) {
-    refresher.schedule(jwtExpiry(token) ?? fallback);
-  }
-
+  // S15-3: plan from `accessTokenExpiresAt` = (phone's clock at the moment
+  // the answer arrived) + the server's relative `expiresIn`, NOT from the
+  // JWT `exp` (server clock) compared with the phone's clock: a phone whose
+  // clock is hours off used to refresh every second.
   final current = ref.read(sessionControllerProvider);
   if (current != null) {
-    plan(current.accessToken, current.accessTokenExpiresAt);
+    refresher.schedule(current.accessTokenExpiresAt);
   }
   ref.listen(sessionControllerProvider, (_, s) {
     if (s == null) {
       refresher.clear();
     } else {
-      plan(s.accessToken, s.accessTokenExpiresAt);
+      refresher.schedule(s.accessTokenExpiresAt);
     }
   });
   final sub = ref.read(appSignalsProvider).signals.listen((s) {
     switch (s) {
       case AppSignal.resumed:
+        // S15-6: a refresh token the keystore refused earlier.
+        unawaited(session.flushPendingToken());
+        unawaited(refresher.ensureFresh());
       case AppSignal.networkBack:
         unawaited(refresher.ensureFresh());
       case AppSignal.paused:
