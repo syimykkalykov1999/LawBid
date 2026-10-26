@@ -503,6 +503,11 @@ variable "uptime_check" {
   default     = "route53"
   description = "off ($0), route53 (≈ $2/month, us-east-1 only) or synthetics (≈ $10/month)."
 }
+variable "anomaly_alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Anomaly-band alarms (about $5.40 a month). OFF at launch; registry row aws.anomaly_alarms."
+}
 variable "cpu_architecture" {
   type        = string
   default     = "X86_64"

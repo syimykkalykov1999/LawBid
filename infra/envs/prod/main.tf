@@ -86,6 +86,7 @@ module "stack" {
   livekit_use_redis               = var.livekit_use_redis
   livekit_egress_alarm_gb_per_day = var.livekit_egress_alarm_gb_per_day
   uptime_check                    = var.uptime_check
+  anomaly_alarms_enabled          = var.anomaly_alarms_enabled
   cpu_architecture                = var.cpu_architecture
   admin_tasks                     = var.admin_tasks
   api_cpu                         = var.api_cpu

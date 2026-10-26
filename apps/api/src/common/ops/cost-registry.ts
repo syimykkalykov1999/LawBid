@@ -638,7 +638,34 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'aws_cloudwatch_composite_alarm',
       'aws_cloudwatch_log_group',
       'aws_cloudwatch_log_metric_filter',
+      'aws_cloudwatch_dashboard',
     ],
+  },
+  {
+    id: 'aws.anomaly_alarms',
+    name: 'Тревоги «что-то необычное» (CloudWatch, регистрации, сообщения, коды, пуши)',
+    purpose:
+      'Умная полоса нормы: письмо, если регистрации, сообщения, SMS-коды или пуши внезапно упали, или резко выросли неудачные входы.',
+    kind: 'aws',
+    control: tf(['anomaly_alarms_enabled'], {
+      off: 'anomaly_alarms_enabled = false',
+      on: 'anomaly_alarms_enabled = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'fixed',
+      '6 метрик × (полоса $0,30 + страж $0,10 + составная $0,50) ≈ $5,40 в месяц',
+      U.cw,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(5.4),
+    needed: 'later',
+    neededNote:
+      'Нужны, когда есть трафик: полосе нужны недели данных, чтобы выучить норму. На старте её и так закрывают тревоги по ошибкам и «упала проверка сайта».',
+    alarm: null,
+    awsTypes: ['aws_cloudwatch_metric_alarm', 'aws_cloudwatch_composite_alarm'],
   },
   {
     id: 'aws.route53_check',

@@ -568,6 +568,11 @@ variable "monthly_budget_usd" {
   default     = 350
   description = "Monthly AWS spend (USD): e-mails at 50/80/100 %, autoscaling capped at the minimum at 100 %. 350 = the ≈ $150–170 launch size + Redis replica, second TURN, LiveKit (≈ $65–110) + traffic, with headroom so growth is not throttled by the budget (docs/runbooks/cost.md)."
 }
+variable "anomaly_alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Anomaly-band alarms on signups/messages/OTP/push (about $5.40 a month). OFF at launch: a band needs a few weeks of traffic to learn. Registry row aws.anomaly_alarms."
+}
 variable "uptime_check" {
   type        = string
   default     = "synthetics"
@@ -1973,6 +1978,7 @@ module "monitoring" {
   # Owner 2026-10-22 (audit #4 §7): external uptime canary + SLO alarms.
   canary_url        = var.uptime_canary_enabled ? "https://${var.api_host}/health/ready" : null
   uptime_check      = var.uptime_check
+  anomaly_alarms_enabled = var.anomaly_alarms_enabled
   min_daily_signups = var.min_daily_signups
 
   # S12-12 / S12-14 (all off by default).

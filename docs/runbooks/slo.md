@@ -49,6 +49,8 @@ Feed page slower than 1 s or a 5xx. Look at database load and the feed cache (Re
 Stripe Dashboard → Developers → Events / Logs; admin → Платежи. Counted from Stripe webhook events (invoice paid / failed, payment_intent.succeeded).
 
 ### anomaly
+Switch: `anomaly_alarms_enabled` in terraform.tfvars (default **false**, ≈ $5.40 a month when on; registry row `aws.anomaly_alarms`). Turn it on once the app has weeks of traffic. `uptime_check` accepts `off`, `route53` (prod default, ≈ $2) or `synthetics` (≈ $10). Phone Sentry traces (`client.sentry_traces_percent`) default to 0; raise it only from the admin settings page.
+
 `<env>-anomaly-<metric>-low`: the hourly count of signups, sent messages, OTP codes or delivered pushes fell below the band CloudWatch learned. It is muted unless the last 24 h had a real volume (`anomaly_min_daily_events`). Open the app and walk that flow yourself; if it is broken after a release, GitHub → Actions → «Rollback production». Anomaly model needs about two weeks of data before it is sharp.
 
 ### auth-spike

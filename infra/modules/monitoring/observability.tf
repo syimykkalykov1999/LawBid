@@ -9,8 +9,8 @@
 # --- variables --------------------------------------------------------------
 variable "anomaly_alarms_enabled" {
   type        = bool
-  default     = true
-  description = "S12-4 / S12-13: anomaly-band alarms on signups, messages, OTP and push per hour (a DROP means silent breakage) and on failed sign-ins / OTP requests (a SPIKE means credential stuffing). 6 metrics x (anomaly $0.30 + guard $0.10 + composite $0.50) = about $5.40 a month at any scale. false = none."
+  default     = false
+  description = "OFF by default (review R-48; turn on from tfvars once there is traffic to learn a band from). S12-4 / S12-13: anomaly-band alarms on signups, messages, OTP and push per hour (a DROP means silent breakage) and on failed sign-ins / OTP requests (a SPIKE means credential stuffing). 6 metrics x (anomaly $0.30 + guard $0.10 + composite $0.50) = about $5.40 a month at any scale. false = none."
 }
 variable "anomaly_min_daily_events" {
   type = map(number)
