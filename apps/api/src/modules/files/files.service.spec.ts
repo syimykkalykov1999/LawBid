@@ -909,7 +909,7 @@ describe('FilesService', () => {
       expect(create).toHaveBeenCalledWith({
         data: expect.objectContaining({ mime: 'audio/webm' }),
       });
-      expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1');
+      expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1', 'u1');
     });
   });
 });

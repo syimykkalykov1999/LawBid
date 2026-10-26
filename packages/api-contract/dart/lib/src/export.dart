@@ -1325,6 +1325,8 @@ export 'models/system_health_dto.dart';
 export 'models/system_health_envelope.dart';
 export 'models/scale_extras_dto.dart';
 export 'models/scale_extras_envelope.dart';
+export 'models/queue_retry_result_dto.dart';
+export 'models/queue_retry_result_envelope.dart';
 export 'models/heavy_jobs_dto.dart';
 export 'models/scale_dto.dart';
 export 'models/update_ops_settings_dto.dart';
