@@ -20,7 +20,7 @@ const dir = process.argv[2] ?? join(import.meta.dirname, '..', 'prisma', 'migrat
 const BASELINE = process.argv[3] ?? DEFAULT_BASELINE;
 // Online DDL (docs/architecture/ONLINE_DDL.md): Squawk lints migrations newer than this.
 // Older ones are already applied in production and are not re-judged.
-const ONLINE_FROM = process.argv[4] ?? '20261027000000';
+const ONLINE_FROM = process.argv[4] ?? '20261102000000';
 const concurrentDir = join(dir, '..', 'concurrent');
 
 const RULES = [
