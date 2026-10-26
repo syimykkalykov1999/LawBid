@@ -66,8 +66,60 @@ class FixedLayout extends CallVideoLayoutNotifier {
   final CallVideoLayout initial;
 
   @override
-  CallVideoLayout build() => initial;
+  CallVideoLayout build() {
+    ref.onDispose(stopIdle);
+    return initial;
+  }
 }
+
+/// UI-13: a picture stand-in that counts how often a renderer is made and
+/// thrown away — a layout change (grid ↔ focus, 1:1 swap) must keep every
+/// renderer (a new one is a black flash on a phone).
+class CountingSurface extends StatefulWidget {
+  const CountingSurface(this.stream, {super.key});
+
+  final MediaStream stream;
+  static int mounted = 0;
+  static int disposed = 0;
+
+  static void reset() {
+    mounted = 0;
+    disposed = 0;
+  }
+
+  /// For [callVideoSurfaceProvider].
+  static Widget surface(MediaStream stream, {bool mirror = false}) =>
+      CountingSurface(stream);
+
+  @override
+  State<CountingSurface> createState() => _CountingSurfaceState();
+}
+
+class _CountingSurfaceState extends State<CountingSurface> {
+  @override
+  void initState() {
+    super.initState();
+    CountingSurface.mounted++;
+  }
+
+  @override
+  void dispose() {
+    CountingSurface.disposed++;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: Colors.teal,
+        child: Text(
+          widget.stream.id,
+          key: ValueKey('shown-${widget.stream.id}'),
+        ),
+      );
+}
+
+/// T7: the call screens' fixed «now» — the timer in a golden never moves.
+final DateTime callScreenNow = DateTime(2026, 10, 26, 12);
 
 /// A picture stand-in: a soft gradient with the stream's id, so a golden
 /// shows where each camera sits.
@@ -101,7 +153,7 @@ CallSession callSession1to1(CallPhase phase, {bool video = false}) =>
       phase: phase,
       video: video,
       connectedAt: phase == CallPhase.active
-          ? DateTime.now().subtract(const Duration(minutes: 1, seconds: 29))
+          ? callScreenNow.subtract(const Duration(minutes: 1, seconds: 29))
           : null,
       peer: _peer,
       call: AppCall(
@@ -131,7 +183,7 @@ const _names = [
 CallSession callSessionGroup(int people, {bool video = false}) => CallSession(
       phase: CallPhase.active,
       video: video,
-      connectedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+      connectedAt: callScreenNow.subtract(const Duration(minutes: 3)),
       peer: _peer,
       call: AppCall(
         id: 'g1',
@@ -177,11 +229,14 @@ CallMedia? fakeMediaFor(CallSession s) {
 List<Override> callScreenFakeOverrides(
   CallSession s, {
   CallVideoLayout layout = const CallVideoLayout(),
+  CallVideoSurface surface = fakeVideo,
+  DateTime Function()? clock,
 }) =>
     [
       callMyIdProvider.overrideWithValue('u0'),
+      callClockProvider.overrideWithValue(clock ?? () => callScreenNow),
       callControllerProvider
           .overrideWith(() => FixedCallController(s, fakeMediaFor(s))),
       callVideoLayoutProvider.overrideWith(() => FixedLayout(layout)),
-      callVideoSurfaceProvider.overrideWithValue(fakeVideo),
+      callVideoSurfaceProvider.overrideWithValue(surface),
     ];

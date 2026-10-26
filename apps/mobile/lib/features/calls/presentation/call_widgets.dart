@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -179,6 +181,45 @@ class CallAvatar extends StatelessWidget {
                     ),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+/// AN-1 / UI-09 (REFERENCE.md «Background»; WhatsApp / FaceTime): behind
+/// the big photo of a voice call, a camera that is off or a group tile
+/// without a picture — the person's photo enlarged and blurred (σ 40)
+/// under a 45 % wash of the call's dark colour, never a flat box. Without
+/// a photo (or while it loads, or when the link fails) it draws nothing and
+/// the plain background behind shows. The blur is costly: it sits behind a
+/// RepaintBoundary and decodes the photo at 64 px.
+class CallPhotoBackdrop extends StatelessWidget {
+  const CallPhotoBackdrop({required this.url, super.key});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final link = url;
+    if (link == null || link.isEmpty) return const SizedBox.shrink();
+    return RepaintBoundary(
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
+              child: Image(
+                image: appNetworkImage(link, 64),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                excludeFromSemantics: true,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+            ColoredBox(color: AppCallColors.stage.withValues(alpha: 0.45)),
+          ],
         ),
       ),
     );

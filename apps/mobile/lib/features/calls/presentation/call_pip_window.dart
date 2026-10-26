@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,19 +20,31 @@ import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 /// edge while it is hidden).
 class CallPipWindow extends ConsumerStatefulWidget {
   const CallPipWindow({
-    required this.stream,
-    required this.mirror,
     required this.onSwap,
     required this.onTap,
+    this.stream,
+    this.mirror = false,
+    this.child,
+    this.swapTick = 0,
     this.topInset = 0,
     this.bottomInset = 0,
     super.key,
-  });
+  }) : assert(stream != null || child != null, 'a stream or a child');
 
   static const size = Size(96, 136);
 
-  final MediaStream stream;
+  /// The picture shown (when no [child] is given).
+  final MediaStream? stream;
   final bool mirror;
+
+  /// UI-03: the picture itself, owned by the call screen — the same
+  /// renderer moves between the full screen and this card on a swap
+  /// (never a fresh, black one).
+  final Widget? child;
+
+  /// Changes on every swap: the card gives a short «pop» (0.9 → 1, 200 ms;
+  /// none under reduce motion) so the swap reads as one motion.
+  final int swapTick;
 
   /// Two taps: this picture becomes the big one.
   final VoidCallback onSwap;
@@ -49,23 +63,46 @@ class CallPipWindow extends ConsumerStatefulWidget {
 class _CallPipWindowState extends ConsumerState<CallPipWindow>
     with TickerProviderStateMixin {
   // WhatsApp-like: quick, a touch of give, no wobble.
-  static const _spring =
-      SpringDescription(mass: 1, stiffness: 520, damping: 40);
+  static const _spring = SpringDescription(
+    mass: 1,
+    stiffness: 520,
+    damping: 40,
+  );
   static const _margin = 12.0;
 
-  late final AnimationController _x =
-      AnimationController.unbounded(vsync: this);
-  late final AnimationController _y =
-      AnimationController.unbounded(vsync: this);
+  late final AnimationController _x = AnimationController.unbounded(
+    vsync: this,
+  );
+  late final AnimationController _y = AnimationController.unbounded(
+    vsync: this,
+  );
+  late final AnimationController _pop = AnimationController(
+    vsync: this,
+    duration: CallMotion.quick,
+    value: 1,
+  );
+  late final Animation<double> _popScale = Tween<double>(
+    begin: 0.9,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _pop, curve: CallMotion.curve));
   bool _placed = false;
   bool _dragging = false;
   Size _area = Size.zero;
   Offset? _target;
 
   @override
+  void didUpdateWidget(CallPipWindow old) {
+    super.didUpdateWidget(old);
+    if (old.swapTick != widget.swapTick && !context.reduceMotion) {
+      unawaited(_pop.forward(from: 0));
+    }
+  }
+
+  @override
   void dispose() {
     _x.dispose();
     _y.dispose();
+    _pop.dispose();
     super.dispose();
   }
 
@@ -143,10 +180,14 @@ class _CallPipWindowState extends ConsumerState<CallPipWindow>
                   _y.stop();
                 },
                 onPanUpdate: (d) {
-                  _x.value = (_x.value + d.delta.dx)
-                      .clamp(0, _area.width - CallPipWindow.size.width);
-                  _y.value = (_y.value + d.delta.dy)
-                      .clamp(0, _area.height - CallPipWindow.size.height);
+                  _x.value = (_x.value + d.delta.dx).clamp(
+                    0,
+                    _area.width - CallPipWindow.size.width,
+                  );
+                  _y.value = (_y.value + d.delta.dy).clamp(
+                    0,
+                    _area.height - CallPipWindow.size.height,
+                  );
                 },
                 onPanEnd: (d) {
                   _dragging = false;
@@ -161,37 +202,41 @@ class _CallPipWindowState extends ConsumerState<CallPipWindow>
                   ref.read(callVideoLayoutProvider.notifier).moveTo(corner);
                   _springTo(to, velocity: v);
                 },
-                child: RepaintBoundary(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black45,
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          const ColoredBox(color: AppCallColors.tileOff),
-                          CallVideoView(
-                            stream: widget.stream,
-                            mirror: widget.mirror,
-                          ),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.15),
-                              ),
-                            ),
+                child: ScaleTransition(
+                  scale: _popScale,
+                  child: RepaintBoundary(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black45,
+                            blurRadius: 12,
+                            offset: Offset(0, 4),
                           ),
                         ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            const ColoredBox(color: AppCallColors.tileOff),
+                            widget.child ??
+                                CallVideoView(
+                                  stream: widget.stream!,
+                                  mirror: widget.mirror,
+                                ),
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
