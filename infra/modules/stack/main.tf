@@ -865,7 +865,6 @@ module "ses" {
   hosted_zone_id = var.hosted_zone_id
   dmarc_rua      = var.dmarc_rua
   dmarc_policy   = var.dmarc_policy
-  tags           = local.tags
 }
 
 module "alb" {
@@ -1582,7 +1581,6 @@ module "ecs" {
   source                   = "../ecs"
   name                     = local.name
   readonly_root_filesystem = var.ecs_readonly_root_filesystem
-  vpc_id                   = module.network.vpc_id
   private_subnet_ids       = module.network.private_subnet_ids
   tasks_security_group_id  = aws_security_group.tasks.id
   api_target_group_arn     = module.alb.api_target_group_arn
