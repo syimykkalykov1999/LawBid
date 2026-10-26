@@ -1,11 +1,16 @@
-import 'dart:io' show Platform;
+import 'dart:async' show TimeoutException;
+import 'dart:io' show File, Platform;
 
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
 import 'package:lawbid/core/persistence/drift_memory_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/persistence/drift_memory_web.dart';
+import 'package:lawbid/core/persistence/drift_recovery.dart';
 import 'package:lawbid/core/platform/base_uri.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqlite3/common.dart' show CommonDatabase;
 
 /// Where the web build finds SQLite and drift's worker. Ignored on
 /// Android/iOS. Both files live in `web/` (next to index.html) and are
@@ -20,12 +25,71 @@ final appDriftWebOptions = DriftWebOptions(
   driftWorker: appBaseUri.resolve('drift_worker.js'),
 );
 
-/// The app's local database [name]. On the web, when the browser's storage
-/// can't be opened (a private window, blocked site data, a browser whose
-/// worker can't load SQLite) the app keeps working on a database that lives
-/// only in the tab instead of staying on a blank screen: the caches start
-/// empty and refill from the server.
-QueryExecutor appDriftDatabase(String name) {
+/// S15-9: `auto_vacuum = INCREMENTAL` on every NEW database file (it only
+/// takes effect before the first table exists), so pages freed by a cache
+/// trim can be handed back to the OS (`PRAGMA incremental_vacuum`, run after
+/// the cache limits are enforced) instead of the file keeping its
+/// high-water mark. Runs in the database isolate: top-level on purpose.
+void _setupPragmas(CommonDatabase db) {
+  db.execute('PRAGMA auto_vacuum = INCREMENTAL;');
+}
+
+const _nativeOptions = DriftNativeOptions(setup: _setupPragmas);
+
+/// The files of a phone database: the database, then its companions.
+Future<List<File>> _databaseFiles(String name) async {
+  final dir = (await getApplicationDocumentsDirectory()).path;
+  final base = '$dir${Platform.pathSeparator}$name.sqlite';
+  return [
+    File(base),
+    File('$base-wal'),
+    File('$base-shm'),
+    File('$base-journal'),
+  ];
+}
+
+void _reportRecovery(
+  String database,
+  Object error,
+  StackTrace stack, {
+  required DriftRecovery recovery,
+}) {
+  // Nothing personal: the database name, what was done and the error type
+  // (the reporter scrubs the message again).
+  SentryReporter.capture(
+    StateError(
+      'local database "$database" could not be opened '
+      '(${error.runtimeType}); ${recovery.name}',
+    ),
+    stack,
+  );
+}
+
+QueryExecutor _nativeDatabase(String name, DriftRecovery recovery) =>
+    RecoveringExecutor(
+      name: name,
+      recovery: recovery,
+      open: () => driftDatabase(
+        name: name,
+        web: appDriftWebOptions,
+        native: _nativeOptions,
+      ),
+      files: () => _databaseFiles(name),
+      memory: () => openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm),
+      report: _reportRecovery,
+    );
+
+/// The app's local database [name]. [recovery] says what happens when the
+/// file cannot be opened (see [DriftRecovery]): a cache is rebuilt, a
+/// database that holds unsent work is moved aside and started empty. On the
+/// web, when the browser's storage can't be opened (a private window,
+/// blocked site data, a browser whose worker can't load SQLite) the app keeps
+/// working on a database that lives only in the tab instead of staying on a
+/// blank screen: the caches start empty and refill from the server.
+QueryExecutor appDriftDatabase(
+  String name, {
+  DriftRecovery recovery = DriftRecovery.rebuildCache,
+}) {
   if (kIsWeb) {
     return _FallbackExecutor(
       driftDatabase(name: name, web: appDriftWebOptions),
@@ -37,12 +101,13 @@ QueryExecutor appDriftDatabase(String name) {
   // lives in the test's memory instead of holding the screen.
   if (isFlutterTest) {
     return LazyDatabase(() async {
-      final memory =
-          await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
+      final memory = await openProcessMemoryDatabase(
+        appDriftWebOptions.sqlite3Wasm,
+      );
       return memory ?? driftDatabase(name: name, web: appDriftWebOptions);
     });
   }
-  return driftDatabase(name: name, web: appDriftWebOptions);
+  return _nativeDatabase(name, recovery);
 }
 
 /// True under `flutter test` (never on the web).
@@ -51,20 +116,26 @@ bool get isFlutterTest =>
 
 /// Owner 2026-10-22 (client economy plan §5): a cache database. On the web
 /// it lives only in the tab's memory (a shared or private computer keeps
-/// nothing of the account on disk); on phones it is a file, and when that
-/// file cannot be opened (or there is no documents directory, as in widget
-/// tests) the cache works in memory for this process.
+/// nothing of the account on disk); on phones it is a file; when that file
+/// cannot be opened or migrated (S15-5) it is deleted and created again, and
+/// should that fail too (no documents directory, a full disk) the cache works
+/// in memory for this process.
 QueryExecutor appDriftCacheDatabase(String name) {
   if (!kIsWeb) return appDriftDatabase(name);
   return LazyDatabase(() async {
-    final memory =
-        await openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm);
+    final memory = await openProcessMemoryDatabase(
+      appDriftWebOptions.sqlite3Wasm,
+    );
     return memory ?? appDriftDatabase(name);
   });
 }
 
 class _FallbackExecutor extends QueryExecutor {
   _FallbackExecutor(this._current, this._fallback);
+
+  /// How long the persistent database may take to open (its files come
+  /// over the network: drift_worker.js 350 KB, sqlite3.wasm 750 KB).
+  static const openTimeout = Duration(seconds: 12);
 
   QueryExecutor _current;
   final Future<QueryExecutor?> Function(Uri sqlite3Wasm) _fallback;
@@ -76,7 +147,17 @@ class _FallbackExecutor extends QueryExecutor {
   @override
   Future<bool> ensureOpen(QueryExecutorUser user) async {
     try {
-      return await _current.ensureOpen(user);
+      // Owner 2026-10-24 (slow-link pass): a worker that never answers
+      // (blocked storage, a half-loaded sqlite3.wasm on a bad connection)
+      // used to hold every screen that reads the database. After
+      // [openTimeout] the tab's own in-memory database takes over, like
+      // after an error.
+      return await _current.ensureOpen(user).timeout(
+            openTimeout,
+            onTimeout: () => throw TimeoutException(
+              'local storage did not open in $openTimeout',
+            ),
+          );
     } on Object catch (e) {
       if (_fellBack) rethrow;
       final memory = await _fallback(appDriftWebOptions.sqlite3Wasm);

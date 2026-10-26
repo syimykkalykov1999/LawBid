@@ -7,3 +7,8 @@ backend.hcl
 crash.log
 # Owner 2026-10-22: the zipped uptime canary script (generated at plan).
 .canary-*.zip
+!envs/loadtest/profiles/*.tfvars
+# Owner 2026-10-24: the zipped database-autoscale Lambda (generated at plan).
+.db-autoscale-*.zip
+.redis-autoscale-*.zip
+__pycache__/

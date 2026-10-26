@@ -8,9 +8,9 @@ variable "growth" {
       rds_replica_instance_class "" = same class as the primary.
       db_proxy_enabled           RDS Proxy in front of the database (needs db_proxy_secret_arn).
       db_proxy_secret_arn        Secrets Manager secret {username,password} of the app role.
-      opensearch_enabled         OpenSearch domain for the search-engine step (the app side is a separate step).
+      opensearch_enabled         OpenSearch domain for the search engine. The app finds it by itself (OPENSEARCH_URL); admin Settings: search.engine = shadow, then engine, turns it on. docs/architecture/SEARCH_READY.md.
       opensearch_instance_type / _count / _volume_gb   size of that domain.
-      redis_cluster_mode         NOT BUILT: validation refuses true (the app's Lua scripts are single-slot only today).
+      redis_cluster_mode         MOVED: set the stack variable redis_cluster_mode = "standby" | "on" (docs/runbooks/redis-cluster.md); this field stays false.
       livekit_nodes              NOT BUILT: validation refuses > 1 (modules/livekit is one box).
       cdn_images_provider        "cloudfront" (default) or "bunny": which CDN serves public images; "bunny" needs cdn_images_base_url (https://<pull-zone>).
       event_loop_p99_alarm_ms    alarm threshold for the Node event-loop delay metric; 0 = no alarm.
@@ -46,7 +46,7 @@ variable "growth" {
   }
   validation {
     condition     = !var.growth.redis_cluster_mode
-    error_message = "growth.redis_cluster_mode is not built yet: the app's Lua scripts touch keys of several hash slots (CROSSSLOT in cluster mode) and BullMQ needs hash-tagged queue names. See docs/perf/GROWTH_LADDER_2026-10-23.md, step 100M. Until then scale Redis up (redis_node_type) or split it (redis_cache_node)."
+    error_message = "growth.redis_cluster_mode is replaced by the top-level variable redis_cluster_mode (standby or on; docs/runbooks/redis-cluster.md, docs/architecture/REDIS_CLUSTER_READY.md)."
   }
   validation {
     condition     = var.growth.livekit_nodes >= 1 && var.growth.livekit_nodes <= 1
@@ -74,6 +74,8 @@ module "growth" {
   kms_key_arn             = module.kms.key_arn
   tasks_security_group_id = aws_security_group.tasks.id
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
+  alarms_enabled          = true
+  has_source_db           = var.create_database || var.existing_database_identifier != ""
 
   rds_read_replicas          = var.growth.rds_read_replicas
   rds_source_identifier      = local.growth_source_db

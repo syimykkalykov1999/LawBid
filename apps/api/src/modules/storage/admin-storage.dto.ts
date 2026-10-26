@@ -25,6 +25,10 @@ export class StorageSettingsDto {
   userQuotaMb!: number;
   @ApiProperty({ description: 'MB of files per chat; 0 = no cap.' })
   chatQuotaMb!: number;
+  @ApiProperty({
+    description: 'MB one person may upload per UTC day; 0 = no cap.',
+  })
+  dailyUploadMbPerUser!: number;
   @ApiProperty({ description: 'Old technical logs are removed nightly.' })
   autoRetention!: boolean;
   @ApiProperty({ description: 'Days; 0 = keep forever.' })
@@ -77,6 +81,12 @@ export class UpdateStorageSettingsDto {
   @Min(0)
   @Max(1_048_576)
   chatQuotaMb?: number;
+  @ApiPropertyOptional({ minimum: 0, maximum: 1_048_576 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_048_576)
+  dailyUploadMbPerUser?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() autoRetention?: boolean;
   @ApiPropertyOptional({ minimum: 0, maximum: 3650 })
   @IsOptional()
@@ -151,6 +161,15 @@ export class StorageLastCleanupDto extends StorageCleanupResultDto {
   @ApiProperty({ format: 'date-time' }) at!: string;
 }
 
+export class StorageR2UsageDto {
+  @ApiProperty({ description: 'Bytes in the R2 bucket (public media).' })
+  bytes!: number;
+  @ApiProperty() objects!: number;
+  @ApiProperty({ description: 'Counted only partly (a lower bound).' })
+  truncated!: boolean;
+  @ApiProperty({ format: 'date-time' }) updatedAt!: string;
+}
+
 export class StorageOverviewDto {
   @ApiProperty({ description: 'Live files as users see them.' })
   filesBytes!: number;
@@ -172,6 +191,12 @@ export class StorageOverviewDto {
   @ApiProperty({ type: StorageLastCleanupDto, nullable: true })
   lastCleanup!: StorageLastCleanupDto | null;
   @ApiProperty({ type: StorageSettingsDto }) settings!: StorageSettingsDto;
+  @ApiProperty({
+    type: StorageR2UsageDto,
+    nullable: true,
+    description: 'Cloudflare R2 size, counted daily; null when R2 is unused.',
+  })
+  r2!: StorageR2UsageDto | null;
 }
 
 export class StorageUserIdParamDto {

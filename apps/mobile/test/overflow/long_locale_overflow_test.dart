@@ -245,7 +245,8 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      testWidgets('tasks: filter chips and "Add a task"', (tester) async {
+      testWidgets('tasks: filter chips, search and the floating "+"',
+          (tester) async {
         final repo = FakeTeamRepository()
           ..active = [makeTask('a', note: 'Call the court clerk')];
         await pump(
@@ -261,15 +262,21 @@ void main() {
         );
         expect(tester.takeException(), isNull);
         // Owner 2026-10-05: nothing moves to another line; the chips and
-        // the button stay in one row and their text shrinks instead.
-        final add = tester.getCenter(find.byKey(const ValueKey('tasks-add')));
+        // the search button stay in one row and their text shrinks instead.
+        // Owner 2026-10-23: "Add a task" is the floating "+" at the bottom
+        // right, not in that row.
+        final search =
+            tester.getCenter(find.byKey(const ValueKey('tasks-search-open')));
         for (final k in ['tasks-view-all', 'tasks-view-done']) {
           expect(
             tester.getCenter(find.byKey(ValueKey(k))).dy,
-            moreOrLessEquals(add.dy, epsilon: 1),
-            reason: '$k and "Add a task" share one row',
+            moreOrLessEquals(search.dy, epsilon: 1),
+            reason: '$k and the search share one row',
           );
         }
+        final add = tester.getRect(find.byKey(const ValueKey('tasks-add')));
+        expect(add.center.dy, greaterThan(search.dy + 100));
+        expect(add.right, lessThanOrEqualTo(360));
       });
 
       testWidgets('assistant codes: seats section, code card, sign-in',

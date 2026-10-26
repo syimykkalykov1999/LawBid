@@ -10,6 +10,8 @@ enum VideoCallConfigDtoProvider {
   webrtc('webrtc'),
   @JsonValue('livekit')
   livekit('livekit'),
+  @JsonValue('cloudflare')
+  cloudflare('cloudflare'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

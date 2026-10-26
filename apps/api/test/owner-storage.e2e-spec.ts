@@ -252,6 +252,36 @@ describe('Storage like Telegram (e2e)', () => {
     expect(res.body.error.details.quotaBytes).toBe(1024 * 1024);
   });
 
+  // 2026-10-24 (abuse batch B, item 5): bytes per day, set in the admin.
+  it('refuses uploads past the daily upload cap (429 DAILY_UPLOAD_LIMIT_EXCEEDED)', async () => {
+    const admin = await adminSession(base, prisma, 'super_admin');
+    const set = await api()
+      .put('/api/v1/admin/storage/settings')
+      .set(admin.auth)
+      .send({ dailyUploadMbPerUser: 1 });
+    expect(set.status).toBe(200);
+    expect(set.body.data.dailyUploadMbPerUser).toBe(1);
+    try {
+      const a = await user();
+      const half = Buffer.alloc(600 * 1024, 2);
+      expect((await presign(a.auth, half)).status).toBe(201);
+      const res = await presign(a.auth, half);
+      expect(res.status).toBe(429);
+      expect(res.body.error.code).toBe('DAILY_UPLOAD_LIMIT_EXCEEDED');
+      expect(res.body.error.details.limitBytes).toBe(1024 * 1024);
+      expect(res.body.error.details.retryAfterSeconds).toBeGreaterThan(0);
+      // another person is not affected
+      const b = await user();
+      expect((await presign(b.auth, half)).status).toBe(201);
+    } finally {
+      await api()
+        .put('/api/v1/admin/storage/settings')
+        .set(admin.auth)
+        .send({ dailyUploadMbPerUser: 2048 })
+        .expect(200);
+    }
+  });
+
   it('admin «Хранилище»: overview, settings, cleanup now, a user cap', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
     const a = await user();

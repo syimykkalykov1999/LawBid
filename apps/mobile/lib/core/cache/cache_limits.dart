@@ -6,10 +6,10 @@ enum CacheStore {
   http('http', 32),
   messages('messages', 50),
   feed('feed', 8),
-  images('images', 500),
-  chatMedia('chat_media', 300),
-  files('files', 200),
-  video('video', 300),
+  images('images', 1000),
+  chatMedia('chat_media', 1000),
+  files('files', 500),
+  video('video', 1000),
 
   /// l10n, recent searches, dedup, the events queue, translations.
   other('other', 5);

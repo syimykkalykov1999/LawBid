@@ -56,7 +56,13 @@ class CallMember {
     this.muted = false,
     this.mutedByHost = false,
     this.joinedAt,
+    this.sfuTracks,
   });
+
+  /// Cloudflare SFU calls: what this person publishes now (`mic`, `cam`).
+  /// Null = the server did not say (a plain `GET /calls/:id` carries no
+  /// roster): the pulls we hold are left as they are.
+  final Set<String>? sfuTracks;
 
   final String userId;
   final CallMemberStatus status;
@@ -81,7 +87,26 @@ class CallMember {
   }
 }
 
+/// Owner 2026-10-24: how the media of a call is carried, fixed at its start.
+enum CallMediaProvider { p2p, cloudflare }
+
+/// Owner 2026-10-24: group calls only — the Cloudflare outage fallback.
+/// [active]: Cloudflare is chosen by the admin but this call runs device to
+/// device; [videoBlocked]: too many people for the camera.
 @immutable
+class CallMediaFallback {
+  const CallMediaFallback({
+    this.active = false,
+    this.reason,
+    this.videoBlocked = false,
+    this.videoMaxParticipants = 4,
+  });
+
+  final bool active;
+  final String? reason;
+  final bool videoBlocked;
+  final int videoMaxParticipants;
+}
 
 /// Owner 2026-10-21: the open vote to remove a member of a group call.
 @immutable
@@ -130,7 +155,16 @@ class AppCall {
     this.participants = const [],
     this.moderated = true,
     this.vote,
+    this.mediaProvider = CallMediaProvider.p2p,
+    this.mediaFallback,
   });
+
+  /// Owner 2026-10-24: `cloudflare` = one connection to the SFU, `p2p` =
+  /// device to device (1:1 calls and the outage fallback).
+  final CallMediaProvider mediaProvider;
+  final CallMediaFallback? mediaFallback;
+
+  bool get viaSfu => mediaProvider == CallMediaProvider.cloudflare;
 
   /// Somebody who runs the call (starter / group admin) is in it — members
   /// cannot vote to remove anyone then.
@@ -172,6 +206,8 @@ class AppCall {
     bool? moderated,
     CallVote? vote,
     bool clearVote = false,
+    bool? video,
+    CallMediaFallback? mediaFallback,
   }) =>
       AppCall(
         id: id,
@@ -185,18 +221,21 @@ class AppCall {
         answeredAt: answeredAt,
         endedAt: endedAt,
         durationSec: durationSec,
-        video: video,
+        video: video ?? this.video,
         group: group ?? this.group,
         hostId: hostId ?? this.hostId,
         participants: participants ?? this.participants,
         moderated: moderated ?? this.moderated,
         vote: clearVote ? null : vote ?? this.vote,
+        mediaProvider: mediaProvider,
+        mediaFallback: mediaFallback ?? this.mediaFallback,
       );
 
   bool get live => status == CallStatus.ringing || status == CallStatus.active;
 
   /// The most people the call holds (server GROUP_MAX_AUDIO / _VIDEO).
-  int get capacity => video ? callMaxVideo : callMaxAudio;
+  int get capacity =>
+      viaSfu ? callMaxSfu : (video ? callMaxVideo : callMaxAudio);
 
   /// People in the call or ringing — what the server counts against
   /// [capacity] (a one-to-one call is two).
@@ -217,6 +256,10 @@ class AppCall {
 /// 20d). Hundreds of people would need an SFU media server.
 const callMaxAudio = 9;
 const callMaxVideo = 9;
+
+/// Cloudflare SFU calls: the server's `calls.sfu_max_participants` default
+/// (the server stays the judge; this only gates the buttons early).
+const callMaxSfu = 20;
 
 /// One ICE server (STUN or TURN) for WebRTC.
 @immutable

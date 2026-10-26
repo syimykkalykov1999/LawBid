@@ -88,6 +88,7 @@ class _ChatsTabState extends ConsumerState<ChatsTab> {
                     0,
                   ),
                   child: AppTextField(
+                    compact: true,
                     leading: const AppIcon(AppIcons.searchRounded),
                     hintText: t.t('phoneContacts.search'),
                     semanticLabel: t.t('phoneContacts.search'),

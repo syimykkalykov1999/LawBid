@@ -229,12 +229,15 @@ locals {
     "media-src 'self' blob: https:",
     "worker-src 'self' blob:",
     "connect-src ${join(" ", concat(["'self'", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
-    "frame-src ${join(" ", concat(["'self'"], var.stripe_frame_src))}",
+    "frame-src ${join(" ", concat(["'self'", local.turnstile_origin], var.stripe_frame_src))}",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "object-src 'none'",
   ]
-  script_src = concat(["'self'", "'wasm-unsafe-eval'", "https://www.gstatic.com"], var.stripe_script_src)
+  # 2026-10-24 (batch D, item 4): Cloudflare Turnstile on the web sign-up
+  # (script + challenge frame; its token goes to our own API only).
+  turnstile_origin = "https://challenges.cloudflare.com"
+  script_src       = concat(["'self'", "'wasm-unsafe-eval'", "https://www.gstatic.com", local.turnstile_origin], var.stripe_script_src)
   csp = {
     app  = join("; ", concat(["default-src 'self'", "script-src ${join(" ", local.script_src)}"], local.csp_rest))
     site = join("; ", concat(["default-src 'self'", "script-src ${join(" ", concat(local.script_src, ["'unsafe-inline'"]))}"], local.csp_rest))
@@ -324,7 +327,7 @@ resource "aws_cloudfront_function" "seo_index" {
   key_value_store_associations = [aws_cloudfront_key_value_store.web.arn]
   code                         = <<-EOT
     import cf from 'cloudfront';
-    var kvs = cf.kvs('${aws_cloudfront_key_value_store.web.id}');
+    var kvs = cf.kvs('${element(split("/", aws_cloudfront_key_value_store.web.arn), 1)}'); // the store ID (ARN tail); .id is the NAME and fails with KVSNamespaceNotFound
     var PUBLIC = /^\/(lawyers|attorneys|practice-areas|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/;
     var ROOT_FILES = ['/sitemap.xml', '/robots.txt', '/public-paths.txt'];
     // Owner 2026-10-23 (web speed pass): the app and the engine have a

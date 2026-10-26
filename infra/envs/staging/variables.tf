@@ -99,6 +99,16 @@ variable "database_multi_az" {
   type    = bool
   default = false
 }
+variable "db_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "Database autoscale (docs/architecture/DB_AUTOSCALE.md). Off in staging: single-AZ, a resize would be minutes of downtime."
+}
+variable "redis_autoscale_enabled" {
+  type        = bool
+  default     = false
+  description = "Redis autoscale (docs/architecture/REDIS_AUTOSCALE.md). Off in staging."
+}
 variable "backup_enabled" {
   type    = bool
   default = false
@@ -212,4 +222,103 @@ variable "documents_cdn_public_key_pem" {
   type        = string
   default     = ""
   description = "PEM public key for CloudFront signed URLs on private media (see envs/prod)."
+}
+
+# Security & legal pass 2026-10-24 (docs/runbooks/SECURITY_LEGAL.md): costs are
+# approximate us-east-1 list prices.
+variable "securityhub_fsbp_enabled" {
+  type        = bool
+  default     = false
+  description = "Security Hub: AWS Foundational Security Best Practices (needs security_hub_enabled). ~$5-15/month."
+}
+variable "inspector_enabled" {
+  type        = bool
+  default     = false
+  description = "Amazon Inspector for ECR images. ~$1-6/month."
+}
+variable "unused_access_analyzer_enabled" {
+  type        = bool
+  default     = false
+  description = "IAM Access Analyzer unused access. ~$0.20 per role/user per month."
+}
+variable "s3_account_block_public_access" {
+  type        = bool
+  default     = true
+  description = "Account-wide S3 Block Public Access. Free."
+}
+variable "critical_api_alerts_enabled" {
+  type        = bool
+  default     = true
+  description = "Alerts on key deletion, CloudTrail off, backup vault/lock deletion, root use. Free."
+}
+variable "documents_data_events" {
+  type        = bool
+  default     = false
+  description = "CloudTrail data events on the documents bucket. ~$0.10 per 100 000 events."
+}
+variable "audit_logs_enabled" {
+  type        = bool
+  default     = false
+  description = "Locked log bucket: ALB access log, documents access log, VPC flow logs. ~$2-12/month."
+}
+variable "audit_logs_retention_days" {
+  type    = number
+  default = 400
+}
+variable "audit_logs_object_lock" {
+  type    = bool
+  default = false
+}
+variable "vpc_flow_logs_traffic" {
+  type    = string
+  default = "ALL"
+}
+variable "macie_enabled" {
+  type        = bool
+  default     = false
+  description = "Amazon Macie monthly sensitive-data scan of the documents bucket. ~$1 per GB inspected x sampling."
+}
+variable "macie_sampling_percentage" {
+  type    = number
+  default = 10
+}
+variable "backup_vault_lock_mode" {
+  type        = string
+  default     = "off"
+  description = "off | governance | compliance (irreversible after the cooling-off days). Free."
+}
+variable "backup_vault_lock_cooling_off_days" {
+  type    = number
+  default = 7
+}
+
+# AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md)
+variable "config_enabled" {
+  type        = bool
+  default     = false
+  description = "AWS Config recorder + 11 managed rules. ~$1-4/month. One recorder per account and region: turn on in ONE env if prod and staging share an account."
+}
+variable "config_retention_days" {
+  type    = number
+  default = 400
+}
+variable "break_glass_enabled" {
+  type        = bool
+  default     = false
+  description = "Emergency administrator role (MFA, named principals, pages on use). Free."
+}
+variable "break_glass_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "Named IAM users/roles that may assume the break-glass role."
+}
+variable "cloudtrail_athena_enabled" {
+  type        = bool
+  default     = true
+  description = "Athena + saved CloudTrail queries. ~$0 idle."
+}
+variable "anomaly_to_alerts_topic" {
+  type        = bool
+  default     = true
+  description = "Cost Anomaly findings also to the alerts topic (free)."
 }

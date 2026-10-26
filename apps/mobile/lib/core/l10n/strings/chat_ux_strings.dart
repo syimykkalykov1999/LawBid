@@ -11,6 +11,7 @@ const chatUxRu = <String, String>{
   'chat.preview.free': 'Произвольно',
   'chat.scrollDown': 'К последнему сообщению',
   'chat.jump.gone': 'Исходное сообщение недоступно',
+  'calls.ongoingNow': 'Идёт сейчас',
 };
 
 const chatUxEn = <String, String>{
@@ -20,4 +21,5 @@ const chatUxEn = <String, String>{
   'chat.preview.free': 'Freeform',
   'chat.scrollDown': 'Scroll to the latest message',
   'chat.jump.gone': 'The original message is not available',
+  'calls.ongoingNow': 'Ongoing now',
 };

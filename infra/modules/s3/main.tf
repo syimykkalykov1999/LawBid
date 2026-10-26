@@ -27,9 +27,19 @@ variable "replica_kms_key_arn" {
   type        = string
   description = "KMS key in the replica region for the documents copy."
 }
+variable "replicate_media" {
+  type        = bool
+  default     = false
+  description = "S4-5: copy every new media object (photos, avatars, stickers) to a bucket in the replica Region. Delete markers are NOT copied, so a deleted original stays in the copy. Existing objects need a one-time S3 Batch Replication job (docs/runbooks/infra-hardening.md). Cost: storage of the media in the replica Region."
+}
 variable "tags" {
   type    = map(string)
   default = {}
+}
+variable "access_log_bucket" {
+  type        = string
+  default     = ""
+  description = "Security & legal pass 2026-10-24: bucket (modules/audit-logs) that receives the S3 server access log of the documents bucket: requester, object key, operation, time. Empty = no access log."
 }
 variable "documents_cdn_public_key_pem" {
   type        = string
@@ -65,6 +75,15 @@ resource "aws_s3_bucket" "documents_replica" {
 resource "aws_s3_bucket_versioning" "documents" {
   bucket = aws_s3_bucket.documents.id
   versioning_configuration { status = "Enabled" }
+}
+
+# Who touched which object: requester, key, operation, status (delivered
+# within hours, free to switch on; the log bucket costs cents).
+resource "aws_s3_bucket_logging" "documents" {
+  count         = var.access_log_bucket == "" ? 0 : 1
+  bucket        = aws_s3_bucket.documents.id
+  target_bucket = var.access_log_bucket
+  target_prefix = "s3-documents/"
 }
 
 resource "aws_s3_bucket_versioning" "documents_replica" {
@@ -232,7 +251,11 @@ resource "aws_s3_bucket_replication_configuration" "documents" {
     id     = "documents-to-replica"
     status = "Enabled"
     filter {}
-    delete_marker_replication { status = "Enabled" }
+    # S4-5 (audit 2026-10-25): do NOT copy delete markers. A mistaken or
+    # malicious delete in the source must leave the replica copy readable.
+    # Legal exports still disappear from the replica by its own lifecycle
+    # (legal-exports-expire below), the rest by old-versions after 90 days.
+    delete_marker_replication { status = "Disabled" }
     source_selection_criteria {
       sse_kms_encrypted_objects { status = "Enabled" }
     }
@@ -409,7 +432,47 @@ resource "aws_cloudfront_distribution" "media" {
   tags = var.tags
 }
 
+# Security & legal pass 2026-10-24: nothing is read or written over plain
+# HTTP (ABA 477R: encryption in transit). Every legitimate caller (the API,
+# CloudFront, replication, the AWS SDK) already uses TLS.
+data "aws_iam_policy_document" "tls_only_media" {
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.media.arn, "${aws_s3_bucket.media.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "tls_only_documents" {
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.documents.arn, "${aws_s3_bucket.documents.arn}/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
 data "aws_iam_policy_document" "media_cf" {
+  source_policy_documents = [data.aws_iam_policy_document.tls_only_media.json]
   statement {
     actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.media.arn}/*"]
@@ -550,10 +613,23 @@ data "aws_iam_policy_document" "documents_cf" {
   }
 }
 
+# Always present now (it used to exist only with the private CDN): the
+# TLS-only rule must hold even before the signing key is supplied.
+data "aws_iam_policy_document" "documents_all" {
+  source_policy_documents = concat(
+    [data.aws_iam_policy_document.tls_only_documents.json],
+    data.aws_iam_policy_document.documents_cf[*].json,
+  )
+}
+
+moved {
+  from = aws_s3_bucket_policy.documents[0]
+  to   = aws_s3_bucket_policy.documents
+}
+
 resource "aws_s3_bucket_policy" "documents" {
-  count  = local.documents_cdn
   bucket = aws_s3_bucket.documents.id
-  policy = data.aws_iam_policy_document.documents_cf[0].json
+  policy = data.aws_iam_policy_document.documents_all.json
 }
 
 output "documents_bucket" { value = aws_s3_bucket.documents.bucket }
@@ -563,3 +639,119 @@ output "media_bucket_arn" { value = aws_s3_bucket.media.arn }
 output "media_cdn_domain" { value = aws_cloudfront_distribution.media.domain_name }
 output "documents_cdn_domain" { value = one(aws_cloudfront_distribution.documents[*].domain_name) }
 output "documents_cdn_key_pair_id" { value = one(aws_cloudfront_public_key.documents[*].id) }
+
+# --- media replica (audit S4-5, 2026-10-25) ---------------------------------
+# User photos are irreplaceable and live in one bucket of one account; a bad
+# deploy script or a stolen role could delete them. Same pattern as documents,
+# but the delete markers stay behind. Opt-in (replicate_media).
+resource "aws_s3_bucket" "media_replica" {
+  provider      = aws.replica
+  count         = var.replicate_media ? 1 : 0
+  bucket        = "${local.media}-replica"
+  force_destroy = var.force_destroy
+  tags          = var.tags
+}
+
+resource "aws_s3_bucket_versioning" "media_replica" {
+  provider = aws.replica
+  count    = var.replicate_media ? 1 : 0
+  bucket   = aws_s3_bucket.media_replica[0].id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "media_replica" {
+  provider = aws.replica
+  count    = var.replicate_media ? 1 : 0
+  bucket   = aws_s3_bucket.media_replica[0].id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = var.replica_kms_key_arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "media_replica" {
+  provider                = aws.replica
+  count                   = var.replicate_media ? 1 : 0
+  bucket                  = aws_s3_bucket.media_replica[0].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "media_replica" {
+  provider = aws.replica
+  count    = var.replicate_media ? 1 : 0
+  bucket   = aws_s3_bucket.media_replica[0].id
+  rule {
+    id     = "old-versions"
+    status = "Enabled"
+    filter { prefix = "" }
+    noncurrent_version_expiration { noncurrent_days = 90 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  depends_on = [aws_s3_bucket_versioning.media_replica]
+}
+
+resource "aws_iam_role" "media_replication" {
+  count              = var.replicate_media ? 1 : 0
+  name               = "${var.name}-s3-media-replication"
+  assume_role_policy = data.aws_iam_policy_document.replication_assume.json
+  tags               = var.tags
+}
+
+data "aws_iam_policy_document" "media_replication" {
+  count = var.replicate_media ? 1 : 0
+  statement {
+    actions   = ["s3:GetReplicationConfiguration", "s3:ListBucket"]
+    resources = [aws_s3_bucket.media.arn]
+  }
+  statement {
+    actions   = ["s3:GetObjectVersionForReplication", "s3:GetObjectVersionAcl", "s3:GetObjectVersionTagging"]
+    resources = ["${aws_s3_bucket.media.arn}/*"]
+  }
+  statement {
+    actions   = ["s3:ReplicateObject", "s3:ReplicateTags"]
+    resources = ["${aws_s3_bucket.media_replica[0].arn}/*"]
+  }
+  statement {
+    actions   = ["kms:Decrypt"]
+    resources = [var.kms_key_arn]
+  }
+  statement {
+    actions   = ["kms:Encrypt", "kms:GenerateDataKey"]
+    resources = [var.replica_kms_key_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "media_replication" {
+  count  = var.replicate_media ? 1 : 0
+  role   = aws_iam_role.media_replication[0].id
+  policy = data.aws_iam_policy_document.media_replication[0].json
+}
+
+resource "aws_s3_bucket_replication_configuration" "media" {
+  count      = var.replicate_media ? 1 : 0
+  depends_on = [aws_s3_bucket_versioning.media, aws_s3_bucket_versioning.media_replica]
+  role       = aws_iam_role.media_replication[0].arn
+  bucket     = aws_s3_bucket.media.id
+  rule {
+    id     = "media-to-replica"
+    status = "Enabled"
+    filter {}
+    delete_marker_replication { status = "Disabled" }
+    source_selection_criteria {
+      sse_kms_encrypted_objects { status = "Enabled" }
+    }
+    destination {
+      bucket        = aws_s3_bucket.media_replica[0].arn
+      storage_class = "INTELLIGENT_TIERING"
+      encryption_configuration { replica_kms_key_id = var.replica_kms_key_arn }
+    }
+  }
+}
+
+output "media_replica_bucket" { value = var.replicate_media ? aws_s3_bucket.media_replica[0].id : "" }

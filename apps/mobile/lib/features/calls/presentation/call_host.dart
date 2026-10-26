@@ -10,18 +10,16 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/presentation/call_invite_bar.dart';
-import 'package:lawbid/features/calls/presentation/call_rejoin.dart';
-import 'package:lawbid/features/chat/application/voice_recorder.dart'
-    show voiceClock;
 import 'package:lawbid/features/chat/chat_routes.dart';
 
 /// OQ-041: opens the call screen over whatever is on screen when a call
 /// starts here or rings in (the screen closes itself when it is over).
 ///
-/// Owner 2026-10-20 (like WhatsApp): a call that is minimised stays on top
-/// of every screen as a green "Return to call · 0:25" bar; a tap on it, on
-/// the call notification, or on a chat's call button during the call opens
-/// the call screen again.
+/// Owner 2026-10-20 (like WhatsApp): a tap on the call notification, or on a
+/// chat's call button during the call, opens the call screen again.
+/// Owner 2026-10-23: the green "Return to call" bar over every screen is
+/// gone; a call that runs is the Calls tab's «Ongoing now» row and the call
+/// button above the «+» of Chats (LiveCallsFab).
 class CallHost extends ConsumerWidget {
   const CallHost({required this.router, required this.child, super.key});
 
@@ -32,7 +30,7 @@ class CallHost extends ConsumerWidget {
       ref.read(callScreenVisibleProvider) ||
       router.routerDelegate.currentConfiguration.uri.path == ChatRoutes.call;
 
-  /// The group's own chat shows its «Return» bar itself.
+  /// The group's own chat shows its call bar itself.
   bool _inChatOf(String groupId) =>
       router.routerDelegate.currentConfiguration.uri.path.contains(groupId);
 
@@ -110,7 +108,6 @@ class CallHost extends ConsumerWidget {
     // leaves the app (Android).
     final pip = s.video && talking && screenOpen;
     unawaited(ref.read(callPipProvider).setActive(active: pip));
-    final rejoin = ref.watch(groupRejoinProvider);
     final invite = ref.watch(callInviteProvider);
     return ListenableBuilder(
       listenable: router.routerDelegate,
@@ -124,22 +121,10 @@ class CallHost extends ConsumerWidget {
             session: s,
             onOpen: () => unawaited(router.push<void>(ChatRoutes.call)),
           );
-        } else if (talking && !onScreen) {
-          top = _ReturnToCallBar(
-            session: s,
-            onTap: () => unawaited(router.push<void>(ChatRoutes.call)),
-          );
         } else if (!s.busy &&
             invite != null &&
             !(invite.groupId != null && _inChatOf(invite.groupId!))) {
           top = CallInviteBar(key: ValueKey(invite.callId), invite: invite);
-        } else if (!s.busy &&
-            rejoin != null &&
-            !(rejoin.groupId != null && _inChatOf(rejoin.groupId!))) {
-          top = CallRejoinBar(
-            key: ValueKey(rejoin.groupId ?? rejoin.callId),
-            rejoin: rejoin,
-          );
         } else {
           top = null;
         }
@@ -162,83 +147,6 @@ class CallHost extends ConsumerWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _ReturnToCallBar extends ConsumerStatefulWidget {
-  const _ReturnToCallBar({required this.session, required this.onTap});
-
-  final CallSession session;
-  final VoidCallback onTap;
-
-  @override
-  ConsumerState<_ReturnToCallBar> createState() => _ReturnToCallBarState();
-}
-
-class _ReturnToCallBarState extends ConsumerState<_ReturnToCallBar> {
-  Timer? _tick;
-
-  @override
-  void initState() {
-    super.initState();
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _tick?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.watch(translatorProvider);
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final s = widget.session;
-    final at = s.connectedAt;
-    final back = t.t('call.returnToCall');
-    final label = s.phase == CallPhase.active && at != null
-        ? '$back · ${voiceClock(DateTime.now().difference(at))}'
-        : back;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    return Semantics(
-      button: true,
-      label: label,
-      child: Material(
-        color: colors.success,
-        child: InkWell(
-          onTap: widget.onTap,
-          child: SafeArea(
-            bottom: false,
-            child: SizedBox(
-              height: 30,
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const AppIcon(
-                      AppIcons.callRounded,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Text(
-                      label,
-                      style: type.caption.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

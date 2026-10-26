@@ -38,6 +38,12 @@ on:
         description: "API image tag from ECR to test (empty = the newest image)"
         type: string
         required: false
+      gameday:
+        description: "GameDay (AWS FIS, docs/runbooks/GAMEDAY.md): break something DURING the load. none | ecs (stop half of the API tasks) | redis (Redis failover) | rds (database failover, makes the DB Multi-AZ = about double DB price) | all. Only smoke and m1."
+        type: choice
+        required: false
+        default: none
+        options: [none, ecs, redis, rds, all]
 
 permissions:
   id-token: write
@@ -53,6 +59,7 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   TF_VERSION: "1.9.8"
   PROFILE: ${{ inputs.profile }}
+  GAMEDAY: ${{ inputs.gameday || 'none' }}
 
 jobs:
   # ---------------------------------------------------------------- 1. estimate
@@ -72,6 +79,11 @@ jobs:
         run: |
           case "$PROFILE" in smoke|m1|m10|calls-smoke|calls-full) ;; *) echo "::error::profile $PROFILE cannot run here (local = loadtest/run-local.sh on the Mac)"; exit 1;; esac
           node loadtest/scripts/check-profiles.mjs
+          case "$GAMEDAY" in none) ;; ecs|redis|rds|all)
+            [ "$PROFILE" = smoke ] && [ "$GAMEDAY" = all ] && { echo "::error::smoke is too short for gameday=all (one experiment at a time on smoke; use m1 for all)"; exit 1; }
+            case "$PROFILE" in smoke|m1) echo "GameDay \`$GAMEDAY\` on $PROFILE: the database is Multi-AZ for this run (about double the DB price, included in the upper bound below as +30 %)." | tee -a "$GITHUB_STEP_SUMMARY";;
+              *) echo "::error::GameDay runs only on smoke or m1"; exit 1;; esac;;
+            *) echo "::error::unknown gameday $GAMEDAY"; exit 1;; esac
           for f in loadtest/scripts/*.sh loadtest/scripts/box/*.sh; do bash -n "$f"; done
       - name: Estimated cost
         id: est
@@ -82,6 +94,7 @@ jobs:
           json="$(node loadtest/scripts/estimate-cost.mjs "$PROFILE" --json)"
           est="$(jq -r .estimate_usd <<<"$json")"; upper="$(jq -r .upper_bound_usd <<<"$json")"
           echo "estimate=$est" >>"$GITHUB_OUTPUT"; echo "upper=$upper" >>"$GITHUB_OUTPUT"
+          if [ "$GAMEDAY" != none ]; then upper="$(awk "BEGIN{printf \"%.2f\", $upper * 1.3}")"; fi
           if ! [[ "$CONFIRM" =~ ^[0-9]+$ ]]; then echo "::error::confirm_cost must be a whole number of dollars"; exit 1; fi
           if awk "BEGIN{exit !($upper > $CONFIRM)}"; then
             echo "::error::estimate \$$est (upper bound \$$upper) is above the \$$CONFIRM you accepted. Nothing was created."
@@ -162,6 +175,10 @@ jobs:
           echo "api_image=$ECR_REGISTRY/lawbid-api:$tag" >>"$GITHUB_OUTPUT"
           echo "admin_image=$ECR_REGISTRY/lawbid-admin:$tag" >>"$GITHUB_OUTPUT"
           echo "clamav_image=$ECR_REGISTRY/lawbid-clamav:1.4" >>"$GITHUB_OUTPUT"
+          # Our own PgBouncer (docs/architecture/DB_POOLER.md): the load test runs
+          # THROUGH it. Build it first: Actions -> "Build PgBouncer".
+          aws ecr describe-images --repository-name lawbid-pgbouncer --image-ids imageTag=1.24.0-1 >/dev/null || { echo "::error::lawbid-pgbouncer:1.24.0-1 not in ECR - run the Build PgBouncer workflow first"; exit 1; }
+          echo "pgbouncer_image=$ECR_REGISTRY/lawbid-pgbouncer:1.24.0-1" >>"$GITHUB_OUTPUT"
           echo "Testing image tag \`$tag\`" >>"$GITHUB_STEP_SUMMARY"
 
       # ---- everything from here on is cleaned up by the always() steps at the end ----
@@ -178,14 +195,17 @@ jobs:
           terraform init -input=false -backend-config="bucket=$TF_STATE_BUCKET" -backend-config="key=loadtest/$RUN_ID/terraform.tfstate" \
             -backend-config="region=$AWS_REGION" -backend-config="dynamodb_table=$TF_LOCK_TABLE" -backend-config="encrypt=true"
           echo "TF_INITIALIZED=1" >>"$GITHUB_ENV"
+          gd=false; [ "$GAMEDAY" != none ] && gd=true
           terraform apply -input=false -auto-approve -lock-timeout=5m \
-            -var-file="profiles/$PROFILE.tfvars" \
+            -var-file="profiles/$PROFILE.tfvars" -var "gameday_enabled=$gd" \
             -var "run_id=$RUN_ID" -var "created_at=$created" -var "profile=$PROFILE" \
             -var "certificate_arn=$CERT" \
             -var "api_image=${{ steps.img.outputs.api_image }}" -var "admin_image=${{ steps.img.outputs.admin_image }}" \
-            -var "clamav_image=${{ steps.img.outputs.clamav_image }}"
+            -var "clamav_image=${{ steps.img.outputs.clamav_image }}" \
+            -var "pgbouncer_image=${{ steps.img.outputs.pgbouncer_image }}"
           terraform output -json stack >"$RUNNER_TEMP/stack.json"
           terraform output -json generator_instance_ids >"$RUNNER_TEMP/gens.json"
+          terraform output -json gameday_templates >"$RUNNER_TEMP/gameday-templates.json" || echo null >"$RUNNER_TEMP/gameday-templates.json"
           echo "Stack created: $(jq -r .alb_dns_name "$RUNNER_TEMP/stack.json")" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Load outputs
@@ -207,6 +227,7 @@ jobs:
             echo "subnets=$(jq -r '.private_subnet_ids | join(",")' "$s")"
             echo "api_service=$(g api_service_name)"
             echo "worker_service=$(g worker_service_name)"
+            echo "pgbouncer_service=$(g pgbouncer_service_name)"
             echo "turn_ip=$(g turn_public_ip)"
             echo "turn_param=$(g turn_secret_parameter)"
             echo "livekit_id=$(g livekit_instance_id)"
@@ -256,8 +277,16 @@ jobs:
           CLUSTER: ${{ steps.out.outputs.cluster }}
           API: ${{ steps.out.outputs.api_service }}
           WORKER: ${{ steps.out.outputs.worker_service }}
+          PGB: ${{ steps.out.outputs.pgbouncer_service }}
           ALB: ${{ steps.out.outputs.alb }}
         run: |
+          # The pooler first: it reads DATABASE_URL (now filled) at start; the API and
+          # worker reach the database through it (db_pooler_enabled in infra/envs/loadtest).
+          if [ -n "$PGB" ]; then
+            aws ecs update-service --cluster "$CLUSTER" --service "$PGB" --force-new-deployment >/dev/null
+            aws ecs wait services-stable --cluster "$CLUSTER" --services "$PGB"
+            echo "pgbouncer is up"
+          fi
           for s in "$API" "$WORKER"; do aws ecs update-service --cluster "$CLUSTER" --service "$s" --force-new-deployment >/dev/null; done
           aws ecs wait services-stable --cluster "$CLUSTER" --services "$API" "$WORKER"
           for i in $(seq 1 60); do
@@ -333,6 +362,13 @@ jobs:
           pre="RUN_ID=$RUN_ID ARTIFACTS_BUCKET=$DOCS AWS_REGION=$AWS_REGION"
           mkdir -p "$RUNNER_TEMP/logs"; rc_all=0
           pids=()
+          # GameDay: AWS FIS experiments in the middle of the load (loadtest/scripts/gameday.sh)
+          if [ "$GAMEDAY" != none ] && [ "$(cat "$RUNNER_TEMP/gameday-templates.json")" != null ]; then
+            mkdir -p "$RUNNER_TEMP/results"
+            ( ALB="$ALB" HOST_HEADER=api.lawbid-loadtest.invalid DELAY_SECONDS="$([ "$PROFILE" = smoke ] && echo 90 || echo 900)" GAP_SECONDS="$([ "$PROFILE" = smoke ] && echo 90 || echo 300)" \
+                loadtest/scripts/gameday.sh "$GAMEDAY" "$RUNNER_TEMP/gameday-templates.json" "$RUNNER_TEMP/results" >"$RUNNER_TEMP/logs/gameday.log" 2>&1 ) &
+            pids+=($!)
+          fi
           for i in "${!G[@]}"; do
             ( loadtest/scripts/ssm-run.sh "${G[$i]}" "$max_s" "$pre PROFILE=$PROFILE SHARD=$i SHARDS=$shards API_URL=https://$ALB/api/v1 WS_URL=wss://$ALB HOST_HEADER=api.lawbid-loadtest.invalid CDN_URL=$([ -n "$CDN" ] && [ "$(prof assets)" = true ] && echo "https://$CDN") MAX_WALL_SECONDS=$max_s PROD_HOSTS=api.lawbid.dev,api.lawbid.app,lawbid.dev,lawbid.app bash /opt/lt/loadtest/scripts/box/k6.sh" >"$RUNNER_TEMP/logs/k6-$i.log" 2>&1; echo $? >"$RUNNER_TEMP/logs/k6-$i.rc" ) &
             pids+=($!)
@@ -375,6 +411,13 @@ jobs:
           cp -r "$RUNNER_TEMP/logs" "$RUNNER_TEMP/results/ssm-logs" 2>/dev/null
           node loadtest/scripts/report.mjs --profile "$PROFILE" --dir "$RUNNER_TEMP/results" >"$RUNNER_TEMP/results/report.md"
           cat "$RUNNER_TEMP/results/report.md" >>"$GITHUB_STEP_SUMMARY"
+          # budget gates: one red annotation per missed budget (loadtest/profiles.json "gates")
+          grep -E '^\| .* \| FAIL \|$' "$RUNNER_TEMP/results/report.md" | while IFS='|' read -r _ gate budget got _; do
+            echo "::error title=Load-test gate missed::${gate// /} budget${budget} measured${got}"
+          done
+          grep -E '^\| (api_stop_tasks|rds_failover|redis_failover) \|.*\| NO \|' "$RUNNER_TEMP/results/report.md" | while IFS='|' read -r _ name _; do
+            echo "::error title=GameDay::${name// /}: the API did not come back within 5 minutes"
+          done
           if grep -q "^\*\*Verdict: ABORTED" "$RUNNER_TEMP/results/report.md"; then echo "verdict=aborted" >>"$GITHUB_OUTPUT";
           elif grep -q "ALL TARGETS MET" "$RUNNER_TEMP/results/report.md"; then echo "verdict=green" >>"$GITHUB_OUTPUT";
           else echo "verdict=missed" >>"$GITHUB_OUTPUT"; fi

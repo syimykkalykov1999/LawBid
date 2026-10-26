@@ -80,6 +80,17 @@ variable "admin_image" {
   type    = string
   default = "unset"
 }
+# Owner 2026-10-24: the load tests run THROUGH our own PgBouncer (on by default
+# here), so they prove it. Turn it off to compare with the direct connection.
+variable "db_pooler_enabled" {
+  type    = bool
+  default = true
+}
+variable "pgbouncer_image" {
+  type        = string
+  default     = ""
+  description = "<ECR_REGISTRY>/lawbid-pgbouncer:<tag>; the workflow passes it."
+}
 variable "clamav_image" {
   type    = string
   default = "clamav/clamav:1.4"
@@ -91,6 +102,22 @@ variable "cpu_architecture" {
 variable "alert_emails" {
   type    = list(string)
   default = ["loadtest@lawbid-loadtest.invalid"]
+}
+
+# Database autoscale (docs/architecture/DB_AUTOSCALE.md) is OFF for load tests:
+# the test measures a fixed size. Turning it on needs infra/bootstrap-loadtest
+# to allow lambda:*, scheduler:* and iam:PassRole to lambda / scheduler on
+# lawbid-loadtest-* (re-apply the bootstrap first); it also needs Multi-AZ.
+variable "db_autoscale_enabled" {
+  type    = bool
+  default = false
+}
+
+# Redis autoscale (docs/architecture/REDIS_AUTOSCALE.md) is OFF for load tests, same reason and same
+# bootstrap permissions as db_autoscale_enabled.
+variable "redis_autoscale_enabled" {
+  type    = bool
+  default = false
 }
 
 # --- size (profiles/*.tfvars) --------------------------------------------------------
@@ -142,7 +169,20 @@ variable "livekit_enabled" {
   type    = bool
   default = false
 }
+# Growth switches of the stack under test (same object as prod, all off by
+# default). To load-test the search engine: -var 'growth={opensearch_enabled=true}'
+# (or a line in a profile), apply, then in the loadtest admin set
+# search.engine = shadow, later engine (docs/architecture/SEARCH_READY.md §9).
+# The loadtest stack is a separate stack, so it gets its own domain.
 variable "growth" {
   type    = any
   default = {}
+}
+
+# GameDay (docs/runbooks/GAMEDAY.md): creates the AWS FIS experiment templates
+# and makes the database Multi-AZ (a failover needs a standby). Set by the
+# workflow input `gameday`; needs infra/bootstrap-loadtest re-applied (fis).
+variable "gameday_enabled" {
+  type    = bool
+  default = false
 }

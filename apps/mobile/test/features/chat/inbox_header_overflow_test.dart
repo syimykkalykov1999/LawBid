@@ -163,10 +163,13 @@ void main() {
     await tester.pump(const Duration(minutes: 5));
   });
 
-  // Owner 2026-10-21: the «+» glows green while a group call runs.
+  // Owner 2026-10-23: a call button with a live dot sits above the «+» while
+  // a call runs; the «+» itself stays the same.
   for (final live in [false, true]) {
     for (final MapEntry(key: name, value: (t, dir)) in cases.entries) {
-      testWidgets('«+» ${live ? 'glows' : 'is plain'} at 360 dp ($name, x1.1)',
+      testWidgets(
+          'call button ${live ? 'shows' : 'is hidden'} above «+» '
+          'at 360 dp ($name, x1.1)',
           (tester) async {
         useNarrowPhone(tester);
         await tester.pumpWidget(
@@ -205,9 +208,20 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         expect(
-          find.byKey(const ValueKey('chats-new-chat-live')),
+          find.byKey(const ValueKey('chats-live-call')),
           live ? findsOneWidget : findsNothing,
         );
+        expect(find.byKey(const ValueKey('chats-new-chat')), findsOneWidget);
+        if (live) {
+          final call =
+              tester.getRect(find.byKey(const ValueKey('chats-live-call')));
+          final plus =
+              tester.getRect(find.byKey(const ValueKey('chats-new-chat')));
+          // Same size and shape, just above the «+».
+          expect(call.size, plus.size);
+          expect(call.bottom, lessThan(plus.top));
+          expect(call.center.dx, closeTo(plus.center.dx, 0.5));
+        }
         await tester.pumpWidget(const SizedBox());
         await tester.pump(const Duration(minutes: 5));
       });

@@ -180,12 +180,59 @@ export function word(item: HealthItem): Worded {
             ? undefined
             : 'Много пушей не доходит. Проверьте Безопасность → Ключи и сервисы → Firebase Cloud Messaging, кнопка «Проверить».',
       };
-    case 'turn':
+    case 'cloudflare_turn':
       return {
-        title: 'Сервер звонков (TURN)',
+        title: 'Звонки: Cloudflare TURN',
         line:
           s === 'grey'
-            ? 'TURN не настроен: звонки идут напрямую, за NAT могут не соединяться.'
+            ? 'Cloudflare TURN не настроен: без него звонки за сложными сетями не соединятся.'
+            : d.error
+              ? `Cloudflare не выдаёт доступ для звонков: ${String(d.error)}.`
+              : `Cloudflare TURN отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        todo:
+          s === 'grey'
+            ? 'Добавьте ключи в Безопасность → Ключи и сервисы → cloudflare_turn.'
+            : s === 'red'
+              ? 'Звонки за сложными сетями могут не соединяться. Проверьте ключ в Ключи и сервисы → cloudflare_turn и cloudflarestatus.com.'
+              : undefined,
+        runbook: 'TURN.md',
+      };
+    case 'cloudflare_sfu':
+      return {
+        title: 'Групповые звонки: Cloudflare SFU',
+        line:
+          s === 'grey'
+            ? 'Групповые звонки идут не через Cloudflare (или ключи не заданы).'
+            : d.error
+              ? 'Cloudflare SFU не открывает сессию.'
+              : `Cloudflare SFU отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        todo:
+          s === 'red'
+            ? 'Групповые звонки сами переключатся на прямое соединение (аудио). Проверьте ключи cloudflare_sfu и cloudflarestatus.com.'
+            : undefined,
+        runbook: 'TURN.md',
+      };
+    case 'r2':
+      return {
+        title: 'Фото и медиа (Cloudflare R2)',
+        line:
+          s === 'grey'
+            ? 'R2 не используется: публичные фото лежат в AWS.'
+            : d.error
+              ? 'Публичный адрес R2 не отвечает.'
+              : `Адрес медиа отвечает за ${n(d.answerMs) ?? '—'} мс.`,
+        todo:
+          s === 'red'
+            ? 'Фото могут не открываться. Проверьте Cloudflare (cloudflarestatus.com) и адрес в Ключи и сервисы → cloudflare_r2.'
+            : undefined,
+        runbook: 'DNS_TO_CLOUDFLARE.md',
+      };
+    case 'turn':
+      return {
+        title: 'Свой TURN-сервер (coturn)',
+        line:
+          s === 'grey'
+            ? 'Свой TURN не настроен — так и должно быть: звонки идут через Cloudflare.'
             : d.error
               ? `TURN-сервер ${String(d.host ?? '')} не отвечает.`
               : `Отвечает, соединение за ${n(d.connectMs) ?? '—'} мс.`,
@@ -207,6 +254,46 @@ export function word(item: HealthItem): Worded {
             ? undefined
             : 'Растёт доля ошибок или ответы замедлились. Посмотрите «Здоровье» базы и очередей выше; если всё зелёное — напишите Claude «API красный».',
         runbook: 'api-5xx.md',
+      };
+    case 'breakers': {
+      const open = Array.isArray(d.open) ? (d.open as string[]) : [];
+      return {
+        title: 'Внешние сервисы (защитные предохранители)',
+        line: open.length
+          ? `Сейчас на паузе из-за сбоев: ${open.join(', ')}. Через минуту система попробует снова.`
+          : 'Почта, платежи, SMS, пуши и видео отвечают, пауз нет.',
+        todo: open.length
+          ? 'Обычно проходит само. Если держится дольше 10 минут — проверьте статус этого сервиса.'
+          : undefined,
+      };
+    }
+    case 'cloudflare_usage':
+      return {
+        title: 'Звонки: трафик Cloudflare за месяц',
+        line:
+          s === 'grey'
+            ? 'Не подключено: добавьте ID аккаунта и токен «Account Analytics: Read» в Ключи и сервисы → cloudflare_turn.'
+            : d.error
+              ? `Не удалось узнать трафик: ${String(d.error)}.`
+              : `${n(d.egressGb) ?? 0} ГБ из бесплатных 1000 (тревога с ${n(d.warnGb) ?? 0} ГБ; считается только TURN).`,
+        todo:
+          s === 'red' || s === 'yellow'
+            ? 'Бесплатный объём близок к концу, дальше 0,05 $ за ГБ. Если растёт быстро — напишите Claude «трафик звонков».'
+            : undefined,
+      };
+    case 'bunny_usage':
+      return {
+        title: 'Видео: трафик и хранилище Bunny',
+        line:
+          s === 'grey'
+            ? 'Не подключено: добавьте API-ключ аккаунта Bunny в Ключи и сервисы → bunny_stream.'
+            : d.error
+              ? `Не удалось узнать расход: ${String(d.error)}.`
+              : `Трафик за месяц ${n(d.bandwidthGb) ?? 0} ГБ, хранилище ${n(d.storageGb) ?? 0} ГБ.`,
+        todo:
+          s === 'red' || s === 'yellow'
+            ? 'Расход видео вырос. Пороги меняются в Настройки → usage.bunny_*; лимит загрузок на человека — rate_limit.video_upload_per_day.'
+            : undefined,
       };
     case 'realtime':
       return {

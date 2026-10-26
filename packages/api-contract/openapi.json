@@ -11360,6 +11360,133 @@
         ]
       }
     },
+    "/admin/verification/licenses/{licenseId}/expiry": {
+      "post": {
+        "operationId": "setLicenseExpiry",
+        "parameters": [
+          {
+            "name": "licenseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLicenseExpiryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLicenseEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: VERIFICATION_INVALID_STATUS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Set or clear a license's expiry date (owner 2026-10-24; source = admin)",
+        "tags": [
+          "admin-verification"
+        ]
+      }
+    },
     "/admin/verification/registry-flags": {
       "get": {
         "operationId": "listRegistryFlags",
@@ -12407,7 +12534,7 @@
             }
           },
           "429": {
-            "description": "Too many requests: RATE_LIMITED",
+            "description": "Too many requests: RATE_LIMITED, DAILY_UPLOAD_LIMIT_EXCEEDED",
             "content": {
               "application/json": {
                 "schema": {
@@ -12654,6 +12781,134 @@
           }
         ],
         "summary": "Poll after confirm until scanStatus leaves `pending`.",
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/files/{id}/views": {
+      "get": {
+        "operationId": "views",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "description": "meta.nextCursor of the previous page.",
+            "schema": {
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Page size (a small page keeps the phone sync cheap).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "since",
+            "required": false,
+            "in": "query",
+            "description": "Only views logged after this time (ISO), newest first and paged like the full list; meta.syncedAt = the newest viewedAt of the answer (or `since`). The journal is append-only, so there is no SYNC_TOO_OLD.",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileViewListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Security & legal pass 2026-10-24: who other than you was given a link\nto this file, from which device (newest first, 20 per page). Only the\nfile's owner may read it. Owner 2026-10-24: `?since=` returns only the\nrows logged after that time and meta.syncedAt, `?cursor=` pages back.",
         "tags": [
           "files"
         ]
@@ -13503,6 +13758,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -13557,7 +13822,7 @@
             }
           },
           "409": {
-            "description": "Conflict: BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_MAX_ROUNDS_REACHED, BID_COUNTER_NOT_ALLOWED, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: BID_INVALID_STATE, BID_NOT_YOUR_TURN, BID_MAX_ROUNDS_REACHED, BID_COUNTER_NOT_ALLOWED, STALE_VERSION, IDEMPOTENCY_KEY_CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -22984,6 +23249,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -23048,7 +23323,7 @@
             }
           },
           "409": {
-            "description": "Conflict: TASK_CLOSED, FILES_COUNT_LIMIT",
+            "description": "Conflict: TASK_CLOSED, FILES_COUNT_LIMIT, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -23199,6 +23474,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -23244,6 +23529,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -27895,7 +28190,18 @@
       },
       "patch": {
         "operationId": "updateMyAttorneyProfile",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -27958,7 +28264,7 @@
             }
           },
           "409": {
-            "description": "Conflict: USERNAME_TAKEN, USERNAME_CHANGE_TOO_SOON",
+            "description": "Conflict: USERNAME_TAKEN, USERNAME_CHANGE_TOO_SOON, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -28648,7 +28954,18 @@
       },
       "patch": {
         "operationId": "updateMyClientProfile",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -28692,6 +29009,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -31642,6 +31969,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -31706,7 +32043,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -31959,6 +32296,16 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         ],
         "requestBody": {
@@ -32023,7 +32370,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -32085,6 +32432,16 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "Optional. The `version` you last read. If the row was saved by someone else since, the call fails with 409 STALE_VERSION. Omit it to overwrite.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
             }
           }
         ],
@@ -32150,7 +32507,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE",
+            "description": "Conflict: CASE_INVALID_STATE, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -55018,6 +55375,83 @@
         ]
       }
     },
+    "/admin/treasury/ledger": {
+      "get": {
+        "operationId": "getLedger",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerOverviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Money ledger: balance of every account and the last nightly reconciliation (read-only)",
+        "tags": [
+          "admin-treasury"
+        ]
+      }
+    },
     "/admin/treasury/settings": {
       "put": {
         "operationId": "updateTreasurySettings",
@@ -67816,6 +68250,178 @@
         ]
       }
     },
+    "/admin/system-health/scale": {
+      "get": {
+        "operationId": "getScaleExtras",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScaleExtrasEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Scale page extras: autoscale switches, pooler, search engine",
+        "tags": [
+          "admin-ops"
+        ]
+      },
+      "post": {
+        "operationId": "setOpsScale",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScaleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemHealthEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Cap autoscaling at the minimum / back to normal (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
     "/admin/system-health/restart-worker": {
       "post": {
         "operationId": "restartOpsWorker",
@@ -68067,103 +68673,6 @@
         ]
       }
     },
-    "/admin/system-health/scale": {
-      "post": {
-        "operationId": "setOpsScale",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScaleDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success envelope (docs/01 §7).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SystemHealthEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict: FEATURE_DISABLED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "426": {
-            "description": "Upgrade required: APP_UPDATE_REQUIRED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests: RATE_LIMITED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal error: INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "admin": []
-          }
-        ],
-        "summary": "Cap autoscaling at the minimum / back to normal (needs step-up)",
-        "tags": [
-          "admin-ops"
-        ]
-      }
-    },
     "/admin/system-health/settings": {
       "patch": {
         "operationId": "updateOpsSettings",
@@ -68248,6 +68757,1582 @@
         "summary": "Switch the automatic reactions on / off",
         "tags": [
           "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/search-index": {
+      "get": {
+        "operationId": "searchIndexStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Search index generations, aliases, counts and reindex progress",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/search-index/start": {
+      "post": {
+        "operationId": "start",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSearchReindexDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Start a zero-downtime reindex (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/search-index/swap": {
+      "post": {
+        "operationId": "swap",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Verify, then swap the read alias; later the write alias (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/system-health/search-index/rollback": {
+      "post": {
+        "operationId": "rollback",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchIndexStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Cancel the build or go back to the old index (needs step-up)",
+        "tags": [
+          "admin-ops"
+        ]
+      }
+    },
+    "/admin/launch": {
+      "get": {
+        "operationId": "launchReport",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The launch checklist with live lights",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/refresh": {
+      "post": {
+        "operationId": "refreshLaunch",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Check everything again now (at most 6 a minute)",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/ticks/{id}": {
+      "post": {
+        "operationId": "tickLaunchItem",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "pattern": "^[a-z0-9_]{2,40}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LaunchTickDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Tick / untick a step nothing can detect",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/restore-drill": {
+      "post": {
+        "operationId": "recordRestoreDrill",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreDrillDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Record that the restore drill was done today (needs step-up)",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/pagerduty": {
+      "get": {
+        "operationId": "getPagingStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagingStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "PagerDuty subscription state on the critical topic",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/pagerduty/sync": {
+      "post": {
+        "operationId": "syncPaging",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagingStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Subscribe the saved PagerDuty link, drop the old one (needs step-up)",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/pagerduty/test": {
+      "post": {
+        "operationId": "testPaging",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagingStatusEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Publish a test alarm to the critical topic: the phone will ring (needs step-up)",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/budgets": {
+      "get": {
+        "operationId": "listAwsBudgets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwsBudgetsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Every AWS budget of the account",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/budgets/limit": {
+      "post": {
+        "operationId": "setAwsBudgetLimit",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetLimitRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwsBudgetsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ADMIN_APPROVAL_PENDING, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change the monthly limit of the prod budget (step-up; second admin only if admin.dual_control is on)",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/launch/budgets/delete": {
+      "post": {
+        "operationId": "deleteAwsBudget",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetDeleteRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AwsBudgetsEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ADMIN_APPROVAL_PENDING, FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Delete the obsolete «LawBid Monthly» budget (step-up; second admin only if admin.dual_control is on)",
+        "tags": [
+          "admin-launch"
+        ]
+      }
+    },
+    "/admin/spend": {
+      "get": {
+        "operationId": "spendReport",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Money spent per service: month, forecast, free tier",
+        "tags": [
+          "admin-spend"
+        ]
+      }
+    },
+    "/admin/spend/refresh": {
+      "post": {
+        "operationId": "refreshSpend",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Ask the services again (cached: AWS at most every 6 h)",
+        "tags": [
+          "admin-spend"
+        ]
+      }
+    },
+    "/admin/spend/fixed-costs": {
+      "put": {
+        "operationId": "setSpendFixedCosts",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFixedCostsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Costs entered by hand: Apple, Google, insurance… (needs step-up)",
+        "tags": [
+          "admin-spend"
+        ]
+      }
+    },
+    "/admin/spend/prices": {
+      "put": {
+        "operationId": "setSpendPrices",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePricesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Vendor prices used for the estimate (needs step-up)",
+        "tags": [
+          "admin-spend"
         ]
       }
     },
@@ -68507,6 +70592,103 @@
           }
         ],
         "summary": "Database or Redis one tier up (needs step-up)",
+        "tags": [
+          "admin-economy"
+        ]
+      }
+    },
+    "/admin/economy/decrease": {
+      "post": {
+        "operationId": "decreaseCapacity",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncreaseCapacityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomyReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Database or Redis one tier down, only when the load is low (needs step-up)",
         "tags": [
           "admin-economy"
         ]
@@ -74052,7 +76234,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -74592,7 +76777,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           }
@@ -74703,7 +76891,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -74822,7 +77013,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -74949,7 +77143,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -75071,7 +77268,10 @@
                 "third_party_services",
                 "partner_terms",
                 "dmca_policy",
-                "accessibility"
+                "accessibility",
+                "community_guidelines",
+                "advertising_disclosure",
+                "sms_terms"
               ]
             }
           },
@@ -89418,6 +91618,748 @@
           }
         ],
         "summary": "LiveKit room access for this call (only while calls run on LiveKit)",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/session": {
+      "post": {
+        "operationId": "sfuSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuSessionEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Open your Cloudflare SFU session in this call",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/publish": {
+      "post": {
+        "operationId": "sfuPublish",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuPublishDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuPublishResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Publish your mic / camera: send your SDP offer, get the answer",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/subscribe": {
+      "post": {
+        "operationId": "sfuSubscribe",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuSubscribeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuSubscribeResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pull other people of the call; answer the returned offer with /sfu/answer",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/answer": {
+      "post": {
+        "operationId": "sfuAnswer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuAnswerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuOkEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Renegotiate: your answer to the SFU offer",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/close": {
+      "post": {
+        "operationId": "sfuClose",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuCloseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuCloseResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stop publishing your tracks / stop receiving people who left",
+        "tags": [
+          "calls"
+        ]
+      }
+    },
+    "/calls/{id}/sfu/layer": {
+      "post": {
+        "operationId": "sfuLayer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SfuLayerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SfuOkEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CALL_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: CALL_STATE_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: CALL_MEDIA_UNAVAILABLE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Pick the simulcast layer (f / h / q) of a camera",
         "tags": [
           "calls"
         ]
@@ -110965,6 +113907,7 @@
           "AUTH_SOCIAL_PROVIDER_UNAVAILABLE",
           "AUTH_PROVIDER_DISABLED",
           "AUTH_INVALID_CREDENTIALS",
+          "AUTH_PASSWORD_COMPROMISED",
           "ACCOUNT_EXISTS_USE_OTHER_METHOD",
           "IDENTIFIER_ALREADY_LINKED",
           "CONTACT_DOMAIN_BLOCKED",
@@ -110975,6 +113918,7 @@
           "PASSKEY_NOT_FOUND",
           "PASSKEY_LIMIT",
           "DEVICE_ATTESTATION_REQUIRED",
+          "TURNSTILE_FAILED",
           "ACCOUNT_SUSPENDED",
           "ACCOUNT_DELETED",
           "CLIENT_CONTACTS_INCOMPLETE",
@@ -111023,6 +113967,7 @@
           "FILE_STORAGE_UNAVAILABLE",
           "STORAGE_QUOTA_EXCEEDED",
           "CHAT_STORAGE_FULL",
+          "DAILY_UPLOAD_LIMIT_EXCEEDED",
           "VERIFICATION_ALREADY_PENDING",
           "VERIFICATION_SUBMISSION_LIMIT",
           "VERIFICATION_INVALID_STATUS",
@@ -111103,6 +114048,7 @@
           "CALL_NOT_ALLOWED",
           "CALL_IN_PROGRESS",
           "CALL_STATE_CONFLICT",
+          "CALL_MEDIA_UNAVAILABLE",
           "DIRECT_CHAT_NOT_ALLOWED",
           "CONTINGENCY_NOT_ALLOWED",
           "MESSAGE_REQUEST_DECLINED",
@@ -111177,7 +114123,8 @@
           "FORWARD_NOT_ALLOWED",
           "CONTENT_PROTECTED",
           "UNSUPPORTED_IN_TARGET",
-          "SYNC_TOO_OLD"
+          "SYNC_TOO_OLD",
+          "STALE_VERSION"
         ]
       },
       "ErrorBodyDto": {
@@ -111266,7 +114213,10 @@
           "third_party_services",
           "partner_terms",
           "dmca_policy",
-          "accessibility"
+          "accessibility",
+          "community_guidelines",
+          "advertising_disclosure",
+          "sms_terms"
         ]
       },
       "BootstrapLegalDocumentDto": {
@@ -113425,11 +116375,16 @@
           "limitCents": {
             "type": "integer",
             "description": "billing.dual_approval_min_cents: from this amount on."
+          },
+          "dualControl": {
+            "type": "boolean",
+            "description": "admin.dual_control: the second-admin rule is on (default off)."
           }
         },
         "required": [
           "pending",
-          "limitCents"
+          "limitCents",
+          "dualControl"
         ]
       },
       "AdminApprovalsCountEnvelope": {
@@ -115636,6 +118591,33 @@
             "nullable": true,
             "format": "date"
           },
+          "expiresSource": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "registry",
+              "attorney",
+              "admin"
+            ],
+            "description": "Owner 2026-10-24: who set expiresAt."
+          },
+          "renewalState": {
+            "nullable": true,
+            "enum": [
+              "ok",
+              "expiring",
+              "renewal_due",
+              "expired"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-24: renewal_due = the date passed, grace period running (badge hidden, «требует продления»); null = no date or not a verified license."
+          },
+          "graceEndsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date",
+            "description": "Last day of the grace period (expiresAt + grace days)."
+          },
           "autoCheckResult": {
             "type": "object",
             "additionalProperties": true,
@@ -115690,6 +118672,9 @@
           "barNumber",
           "status",
           "expiresAt",
+          "expiresSource",
+          "renewalState",
+          "graceEndsAt",
           "autoCheckResult",
           "lookupUrl",
           "rejectionCode",
@@ -116158,6 +119143,34 @@
           "data"
         ]
       },
+      "SetLicenseExpiryDto": {
+        "type": "object",
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "format": "date"
+          }
+        },
+        "required": [
+          "expiresAt"
+        ]
+      },
+      "AdminLicenseEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AdminLicenseDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "RegistryFlagItemDto": {
         "type": "object",
         "properties": {
@@ -116226,20 +119239,6 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/RegistryCheckDto"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/ResponseMetaDto"
-          }
-        },
-        "required": [
-          "data"
-        ]
-      },
-      "AdminLicenseEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/AdminLicenseDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -116702,14 +119701,29 @@
         "properties": {
           "url": {
             "type": "string",
-            "description": "POST target (multipart/form-data): send every field, then the file as the last field named \"file\"."
+            "description": "Upload target. With method POST (default): multipart/form-data, send every field, then the file as the last field named \"file\". With method PUT: send the raw file as the body."
           },
           "fields": {
             "type": "object",
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Form fields signed by the server (key, policy, signature, Content-Type)."
+            "description": "Form fields signed by the server (key, policy, signature, Content-Type). Empty for method PUT."
+          },
+          "method": {
+            "enum": [
+              "POST",
+              "PUT"
+            ],
+            "type": "string",
+            "description": "HTTP method of the upload. Absent means POST (older servers)."
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers to send exactly as given with a PUT upload (Content-Type, Cache-Control)."
           }
         },
         "required": [
@@ -116786,6 +119800,10 @@
             "type": "string",
             "pattern": "^[0-9a-f]{64}$",
             "description": "Lowercase hex SHA-256 of the file."
+          },
+          "supportsPut": {
+            "type": "boolean",
+            "description": "True when the client can upload with a presigned PUT (raw body + the returned headers) as well as the multipart POST. Public media may then be stored in Cloudflare R2; without it the upload always goes to S3 with POST."
           }
         },
         "required": [
@@ -116873,6 +119891,80 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/FileDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "FileViewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Journal row id (the client merges and de-duplicates by it)."
+          },
+          "viewerUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "viewerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "viewerAvatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signed link to the viewer avatar, when they have a clean one."
+          },
+          "viewerRole": {
+            "type": "string",
+            "nullable": true,
+            "description": "client | attorney | assistant (the viewer account role)."
+          },
+          "viewedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "device": {
+            "type": "string",
+            "nullable": true,
+            "description": "Device name of the viewer session, when known."
+          },
+          "platform": {
+            "type": "string",
+            "nullable": true
+          },
+          "ip": {
+            "type": "string",
+            "nullable": true,
+            "description": "The viewer address with its host part hidden (203.0.113.x / 2001:db8:1::x); the full address never leaves the server."
+          }
+        },
+        "required": [
+          "id",
+          "viewerUserId",
+          "viewerName",
+          "viewerAvatarUrl",
+          "viewerRole",
+          "viewedAt",
+          "device",
+          "platform",
+          "ip"
+        ]
+      },
+      "FileViewListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileViewDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -117576,6 +120668,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -117627,6 +120723,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -122941,6 +126038,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "kind": {
             "allOf": [
               {
@@ -123110,6 +126211,7 @@
         },
         "required": [
           "id",
+          "version",
           "kind",
           "title",
           "files",
@@ -125692,6 +128794,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "username": {
             "type": "string"
           },
@@ -125780,6 +128886,7 @@
         },
         "required": [
           "id",
+          "version",
           "username",
           "firstName",
           "lastName",
@@ -126454,6 +129561,10 @@
             "type": "string",
             "format": "uuid"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "username": {
             "type": "string",
             "description": "OQ-026: the client @username."
@@ -126496,6 +129607,7 @@
         },
         "required": [
           "id",
+          "version",
           "username",
           "usernameNextChangeAt",
           "firstName",
@@ -126926,7 +130038,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -128356,6 +131471,10 @@
           "bidsCount": {
             "type": "integer"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -128428,6 +131547,7 @@
           "status",
           "viewCount",
           "bidsCount",
+          "version",
           "createdAt",
           "lastActivityAt",
           "stillNeededPending",
@@ -129649,6 +132769,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -129689,6 +132813,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -130190,6 +133315,11 @@
           },
           "addedAt": {
             "type": "string"
+          },
+          "viewCount": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Owner 2026-10-24: how many times somebody else opened this file - only on the Files tab and only for files the caller uploaded (null = not yours). Opens the view list GET /files/{fileId}/views."
           }
         },
         "required": [
@@ -131148,6 +134278,10 @@
           "bidsCount": {
             "type": "integer"
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on an edit to detect a concurrent save (409 STALE_VERSION)."
+          },
           "createdAt": {
             "type": "string"
           },
@@ -131241,6 +134375,7 @@
           "status",
           "viewCount",
           "bidsCount",
+          "version",
           "createdAt",
           "lastActivityAt",
           "stillNeededPending",
@@ -131364,6 +134499,10 @@
             "minimum": 0,
             "maximum": 5
           },
+          "version": {
+            "type": "integer",
+            "description": "Send it back as `If-Match` on a counter to detect a concurrent change (409 STALE_VERSION)."
+          },
           "turn": {
             "allOf": [
               {
@@ -131420,6 +134559,7 @@
           "startDate",
           "estimatedDurationDays",
           "roundCount",
+          "version",
           "turn",
           "decidedAt",
           "outsidePractice",
@@ -139762,6 +142902,10 @@
             "type": "number",
             "description": "MB of files per chat; 0 = no cap."
           },
+          "dailyUploadMbPerUser": {
+            "type": "number",
+            "description": "MB one person may upload per UTC day; 0 = no cap."
+          },
           "autoRetention": {
             "type": "boolean",
             "description": "Old technical logs are removed nightly."
@@ -139792,11 +142936,38 @@
           "imageFormat",
           "userQuotaMb",
           "chatQuotaMb",
+          "dailyUploadMbPerUser",
           "autoRetention",
           "retentionAuthEventsDays",
           "retentionAssistantActivityDays",
           "notificationsRetentionDays",
           "growthAlertPercent"
+        ]
+      },
+      "StorageR2UsageDto": {
+        "type": "object",
+        "properties": {
+          "bytes": {
+            "type": "number",
+            "description": "Bytes in the R2 bucket (public media)."
+          },
+          "objects": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Counted only partly (a lower bound)."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "bytes",
+          "objects",
+          "truncated",
+          "updatedAt"
         ]
       },
       "StorageOverviewDto": {
@@ -139858,6 +143029,16 @@
           },
           "settings": {
             "$ref": "#/components/schemas/StorageSettingsDto"
+          },
+          "r2": {
+            "nullable": true,
+            "description": "Cloudflare R2 size, counted daily; null when R2 is unused.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StorageR2UsageDto"
+              }
+            ]
           }
         },
         "required": [
@@ -139872,7 +143053,8 @@
           "topUsers",
           "history",
           "lastCleanup",
-          "settings"
+          "settings",
+          "r2"
         ]
       },
       "StorageOverviewEnvelope": {
@@ -139926,6 +143108,11 @@
             "maximum": 1048576
           },
           "chatQuotaMb": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1048576
+          },
+          "dailyUploadMbPerUser": {
             "type": "number",
             "minimum": 0,
             "maximum": 1048576
@@ -140701,6 +143888,144 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/TreasuryOverviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "LedgerBalanceDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "stripe_platform_balance"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "asset",
+              "liability",
+              "revenue",
+              "expense",
+              "external"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "example": "usd"
+          },
+          "ownerKey": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "users"
+            ]
+          },
+          "debitCents": {
+            "type": "integer"
+          },
+          "creditCents": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "currency",
+          "ownerKey",
+          "debitCents",
+          "creditCents"
+        ]
+      },
+      "LedgerReconcileDto": {
+        "type": "object",
+        "properties": {
+          "ranAt": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "entries": {
+            "type": "integer"
+          },
+          "unbalancedEntries": {
+            "type": "integer"
+          },
+          "missingPayments": {
+            "type": "integer"
+          },
+          "missingCasePayments": {
+            "type": "integer"
+          },
+          "caseRefundDriftCents": {
+            "type": "integer"
+          },
+          "stripeStatus": {
+            "type": "string",
+            "enum": [
+              "skipped",
+              "compared"
+            ]
+          },
+          "stripeDeltaCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "ranAt",
+          "ok",
+          "entries",
+          "unbalancedEntries",
+          "missingPayments",
+          "missingCasePayments",
+          "caseRefundDriftCents",
+          "stripeStatus",
+          "stripeDeltaCents",
+          "problems"
+        ]
+      },
+      "LedgerOverviewDto": {
+        "type": "object",
+        "properties": {
+          "balances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LedgerBalanceDto"
+            }
+          },
+          "last": {
+            "nullable": true,
+            "description": "The last nightly reconciliation, null before the first run.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LedgerReconcileDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "balances",
+          "last"
+        ]
+      },
+      "LedgerOverviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LedgerOverviewDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -146488,8 +149813,14 @@
               "stripe_webhooks",
               "push",
               "turn",
+              "cloudflare_turn",
+              "cloudflare_sfu",
+              "r2",
               "http",
-              "realtime"
+              "realtime",
+              "breakers",
+              "cloudflare_usage",
+              "bunny_usage"
             ]
           },
           "status": {
@@ -146710,6 +150041,66 @@
           "data"
         ]
       },
+      "ScaleExtrasDto": {
+        "type": "object",
+        "properties": {
+          "dbAutoscale": {
+            "enum": [
+              "on",
+              "off",
+              "unknown"
+            ],
+            "type": "string",
+            "description": "Does the database change size by itself (Terraform switch)."
+          },
+          "redisAutoscale": {
+            "enum": [
+              "on",
+              "off",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "poolerEnabled": {
+            "type": "boolean",
+            "description": "Our own PgBouncer sits in front of the database."
+          },
+          "poolerMinTasks": {
+            "type": "number",
+            "nullable": true
+          },
+          "poolerMaxTasks": {
+            "type": "number",
+            "nullable": true
+          },
+          "searchEngine": {
+            "type": "string",
+            "description": "The `search.engine` setting (postgres until another is set)."
+          }
+        },
+        "required": [
+          "dbAutoscale",
+          "redisAutoscale",
+          "poolerEnabled",
+          "poolerMinTasks",
+          "poolerMaxTasks",
+          "searchEngine"
+        ]
+      },
+      "ScaleExtrasEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ScaleExtrasDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "HeavyJobsDto": {
         "type": "object",
         "properties": {
@@ -146746,6 +150137,951 @@
             "type": "boolean"
           }
         }
+      },
+      "SearchIndexVerifyDto": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "enum": [
+              "person",
+              "case",
+              "post",
+              "question",
+              "tag"
+            ]
+          },
+          "live": {
+            "type": "number"
+          },
+          "next": {
+            "type": "number"
+          },
+          "sampled": {
+            "type": "number"
+          },
+          "mismatched": {
+            "type": "number"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "live",
+          "next",
+          "sampled",
+          "mismatched",
+          "ok"
+        ]
+      },
+      "SearchIndexGenerationDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "number"
+          },
+          "docs": {
+            "type": "number"
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "read",
+              "write",
+              "read+write",
+              "building",
+              "rollback",
+              "idle"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "generation",
+          "docs",
+          "sizeBytes",
+          "role"
+        ]
+      },
+      "SearchIndexEntityDto": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "enum": [
+              "person",
+              "case",
+              "post",
+              "question",
+              "tag"
+            ]
+          },
+          "readTarget": {
+            "type": "string",
+            "nullable": true
+          },
+          "writeTarget": {
+            "type": "string",
+            "nullable": true
+          },
+          "mappingOutdated": {
+            "type": "boolean",
+            "description": "The live mapping is older than the code."
+          },
+          "indexes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchIndexGenerationDto"
+            }
+          }
+        },
+        "required": [
+          "entity",
+          "readTarget",
+          "writeTarget",
+          "mappingOutdated",
+          "indexes"
+        ]
+      },
+      "SearchIndexStatusDto": {
+        "type": "object",
+        "properties": {
+          "engineConfigured": {
+            "type": "boolean"
+          },
+          "mappingVersion": {
+            "type": "number",
+            "description": "Mapping revision in the code."
+          },
+          "phase": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "building",
+              "built",
+              "read_swapped",
+              "write_swapped",
+              "completed",
+              "rolled_back",
+              "cancelled"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "postgres",
+              "engine"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "progressEntity": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "person",
+              "case",
+              "post",
+              "question",
+              "tag"
+            ]
+          },
+          "progressIndexed": {
+            "type": "number",
+            "description": "Documents written to the new index so far."
+          },
+          "progressTotal": {
+            "type": "number",
+            "description": "Native copy: documents to copy (0 unknown)."
+          },
+          "progressDone": {
+            "type": "number",
+            "description": "Native copy: documents copied so far."
+          },
+          "verifyOk": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "verifiedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "verify": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchIndexVerifyDto"
+            }
+          },
+          "retainUntil": {
+            "type": "string",
+            "nullable": true
+          },
+          "nextSwap": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "read",
+              "write"
+            ],
+            "description": "What the Swap button does now."
+          },
+          "canStart": {
+            "type": "boolean"
+          },
+          "canSwap": {
+            "type": "boolean"
+          },
+          "canRollback": {
+            "type": "boolean"
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchIndexEntityDto"
+            }
+          }
+        },
+        "required": [
+          "engineConfigured",
+          "mappingVersion",
+          "phase",
+          "source",
+          "startedAt",
+          "error",
+          "progressEntity",
+          "progressIndexed",
+          "progressTotal",
+          "progressDone",
+          "verifyOk",
+          "verifiedAt",
+          "verify",
+          "retainUntil",
+          "nextSwap",
+          "canStart",
+          "canSwap",
+          "canRollback",
+          "entities"
+        ]
+      },
+      "SearchIndexStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SearchIndexStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "StartSearchReindexDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "enum": [
+              "postgres",
+              "engine"
+            ],
+            "type": "string",
+            "description": "postgres (default): rebuild documents from the database. engine: copy inside the engine with the native _reindex task (documents keep their shape)."
+          }
+        }
+      },
+      "LaunchItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "release",
+              "servers",
+              "calls",
+              "media",
+              "alerts",
+              "money",
+              "safety"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "green",
+              "yellow",
+              "red",
+              "manual"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string",
+            "nullable": true
+          },
+          "runbook": {
+            "type": "string",
+            "nullable": true
+          },
+          "manualTick": {
+            "type": "boolean",
+            "description": "The owner may tick it by hand."
+          },
+          "ticked": {
+            "type": "boolean"
+          },
+          "action": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "restore_drill"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "group",
+          "title",
+          "status",
+          "detail",
+          "hint",
+          "runbook",
+          "manualTick",
+          "ticked",
+          "action"
+        ]
+      },
+      "LaunchReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LaunchItemDto"
+            }
+          },
+          "greenCount": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "generatedAt",
+          "items",
+          "greenCount",
+          "total"
+        ]
+      },
+      "LaunchReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LaunchReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "LaunchTickDto": {
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "done"
+        ]
+      },
+      "RestoreDrillDto": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Free note, e.g. the RTO the script printed."
+          }
+        }
+      },
+      "PagingStatusDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "endpointMasked": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "none",
+              "pending",
+              "confirmed"
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "checkedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "configured",
+          "endpointMasked",
+          "state",
+          "stale",
+          "checkedAt"
+        ]
+      },
+      "PagingStatusEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PagingStatusDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AwsBudgetDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "limitUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "actualUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "forecastUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "timeUnit": {
+            "type": "string",
+            "nullable": true
+          },
+          "prod": {
+            "type": "boolean"
+          },
+          "obsolete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "limitUsd",
+          "actualUsd",
+          "forecastUsd",
+          "timeUnit",
+          "prod",
+          "obsolete"
+        ]
+      },
+      "AwsBudgetsDto": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AwsBudgetDto"
+            }
+          }
+        },
+        "required": [
+          "available",
+          "items"
+        ]
+      },
+      "AwsBudgetsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AwsBudgetsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "BudgetLimitRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "limitUsd": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100000,
+            "description": "New monthly limit, USD."
+          }
+        },
+        "required": [
+          "name",
+          "limitUsd"
+        ]
+      },
+      "BudgetDeleteRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "DayUsdDto": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "usd": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "date",
+          "usd"
+        ]
+      },
+      "VendorSpendLineDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "usd": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "label",
+          "usd",
+          "note"
+        ]
+      },
+      "FreeTierDto": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "used": {
+            "type": "number"
+          },
+          "free": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "used",
+          "free",
+          "unit"
+        ]
+      },
+      "VendorSpendDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "aws",
+              "twilio",
+              "bunny",
+              "cloudflare",
+              "stripe"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "stale",
+              "nodata"
+            ]
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "monthToDateUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "lastMonthUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "forecastUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "coveredByCreditsUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "balanceUsd": {
+            "type": "number",
+            "nullable": true
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DayUsdDto"
+            }
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VendorSpendLineDto"
+            }
+          },
+          "freeTier": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FreeTierDto"
+              }
+            ]
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "status",
+          "error",
+          "updatedAt",
+          "monthToDateUsd",
+          "lastMonthUsd",
+          "forecastUsd",
+          "coveredByCreditsUsd",
+          "balanceUsd",
+          "daily",
+          "lines",
+          "freeTier",
+          "notes"
+        ]
+      },
+      "FixedCostViewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]{1,40}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "usd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "period": {
+            "enum": [
+              "month",
+              "year",
+              "once"
+            ],
+            "type": "string"
+          },
+          "paidMonth": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "description": "YYYY-MM, for «once»."
+          },
+          "monthlyUsd": {
+            "type": "number",
+            "description": "What it adds to this month."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "usd",
+          "period",
+          "monthlyUsd"
+        ]
+      },
+      "PriceDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "defaultValue": {
+            "type": "number"
+          },
+          "edited": {
+            "type": "boolean"
+          },
+          "sourceUrl": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "unit",
+          "value",
+          "defaultValue",
+          "edited",
+          "sourceUrl",
+          "checkedAt"
+        ]
+      },
+      "SpendTotalDto": {
+        "type": "object",
+        "properties": {
+          "monthToDateUsd": {
+            "type": "number"
+          },
+          "forecastUsd": {
+            "type": "number"
+          },
+          "marginPercent": {
+            "type": "number"
+          },
+          "keepOnAccountUsd": {
+            "type": "number"
+          },
+          "fixedMonthUsd": {
+            "type": "number"
+          },
+          "stripeFeesUsd": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "monthToDateUsd",
+          "forecastUsd",
+          "marginPercent",
+          "keepOnAccountUsd",
+          "fixedMonthUsd",
+          "stripeFeesUsd"
+        ]
+      },
+      "SpendReportDto": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "refreshedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "vendors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VendorSpendDto"
+            }
+          },
+          "fixed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FixedCostViewDto"
+            }
+          },
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceDto"
+            }
+          },
+          "total": {
+            "$ref": "#/components/schemas/SpendTotalDto"
+          }
+        },
+        "required": [
+          "generatedAt",
+          "refreshedAt",
+          "vendors",
+          "fixed",
+          "prices",
+          "total"
+        ]
+      },
+      "SpendReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SpendReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "FixedCostDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]{1,40}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "usd": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "period": {
+            "enum": [
+              "month",
+              "year",
+              "once"
+            ],
+            "type": "string"
+          },
+          "paidMonth": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "description": "YYYY-MM, for «once»."
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "usd",
+          "period"
+        ]
+      },
+      "UpdateFixedCostsDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "maxItems": 40,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FixedCostDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "UpdatePricesDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Price key → new value (only known keys are saved)."
+          }
+        },
+        "required": [
+          "values"
+        ]
       },
       "SpendLineDto": {
         "type": "object",
@@ -147023,7 +151359,8 @@
               "db_cpu",
               "db_connections",
               "redis_memory",
-              "scaled_up"
+              "scaled_up",
+              "scaled_down"
             ]
           },
           "text": {
@@ -147751,6 +152088,22 @@
             "maximum": 100000,
             "default": 0,
             "description": "Most people one user can invite; 0 = no limit."
+          },
+          "qualifyWindowDays": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3650,
+            "default": 90,
+            "description": "Owner 2026-10-24: days after entering the code in which the invitee must qualify; later the referral is rejected. 0 = no limit."
+          },
+          "clientQualifyOn": {
+            "enum": [
+              "case_published",
+              "case_completed"
+            ],
+            "type": "string",
+            "default": "case_completed",
+            "description": "Owner 2026-10-24: what qualifies an invited client (the reward is issued after it)."
           },
           "texts": {
             "$ref": "#/components/schemas/ReferralTextsByLangDto"
@@ -149174,6 +153527,41 @@
             "type": "string",
             "maxLength": 6000,
             "description": "Plain text (no markdown), numbered rules."
+          },
+          "attorneyAdvertisingLabel": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "Label next to attorney-created content (profile, post, bid, answer)."
+          },
+          "priorResultsDisclaimer": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Prior-results disclaimer."
+          },
+          "badgeExplainer": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "What the attorney badges mean (a registry check, not a recommendation)."
+          },
+          "bestAnswerNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Q&A note: the asker chooses the best answer."
+          },
+          "translationNote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "Note on machine translation."
+          },
+          "reviewReplyWarning": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "Warning for an attorney replying publicly to a review."
+          },
+          "sponsoredLabel": {
+            "type": "string",
+            "maxLength": 60,
+            "description": "Label on paid placements."
           }
         },
         "required": [
@@ -149541,12 +153929,111 @@
           },
           "ru": {
             "$ref": "#/components/schemas/LegalTextsDto"
+          },
+          "es": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "fr": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "de": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "it": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pt": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "nl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "pl": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
+          },
+          "uk": {
+            "description": "Machine translation unless the owner edited it.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsDto"
+              }
+            ]
           }
         },
         "required": [
           "en",
           "ru"
         ]
+      },
+      "LegalTextsNeedReviewDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "boolean"
+          },
+          "ru": {
+            "type": "boolean"
+          },
+          "es": {
+            "type": "boolean"
+          },
+          "fr": {
+            "type": "boolean"
+          },
+          "de": {
+            "type": "boolean"
+          },
+          "it": {
+            "type": "boolean"
+          },
+          "pt": {
+            "type": "boolean"
+          },
+          "nl": {
+            "type": "boolean"
+          },
+          "pl": {
+            "type": "boolean"
+          },
+          "uk": {
+            "type": "boolean"
+          }
+        }
       },
       "LegalSettingsDto": {
         "type": "object",
@@ -149565,6 +154052,14 @@
           },
           "texts": {
             "$ref": "#/components/schemas/LegalTextsByLangDto"
+          },
+          "textsNeedReview": {
+            "description": "Which languages are marked \"needs review\" (machine translations by default).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalTextsNeedReviewDto"
+              }
+            ]
           }
         },
         "required": [
@@ -150428,7 +154923,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -150507,7 +155005,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -150697,7 +155198,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {
@@ -150759,7 +155263,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "locale": {
@@ -150943,7 +155450,10 @@
               "third_party_services",
               "partner_terms",
               "dmca_policy",
-              "accessibility"
+              "accessibility",
+              "community_guidelines",
+              "advertising_disclosure",
+              "sms_terms"
             ]
           },
           "titleEn": {
@@ -158874,6 +163384,36 @@
           "failed"
         ]
       },
+      "CallMediaFallbackDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "true: Cloudflare was chosen but this call runs device to device because it was down or unconfigured at its start."
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "sfu_unavailable"
+            ]
+          },
+          "videoBlocked": {
+            "type": "boolean",
+            "description": "true: more people are in the call than the threshold (calls.sfu_fallback_mesh_max, 4), so the camera cannot be switched on. When the person taps video/camera, show «На сервере идут работы. Видео можно будет включить примерно через час.» instead."
+          },
+          "videoMaxParticipants": {
+            "type": "number",
+            "description": "The threshold (default 4)."
+          }
+        },
+        "required": [
+          "active",
+          "reason",
+          "videoBlocked",
+          "videoMaxParticipants"
+        ]
+      },
       "CallParticipantStatus": {
         "type": "string",
         "enum": [
@@ -158923,6 +163463,21 @@
             "type": "string",
             "nullable": true,
             "description": "When they joined; the later joiner offers WebRTC."
+          },
+          "sfuReady": {
+            "type": "boolean",
+            "description": "Cloudflare SFU calls only: this person publishes at least one track, so pull them (POST /calls/:id/sfu/subscribe)."
+          },
+          "sfuTracks": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mic",
+                "cam"
+              ]
+            },
+            "description": "Cloudflare SFU calls only: the tracks this person publishes now."
           }
         },
         "required": [
@@ -159034,6 +163589,22 @@
             "type": "boolean",
             "description": "Owner 2026-10-20: people were added; `participants` lists everyone.",
             "default": false
+          },
+          "mediaProvider": {
+            "enum": [
+              "p2p",
+              "cloudflare"
+            ],
+            "type": "string",
+            "description": "Owner 2026-10-24: how the media of this call is carried, fixed at its start. cloudflare = Cloudflare SFU (use POST /calls/:id/sfu/*); p2p = device to device (1:1 calls and the fallback)."
+          },
+          "mediaFallback": {
+            "description": "Owner 2026-10-24: set on group calls only; see CallMediaFallbackDto. Also sent with every call:participants event.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CallMediaFallbackDto"
+              }
+            ]
           },
           "hostId": {
             "type": "string",
@@ -159155,7 +163726,8 @@
           "provider": {
             "enum": [
               "webrtc",
-              "livekit"
+              "livekit",
+              "cloudflare"
             ],
             "type": "string"
           },
@@ -159240,6 +163812,445 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "SfuIceServerDto": {
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "urls"
+        ]
+      },
+      "SfuSessionDto": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "Our handle for your Cloudflare session. Informational: every later call finds your session from your login, never from this value."
+          },
+          "iceServers": {
+            "description": "STUN for the SFU. For hard networks also use GET /calls/ice-servers (TURN).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuIceServerDto"
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "iceServers"
+        ]
+      },
+      "SfuSessionEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuSessionDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuPublishedTrackDto": {
+        "type": "object",
+        "properties": {
+          "mid": {
+            "type": "string"
+          },
+          "trackName": {
+            "enum": [
+              "mic",
+              "cam"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mid",
+          "trackName"
+        ]
+      },
+      "SfuPublishFailedDto": {
+        "type": "object",
+        "properties": {
+          "trackName": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trackName",
+          "errorCode"
+        ]
+      },
+      "SfuPublishResultDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "answer"
+            ]
+          },
+          "sdp": {
+            "type": "string",
+            "description": "Apply with setRemoteDescription."
+          },
+          "tracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuPublishedTrackDto"
+            }
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuPublishFailedDto"
+            }
+          }
+        },
+        "required": [
+          "type",
+          "sdp",
+          "tracks",
+          "failed"
+        ]
+      },
+      "SfuPublishTrackDto": {
+        "type": "object",
+        "properties": {
+          "mid": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,16}$",
+            "description": "Transceiver mid in your offer."
+          },
+          "trackName": {
+            "enum": [
+              "mic",
+              "cam"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mid",
+          "trackName"
+        ]
+      },
+      "SfuPublishDto": {
+        "type": "object",
+        "properties": {
+          "sdp": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Your SDP offer (sendonly transceivers)."
+          },
+          "tracks": {
+            "minItems": 1,
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuPublishTrackDto"
+            }
+          }
+        },
+        "required": [
+          "sdp",
+          "tracks"
+        ]
+      },
+      "SfuPublishResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuPublishResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trackName": {
+            "enum": [
+              "mic",
+              "cam"
+            ],
+            "type": "string"
+          },
+          "mid": {
+            "type": "string",
+            "description": "Your transceiver mid for this stream."
+          }
+        },
+        "required": [
+          "userId",
+          "trackName",
+          "mid"
+        ]
+      },
+      "SfuSkippedDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "trackName": {
+            "type": "string",
+            "description": "mic, cam or * for all of that person."
+          },
+          "reason": {
+            "type": "string",
+            "description": "not_in_call | not_published | already_pulled | batch_limit | a Cloudflare error code."
+          }
+        },
+        "required": [
+          "userId",
+          "trackName",
+          "reason"
+        ]
+      },
+      "SfuSubscribeResultDto": {
+        "type": "object",
+        "properties": {
+          "requiresAnswer": {
+            "type": "boolean",
+            "description": "true: apply `sdp` as the remote offer, answer it with POST /calls/:id/sfu/answer."
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "offer"
+            ]
+          },
+          "sdp": {
+            "type": "string",
+            "nullable": true
+          },
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuSubscriptionDto"
+            }
+          },
+          "skipped": {
+            "description": "`batch_limit` entries: ask again after the answer has been sent.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SfuSkippedDto"
+            }
+          }
+        },
+        "required": [
+          "requiresAnswer",
+          "type",
+          "sdp",
+          "subscriptions",
+          "skipped"
+        ]
+      },
+      "SfuSubscribeDto": {
+        "type": "object",
+        "properties": {
+          "userIds": {
+            "maxItems": 100,
+            "description": "People to receive; empty = everybody in the call.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "trackNames": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "mic",
+                "cam"
+              ]
+            }
+          },
+          "rid": {
+            "enum": [
+              "f",
+              "h",
+              "q"
+            ],
+            "type": "string",
+            "description": "Simulcast layer of the video: full, half, quarter."
+          }
+        }
+      },
+      "SfuSubscribeResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuSubscribeResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuOkDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "SfuAnswerDto": {
+        "type": "object",
+        "properties": {
+          "sdp": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Your SDP answer to the SFU offer."
+          }
+        },
+        "required": [
+          "sdp"
+        ]
+      },
+      "SfuOkEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuOkDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuCloseResultDto": {
+        "type": "object",
+        "properties": {
+          "closed": {
+            "description": "The mids that were closed.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "answer"
+            ]
+          },
+          "sdp": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "closed",
+          "type",
+          "sdp"
+        ]
+      },
+      "SfuCloseDto": {
+        "type": "object",
+        "properties": {
+          "trackNames": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "string",
+              "enum": [
+                "mic",
+                "cam"
+              ]
+            },
+            "description": "Stop publishing these of your own tracks."
+          },
+          "userIds": {
+            "maxItems": 100,
+            "description": "Stop receiving these people (a person who left).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "sdp": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Your SDP offer after you stopped the transceivers of `userIds`; the answer comes back. Without it the tracks are force-closed."
+          }
+        }
+      },
+      "SfuCloseResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SfuCloseResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SfuLayerDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rid": {
+            "enum": [
+              "f",
+              "h",
+              "q"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "rid"
         ]
       },
       "IceServerDto": {

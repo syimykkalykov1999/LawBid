@@ -24,6 +24,7 @@ export interface StripeWebhookJobData {
 
 /** Verifies, stores (idempotently) and queues a webhook event. */
 import { refreshProvider } from './dynamic-payment.provider';
+import { bullOptions } from '../../redis/redis-connection';
 @Injectable()
 export class StripeWebhookIntakeService
   implements OnApplicationBootstrap, OnModuleDestroy
@@ -40,7 +41,10 @@ export class StripeWebhookIntakeService
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (url)
-      this.queue = new Queue(STRIPE_WEBHOOKS_QUEUE, { connection: { url } });
+      this.queue = new Queue(
+        STRIPE_WEBHOOKS_QUEUE,
+        bullOptions(STRIPE_WEBHOOKS_QUEUE, url),
+      );
   }
 
   async onModuleDestroy(): Promise<void> {

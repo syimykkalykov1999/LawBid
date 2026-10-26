@@ -29,9 +29,38 @@ variable "create_anomaly_monitor" {
   default     = true
   description = "AWS allows one service-level anomaly monitor per account; false when one already exists."
 }
+variable "forecast_thresholds" {
+  type        = list(number)
+  default     = [80, 100]
+  description = "FORECASTED notifications (percent of the limit): an e-mail when the month is on course to pass it, before the money is spent."
+}
+variable "subscriber_sns_topic_arns" {
+  type        = list(string)
+  default     = []
+  description = "SNS topics that also get the budget notifications (e.g. the alerts topic). The topic policy must allow budgets.amazonaws.com to publish."
+}
+variable "anomaly_extra_emails" {
+  type        = list(string)
+  default     = []
+  description = "E-mails for a second Cost Anomaly subscription on the account's EXISTING service monitor (anomaly_existing_monitor_arn), threshold anomaly_threshold_usd."
+}
+variable "anomaly_existing_monitor_arn" {
+  type        = string
+  default     = ""
+  description = "ARN of the account's existing service-level anomaly monitor (AWS creates `Default-Services-Monitor`: aws ce get-anomaly-monitors). Used when create_anomaly_monitor is false."
+}
+variable "anomaly_sns_topic_arn" {
+  type        = string
+  default     = ""
+  description = "SNS topic (the alerts topic) that also gets each cost anomaly at once (IMMEDIATE subscription, free). Its policy and key must allow costalerts.amazonaws.com (modules/monitoring, modules/kms). Empty = e-mail only."
+}
 variable "tags" {
   type    = map(string)
   default = {}
+}
+
+locals {
+  anomaly_monitor_arn = var.create_anomaly_monitor ? one(aws_ce_anomaly_monitor.services[*].arn) : var.anomaly_existing_monitor_arn
 }
 
 resource "aws_budgets_budget" "monthly" {
@@ -41,6 +70,13 @@ resource "aws_budgets_budget" "monthly" {
   limit_unit   = "USD"
   time_unit    = "MONTHLY"
 
+  # Owner 2026-10-24: the owner changes the limit in the admin («Масштаб»,
+  # four-eyes-free but 2FA-protected). Terraform only sets it at creation;
+  # monthly_budget_usd is the starting value, not a pin.
+  lifecycle {
+    ignore_changes = [limit_amount]
+  }
+
   dynamic "notification" {
     for_each = [50, 80, 100]
     content {
@@ -49,15 +85,23 @@ resource "aws_budgets_budget" "monthly" {
       threshold_type             = "PERCENTAGE"
       notification_type          = "ACTUAL"
       subscriber_email_addresses = var.alert_emails
+      subscriber_sns_topic_arns  = var.subscriber_sns_topic_arns
     }
   }
 
-  notification {
-    comparison_operator        = "GREATER_THAN"
-    threshold                  = 100
-    threshold_type             = "PERCENTAGE"
-    notification_type          = "FORECASTED"
-    subscriber_email_addresses = var.alert_emails
+  # Forecast alerts (80 % and 100 %): the month is on course to pass the
+  # ceiling. The cost-guard job (ops-guard.job.ts) reads THIS budget by name
+  # (OPS_BUDGET_NAME = <name>-monthly) and scales ECS down at 100 % actual.
+  dynamic "notification" {
+    for_each = var.forecast_thresholds
+    content {
+      comparison_operator        = "GREATER_THAN"
+      threshold                  = notification.value
+      threshold_type             = "PERCENTAGE"
+      notification_type          = "FORECASTED"
+      subscriber_email_addresses = var.alert_emails
+      subscriber_sns_topic_arns  = var.subscriber_sns_topic_arns
+    }
   }
 }
 
@@ -81,6 +125,57 @@ resource "aws_ce_anomaly_subscription" "daily" {
       type    = "EMAIL"
       address = subscriber.value
     }
+  }
+
+  threshold_expression {
+    dimension {
+      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
+      match_options = ["GREATER_THAN_OR_EQUAL"]
+      values        = [tostring(var.anomaly_threshold_usd)]
+    }
+  }
+  tags = var.tags
+}
+
+# The AWS default subscription (`Default-Services-Subscription`, DAILY) sits
+# on the default monitor. A second subscription on the same monitor gives the
+# owner's own threshold (anomaly_threshold_usd) without importing anything.
+resource "aws_ce_anomaly_subscription" "extra" {
+  count            = !var.create_anomaly_monitor && var.anomaly_existing_monitor_arn != "" && length(var.anomaly_extra_emails) > 0 ? 1 : 0
+  name             = "${var.name}-cost-anomalies-extra"
+  frequency        = "DAILY"
+  monitor_arn_list = [var.anomaly_existing_monitor_arn]
+
+  dynamic "subscriber" {
+    for_each = var.anomaly_extra_emails
+    content {
+      type    = "EMAIL"
+      address = subscriber.value
+    }
+  }
+
+  threshold_expression {
+    dimension {
+      key           = "ANOMALY_TOTAL_IMPACT_ABSOLUTE"
+      match_options = ["GREATER_THAN_OR_EQUAL"]
+      values        = [tostring(var.anomaly_threshold_usd)]
+    }
+  }
+  tags = var.tags
+}
+
+# Cost Anomaly Detection -> SNS. AWS allows the SNS subscriber only with the
+# IMMEDIATE frequency (one message per anomaly), so this is a separate
+# subscription from the daily e-mail digest above.
+resource "aws_ce_anomaly_subscription" "sns" {
+  count            = var.anomaly_sns_topic_arn != "" && (var.create_anomaly_monitor || var.anomaly_existing_monitor_arn != "") ? 1 : 0
+  name             = "${var.name}-cost-anomalies-sns"
+  frequency        = "IMMEDIATE"
+  monitor_arn_list = [local.anomaly_monitor_arn]
+
+  subscriber {
+    type    = "SNS"
+    address = var.anomaly_sns_topic_arn
   }
 
   threshold_expression {

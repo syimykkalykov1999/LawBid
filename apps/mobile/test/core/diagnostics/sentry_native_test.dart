@@ -168,4 +168,47 @@ void main() {
     expect(out.exceptions!.single.value, isNot(contains('jane@firm.com')));
     expect(out.exceptions!.single.value, isNot(contains('555')));
   });
+
+  group('compiled-in DSN (S15-11)', () {
+    const compiled = 'https://pub@o1.ingest.sentry.io/999';
+
+    setUp(
+      () => SentryNative.debugReset(
+        sdk: sdk,
+        release: true,
+        supported: true,
+        compiledDsn: compiled,
+      ),
+    );
+
+    test('the very first launch already watches, with no bootstrap yet',
+        () async {
+      await SentryNative.start(prefs, AppFlavor.prod);
+      expect(sdk.inits, [compiled]);
+      expect(SentryNative.running, isTrue);
+    });
+
+    test('the admin value overrides it, and an emptied one falls back',
+        () async {
+      await SentryNative.start(prefs, AppFlavor.prod);
+      await SentryNative.configure(dsn, AppFlavor.prod);
+      expect(sdk.inits, [compiled, dsn]);
+      await SentryNative.configure('', AppFlavor.prod);
+      expect(sdk.inits.last, compiled);
+      expect(SentryNative.running, isTrue);
+      expect(prefs.getString('sentry.native_dsn.v1'), isNull);
+    });
+
+    test('a saved admin DSN beats the compiled one at the next start',
+        () async {
+      await prefs.setString('sentry.native_dsn.v1', dsn);
+      await SentryNative.start(prefs, AppFlavor.prod);
+      expect(sdk.inits, [dsn]);
+    });
+
+    test('dev and staging still never start it', () async {
+      await SentryNative.start(prefs, AppFlavor.dev);
+      expect(sdk.inits, isEmpty);
+    });
+  });
 }

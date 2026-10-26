@@ -153,6 +153,18 @@ export default function StoragePage() {
                       <Td className="text-right whitespace-nowrap tabular-nums">{formatBytes(p.bytes)}</Td>
                     </tr>
                   ))}
+                  {d?.r2 ? (
+                    <tr>
+                      <Td
+                        className="max-w-56 truncate"
+                        title={`Бесплатно 10 ГБ в месяц${d.r2.truncated ? '; посчитано не всё' : ''}`}
+                      >
+                        Cloudflare R2 (публичные фото)
+                      </Td>
+                      <Td className="text-right tabular-nums">{d.r2.objects.toLocaleString('ru-RU')}</Td>
+                      <Td className="text-right whitespace-nowrap tabular-nums">{formatBytes(d.r2.bytes)}</Td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </Table>
             </CardContent>

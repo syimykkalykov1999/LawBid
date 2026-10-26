@@ -1,33 +1,15 @@
 # Accessibility Statement
 
-*Draft prepared for review by a licensed US attorney; not legal advice.*
+*DRAFT for review by a licensed attorney. Not legal advice. Version: draft-2026-10-25. Publish only the claims that an audit confirms.*
 
-SiMA LLC, doing business as LawBid, wants everyone to be able to use the LawBid mobile app and the website (lawbid.dev), including people who rely on a screen reader, larger text, voice control, a switch or a keyboard. This statement says where we stand, what we are still working on and how to tell us when something does not work for you.
+LawBid wants everyone to be able to use the Service, including people with disabilities.
 
-## Our target
+**Standard**: we aim to meet the Web Content Accessibility Guidelines (WCAG) 2.2 Level AA for our website and the same principles in our iOS and Android apps.
 
-We aim to conform to the **Web Content Accessibility Guidelines (WCAG) 2.2, level AA**, and we follow Apple's and Google's accessibility guidance for the iOS and Android apps. Where a part of the service does not yet meet that level, we say so below and work towards it.
+**What we do**: support for screen readers (VoiceOver, TalkBack), scalable text, sufficient color contrast, keyboard navigation on the web, labels for buttons and images, captions option for video where available, and testing with assistive technology. [List only what has been tested.]
 
-## What already works
+**Known limits**: some user-posted images, videos and documents may lack descriptions or captions. Machine translations may be inexact. We are working on [list known issues from the audit].
 
-- The apps and the website respect the text size and the bold-text setting of your phone or browser. Screens keep working at 200 % zoom.
-- Every button, switch and image that matters has a label a screen reader (VoiceOver, TalkBack, NVDA, JAWS) can read. Decorative pictures are hidden from it.
-- Colours are not the only way to tell things apart: states also have text or an icon, and text keeps a contrast of at least 4.5:1 against its background. A dark theme is available.
-- The website can be used with a keyboard alone: the order is logical and the focused element is visible.
-- Forms say what went wrong next to the field that needs attention, and every field has a visible name.
-- Video calls and voice messages have visible controls; voice messages can be transcribed to text where the device supports it.
-- Reduced motion settings turn off non-essential animation.
+**Last reviewed**: [date]. **Audit**: [date and tester, or "in progress"].
 
-## Known limitations
-
-- Some documents uploaded by other users (scans, photos of papers) have no text alternative; we cannot describe content we did not write.
-- Live captions in video calls depend on the device and are not available on every phone.
-- A small number of older screens are still being checked against WCAG 2.2; we fix what we find in the regular releases.
-
-## Tell us
-
-If something is hard to use, write to **accessibility@lawbid.dev** or use **Settings → Help → Report a problem** in the app. Say which screen, which device and which assistive technology you use. We answer within five business days and treat accessibility problems like any other defect that blocks a person from using the service.
-
-## Enforcement and review
-
-If you are not satisfied with our answer, you may contact the U.S. Department of Justice (ADA) or your state's human-rights or civil-rights agency. This statement was last reviewed on 22 October 2026 and is reviewed at least once a year, and after every major release.
+**Feedback and help**: if you find a barrier or need information in another format, email accessibility@lawbid.dev or call [phone]. Tell us the page or screen, the problem and the tool you use. We reply within 2 business days and aim to fix or give you another way to get the service within 30 days.

@@ -6,6 +6,8 @@ import {
 } from '../domain/case-urgency';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { Prisma, type Case, type PracticeArea } from '@prisma/client';
 import {
   decodeCursor,
@@ -29,8 +31,12 @@ import {
   CaseAccessPolicy,
   type CaseViewer,
 } from '../policies/case-access.policy';
+import { readsAreSplit } from '../../../sharding/split-reads';
 import {
   buildPracticeCasesSql,
+  blockedPeople,
+  resolveFeedGlobals,
+  scatterFeed,
   buildVisibleCasesSql,
 } from '../queries/cases-visible.sql';
 import { budgetFilterSql } from '../queries/budget-filter.sql';
@@ -101,6 +107,8 @@ export class CasesFeedService {
     @Optional() private readonly recommendations?: RecommendationsService,
     // Owner 2026-10-18 (OQ-054): the activity line on the card.
     @Optional() private readonly clientActivity?: ClientActivityService,
+    // S3-5: private details are stored sealed (only their length is shown).
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   /** GET /cases (docs/04 §4.2). Empty page, not an error, for a caller
@@ -137,6 +145,24 @@ export class CasesFeedService {
     const since = spanMs ? new Date(Date.now() - spanMs) : undefined;
     // Owner 2026-10-05: "urgent and above" / "with a date" filters.
     const thresholds = await loadUrgencyThresholds(this.settings);
+    // Shard-ready step 8: with several databases the global parts of the
+    // rule (licences, topics, blocks) are resolved first and the statement
+    // touches the case family only (cases-visible.sql.ts).
+    const split = readsAreSplit(this.prisma);
+    const globals = split
+      ? await resolveFeedGlobals(this.prisma, viewer.userId, {
+          practiceCategory: query.practiceCategory,
+          practice: query.practice,
+        })
+      : undefined;
+    const blockedIds = split
+      ? await blockedPeople(this.prisma, viewer.userId)
+      : [];
+    const blocksFilter = split
+      ? Prisma.sql`AND c.client_id <> ALL(${blockedIds}::UUID[])`
+      : Prisma.sql`AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+        WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
+           OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
     const extra = Prisma.sql`
       ${urgencyFilterSql(query.minUrgency, query.hasDeadline, thresholds)}
       ${budgetFilterSql({
@@ -149,40 +175,42 @@ export class CasesFeedService {
         percentMax: query.percentMax,
       })}
       ${query.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
-      AND NOT EXISTS (SELECT 1 FROM user_blocks ub
-        WHERE (ub.blocker_id = ${viewer.userId}::UUID AND ub.blocked_id = c.client_id)
-           OR (ub.blocker_id = c.client_id AND ub.blocked_id = ${viewer.userId}::UUID))`;
+      ${blocksFilter}`;
     const run = (
       filter: Prisma.Sql,
       pageCursor: typeof cursor,
       take: number,
-    ): Promise<{ id: string; created_at: Date }[]> =>
-      this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(
-        query.practice
-          ? buildPracticeCasesSql({
-              attorneyId: viewer.userId,
-              practice: query.practice,
-              browseAll: query.scope === 'all',
-              state: query.state,
-              states: query.states?.split(','),
-              cursor: pageCursor,
-              limit: take,
-              since,
-              extra: filter,
-            })
-          : buildVisibleCasesSql({
-              attorneyId: viewer.userId,
-              practiceAreaId: query.practiceAreaId,
-              practiceCategory: query.practiceCategory,
-              browseAll: query.scope === 'all',
-              state: query.state,
-              states: query.states?.split(','),
-              cursor: pageCursor,
-              limit: take,
-              since,
-              extra: filter,
-            }),
-      );
+    ): Promise<{ id: string; created_at: Date }[]> => {
+      const sql = query.practice
+        ? buildPracticeCasesSql({
+            globals,
+            attorneyId: viewer.userId,
+            practice: query.practice,
+            browseAll: query.scope === 'all',
+            state: query.state,
+            states: query.states?.split(','),
+            cursor: pageCursor,
+            limit: take,
+            since,
+            extra: filter,
+          })
+        : buildVisibleCasesSql({
+            globals,
+            attorneyId: viewer.userId,
+            practiceAreaId: query.practiceAreaId,
+            practiceCategory: query.practiceCategory,
+            browseAll: query.scope === 'all',
+            state: query.state,
+            states: query.states?.split(','),
+            cursor: pageCursor,
+            limit: take,
+            since,
+            extra: filter,
+          });
+      return split
+        ? scatterFeed(this.prisma, sql, take)
+        : this.prisma.$queryRaw<{ id: string; created_at: Date }[]>(sql);
+    };
     // Owner 2026-10-02 (paid case promotion): up to PROMOTED_FEED_SLOTS
     // active promoted cases this attorney may see (same filters) go on top
     // of the first page and are left out of the keyset pages, so cursor
@@ -541,7 +569,14 @@ export class CasesFeedService {
           imagesCount: files.get(c.id)?.images ?? 0,
           documentsCount: files.get(c.id)?.documents ?? 0,
           descriptionLength: c.description.length,
-          privateDetailsLength: c.private_details?.length ?? 0,
+          privateDetailsLength: !c.private_details
+            ? 0
+            : (
+                this.cipher?.openField(
+                  c.private_details,
+                  privateDetailsAad(c.id),
+                ) ?? c.private_details
+              ).length,
         },
       });
     }
@@ -625,21 +660,35 @@ export class CasesFeedService {
     }
   }
 
-  /** Fire-and-forget impression counter for promoted cases shown. */
+  /** Fire-and-forget impression counter for promoted cases shown. Owner
+   * 2026-10-25 (DB audit finding 8): one pending delta per promotion through
+   * the counter aggregator instead of an UPDATE of every hot promotion row
+   * for every feed page. */
   private countImpressions(caseIds: string[]): void {
     const now = new Date();
     void Promise.resolve()
-      .then(() =>
-        this.prisma.casePromotion.updateMany({
-          where: {
-            case_id: { in: caseIds },
-            status: 'active',
-            starts_at: { lte: now },
-            ends_at: { gt: now },
-          },
-          data: { impressions: { increment: 1 } },
-        }),
-      )
+      .then(async () => {
+        const where = {
+          case_id: { in: caseIds },
+          status: 'active' as const,
+          starts_at: { lte: now },
+          ends_at: { gt: now },
+        };
+        if (!this.counters) {
+          await this.prisma.casePromotion.updateMany({
+            where,
+            data: { impressions: { increment: 1 } },
+          });
+          return;
+        }
+        const live = await this.prisma.casePromotion.findMany({
+          where,
+          select: { id: true },
+        });
+        for (const p of live) {
+          await this.counters.bump('case_promotion', p.id, 'impressions', 1);
+        }
+      })
       .catch(() => undefined);
   }
 }

@@ -267,8 +267,13 @@ void main() {
   testWidgets('shows the running calls, then the folded history', (
     tester,
   ) async {
-    await pump(tester, const Scaffold(body: CallsTab()));
-    expect(find.text('Ongoing call'), findsOneWidget);
+    await pump(
+      tester,
+      const Scaffold(body: CallsTab()),
+      extra: [videoCallsEnabledProvider.overrideWithValue(true)],
+    );
+    // Owner 2026-10-23: pinned on top under «Ongoing now».
+    expect(find.text('Ongoing now'), findsOneWidget);
     expect(find.byKey(const ValueKey('ongoing-join')), findsOneWidget);
     expect(find.byKey(const ValueKey('ongoing-return')), findsOneWidget);
     expect(find.text('Recent'), findsOneWidget);
@@ -314,6 +319,7 @@ void main() {
       tester,
       const Scaffold(body: CallsTab()),
       extra: [
+        videoCallsEnabledProvider.overrideWithValue(true),
         joinOngoingGroupCallProvider.overrideWithValue((call) async {
           joined.add(call.id);
           return null;
@@ -323,6 +329,20 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('ongoing-join')));
     await tester.pump();
     expect(joined, ['k1']);
+  });
+
+  testWidgets('video calls off: a running video call is not offered',
+      (tester) async {
+    await pump(
+      tester,
+      const Scaffold(body: CallsTab()),
+      extra: [videoCallsEnabledProvider.overrideWithValue(false)],
+    );
+    final video = _Repo(pages()).running.where((c) => c.video && !c.mine);
+    expect(
+      find.byKey(const ValueKey('ongoing-join')).evaluate().length,
+      _Repo(pages()).running.where((c) => !c.mine).length - video.length,
+    );
   });
 
   testWidgets('the next page loads at the end of the list', (tester) async {

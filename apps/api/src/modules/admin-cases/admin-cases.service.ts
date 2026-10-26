@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
+import { openJournalPayload } from '../journal/journal-text-seal';
 import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -86,6 +88,7 @@ export class AdminCasesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   async disputes(q: DisputesQueueQueryDto): Promise<Page<AdminDisputeDto>> {
@@ -150,7 +153,7 @@ export class AdminCasesService {
         eventType: j.event_type,
         actorRole: j.actor_role,
         actorUserId: j.actor_user_id,
-        payload: j.payload,
+        payload: openJournalPayload(j.payload, j.id, this.cipher),
         createdAt: j.created_at.toISOString(),
       })),
       openerDisputes,

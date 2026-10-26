@@ -1349,6 +1349,7 @@ class _OutcomeSheetState extends ConsumerState<_OutcomeSheet> {
             controller: _note,
             label: t.t('tasks.outcome'),
             hintText: t.t('tasks.outcome.hint'),
+            tapAnywhere: true,
             maxLines: 3,
             maxLength: 1000,
             textCapitalization: TextCapitalization.sentences,

@@ -18,6 +18,35 @@ variable "slack_webhook_url" {
   default   = null
   sensitive = true
 }
+# Batch A item 1 (docs/architecture/P0_AND_COST_PLAN.md): a phone page for the
+# CRITICAL composite alarms only. PagerDuty Free: 100 phone/SMS per month, so
+# only the 6 SLO composites (slo.tf) publish to the second topic.
+variable "pagerduty_https_endpoint" {
+  type        = string
+  default     = null
+  sensitive   = true
+  description = "PagerDuty Events API v2 integration URL (https://events.pagerduty.com/integration/<key>/enqueue). Kept in the Secrets Manager tfvars, never in git. null = no phone paging; the critical topic still exists and e-mails the owner."
+}
+variable "critical_email_too" {
+  type        = bool
+  default     = true
+  description = "Also e-mail alert_emails from the critical topic (a second copy of the page); false when the normal topic mail is enough."
+}
+variable "redis_memory_alarm_percent" {
+  type        = number
+  default     = 70
+  description = "Redis (queue node) memory alarm threshold in percent (Batch A item 9). 70 leaves room to act before noeviction starts failing BullMQ writes."
+}
+variable "nat_gateway_ids" {
+  type        = list(string)
+  default     = []
+  description = "NAT gateways to watch (AWS/NATGateway). Empty = no NAT traffic alarm."
+}
+variable "nat_traffic_alarm_gb_per_day" {
+  type        = number
+  default     = 20
+  description = "Alarm when one NAT gateway processes more than this many GB (in + out) in 24 h; 0 = off. At $0.045/GB that is about $0.9/day (S4-13: was 100 GB = $4.5/day = $135/month before any alarm). See docs/runbooks/nat-endpoints.md."
+}
 variable "alb_arn_suffix" { type = string }
 variable "api_target_group_arn_suffix" { type = string }
 variable "cluster_name" { type = string }
@@ -29,6 +58,26 @@ variable "redis_replicas" {
   default     = 0
   description = "Replicas of the main Redis (modules/redis). > 0 adds a replication-lag alarm per replica."
 }
+variable "redis_node_type" {
+  type        = string
+  default     = ""
+  description = "Node type of the main Redis (modules/redis). cache.t4g.* adds the CPU-credit alarm (burstable nodes throttle silently when credits run out)."
+}
+variable "redis_cache_replication_group_id" {
+  type        = string
+  default     = ""
+  description = "Replication group id of the cache-only Redis (modules/redis name + \"-redis\"). Empty = no cache node: the Evictions alarm is not created."
+}
+variable "redis_connections_alarm" {
+  type        = number
+  default     = 10000
+  description = "CurrConnections alarm on the main Redis node (ElastiCache allows 65000; 10000 leaves room before a reconnect storm hurts)."
+}
+variable "redis_new_connections_alarm" {
+  type        = number
+  default     = 2000
+  description = "NewConnections per minute above this = a reconnect storm (failover, deploy, leaking connections)."
+}
 variable "api_log_group" { type = string }
 variable "worker_log_group" { type = string }
 variable "runbook_base_url" {
@@ -38,6 +87,11 @@ variable "runbook_base_url" {
 variable "p95_target_ms" {
   type    = number
   default = 600
+}
+variable "search_p95_alarm_ms" {
+  type        = number
+  default     = 300
+  description = "p95 of the Postgres search (log metric search_latency) above this for 15 minutes = «пора включить отдельный поиск». 0 = no alarm."
 }
 variable "kms_key_arn" { type = string }
 variable "tags" {
@@ -70,12 +124,20 @@ resource "aws_sns_topic_policy" "alerts" {
       {
         Sid       = "AlarmAndEventPublishers"
         Effect    = "Allow"
-        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com"] }
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com", "budgets.amazonaws.com"] }
         Action    = "SNS:Publish"
         Resource  = aws_sns_topic.alerts.arn
         Condition = {
           StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
         }
+      },
+      {
+        # Cost Anomaly Detection (modules/budget, IMMEDIATE subscription).
+        Sid       = "CostAnomalyPublisher"
+        Effect    = "Allow"
+        Principal = { Service = "costalerts.amazonaws.com" }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.alerts.arn
       },
     ]
   })
@@ -95,9 +157,69 @@ resource "aws_sns_topic_subscription" "slack" {
   endpoint  = var.slack_webhook_url
 }
 
+# --- critical topic: the only one that can ring a phone -----------------
+resource "aws_sns_topic" "critical" {
+  name              = "${var.name}-critical"
+  kms_master_key_id = var.kms_key_arn
+  tags              = var.tags
+}
+
+resource "aws_sns_topic_policy" "critical" {
+  arn = aws_sns_topic.critical.arn
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "Owner"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = ["SNS:Publish", "SNS:Subscribe", "SNS:Receive", "SNS:ListSubscriptionsByTopic", "SNS:GetTopicAttributes", "SNS:SetTopicAttributes", "SNS:AddPermission", "SNS:RemovePermission", "SNS:DeleteTopic"]
+        Resource  = aws_sns_topic.critical.arn
+      },
+      {
+        Sid       = "AlarmPublishers"
+        Effect    = "Allow"
+        Principal = { Service = ["cloudwatch.amazonaws.com", "events.amazonaws.com", "budgets.amazonaws.com"] }
+        Action    = "SNS:Publish"
+        Resource  = aws_sns_topic.critical.arn
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+        }
+      },
+    ]
+  })
+}
+
+# Owner 2026-10-24: the owner can also paste the PagerDuty link in the admin
+# (Ключи и сервисы -> PagerDuty); the API then subscribes it itself. That
+# subscription is NOT in this state, so Terraform never touches it. Use ONE
+# path: either this variable or the admin. (If both name the same link SNS
+# returns the same subscription and removing it in one place removes it for
+# both.) The admin path needs no apply and no secret in the tfvars.
+# PagerDuty: HTTPS subscription to the Events API integration. PagerDuty
+# confirms the subscription by itself (it opens the SubscribeURL); the
+# message stays the CloudWatch JSON (raw_message_delivery must be false).
+resource "aws_sns_topic_subscription" "pagerduty" {
+  count                  = var.pagerduty_https_endpoint == null ? 0 : 1
+  topic_arn              = aws_sns_topic.critical.arn
+  protocol               = "https"
+  endpoint               = var.pagerduty_https_endpoint
+  raw_message_delivery   = false
+  endpoint_auto_confirms = true
+}
+
+resource "aws_sns_topic_subscription" "critical_email" {
+  for_each  = var.critical_email_too ? toset(var.alert_emails) : toset([])
+  topic_arn = aws_sns_topic.critical.arn
+  protocol  = "email"
+  endpoint  = each.key
+}
+
 locals {
   ns  = "LawBid/${var.name}"
   ops = [aws_sns_topic.alerts.arn]
+  # Normal mail stream + the page. Only the SLO composites use it.
+  page = [aws_sns_topic.alerts.arn, aws_sns_topic.critical.arn]
 }
 
 # --- metrics from structured logs ----------------------------------------
@@ -219,6 +341,39 @@ resource "aws_cloudwatch_log_metric_filter" "sms_sent" {
 }
 
 # --- alarms (docs/06 §8 list) ----------------------------------------------
+# --- «пора вынести поиск» (docs/architecture/SEARCH_READY.md) ---------------
+# One log line per search answered by Postgres: {metric: "search_latency",
+# engine: "postgres", ms}. p95 over 15 minutes above the threshold means the
+# built-in search is slowing the database down: turn the separate search on.
+resource "aws_cloudwatch_log_metric_filter" "search_latency" {
+  name           = "${var.name}-search-pg-latency"
+  log_group_name = var.api_log_group
+  pattern        = "{ $.metric = \"search_latency\" && $.engine = \"postgres\" }"
+  metric_transformation {
+    name      = "SearchPgLatencyMs"
+    namespace = local.ns
+    value     = "$.ms"
+    unit      = "Milliseconds"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "search_slow" {
+  count               = var.search_p95_alarm_ms > 0 ? 1 : 0
+  alarm_name          = "${var.name}-search-slow"
+  alarm_description   = "LawBid: Поиск отвечает медленно — пора включить отдельный поиск (Админка → Настройки → search.engine). Что делать: поставьте search.engine = shadow, потом engine; инструкция: docs/architecture/SEARCH_READY.md (EN: Postgres search p95 above ${var.search_p95_alarm_ms} ms for 15 minutes.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 300
+  threshold           = var.search_p95_alarm_ms
+  extended_statistic  = "p95"
+  metric_name         = aws_cloudwatch_log_metric_filter.search_latency.metric_transformation[0].name
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
 resource "aws_cloudwatch_metric_alarm" "alb_5xx_ratio" {
   alarm_name          = "${var.name}-api-5xx-ratio"
   alarm_description   = "LawBid: Приложение выдаёт ошибки (больше 1 % запросов). Что делать: Обычно это неудачное обновление — оно откатывается само. Не прошло за 15 минут: GitHub → Actions → «Rollback production». Инструкция: ${var.runbook_base_url}/api-5xx.md (EN: 5xx > 1% for 5 minutes.)"
@@ -401,17 +556,162 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
 
 resource "aws_cloudwatch_metric_alarm" "redis_memory" {
   alarm_name          = "${var.name}-redis-memory"
-  alarm_description   = "LawBid: Быстрая память (Redis) заполнена больше чем на 80 %. Что делать: Держится больше суток — увеличьте Redis при следующем «ставь на AWS». Данные не теряются. Инструкция: ${var.runbook_base_url}/redis.md (EN: Redis memory > 80%.)"
+  alarm_description   = "LawBid: Быстрая память (Redis) заполнена больше чем на ${var.redis_memory_alarm_percent} %. Что делать: Держится больше суток — увеличьте Redis при следующем «ставь на AWS». Данные не теряются. Инструкция: ${var.runbook_base_url}/redis.md (EN: Redis memory above ${var.redis_memory_alarm_percent}%.)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
   period              = 300
-  threshold           = 80
+  threshold           = var.redis_memory_alarm_percent
   statistic           = "Average"
   metric_name         = "DatabaseMemoryUsagePercentage"
   namespace           = "AWS/ElastiCache"
   dimensions          = { ReplicationGroupId = var.redis_replication_group_id }
   alarm_actions       = local.ops
   ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# S6-4 (Redis hardening 2026-10-25): node-level ElastiCache metrics the old
+# alarms (EngineCPU, memory) cannot see. Source: AWS «Which metrics should I
+# monitor» (CacheMetrics.WhichShouldIMonitor). These metrics are published per
+# node (CacheClusterId = <group>-001: the primary of a single-node group).
+locals {
+  redis_primary_node = "${var.redis_replication_group_id}-001"
+  redis_is_burstable = startswith(var.redis_node_type, "cache.t")
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_cpu_credits" {
+  count               = local.redis_is_burstable ? 1 : 0
+  alarm_name          = "${var.name}-redis-cpu-credits"
+  alarm_description   = "LawBid: У быстрой памяти (Redis) кончаются «кредиты» процессора, скоро она замедлится. Что делать: Увеличьте Redis при следующем «ставь на AWS» (класс не t4g). Инструкция: ${var.runbook_base_url}/redis.md (EN: CPUCreditBalance < 20 on the burstable Redis node.)"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 3
+  period              = 300
+  threshold           = 20
+  statistic           = "Minimum"
+  metric_name         = "CPUCreditBalance"
+  namespace           = "AWS/ElastiCache"
+  dimensions          = { CacheClusterId = local.redis_primary_node }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_network_allowance" {
+  alarm_name          = "${var.name}-redis-network-allowance"
+  alarm_description   = "LawBid: Быстрая память (Redis) упёрлась в сетевой лимит своего класса, пакеты отбрасываются. Что делать: Увеличьте Redis при следующем «ставь на AWS». Инструкция: ${var.runbook_base_url}/redis.md (EN: NetworkBandwidthAllowanceExceeded > 0.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 60
+  threshold           = 0
+  statistic           = "Sum"
+  metric_name         = "NetworkBandwidthAllowanceExceeded"
+  namespace           = "AWS/ElastiCache"
+  dimensions          = { CacheClusterId = local.redis_primary_node }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_traffic_management" {
+  alarm_name          = "${var.name}-redis-traffic-management"
+  alarm_description   = "LawBid: Быстрая память (Redis) сама притормаживает клиентов (перегружена по трафику). Что делать: Увеличьте Redis при следующем «ставь на AWS». Инструкция: ${var.runbook_base_url}/redis.md (EN: TrafficManagementActive > 0.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 60
+  threshold           = 0
+  statistic           = "Maximum"
+  metric_name         = "TrafficManagementActive"
+  namespace           = "AWS/ElastiCache"
+  dimensions          = { CacheClusterId = local.redis_primary_node }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_connections" {
+  alarm_name          = "${var.name}-redis-connections"
+  alarm_description   = "LawBid: К быстрой памяти (Redis) подключено слишком много соединений. Что делать: Обычно после переключения Redis или утечки; если не проходит за час — напишите Claude «redis соединения». Инструкция: ${var.runbook_base_url}/redis.md (EN: CurrConnections high.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 60
+  threshold           = var.redis_connections_alarm
+  statistic           = "Maximum"
+  metric_name         = "CurrConnections"
+  namespace           = "AWS/ElastiCache"
+  dimensions          = { CacheClusterId = local.redis_primary_node }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "redis_new_connections" {
+  alarm_name          = "${var.name}-redis-new-connections"
+  alarm_description   = "LawBid: Всплеск новых подключений к быстрой памяти (Redis): похоже на «шторм переподключений». Что делать: Обычно после переключения Redis или выкладки; если повторяется — напишите Claude «redis соединения». Инструкция: ${var.runbook_base_url}/redis.md (EN: NewConnections spike.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 60
+  threshold           = var.redis_new_connections_alarm
+  statistic           = "Sum"
+  metric_name         = "NewConnections"
+  namespace           = "AWS/ElastiCache"
+  dimensions          = { CacheClusterId = local.redis_primary_node }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# Evictions on the cache-only node (allkeys-lru) mean it is too small for the
+# working set: every eviction is a future cache miss.
+resource "aws_cloudwatch_metric_alarm" "redis_cache_evictions" {
+  count               = var.redis_cache_replication_group_id != "" ? 1 : 0
+  alarm_name          = "${var.name}-redis-cache-evictions"
+  alarm_description   = "LawBid: Кэш-узел Redis вытесняет данные (мало памяти). Что делать: не срочно, сайт работает чуть медленнее; увеличьте кэш-узел при следующем «ставь на AWS». Инструкция: ${var.runbook_base_url}/redis.md (EN: Evictions > 0 on the cache node.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 300
+  threshold           = 0
+  statistic           = "Sum"
+  metric_name         = "Evictions"
+  namespace           = "AWS/ElastiCache"
+  dimensions          = { CacheClusterId = "${var.redis_cache_replication_group_id}-001" }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+# S6-1: the cron schedulers live only in Redis. The worker heartbeat logs
+# `cron_schedulers` (missing = expected - found) every 30 s and re-registers
+# them itself; this alarm says it happened and did not heal.
+resource "aws_cloudwatch_log_metric_filter" "cron_schedulers_missing" {
+  name           = "${var.name}-cron-schedulers-missing"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"cron_schedulers\" }"
+  metric_transformation {
+    name      = "CronSchedulersMissing"
+    namespace = local.ns
+    value     = "$.missing"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cron_schedulers_missing" {
+  alarm_name          = "${var.name}-cron-schedulers-missing"
+  alarm_description   = "LawBid: Расписание фоновых задач пропало из Redis (после замены или сбоя Redis). Что делать: система сама вернёт его за 30 секунд; если тревога держится больше 10 минут — перезапустите сервис worker. Инструкция: ${var.runbook_base_url}/redis.md (EN: cron job schedulers missing in Redis.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 60
+  threshold           = 0
+  statistic           = "Maximum"
+  metric_name         = "CronSchedulersMissing"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
   tags                = var.tags
 }
 
@@ -470,6 +770,15 @@ resource "aws_cloudwatch_metric_alarm" "service_cpu" {
 }
 
 # A service with zero running tasks (crash loop, failed deploy, capacity).
+# 2026-10-24: Container Insights is off (it cost about $30/month), so the old
+# ECS/ContainerInsights RunningTaskCount is gone. Two free signals instead:
+#   api    = ALB HealthyHostCount of the api target group (tasks that really
+#            pass the health check; free, one point a minute);
+#   worker = SampleCount of LawBid/Runtime HeapUsedMb {Service=worker}: every
+#            running worker writes one line a minute (RuntimeStatsService), so
+#            "no samples" = "no running worker". Period 180 s so one late line
+#            never looks like an outage. No data = breaching, a dead service
+#            still pages.
 resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
   for_each = {
     api    = var.api_service_name
@@ -479,16 +788,21 @@ resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
   alarm_description   = "LawBid: Сервер ${each.key} не запущен ни разу. Что делать: AWS пытается запустить его сам. Не прошло за 10 минут — GitHub → Actions → «Rollback production» на прошлую версию. Инструкция: ${var.runbook_base_url}/ecs-capacity.md (EN: ${each.key} has no running ECS tasks.)"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 2
-  period              = 60
+  period              = each.key == "api" ? 60 : 180
   threshold           = 1
-  statistic           = "Minimum"
-  metric_name         = "RunningTaskCount"
-  namespace           = "ECS/ContainerInsights"
-  dimensions          = { ClusterName = var.cluster_name, ServiceName = each.value }
-  treat_missing_data  = "breaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
-  tags                = var.tags
+  statistic           = each.key == "api" ? "Minimum" : "SampleCount"
+  metric_name         = each.key == "api" ? "HealthyHostCount" : "HeapUsedMb"
+  namespace           = each.key == "api" ? "AWS/ApplicationELB" : "LawBid/Runtime"
+  dimensions = each.key == "api" ? {
+    LoadBalancer = var.alb_arn_suffix
+    TargetGroup  = var.api_target_group_arn_suffix
+    } : {
+    Service = "worker"
+  }
+  treat_missing_data = "breaching"
+  alarm_actions      = local.ops
+  ok_actions         = local.ops
+  tags               = var.tags
 }
 
 # Email reputation (SES production-access promise): AWS pauses sending
@@ -706,6 +1020,9 @@ resource "aws_cloudwatch_log_metric_filter" "ops_alert" {
     economy_guard_on  = "EconomyGuardOn"
     economy_guard_off = "EconomyGuardOff"
     capacity_pressure = "CapacityPressure"
+
+    # Day-one foundations: the nightly money-ledger check (ledger.reconcile).
+    ledger_mismatch = "LedgerMismatch"
   }
   name           = "${var.name}-ops-${replace(each.key, "_", "-")}"
   log_group_name = var.worker_log_group
@@ -812,6 +1129,51 @@ resource "aws_cloudwatch_metric_alarm" "storage_growth" {
   tags                = var.tags
 }
 
+# Owner 2026-10-24 (Cloudflare R2): the same nightly storage.snapshot counts
+# the R2 bucket and logs `alert: r2_storage_high` past the 10 GB free tier
+# and `alert: r2_ops_high` when the object count jumped (paid writes).
+locals {
+  r2_alerts = {
+    r2_storage_high = {
+      metric = "R2StorageHigh"
+      text   = "LawBid: Фото и медиа в Cloudflare R2 заняли больше 10 ГБ (бесплатный лимит). Что делать: ничего срочного — дальше $0.015 за ГБ в месяц, скачивание бесплатно. Посмотрите админку → Система → Хранилище (строка Cloudflare R2) и при желании ужмите картинки. Инструкция: ${var.runbook_base_url}/DNS_TO_CLOUDFLARE.md (EN: R2 storage passed the 10 GB free tier.)"
+    }
+    r2_ops_high = {
+      metric = "R2OpsHigh"
+      text   = "LawBid: В Cloudflare R2 за сутки появилось необычно много файлов (платные операции записи). Что делать: админка → Система → Хранилище → «Кто занимает больше всего»; нет ли массовой загрузки или бота. Инструкция: ${var.runbook_base_url}/DNS_TO_CLOUDFLARE.md (EN: R2 object count grew faster than storage.growth_alert_percent.)"
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "r2" {
+  for_each       = local.r2_alerts
+  name           = "${var.name}-${replace(each.key, "_", "-")}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.alert = \"${each.key}\" }"
+  metric_transformation {
+    name      = each.value.metric
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "r2" {
+  for_each            = local.r2_alerts
+  alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
+  alarm_description   = each.value.text
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = each.value.metric
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
 # Owner 2026-10-05 «Прибыль и резерв»: the daily treasury.daily job logs
 # an `alert` when the monthly split of the Stripe balance needs the owner.
 locals {
@@ -901,6 +1263,10 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
       metric = "EconomyGuardOff"
       text   = "Ограничения экономики сняты: расходы снова в норме или автоматика выключена. Что делать: ничего. (EN: economy guard switched off.)"
     }
+    ledger_mismatch = {
+      metric = "LedgerMismatch"
+      text   = "Ночная сверка денег нашла расхождение: книга учёта денег не сходится с платежами или со Stripe. Что делать: деньги пользователей не затронуты, но откройте логи воркера (поиск alert ledger_mismatch) и пришлите их Claude «ledger mismatch». Инструкция: docs/architecture/MONEY_LEDGER.md. (EN: nightly ledger reconciliation found a mismatch.)"
+    }
     capacity_pressure = {
       metric = "CapacityPressure"
       text   = "База данных или Redis под нагрузкой (процессор базы выше 70 %, соединения выше 80 % или память Redis выше 75 %). Что делать: админка → Система → Экономика → «Увеличить» (одна кнопка, нужен код 2FA; перезапуск на 1–5 минут). (EN: DB/Redis pressure.)"
@@ -940,4 +1306,159 @@ resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
   alarm_actions       = local.ops
   ok_actions          = local.ops
   tags                = var.tags
+}
+
+# Batch A item 15: NAT gateway data processed (in + out, the billed number).
+# Not a failure: an e-mail that a flow got big, to check VPC endpoints or a
+# runaway download before the bill does (docs/runbooks/nat-endpoints.md).
+resource "aws_cloudwatch_metric_alarm" "nat_bytes" {
+  for_each            = var.nat_traffic_alarm_gb_per_day > 0 ? { for i, id in var.nat_gateway_ids : tostring(i) => id } : {}
+  alarm_name          = "${var.name}-nat-bytes-${each.key}"
+  alarm_description   = "LawBid: Через выход в интернет (NAT) за сутки прошло больше ${var.nat_traffic_alarm_gb_per_day} ГБ — это деньги ($0,045 за ГБ). Что делать: ничего срочного, приложение работает; посмотрите, не качается ли что-то лишнее, и нужны ли VPC-эндпоинты. Инструкция: ${var.runbook_base_url}/nat-endpoints.md (EN: NAT gateway ${each.value} processed over ${var.nat_traffic_alarm_gb_per_day} GB in 24 h.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  threshold           = var.nat_traffic_alarm_gb_per_day * 1073741824
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+
+  metric_query {
+    id = "out"
+    metric {
+      metric_name = "BytesOutToDestination"
+      namespace   = "AWS/NATGateway"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { NatGatewayId = each.value }
+    }
+  }
+  metric_query {
+    id = "in"
+    metric {
+      metric_name = "BytesInFromDestination"
+      namespace   = "AWS/NATGateway"
+      period      = 86400
+      stat        = "Sum"
+      dimensions  = { NatGatewayId = each.value }
+    }
+  }
+  metric_query {
+    id          = "total"
+    expression  = "FILL(out, 0) + FILL(in, 0)"
+    label       = "NAT bytes in + out"
+    return_data = true
+  }
+}
+
+output "critical_topic_arn" { value = aws_sns_topic.critical.arn }
+
+# --- outside usage that costs money without a hard limit ---------------------
+# Batch C items 11 and 16 (2026-10-24): the worker's daily `ops.usage-poll`
+# job (src/jobs/handlers/usage-poll.job.ts) reads Cloudflare Realtime TURN
+# egress (GraphQL callsTurnUsageAdaptiveGroups; free 1000 GB/month, shared
+# with SFU) and Bunny traffic / storage, logs the numbers as metrics and logs
+# `alert: usage_*` lines when a threshold set in the admin (Settings,
+# usage.*) is passed. Thresholds live in the admin (one place); these filters
+# only turn the log lines into mails (warn) and a page (crit).
+resource "aws_cloudwatch_log_metric_filter" "cf_realtime_egress" {
+  name           = "${var.name}-cf-realtime-egress-gb"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"cf_realtime_egress_gb\" }"
+  metric_transformation {
+    name      = "CloudflareRealtimeEgressGb"
+    namespace = local.ns
+    value     = "$.gb"
+    unit      = "Gigabytes"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "bunny_usage" {
+  for_each = {
+    BunnyBandwidthGb = "bandwidthGb"
+    BunnyStorageGb   = "storageGb"
+  }
+  name           = "${var.name}-bunny-${lower(each.value)}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"bunny_usage\" }"
+  metric_transformation {
+    name      = each.key
+    namespace = local.ns
+    value     = "$.${each.value}"
+    unit      = "Gigabytes"
+  }
+}
+
+resource "aws_cloudwatch_log_metric_filter" "usage_alert" {
+  for_each = {
+    usage_cf_warn              = "UsageCfWarn"
+    usage_cf_crit              = "UsageCfCrit"
+    usage_bunny_bandwidth_warn = "UsageBunnyBandwidthWarn"
+    usage_bunny_bandwidth_crit = "UsageBunnyBandwidthCrit"
+    usage_bunny_storage_warn   = "UsageBunnyStorageWarn"
+    usage_bunny_storage_crit   = "UsageBunnyStorageCrit"
+    usage_poll_failed          = "UsagePollFailed"
+  }
+  name           = "${var.name}-${replace(each.key, "_", "-")}"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.alert = \"${each.key}\" }"
+  metric_transformation {
+    name      = each.value
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "usage_alert" {
+  for_each = {
+    usage_cf_warn = {
+      metric = "UsageCfWarn"
+      page   = false
+      text   = "Звонки Cloudflare за месяц дошли до порога предупреждения (по умолчанию 700 ГБ из бесплатных 1000). Что делать: ничего срочного; дальше 0,05 $ за ГБ. Порог меняется в админке → Настройки (usage.cloudflare_egress_warn_gb). EN: Cloudflare Realtime egress passed the warning threshold."
+    }
+    usage_cf_crit = {
+      metric = "UsageCfCrit"
+      page   = true
+      text   = "Звонки Cloudflare за месяц дошли до 950 ГБ из бесплатных 1000, дальше платно (0,05 $ за ГБ). Что делать: напишите Claude «трафик звонков», он посмотрит, кто тратит. EN: Cloudflare Realtime egress is about to leave the free 1000 GB."
+    }
+    usage_bunny_bandwidth_warn = {
+      metric = "UsageBunnyBandwidthWarn"
+      page   = false
+      text   = "Трафик видео Bunny за месяц превысил порог предупреждения. Пороги: админка → Настройки (usage.bunny_bandwidth_warn_gb). EN: Bunny CDN traffic passed the warning threshold."
+    }
+    usage_bunny_bandwidth_crit = {
+      metric = "UsageBunnyBandwidthCrit"
+      page   = true
+      text   = "Трафик видео Bunny за месяц превысил срочный порог. Что делать: напишите Claude «трафик видео». Сразу можно снизить rate_limit.video_upload_per_day в админке. EN: Bunny CDN traffic passed the urgent threshold."
+    }
+    usage_bunny_storage_warn = {
+      metric = "UsageBunnyStorageWarn"
+      page   = false
+      text   = "Хранилище видео Bunny выросло выше порога предупреждения (usage.bunny_storage_warn_gb). EN: Bunny storage passed the warning threshold."
+    }
+    usage_bunny_storage_crit = {
+      metric = "UsageBunnyStorageCrit"
+      page   = true
+      text   = "Хранилище видео Bunny выросло выше срочного порога (usage.bunny_storage_crit_gb). Что делать: напишите Claude «хранилище видео». EN: Bunny storage passed the urgent threshold."
+    }
+    usage_poll_failed = {
+      metric = "UsagePollFailed"
+      page   = false
+      text   = "Ежедневная проверка расхода Cloudflare/Bunny не смогла получить данные (ключ устарел или сервис не ответил). Что делать: админка → Безопасность → Ключи и сервисы, проверьте токен аналитики Cloudflare и ключ аккаунта Bunny. EN: the daily usage poll failed."
+    }
+  }
+  alarm_name          = "${var.name}-${replace(each.key, "_", "-")}"
+  alarm_description   = "LawBid: ${each.value.text}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 86400
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = each.value.metric
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = each.value.page ? local.page : local.ops
+  tags                = var.tags
+
+  depends_on = [aws_cloudwatch_log_metric_filter.usage_alert]
 }

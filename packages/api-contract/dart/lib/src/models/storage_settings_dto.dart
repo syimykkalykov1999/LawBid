@@ -19,6 +19,7 @@ class StorageSettingsDto {
     required this.imageFormat,
     required this.userQuotaMb,
     required this.chatQuotaMb,
+    required this.dailyUploadMbPerUser,
     required this.autoRetention,
     required this.retentionAuthEventsDays,
     required this.retentionAssistantActivityDays,
@@ -44,6 +45,9 @@ class StorageSettingsDto {
 
   /// MB of files per chat; 0 = no cap.
   final num chatQuotaMb;
+
+  /// MB one person may upload per UTC day; 0 = no cap.
+  final num dailyUploadMbPerUser;
 
   /// Old technical logs are removed nightly.
   final bool autoRetention;

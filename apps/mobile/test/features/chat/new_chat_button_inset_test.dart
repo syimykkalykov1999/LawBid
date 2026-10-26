@@ -39,22 +39,43 @@ class _Chats implements ChatRepository {
 }
 
 /// Owner 2026-10-23: the «+» (new chat) sits clearly above the bottom edge
-/// and the home indicator, the same gap on every phone - even when the
-/// app's shell has removed the screen's own bottom inset.
+/// and the home indicator on an iPhone (inset + 8 dp above the standard
+/// 16 dp), and on Android just 16 dp above the bottom edge of the content
+/// (WhatsApp) - gesture navigation, no extra lift; the 3-button bar is cleared.
+/// The app's shell hands the page no bottom inset, as in the app.
 void main() {
   setUpAll(initializeDateFormatting);
 
-  // (name, logical size, device bottom inset)
-  const phones = <(String, Size, double)>[
-    ('iPhone 17 Pro Max', Size(440, 956), 34),
-    ('iPhone SE (home button)', Size(375, 667), 0),
-    ('small iPhone 13 mini', Size(375, 812), 34),
-    ('Android gesture bar', Size(360, 800), 24),
+  // (name, platform, logical size, device bottom inset, expected gap)
+  const phones = <(String, TargetPlatform, Size, double, double)>[
+    ('iPhone 17 Pro Max', TargetPlatform.iOS, Size(440, 956), 34, 34 + 16 + 8),
+    ('iPhone SE (home button)', TargetPlatform.iOS, Size(375, 667), 0, 16 + 8),
+    (
+      'Android gesture navigation (S25 Ultra)',
+      TargetPlatform.android,
+      Size(412, 915),
+      24,
+      16,
+    ),
+    (
+      'Android gesture navigation, thin handle',
+      TargetPlatform.android,
+      Size(360, 800),
+      16,
+      16,
+    ),
+    (
+      'Android 3-button navigation',
+      TargetPlatform.android,
+      Size(360, 800),
+      48,
+      48 + 16,
+    ),
+    ('Android without an inset', TargetPlatform.android, Size(360, 640), 0, 16),
   ];
 
-  for (final (name, size, inset) in phones) {
-    testWidgets('new-chat button clears the bottom inset ($name)',
-        (tester) async {
+  for (final (name, platform, size, inset, gap) in phones) {
+    testWidgets('new-chat button position ($name)', (tester) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       tester.view.viewPadding = FakeViewPadding(bottom: inset);
@@ -63,11 +84,22 @@ void main() {
       final t = L10nTranslator(language: AppLanguage.ru, cache: const {});
       await tester.pumpWidget(
         uxApp(
-          const InboxScreen(),
-          theme: AppTheme.light(),
+          // The shell strips the bottom inset from its pages.
+          Builder(
+            builder: (context) {
+              final media = MediaQuery.of(context);
+              return MediaQuery(
+                data: media.copyWith(
+                  padding: media.padding.copyWith(bottom: 0),
+                  viewPadding: media.viewPadding.copyWith(bottom: 0),
+                ),
+                child: const InboxScreen(),
+              );
+            },
+          ),
+          theme: AppTheme.light().copyWith(platform: platform),
           size: size,
           disableAnimations: true,
-          // The shell hands the page no bottom inset (padding zero).
           overrides: uxOverrides(
             translator: t,
             extra: [
@@ -83,11 +115,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final fab = tester.getRect(find.byKey(const ValueKey('chats-new-chat')));
-      final gap = size.height - fab.bottom;
-      // At least the Scaffold's 16 + the lift above the device inset.
-      expect(gap, greaterThanOrEqualTo(inset + 16 + AppSpacing.sm - 0.5));
-      // The same gap above the safe area on every phone.
-      expect(gap - inset, closeTo(16 + AppSpacing.sm, 0.5));
+      expect(size.height - fab.bottom, closeTo(gap, 0.5));
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(minutes: 5));
     });

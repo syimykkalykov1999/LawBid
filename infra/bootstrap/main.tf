@@ -1,7 +1,7 @@
 # One-time prerequisites of infra/envs/prod (infra/README.md «Prerequisites»),
 # run once from the owner's Mac before the first prod apply:
 #   - S3 bucket + DynamoDB table for the prod Terraform state and lock
-#   - ECR repositories lawbid-api / lawbid-admin / lawbid-clamav (a copy of
+#   - ECR repositories lawbid-api / lawbid-admin / lawbid-clamav / lawbid-pgbouncer (clamav: a copy of
 #     the official ClamAV image: Fargate never pulls from Docker Hub, whose
 #     anonymous pull limit would stall a scale-out)
 #   - ACM certificate for api.<domain> and admin.<domain> (DNS validation:
@@ -28,6 +28,16 @@ variable "github_repo" {
   type        = string
   default     = "syimykkalykov1999/LawBid"
   description = "owner/name of the repository whose Actions may deploy."
+}
+variable "github_repo_immutable" {
+  type        = string
+  default     = "syimykkalykov1999@91685781/LawBid@1400978845"
+  description = "The repository has use_immutable_subject on: GitHub signs OIDC tokens as repo:<owner>@<owner_id>/<repo>@<repo_id>:... (gh api repos/OWNER/REPO/actions/oidc/customization/sub)."
+}
+variable "deploy_trust_main_branch" {
+  type        = bool
+  default     = true
+  description = "S4-9: also trust plain main-branch workflow runs (no GitHub environment) for the deploy role. true = today's behaviour. false = only jobs that declare environment: production (approval gate) can assume it; first add `environment: production` to deploy.yml build, web-deploy, seo-deploy and self-check."
 }
 variable "env" {
   type    = string
@@ -75,7 +85,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "tfstate" {
 resource "aws_s3_bucket_server_side_encryption_configuration" "tfstate" {
   bucket = aws_s3_bucket.tfstate.id
   rule {
-    apply_server_side_encryption_by_default { sse_algorithm = "aws:kms" }
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+      # S4-14: a customer-managed key only while the replica is on (state-replica.tf).
+      kms_master_key_id = var.state_replica_enabled ? aws_kms_key.state[0].arn : null
+    }
   }
 }
 
@@ -99,7 +113,7 @@ resource "aws_dynamodb_table" "tflock" {
 
 # --- Container images ----------------------------------------------------------
 resource "aws_ecr_repository" "app" {
-  for_each             = toset(["lawbid-api", "lawbid-admin", "lawbid-clamav"])
+  for_each             = toset(["lawbid-api", "lawbid-admin", "lawbid-clamav", "lawbid-pgbouncer"])
   name                 = each.key
   image_tag_mutability = "IMMUTABLE"
   image_scanning_configuration { scan_on_push = true }
@@ -113,7 +127,7 @@ resource "aws_ecr_repository" "app" {
 # newest 60 images of api / admin (≈ a week of heavy merging, about $2/month),
 # 5 of ClamAV (one fixed tag, `1.4`). ≈ $0.10/GB-month.
 locals {
-  ecr_keep = { "lawbid-api" = 60, "lawbid-admin" = 60, "lawbid-clamav" = 5 }
+  ecr_keep = { "lawbid-api" = 60, "lawbid-admin" = 60, "lawbid-clamav" = 5, "lawbid-pgbouncer" = 5 }
 }
 
 resource "aws_ecr_lifecycle_policy" "app" {
@@ -164,16 +178,27 @@ data "aws_iam_policy_document" "deploy_trust" {
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
-    # main-branch builds and the `production` environment jobs only.
+    # `production` environment jobs always; main-branch jobs (image build,
+    # web deploy, self-check ...) only while deploy_trust_main_branch is true.
+    # S4-9: with the main-branch line a push to main reaches the powerful
+    # ECS permissions below WITHOUT the production approval. Set it to false
+    # once every workflow that uses AWS_DEPLOY_ROLE_PROD declares
+    # `environment: production` (docs/runbooks/infra-hardening.md).
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_repo}:ref:refs/heads/main",
-        "repo:${var.github_repo}:environment:production",
-        "repo:${lower(var.github_repo)}:ref:refs/heads/main",
-        "repo:${lower(var.github_repo)}:environment:production",
-      ]
+      values = concat(
+        [
+          "repo:${var.github_repo}:environment:production",
+          "repo:${lower(var.github_repo)}:environment:production",
+          "repo:${var.github_repo_immutable}:environment:production",
+        ],
+        var.deploy_trust_main_branch ? [
+          "repo:${var.github_repo}:ref:refs/heads/main",
+          "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+          "repo:${var.github_repo_immutable}:ref:refs/heads/main",
+        ] : []
+      )
     }
   }
 }
@@ -196,14 +221,33 @@ data "aws_iam_policy_document" "deploy" {
     ]
     resources = [for r in aws_ecr_repository.app : r.arn]
   }
+  # S4-9: ECS actions limited to this environment's services, task-definition
+  # families and cluster (everything is named lawbid-<env>...). A rogue
+  # task definition for another family or cluster cannot be registered or run.
   statement {
-    actions = [
-      "ecs:DescribeTaskDefinition", "ecs:RegisterTaskDefinition",
-      "ecs:DescribeServices", "ecs:UpdateService",
-      "ecs:RunTask", "ecs:DescribeTasks",
-      "ec2:DescribeSubnets", "ec2:DescribeSecurityGroups",
-    ]
-    resources = ["*"]
+    actions   = ["ecs:DescribeTaskDefinition", "ec2:DescribeSubnets", "ec2:DescribeSecurityGroups"]
+    resources = ["*"] # no resource-level permission exists for these
+  }
+  statement {
+    actions   = ["ecs:RegisterTaskDefinition"]
+    resources = ["*"] # RegisterTaskDefinition cannot be scoped; iam:PassRole below is what bounds it
+  }
+  statement {
+    actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
+    resources = ["arn:aws:ecs:*:${local.account}:service/${local.name}/*"]
+  }
+  statement {
+    actions   = ["ecs:RunTask"]
+    resources = ["arn:aws:ecs:*:${local.account}:task-definition/${local.name}-*:*"]
+    condition {
+      test     = "ArnLike"
+      variable = "ecs:cluster"
+      values   = ["arn:aws:ecs:*:${local.account}:cluster/${local.name}"]
+    }
+  }
+  statement {
+    actions   = ["ecs:DescribeTasks"]
+    resources = ["arn:aws:ecs:*:${local.account}:task/${local.name}/*"]
   }
   statement {
     actions   = ["iam:PassRole"]
@@ -241,10 +285,10 @@ output "deploy_role_arn" { value = aws_iam_role.deploy.arn }
 # Owner 2026-10-16: the `sub` values the deploy role trusts, to compare with the
 # real one printed by the "Show the OIDC claims" step of the Deploy workflow.
 output "deploy_trust_sub" {
-  value = [
-    "repo:${var.github_repo}:ref:refs/heads/main",
-    "repo:${var.github_repo}:environment:production",
-  ]
+  value = concat(
+    var.deploy_trust_main_branch ? ["repo:${var.github_repo}:ref:refs/heads/main"] : [],
+    ["repo:${var.github_repo}:environment:production"],
+  )
 }
 
 # --- AWS inventory / cleanup roles (AWS cleanup audit 2026-10-23) --------------
@@ -275,6 +319,7 @@ data "aws_iam_policy_document" "inventory_trust" {
       values = [
         "repo:${var.github_repo}:ref:refs/heads/main",
         "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
       ]
     }
   }
@@ -321,6 +366,7 @@ data "aws_iam_policy_document" "cleanup_trust" {
       values = [
         "repo:${var.github_repo}:environment:aws-cleanup",
         "repo:${lower(var.github_repo)}:environment:aws-cleanup",
+        "repo:${var.github_repo_immutable}:environment:aws-cleanup",
       ]
     }
   }
@@ -374,6 +420,94 @@ data "aws_iam_policy_document" "cleanup" {
 resource "aws_iam_role_policy" "cleanup" {
   role   = aws_iam_role.cleanup.name
   policy = data.aws_iam_policy_document.cleanup.json
+}
+
+# --- Terraform drift check role (P1, 2026-10-24) --------------------------------
+# Used ONLY by the nightly workflow "Terraform drift" (terraform plan, never
+# apply). Read-only on the account (AWS ReadOnlyAccess) + read of the prod state
+# and of the secrets Terraform refreshes. Trusted from the main branch only
+# (scheduled runs always run on the default branch). It has NO write permission
+# anywhere: the S3 state bucket is read-only (explicit Deny on writes) and the
+# plan runs with -lock=false, so it needs nothing on the lock table.
+data "aws_iam_policy_document" "plan_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = [
+        "repo:${var.github_repo}:ref:refs/heads/main",
+        "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "plan" {
+  name                 = "${local.name}-github-plan"
+  assume_role_policy   = data.aws_iam_policy_document.plan_trust.json
+  max_session_duration = 3600
+}
+
+resource "aws_iam_role_policy_attachment" "plan_readonly" {
+  role       = aws_iam_role.plan.name
+  policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
+}
+
+resource "aws_iam_role_policy" "plan" {
+  role = aws_iam_role.plan.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadPlanState"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = [aws_s3_bucket.tfstate.arn, "${aws_s3_bucket.tfstate.arn}/prod/*"]
+      },
+      {
+        Sid      = "DecryptState"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+        Condition = {
+          StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" }
+        }
+      },
+      {
+        # The prod tfvars backup, and the secret values Terraform refreshes.
+        # The same values are already in the state this role may read.
+        Sid      = "ReadProdSecrets"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*"
+      },
+      {
+        Sid    = "NeverWriteState"
+        Effect = "Deny"
+        Action = [
+          "s3:PutObject", "s3:DeleteObject", "s3:DeleteObjectVersion",
+          "s3:PutObjectAcl", "s3:PutBucketPolicy", "s3:PutBucketVersioning",
+        ]
+        Resource = [aws_s3_bucket.tfstate.arn, "${aws_s3_bucket.tfstate.arn}/*"]
+      },
+    ]
+  })
+}
+
+output "plan_role_arn" {
+  description = "Repository secret AWS_PLAN_ROLE (workflow `Terraform drift`)."
+  value       = aws_iam_role.plan.arn
 }
 
 output "inventory_role_arn" {

@@ -76,6 +76,7 @@ class _SavedChatsViewState extends ConsumerState<SavedChatsView> {
               AppSpacing.sm,
             ),
             child: AppTextField(
+              compact: true,
               controller: _search,
               leading: const AppIcon(AppIcons.searchRounded),
               hintText: t.t('saved.search'),

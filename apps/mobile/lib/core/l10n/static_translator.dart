@@ -34,6 +34,7 @@ import 'package:lawbid/core/l10n/strings/feed_fresh_strings.dart';
 import 'package:lawbid/core/l10n/strings/file05_strings.dart';
 import 'package:lawbid/core/l10n/strings/file06_strings.dart';
 import 'package:lawbid/core/l10n/strings/file07_strings.dart';
+import 'package:lawbid/core/l10n/strings/file_views_strings.dart';
 import 'package:lawbid/core/l10n/strings/forward_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_calls_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_strings.dart';
@@ -553,6 +554,8 @@ class StaticTranslatorRu extends _MapTranslator {
             'Срок действия лицензии в штате {state} истекает {date}. Обновите данные.',
         'notif.verification.license_expired':
             'Срок действия лицензии в штате {state} истёк. Кейсы этого штата больше не показываются.',
+        'notif.verification.license_renewal_due':
+            'Срок лицензии в штате {state} истёк {date}. Продлите её в течение {days} дней, чтобы вернуть галочку. Аккаунт продолжает работать.',
         'notif.verification.profile_unverified':
             'У вас не осталось действующих лицензий. Подайте новую заявку на верификацию.',
         'notif.verification.in_review':
@@ -1214,6 +1217,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...inviteRu,
         ...qrRu,
         ...caseDossierRu,
+        ...fileViewsRu,
         ...trustRu,
         ...legalRu,
         ...clientFraudRu,
@@ -2011,6 +2015,8 @@ class StaticTranslatorEn extends _MapTranslator {
             'Your {state} license expires on {date}. Please update your details.',
         'notif.verification.license_expired':
             'Your {state} license has expired. Cases in this state are no longer shown.',
+        'notif.verification.license_renewal_due':
+            'Your {state} license expired on {date}. Renew it within {days} days to restore your badge. Your account keeps working.',
         'notif.verification.profile_unverified':
             'You have no active licenses left. Please submit a new verification request.',
         'notif.verification.in_review':
@@ -2664,6 +2670,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...inviteEn,
         ...qrEn,
         ...caseDossierEn,
+        ...fileViewsEn,
         ...trustEn,
         ...legalEn,
         ...clientFraudEn,

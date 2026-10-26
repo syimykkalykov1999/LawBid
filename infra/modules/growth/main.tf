@@ -7,7 +7,11 @@
 #                       profiles / feeds move to them with DATABASE_REPLICA_URL)
 #   db_proxy_enabled    RDS Proxy: thousands of app connections share a few
 #                       hundred database connections, fast failover
-#   opensearch_enabled  an OpenSearch domain for the search engine step
+#   opensearch_enabled  an OpenSearch domain for the search engine step. The
+#                       app finds it by itself (OPENSEARCH_URL is set on the
+#                       tasks by modules/stack) and uses it only when the admin
+#                       sets «search.engine» to shadow / engine.
+#                       Sizing and alarms: docs/architecture/SEARCH_READY.md.
 #   event_loop alarm    "a Node process is saturated" (metric written by the app)
 terraform {
   required_providers {
@@ -27,6 +31,16 @@ variable "tasks_security_group_id" { type = string }
 variable "alerts_topic_arn" {
   type    = string
   default = null
+}
+variable "alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the alarms (alerts_topic_arn is unknown until the topic exists, so count and for_each cannot use it)."
+}
+variable "has_source_db" {
+  type        = bool
+  default     = false
+  description = "A primary database exists (rds_source_identifier can be unknown at plan time on a fresh stack)."
 }
 
 # --- read replicas ------------------------------------------------------------
@@ -106,7 +120,7 @@ data "aws_caller_identity" "current" {}
 
 # ===== read replicas ==========================================================
 resource "aws_db_instance" "replica" {
-  count               = var.rds_source_identifier != "" ? var.rds_read_replicas : 0
+  count               = var.has_source_db ? var.rds_read_replicas : 0
   identifier          = "${var.name}-postgres-replica-${count.index + 1}"
   replicate_source_db = var.rds_source_identifier
   instance_class      = var.rds_replica_instance_class != "" ? var.rds_replica_instance_class : var.rds_primary_instance_class
@@ -255,8 +269,11 @@ resource "aws_security_group" "opensearch" {
   tags = var.tags
 }
 
-# VPC-only domain: the network (security group above) is the gate; the
-# resource policy allows the account, like the AWS console's "VPC access".
+# VPC-only domain: the network (security group above, tasks only) is the gate,
+# like the AWS console's "VPC access" template. The resource policy therefore
+# lets any caller INSIDE that network in without request signing, because the
+# app talks plain HTTPS (no SigV4 signing in the API image); anything outside
+# the security group never reaches the domain at all.
 resource "aws_opensearch_domain" "search" {
   count          = var.opensearch_enabled ? 1 : 0
   domain_name    = "${var.name}-search"
@@ -297,17 +314,72 @@ resource "aws_opensearch_domain" "search" {
     Version = "2012-10-17"
     Statement = [{
       Effect    = "Allow"
-      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
-      Action    = "es:*"
+      Principal = { AWS = "*" }
+      Action    = "es:ESHttp*"
       Resource  = "arn:aws:es:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:domain/${var.name}-search/*"
     }]
   })
+  # Auto-Tune adjusts JVM / queue sizes to the load by itself; AWS does not
+  # offer it on the burstable t-class nodes.
+  dynamic "auto_tune_options" {
+    for_each = startswith(var.opensearch_instance_type, "t") ? [] : [1]
+    content {
+      desired_state       = "ENABLED"
+      rollback_on_disable = "NO_ROLLBACK"
+    }
+  }
   tags = var.tags
+}
+
+# ---- engine alarms --------------------------------------------------------
+# A provisioned domain does NOT add or remove nodes by itself. The signals
+# below say "make it one size bigger" (opensearch_instance_type / _count /
+# _volume_gb in tfvars, one apply; the app answers from Postgres while a node
+# is replaced). The pay-per-use alternative, OpenSearch Serverless, was
+# rejected in docs/architecture/SEARCH_READY.md (price floor, request signing).
+locals {
+  opensearch_alarms = var.opensearch_enabled && var.alarms_enabled ? {
+    cpu = {
+      metric = "CPUUtilization", stat = "Average", op = "GreaterThanThreshold", threshold = 70, periods = 15
+      text   = "The search engine processor is above 70 % for 15 minutes: raise opensearch_instance_type (or opensearch_instance_count) in growth."
+    }
+    jvm = {
+      metric = "JVMMemoryPressure", stat = "Maximum", op = "GreaterThanThreshold", threshold = 85, periods = 10
+      text   = "The search engine memory pressure is above 85 % for 10 minutes: raise opensearch_instance_type in growth (more memory)."
+    }
+    storage = {
+      metric = "FreeStorageSpace", stat = "Minimum", op = "LessThanThreshold", threshold = var.opensearch_volume_gb * 1024 * 0.25, periods = 5
+      text   = "The search engine has less than 25 % of its disk free: raise opensearch_volume_gb in growth."
+    }
+    red = {
+      metric = "ClusterStatus.red", stat = "Maximum", op = "GreaterThanOrEqualToThreshold", threshold = 1, periods = 5
+      text   = "The search engine cluster is red (an index is missing). The app answers from Postgres meanwhile; run node dist/src/cli/search-reindex.js --recreate."
+    }
+  } : {}
+}
+
+resource "aws_cloudwatch_metric_alarm" "opensearch" {
+  for_each            = local.opensearch_alarms
+  alarm_name          = "${var.name}-search-${each.key}"
+  alarm_description   = each.value.text
+  namespace           = "AWS/ES"
+  metric_name         = each.value.metric
+  dimensions          = { DomainName = "${var.name}-search", ClientId = data.aws_caller_identity.current.account_id }
+  statistic           = each.value.stat
+  period              = 60
+  evaluation_periods  = each.value.periods
+  datapoints_to_alarm = each.value.periods
+  threshold           = each.value.threshold
+  comparison_operator = each.value.op
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alerts_topic_arn]
+  tags                = var.tags
+  depends_on          = [aws_opensearch_domain.search]
 }
 
 # ===== runtime alarm ==========================================================
 resource "aws_cloudwatch_metric_alarm" "event_loop" {
-  for_each            = var.event_loop_p99_alarm_ms > 0 && var.alerts_topic_arn != null ? toset(["api", "worker"]) : toset([])
+  for_each            = var.event_loop_p99_alarm_ms > 0 && var.alarms_enabled ? toset(["api", "worker"]) : toset([])
   alarm_name          = "${var.name}-${each.key}-event-loop-lag"
   alarm_description   = "A ${each.key} process answers late (event loop p99 above ${var.event_loop_p99_alarm_ms} ms for 10 minutes): CPU work on the main thread or an overloaded task. Look at LawBid/Runtime."
   namespace           = "LawBid/Runtime"
@@ -326,7 +398,7 @@ resource "aws_cloudwatch_metric_alarm" "event_loop" {
 
 # The signal for the first database step: the database processor stays high.
 resource "aws_cloudwatch_metric_alarm" "db_cpu" {
-  count               = var.rds_source_identifier != "" && var.alerts_topic_arn != null ? 1 : 0
+  count               = var.has_source_db && var.alarms_enabled ? 1 : 0
   alarm_name          = "${var.name}-db-cpu"
   alarm_description   = "The database processor is above 70 % for 15 minutes: move the database one size up (admin Экономика → Увеличить) or add a read replica (growth.rds_read_replicas)."
   namespace           = "AWS/RDS"
@@ -346,3 +418,6 @@ resource "aws_cloudwatch_metric_alarm" "db_cpu" {
 output "replica_endpoints" { value = aws_db_instance.replica[*].address }
 output "db_proxy_endpoint" { value = one(aws_db_proxy.this[*].endpoint) }
 output "opensearch_endpoint" { value = one(aws_opensearch_domain.search[*].endpoint) }
+# Index replicas for the app (OPENSEARCH_REPLICAS): one copy per index once
+# there are two or more nodes, none on a single node.
+output "opensearch_replicas" { value = var.opensearch_instance_count > 1 ? 1 : 0 }

@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { notAvailable } from '../countries/countries.service';
+import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { CasePhotosService } from './services/case-photos.service';
 import {
   BadRequestException,
@@ -57,6 +59,8 @@ import { CaseJournalService } from '../journal/case-journal.service';
 import { ReferralsService } from '../referrals/referrals.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { privateDetailsAad } from '../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import {
   MY_CASES_PAGE_DEFAULT,
   type CreateCaseDto,
@@ -71,6 +75,10 @@ import type {
   CasePage,
   CaseSummaryDto,
 } from './dto/case-responses.dto';
+import {
+  CrossFamilyOutbox,
+  type OutboxTicket,
+} from '../../sharding/outbox/cross-family-outbox';
 
 /** docs/04 §11.1 tab filters -> case_status values. */
 const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
@@ -257,6 +265,7 @@ function toCaseDto(
     status: kase.status,
     viewCount: kase.view_count,
     bidsCount: kase.bids_count,
+    version: kase.version,
     createdAt: kase.created_at.toISOString(),
     lastActivityAt: kase.last_activity_at.toISOString(),
     archivedAt: kase.archived_at?.toISOString() ?? null,
@@ -372,7 +381,37 @@ export class CasesService {
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
     // publish; the case text is a repeat-account signal.
     @Optional() private readonly fraud?: ClientFraudService,
+    // Shard-ready step 7: cross-family writes ride the outbox.
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Owner 2026-10-25: cases per day against scripts.
+    @Optional() private readonly limits?: UsageLimitsService,
+    // S3-5: «Личные данные» are stored sealed.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
+
+  /** The client's private details as plain text (legacy rows are plain). */
+  private openDetails(stored: string | null, caseId: string): string | null {
+    if (stored === null) return null;
+    return this.cipher?.openField(stored, privateDetailsAad(caseId)) ?? stored;
+  }
+
+  /** A case row with its private details opened, for the DTO builders. */
+  private withOpenDetails<
+    T extends { id: string; private_details: string | null },
+  >(kase: T): T {
+    return {
+      ...kase,
+      private_details: this.openDetails(kase.private_details, kase.id),
+    };
+  }
+
+  private async sealDetails(
+    plain: string | null,
+    caseId: string,
+  ): Promise<string | null> {
+    if (plain === null || !this.cipher) return plain;
+    return this.cipher.sealMetadata(plain, privateDetailsAad(caseId));
+  }
 
   /** POST /cases (§3.1–§3.4). */
   async create(
@@ -382,6 +421,7 @@ export class CasesService {
   ): Promise<CaseDto> {
     await this.assertClientReady(user.sub);
     await this.fraud?.assertNotRestricted(user.sub);
+    await this.limits?.consume('case_create', user.sub);
     await this.assertUnderCaseLimit(user.sub);
 
     assertNoContactInfo({
@@ -429,15 +469,23 @@ export class CasesService {
       });
     }
 
+    const tickets: Array<OutboxTicket | null> = [];
+    // S3-5: the id is chosen here so the sealed details are bound to it.
+    const newCaseId = randomUUID();
     const created = await withTxRetry(this.prisma, async (tx) => {
+      tickets.length = 0;
       const now = new Date();
       const kase = await tx.case.create({
         data: {
+          id: newCaseId,
           client_id: user.sub,
           title: dto.title,
           description: dto.description,
           // Owner 2026-10-18: private; empty means none.
-          private_details: dto.privateDetails?.trim() || null,
+          private_details: await this.sealDetails(
+            dto.privateDetails?.trim() || null,
+            newCaseId,
+          ),
           practice_area_id: dto.practiceAreaId,
           primary_state_code: dto.primaryStateCode,
           city: dto.city ?? null,
@@ -482,18 +530,39 @@ export class CasesService {
         },
       });
       if (!consentGranted) {
-        await tx.userConsent.create({
-          data: {
-            user_id: user.sub,
-            consent_type: 'client_contact_sharing',
-            granted: true,
-            ip: meta.ip ?? null,
-            device_id: meta.deviceId ?? null,
-          },
-        });
+        // Shard-ready step 7: the consent is a global-family row written
+        // next to a sharded one. On the primary database the outbox runs it
+        // right here in this transaction (as before); on another database it
+        // is an event applied on the primary one right after the commit.
+        if (this.outbox) {
+          tickets.push(
+            await this.outbox.emit(
+              tx,
+              'user.consent.record',
+              {
+                userId: user.sub,
+                consentType: 'client_contact_sharing',
+                ip: meta.ip ?? null,
+                deviceId: meta.deviceId ?? null,
+              },
+              `consent:client_contact_sharing:${user.sub}:${kase.id}`,
+            ),
+          );
+        } else {
+          await tx.userConsent.create({
+            data: {
+              user_id: user.sub,
+              consent_type: 'client_contact_sharing',
+              granted: true,
+              ip: meta.ip ?? null,
+              device_id: meta.deviceId ?? null,
+            },
+          });
+        }
       }
       return kase;
     });
+    await this.outbox?.flush(tickets);
     // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
     const alerts = this.alerts;
     alerts?.later(() => alerts.attorneysForCase(created.id));
@@ -510,7 +579,7 @@ export class CasesService {
 
     return toCaseDto(
       {
-        ...created,
+        ...this.withOpenDetails(created),
         practice_area: practiceArea,
         extra_practices: extraAreas.map((a) => ({ practice_area: a })),
         states: statesRows(states),
@@ -525,6 +594,7 @@ export class CasesService {
     user: RequestUser,
     caseId: string,
     dto: UpdateCaseDto,
+    expectedVersion?: number,
   ): Promise<CaseDto> {
     this.assertClientRole(user);
     if (Object.keys(dto).length === 0) {
@@ -620,8 +690,8 @@ export class CasesService {
       // Owner 2026-10-18: private details; the journal never gets the text.
       if (dto.privateDetails !== undefined) {
         const next = dto.privateDetails.trim() || null;
-        if (next !== current.private_details) {
-          extra.private_details = next;
+        if (next !== this.openDetails(current.private_details, caseId)) {
+          extra.private_details = await this.sealDetails(next, caseId);
           diff.privateDetailsChanged = {
             old: current.private_details !== null,
             new: next !== null,
@@ -731,6 +801,7 @@ export class CasesService {
         caseId,
         action: 'client_edit',
         extra,
+        expectedVersion,
       });
 
       if (extraAreas) {
@@ -808,7 +879,7 @@ export class CasesService {
     });
     return toCaseDto(
       {
-        ...updated,
+        ...this.withOpenDetails(updated),
         practice_area: finalPracticeArea,
         extra_practices: finalExtras,
         states: finalStates,
@@ -829,6 +900,7 @@ export class CasesService {
     user: RequestUser,
     caseId: string,
     dto: UrgencyInput,
+    expectedVersion?: number,
   ): Promise<CaseDto> {
     if (!hasUrgencyInput(dto)) {
       throw validationError('Send urgency, deadlineAt or deadlineKind.');
@@ -855,6 +927,7 @@ export class CasesService {
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: 'set_urgency',
+        expectedVersion,
         // OQ-054: only the client's own change counts as their activity.
         extra: isClient ? { ...extra, client_active_at: new Date() } : extra,
       });
@@ -911,6 +984,7 @@ export class CasesService {
     user: RequestUser,
     caseId: string,
     dto: UpdatePrivateDetailsDto,
+    expectedVersion?: number,
   ): Promise<CaseDto> {
     this.assertClientRole(user);
     const updated = await withTxRetry(this.prisma, async (tx) => {
@@ -928,13 +1002,17 @@ export class CasesService {
         throw caseNotFound();
       }
       const next = dto.privateDetails.trim() || null;
+      const changed =
+        next !== this.openDetails(current.private_details, caseId);
       const { case: afterCase, plan } = await this.caseMachine.apply(tx, {
         caseId,
         action: 'client_set_private_details',
-        extra:
-          next !== current.private_details ? { private_details: next } : {},
+        expectedVersion,
+        extra: changed
+          ? { private_details: await this.sealDetails(next, caseId) }
+          : {},
       });
-      if (next === current.private_details) return afterCase;
+      if (!changed) return afterCase;
       await this.journal.append(tx, {
         caseId,
         clientId: user.sub,
@@ -1375,7 +1453,7 @@ export class CasesService {
     ]);
     return toCaseDto(
       {
-        ...kase,
+        ...this.withOpenDetails(kase),
         practice_area: practiceArea,
         extra_practices: extras,
         states,

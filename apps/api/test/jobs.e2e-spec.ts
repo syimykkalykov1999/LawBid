@@ -1,6 +1,6 @@
 import type { INestApplicationContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { PrismaClient } from '@prisma/client';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { QueueEvents, type Job, type Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -24,7 +24,8 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
   // App boot + PostgreSQL fixtures exceed Jest's 5 s default under load.
   jest.setTimeout(60_000);
 
-  const prisma = new PrismaClient();
+  // The app's routed client (sees both databases in two-DB mode).
+  let prisma: PrismaService;
   const redis = new Redis(process.env.REDIS_URL as string);
   const fetcher = {
     body: '' as string | Error,
@@ -62,6 +63,7 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     const first = await boot();
     await boot();
     runner = first.get(JobsRunner);
+    prisma = first.get(PrismaService);
     events = new QueueEvents(CRON_QUEUE, {
       connection: { url: process.env.REDIS_URL, maxRetriesPerRequest: null },
     });
@@ -72,7 +74,6 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     await events.close();
     for (const app of apps) await app.close();
     await redis.quit();
-    await prisma.$disconnect();
   });
 
   it('registers each repeatable job exactly once across instances', async () => {

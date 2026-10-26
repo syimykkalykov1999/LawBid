@@ -8,6 +8,7 @@ import {
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 import { Prisma } from '@prisma/client';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
+import { readsAreSplit } from '../../sharding/split-reads';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   ftsMatch,
@@ -23,6 +24,8 @@ import { urgencyFilterSql } from '../cases/domain/case-urgency';
 import { budgetFilterSql } from '../cases/cases.public';
 import {
   buildPracticeCasesSql,
+  resolveFeedGlobals,
+  scatterFeed,
   buildVisibleCasesSql,
 } from '../cases/queries/cases-visible.sql';
 import type {
@@ -46,7 +49,16 @@ const SEARCH_BUDGET_MS = 700;
 /** Fewer whole-word matches than this: try the prefix too. */
 const MIN_EXACT = 3;
 
-/** LIKE pattern text with %, _ and \ taken literally. */
+/** Attorney-only filters leave clients out; state also fits clients. */
+export function attorneyOnly(f: AttorneySearchFilters): boolean {
+  return (
+    f.practiceAreaId !== undefined ||
+    f.minRating !== undefined ||
+    f.language !== undefined ||
+    f.role === 'attorney'
+  );
+}
+
 /**
  * Owner 2026-10-15: SQL condition "every word of [norm] starts a word of the
  * translated practice name or of its keywords" (accents and commas
@@ -163,18 +175,64 @@ export class PostgresSearchProvider implements SearchProvider {
     return rows.map((r) => r.id);
   }
 
+  async searchAttorneysAmong(
+    q: string,
+    f: AttorneySearchFilters,
+    max: number,
+    ids: string[],
+  ): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.people(q, f, max, false, ids);
+    return rows.map((r) => r.id);
+  }
+
   searchPeople(
     q: string,
     f: AttorneySearchFilters,
     max: number,
   ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
-    // Attorney-only filters leave clients out; state also fits clients.
-    const attorneyOnly =
-      f.practiceAreaId !== undefined ||
-      f.minRating !== undefined ||
-      f.language !== undefined ||
-      f.role === 'attorney';
-    return this.people(q, f, max, !attorneyOnly);
+    return this.people(q, f, max, !attorneyOnly(f));
+  }
+
+  /** Search-engine step: the engine found the candidate [ids]; filters,
+   * tiers and ranking are decided here, exactly as in [searchPeople]. */
+  async searchPeopleAmong(
+    q: string,
+    f: AttorneySearchFilters,
+    max: number,
+    ids: string[],
+  ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
+    if (ids.length === 0) return [];
+    return this.people(q, f, max, !attorneyOnly(f), ids);
+  }
+
+  /** Practices whose name in any language contains [q] (search-engine step). */
+  async practicesNamed(q: string): Promise<string[]> {
+    const out: string[] = [];
+    for (const [id, names] of await this.practiceAreaNames()) {
+      if (names.some((n) => n.includes(q))) out.push(id);
+    }
+    return out;
+  }
+
+  /** Practices the query's everyday words point at (search-engine step). */
+  async synonymPractices(q: string): Promise<string[]> {
+    return (await this.synonyms?.resolve(q))?.practiceIds ?? [];
+  }
+
+  /** Spelling keys of typed words (name skeleton and consonants), so the
+   * engine can match names across alphabets the way Postgres does. */
+  async nameKeys(words: string[]): Promise<{ skel: string; cons: string }[]> {
+    if (words.length === 0) return [];
+    const rows = await this.db.$queryRaw<
+      { w: string; skel: string; cons: string }[]
+    >`
+      SELECT w, public.f_name_skel(w) AS skel, public.f_name_cons(w) AS cons
+      FROM unnest(${words}::TEXT[]) AS w`;
+    return words.map((w) => {
+      const r = rows.find((x) => x.w === w);
+      return { skel: r?.skel ?? '', cons: r?.cons ?? '' };
+    });
   }
 
   /**
@@ -188,6 +246,7 @@ export class PostgresSearchProvider implements SearchProvider {
     f: AttorneySearchFilters,
     max: number,
     withClients: boolean,
+    among?: string[],
   ): Promise<{ id: string; role: PersonRole; tier: PersonTier }[]> {
     const w = await this.weights();
     const prefix = `${escapeLike(q)}%`;
@@ -246,7 +305,10 @@ export class PostgresSearchProvider implements SearchProvider {
         SELECT u.id, 'client' AS role, c.username_lower AS uname,
                u.full_name_lower AS fname, FALSE AS verified,
                0::DECIMAL AS rating, FALSE AS priority
-        FROM (
+        FROM (${
+          among
+            ? Prisma.sql`SELECT unnest(${among}::UUID[]) AS user_id`
+            : Prisma.sql`
           (SELECT user_id FROM client_profiles
             WHERE username_lower IS NOT NULL
               AND (username_lower LIKE ${prefix} OR username_lower % ${q})
@@ -259,8 +321,8 @@ export class PostgresSearchProvider implements SearchProvider {
           UNION
           (SELECT id AS user_id FROM users
             WHERE full_name_lower IS NOT NULL AND role = 'client' AND ${byName}
-            LIMIT ${BRANCH_CAP})
-        ) cc
+            LIMIT ${BRANCH_CAP})`
+        }) cc
         JOIN users u ON u.id = cc.user_id AND u.role = 'client'
           AND u.status = 'active' AND u.deleted_at IS NULL
         JOIN client_profiles c ON c.user_id = u.id
@@ -270,7 +332,10 @@ export class PostgresSearchProvider implements SearchProvider {
     const rows = await this.db.$queryRaw<
       { id: string; role: PersonRole; tier: number }[]
     >`
-      WITH cand AS (
+      WITH cand AS (${
+        among
+          ? Prisma.sql`SELECT unnest(${among}::UUID[]) AS id`
+          : Prisma.sql`
         (SELECT user_id AS id FROM attorney_profiles
           WHERE username_lower IS NOT NULL
             AND (username_lower LIKE ${prefix} OR username_lower % ${q})
@@ -296,7 +361,8 @@ export class PostgresSearchProvider implements SearchProvider {
             AND l.license_status = 'verified'
           WHERE lower(s.name) LIKE ${prefix} OR lower(s.code) = ${q}
           LIMIT ${BRANCH_CAP})
-        ${bySynonym}
+        ${bySynonym}`
+      }
       ),
       people AS (
         SELECT u.id, 'attorney' AS role, a.username_lower AS uname,
@@ -354,6 +420,11 @@ export class PostgresSearchProvider implements SearchProvider {
           ${p.noBids ? Prisma.sql`AND c.bids_count = 0` : Prisma.empty}
           ${urgencyFilterSql(p.minUrgency, p.hasDeadline, p.urgencyThresholds)}
           ${p.extraSql ?? Prisma.empty}`;
+    // Shard-ready step 8: several databases -> global parts resolved first,
+    // the case-only statement runs on each database (see cases-visible.sql.ts).
+    if (readsAreSplit(this.db)) {
+      return this.searchCasesSplit(q, p, extra, textPractices, this.budgetNow);
+    }
     // Audit 2026-10-01: a qualification in search works like the feed's
     // topic — any qualification (category → its subcategories) in the
     // attorney's licensed states, not only their own practices.
@@ -389,12 +460,86 @@ export class PostgresSearchProvider implements SearchProvider {
     );
   }
 
+  /** The time budget of the call in progress (set by [budget], read on
+   * entry of [searchCases]; both run in the same synchronous step). */
+  private budgetNow: { ms: number; trigram: string } | null = null;
+
+  private async searchCasesSplit(
+    q: string,
+    p: CaseSearchParams,
+    extra: Prisma.Sql,
+    textPractices: string[],
+    budget: { ms: number; trigram: string } | null,
+  ): Promise<{ id: string; created_at: Date }[]> {
+    const globals = await resolveFeedGlobals(this.db, p.attorneyId, {
+      practiceCategory: p.practiceCategory,
+      practice: p.practiceCategory,
+    });
+    const sql = p.practiceCategory
+      ? buildPracticeCasesSql({
+          globals,
+          attorneyId: p.attorneyId,
+          practice: p.practiceCategory,
+          state: p.state,
+          cursor: p.cursor,
+          limit: p.limit + 1,
+          text: q,
+          textPrefix: !p.textExact,
+          textPractices,
+          since: p.since,
+          extra,
+        })
+      : buildVisibleCasesSql({
+          globals,
+          attorneyId: p.attorneyId,
+          practiceAreaId: p.practiceAreaId,
+          state: p.state,
+          cursor: p.cursor,
+          limit: p.limit + 1,
+          text: q,
+          textPrefix: !p.textExact,
+          textPractices,
+          since: p.since,
+          extra,
+        });
+    return scatterFeed(this.db, sql, p.limit + 1, budget ?? undefined);
+  }
+
   async searchPosts(
     q: string,
     max: number,
     f: PostSearchFilters = {},
   ): Promise<string[]> {
     const w = await this.weights();
+    const run = this.postRunner(q, max, f, w);
+    return this.searchPostsWith(q, run);
+  }
+
+  /** Search-engine step: the engine found [ids]; the same filters, access
+   * rules and ordering as [searchPosts] decide what is shown. */
+  async searchPostsAmong(
+    q: string,
+    max: number,
+    f: PostSearchFilters,
+    ids: string[],
+  ): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const w = await this.weights();
+    const rows = await this.postRunner(
+      q,
+      max,
+      f,
+      w,
+    )(Prisma.sql`p.id = ANY(${ids}::UUID[])`);
+    return rows.map((r) => r.id);
+  }
+
+  private postRunner(
+    q: string,
+    max: number,
+    f: PostSearchFilters,
+    w: Awaited<ReturnType<PostgresSearchProvider['weights']>>,
+  ): (match: Prisma.Sql) => Promise<{ id: string }[]> {
     const where = Prisma.sql`
       ${
         // Audit 2026-10-01: a qualification matches posts of it (and its
@@ -419,7 +564,7 @@ export class PostgresSearchProvider implements SearchProvider {
         : f.sort === 'popular'
           ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
           : Prisma.sql`${ftsRank('m', q, w.text)} DESC, m.created_at DESC, m.id DESC`;
-    const run = (match: Prisma.Sql) => this.db.$queryRaw<{ id: string }[]>`
+    return (match: Prisma.Sql) => this.db.$queryRaw<{ id: string }[]>`
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
         WHERE ${match}
@@ -436,6 +581,12 @@ export class PostgresSearchProvider implements SearchProvider {
           WHERE sa.user_id = p.author_id AND sa.verification_status = 'suspended')
       ORDER BY ${order}
       LIMIT ${max}`;
+  }
+
+  private async searchPostsWith(
+    q: string,
+    run: (match: Prisma.Sql) => Promise<{ id: string }[]>,
+  ): Promise<string[]> {
     // Whole words first (the planner estimates them well), then the last
     // word as a prefix ("immigr"), then typos; each within a time budget.
     const practiceIds = await this.practiceIdsFor(q);
@@ -459,6 +610,52 @@ export class PostgresSearchProvider implements SearchProvider {
       true,
     );
     return typo.map((r) => r.id);
+  }
+
+  /**
+   * Owner 2026-10-20: the same kinds of match as the main search — whole
+   * words (full text, accents ignored), typos (trigram word similarity on
+   * the title), plain substrings, and the topic the query's synonyms point
+   * at — over the title, the text and every published answer.
+   * (Moved here from LegalQaService unchanged: the Q&A search is a search.)
+   */
+  async searchQuestions(text: string): Promise<string[]> {
+    const topics = (await this.synonyms?.resolve(text))?.practiceIds ?? [];
+    const like = `%${escapeLike(text)}%`;
+    const rows = await this.db.$queryRaw<{ id: string }[]>`
+      SELECT q.id::TEXT AS id
+      FROM legal_questions q
+      WHERE q.status = 'published' AND q.deleted_at IS NULL
+        AND (
+          to_tsvector('simple', f_unaccent(q.title || ' ' || q.body))
+            @@ websearch_to_tsquery('simple', f_unaccent(${text}))
+          OR word_similarity(f_unaccent(lower(${text})), f_unaccent(lower(q.title))) > 0.45
+          OR q.title ILIKE ${like} OR q.body ILIKE ${like}
+          OR (${topics.length > 0} AND q.practice_area_id = ANY(${topics}::UUID[]))
+          OR EXISTS (
+            SELECT 1 FROM legal_answers a
+            WHERE a.question_id = q.id AND a.status = 'published'
+              AND a.deleted_at IS NULL
+              AND (to_tsvector('simple', f_unaccent(a.body))
+                     @@ websearch_to_tsquery('simple', f_unaccent(${text}))
+                   OR a.body ILIKE ${like}))
+        )
+      ORDER BY q.created_at DESC
+      LIMIT 500`;
+    return rows.map((r) => r.id);
+  }
+
+  /** Search-engine step: only questions that are still published, newest
+   * first (the order [searchQuestions] gives). */
+  async searchQuestionsAmong(ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db.$queryRaw<{ id: string }[]>`
+      SELECT q.id::TEXT AS id FROM legal_questions q
+      WHERE q.id = ANY(${ids}::UUID[])
+        AND q.status = 'published' AND q.deleted_at IS NULL
+      ORDER BY q.created_at DESC
+      LIMIT 500`;
+    return rows.map((r) => r.id);
   }
 
   /**
@@ -557,6 +754,19 @@ export class PostgresSearchProvider implements SearchProvider {
     query: () => Promise<T[]>,
     loose = false,
   ): Promise<T[]> {
+    if (readsAreSplit(this.db)) {
+      // The timeouts are applied per database inside searchCasesSplit.
+      this.budgetNow = { ms, trigram: loose ? TYPO_THRESHOLD : '0.6' };
+      try {
+        return await query();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '';
+        if (/statement timeout|57014/.test(msg)) return [];
+        throw e;
+      } finally {
+        this.budgetNow = null;
+      }
+    }
     try {
       const [, , result] = await this.db.$transaction([
         this.db
@@ -579,6 +789,32 @@ export class PostgresSearchProvider implements SearchProvider {
    * so a broad word stays fast; a typo falls back to the trigram index.
    * Same visibility and filters as [searchCases].
    */
+  /** Search-engine step: the engine found the candidate [ids]; the
+   * attorney's visibility rules (§4.1) and every filter still decide here,
+   * through the same SQL as [searchCasesRanked]. */
+  async searchCasesRankedAmong(
+    q: string,
+    p: Omit<CaseSearchParams, 'cursor' | 'limit'>,
+    max: number,
+    ids: string[],
+  ): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const w = await this.weights();
+    const rows = await this.searchCases('', {
+      ...p,
+      limit: CASE_CANDIDATES,
+      extraSql: Prisma.sql`${p.extraSql ?? Prisma.empty} AND c.id = ANY(${ids}::UUID[])`,
+    });
+    const found = rows.map((r) => r.id);
+    if (found.length === 0) return [];
+    const ranked = await this.db.$queryRaw<{ id: string }[]>`
+        SELECT c.id::TEXT AS id FROM cases c
+        WHERE c.id = ANY(${found}::UUID[])
+        ORDER BY ${ftsRank('c', q, w.text)} DESC, c.created_at DESC, c.id DESC
+        LIMIT ${max}`;
+    return ranked.map((r) => r.id);
+  }
+
   async searchCasesRanked(
     q: string,
     p: Omit<CaseSearchParams, 'cursor' | 'limit'>,

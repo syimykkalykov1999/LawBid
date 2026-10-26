@@ -78,8 +78,11 @@ Future<int?> showChoiceSheet(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.sizeOf(ctx).height * 0.7,
             ),
+            // Owner 2026-10-24: same place as before, only a little more
+            // room under the last row so it is not squeezed at the bottom.
             child: ListView(
               shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: AppSpacing.xl),
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(

@@ -1,3 +1,5 @@
+import { imageFormatContext } from './processing/image-format-context';
+import { avifSince } from './processing/image-processor';
 import {
   BLOCKING_STATUSES,
   isModeratedPurpose,
@@ -45,7 +47,10 @@ import {
   PRESIGN_TTL_SEC,
   PURPOSE_RULES,
   UPLOAD_INTENT_TTL_SEC,
+  newFileKey,
   variantKey,
+  avifKey,
+  AVIF_PURPOSES,
   type FileMime,
   isImageMime,
 } from './files.policy';
@@ -99,6 +104,7 @@ import { SecretsService } from '../../common/secrets/secrets.service';
 import { viewerContext } from '../../common/viewer/viewer-context';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { demoContext } from '../../common/demo/demo-context';
+import { FileAccessService } from './file-access.service';
 import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
 export interface SignedAttachment {
   url: string;
@@ -126,6 +132,8 @@ export class FilesService {
     @Optional() private readonly entitlements?: EntitlementsService,
     // Owner 2026-10-20: a hidden profile photo is not served to the viewer.
     @Optional() private readonly privacy?: PrivacySettingsService,
+    // Security & legal pass 2026-10-24: who opened a confidential file.
+    @Optional() private readonly access?: FileAccessService,
   ) {
     this.logger.setContext(FilesService.name);
   }
@@ -168,7 +176,16 @@ export class FilesService {
     if (dto.sizeBytes > maxBytes) {
       throw this.tooLarge(maxBytes);
     }
-    const bucket = this.storage.bucket(rule.bucket); // 503 if S3 is off
+    // 503 if S3 is off. Owner 2026-10-24: public media goes to R2 (a
+    // presigned PUT) only when the switch is on AND this app can do a PUT;
+    // an older app keeps getting the AWS POST. Private kinds: AWS always.
+    const resolved = await this.storage.resolveBucket(rule.bucket);
+    const bucket =
+      rule.bucket === 'media' &&
+      this.storage.isPublicStoreBucket(resolved) &&
+      !dto.supportsPut
+        ? this.storage.awsBucket('media')
+        : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
       await this.assertQuota(userId, dto.sizeBytes);
     }
@@ -188,6 +205,9 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    if (!QUOTA_FREE_PURPOSES.includes(dto.purpose)) {
+      await this.reserveDailyUpload(userId, dto.sizeBytes);
+    }
     await this.costGuard.consume('storage', 1, { userId });
     // Owner 2026-10-05 (demo mode): a demo account may upload a little
     // (settings demo.program.uploadQuotaMb) under its own key prefix, so
@@ -195,14 +215,19 @@ export class FilesService {
     await this.assertDemoQuota(userId, dto.sizeBytes);
 
     const fileId = randomUUID();
-    const key = `${demoKeyPrefix()}${dto.purpose}/${userId}/${fileId}`;
-    const upload = await this.storage.presignPost({
+    const key =
+      demoKeyPrefix() +
+      newFileKey({ purpose: dto.purpose, ownerId: userId, fileId });
+    const target = {
       bucket,
       key,
       contentType: dto.mime,
       size: dto.sizeBytes,
       expiresSec: PRESIGN_TTL_SEC,
-    });
+    };
+    const upload = this.storage.isPublicStoreBucket(bucket)
+      ? await this.storage.presignPut(target)
+      : await this.storage.presignPost(target);
     const intent: UploadIntent = {
       userId,
       purpose: dto.purpose,
@@ -426,10 +451,7 @@ export class FilesService {
     if ((await this.photoHiddenFrom([file.id])).has(file.id)) return none;
     const url = await this.mediaUrlOf(file);
     if (!url) return none;
-    const url256 =
-      file.width !== null
-        ? await this.mediaLink(file.s3_bucket, variantKey(file.s3_key, 256))
-        : null;
+    const url256 = file.width !== null ? await this.imageLink(file, 256) : null;
     return { url, url256 };
   }
 
@@ -479,9 +501,7 @@ export class FilesService {
         const url = await this.mediaUrlOf(file);
         if (!url) return;
         const url256 =
-          file.width !== null
-            ? await this.mediaLink(file.s3_bucket, variantKey(file.s3_key, 256))
-            : null;
+          file.width !== null ? await this.imageLink(file, 256) : null;
         out.set(file.id, { url, url256 });
       }),
     );
@@ -542,8 +562,7 @@ export class FilesService {
     for (const file of files) {
       const url = await this.mediaUrlOf(file);
       if (!url) continue;
-      const sign = (px: number) =>
-        this.mediaLink(file.s3_bucket, variantKey(file.s3_key, px));
+      const sign = (px: number) => this.imageLink(file, px);
       out.set(file.id, {
         url,
         previewUrl: await sign(320),
@@ -565,6 +584,30 @@ export class FilesService {
       if (url) out.set(file.id, url);
     }
     return out;
+  }
+
+  /**
+   * Security & legal pass 2026-10-24: how long a link to a confidential
+   * file lives (`files.confidential_url_ttl_sec`, default 15 min instead of
+   * the 1 h of public media). The app asks for a new link at every open and
+   * every caller re-checks access first, so removed access ends here.
+   */
+  private async confidentialTtl(): Promise<number> {
+    try {
+      const n = await this.settings.number('files.confidential_url_ttl_sec');
+      return Number.isFinite(n) ? Math.min(Math.max(n, 60), 3600) : 900;
+    } catch {
+      return 900;
+    }
+  }
+
+  /** Journal row for every confidential file handed to somebody other than
+   * its owner (best effort, never awaited by the caller). */
+  private noteViews(
+    files: { id: string; owner_user_id: string; purpose: string }[],
+  ): void {
+    if (!this.access || files.length === 0) return;
+    void this.access.recordViews(files);
   }
 
   /**
@@ -591,6 +634,8 @@ export class FilesService {
         deleted_at: null,
       },
     });
+    const ttl = await this.confidentialTtl();
+    this.noteViews(files);
     const byId = new Map(files.map((f) => [f.id, f]));
     const out: {
       fileId: string;
@@ -602,11 +647,7 @@ export class FilesService {
     for (const id of fileIds) {
       const f = byId.get(id);
       if (!f) continue;
-      const url = await this.storage.signedGetUrl(
-        f.s3_bucket,
-        f.s3_key,
-        MEDIA_SIGNED_URL_TTL_SEC,
-      );
+      const url = await this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl);
       out.push({
         fileId: f.id,
         url,
@@ -615,7 +656,7 @@ export class FilesService {
           ? await this.storage.signedGetUrl(
               f.s3_bucket,
               variantKey(f.s3_key, 320),
-              MEDIA_SIGNED_URL_TTL_SEC,
+              ttl,
             )
           : url,
         mime: f.mime,
@@ -638,15 +679,20 @@ export class FilesService {
         scan_status: 'clean',
         deleted_at: null,
       },
-      select: { id: true, s3_bucket: true, s3_key: true, mime: true },
+      select: {
+        id: true,
+        s3_bucket: true,
+        s3_key: true,
+        mime: true,
+        owner_user_id: true,
+        purpose: true,
+      },
     });
+    const ttl = await this.confidentialTtl();
+    this.noteViews(files);
     for (const f of files) {
       out.set(f.id, {
-        url: await this.storage.signedGetUrl(
-          f.s3_bucket,
-          f.s3_key,
-          MEDIA_SIGNED_URL_TTL_SEC,
-        ),
+        url: await this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl),
         mime: f.mime,
       });
     }
@@ -695,12 +741,14 @@ export class FilesService {
         deleted_at: null,
       },
     });
+    const ttl = await this.confidentialTtl();
+    this.noteViews(files);
     for (const f of files) {
       out.set(f.id, {
         url: await this.storage.signedGetUrl(
           f.s3_bucket,
           f.s3_key,
-          MEDIA_SIGNED_URL_TTL_SEC,
+          ttl,
           // Photos and videos play inline; documents save under the name.
           isImageMime(f.mime) || f.mime.startsWith('video/')
             ? undefined
@@ -710,7 +758,7 @@ export class FilesService {
           ? await this.storage.signedGetUrl(
               f.s3_bucket,
               variantKey(f.s3_key, 320),
-              MEDIA_SIGNED_URL_TTL_SEC,
+              ttl,
             )
           : null,
         mime: f.mime,
@@ -879,7 +927,14 @@ export class FilesService {
     }
     const maxBytes = await this.maxBytes(purpose);
     if (Number(src.size_bytes) > maxBytes) throw this.tooLarge(maxBytes);
-    const bucket = this.storage.bucket(rule.bucket);
+    // Owner 2026-10-24: bytes of a PRIVATE file (documents bucket) are never
+    // copied to R2, even when the new purpose is a public one.
+    const srcPrivate = PURPOSE_RULES[src.purpose].bucket === 'documents';
+    const resolved = await this.storage.resolveBucket(rule.bucket);
+    const bucket =
+      srcPrivate && this.storage.isPublicStoreBucket(resolved)
+        ? this.storage.awsBucket(rule.bucket)
+        : resolved;
     if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
       await this.assertQuota(userId, Number(src.size_bytes));
     }
@@ -923,9 +978,13 @@ export class FilesService {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    if (!QUOTA_FREE_PURPOSES.includes(purpose)) {
+      await this.reserveDailyUpload(userId, Number(src.size_bytes));
+    }
     await this.costGuard.consume('storage');
     const data = await this.storage.read(src.s3_bucket, src.s3_key);
-    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, src.mime);
     const sha256 = createHash('sha256').update(data).digest('hex');
     await this.prisma.file.create({
@@ -962,7 +1021,8 @@ export class FilesService {
     const fileId = randomUUID();
     const bucket = this.storage.bucket(rule.bucket);
     await this.costGuard.consume('storage');
-    const key = `${demoKeyPrefix()}${purpose}/${userId}/${fileId}`;
+    const key =
+      demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, mime);
     const sha256 = createHash('sha256').update(data).digest('hex');
     return this.prisma.file.create({
@@ -1028,12 +1088,35 @@ export class FilesService {
    * origin access control); dev/e2e without a CDN keep short-lived signed
    * S3 links. Documents never take this path. */
   private async mediaLink(bucket: string, key: string): Promise<string> {
+    // Owner 2026-10-24: an object stored in R2 is served from its own
+    // public domain (the AWS CDN base below does not hold it).
+    const r2 = this.storage.publicObjectUrl(bucket, key);
+    if (r2) return r2;
     // Owner 2026-10-01: the CDN can be set in Admin → Integrations → Storage.
     const cdn =
       (await this.secrets?.field('storage', 'cdnBaseUrl')) ??
       this.config.get<string>('MEDIA_CDN_BASE_URL');
     if (cdn) return cdn + '/' + key;
     return this.storage.signedGetUrl(bucket, key, MEDIA_SIGNED_URL_TTL_SEC);
+  }
+
+  /** Link of an image of [file] (px = a variant, none = the main
+   * object). Owner 2026-10-25: the AVIF twin only when the switch is on,
+   * the client sent `X-Image-Formats: avif` and the file was uploaded
+   * after `images.avif_since` (older files have no twin). */
+  private async imageLink(file: File, px?: number): Promise<string> {
+    const key = px === undefined ? file.s3_key : variantKey(file.s3_key, px);
+    if (
+      AVIF_PURPOSES.has(file.purpose) &&
+      isImageMime(file.mime) &&
+      imageFormatContext.wantsAvif()
+    ) {
+      const since = await avifSince(this.settings);
+      if (since && file.created_at >= since) {
+        return this.mediaLink(file.s3_bucket, avifKey(key));
+      }
+    }
+    return this.mediaLink(file.s3_bucket, key);
   }
 
   private async mediaUrlOf(file: File): Promise<string | null> {
@@ -1045,7 +1128,7 @@ export class FilesService {
     ) {
       return null;
     }
-    return this.mediaLink(file.s3_bucket, file.s3_key);
+    return this.imageLink(file);
   }
 
   private async toDto(file: File): Promise<FileDto> {
@@ -1131,6 +1214,72 @@ export class FilesService {
         details: { quotaBytes, usedBytes },
       });
     }
+  }
+
+  /**
+   * 2026-10-24 (abuse batch B, item 5): bytes one person may upload per UTC
+   * day (`storage.daily_upload_mb_per_user`, 0 = off). The stored-bytes
+   * quota cannot see an upload-delete-upload loop, which still costs S3
+   * PUTs, a virus scan and image moderation. Counted when the upload is
+   * issued (presign), so abandoned uploads count too; the Redis counter
+   * `upload:bytes:{user}:{utc day}` lives 26 h. A refused request gives
+   * its bytes back. Redis down: the upload goes on (the stored quota and
+   * CostGuard still apply) and the failure is logged.
+   */
+  private async reserveDailyUpload(
+    userId: string,
+    bytes: number,
+  ): Promise<void> {
+    const limitMb = await this.settings.number(
+      'storage.daily_upload_mb_per_user',
+    );
+    if (limitMb <= 0 || bytes <= 0) return;
+    const limitBytes = limitMb * MB;
+    const now = new Date();
+    const day = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const key = `upload:bytes:${userId}:${day}`;
+    let total: number;
+    try {
+      total = await this.redis.incrby(key, bytes);
+      if (total === bytes) await this.redis.expire(key, 26 * 3600);
+    } catch (err) {
+      this.logger.error(
+        { err, userId, alert: 'daily_upload_cap_unavailable' },
+        'Daily upload counter unreachable: cap skipped',
+      );
+      return;
+    }
+    if (total <= limitBytes) return;
+    await this.redis.decrby(key, bytes).catch(() => undefined);
+    const midnight = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1,
+    );
+    this.logger.warn(
+      {
+        userId,
+        limitBytes,
+        usedBytes: total - bytes,
+        alert: 'daily_upload_cap',
+      },
+      'Daily upload cap reached',
+    );
+    throw new HttpException(
+      {
+        code: ErrorCode.DAILY_UPLOAD_LIMIT_EXCEEDED,
+        message: 'You reached today’s upload limit. Try again tomorrow.',
+        details: {
+          limitBytes,
+          usedBytes: Math.max(0, total - bytes),
+          retryAfterSeconds: Math.max(
+            1,
+            Math.ceil((midnight - now.getTime()) / 1000),
+          ),
+        },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 
   private async assertQuota(userId: string, addBytes: number): Promise<void> {

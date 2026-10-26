@@ -23,24 +23,67 @@ function hideBoot() {
       s.async = true;
       document.head.appendChild(s);
     }, { once: true });
-    setTimeout(hideBoot, 90000); // never stays if the event does not come
 
-/* Owner 2026-10-23: a slow or broken download (bad network, a release that
-       was switched mid-load) used to leave the logo spinning for ever. After
-       12 s the splash says so and offers a reload. */
-    setTimeout(function () {
-      var b = document.getElementById('boot');
-      if (!b || b.classList.contains('gone')) return;
-      var ru = /^ru/i.test(navigator.language || '');
-      var p = document.createElement('p');
-      p.textContent = ru ? 'Загрузка идёт дольше обычного. Проверьте соединение.' : 'Taking longer than usual. Check your connection.';
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = ru ? 'Обновить' : 'Reload';
-      btn.onclick = function () { location.reload(); };
-      b.appendChild(p);
-      b.appendChild(btn);
-    }, 12000);
+/* Owner 2026-10-24 (slow-link pass): the splash used to say "taking longer
+   than usual" at a fixed 12 s, with a Reload button that threw away the
+   download still in progress, and hid itself after 90 s (leaving a blank
+   page when the app never started). Now:
+   - a thin bar under the logo moves while bytes or files arrive
+     (window.__lbBoot, boot_head.js; the loader itself has no progress
+     event) and stands still when they stop;
+   - the message and the button appear only when nothing has arrived for
+     15 s (40 s while the JavaScript app, which the browser loads as a
+     script and reports only when finished, is still coming), or when one of
+     the app's files failed for good; they go away again if the download
+     resumes. «Обновить» is therefore a reload of a download that is really
+     stuck, never of one that is progressing;
+   - the splash never disappears by itself. */
+(function () {
+  var B = window.__lbBoot || { last: Date.now(), jsPending: false, failed: false };
+  var QUIET = 15000, QUIET_JS = 40000;
+  var t0 = Date.now();
+  var boot = document.getElementById('boot');
+  if (!boot) return;
+  var ru = /^ru/i.test(navigator.language || '');
+  var bar = document.createElement('s');
+  bar.setAttribute('aria-hidden', 'true');
+  boot.appendChild(bar);
+  var msg = null, btn = null;
+
+  function jsDone() {
+    if (!B.jsPending) return true;
+    try {
+      var r = performance.getEntriesByType('resource');
+      for (var i = 0; i < r.length; i++) if (/\/main\.dart\.js$/.test(r[i].name)) return true;
+    } catch (e) { return true; }
+    return false;
+  }
+  function show() {
+    boot.classList.add('stalled');
+    if (msg) return;
+    msg = document.createElement('p');
+    msg.textContent = ru ? 'Загрузка идёт дольше обычного. Проверьте соединение.' : 'Taking longer than usual. Check your connection.';
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = ru ? 'Обновить' : 'Reload';
+    btn.onclick = function () { location.reload(); };
+    boot.appendChild(msg);
+    boot.appendChild(btn);
+  }
+  function hide() {
+    boot.classList.remove('stalled');
+    if (!msg) return;
+    msg.remove();
+    btn.remove();
+    msg = btn = null;
+  }
+  var timer = setInterval(function () {
+    var b = document.getElementById('boot');
+    if (!b || b.classList.contains('gone')) { clearInterval(timer); return; }
+    var quiet = Date.now() - Math.max(B.last || 0, t0);
+    if (B.failed || quiet > (jsDone() ? QUIET : QUIET_JS)) show(); else hide();
+  }, 1000);
+})();
 
 /* Owner 2026-10-20: a link or QR code for the app (profile, group, case,
        post...) opened in a phone's browser because the app is not installed

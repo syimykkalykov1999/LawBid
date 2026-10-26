@@ -22,6 +22,12 @@ RUN npx --workspace apps/api prisma generate \
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
+# libuv's thread pool (default 4) runs scrypt, file system and DNS work.
+# 8 = twice the default: password hashing is capped at 4 at a time in the app
+# (security.password_hash_concurrency), so 4 threads stay free for fs / dns.
+# Must be set before the process starts. Override per task in the ECS
+# task definition if the vCPU count changes (about 4 x vCPU, 16 at most).
+ENV UV_THREADPOOL_SIZE=8
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /repo
 COPY --from=build /repo/node_modules ./node_modules
@@ -31,6 +37,12 @@ COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
 # PDF fonts and the default legal texts (assets/legal/*.md) are read at runtime.
 COPY --from=build /repo/apps/api/assets ./apps/api/assets
 COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
+# readonlyRootFilesystem on ECS: /tmp is a task volume. Declaring it as a
+# VOLUME makes Fargate/Docker seed the mount from the image (mode 1777),
+# so the `app` user can write the worker heartbeat and sharp/pdf temp files.
+# Without this the empty mount is root-owned 755 and the worker's health
+# check fails (prod deploy 2026-10-24).
+VOLUME ["/tmp"]
 USER app
 WORKDIR /repo/apps/api
 EXPOSE 3000

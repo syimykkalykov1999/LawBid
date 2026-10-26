@@ -74,20 +74,46 @@ module "stack" {
   monthly_budget_usd     = var.monthly_budget_usd
   create_anomaly_monitor = var.create_anomaly_monitor
 
-  database_multi_az      = var.database_multi_az
-  backup_enabled         = var.backup_enabled
-  worker_jobs_per_task   = var.worker_jobs_per_task
-  interface_endpoint_azs = var.interface_endpoint_azs
+  database_multi_az       = var.database_multi_az
+  db_autoscale_enabled    = var.db_autoscale_enabled
+  redis_autoscale_enabled = var.redis_autoscale_enabled
+  backup_enabled          = var.backup_enabled
+  worker_jobs_per_task    = var.worker_jobs_per_task
+  interface_endpoint_azs  = var.interface_endpoint_azs
 
   # Security research #5 (2026-10-22): WAF, cloud detector, container.
-  waf_otp_rate_limit_per_5m    = var.waf_otp_rate_limit_per_5m
-  waf_bot_control_enabled      = var.waf_bot_control_enabled
-  waf_bot_control_block        = var.waf_bot_control_block
-  cdn_waf_rate_limit_per_5m    = var.cdn_waf_rate_limit_per_5m
-  security_hub_enabled         = var.security_hub_enabled
-  guardduty_alert_severity     = var.guardduty_alert_severity
-  ecs_readonly_root_filesystem = var.ecs_readonly_root_filesystem
-  dmarc_policy                 = var.dmarc_policy
+  waf_otp_rate_limit_per_5m = var.waf_otp_rate_limit_per_5m
+  waf_bot_control_enabled   = var.waf_bot_control_enabled
+  waf_bot_control_block     = var.waf_bot_control_block
+  cdn_waf_rate_limit_per_5m = var.cdn_waf_rate_limit_per_5m
+  security_hub_enabled      = var.security_hub_enabled
+  guardduty_alert_severity  = var.guardduty_alert_severity
+
+  # Security & legal pass 2026-10-24.
+  securityhub_fsbp_enabled       = var.securityhub_fsbp_enabled
+  inspector_enabled              = var.inspector_enabled
+  unused_access_analyzer_enabled = var.unused_access_analyzer_enabled
+  s3_account_block_public_access = var.s3_account_block_public_access
+  critical_api_alerts_enabled    = var.critical_api_alerts_enabled
+  documents_data_events          = var.documents_data_events
+  audit_logs_enabled             = var.audit_logs_enabled
+  audit_logs_retention_days      = var.audit_logs_retention_days
+  audit_logs_object_lock         = var.audit_logs_object_lock
+
+  # AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md)
+  config_enabled                     = var.config_enabled
+  config_retention_days              = var.config_retention_days
+  break_glass_enabled                = var.break_glass_enabled
+  break_glass_principal_arns         = var.break_glass_principal_arns
+  cloudtrail_athena_enabled          = var.cloudtrail_athena_enabled
+  anomaly_to_alerts_topic            = var.anomaly_to_alerts_topic
+  vpc_flow_logs_traffic              = var.vpc_flow_logs_traffic
+  macie_enabled                      = var.macie_enabled
+  macie_sampling_percentage          = var.macie_sampling_percentage
+  backup_vault_lock_mode             = var.backup_vault_lock_mode
+  backup_vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
+  ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
+  dmarc_policy                       = var.dmarc_policy
 
   # Load audit 6: growth switches (growth.tf).
   growth = var.growth

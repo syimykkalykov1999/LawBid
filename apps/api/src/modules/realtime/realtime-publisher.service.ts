@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { isRedisClusterMode } from '../../redis/redis-connection';
 import { Emitter } from '@socket.io/redis-emitter';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -32,6 +33,9 @@ export type SocketAdapterMode = 'sharded' | 'classic';
 export function socketAdapterMode(
   env: NodeJS.ProcessEnv = process.env,
 ): SocketAdapterMode {
+  // Redis Cluster: only sharded pub/sub (SSUBSCRIBE) is cluster-safe; the
+  // classic adapter would fan every event out over the cluster bus.
+  if (isRedisClusterMode(env)) return 'sharded';
   return env.SOCKET_IO_ADAPTER === 'classic' ? 'classic' : 'sharded';
 }
 
@@ -111,6 +115,9 @@ export type RealtimeEvent =
   // the chat lists drop its unread pill locally.
   | 'conversation:read'
   | 'notification:new'
+  // Owner 2026-10-24: somebody opened a confidential file of mine - an open
+  // view list pulls the new rows (`?since=`).
+  | 'file:viewed'
   // Owner 2026-10-22 (client economy plan, package E): a case of mine
   // changed (a bid came / was accepted / declined / countered / withdrawn,
   // the case was edited / closed, a task or payment) and a consultation
@@ -212,6 +219,18 @@ export class RealtimePublisher {
   toRoom(room: string, event: RealtimeEvent, data: unknown): void {
     if (this.redis.status !== 'ready') return;
     try {
+      // S1-1: the gateway listens with SSUBSCRIBE in sharded mode; a classic
+      // PUBLISH from the emitter would never reach it.
+      if (this.sharded) {
+        const { channel, message } = shardedBroadcast(
+          REALTIME_NAMESPACE,
+          [room],
+          event,
+          data,
+        );
+        void this.redis.spublish(channel, message).catch(() => undefined);
+        return;
+      }
       this.emitter.to(room).emit(event, data);
     } catch {
       // best-effort (see class doc)

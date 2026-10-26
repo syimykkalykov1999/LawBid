@@ -101,7 +101,8 @@ export interface EconomyEvent {
     | 'db_cpu'
     | 'db_connections'
     | 'redis_memory'
-    | 'scaled_up';
+    | 'scaled_up'
+    | 'scaled_down';
   text: string;
 }
 

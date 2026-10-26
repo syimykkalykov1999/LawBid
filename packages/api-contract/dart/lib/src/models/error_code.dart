@@ -56,6 +56,8 @@ enum ErrorCode {
   authProviderDisabled('AUTH_PROVIDER_DISABLED'),
   @JsonValue('AUTH_INVALID_CREDENTIALS')
   authInvalidCredentials('AUTH_INVALID_CREDENTIALS'),
+  @JsonValue('AUTH_PASSWORD_COMPROMISED')
+  authPasswordCompromised('AUTH_PASSWORD_COMPROMISED'),
   @JsonValue('ACCOUNT_EXISTS_USE_OTHER_METHOD')
   accountExistsUseOtherMethod('ACCOUNT_EXISTS_USE_OTHER_METHOD'),
   @JsonValue('IDENTIFIER_ALREADY_LINKED')
@@ -76,6 +78,8 @@ enum ErrorCode {
   passkeyLimit('PASSKEY_LIMIT'),
   @JsonValue('DEVICE_ATTESTATION_REQUIRED')
   deviceAttestationRequired('DEVICE_ATTESTATION_REQUIRED'),
+  @JsonValue('TURNSTILE_FAILED')
+  turnstileFailed('TURNSTILE_FAILED'),
   @JsonValue('ACCOUNT_SUSPENDED')
   accountSuspended('ACCOUNT_SUSPENDED'),
   @JsonValue('ACCOUNT_DELETED')
@@ -172,6 +176,8 @@ enum ErrorCode {
   storageQuotaExceeded('STORAGE_QUOTA_EXCEEDED'),
   @JsonValue('CHAT_STORAGE_FULL')
   chatStorageFull('CHAT_STORAGE_FULL'),
+  @JsonValue('DAILY_UPLOAD_LIMIT_EXCEEDED')
+  dailyUploadLimitExceeded('DAILY_UPLOAD_LIMIT_EXCEEDED'),
   @JsonValue('VERIFICATION_ALREADY_PENDING')
   verificationAlreadyPending('VERIFICATION_ALREADY_PENDING'),
   @JsonValue('VERIFICATION_SUBMISSION_LIMIT')
@@ -334,6 +340,8 @@ enum ErrorCode {
   callInProgress('CALL_IN_PROGRESS'),
   @JsonValue('CALL_STATE_CONFLICT')
   callStateConflict('CALL_STATE_CONFLICT'),
+  @JsonValue('CALL_MEDIA_UNAVAILABLE')
+  callMediaUnavailable('CALL_MEDIA_UNAVAILABLE'),
   @JsonValue('DIRECT_CHAT_NOT_ALLOWED')
   directChatNotAllowed('DIRECT_CHAT_NOT_ALLOWED'),
   @JsonValue('CONTINGENCY_NOT_ALLOWED')
@@ -484,6 +492,8 @@ enum ErrorCode {
   unsupportedInTarget('UNSUPPORTED_IN_TARGET'),
   @JsonValue('SYNC_TOO_OLD')
   syncTooOld('SYNC_TOO_OLD'),
+  @JsonValue('STALE_VERSION')
+  staleVersion('STALE_VERSION'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

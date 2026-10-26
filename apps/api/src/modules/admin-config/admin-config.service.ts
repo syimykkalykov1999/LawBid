@@ -237,6 +237,46 @@ export class AdminConfigService {
       });
   }
 
+  /** Owner 2026-10-24: R2 cannot be switched on without its keys. */
+  private async assertR2Ready(key: string, value: unknown): Promise<void> {
+    if (key !== 'media.public_store' || value !== 'r2') return;
+    const f = (await this.secrets?.get('cloudflare_r2'))?.fields ?? {};
+    const missing = [
+      'accountId',
+      'accessKeyId',
+      'secretAccessKey',
+      'bucket',
+      'publicBaseUrl',
+    ].filter((n) => !(f[n] ?? '').trim());
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `Cloudflare R2 is not configured: add ${missing.join(', ')} in Integrations → Cloudflare R2 first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
+  /** Owner 2026-10-24: the search engine cannot be switched on without its address. */
+  private async assertSearchEngineReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'search.engine' || value === 'postgres') return;
+    const f = (await this.secrets?.get('opensearch'))?.fields ?? {};
+    const url = (
+      f.url ??
+      this.config.get<string>('OPENSEARCH_URL') ??
+      ''
+    ).trim();
+    if (url) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'The search engine is not configured: add its address (OPENSEARCH_URL) in Integrations → Search engine first.',
+      details: { field: 'value', missing: ['OPENSEARCH_URL'] },
+    });
+  }
+
   /** Owner 2026-10-22: livekit cannot be switched on without its keys. */
   private async assertLivekitReady(key: string, value: unknown): Promise<void> {
     const needs =
@@ -255,6 +295,29 @@ export class AdminConfigService {
     throw new BadRequestException({
       code: ErrorCode.VALIDATION_ERROR,
       message: `LiveKit is not configured: add ${missing.join(', ')} in Integrations → LiveKit first.`,
+      details: { field: 'value', missing },
+    });
+  }
+
+  /** Owner 2026-10-24: cloudflare cannot be switched on without its keys. */
+  private async assertCloudflareSfuReady(
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    if (key !== 'calls.video_provider' || value !== 'cloudflare') return;
+    const f = (await this.secrets?.get('cloudflare_sfu'))?.fields ?? {};
+    const has = (name: string, env: string) =>
+      Boolean((f[name] ?? this.config.get<string>(env) ?? '').trim());
+    const missing = [
+      has('appId', 'CLOUDFLARE_SFU_APP_ID') ? null : 'CLOUDFLARE_SFU_APP_ID',
+      has('appToken', 'CLOUDFLARE_SFU_APP_TOKEN')
+        ? null
+        : 'CLOUDFLARE_SFU_APP_TOKEN',
+    ].filter((x): x is string => x !== null);
+    if (missing.length === 0) return;
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `Cloudflare SFU is not configured: add ${missing.join(', ')} in Integrations → Cloudflare SFU first.`,
       details: { field: 'value', missing },
     });
   }
@@ -281,6 +344,9 @@ export class AdminConfigService {
       });
     }
     await this.assertLivekitReady(key, value);
+    await this.assertCloudflareSfuReady(key, value);
+    await this.assertR2Ready(key, value);
+    await this.assertSearchEngineReady(key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });

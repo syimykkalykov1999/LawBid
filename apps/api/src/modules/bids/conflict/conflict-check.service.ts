@@ -1,4 +1,11 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -6,6 +13,14 @@ import { matchesIn, type MatchBy, type Person } from './conflict.logic';
 import { CaseAccessPolicy, caseNotFound } from '../../cases/cases.public';
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { attachUsers } from '../../../sharding/user-directory';
+
+const CLIENT_CONTACT = {
+  first_name: true,
+  last_name: true,
+  phone_e164: true,
+  email: true,
+} as const;
 
 export class ConflictMatchDto {
   @ApiProperty({
@@ -65,7 +80,22 @@ export class ConflictCheckService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: CaseAccessPolicy,
+    // S3-5: private details are stored sealed.
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
+
+  private opened<T extends { id: string; private_details: string | null }>(
+    row: T,
+  ): T {
+    if (row.private_details === null || !this.cipher) return row;
+    return {
+      ...row,
+      private_details: this.cipher.openField(
+        row.private_details,
+        privateDetailsAad(row.id),
+      ),
+    };
+  }
 
   /**
    * Owner 2026-10-22 (security audit #3, finding 7): the check used to load
@@ -90,7 +120,7 @@ export class ConflictCheckService {
   }
 
   async check(attorneyId: string, caseId: string): Promise<ConflictCheckDto> {
-    const kase = await this.prisma.case.findFirst({
+    const kaseRow = await this.prisma.case.findFirst({
       where: { id: caseId, deleted_at: null },
       select: {
         id: true,
@@ -98,18 +128,22 @@ export class ConflictCheckService {
         description: true,
         private_details: true,
         client_id: true,
-        client: {
-          select: {
-            first_name: true,
-            last_name: true,
-            phone_e164: true,
-            email: true,
-          },
-        },
       },
     });
-    if (!kase) return { conflict: false, matches: [] };
-    const past = await this.prisma.case.findMany({
+    if (!kaseRow) return { conflict: false, matches: [] };
+    const kaseOpen = this.opened(kaseRow);
+    // Shard-ready step 6: the client's name / phone / email come from the
+    // user directory (users are a global family), not from a join.
+    const kase = (
+      await attachUsers(
+        this.prisma,
+        [kaseOpen],
+        'client_id',
+        'client',
+        CLIENT_CONTACT,
+      )
+    )[0];
+    const pastRows = await this.prisma.case.findMany({
       where: {
         deleted_at: null,
         id: { not: caseId },
@@ -123,16 +157,16 @@ export class ConflictCheckService {
         title: true,
         description: true,
         private_details: true,
-        client: {
-          select: {
-            first_name: true,
-            last_name: true,
-            phone_e164: true,
-            email: true,
-          },
-        },
+        client_id: true,
       },
     });
+    const pastWithClient = await attachUsers(
+      this.prisma,
+      pastRows.map((r) => this.opened(r)),
+      'client_id',
+      'client',
+      CLIENT_CONTACT,
+    );
     const person = (u: {
       first_name: string | null;
       last_name: string | null;
@@ -143,11 +177,11 @@ export class ConflictCheckService {
       phone: u.phone_e164,
       email: u.email,
     });
-    const thisClient = person(kase.client);
+    const thisClient = person(kase.client!);
     const thisText = publicTextOf(kase);
     const matches: ConflictMatchDto[] = [];
-    for (const p of past) {
-      for (const by of matchesIn(person(p.client), thisText)) {
+    for (const p of pastWithClient) {
+      for (const by of matchesIn(person(p.client!), thisText)) {
         matches.push({
           kind: 'former_client',
           by,

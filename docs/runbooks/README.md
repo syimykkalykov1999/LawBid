@@ -2,6 +2,7 @@
 
 **Владельцу: начните с [OWNER.md](OWNER.md)** — какое письмо что значит и
 что делать, простыми словами. Первый запуск на AWS — [PROD_LAUNCH.md](PROD_LAUNCH.md); выкладка новых версий на уже работающий прод — [DEPLOY_PROD.md](DEPLOY_PROD.md).
+Защита документов клиентов (адвокатская тайна), что включать в облаке и сколько это стоит, чеклист утечки, текст для адвокатов — [SECURITY_LEGAL.md](SECURITY_LEGAL.md).
 Всё остальное ниже — для инженера.
 
 One page per alert of `infra/modules/monitoring` (the alarm description
@@ -31,6 +32,8 @@ On-call: the owner until a rotation exists (docs/06 §11.1 "дежурный
 | `backup-stale` (newest database backup too old) | [backup-failed.md](backup-failed.md) |
 | `ses-bounce-rate` / `ses-complaint-rate` | [ses.md](ses.md) |
 | `api-no-running-tasks` / `worker-no-running-tasks` | [ecs-capacity.md](ecs-capacity.md) |
+| `db-autoscale-errors`, письма «База увеличена / уменьшена» | [db-autoscale.md](db-autoscale.md) |
+| `redis-autoscale-errors`, письма «Redis увеличен / уменьшен» | [redis-autoscale.md](redis-autoscale.md) |
 | GitHub «Self-check (production)» failed | the run summary + [OWNER.md](OWNER.md) |
 
 Backups and restore: [backups.md](backups.md), quarterly drill log:

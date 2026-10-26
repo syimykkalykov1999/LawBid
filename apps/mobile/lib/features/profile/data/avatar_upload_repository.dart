@@ -21,10 +21,16 @@ class PresignedUpload {
     required this.fileId,
     required this.url,
     required this.fields,
+    this.method = 'POST',
+    this.headers = const {},
   });
   final String fileId;
   final String url;
   final Map<String, String> fields;
+
+  /// `POST` (multipart) or `PUT` (raw body, Cloudflare R2).
+  final String method;
+  final Map<String, String> headers;
 }
 
 enum ScanOutcome { pending, clean, rejected }
@@ -83,7 +89,13 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
       sizeBytes: sizeBytes,
       sha256: sha256,
     );
-    return PresignedUpload(fileId: t.fileId, url: t.url, fields: t.fields);
+    return PresignedUpload(
+      fileId: t.fileId,
+      url: t.url,
+      fields: t.fields,
+      method: t.method,
+      headers: t.headers,
+    );
   }
 
   @override
@@ -105,6 +117,8 @@ class ApiAvatarUploadRepository implements AvatarUploadRepository {
           fileId: target.fileId,
           url: target.url,
           fields: target.fields,
+          method: target.method,
+          headers: target.headers,
         ),
         UploadBody.bytes(bytes),
         mime: mime,

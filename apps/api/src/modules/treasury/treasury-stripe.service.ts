@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
 import Stripe from 'stripe';
+import { resilientStripeOptions } from '../../common/resilience/stripe-breaker';
 import { SecretsService } from '../../common/secrets/secrets.service';
 
 /** A bank account (or debit card) the owner added in Stripe. */
@@ -130,10 +131,7 @@ function bankOf(x: Stripe.ExternalAccount): StripeBank {
 }
 
 function stripeClient(secretKey: string): TreasuryClient {
-  const stripe = new Stripe(secretKey, {
-    typescript: true,
-    maxNetworkRetries: 2,
-  });
+  const stripe = new Stripe(secretKey, resilientStripeOptions());
   return {
     async state() {
       const [balance, account] = await Promise.all([

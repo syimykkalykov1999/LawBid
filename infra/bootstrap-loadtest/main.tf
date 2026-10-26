@@ -46,6 +46,11 @@ variable "github_repo" {
   default     = "syimykkalykov1999/LawBid"
   description = "owner/name of the repository whose Actions may run the load test."
 }
+variable "github_repo_immutable" {
+  type        = string
+  default     = "syimykkalykov1999@91685781/LawBid@1400978845"
+  description = "The repository has use_immutable_subject on: GitHub signs OIDC tokens as repo:<owner>@<owner_id>/<repo>@<repo_id>:... (gh api repos/OWNER/REPO/actions/oidc/customization/sub)."
+}
 variable "environment_name" {
   type        = string
   default     = "load-test"
@@ -98,6 +103,7 @@ data "aws_iam_policy_document" "trust_github" {
       values = [
         "repo:${var.github_repo}:environment:${var.environment_name}",
         "repo:${lower(var.github_repo)}:environment:${var.environment_name}",
+        "repo:${var.github_repo_immutable}:environment:${var.environment_name}",
       ]
     }
   }
@@ -121,6 +127,7 @@ data "aws_iam_policy_document" "trust_watchdog" {
       values = [
         "repo:${var.github_repo}:ref:refs/heads/main",
         "repo:${lower(var.github_repo)}:ref:refs/heads/main",
+        "repo:${var.github_repo_immutable}:ref:refs/heads/main",
       ]
     }
   }
@@ -186,6 +193,7 @@ data "aws_iam_policy_document" "base" {
       "sns:GetTopicAttributes", "sns:ListTagsForResource", "sns:ListSubscriptionsByTopic", "sns:GetSubscriptionAttributes", "sns:ListTopics",
       "iam:Get*", "iam:List*", "secretsmanager:DescribeSecret", "secretsmanager:ListSecrets", "secretsmanager:GetResourcePolicy",
       "application-autoscaling:Describe*", "application-autoscaling:ListTagsForResource",
+      "servicediscovery:Get*", "servicediscovery:List*", "servicediscovery:DiscoverInstances",
       "ssm:GetParameter", "ssm:GetParameters", "ssm:DescribeParameters", "ssm:ListTagsForResource",
       "ssm:GetCommandInvocation", "ssm:ListCommandInvocations", "ssm:ListCommands", "ssm:DescribeInstanceInformation",
       "ecr:GetAuthorizationToken", "ecr:DescribeImages", "ecr:DescribeRepositories",
@@ -205,6 +213,42 @@ data "aws_iam_policy_document" "ec2" {
     condition {
       test     = "StringEquals"
       variable = "aws:RequestTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  # AWS also checks the parent objects: a new subnet or security group is
+  # authorized against its VPC, a NAT gateway against its subnet and address,
+  # an endpoint against its subnets, route tables and groups. Allowed only when
+  # that parent is itself tagged Project=lawbid-loadtest.
+  statement {
+    sid     = "Ec2CreateInsideTaggedParents"
+    actions = ["ec2:CreateSubnet", "ec2:CreateSecurityGroup", "ec2:CreateRouteTable", "ec2:CreateNatGateway", "ec2:CreateVpcEndpoint"]
+    resources = [
+      "arn:aws:ec2:*:${local.acct}:vpc/*", "arn:aws:ec2:*:${local.acct}:subnet/*", "arn:aws:ec2:*:${local.acct}:security-group/*",
+      "arn:aws:ec2:*:${local.acct}:route-table/*", "arn:aws:ec2:*:${local.acct}:elastic-ip/*",
+    ]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  # Destroy needs these: the address is moved off an instance's network
+  # interface (untagged, created by AWS) and one-time Spot requests are
+  # cancelled. The elastic IP itself stays limited by Ec2ChangeTaggedOnly,
+  # and the deny policy protects anything tagged Project=lawbid.
+  statement {
+    sid       = "Ec2AddressOnInterfaces"
+    actions   = ["ec2:AssociateAddress", "ec2:DisassociateAddress"]
+    resources = ["arn:aws:ec2:*:${local.acct}:network-interface/*", "arn:aws:ec2:*:${local.acct}:instance/*"]
+  }
+  statement {
+    sid       = "Ec2CancelTaggedSpot"
+    actions   = ["ec2:CancelSpotInstanceRequests"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
       values   = ["lawbid-loadtest"]
     }
   }
@@ -263,7 +307,7 @@ data "aws_iam_policy_document" "ec2" {
     condition {
       test     = "StringEquals"
       variable = "iam:AWSServiceName"
-      values   = ["spot.amazonaws.com", "ecs.amazonaws.com", "elasticache.amazonaws.com", "rds.amazonaws.com", "autoscaling.amazonaws.com", "ecs.application-autoscaling.amazonaws.com", "elasticloadbalancing.amazonaws.com"]
+      values   = ["spot.amazonaws.com", "ecs.amazonaws.com", "elasticache.amazonaws.com", "rds.amazonaws.com", "autoscaling.amazonaws.com", "ecs.application-autoscaling.amazonaws.com", "elasticloadbalancing.amazonaws.com", "servicediscovery.amazonaws.com"]
     }
   }
 }
@@ -310,6 +354,13 @@ data "aws_iam_policy_document" "runtime" {
     sid       = "AlarmsByName"
     actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:PutCompositeAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:TagResource", "cloudwatch:UntagResource", "cloudwatch:EnableAlarmActions", "cloudwatch:DisableAlarmActions"]
     resources = ["arn:aws:cloudwatch:*:${local.acct}:alarm:${local.lt}-*"]
+  }
+  # PutCompositeAlarm is authorized against alarm:* (it reads the child alarms).
+  # The deny policy forbids touching lawbid-prod-* / lawbid-staging-* alarms.
+  statement {
+    sid       = "CompositeAlarmsWide"
+    actions   = ["cloudwatch:PutCompositeAlarm"]
+    resources = ["*"]
   }
   statement {
     sid       = "SnsByName"
@@ -383,7 +434,7 @@ data "aws_iam_policy_document" "data" {
   statement {
     sid       = "KmsAliasByName"
     actions   = ["kms:CreateAlias", "kms:DeleteAlias", "kms:UpdateAlias"]
-    resources = ["arn:aws:kms:*:${local.acct}:alias/${local.lt}-*"]
+    resources = ["arn:aws:kms:*:${local.acct}:alias/${local.lt}", "arn:aws:kms:*:${local.acct}:alias/${local.lt}-*"]
   }
   statement {
     sid       = "SecretsByName"
@@ -416,7 +467,7 @@ data "aws_iam_policy_document" "data" {
 data "aws_iam_policy_document" "edge" {
   statement {
     sid       = "CloudFrontDistributionsTagged"
-    actions   = ["cloudfront:CreateDistributionWithTags", "cloudfront:TagResource"]
+    actions   = ["cloudfront:CreateDistribution", "cloudfront:CreateDistributionWithTags", "cloudfront:TagResource"]
     resources = ["*"]
     condition {
       test     = "StringEquals"
@@ -445,6 +496,7 @@ data "aws_iam_policy_document" "edge" {
       "cloudfront:CreateKeyGroup", "cloudfront:UpdateKeyGroup", "cloudfront:DeleteKeyGroup",
       "cloudfront:CreatePublicKey", "cloudfront:UpdatePublicKey", "cloudfront:DeletePublicKey",
       "cloudfront:CreateKeyValueStore", "cloudfront:UpdateKeyValueStore", "cloudfront:DeleteKeyValueStore",
+      "cloudfront:DescribeFunction", "cloudfront:GetFunction", "cloudfront:DescribeKeyValueStore",
     ]
     resources = ["*"]
   }
@@ -481,13 +533,128 @@ data "aws_iam_policy_document" "edge" {
   }
 }
 
+# ------------------------------------- 5. private DNS names (Cloud Map) ----
+# A separate policy: each managed policy has a size limit.
+data "aws_iam_policy_document" "dns" {
+  # Cloud Map private DNS (the database pooler's name, docs/architecture/DB_POOLER.md):
+  # a namespace and its services are created and changed only with / on the tag
+  # Project=lawbid-loadtest.
+  statement {
+    sid       = "CloudMapCreateTagged"
+    actions   = ["servicediscovery:CreatePrivateDnsNamespace", "servicediscovery:CreateService", "servicediscovery:TagResource"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  statement {
+    sid       = "CloudMapManageTagged"
+    actions   = ["servicediscovery:DeleteNamespace", "servicediscovery:DeleteService", "servicediscovery:UpdateService", "servicediscovery:UpdatePrivateDnsNamespace", "servicediscovery:UntagResource", "servicediscovery:TagResource", "servicediscovery:RegisterInstance", "servicediscovery:DeregisterInstance"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  # Cloud Map creates the private hosted zone (and removes it) with the CALLER's
+  # rights. Zones cannot be limited by tag at creation; record changes are limited
+  # to names under <lt>.internal. The production DNS is not in Route 53
+  # (hosted_zone_id = null), so there is no production zone to harm.
+  statement {
+    sid       = "Route53PrivateZoneForCloudMap"
+    actions   = ["route53:CreateHostedZone", "route53:DeleteHostedZone", "route53:AssociateVPCWithHostedZone", "route53:DisassociateVPCFromHostedZone", "route53:ChangeTagsForResource"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "Route53RecordsUnderInternalName"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = ["arn:aws:route53:::hostedzone/*"]
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "route53:ChangeResourceRecordSetsNormalizedRecordNames"
+      values   = ["*${local.lt}.internal", "*${local.lt}.internal."]
+    }
+  }
+}
+
+# --------------------------------- 6. GameDay: AWS FIS (docs/runbooks/GAMEDAY.md) ----
+# Experiment templates are created by Terraform (envs/loadtest, module
+# fis-gameday) and started by loadtest/scripts/gameday.sh. Everything is limited
+# to templates tagged Project=lawbid-loadtest; the service role the experiment
+# runs with is named lawbid-loadtest-fis and can only touch that stack.
+data "aws_iam_policy_document" "fis" {
+  statement {
+    sid       = "FisCreateTemplateTagged"
+    actions   = ["fis:CreateExperimentTemplate"]
+    resources = ["arn:aws:fis:*:${local.acct}:experiment-template/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  statement {
+    sid       = "FisChangeTaggedTemplates"
+    actions   = ["fis:UpdateExperimentTemplate", "fis:DeleteExperimentTemplate", "fis:TagResource", "fis:UntagResource", "fis:StartExperiment"]
+    resources = ["arn:aws:fis:*:${local.acct}:experiment-template/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid-loadtest"]
+    }
+  }
+  # StartExperiment is authorized against the template (above, tag-guarded)
+  # and against the new experiment object (here).
+  statement {
+    sid       = "FisExperiments"
+    actions   = ["fis:StartExperiment", "fis:StopExperiment", "fis:TagResource"]
+    resources = ["arn:aws:fis:*:${local.acct}:experiment/*"]
+  }
+  # Wide on purpose: read-only calls cannot be limited by tag.
+  statement {
+    sid       = "FisRead"
+    actions   = ["fis:GetExperiment", "fis:GetExperimentTemplate", "fis:ListExperiments", "fis:ListExperimentTemplates", "fis:ListTagsForResource", "fis:GetAction", "fis:ListActions", "fis:GetTargetResourceType", "fis:ListTargetResourceTypes"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "FisPassOnlyItsRole"
+    actions   = ["iam:PassRole"]
+    resources = ["arn:aws:iam::${local.acct}:role/${local.lt}-*"]
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["fis.amazonaws.com"]
+    }
+  }
+}
+
 # Belt and braces: whatever the allow statements say, nothing tagged
 # Project=lawbid (production, staging) can be touched by these roles.
 data "aws_iam_policy_document" "deny_prod" {
   statement {
+    sid       = "NeverTouchProdAlarms"
+    effect    = "Deny"
+    actions   = ["cloudwatch:PutMetricAlarm", "cloudwatch:PutCompositeAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:DisableAlarmActions", "cloudwatch:SetAlarmState"]
+    resources = ["arn:aws:cloudwatch:*:${local.acct}:alarm:lawbid-prod-*", "arn:aws:cloudwatch:*:${local.acct}:alarm:lawbid-staging-*"]
+  }
+  statement {
+    sid       = "NeverTouchProductionExperiments"
+    effect    = "Deny"
+    actions   = ["fis:*"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/Project"
+      values   = ["lawbid"]
+    }
+  }
+  statement {
     sid       = "NeverTouchProductionOrStaging"
     effect    = "Deny"
-    actions   = ["ec2:*", "ecs:*", "rds:*", "elasticache:*", "elasticloadbalancing:*", "kms:*", "secretsmanager:*", "cloudfront:*", "wafv2:*", "sns:*", "s3:*", "logs:*", "ssm:*"]
+    actions   = ["ec2:*", "ecs:*", "rds:*", "elasticache:*", "elasticloadbalancing:*", "kms:*", "secretsmanager:*", "cloudfront:*", "wafv2:*", "sns:*", "s3:*", "logs:*", "ssm:*", "servicediscovery:*"]
     resources = ["*"]
     condition {
       test     = "StringEquals"
@@ -504,6 +671,8 @@ locals {
     runtime = data.aws_iam_policy_document.runtime.json
     data    = data.aws_iam_policy_document.data.json
     edge    = data.aws_iam_policy_document.edge.json
+    fis     = data.aws_iam_policy_document.fis.json
+    dns     = data.aws_iam_policy_document.dns.json
     deny    = data.aws_iam_policy_document.deny_prod.json
   }
   roles = { github = aws_iam_role.github.name, watchdog = aws_iam_role.watchdog.name }

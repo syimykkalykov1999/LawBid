@@ -24,6 +24,9 @@ const ENV: Record<string, number> = {
   BUDGET_TRANSLATE_PER_MINUTE_MAX: 60,
   BUDGET_TRANSLATE_DAILY_MAX: 5000,
   BUDGET_TRANSLATE_MONTHLY_MAX: 50000,
+  BUDGET_IMAGE_MODERATION_PER_MINUTE_MAX: 300,
+  BUDGET_IMAGE_MODERATION_DAILY_MAX: 20000,
+  BUDGET_IMAGE_MODERATION_MONTHLY_MAX: 300000,
 };
 
 const NOW = new Date('2026-09-27T13:45:12.000Z');
@@ -390,5 +393,65 @@ describe('CostGuardService money budgets', () => {
       provider: 77_000,
       user: 0,
     });
+  });
+});
+
+// 2026-10-24 (abuse batch B, item 13): the daily caps of the three paid
+// calls the owner watches. Rekognition (image_moderation), identity checks
+// (Persona / Stripe Identity, id_check) and Google Translate (translate)
+// share one mechanism: a Redis counter per UTC day, a cap editable in the
+// admin card «Лимиты расходов» (app_config budget.<provider>.daily_max),
+// a 503 when it is reached and one `alert: cost_budget` log line.
+describe.each([
+  ['image_moderation', 'BUDGET_IMAGE_MODERATION', 20000],
+  ['id_check', 'BUDGET_ID_CHECK', 20],
+  ['translate', 'BUDGET_TRANSLATE', 5000],
+] as const)('daily cap of %s', (provider, envPrefix, envDaily) => {
+  const env = {
+    [`${envPrefix}_PER_MINUTE_MAX`]: 300,
+    [`${envPrefix}_DAILY_MAX`]: envDaily,
+    [`${envPrefix}_MONTHLY_MAX`]: 300000,
+  };
+
+  it('takes the daily cap from the admin setting first', async () => {
+    const { service } = build({
+      env,
+      appConfig: { [`budget.${provider}.daily_max`]: 7 },
+    });
+    expect((await service.resolveCaps(provider)).daily).toBe(7);
+  });
+
+  it('reaching the daily cap answers 503 and logs the alert once', async () => {
+    const evalMock = jest
+      .fn()
+      .mockResolvedValueOnce([0, 2, envDaily, 1])
+      .mockResolvedValueOnce([0, 2, envDaily, 0]);
+    const { service, logger } = build({
+      eval: evalMock,
+      appConfig: { [`budget.${provider}.daily_max`]: envDaily },
+      env,
+    });
+    await expectBudgetError(service.consume(provider));
+    await expectBudgetError(service.consume(provider));
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider,
+        window: 'daily',
+        alert: 'cost_budget',
+        stage: 'exhausted',
+      }),
+      expect.any(String),
+    );
+  });
+
+  it('the call counts against the daily window (and the money budget)', async () => {
+    const { service, redis, moneyEval } = build({ env });
+    await service.consume(provider);
+    expect(moneyEval).toHaveBeenCalledTimes(1);
+    const keys = (redis.eval.mock.calls[0] as string[]).filter(
+      (a) => typeof a === 'string' && a.startsWith(`budget:{${provider}}:d:`),
+    );
+    expect(keys.length).toBeGreaterThan(0);
   });
 });

@@ -9,6 +9,10 @@ import type {
   CaseStatus,
   Prisma,
 } from '@prisma/client';
+import {
+  assertExpectedVersion,
+  BUMP_VERSION,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { withDeleted } from '../../../prisma/soft-delete.extension';
 
@@ -325,6 +329,8 @@ export interface ApplyCaseActionInput extends Partial<CaseTransitionContext> {
   /** Extra columns written with the transition (e.g. edited fields for
    * client_edit). Must not touch `status`. */
   extra?: Omit<Prisma.CaseUncheckedUpdateManyInput, 'status'>;
+  /** If-Match from the client; a different stored version is 409 STALE_VERSION. */
+  expectedVersion?: number;
 }
 
 @Injectable()
@@ -342,16 +348,26 @@ export class CaseStateMachine {
   ): Promise<{ case: Case; plan: CaseTransitionPlan }> {
     const current = await tx.case.findUnique({
       where: { id: input.caseId },
-      select: { status: true },
+      select: { status: true, version: true },
     });
     if (!current) throw caseNotFound();
+    assertExpectedVersion(current.version, input.expectedVersion);
     const plan = planCaseTransition(current.status, input.action, {
       now: input.now ?? new Date(),
       acceptedBidId: input.acceptedBidId,
     });
     const { count } = await tx.case.updateMany({
-      where: { id: input.caseId, status: current.status, deleted_at: null },
-      data: { ...input.extra, ...plan.data },
+      where: {
+        id: input.caseId,
+        status: current.status,
+        deleted_at: null,
+        // Compare-and-set on the version read above (the tx is serializable,
+        // this also covers callers on a weaker isolation level).
+        ...(input.expectedVersion !== undefined
+          ? { version: input.expectedVersion }
+          : {}),
+      },
+      data: { ...input.extra, ...plan.data, ...BUMP_VERSION },
     });
     if (count !== 1) throw caseInvalidState(input.action, current.status);
     // withDeleted: client_delete has just soft-deleted the row.

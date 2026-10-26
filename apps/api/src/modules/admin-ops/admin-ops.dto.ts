@@ -19,8 +19,14 @@ export class HealthItemDto {
       'stripe_webhooks',
       'push',
       'turn',
+      'cloudflare_turn',
+      'cloudflare_sfu',
+      'r2',
       'http',
       'realtime',
+      'breakers',
+      'cloudflare_usage',
+      'bunny_usage',
     ],
   })
   key!: string;
@@ -141,4 +147,33 @@ export class UpdateOpsSettingsDto {
   @IsOptional()
   @IsBoolean()
   autoScaleDownOnBudget?: boolean;
+}
+
+/** Batch D (item 17): facts for the admin «Масштаб» page that no other
+ * endpoint gives (the rest is `GET /admin/economy` and the health board). */
+export class ScaleExtrasDto {
+  @ApiProperty({
+    enum: ['on', 'off', 'unknown'],
+    description: 'Does the database change size by itself (Terraform switch).',
+  })
+  dbAutoscale!: 'on' | 'off' | 'unknown';
+
+  @ApiProperty({ enum: ['on', 'off', 'unknown'] })
+  redisAutoscale!: 'on' | 'off' | 'unknown';
+
+  @ApiProperty({
+    description: 'Our own PgBouncer sits in front of the database.',
+  })
+  poolerEnabled!: boolean;
+
+  @ApiProperty({ type: Number, nullable: true })
+  poolerMinTasks!: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  poolerMaxTasks!: number | null;
+
+  @ApiProperty({
+    description: 'The `search.engine` setting (postgres until another is set).',
+  })
+  searchEngine!: string;
 }

@@ -136,4 +136,71 @@ describe('MessageBodyCipher (scaling TZ point 11, audit #6)', () => {
     expect(rotated.open(legacyV2('older'), ID)).toBe('older');
     expect(rotated.seal('new', ID).startsWith('enc:v3.k2.')).toBe(true);
   });
+
+  describe('sealed metadata fields (S3-5)', () => {
+    const AAD = `messages.file_name:${ID}`;
+
+    it('seals a file name, binds it to its row and opens it again', () => {
+      const c = keyed();
+      const sealed = c.sealField('Divorce_agreement_Ivanov.pdf', AAD);
+      expect(sealed.startsWith('encf:v2.k1.')).toBe(true);
+      expect(sealed).not.toContain('Divorce');
+      expect(c.openField(sealed, AAD)).toBe('Divorce_agreement_Ivanov.pdf');
+      expect(c.openField(sealed, `messages.file_name:${OTHER}`)).toBe('');
+      expect(MessageBodyCipher.isFieldSealed(sealed)).toBe(true);
+      expect(MessageBodyCipher.fieldKidOf(sealed)).toBe('k1');
+    });
+
+    it('reads legacy plaintext as is and never returns ciphertext without keys', () => {
+      const c = keyed();
+      expect(c.openField('plain.pdf', AAD)).toBe('plain.pdf');
+      const sealed = c.sealField('x.pdf', AAD);
+      expect(cipher({}).openField(sealed, AAD)).toBe('');
+      expect(cipher({}).sealField('x.pdf', AAD)).toBe('x.pdf');
+    });
+
+    it('rotation: backfills plaintext and re-seals a retired kid', () => {
+      const old = keyed().sealField('a.pdf', AAD);
+      const rotated = cipher({
+        MESSAGE_ENC_KEYS: `${K1},${K2}`,
+        MESSAGE_ENC_ACTIVE_KID: 'k2',
+      });
+      expect(rotated.fieldNeedsWrite(old)).toBe(true);
+      expect(rotated.fieldNeedsWrite('plain.pdf')).toBe(true);
+      expect(rotated.fieldNeedsWrite('')).toBe(false);
+      const next = rotated.resealField(old, AAD)!;
+      expect(next.startsWith('encf:v2.k2.')).toBe(true);
+      expect(rotated.fieldNeedsWrite(next)).toBe(false);
+      expect(rotated.openField(next, AAD)).toBe('a.pdf');
+      expect(rotated.resealField('plain.pdf', AAD)!.startsWith('encf:')).toBe(
+        true,
+      );
+      // A value that cannot be opened is reported, not guessed.
+      expect(
+        rotated.resealField(old, `messages.file_name:${OTHER}`),
+      ).toBeNull();
+    });
+
+    it('sealMetadata / sealJournalText follow their admin switches', async () => {
+      const on = { boolean: jest.fn().mockResolvedValue(true) };
+      const off = { boolean: jest.fn().mockResolvedValue(false) };
+      const env = { MESSAGE_ENC_KEYS: K1, MESSAGE_ENC_ACTIVE_KID: 'k1' };
+      const mk = (settings: unknown) =>
+        new MessageBodyCipher(new ConfigService(env), settings as never);
+      expect(
+        (await mk(on).sealMetadata('n.pdf', AAD)).startsWith('encf:'),
+      ).toBe(true);
+      expect(await mk(off).sealMetadata('n.pdf', AAD)).toBe('n.pdf');
+      expect(on.boolean).toHaveBeenCalledWith('security.seal_case_metadata');
+      expect(await mk(off).sealJournalText('t', AAD)).toBe('t');
+      expect((await mk(on).sealJournalText('t', AAD)).startsWith('encf:')).toBe(
+        true,
+      );
+      // No settings service (tests, CLI): metadata sealed, journal text not.
+      expect(
+        (await mk(undefined).sealMetadata('n', AAD)).startsWith('encf:'),
+      ).toBe(true);
+      expect(await mk(undefined).sealJournalText('t', AAD)).toBe('t');
+    });
+  });
 });

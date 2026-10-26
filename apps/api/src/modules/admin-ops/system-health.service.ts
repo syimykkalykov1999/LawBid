@@ -9,7 +9,10 @@ import { AwsOpsService } from '../../common/ops/aws-ops.service';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { SecretsService } from '../../common/secrets/secrets.service';
-import { MessageReencryptJob } from '../../jobs/handlers/message-reencrypt.job';
+import {
+  MESSAGE_KID_ROW_ALARM,
+  MessageReencryptJob,
+} from '../../jobs/handlers/message-reencrypt.job';
 import { OBSERVED_QUEUES } from '../../jobs/handlers/ops-metrics.job';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -20,6 +23,7 @@ import type {
   HealthStatus,
   SystemHealthDto,
 } from './admin-ops.dto';
+import { bullOptions } from '../../redis/redis-connection';
 
 const PROBE_TIMEOUT_MS = 3_000;
 const DLQ = 'stripe-webhooks-dlq';
@@ -161,15 +165,25 @@ export class SystemHealthService implements OnModuleDestroy {
     const stuck = current
       ? Object.values(current.byKid).reduce((n, k) => n + k.failed, 0)
       : 0;
-    const status: HealthStatus = !current
-      ? retiredKids.length > 0
-        ? 'yellow'
-        : 'green'
-      : stuck > 0
-        ? 'red'
-        : current.phase === 'done'
-          ? 'green'
-          : 'yellow';
+    // S3-2: one random-IV AES-GCM key must not seal without limit.
+    const kidRows = current?.kidRows ?? {};
+    const overKid = Object.entries(kidRows).find(
+      ([, n]) => n >= MESSAGE_KID_ROW_ALARM,
+    );
+    const alarm = overKid
+      ? `Под ключом «${overKid[0]}» уже ${overKid[1].toLocaleString('ru-RU')} сообщений (предел 1 млрд). Выпустите новый ключ (kid) и сделайте его активным; ключи меняют раз в год.`
+      : null;
+    const status: HealthStatus = alarm
+      ? 'red'
+      : !current
+        ? retiredKids.length > 0
+          ? 'yellow'
+          : 'green'
+        : stuck > 0
+          ? 'red'
+          : current.phase === 'done'
+            ? 'green'
+            : 'yellow';
     return {
       status,
       detail: {
@@ -181,6 +195,11 @@ export class SystemHealthService implements OnModuleDestroy {
         rewritten: current?.rewritten ?? 0,
         failed: current?.failed ?? 0,
         byKid: current?.byKid ?? {},
+        /** Sealed message bodies per key id (exact after a finished pass). */
+        kidRows,
+        kidRowAlarmAt: MESSAGE_KID_ROW_ALARM,
+        alarm,
+        stores: current?.stores ?? null,
         startedAt: current?.startedAt ?? null,
         updatedAt: current?.updatedAt ?? null,
         finishedAt: current?.finishedAt ?? null,
@@ -261,16 +280,42 @@ export class SystemHealthService implements OnModuleDestroy {
 
   private async storageItem(): Promise<Omit<HealthItemDto, 'key'>> {
     const creds = await this.secrets.get('storage');
-    if (!creds && !this.config.get<string>('S3_BUCKET_MEDIA')) {
+    const awsOn = !!creds || !!this.config.get<string>('S3_BUCKET_MEDIA');
+    // Owner 2026-10-24: R2 (public media) is checked too when it has keys.
+    const r2Bucket = await this.storage.publicStoreBucket();
+    if (!awsOn && !r2Bucket) {
       return { status: 'grey', detail: { configured: false } };
     }
-    const started = Date.now();
-    // A missing key answers null: reaching the bucket is what counts.
-    await withTimeout(
-      this.storage.head(this.storage.bucket('media'), 'ops/health-probe'),
-      5_000,
-    );
-    return { status: 'green', detail: { latencyMs: Date.now() - started } };
+    const detail: Record<string, unknown> = {};
+    let ok = true;
+    if (awsOn) {
+      const started = Date.now();
+      try {
+        // A missing key answers null: reaching the bucket is what counts.
+        await withTimeout(
+          this.storage.head(this.storage.bucket('media'), 'ops/health-probe'),
+          5_000,
+        );
+        detail.latencyMs = Date.now() - started;
+      } catch (e) {
+        ok = false;
+        detail.error = (e as Error).message;
+      }
+    }
+    if (r2Bucket) {
+      const started = Date.now();
+      try {
+        await withTimeout(
+          this.storage.head(r2Bucket, 'ops/health-probe'),
+          5_000,
+        );
+        detail.r2LatencyMs = Date.now() - started;
+      } catch (e) {
+        ok = false;
+        detail.r2Error = (e as Error).message;
+      }
+    }
+    return { status: ok ? 'green' : 'red', detail };
   }
 
   private async video(): Promise<Omit<HealthItemDto, 'key'>> {
@@ -284,7 +329,7 @@ export class SystemHealthService implements OnModuleDestroy {
     if (!this.queues) {
       const url = this.config.getOrThrow<string>('REDIS_URL');
       this.queues = OBSERVED_QUEUES.map(
-        (name) => new Queue(name, { connection: { url } }),
+        (name) => new Queue(name, bullOptions(name, url)),
       );
     }
     return this.queues;

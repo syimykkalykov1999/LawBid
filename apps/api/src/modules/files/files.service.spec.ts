@@ -1,3 +1,4 @@
+import { imageFormatContext } from './processing/image-format-context';
 import { createHash } from 'node:crypto';
 import { HttpException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
@@ -20,6 +21,8 @@ function make(
     file?: Partial<File> | null;
     usedBytes?: bigint;
     quotaMb?: number | null;
+    /** The public-media switch is on: `media` resolves to the R2 bucket. */
+    r2?: boolean;
   } = {},
 ) {
   const file =
@@ -35,6 +38,7 @@ function make(
           deleted_at: null,
           ...overrides.file,
         } as File);
+  const counters = new Map<string, number>();
   const deps = {
     prisma: {
       file: {
@@ -54,9 +58,35 @@ function make(
     redis: {
       set: jest.fn().mockResolvedValue('OK'),
       zadd: jest.fn().mockResolvedValue(1),
+      // 2026-10-24: the per-day upload counter (one tiny in-memory Redis).
+      incrby: jest.fn((k: string, n: number) => {
+        counters.set(k, (counters.get(k) ?? 0) + n);
+        return Promise.resolve(counters.get(k)!);
+      }),
+      decrby: jest.fn((k: string, n: number) => {
+        counters.set(k, (counters.get(k) ?? 0) - n);
+        return Promise.resolve(counters.get(k)!);
+      }),
+      expire: jest.fn().mockResolvedValue(1),
     },
     storage: {
       bucket: jest.fn((k: string) => `lawbid-${k}`),
+      resolveBucket: jest.fn((k: string) =>
+        Promise.resolve(
+          overrides.r2 && k === 'media' ? 'lawbid-r2' : `lawbid-${k}`,
+        ),
+      ),
+      awsBucket: jest.fn((k: string) => `lawbid-${k}`),
+      isPublicStoreBucket: jest.fn((b: string) => b === 'lawbid-r2'),
+      publicObjectUrl: jest.fn((b: string, k: string) =>
+        b === 'lawbid-r2' ? `https://media.example/${k}` : null,
+      ),
+      presignPut: jest.fn().mockResolvedValue({
+        url: 'https://r2/put',
+        fields: {},
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg' },
+      }),
       presignPost: jest
         .fn()
         .mockResolvedValue({ url: 'http://s3/b', fields: { key: 'k' } }),
@@ -64,7 +94,7 @@ function make(
       configured: true,
     },
     settings: {
-      number: jest.fn(() => Promise.resolve(10)),
+      number: jest.fn<Promise<number>, [string]>(() => Promise.resolve(10)),
       // Owner 2026-10-07 (bug 17): «Загрузки и файлы» (unset = defaults).
       raw: jest.fn().mockResolvedValue(undefined),
     },
@@ -82,7 +112,7 @@ function make(
       get: jest.fn().mockReturnValue(undefined),
     },
     scans: { enqueueScan: jest.fn() },
-    logger: { setContext: jest.fn(), error: jest.fn() },
+    logger: { setContext: jest.fn(), error: jest.fn(), warn: jest.fn() },
     flags: { isEnabled: jest.fn().mockResolvedValue(false) },
   };
   const service = new FilesService(
@@ -107,6 +137,174 @@ const code = (p: Promise<unknown>) =>
   );
 
 describe('FilesService', () => {
+  describe('daily upload cap (2026-10-24, storage.daily_upload_mb_per_user)', () => {
+    const MBYTES = 1024 * 1024;
+    const png = (sizeBytes: number) => ({
+      purpose: 'post_image' as const,
+      mime: 'image/png' as const,
+      sizeBytes,
+      sha256: SHA,
+    });
+    const withCap = (capMb: number) => {
+      const m = make();
+      m.deps.settings.number.mockImplementation((key: string) =>
+        Promise.resolve(
+          key === 'storage.daily_upload_mb_per_user' ? capMb : 10_000,
+        ),
+      );
+      return m;
+    };
+
+    it('lets uploads through until the day total passes the cap, then 429', async () => {
+      const { service } = withCap(3);
+      expect(await code(service.presign('u1', png(2 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(await code(service.presign('u1', png(1 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(await code(service.presign('u1', png(1)))).toBe(
+        'DAILY_UPLOAD_LIMIT_EXCEEDED',
+      );
+    });
+
+    it('a refused request gives its bytes back and keeps the budget', async () => {
+      const { service, deps } = withCap(3);
+      await service.presign('u1', png(2 * MBYTES));
+      expect(await code(service.presign('u1', png(2 * MBYTES)))).toBe(
+        'DAILY_UPLOAD_LIMIT_EXCEEDED',
+      );
+      expect(deps.redis.decrby).toHaveBeenCalledTimes(1);
+      expect(await code(service.presign('u1', png(1 * MBYTES)))).toBe(
+        'resolved',
+      );
+    });
+
+    it('is per person', async () => {
+      const { service } = withCap(1);
+      await service.presign('u1', png(1 * MBYTES));
+      expect(await code(service.presign('u2', png(1 * MBYTES)))).toBe(
+        'resolved',
+      );
+    });
+
+    it('0 switches it off', async () => {
+      const { service, deps } = withCap(0);
+      expect(await code(service.presign('u1', png(5 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(deps.redis.incrby).not.toHaveBeenCalled();
+    });
+
+    it('does not count an avatar (quota-free purpose)', async () => {
+      const { service, deps } = withCap(1);
+      await service.presign('u1', {
+        purpose: 'avatar',
+        mime: 'image/png',
+        sizeBytes: 1000,
+        sha256: SHA,
+      });
+      expect(deps.redis.incrby).not.toHaveBeenCalled();
+    });
+
+    it('answers 429 with the limit, usage and seconds to midnight UTC', async () => {
+      const { service } = withCap(1);
+      await service.presign('u1', png(1 * MBYTES));
+      const err = (await service
+        .presign('u1', png(10))
+        .catch((e: unknown) => e)) as HttpException;
+      expect(err.getStatus()).toBe(429);
+      const body = err.getResponse() as {
+        details: {
+          limitBytes: number;
+          usedBytes: number;
+          retryAfterSeconds: number;
+        };
+      };
+      expect(body.details.limitBytes).toBe(MBYTES);
+      expect(body.details.usedBytes).toBe(MBYTES);
+      expect(body.details.retryAfterSeconds).toBeGreaterThan(0);
+      expect(body.details.retryAfterSeconds).toBeLessThanOrEqual(86_400);
+    });
+
+    it('Redis down: the upload goes on and the failure is logged', async () => {
+      const { service, deps } = withCap(1);
+      deps.redis.incrby.mockRejectedValueOnce(new Error('down'));
+      expect(await code(service.presign('u1', png(5 * MBYTES)))).toBe(
+        'resolved',
+      );
+      expect(deps.logger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('presign with Cloudflare R2 (owner 2026-10-24)', () => {
+    const photo = {
+      purpose: 'post_image' as const,
+      mime: 'image/jpeg',
+      sizeBytes: 500,
+      sha256: SHA,
+    };
+
+    it('switch off: public media is a normal POST to the AWS media bucket', async () => {
+      const { service, deps } = make();
+      await service.presign('u1', { ...photo, supportsPut: true });
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-media' }),
+      );
+      expect(deps.storage.presignPut).not.toHaveBeenCalled();
+    });
+
+    it('switch on + app supports PUT: a presigned PUT to the R2 bucket', async () => {
+      const { service, deps } = make({ r2: true });
+      const res = await service.presign('u1', { ...photo, supportsPut: true });
+      expect(deps.storage.presignPut).toHaveBeenCalledWith(
+        expect.objectContaining({
+          bucket: 'lawbid-r2',
+          size: 500,
+          contentType: 'image/jpeg',
+        }),
+      );
+      expect(deps.storage.presignPost).not.toHaveBeenCalled();
+      expect(res.upload.method).toBe('PUT');
+      const [, value] = deps.redis.set.mock.calls[0] as [string, string];
+      expect(JSON.parse(value)).toMatchObject({ bucket: 'lawbid-r2' });
+    });
+
+    it('switch on but an older app (no PUT): stays on AWS with POST', async () => {
+      const { service, deps } = make({ r2: true });
+      await service.presign('u1', photo);
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-media' }),
+      );
+      expect(deps.storage.presignPut).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      'chat_attachment',
+      'chat_voice',
+      'case_photo',
+      'case_attachment',
+      'verification_document',
+      'verification_selfie',
+      'support_attachment',
+      'task_attachment',
+    ] as const)('switch on: %s stays private on AWS', async (purpose) => {
+      const { service, deps } = make({ r2: true });
+      const mime = purpose === 'chat_voice' ? 'audio/mp4' : 'image/jpeg';
+      await service.presign('u1', {
+        purpose,
+        mime,
+        sizeBytes: 500,
+        sha256: SHA,
+        supportsPut: true,
+      });
+      expect(deps.storage.presignPut).not.toHaveBeenCalled();
+      expect(deps.storage.presignPost).toHaveBeenCalledWith(
+        expect.objectContaining({ bucket: 'lawbid-documents' }),
+      );
+    });
+  });
+
   describe('presign', () => {
     it('issues an exact-size, exact-type POST policy for the purpose bucket and consumes budgets', async () => {
       const { service, deps } = make();
@@ -118,7 +316,9 @@ describe('FilesService', () => {
       });
       expect(deps.storage.presignPost).toHaveBeenCalledWith({
         bucket: 'lawbid-documents',
-        key: `verification_document/u1/${res.fileId}`,
+        key: expect.stringMatching(
+          new RegExp(`^verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`),
+        ),
         contentType: 'application/pdf',
         size: 1234,
         expiresSec: 300,
@@ -148,7 +348,11 @@ describe('FilesService', () => {
       expect(deps.redis.zadd).toHaveBeenCalledWith(
         'files:pending',
         expect.any(Number),
-        `${res.fileId}|lawbid-documents|verification_document/u1/${res.fileId}`,
+        expect.stringMatching(
+          new RegExp(
+            `^${res.fileId}\\|lawbid-documents\\|verification_document/s0/\\d{4}/\\d{2}/${res.fileId}$`,
+          ),
+        ),
       );
     });
 
@@ -453,6 +657,61 @@ describe('FilesService', () => {
       expect(await make().service.mediaUrl(null)).toBeNull();
     });
 
+    describe('AVIF twins (owner 2026-10-25)', () => {
+      const withSettings = (on: boolean, since: string, created: Date) => {
+        const m = make({
+          file: { width: 1024, mime: 'image/webp', created_at: created },
+        });
+        (m.deps.settings as Record<string, unknown>).boolean = jest.fn(() =>
+          Promise.resolve(on),
+        );
+        (m.deps.settings as Record<string, unknown>).string = jest.fn(() =>
+          Promise.resolve(since),
+        );
+        return m;
+      };
+      const asAvifClient = <T>(fn: () => Promise<T>) =>
+        imageFormatContext.run(true, fn);
+      const since = '2026-10-25T00:00:00Z';
+      const after = new Date('2026-10-26T00:00:00Z');
+
+      it('serves the .avif twin to a client that asked, after the since time', async () => {
+        const { service, deps } = withSettings(true, since, after);
+        await asAvifClient(() => service.avatarUrls('f1'));
+        expect(deps.storage.signedGetUrl).toHaveBeenCalledWith(
+          'media',
+          'avatar/u1/f1.avif',
+          3600,
+        );
+        expect(deps.storage.signedGetUrl).toHaveBeenCalledWith(
+          'media',
+          'avatar/u1/f1_w256.avif',
+          3600,
+        );
+      });
+
+      it('keeps WebP/JPEG links when: no opt-in, switch off, empty since, or an older file', async () => {
+        const cases: Array<[boolean, string, Date, boolean]> = [
+          [true, since, after, false],
+          [false, since, after, true],
+          [true, '', after, true],
+          [true, since, new Date('2026-10-01T00:00:00Z'), true],
+        ];
+        for (const [on, s, created, optIn] of cases) {
+          const { service, deps } = withSettings(on, s, created);
+          await (optIn
+            ? asAvifClient(() => service.avatarUrls('f1'))
+            : service.avatarUrls('f1'));
+          const keys = deps.storage.signedGetUrl.mock.calls.map(
+            (c: unknown[]) => c[1],
+          );
+          expect(keys.some((k: unknown) => String(k).endsWith('.avif'))).toBe(
+            false,
+          );
+        }
+      });
+    });
+
     it('isCleanAvatar: own, clean, live avatar only', async () => {
       expect(await make().service.isCleanAvatar('f1', 'u1')).toBe(true);
       expect(await make().service.isCleanAvatar('f1', 'u2')).toBe(false);
@@ -621,5 +880,75 @@ describe('FilesService', () => {
       });
       expect(deps.scans.enqueueScan).toHaveBeenCalledWith('f1');
     });
+  });
+});
+
+describe('confidential file links (security & legal pass 2026-10-24)', () => {
+  function withFiles(ttl: number) {
+    const { service, deps } = make();
+    (deps.settings as unknown as { number: unknown }).number = jest.fn(
+      (key: string) =>
+        Promise.resolve(key === 'files.confidential_url_ttl_sec' ? ttl : 10),
+    );
+    const rows = [
+      {
+        id: 'c1',
+        owner_user_id: 'owner',
+        purpose: 'chat_attachment',
+        s3_bucket: 'documents',
+        s3_key: 'chat/owner/c1',
+        mime: 'application/pdf',
+        size_bytes: 10n,
+        width: null,
+        height: null,
+      },
+    ];
+    (deps.prisma.file as unknown as Record<string, unknown>).findMany = jest
+      .fn()
+      .mockResolvedValue(rows);
+    return { service, deps };
+  }
+
+  const ttlOf = (deps: ReturnType<typeof make>['deps']): unknown =>
+    (deps.storage.signedGetUrl.mock.calls[0] as unknown[])[2];
+
+  it('chat documents are signed for files.confidential_url_ttl_sec, not for an hour', async () => {
+    const { service, deps } = withFiles(900);
+    await service.attachmentUrls(['c1']);
+    expect(ttlOf(deps)).toBe(900);
+  });
+
+  it('the setting is clamped to 60..3600 seconds', async () => {
+    const low = withFiles(5);
+    await low.service.attachmentUrls(['c1']);
+    expect(ttlOf(low.deps)).toBe(60);
+    const high = withFiles(999999);
+    await high.service.attachmentUrls(['c1']);
+    expect(ttlOf(high.deps)).toBe(3600);
+  });
+
+  it('reports each opened file to the access journal', async () => {
+    const { deps } = withFiles(900);
+    const access = { recordViews: jest.fn().mockResolvedValue(undefined) };
+    const service = new FilesService(
+      deps.prisma as unknown as PrismaService,
+      deps.redis as unknown as Redis,
+      deps.storage as unknown as S3StorageService,
+      deps.settings as unknown as AppSettingsService,
+      deps.costGuard as unknown as CostGuardService,
+      deps.rateLimit as unknown as RateLimitService,
+      deps.config as unknown as ConfigService,
+      deps.scans as unknown as FileScanRunner,
+      deps.logger as unknown as PinoLogger,
+      deps.flags as never,
+      undefined,
+      undefined,
+      undefined,
+      access as never,
+    );
+    await service.attachmentUrls(['c1']);
+    expect(access.recordViews).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'c1', owner_user_id: 'owner' }),
+    ]);
   });
 });

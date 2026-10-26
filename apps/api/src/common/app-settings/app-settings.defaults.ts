@@ -18,7 +18,12 @@ export const FILE_03_SETTINGS = {
    * format is never shown to anyone (owner 2026-10-18). */
   'verification.bar_formats': '',
   'verification.signed_url_ttl_sec': 300,
-  'verification.license_expiry_notify_days': [30, 7],
+  /** Owner 2026-10-24: reminders 60 / 30 / 7 days before a license expires. */
+  'verification.license_expiry_notify_days': [60, 30, 7],
+  /** Owner 2026-10-24: days after expires_at the license stays usable (cases
+   * in its state, bidding) while the badge is hidden and the admin sees
+   * «требует продления»; then it becomes `expired`. 0 = expire at once. */
+  'verification.license_expiry_grace_days': 14,
   'profile.username_change_cooldown_days': 30,
   // §9 names the key ("список") without contents: a starter list of names
   // that would impersonate the platform or collide with app routes.
@@ -183,6 +188,18 @@ export const OWNER_MEDIA_SETTINGS = {
   // Owner 2026-10-15: how many different people must open the same topic
   // after a query before the search learns "query → topic" (nightly).
   'search.learn_min_users': 3,
+  // Owner 2026-10-24 (search-ready): which engine answers searches.
+  // postgres = today (default); shadow = ask both, show Postgres, log the
+  // differences; engine = the search engine, Postgres on error / timeout.
+  // See docs/architecture/SEARCH_READY.md.
+  'search.engine': 'postgres',
+  // Engine answers slower than this fall back to Postgres, ms.
+  'search.engine_timeout_ms': 800,
+  // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
+  // the old index generation is kept this many days for a rollback, and the
+  // backfill pauses this long between batches so it never hogs the database.
+  'search.reindex_keep_days': 7,
+  'search.reindex_throttle_ms': 200,
   // Owner 2026-10-15: the recommendation weights of Search (cases for
   // attorneys, people and «you may know», posts and reels) — editable in
   // the admin panel; the sum need not be 1.
@@ -322,20 +339,40 @@ export const OWNER_SMS_SETTINGS = {
   /** Password-reset codes to one number per hour / per 24 hours. */
   'sms.reset_per_number_per_hour': 3,
   'sms.reset_per_number_per_day': 5,
+  /** 2026-10-24 (abuse batch B, item 10): SMS-pumping brake. More than this
+   * many codes in the window to numbers with the same first 6 digits
+   * (country code + area + the start of the line) trips the prefix: it is
+   * blocked for `sms.prefix_block_minutes`, nothing is sent, the caller
+   * still sees the normal «code sent» answer, and an alert is logged. 0 = off. */
+  'sms.prefix_velocity_max': 8,
+  /** Same, for the whole country (dial code). 0 = off. */
+  'sms.country_velocity_max': 100,
+  /** Window of both velocity rules, minutes. */
+  'sms.prefix_velocity_window_minutes': 10,
+  /** How long a tripped prefix / country stays blocked, minutes. */
+  'sms.prefix_block_minutes': 60,
+  /** Hard daily cap (UTC day) of SMS codes to NEW numbers (sign-up). When
+   * reached, sign-up by SMS is closed until 00:00 UTC (503
+   * PROVIDER_BUDGET_EXCEEDED) and an alert is logged; password-reset codes
+   * and e-mail codes keep working. Unlike «Лимиты расходов» it is never
+   * changed by the auto mode. 0 = off. */
+  'sms.signup_daily_cap': 300,
 } as const;
 
 // Owner 2026-10-22 (client economy plan §5, Telegram «Данные и память»):
 // the ceilings of the on-device caches, sent in GET /config/bootstrap
 // (`app_config.cache.*`). A person may lower a limit on the phone, never
 // raise it above these. keep_media_days: 3 / 7 / 30 / 0 (= always).
+// Owner 2026-10-23: images, chat media and video 1 GB each, files
+// 500 MB (~3.6 GB in all): fewer re-downloads, less traffic to pay for.
 export const OWNER_CACHE_SETTINGS = {
   'cache.limit_mb.http': 32,
   'cache.limit_mb.messages': 50,
   'cache.limit_mb.feed': 8,
-  'cache.limit_mb.images': 500,
-  'cache.limit_mb.chat_media': 300,
-  'cache.limit_mb.files': 200,
-  'cache.limit_mb.video': 300,
+  'cache.limit_mb.images': 1000,
+  'cache.limit_mb.chat_media': 1000,
+  'cache.limit_mb.files': 500,
+  'cache.limit_mb.video': 1000,
   'cache.keep_media_days.default': 30,
 } as const;
 
@@ -517,6 +554,9 @@ export const OWNER_REASON_SETTINGS = {
 // before it runs. Default $500. 0 = every one needs it.
 export const OWNER_DUAL_APPROVAL_SETTINGS = {
   'billing.dual_approval_min_cents': 50_000,
+  // Owner 2026-10-24: one owner, no second admin. false = every action
+  // runs at once after the 2FA code; true = the rule above is enforced.
+  'admin.dual_control': false,
 } as const;
 
 /** Every typed app_config tunable with its spec default. */
@@ -611,6 +651,20 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.anonymous_rate_limit_per_minute': 100,
   /** Scale audit 2026-10-23: live connections of one person per server. */
   'realtime.max_sockets_per_user': 10,
+  /** Owner 2026-10-25: new socket connections per minute from one address
+   * (CGNAT / offices carry many people: generous). 0 = no limit. */
+  'realtime.max_connects_per_ip_per_minute': 120,
+  /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
+  'security.password_breach_check_enabled': true,
+  /** Milliseconds to wait for the breached-password service; later = skip. */
+  'security.password_breach_timeout_ms': 1500,
+  /** Refuse passwords from the bundled list of the most common ones. */
+  'security.password_common_list_enabled': true,
+  /** Password hashes (scrypt) running at once on one server; the rest wait,
+   * so a sign-in flood cannot starve the server's file / DNS work. */
+  'security.password_hash_concurrency': 4,
+  /** Hashes allowed to wait; beyond it the request gets RATE_LIMITED. */
+  'security.password_hash_max_queue': 200,
   /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
    * may ask for in a rolling 24 h, on top of the hourly limit. Range
    * 1…1000 (config-schema); 0 is refused, never "unlimited". Not seeded:
@@ -627,6 +681,15 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * enforce only after the app sends the header (B1) and a week of
    * monitor shows almost no `missing` verdicts. docs/runbooks/APP_CHECK.md */
   'security.app_check.mode': 'monitor',
+  /** 2026-10-24 (abuse batch B, item 4): Cloudflare Turnstile on the WEB
+   * page's costly anonymous routes (the same ones App Check covers). `off`
+   * (default) — never looked at; `monitor` — a token the page sent is
+   * verified and the verdict logged (`metric: turnstile`), nothing is
+   * blocked; `enforce` — a token that fails verification gets 403
+   * TURNSTILE_FAILED, a valid one passes even without App Check. The app
+   * (iOS / Android) never uses it: it relies on App Check above. The secret
+   * key is set in Интеграции → Cloudflare Turnstile. docs/runbooks/APP_CHECK.md */
+  'security.turnstile.mode': 'off',
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every
@@ -656,26 +719,59 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * peer holds about 9); `video_provider` p2p | livekit (livekit needs the
    * LIVEKIT_* keys); big-audience channel calls come next release. */
   'calls.max_participants': 9,
+  /** Owner 2026-10-23: one person left in a call → the call ends after this
+   * many seconds unless somebody joins (0 = at once). */
+  'calls.solo_end_seconds': 30,
   /** Owner 2026-10-22: guest browsing (reading with no account). Kill
    * switch and the per-IP budgets of token-less reads. */
   'guest.browsing_enabled': true,
   'guest.rate_limit_per_minute': 40,
   'guest.rate_limit_per_hour': 600,
   'calls.video_provider': 'p2p',
+  /** Owner 2026-10-24: group calls on Cloudflare SFU (`video_provider` =
+   * cloudflare). People in one SFU call (default 20); the mesh cap above
+   * (`calls.max_participants`, 9) stays for device-to-device calls. */
+  'calls.sfu_max_participants': 20,
+  /** Only while Cloudflare is down or has no keys: up to this many people
+   * (4) stay device-to-device with their video; with more, everyone is
+   * audio-only (a call is never refused, seats stay as in the SFU limit). */
+  'calls.sfu_fallback_mesh_max': 4,
   'calls.channel_live_enabled': false,
   'chat.link_preview_enabled': true,
   'chat.link_preview_denylist': [] as string[],
 };
 
 export const OWNER_STORAGE_SETTINGS = {
+  // Owner 2026-10-24: where NEW public media (avatars, post / review
+  // photos, stickers) is stored: 'aws' (S3, default) or 'r2' (Cloudflare
+  // R2, no egress fee; needs Integrations → Cloudflare R2). Private
+  // content is always on AWS. docs/architecture/R2_PUBLIC_MEDIA.md.
+  'media.public_store': 'aws',
   'storage.dedup': true,
   'storage.auto_cleanup': true,
   'storage.orphan_grace_hours': 24,
   'storage.purge_after_days': 7,
   'storage.deleted_posts_media_days': 30,
   'storage.image_format': 'webp',
+  /** Owner 2026-10-25: AVIF twins of public photos (≈40-50% smaller than
+   * WebP). OFF by default. `images.avif_enabled` writes the twins at
+   * upload; they are served only to clients that send
+   * `X-Image-Formats: avif`, and only for files uploaded after
+   * `images.avif_since` (ISO time, empty = serve none). Qualities 1-100,
+   * effort 0-9 (higher = smaller but slower to make). */
+  'images.avif_enabled': false,
+  'images.avif_since': '',
+  'images.avif_quality': 60,
+  'images.avif_effort': 2,
+  'images.webp_quality': 88,
+  'images.jpeg_quality': 90,
   'storage.user_quota_mb': 10240,
   'storage.chat_quota_mb': 5120,
+  /** 2026-10-24 (abuse batch B, item 5): most MB one person may upload in
+   * a UTC day (counted at presign; avatars, documents and exports are not
+   * counted). Stops an upload-and-delete loop that the stored-bytes quota
+   * above cannot see. 429 DAILY_UPLOAD_LIMIT_EXCEEDED. 0 = no cap. */
+  'storage.daily_upload_mb_per_user': 2048,
   'storage.auto_retention': true,
   'storage.retention_auth_events_days': 730,
   'storage.retention_assistant_activity_days': 365,
@@ -708,6 +804,20 @@ export const OWNER_OPS_SETTINGS = {
   'ops.auto_scale_down_on_budget': true,
   /** The newest database backup (provider API) older than this → alert. */
   'ops.backup_max_age_hours': 26,
+  /** Batch C item 14 (2026-10-24): how long a ranked search result list
+   * (people, attorneys, cases, posts) is shared by everyone asking the same
+   * query. Short = fresher, 0 would be uncached; keep 30–60. */
+  'search.ranked_cache_ttl_sec': 60,
+  /** Batch C items 11 and 16 (2026-10-24): outside usage alarms, GB per
+   * month; 0 = that alarm is off. Cloudflare Realtime (TURN + SFU) is free
+   * up to 1000 GB/month, then $0.05/GB. */
+  'usage.cloudflare_egress_warn_gb': 700,
+  'usage.cloudflare_egress_crit_gb': 950,
+  /** Bunny Stream: CDN traffic this month and stored video, GB. */
+  'usage.bunny_bandwidth_warn_gb': 1000,
+  'usage.bunny_bandwidth_crit_gb': 2000,
+  'usage.bunny_storage_warn_gb': 200,
+  'usage.bunny_storage_crit_gb': 500,
   /** Owner 2026-10-16 «Экономика»: third-party spend may be at most this
    * percent of the last 30 days' revenue … */
   'economy.max_spend_percent': 50,
@@ -779,6 +889,17 @@ export const OWNER_BOOKING_QA_SETTINGS = {
   'rate_limit.question_per_day': 3,
   /** Answers (and edits) one attorney may post in an hour. */
   'rate_limit.answer_per_hour': 30,
+  /** Owner 2026-10-25 (abuse hardening): generous caps no real person
+   * reaches; they stop scripts. Offers one attorney may place in a day. */
+  'rate_limit.bid_create_per_day': 200,
+  /** Counter-offers (either side) per hour. */
+  'rate_limit.bid_counter_per_hour': 120,
+  /** Cases one client may publish in a day. */
+  'rate_limit.case_create_per_day': 30,
+  /** Messages saved to «Сохранённое» per minute. */
+  'rate_limit.chat_save_per_minute': 120,
+  /** Forwarded messages per minute (on top of the message limit). */
+  'rate_limit.forward_per_minute': 60,
   /** Pending + confirmed upcoming consultations one client may hold. */
   'consultations.max_active_per_client': 5,
   /** Owner 2026-10-20: a push to attorneys about every new question is OFF
@@ -806,6 +927,62 @@ import {
   OWNER_CHAT_PHOTO_SETTINGS,
   OWNER_CLIENT_TUNING_SETTINGS,
 } from './client-tuning';
+
+/** Legal-grade protection of client documents (security & legal pass,
+ * 2026-10-24): attorney–client privilege, ABA Model Rule 1.6(c).
+ * - `security.attorney_strong_auth`: an attorney (or assistant) who has
+ *   registered a passkey can no longer be signed in by the password alone
+ *   — a stolen password is not enough. Without a passkey nothing changes.
+ * - `files.confidential_url_ttl_sec`: how long a link to a case file, a
+ *   chat document or a support attachment lives. The app asks for a new
+ *   link on every open, and access is re-checked each time, so a person
+ *   who loses access loses the file within this time.
+ * - `files.access_log_enabled`: remember who (other than the owner)
+ *   opened a confidential file, from which device — shown to the owner. */
+export const OWNER_LEGAL_SECURITY_SETTINGS = {
+  'security.attorney_strong_auth': true,
+  'files.confidential_url_ttl_sec': 900,
+  'files.access_log_enabled': true,
+  /** Security pass 2026-10-25 (S3-5): file names of chat attachments and
+   * the case's «Личные данные» are stored sealed (AES-256-GCM, bound to the
+   * row), and the key job seals the old rows too. Reads accept both forms;
+   * off = new rows stay readable as before, already sealed ones stay sealed. */
+  'security.seal_case_metadata': true,
+  /** Free text in case-journal entries (case titles and description
+   * changes) is sealed. The journal is append-only and hash-chained, so
+   * old entries cannot be rewritten: every key id used while this is on
+   * must stay in MESSAGE_ENC_KEYS for the 5-year retention. Off by default. */
+  'security.seal_journal_text': false,
+  /** S3-11: push notifications show the message text. Off = «Новое
+   * сообщение»; Google and Apple then never see the text. */
+  'push.chat_preview': true,
+};
+
+/**
+ * Owner 2026-10-25: new-case alerts in waves (docs/CASE_FANOUT.md). The
+ * defaults keep today's reach: one wave of up to 5000 attorneys, no daily
+ * cap, no stop at N offers; only the ORDER is new (best first, newcomers
+ * reserved a share). Tune from the admin panel without a release.
+ * - fraud actions: 'normal' | 'small' (a small delayed wave, then stop) |
+ *   'none' (no alerts) for a client whose fraud status is review /
+ *   restricted (docs/CLIENT_FRAUD.md);
+ * - 0 means "off" for `stop_at_bids`, `daily_cap`, `new_quota_percent`. */
+export const OWNER_CASE_FANOUT_SETTINGS = {
+  'case_fanout.enabled': false,
+  'case_fanout.first_wave_size': 5000,
+  'case_fanout.wave_size': 5000,
+  'case_fanout.wave_interval_minutes': 10,
+  'case_fanout.max_waves': 20,
+  'case_fanout.stop_at_bids': 0,
+  'case_fanout.new_quota_percent': 20,
+  'case_fanout.new_max_alerts': 20,
+  'case_fanout.new_max_bids': 3,
+  'case_fanout.daily_cap': 0,
+  'case_fanout.fraud_review_action': 'normal',
+  'case_fanout.fraud_restricted_action': 'none',
+  'case_fanout.fraud_small_wave_size': 10,
+  'case_fanout.fraud_delay_minutes': 60,
+};
 
 export const APP_SETTINGS = {
   ...FILE_03_SETTINGS,
@@ -849,6 +1026,8 @@ export const APP_SETTINGS = {
   ...OWNER_REALTIME_SETTINGS,
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
+  ...OWNER_LEGAL_SECURITY_SETTINGS,
+  ...OWNER_CASE_FANOUT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;

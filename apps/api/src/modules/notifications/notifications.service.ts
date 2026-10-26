@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { NotificationCategory, NotificationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { hashShard } from '../../sharding/shard-id';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { publishCaseEvent } from './case-events';
@@ -311,6 +312,50 @@ export class NotificationsService {
     return rows.length;
   }
 
+  /**
+   * Owner 2026-10-25 (case fan-out daily cap): one rolled-up row per
+   * person and [dedupeKey] (a day). The first call stores the row and
+   * pushes once; later calls only bump `aggregate_count`, carry the latest
+   * `caseId` and move the row (realtime + badge, no new push). A retry
+   * with the same latest caseId counts nothing twice. Returns the number
+   * of rows created.
+   */
+  async emitDigest(input: {
+    type: NotificationType;
+    recipientIds: string[];
+    caseId: string;
+    dedupeKey: string;
+  }): Promise<number> {
+    const category = NOTIFICATION_CATEGORY[input.type];
+    const payload = JSON.stringify({ caseId: input.caseId, digest: true });
+    let created = 0;
+    for (const recipientId of input.recipientIds) {
+      const [row] = await this.prisma.$queryRaw<
+        { id: string; n: number; inserted: boolean }[]
+      >`
+        INSERT INTO notifications (user_id, type, category, payload, dedupe_key, shard_id)
+        VALUES (${recipientId}::UUID,
+                ${input.type}::notification_type,
+                ${category}::notification_category,
+                ${payload}::JSONB,
+                ${input.dedupeKey},
+                ${hashShard(recipientId)}::SMALLINT)
+        ON CONFLICT (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL
+        DO UPDATE SET aggregate_count = notifications.aggregate_count
+                        + (CASE WHEN notifications.payload->>'caseId'
+                                     IS DISTINCT FROM excluded.payload->>'caseId'
+                                THEN 1 ELSE 0 END),
+                      payload = excluded.payload,
+                      updated_at = now()
+        RETURNING id::TEXT AS id, aggregate_count::INT8 AS n,
+                  (xmax = 0) AS inserted`;
+      if (row.inserted) created++;
+      await this.badges?.invalidateNotifications(recipientId);
+      await this.push?.enqueue(row.id, input.type, row.inserted ? 1 : 2);
+    }
+    return created;
+  }
+
   /** Owner 2026-10-22 (finding 7): a group message's pushes for many
    * members at once (`new_message` is never stored, like [emit]). */
   async queueGroupMessagePushes(data: {
@@ -391,12 +436,13 @@ export class NotificationsService {
       // One row per window: later events bump the count, carry the latest
       // actor ("Sarah и ещё 5"), come back unread and move to the top.
       const [row] = await db.$queryRaw<{ id: string; n: number }[]>`
-        INSERT INTO notifications (user_id, type, category, payload, dedupe_key)
+        INSERT INTO notifications (user_id, type, category, payload, dedupe_key, shard_id)
         VALUES (${input.recipientId}::UUID,
                 ${input.type}::notification_type,
                 ${category}::notification_category,
                 ${JSON.stringify(input.payload)}::JSONB,
-                ${dedupe})
+                ${dedupe},
+                ${hashShard(input.recipientId)}::SMALLINT)
         ON CONFLICT (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL
         DO UPDATE SET aggregate_count = notifications.aggregate_count + 1,
                       payload = excluded.payload,

@@ -30,6 +30,11 @@ variable "alerts_topic_arn" {
   default     = null
   description = "SNS topic for the instance-status, health and traffic alarms; null = no alarms."
 }
+variable "alarms_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the alarms. A plan-time bool: alerts_topic_arn is unknown until the topic exists."
+}
 variable "traffic_alarm_gb_per_day" {
   type        = number
   default     = 20
@@ -46,8 +51,14 @@ variable "health_checks" {
   description = "Route 53 TCP health check on port 3478 of each relay (about $0.50-0.75/month each): an unhealthy relay leaves the DNS answer (only with hosted_zone_id) and raises an alarm. Their CloudWatch metric exists in us-east-1 only; set false in other regions."
 }
 variable "instance_type" {
-  type    = string
-  default = "t4g.nano"
+  type        = string
+  default     = "t4g.nano"
+  description = "Owner 2026-10-23: prod runs t4g.small (about $12.3/month vs about $3.1 for t4g.nano, us-east-1 on-demand list price, approximate). Staging/loadtest keep the cheap default."
+}
+variable "turn_total_quota" {
+  type        = number
+  default     = null
+  description = "coturn total-quota (simultaneous relay allocations PER SERVER; 2 allocations = about 1 relayed call). null = take it from the instance type (local.sizes). Set a number to override."
 }
 variable "denied_peer_cidrs" {
   type        = list(string)
@@ -165,6 +176,25 @@ resource "aws_iam_role_policy" "secret" {
   policy = data.aws_iam_policy_document.secret.json
 }
 
+# The box reports its allocation count (systemd timer, user-data) to CloudWatch.
+data "aws_iam_policy_document" "metrics" {
+  statement {
+    actions   = ["cloudwatch:PutMetricData"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["LawBid/TURN"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "metrics" {
+  name   = "put-turn-metrics"
+  role   = aws_iam_role.this.id
+  policy = data.aws_iam_policy_document.metrics.json
+}
+
 resource "aws_iam_instance_profile" "this" {
   name = "${var.name}-turn"
   role = aws_iam_role.this.name
@@ -194,12 +224,52 @@ resource "aws_instance" "this" {
     secret_param = aws_ssm_parameter.secret.name
     region       = data.aws_region.current.name
     denied       = var.denied_peer_cidrs
+    quota        = local.quota
   })
-  # A new secret or address rewrites the config: replace the box.
+  # A new secret, address or quota rewrites the config: replace the box.
+  # NOTE: both relays change in the same apply - roll out the second one
+  # first (docs/runbooks/TURN.md, "Смена размера").
   user_data_replace_on_change = true
 }
 
 data "aws_region" "current" {}
+
+# --- size ladder: instance type -> coturn quota, network baseline ---------------
+# RULE for `quota`: one allocation carries about one direction of one call. Audio
+# (Opus) is about 0.1 Mbps, video about 1.5 Mbps. Relayed calls are mostly
+# audio; planning mix 90 % audio / 10 % video = about 0.25 Mbps per allocation.
+# quota = the instance's SUSTAINED network baseline (`baseline_mbps`, AWS docs as
+# we know them: check the EC2 instance-types page when adding a type) / 0.25,
+# rounded DOWN to a tidy number. Burstable t4g types may burst far above the
+# baseline for a while (network credits), so the baseline is the safe long-run
+# number, not a hard wall. nano 32/0.25 = 128 -> 100; micro 64/0.25 = 256 -> 200;
+# small 128/0.25 = 512 -> 500; medium 1000; large 2000. The c6gn/c7gn rows are
+# limited by CPU (about 1000 relays per vCPU) and by the 16 384 relay ports, not
+# by the network, so they stay far below baseline/0.25. A relay pair
+# (turn_second_enabled) doubles the total. An unknown type falls back to the
+# nano value (safe).
+#
+# bps-capacity stays 0 (unlimited): the quota already bounds the number of
+# streams, and a per-server bps cap would degrade audio for everybody at once
+# (all allocations share it) instead of refusing only the newest call; the
+# network alarm (ha.tf) warns before the baseline is reached.
+locals {
+  sizes = {
+    "t4g.nano"    = { quota = 100, baseline_mbps = 32 }
+    "t4g.micro"   = { quota = 200, baseline_mbps = 64 }
+    "t4g.small"   = { quota = 500, baseline_mbps = 128 }
+    "t4g.medium"  = { quota = 1000, baseline_mbps = 256 }
+    "t4g.large"   = { quota = 2000, baseline_mbps = 512 }
+    "c6gn.large"  = { quota = 2000, baseline_mbps = 3125 }
+    "c6gn.xlarge" = { quota = 4000, baseline_mbps = 6250 }
+    "c7gn.large"  = { quota = 2000, baseline_mbps = 6250 }
+    "c7gn.xlarge" = { quota = 4000, baseline_mbps = 12500 }
+  }
+  size          = lookup(local.sizes, var.instance_type, local.sizes["t4g.nano"])
+  quota         = var.turn_total_quota != null ? var.turn_total_quota : local.size.quota
+  baseline_mbps = local.size.baseline_mbps
+  burstable     = startswith(var.instance_type, "t")
+}
 
 resource "aws_eip_association" "this" {
   instance_id   = aws_instance.this.id
@@ -210,6 +280,10 @@ output "public_ip" { value = aws_eip.this.public_ip }
 output "public_ips" {
   value       = [for r in local.relays : r.ip]
   description = "All relay addresses. Without hosted_zone_id: one A record `turn` per address (Namecheap)."
+}
+output "total_quota" {
+  value       = local.quota
+  description = "coturn total-quota per server (allocations)."
 }
 output "secret_parameter" { value = aws_ssm_parameter.secret.name }
 output "turn_url" {

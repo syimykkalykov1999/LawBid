@@ -70,6 +70,8 @@ locals {
     callFailed    = "SloCallFailed"
     pushOk        = "SloPushOk"
     pushFailed    = "SloPushFailed"
+    # Cloudflare TURN gave no login after a retry (own alarm below, not an SLO ratio).
+    turnProviderFailed = "SloTurnProviderFailed"
   }
   slo_log_groups = {
     api    = var.api_log_group
@@ -95,7 +97,7 @@ locals {
       total  = null
       bad    = "SloCallFailed"
       target = var.slo_targets.call
-      text   = "LawBid: Звонки не соединяются (видео/аудио не поднимается). Что делать: проверить TURN-сервер и его нагрузку. Инструкция: ${var.runbook_base_url}/slo.md (EN: Call connect rate is burning its error budget; check TURN.)"
+      text   = "LawBid: Звонки не соединяются (видео/аудио не поднимается). Что делать: открыть админку → Система → Состояние системы и посмотреть строки Cloudflare TURN и Cloudflare SFU (красные — проблема у Cloudflare, https://www.cloudflarestatus.com), затем логи API (поиск: cloudflare_turn_failed). Наши TURN-серверы удалены, звонки идут через Cloudflare. Инструкция: ${var.runbook_base_url}/TURN.md (EN: Call connect rate is burning its error budget; check Cloudflare TURN/SFU in admin system health and the API logs.)"
     }
     push = {
       good   = "SloPushOk"
@@ -173,11 +175,79 @@ resource "aws_cloudwatch_metric_alarm" "slo_burn" {
     return_data = false
   }
   metric_query {
-    id          = "err"
-    expression  = "IF(total >= ${var.slo_min_events}, MAX([0, total - FILL(good, 0)]) / total, 0)"
+    id = "err"
+    # CloudWatch rejects MAX over a scalar and a series together, so the floor is a series too.
+    expression  = "IF(total >= ${var.slo_min_events}, MAX([total * 0, total - FILL(good, 0)]) / total, 0)"
     label       = "error rate"
     return_data = true
   }
+}
+
+# --- P1 deploy safety (2026-10-24): what ECS watches while a release rolls out ---
+# aws_ecs_service `alarms` (rolling deployment + alarm rollback). The names are
+# outputs of the alarm resources, so Terraform creates the alarms before the
+# service starts watching them, and there is no cycle with module.ecs.
+variable "admin_target_group_arn_suffix" {
+  type        = string
+  default     = ""
+  description = "Admin ALB target group arn_suffix; empty = no admin deploy alarm."
+}
+variable "deploy_rollback_on_slo" {
+  type        = bool
+  default     = false
+  description = "Also roll the api back when a FAST-burn SLO composite alarm (call / push / otp) fires during a deploy. Off by default: those SLOs depend on Twilio / FCM / Cloudflare, and an outage there would roll back a healthy release. ECS support for composite alarms in `alarms` is not documented; test on staging first."
+}
+
+# Deploy-only alarm (no notification): more than 10 admin 5xx in 5 minutes.
+resource "aws_cloudwatch_metric_alarm" "admin_5xx_deploy" {
+  count               = var.admin_target_group_arn_suffix == "" ? 0 : 1
+  alarm_name          = "${var.name}-admin-5xx-deploy"
+  alarm_description   = "Used only by the ECS admin deployment rollback (no notification): admin target group 5xx > 10 in 5 minutes."
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 10
+  statistic           = "Sum"
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.admin_target_group_arn_suffix }
+  treat_missing_data  = "notBreaching"
+  tags                = var.tags
+}
+
+output "api_deployment_alarm_names" {
+  value = concat(
+    [
+      aws_cloudwatch_metric_alarm.alb_5xx_ratio.alarm_name,
+      aws_cloudwatch_metric_alarm.api_p95.alarm_name,
+      aws_cloudwatch_metric_alarm.unhealthy_hosts.alarm_name,
+    ],
+    var.deploy_rollback_on_slo ? [for k, a in aws_cloudwatch_composite_alarm.slo : a.alarm_name if endswith(k, "-fast")] : [],
+  )
+}
+# Deploy-only alarm: the worker writes one HeapUsedMb line a minute per running
+# task (see service_running_tasks); no samples for 3 minutes = no worker.
+# Separate from service_running_tasks on purpose: that one depends on the ECS
+# service name, which would make a cycle with the service that watches it.
+resource "aws_cloudwatch_metric_alarm" "worker_down_deploy" {
+  alarm_name          = "${var.name}-worker-down-deploy"
+  alarm_description   = "Used only by the ECS worker deployment rollback (no notification): no worker heartbeat for 3 minutes."
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  period              = 180
+  threshold           = 1
+  statistic           = "SampleCount"
+  metric_name         = "HeapUsedMb"
+  namespace           = "LawBid/Runtime"
+  dimensions          = { Service = "worker" }
+  treat_missing_data  = "breaching"
+  tags                = var.tags
+}
+output "worker_deployment_alarm_names" {
+  value = [aws_cloudwatch_metric_alarm.worker_down_deploy.alarm_name]
+}
+output "admin_deployment_alarm_names" {
+  value = aws_cloudwatch_metric_alarm.admin_5xx_deploy[*].alarm_name
 }
 
 # Page only when the long and the short window agree.
@@ -189,9 +259,28 @@ resource "aws_cloudwatch_composite_alarm" "slo" {
   alarm_name        = "${var.name}-slo-${each.key}"
   alarm_description = local.slos[each.value.slo].text
   alarm_rule        = "ALARM(\"${aws_cloudwatch_metric_alarm.slo_burn["${each.value.slo}-${each.value.pair}_long"].alarm_name}\") AND ALARM(\"${aws_cloudwatch_metric_alarm.slo_burn["${each.value.slo}-${each.value.pair}_short"].alarm_name}\")"
-  alarm_actions     = local.ops
-  ok_actions        = local.ops
-  tags              = var.tags
+  # Batch A item 1: the only alarms that also publish to the critical topic (phone).
+  alarm_actions = local.page
+  ok_actions    = local.page
+  tags          = var.tags
+}
+
+# Cloudflare TURN refused to hand out logins (after a retry) several times in
+# five minutes: calls fall back to STUN only and may not connect behind NAT.
+resource "aws_cloudwatch_metric_alarm" "turn_provider_failed" {
+  alarm_name          = "${var.name}-turn-provider-failed"
+  alarm_description   = "LawBid: Cloudflare TURN не выдаёт доступ для звонков (повторная попытка тоже не удалась). Что делать: админка → Система → Состояние системы → Cloudflare TURN; проверить ключ в Интеграции → cloudflare_turn и https://www.cloudflarestatus.com; в логах API ищите cloudflare_turn_failed. Инструкция: ${var.runbook_base_url}/TURN.md (EN: Cloudflare TURN credential requests failed after retry.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = 5
+  statistic           = "Sum"
+  metric_name         = "SloTurnProviderFailed"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
 }
 
 # Signups stopped (a broken sign-up screen, SMS or store listing).

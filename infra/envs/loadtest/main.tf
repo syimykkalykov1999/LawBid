@@ -75,13 +75,17 @@ module "stack" {
   api_image           = var.api_image
   admin_image         = var.admin_image
   clamav_image        = var.clamav_image
+  db_pooler_enabled   = var.db_pooler_enabled
+  pgbouncer_image     = var.pgbouncer_image
   alert_emails        = var.alert_emails
   stripe_price_id     = ""
 
   # --- sized like prod (envs/prod launch size), numbers per profile ---------
   create_database         = true
   database_instance_class = var.database_instance_class
-  database_multi_az       = false # failover is not what this test measures; Multi-AZ doubles the price
+  db_autoscale_enabled    = var.db_autoscale_enabled
+  redis_autoscale_enabled = var.redis_autoscale_enabled
+  database_multi_az       = var.gameday_enabled # off: failover is not what a normal run measures and Multi-AZ doubles the DB price; the GameDay run (FIS rds-failover) needs it
   # RDS needs at least 7 days of automated backups to allow point-in-time
   # restore; the instance (and its backups) is deleted at the end.
   database_backup_retention_days = 7
@@ -107,8 +111,9 @@ module "stack" {
   p95_target_ms                  = 600
 
   # --- calls ---------------------------------------------------------------
-  turn_enabled        = true
-  turn_second_enabled = var.turn_second_enabled
+  # Owner 2026-10-24: calls use Cloudflare TURN; our own coturn is removed.
+  turn_enabled        = false
+  turn_second_enabled = false
   livekit_enabled     = var.livekit_enabled
 
   # --- the test comes from a handful of addresses: the per-IP edge limits
@@ -159,6 +164,21 @@ resource "aws_vpc_security_group_ingress_rule" "livekit_signal" {
   description                  = "load generators (lk load-test)"
 }
 
+# --- GameDay (AWS FIS): only when the workflow input `gameday` is not "none" ----
+module "gameday" {
+  count                       = var.gameday_enabled ? 1 : 0
+  source                      = "../../modules/fis-gameday"
+  name                        = module.stack.name
+  cluster_name                = module.stack.cluster_name
+  api_service_name            = module.stack.api_service_name
+  db_instance_id              = module.stack.database_instance_id
+  redis_replication_group_id  = module.stack.redis_replication_group_id
+  alb_arn_suffix              = module.stack.alb_arn_suffix
+  api_target_group_arn_suffix = module.stack.api_target_group_arn_suffix
+  tags                        = local.tags
+}
+
+output "gameday_templates" { value = one(module.gameday[*].template_ids) }
 output "stack" { value = module.stack }
 output "generator_instance_ids" { value = module.loadgen.instance_ids }
 output "generator_public_ips" { value = module.loadgen.public_ips }

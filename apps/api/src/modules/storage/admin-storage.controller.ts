@@ -77,7 +77,7 @@ export class AdminStorageController {
   @ApiOperation({ summary: 'Storage: usage, savings, growth, settings' })
   @ApiEnvelopeResponse(StorageOverviewDto)
   async getStorageOverview(): Promise<StorageOverviewDto> {
-    const [usage, tables, topUsers, history, lastCleanup, settings] =
+    const [usage, tables, topUsers, history, lastCleanup, settings, r2] =
       await Promise.all([
         this.stats.usage(),
         this.stats.tables(),
@@ -85,6 +85,7 @@ export class AdminStorageController {
         this.stats.history(),
         this.cleanup.lastRun(),
         this.readSettings(),
+        this.stats.r2Usage(),
       ]);
     return {
       filesBytes: usage.filesBytes,
@@ -99,6 +100,7 @@ export class AdminStorageController {
       history,
       lastCleanup,
       settings,
+      r2,
     };
   }
 
@@ -119,6 +121,7 @@ export class AdminStorageController {
       'storage.image_format': dto.imageFormat,
       'storage.user_quota_mb': dto.userQuotaMb,
       'storage.chat_quota_mb': dto.chatQuotaMb,
+      'storage.daily_upload_mb_per_user': dto.dailyUploadMbPerUser,
       'storage.auto_retention': dto.autoRetention,
       'storage.retention_auth_events_days': dto.retentionAuthEventsDays,
       'storage.retention_assistant_activity_days':
@@ -231,6 +234,7 @@ export class AdminStorageController {
       imageFormat,
       userQuotaMb,
       chatQuotaMb,
+      dailyUploadMbPerUser,
       autoRetention,
       retentionAuthEventsDays,
       retentionAssistantActivityDays,
@@ -245,6 +249,7 @@ export class AdminStorageController {
       s.string('storage.image_format'),
       s.number('storage.user_quota_mb'),
       s.number('storage.chat_quota_mb'),
+      s.number('storage.daily_upload_mb_per_user'),
       s.boolean('storage.auto_retention'),
       s.number('storage.retention_auth_events_days'),
       s.number('storage.retention_assistant_activity_days'),
@@ -260,6 +265,7 @@ export class AdminStorageController {
       imageFormat: imageFormat === 'jpeg' ? 'jpeg' : 'webp',
       userQuotaMb,
       chatQuotaMb,
+      dailyUploadMbPerUser,
       autoRetention,
       retentionAuthEventsDays,
       retentionAssistantActivityDays,

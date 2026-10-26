@@ -56,7 +56,40 @@ variable "copy_account_vault_arn" {
   default     = ""
   description = "ARN of a vault in a separate backup account (same AWS Organization, cross-account backup turned on). Empty = no cross-account copy."
 }
+variable "vault_lock_mode" {
+  type        = string
+  default     = "off"
+  description = "Backup Vault Lock on both vaults. off | governance (cannot be undone by the backup role; an administrator with the right permission still can) | compliance (after `vault_lock_cooling_off_days` NOBODY, not even AWS support or the root user, can delete a recovery point early or remove the lock: ransomware and a stolen administrator cannot erase the backups). Start with governance; compliance is irreversible."
+  validation {
+    condition     = contains(["off", "governance", "compliance"], var.vault_lock_mode)
+    error_message = "vault_lock_mode must be off, governance or compliance."
+  }
+}
+variable "vault_lock_cooling_off_days" {
+  type        = number
+  default     = 7
+  description = "Compliance mode only (3-36500): days during which the lock can still be removed. After this it is permanent."
+}
+variable "vault_lock_min_retention_days" {
+  type        = number
+  default     = 7
+  description = "No recovery point may be deleted before it is this old (must not exceed retention_days)."
+}
+variable "vault_lock_max_retention_days" {
+  type        = number
+  default     = 400
+  description = "No recovery point may be kept longer than this (must be at least retention_days)."
+}
 variable "alerts_topic_arn" { type = string }
+variable "backup_age_missing_data" {
+  type        = string
+  default     = "breaching"
+  description = "How the 24 h backup-age alarm treats a day with no data. breaching = a stopped plan alarms (the safe steady state). notBreaching = use ONLY between the first apply and the first completed backup job, so the alarm cannot fire falsely before a recovery point exists; switch back to breaching afterwards (docs/runbooks/restore-drill.md)."
+  validation {
+    condition     = contains(["breaching", "notBreaching", "ignore", "missing"], var.backup_age_missing_data)
+    error_message = "backup_age_missing_data must be breaching, notBreaching, ignore or missing."
+  }
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -73,6 +106,26 @@ resource "aws_backup_vault" "dr" {
   name        = "${var.name}-db-dr"
   kms_key_arn = var.replica_kms_key_arn
   tags        = var.tags
+}
+
+# Immutable backups (SOC 2 availability, ransomware): once the lock is in
+# compliance mode the copies cannot be shortened or erased by anyone until
+# they expire. Free; the storage of the copies is what is billed.
+resource "aws_backup_vault_lock_configuration" "main" {
+  count               = var.vault_lock_mode == "off" ? 0 : 1
+  backup_vault_name   = aws_backup_vault.main.name
+  min_retention_days  = var.vault_lock_min_retention_days
+  max_retention_days  = var.vault_lock_max_retention_days
+  changeable_for_days = var.vault_lock_mode == "compliance" ? var.vault_lock_cooling_off_days : null
+}
+
+resource "aws_backup_vault_lock_configuration" "dr" {
+  count               = var.vault_lock_mode == "off" ? 0 : 1
+  provider            = aws.replica
+  backup_vault_name   = aws_backup_vault.dr.name
+  min_retention_days  = var.vault_lock_min_retention_days
+  max_retention_days  = var.vault_lock_max_retention_days
+  changeable_for_days = var.vault_lock_mode == "compliance" ? var.vault_lock_cooling_off_days : null
 }
 
 resource "aws_backup_plan" "db" {
@@ -165,7 +218,7 @@ resource "aws_cloudwatch_event_target" "job_failed" {
 }
 
 # Nothing completed in a day (the schedule is daily): catches a plan that
-# silently stopped, not only a failed job. Missing data = no job = alarm.
+# silently stopped, not only a failed job. Missing data = no job = alarm (backup_age_missing_data).
 resource "aws_cloudwatch_metric_alarm" "backup_age" {
   alarm_name          = "${var.name}-db-backup-age"
   alarm_description   = "LawBid: за последние сутки нет ни одной готовой резервной копии базы. Что делать: AWS Backup → Jobs, инструкция docs/runbooks/backup-failed.md (EN: no completed AWS Backup job for the database in 24 h.)"
@@ -177,7 +230,7 @@ resource "aws_cloudwatch_metric_alarm" "backup_age" {
   evaluation_periods  = 1
   comparison_operator = "LessThanThreshold"
   threshold           = 1
-  treat_missing_data  = "breaching"
+  treat_missing_data  = var.backup_age_missing_data
   alarm_actions       = [var.alerts_topic_arn]
   ok_actions          = [var.alerts_topic_arn]
   tags                = var.tags

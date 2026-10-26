@@ -9,10 +9,12 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
+import { shardCarry, shardContext } from '../../sharding/shard-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BlocksService } from '../blocks/blocks.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { bullOptions } from '../../redis/redis-connection';
 
 export const CHANNEL_FANOUT_QUEUE = 'channel-fanout';
 export const CHANNEL_FANOUT_OPTIONS = Symbol('CHANNEL_FANOUT_OPTIONS');
@@ -39,6 +41,8 @@ export interface ChannelFanoutJob {
   after: string | null;
   /** The demo world (src/common/demo): the job reads the demo database. */
   demo?: boolean;
+  /** Shard context of the enqueuer (shard-ready step 4), `shard:N`. */
+  shardKey?: string;
 }
 
 /**
@@ -85,14 +89,20 @@ export class ChannelFanoutRunner
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
-    this.queue = new Queue(CHANNEL_FANOUT_QUEUE, { connection: { url } });
+    this.queue = new Queue(
+      CHANNEL_FANOUT_QUEUE,
+      bullOptions(CHANNEL_FANOUT_QUEUE, url),
+    );
     if (!this.workerEnabled) return;
     // Batches of different posts (and of one post) are independent: the
     // bell list sorts by time, pushes carry their own post.
     this.worker = new Worker<ChannelFanoutJob>(
       CHANNEL_FANOUT_QUEUE,
       (job: Job<ChannelFanoutJob>) => this.process(job.data),
-      { connection: { url, maxRetriesPerRequest: null }, concurrency: 4 },
+      {
+        ...bullOptions(CHANNEL_FANOUT_QUEUE, url, { worker: true }),
+        concurrency: 4,
+      },
     );
     this.worker.on('failed', (job, error) => {
       this.logger.error(
@@ -113,6 +123,7 @@ export class ChannelFanoutRunner
       ...job,
       after: null,
       ...(demoContext.isDemo() ? { demo: true } : {}),
+      ...shardCarry(),
     };
     if (!this.queue) {
       let after: string | null = null;
@@ -128,16 +139,20 @@ export class ChannelFanoutRunner
   }
 
   async process(data: ChannelFanoutJob): Promise<void> {
-    await demoContext.run(data.demo === true, async () => {
-      const next = await this.emitBatch(data);
-      if (next && this.queue) {
-        await this.queue.add(
-          'batch',
-          { ...data, after: next },
-          { ...JOB_OPTS, jobId: `${data.postId}-${next}` },
-        );
-      }
-    });
+    await demoContext.run(data.demo === true, () =>
+      shardContext.runFromKey(data.shardKey, () => this.processBatch(data)),
+    );
+  }
+
+  private async processBatch(data: ChannelFanoutJob): Promise<void> {
+    const next = await this.emitBatch(data);
+    if (next && this.queue) {
+      await this.queue.add(
+        'batch',
+        { ...data, after: next },
+        { ...JOB_OPTS, jobId: `${data.postId}-${next}` },
+      );
+    }
   }
 
   /** Notifies one batch of subscribers who have not muted the channel

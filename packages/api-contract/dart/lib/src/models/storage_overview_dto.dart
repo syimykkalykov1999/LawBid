@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'storage_history_point_dto.dart';
 import 'storage_last_cleanup_dto.dart';
 import 'storage_purpose_usage_dto.dart';
+import 'storage_r2_usage_dto.dart';
 import 'storage_settings_dto.dart';
 import 'storage_table_usage_dto.dart';
 import 'storage_user_usage_dto.dart';
@@ -28,6 +29,7 @@ class StorageOverviewDto {
     required this.history,
     required this.lastCleanup,
     required this.settings,
+    required this.r2,
   });
 
   factory StorageOverviewDto.fromJson(Map<String, Object?> json) =>
@@ -50,6 +52,9 @@ class StorageOverviewDto {
   final List<StorageHistoryPointDto> history;
   final StorageLastCleanupDto? lastCleanup;
   final StorageSettingsDto settings;
+
+  /// Cloudflare R2 size, counted daily; null when R2 is unused.
+  final StorageR2UsageDto? r2;
 
   Map<String, Object?> toJson() => _$StorageOverviewDtoToJson(this);
 }

@@ -229,6 +229,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
               ),
             ),
             AppTextField(
+              compact: true,
               controller: _search,
               label: t.t('cases.create.practice.search'),
               hintText: t.t('cases.create.practice.searchHint'),
@@ -604,6 +605,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
               label: t.t('cases.field.brief'),
               hintText: t.t('cases.field.briefHint'),
               helperText: t.t('cases.field.noContacts'),
+              tapAnywhere: true,
               maxLines: 6,
               maxLength: CaseLimits.descriptionMax,
               textCapitalization: TextCapitalization.sentences,
@@ -630,6 +632,7 @@ class _EssenceStepState extends ConsumerState<EssenceStep> {
               controller: _details,
               label: t.t('cases.field.privateDetails'),
               hintText: t.t('cases.field.privateDetailsHint'),
+              tapAnywhere: true,
               maxLines: 6,
               maxLength: CaseLimits.privateDetailsMax,
               textCapitalization: TextCapitalization.sentences,
@@ -802,6 +805,7 @@ class _StatePickerSheetState extends State<_StatePickerSheet> {
               const AppSheetHandle(),
               const SizedBox(height: AppSpacing.lg),
               AppTextField(
+                compact: true,
                 label: widget.t.t('cases.field.state'),
                 hintText: widget.t.t('cases.field.stateSearch'),
                 leading: const AppIcon(AppIcons.searchRounded),

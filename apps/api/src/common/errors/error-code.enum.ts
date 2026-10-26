@@ -48,6 +48,8 @@ export enum ErrorCode {
   AUTH_PROVIDER_DISABLED = 'AUTH_PROVIDER_DISABLED',
   // Owner 2026-10-13: wrong phone / e-mail or password (one generic answer).
   AUTH_INVALID_CREDENTIALS = 'AUTH_INVALID_CREDENTIALS',
+  // Owner 2026-10-25: a new password found in a breach / the common list.
+  AUTH_PASSWORD_COMPROMISED = 'AUTH_PASSWORD_COMPROMISED',
   ACCOUNT_EXISTS_USE_OTHER_METHOD = 'ACCOUNT_EXISTS_USE_OTHER_METHOD',
   IDENTIFIER_ALREADY_LINKED = 'IDENTIFIER_ALREADY_LINKED',
   CONTACT_DOMAIN_BLOCKED = 'CONTACT_DOMAIN_BLOCKED',
@@ -62,6 +64,9 @@ export enum ErrorCode {
   PASSKEY_NOT_FOUND = 'PASSKEY_NOT_FOUND',
   PASSKEY_LIMIT = 'PASSKEY_LIMIT',
   DEVICE_ATTESTATION_REQUIRED = 'DEVICE_ATTESTATION_REQUIRED',
+  // 2026-10-24 (abuse batch B): 403 — the web page's Cloudflare Turnstile
+  // token was rejected (security.turnstile.mode = enforce).
+  TURNSTILE_FAILED = 'TURNSTILE_FAILED',
   ACCOUNT_SUSPENDED = 'ACCOUNT_SUSPENDED',
   ACCOUNT_DELETED = 'ACCOUNT_DELETED',
 
@@ -170,6 +175,10 @@ export enum ErrorCode {
   // Owner 2026-10-05: 400 — this chat already holds storage.chat_quota_mb
   // of files (details.quotaBytes, details.usedBytes).
   CHAT_STORAGE_FULL = 'CHAT_STORAGE_FULL',
+  // 2026-10-24 (abuse batch B): 429 — the person already uploaded
+  // storage.daily_upload_mb_per_user today (details.limitBytes,
+  // details.usedBytes, details.retryAfterSeconds = until 00:00 UTC).
+  DAILY_UPLOAD_LIMIT_EXCEEDED = 'DAILY_UPLOAD_LIMIT_EXCEEDED',
   // Verification (docs/03_VERIFICATION_PROFILES.md §2, stages 3.3–3.4)
   // 409: the attorney already has a draft/submitted/in_review/
   // needs_more_info request (§2.3: one at a time).
@@ -380,6 +389,9 @@ export enum ErrorCode {
   CALL_IN_PROGRESS = 'CALL_IN_PROGRESS',
   // 409: the call already ended / was answered elsewhere (OQ-041).
   CALL_STATE_CONFLICT = 'CALL_STATE_CONFLICT',
+  // 503: the media service of a group call (Cloudflare SFU) does not answer,
+  // or a group call cannot start without it (owner 2026-10-24).
+  CALL_MEDIA_UNAVAILABLE = 'CALL_MEDIA_UNAVAILABLE',
   // 409: direct chats are between an attorney and a client (OQ-043).
   DIRECT_CHAT_NOT_ALLOWED = 'DIRECT_CHAT_NOT_ALLOWED',
   // Owner 2026-10-17: percent fee in a criminal/family case (admin list).
@@ -536,4 +548,9 @@ export enum ErrorCode {
   // Owner 2026-10-22 (client economy plan §4). 409: `updatedSince` is
   // older than 7 days — the app reloads the list from page 1.
   SYNC_TOO_OLD = 'SYNC_TOO_OLD',
+
+  // Day-one foundations (2026-10-24). 409: the client sent `If-Match: <version>`
+  // and the row was saved by someone else since; reload and retry. details:
+  // { currentVersion }.
+  STALE_VERSION = 'STALE_VERSION',
 }

@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
+import { shardContext } from '../../sharding/shard-context';
 import {
   GROUP_FANOUT_PARTITIONS,
   fanoutQueueName,
@@ -17,6 +18,7 @@ import {
 } from './group-fanout.queue';
 import { GroupsModule } from './groups.module';
 import { GroupsService } from './groups.service';
+import { bullOptions } from '../../redis/redis-connection';
 
 export const GROUP_FANOUT_OPTIONS = Symbol('GROUP_FANOUT_OPTIONS');
 
@@ -60,7 +62,10 @@ export class GroupFanoutWorker
       const worker = new Worker<GroupFanoutJob>(
         fanoutQueueName(i),
         (job: Job<GroupFanoutJob>) => this.process(job.data),
-        { connection: { url, maxRetriesPerRequest: null }, concurrency: 1 },
+        {
+          ...bullOptions(fanoutQueueName(i), url, { worker: true }),
+          concurrency: 1,
+        },
       );
       worker.on('failed', (job, error) => {
         this.logger.error(
@@ -79,7 +84,9 @@ export class GroupFanoutWorker
   /** One job, in the demo world when it came from there. */
   process(data: GroupFanoutJob): Promise<void> {
     return demoContext.run(data.demo === true, () =>
-      this.groups.deliverFanOut(data),
+      shardContext.runFromKey(data.shardKey, () =>
+        this.groups.deliverFanOut(data),
+      ),
     );
   }
 

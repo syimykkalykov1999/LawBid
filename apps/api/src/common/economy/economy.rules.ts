@@ -130,21 +130,30 @@ export interface Tier {
   monthUsd: number;
 }
 
+// ONE ladder with the database autoscaler (infra/modules/db-autoscale,
+// docs/architecture/DB_AUTOSCALE.md): the admin button and the Lambda step
+// through the same sizes. Prices: Multi-AZ, on demand, us-east-1, 2026-10-24.
 export const DB_TIERS: readonly Tier[] = [
-  { name: 'db.t4g.micro', memoryGb: 1, monthUsd: 13 },
-  { name: 'db.t4g.small', memoryGb: 2, monthUsd: 26 },
-  { name: 'db.t4g.medium', memoryGb: 4, monthUsd: 53 },
-  { name: 'db.t4g.large', memoryGb: 8, monthUsd: 105 },
-  { name: 'db.t4g.xlarge', memoryGb: 16, monthUsd: 210 },
-  { name: 'db.t4g.2xlarge', memoryGb: 32, monthUsd: 420 },
+  { name: 'db.t4g.micro', memoryGb: 1, monthUsd: 23 },
+  { name: 'db.t4g.small', memoryGb: 2, monthUsd: 47 },
+  { name: 'db.t4g.medium', memoryGb: 4, monthUsd: 94 },
+  { name: 'db.t4g.large', memoryGb: 8, monthUsd: 188 },
+  { name: 'db.r7g.large', memoryGb: 16, monthUsd: 349 },
+  { name: 'db.r7g.xlarge', memoryGb: 32, monthUsd: 698 },
+  { name: 'db.r7g.2xlarge', memoryGb: 64, monthUsd: 1396 },
 ];
 
+// ONE ladder with the Redis autoscaler (infra/modules/redis-autoscale,
+// docs/architecture/REDIS_AUTOSCALE.md). memoryGb = ElastiCache node memory;
+// monthUsd = the whole group with ONE replica (2 nodes), on demand,
+// us-east-1, AWS Price List API 2026-10-24.
 export const REDIS_TIERS: readonly Tier[] = [
-  { name: 'cache.t4g.micro', memoryGb: 0.5, monthUsd: 12 },
-  { name: 'cache.t4g.small', memoryGb: 1.37, monthUsd: 24 },
-  { name: 'cache.t4g.medium', memoryGb: 3.09, monthUsd: 48 },
-  { name: 'cache.m7g.large', memoryGb: 6.38, monthUsd: 115 },
-  { name: 'cache.m7g.xlarge', memoryGb: 12.93, monthUsd: 230 },
+  { name: 'cache.t4g.micro', memoryGb: 0.5, monthUsd: 23 },
+  { name: 'cache.t4g.small', memoryGb: 1.37, monthUsd: 47 },
+  { name: 'cache.t4g.medium', memoryGb: 3.09, monthUsd: 95 },
+  { name: 'cache.r7g.large', memoryGb: 13.07, monthUsd: 320 },
+  { name: 'cache.r7g.xlarge', memoryGb: 26.32, monthUsd: 638 },
+  { name: 'cache.r7g.2xlarge', memoryGb: 52.82, monthUsd: 1275 },
 ];
 
 /** The next bigger tier, or null (unknown class or already the largest). */
@@ -154,6 +163,59 @@ export function nextTier(
 ): Tier | null {
   const i = tiers.findIndex((t) => t.name === current);
   return i >= 0 && i + 1 < tiers.length ? tiers[i + 1] : null;
+}
+
+/** The next smaller tier, or null (unknown class or already the smallest). */
+export function prevTier(
+  tiers: readonly Tier[],
+  current: string | null | undefined,
+): Tier | null {
+  const i = tiers.findIndex((t) => t.name === current);
+  return i > 0 ? tiers[i - 1] : null;
+}
+
+/** Shrink only when the load is as low as the autoscaler itself requires
+ * (docs/architecture/DB_AUTOSCALE.md: CPU at most 30 %, connections at most
+ * 40 % of the limit). Redis: the used memory must fit in half of the
+ * smaller node. */
+export const SHRINK_DB_CPU_PERCENT = 30;
+export const SHRINK_DB_CONN_PERCENT = 40;
+export const SHRINK_REDIS_MEM_PERCENT = 50;
+
+/** Why a manual «уменьшить» must be refused, or null when it is safe.
+ * Unknown load (no metric) refuses: never shrink blind. */
+export function shrinkBlocker(
+  target: 'db' | 'redis',
+  from: Tier,
+  to: Tier,
+  m: {
+    dbCpuPercent: number | null;
+    dbConnections: number | null;
+    redisMemoryPercent: number | null;
+  },
+): string | null {
+  if (target === 'db') {
+    if (m.dbCpuPercent == null || m.dbConnections == null) {
+      return 'Нагрузка базы неизвестна: уменьшать вслепую нельзя.';
+    }
+    if (m.dbCpuPercent > SHRINK_DB_CPU_PERCENT) {
+      return `Процессор занят на ${Math.round(m.dbCpuPercent)} %: на меньшем размере базе будет тесно (нужно не больше ${SHRINK_DB_CPU_PERCENT} %).`;
+    }
+    const limit = dbMaxConnections(to.memoryGb);
+    const pct = (m.dbConnections / limit) * 100;
+    if (pct > SHRINK_DB_CONN_PERCENT) {
+      return `Соединений ${Math.round(m.dbConnections)} из ${limit} на меньшем размере (${Math.round(pct)} %, нужно не больше ${SHRINK_DB_CONN_PERCENT} %).`;
+    }
+    return null;
+  }
+  if (m.redisMemoryPercent == null) {
+    return 'Занятость памяти Redis неизвестна: уменьшать вслепую нельзя.';
+  }
+  const after = (m.redisMemoryPercent * from.memoryGb) / to.memoryGb;
+  if (after > SHRINK_REDIS_MEM_PERCENT) {
+    return `На меньшем размере память Redis была бы занята на ${Math.round(after)} % (нужно не больше ${SHRINK_REDIS_MEM_PERCENT} %).`;
+  }
+  return null;
 }
 
 /** PostgreSQL on RDS: LEAST(memory / 9531392 bytes, 5000) connections. */

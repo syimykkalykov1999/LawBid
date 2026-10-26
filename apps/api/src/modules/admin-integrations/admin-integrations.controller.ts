@@ -11,6 +11,7 @@ import {
   Param,
   Patch,
   Post,
+  Optional,
   Put,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -19,6 +20,7 @@ import {
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { PagerDutySnsService } from '../../common/ops/launch/aws-launch.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -64,6 +66,8 @@ export class AdminIntegrationsController {
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
     private readonly rateLimit: RateLimitService,
+    // Owner 2026-10-24: a changed PagerDuty link is re-subscribed at once.
+    @Optional() private readonly paging?: PagerDutySnsService,
   ) {}
 
   @Get()
@@ -173,6 +177,7 @@ export class AdminIntegrationsController {
       ...v,
       forced: dto.force ?? false,
     });
+    await this.afterChange(p.provider);
     return v;
   }
 
@@ -190,6 +195,7 @@ export class AdminIntegrationsController {
     await this.guard(admin);
     const v = await this.secrets.rollback(p.provider, dto?.slot);
     await this.log(admin, 'integration.rollback', p.provider, v);
+    await this.afterChange(p.provider);
     return v;
   }
 
@@ -217,6 +223,7 @@ export class AdminIntegrationsController {
       p.provider,
       dto.slot ? { slot: dto.slot } : null,
     );
+    await this.afterChange(p.provider);
   }
 
   @Patch(':provider/slots/:slot')
@@ -313,9 +320,25 @@ export class AdminIntegrationsController {
     @CurrentAdmin() admin: AdminActor,
   ): Promise<{ reencrypted: number }> {
     await this.guard(admin);
-    const n = await this.secrets.reencrypt();
-    await this.log(admin, 'integration.reencrypt', 'all', { reencrypted: n });
+    const keys = await this.secrets.reencrypt();
+    // S3-4: join codes, bar-registry keys and authenticator secrets too.
+    const stores = await this.secrets.reencryptStores();
+    const n = keys + stores.joinCodes + stores.registries + stores.adminTotp;
+    await this.log(admin, 'integration.reencrypt', 'all', {
+      reencrypted: n,
+      integrationKeys: keys,
+      ...stores,
+    });
     return { reencrypted: n };
+  }
+
+  /**
+   * The PagerDuty link lives in SNS too: subscribe the new one, drop the
+   * old one. Best effort — the card shows the real state afterwards.
+   */
+  private async afterChange(provider: string): Promise<void> {
+    if (provider !== 'pagerduty' || !this.paging) return;
+    await this.paging.sync().catch(() => undefined);
   }
 
   /** A fresh 2FA code + at most 20 key changes an hour per admin. */

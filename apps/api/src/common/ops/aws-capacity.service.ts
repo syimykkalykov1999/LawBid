@@ -20,7 +20,9 @@ import {
   REDIS_TIERS,
   dbMaxConnections,
   nextTier,
+  prevTier,
 } from '../economy/economy.rules';
+import { opsCredentials } from './ops-credentials';
 
 export type CapacityTarget = 'db' | 'redis';
 
@@ -76,13 +78,22 @@ export class AwsCapacityService {
   }
 
   private cwClient(): CloudWatchClient {
-    return (this.cw ??= new CloudWatchClient({ region: this.region() }));
+    return (this.cw ??= new CloudWatchClient({
+      region: this.region(),
+      credentials: opsCredentials((n) => this.env(n), this.region()),
+    }));
   }
   private rdsClient(): RDSClient {
-    return (this.rds ??= new RDSClient({ region: this.region() }));
+    return (this.rds ??= new RDSClient({
+      region: this.region(),
+      credentials: opsCredentials((n) => this.env(n), this.region()),
+    }));
   }
   private cacheClient(): ElastiCacheClient {
-    return (this.cache ??= new ElastiCacheClient({ region: this.region() }));
+    return (this.cache ??= new ElastiCacheClient({
+      region: this.region(),
+      credentials: opsCredentials((n) => this.env(n), this.region()),
+    }));
   }
 
   async dbClass(): Promise<string | null> {
@@ -219,5 +230,38 @@ export class AwsCapacityService {
       }),
     );
     return { from, to: next.name };
+  }
+
+  /** One tier down (admin button, after the load check in
+   * EconomyService.decrease). Same RDS / ElastiCache calls as [increase]. */
+  async decrease(
+    target: CapacityTarget,
+  ): Promise<{ from: string; to: string } | null> {
+    if (target === 'db') {
+      if (!this.dbInstance) throw new Error('not on AWS');
+      const from = await this.dbClass();
+      const prev = prevTier(DB_TIERS, from);
+      if (!from || !prev) return null;
+      await this.rdsClient().send(
+        new ModifyDBInstanceCommand({
+          DBInstanceIdentifier: this.dbInstance,
+          DBInstanceClass: prev.name,
+          ApplyImmediately: true,
+        }),
+      );
+      return { from, to: prev.name };
+    }
+    if (!this.redisGroup) throw new Error('not on AWS');
+    const from = await this.redisClass();
+    const prev = prevTier(REDIS_TIERS, from);
+    if (!from || !prev) return null;
+    await this.cacheClient().send(
+      new ModifyReplicationGroupCommand({
+        ReplicationGroupId: this.redisGroup,
+        CacheNodeType: prev.name,
+        ApplyImmediately: true,
+      }),
+    );
+    return { from, to: prev.name };
   }
 }

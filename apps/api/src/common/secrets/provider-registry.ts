@@ -6,6 +6,8 @@
  * (database, Redis, JWT, S3/IAM, the master key itself) are deliberately
  * NOT here — a wrong value there would take the whole app down.
  */
+import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+
 export interface ProviderField {
   name: string;
   label: string;
@@ -106,6 +108,10 @@ async function probe(url: string, init: RequestInit): Promise<void> {
   }
 }
 
+/** PagerDuty CloudWatch / Events integration link (US or EU service region). */
+export const PAGERDUTY_URL =
+  /^https:\/\/events(\.eu)?\.pagerduty\.com\/integration\/[A-Za-z0-9]{16,64}\/enqueue$/;
+
 export const PROVIDERS: ProviderDefinition[] = [
   {
     id: 'bunny_stream',
@@ -167,6 +173,18 @@ export const PROVIDERS: ProviderDefinition[] = [
         required: false,
         pattern: /^[\w-]{20,}$/,
         env: 'BUNNY_READ_ONLY_API_KEY',
+      },
+      {
+        // Batch C item 16 (2026-10-24): the daily usage poll asks the Core
+        // API (GET api.bunny.net/statistics, /videolibrary/{id}); that API
+        // takes the ACCOUNT API key, not the library key above. Optional:
+        // empty = no usage alerts.
+        name: 'accountApiKey',
+        label: 'Account API key (usage statistics, optional)',
+        secret: true,
+        required: false,
+        pattern: /^[\w-]{20,}$/,
+        env: 'BUNNY_ACCOUNT_API_KEY',
       },
     ],
     test: (f) =>
@@ -479,6 +497,101 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'cloudflare_turn',
+    label: 'Cloudflare TURN (in-app calls)',
+    description:
+      'Cloudflare Realtime relays for calls (pay per traffic). Tried first; our own TURN server stays as the backup.',
+    fields: [
+      {
+        name: 'keyId',
+        label: 'TURN key ID',
+        secret: false,
+        required: true,
+        pattern: /^[A-Za-z0-9_-]{8,64}$/,
+        env: 'CLOUDFLARE_TURN_KEY_ID',
+      },
+      {
+        name: 'apiToken',
+        label: 'TURN key API token',
+        secret: true,
+        required: true,
+        pattern: /^\S{16,}$/,
+        env: 'CLOUDFLARE_TURN_API_TOKEN',
+      },
+      {
+        // Batch C item 11 (2026-10-24): the daily usage poll reads the
+        // GraphQL Analytics dataset callsTurnUsageAdaptiveGroups. Needs the
+        // account id and a token with «Account Analytics: Read». Optional:
+        // empty = no usage alerts.
+        name: 'accountId',
+        label: 'Cloudflare account ID (usage alerts, optional)',
+        secret: false,
+        required: false,
+        pattern: /^[a-f0-9]{32}$/i,
+        patternHint: '32 hex characters',
+        env: 'CLOUDFLARE_ANALYTICS_ACCOUNT_ID',
+      },
+      {
+        name: 'analyticsToken',
+        label:
+          'API token with Account Analytics: Read (usage alerts, optional)',
+        secret: true,
+        required: false,
+        pattern: /^\S{16,}$/,
+        env: 'CLOUDFLARE_ANALYTICS_API_TOKEN',
+      },
+    ],
+    test: (f) =>
+      probe(
+        `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(f.keyId)}/credentials/generate-ice-servers`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${f.apiToken}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ ttl: 60 }),
+        },
+      ),
+  },
+  {
+    id: 'cloudflare_sfu',
+    label: 'Cloudflare SFU (group video calls)',
+    description:
+      'Cloudflare Realtime SFU for group calls (pay per outgoing traffic). Used only when «calls.video_provider» is set to cloudflare in Settings; calls fall back to device-to-device (video up to 4 people, then audio only) if Cloudflare is down.',
+    fields: [
+      {
+        name: 'appId',
+        label: 'App ID (CLOUDFLARE_SFU_APP_ID)',
+        secret: false,
+        required: true,
+        pattern: /^[0-9a-f]{32}$/,
+        patternHint: '32 hex characters',
+        env: 'CLOUDFLARE_SFU_APP_ID',
+      },
+      {
+        name: 'appToken',
+        label: 'App Secret (CLOUDFLARE_SFU_APP_TOKEN)',
+        secret: true,
+        required: true,
+        pattern: /^\S{16,}$/,
+        env: 'CLOUDFLARE_SFU_APP_TOKEN',
+      },
+    ],
+    // Creates one empty session (it expires on its own), read-only in effect.
+    test: (f) =>
+      probe(
+        `https://rtc.live.cloudflare.com/v1/apps/${encodeURIComponent(f.appId)}/sessions/new`,
+        {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${f.appToken}`,
+            'content-type': 'application/json',
+          },
+        },
+      ),
+  },
+  {
     id: 'livekit',
     label: 'LiveKit (big video calls)',
     description:
@@ -513,6 +626,56 @@ export const PROVIDERS: ProviderDefinition[] = [
     ],
   },
   {
+    id: 'opensearch',
+    label: 'Search engine (OpenSearch)',
+    description:
+      'A dedicated search engine for people, cases, posts and questions. Used only when «search.engine» is set to shadow or engine in Settings; searches fall back to Postgres if the engine fails or is slow. Off by default.',
+    fields: [
+      {
+        name: 'url',
+        label: 'Address (OPENSEARCH_URL)',
+        secret: false,
+        required: true,
+        pattern: /^https?:\/\/[^\s]+$/,
+        patternHint:
+          'https://vpc-lawbid-search-xxxx.us-east-1.es.amazonaws.com',
+        env: 'OPENSEARCH_URL',
+        normalize: cleanPasted,
+      },
+      {
+        name: 'username',
+        label: 'User name (OPENSEARCH_USERNAME), if the engine asks for one',
+        secret: false,
+        required: false,
+        env: 'OPENSEARCH_USERNAME',
+      },
+      {
+        name: 'password',
+        label: 'Password (OPENSEARCH_PASSWORD), if the engine asks for one',
+        secret: true,
+        required: false,
+        env: 'OPENSEARCH_PASSWORD',
+      },
+      {
+        name: 'prefix',
+        label: 'Index name prefix (OPENSEARCH_PREFIX), default lawbid',
+        secret: false,
+        required: false,
+        pattern: /^[a-z][a-z0-9_-]{1,30}$/,
+        patternHint: 'lawbid or lawbid-loadtest',
+        env: 'OPENSEARCH_PREFIX',
+      },
+    ],
+    // Cluster answers its root page (read-only).
+    test: async (f) => {
+      const headers: Record<string, string> = {};
+      if (f.username && f.password) {
+        headers.authorization = `Basic ${Buffer.from(`${f.username}:${f.password}`).toString('base64')}`;
+      }
+      await probe(`${f.url.replace(/\/+$/, '')}/`, { headers });
+    },
+  },
+  {
     id: 'persona',
     label: 'Persona (ID checks)',
     description: 'Identity verification of attorneys.',
@@ -529,6 +692,143 @@ export const PROVIDERS: ProviderDefinition[] = [
     test: (f) =>
       probe('https://withpersona.com/api/v1/accounts?page%5Bsize%5D=1', {
         headers: { authorization: `Bearer ${f.apiKey}` },
+      }),
+  },
+  {
+    // 2026-10-24 (abuse batch B, item 4): bot check of the WEB page on
+    // sign-up and code requests. The app (iOS / Android) uses App Check.
+    id: 'turnstile',
+    label: 'Cloudflare Turnstile (защита сайта от ботов)',
+    description:
+      'Проверка «не бот» на сайте при регистрации и запросе кода. В приложении не используется (там App Check). Включается в Система → Настройки: security.turnstile.mode (off / monitor / enforce).',
+    fields: [
+      {
+        name: 'secretKey',
+        label: 'Секретный ключ (Secret key)',
+        secret: true,
+        required: true,
+        pattern: /^[0-9A-Za-z_-]{20,80}$/,
+        patternHint: '0x4AAAAAAA…',
+        env: 'TURNSTILE_SECRET_KEY',
+      },
+      {
+        name: 'siteKey',
+        label: 'Ключ сайта (Site key, публичный)',
+        secret: false,
+        required: false,
+        pattern: /^[0-9A-Za-z_-]{10,80}$/,
+        patternHint: '0x4AAAAAAA…',
+        env: 'TURNSTILE_SITE_KEY',
+      },
+      {
+        name: 'hostnames',
+        label: 'Разрешённые домены сайта (через запятую, пусто = любые)',
+        secret: false,
+        required: false,
+        pattern: /^[a-z0-9.-]+(,[a-z0-9.-]+)*$/,
+        patternHint: 'lawbid.dev,www.lawbid.dev',
+        env: 'TURNSTILE_HOSTNAMES',
+        normalize: (v) => commaList(v).toLowerCase(),
+      },
+    ],
+    // siteverify answers invalid-input-response for a good secret and
+    // invalid-input-secret for a bad one (developers.cloudflare.com/
+    // turnstile/get-started/server-side-validation, 2026-10-22).
+    test: async (f) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(
+          'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              secret: f.secretKey,
+              response: 'lawbid-key-check',
+            }),
+            signal: ctrl.signal,
+          },
+        );
+        const body = (await res.json()) as { 'error-codes'?: string[] };
+        const codes = body['error-codes'] ?? [];
+        if (
+          codes.includes('invalid-input-secret') ||
+          codes.includes('missing-input-secret')
+        ) {
+          throw new Error(
+            'Секретный ключ не принят Cloudflare: неверный ключ?',
+          );
+        }
+      } catch (e) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          throw new Error('Cloudflare не ответил за 8 с');
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  },
+  {
+    // Owner 2026-10-24: the phone-paging link. Saved here, the API itself
+    // subscribes it to the SNS topic lawbid-prod-critical (admin «Запуск»).
+    id: 'pagerduty',
+    label: 'PagerDuty (звонок на телефон при аварии)',
+    description:
+      'Ссылка интеграции PagerDuty. После «Включить» сервер сам подписывает её на критический топик тревог AWS; подписка и тестовая тревога видны на странице «Запуск».',
+    fields: [
+      {
+        name: 'integrationUrl',
+        label: 'Integration URL',
+        secret: true,
+        required: true,
+        pattern: PAGERDUTY_URL,
+        patternHint: 'https://events.pagerduty.com/integration/<ключ>/enqueue',
+        normalize: cleanPasted,
+      },
+    ],
+    // No network call: the link is the secret and the only honest test is
+    // the SNS subscription itself (shown on «Запуск»).
+    test: (f) => {
+      if (!PAGERDUTY_URL.test(f.integrationUrl ?? '')) {
+        return Promise.reject(new Error('Это не ссылка интеграции PagerDuty.'));
+      }
+      return Promise.resolve();
+    },
+  },
+  {
+    // Owner 2026-10-24: «Запуск» compares the running version with the
+    // newest commit of main. Optional: without it that item is a checkbox.
+    id: 'github',
+    label: 'GitHub (только чтение, для страницы «Запуск»)',
+    description:
+      'Чтобы страница «Запуск» сама видела, что запущена последняя версия main. Нужен токен только на чтение.',
+    fields: [
+      {
+        name: 'repo',
+        label: 'Репозиторий (владелец/имя)',
+        secret: false,
+        required: true,
+        pattern: /^[\w.-]+\/[\w.-]+$/,
+        patternHint: 'syimykkalykov1999/LawBid',
+      },
+      {
+        name: 'token',
+        label: 'Токен только на чтение (если репозиторий закрытый)',
+        secret: true,
+        required: false,
+        pattern: /^(github_pat_|ghp_)[A-Za-z0-9_]{20,}$/,
+        patternHint: 'github_pat_…',
+      },
+    ],
+    test: (f) =>
+      probe(`https://api.github.com/repos/${f.repo}`, {
+        headers: {
+          accept: 'application/vnd.github+json',
+          'user-agent': 'lawbid-admin',
+          ...(f.token ? { authorization: `Bearer ${f.token}` } : {}),
+        },
       }),
   },
   {
@@ -690,6 +990,100 @@ export const PROVIDERS: ProviderDefinition[] = [
         normalize: normalizePem,
       },
     ],
+  },
+  // Owner 2026-10-24: Cloudflare R2 for PUBLIC media only (avatars, post
+  // and review photos, stickers). No egress fee. Private files stay on AWS.
+  // Switched on with the setting media.public_store = r2.
+  {
+    id: 'cloudflare_r2',
+    label: 'Public media storage (Cloudflare R2)',
+    description:
+      'Avatars, post and review photos and stickers, served from Cloudflare R2 (no egress fee) through a public custom domain. Private files (chats, cases, documents, verification) never go here. Turn on with the setting media.public_store = r2.',
+    warning:
+      'The R2 bucket must have a different name from the AWS buckets. Do not change the bucket after files were stored there.',
+    fields: [
+      {
+        name: 'accountId',
+        label: 'Cloudflare account ID',
+        secret: false,
+        required: true,
+        pattern: /^[a-f0-9]{32}$/,
+        patternHint: '32 hex characters',
+        env: 'CLOUDFLARE_R2_ACCOUNT_ID',
+      },
+      {
+        name: 'accessKeyId',
+        label: 'R2 access key ID',
+        secret: false,
+        required: true,
+        pattern: /^[A-Za-z0-9]{20,64}$/,
+        env: 'CLOUDFLARE_R2_ACCESS_KEY_ID',
+      },
+      {
+        name: 'secretAccessKey',
+        label: 'R2 secret access key',
+        secret: true,
+        required: true,
+        pattern: /^[A-Za-z0-9/+=]{32,}$/,
+        env: 'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
+      },
+      {
+        name: 'bucket',
+        label: 'R2 bucket name',
+        secret: false,
+        required: true,
+        pattern: /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/,
+        env: 'CLOUDFLARE_R2_BUCKET',
+      },
+      {
+        name: 'publicBaseUrl',
+        label: 'Public base URL (custom domain of the bucket)',
+        secret: false,
+        required: true,
+        pattern: /^https:\/\/[^\s/]+$/,
+        patternHint: 'https://media.lawbid.dev',
+        env: 'CLOUDFLARE_R2_PUBLIC_BASE_URL',
+        normalize: (v) => cleanPasted(v).replace(/\/+$/, ''),
+      },
+      // Optional: instant removal of cached copies of deleted media.
+      {
+        name: 'zoneId',
+        label: 'Zone ID (optional, cache purge on delete)',
+        secret: false,
+        required: false,
+        pattern: /^[a-f0-9]{32}$/,
+        env: 'CLOUDFLARE_R2_ZONE_ID',
+      },
+      {
+        name: 'purgeToken',
+        label: 'API token with Cache Purge only (optional)',
+        secret: true,
+        required: false,
+        pattern: /^[A-Za-z0-9_-]{30,}$/,
+        env: 'CLOUDFLARE_R2_PURGE_TOKEN',
+      },
+    ],
+    test: async (f) => {
+      const client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${f.accountId}.r2.cloudflarestorage.com`,
+        credentials: {
+          accessKeyId: f.accessKeyId,
+          secretAccessKey: f.secretAccessKey,
+        },
+      });
+      try {
+        await client.send(new HeadBucketCommand({ Bucket: f.bucket }), {
+          abortSignal: AbortSignal.timeout(TIMEOUT_MS),
+        });
+      } catch (e) {
+        throw new Error(
+          `R2 refused the keys or the bucket: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      } finally {
+        client.destroy();
+      }
+    },
   },
   {
     id: 'sentry',

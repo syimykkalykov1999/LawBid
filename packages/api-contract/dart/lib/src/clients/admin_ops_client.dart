@@ -7,6 +7,9 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/heavy_jobs_dto.dart';
 import '../models/scale_dto.dart';
+import '../models/scale_extras_envelope.dart';
+import '../models/search_index_status_envelope.dart';
+import '../models/start_search_reindex_dto.dart';
 import '../models/system_health_envelope.dart';
 import '../models/update_ops_settings_dto.dart';
 
@@ -19,6 +22,19 @@ abstract class AdminOpsClient {
   /// Traffic lights of every part of the system
   @GET('/admin/system-health')
   Future<SystemHealthEnvelope> getSystemHealth({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Scale page extras: autoscale switches, pooler, search engine
+  @GET('/admin/system-health/scale')
+  Future<ScaleExtrasEnvelope> getScaleExtras({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Cap autoscaling at the minimum / back to normal (needs step-up)
+  @POST('/admin/system-health/scale')
+  Future<SystemHealthEnvelope> setOpsScale({
+    @Body() required ScaleDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -41,17 +57,35 @@ abstract class AdminOpsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Cap autoscaling at the minimum / back to normal (needs step-up)
-  @POST('/admin/system-health/scale')
-  Future<SystemHealthEnvelope> setOpsScale({
-    @Body() required ScaleDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
   /// Switch the automatic reactions on / off
   @PATCH('/admin/system-health/settings')
   Future<SystemHealthEnvelope> updateOpsSettings({
     @Body() required UpdateOpsSettingsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Search index generations, aliases, counts and reindex progress
+  @GET('/admin/system-health/search-index')
+  Future<SearchIndexStatusEnvelope> searchIndexStatus({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Start a zero-downtime reindex (needs step-up)
+  @POST('/admin/system-health/search-index/start')
+  Future<SearchIndexStatusEnvelope> start({
+    @Body() required StartSearchReindexDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Verify, then swap the read alias; later the write alias (needs step-up)
+  @POST('/admin/system-health/search-index/swap')
+  Future<SearchIndexStatusEnvelope> swap({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Cancel the build or go back to the old index (needs step-up)
+  @POST('/admin/system-health/search-index/rollback')
+  Future<SearchIndexStatusEnvelope> rollback({
     @Extras() Map<String, dynamic>? extras,
   });
 }

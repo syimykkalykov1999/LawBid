@@ -84,6 +84,40 @@ void main() {
       expect(find.byKey(const ValueKey('tasks-add')), findsOneWidget);
     });
 
+    // Owner 2026-10-23: "New task" is the app's floating "+" (one shared
+    // component with Chats and Q&A), bottom right, 16 dp from the edges of
+    // the tab; the chips row has only the search.
+    for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+      testWidgets('the floating "+" sits bottom right (${platform.name})',
+          (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        repo.active = [makeTask('a')];
+        await pump(
+          tester,
+          const TasksTab(),
+          theme: AppTheme.light().copyWith(platform: platform),
+        );
+        final fab = find.byKey(const ValueKey('tasks-add'));
+        expect(tester.widget(fab), isA<FloatingActionButton>());
+        expect(find.byType(AppFab), findsOneWidget);
+        expect(find.bySemanticsLabel('Add a task'), findsOneWidget);
+        final r = tester.getRect(fab);
+        final body = tester.getRect(find.byType(TasksTab));
+        expect(body.right - r.right, closeTo(AppSpacing.screenSide, 0.5));
+        expect(body.bottom - r.bottom, closeTo(AppSpacing.screenSide, 0.5));
+        expect(r.size, const Size(56, 56));
+        // Not in the chips row any more.
+        final search =
+            tester.getRect(find.byKey(const ValueKey('tasks-search-open')));
+        expect(r.center.dy, greaterThan(search.bottom));
+        await tester.tap(fab);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets('a double tap marks the task done', (tester) async {
       repo.active = [
         makeTask('t1', dueAt: DateTime.now().add(const Duration(hours: 2))),

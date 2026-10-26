@@ -8,6 +8,7 @@ import 'package:lawbid/core/cache/media_cache_dir.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/persistence/drift_web.dart' show isFlutterTest;
 import 'package:lawbid/core/persistence/saved_json.dart';
+import 'package:lawbid/core/persistence/storage_compaction.dart';
 
 /// What the phone's caches take, by store (plan §5.2: the ring and the
 /// rows of «Данные и память»).
@@ -70,7 +71,9 @@ class CacheMaintenance {
       guard(() => _pages?.pagesBytes() ?? Future.value(0)),
       guard(_images.size),
       guard(_chatMedia.size),
-      guard(_db.translationsBytes),
+      guard(
+        () async => await _db.translationsBytes() + await _db.fileViewsBytes(),
+      ),
     ]);
     return CacheReport(
       bytes: {
@@ -136,8 +139,27 @@ class CacheMaintenance {
       }
       await _db.trimHttp(l.limitBytes(CacheStore.http));
       await _db.trimMessages(l.limitBytes(CacheStore.messages));
+      // Owner 2026-10-24: the view lists of case documents live in «Прочее»
+      // and may take at most a fifth of its limit.
+      await _db.trimFileViews(l.limitBytes(CacheStore.other) ~/ 5);
+      // S15-9: the trimmed rows' pages go back to the OS; the log is folded
+      // in at most once a day.
+      await _db.incrementalVacuum();
+      final now = DateTime.now();
+      final last = _lastCheckpoint;
+      if (last == null || now.difference(last) >= _checkpointEvery) {
+        _lastCheckpoint = now;
+        await _db.checkpointWal();
+      }
     } on Object catch (e) {
       debugPrint('cache enforce: $e');
     }
   }
+
+  static const _checkpointEvery = Duration(hours: 20);
+  static DateTime? _lastCheckpoint;
+
+  /// Test hook: forget the daily checkpoint.
+  @visibleForTesting
+  static void resetCheckpointClock() => _lastCheckpoint = null;
 }

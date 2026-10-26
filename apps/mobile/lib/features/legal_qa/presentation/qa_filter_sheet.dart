@@ -96,7 +96,7 @@ class _QaFilterSheetState extends ConsumerState<_QaFilterSheet> {
             AppSpacing.screenSide,
             AppSpacing.md,
             AppSpacing.screenSide,
-            AppSpacing.lg,
+            AppSpacing.xl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

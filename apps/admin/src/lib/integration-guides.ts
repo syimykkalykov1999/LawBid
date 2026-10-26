@@ -95,6 +95,7 @@ export const GUIDES: Record<string, ProviderGuide> = {
       'Видео и рилсы начинают загружаться сразу после «Включить», без обновления приложения.',
     ],
     fields: {
+      accountApiKey: { how: 'Bunny → Account → API Key (ключ аккаунта, не библиотеки). Только для учёта трафика и места, необязательно.' },
       libraryId: { how: 'Stream → библиотека → вкладка API → «Video Library ID». Только цифры.', example: '768949' },
       cdnHostname: {
         how: 'Там же «CDN Hostname». Можно вставить и с https:// — лишнее уберётся само.',
@@ -223,6 +224,96 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  cloudflare_turn: {
+    steps: [
+      'Cloudflare → Realtime → TURN Server → Create. Дайте ключу имя (например lawbid-calls).',
+      'Cloudflare покажет Key ID и API Token (токен виден один раз) — скопируйте оба значения.',
+      'Вставьте их в поля ниже → «Сохранить». Наш собственный TURN-сервер остаётся запасным: если Cloudflare не ответит, звонок пойдёт через него.',
+      'Цена: оплата за трафик, $0.05 за ГБ; первые 1000 ГБ в месяц бесплатно.',
+    ],
+    links: [{ label: 'Cloudflare Realtime TURN', url: 'https://developers.cloudflare.com/realtime/turn/' }],
+    enable: ['Заполните ID ключа и API-токен → «Сохранить» → «Проверить» → «Включить».'],
+    fields: {
+      accountId: { how: 'Cloudflare → правый верхний угол «Account ID» (32 символа). Нужен только для учёта трафика звонков.', example: '0123456789abcdef0123456789abcdef' },
+      analyticsToken: { how: 'My Profile → API Tokens → Create Token → право «Account Analytics: Read». Только для учёта трафика, необязательно.' },
+      keyId: { how: 'Realtime → TURN Server → ваш ключ → Key ID.' },
+      apiToken: { how: 'Токен, который Cloudflare показал при создании ключа (один раз).' },
+    },
+  },
+
+  cloudflare_sfu: {
+    steps: [
+      'Cloudflare → Realtime → SFU → Create Application. Дайте приложению имя (например lawbid-group-calls).',
+      'Cloudflare покажет App ID и App Secret (секрет виден один раз) — скопируйте оба значения.',
+      'Вставьте их в поля ниже → «Сохранить» (потребуется код 2FA) → «Проверить»: зелёная отметка значит, что Cloudflare принял ключи.',
+      'Включение отдельно: Админка → Настройки → calls.video_provider = cloudflare. Пока ключей нет, система не даст выбрать cloudflare. Сколько человек в звонке — calls.sfu_max_participants (по умолчанию 20).',
+      'Если Cloudflare недоступен: звонки до 4 человек идут напрямую между телефонами с видео, а когда людей больше — у всех только аудио (порог — настройка calls.sfu_fallback_mesh_max). Звонок не отклоняется.',
+      'Цена: $0.05 за ГБ исходящего трафика Cloudflare; первые 1000 ГБ в месяц бесплатно (общие с Cloudflare TURN). Звонок сквозным шифрованием не закрыт: Cloudflare технически видит медиа.',
+    ],
+    links: [{ label: 'Cloudflare Realtime SFU', url: 'https://developers.cloudflare.com/realtime/sfu/' }],
+    enable: [
+      'Заполните App ID и App Secret → «Сохранить» → «Проверить» → «Включить».',
+      'Сам ключ звонки не переключает: Админка → Настройки → calls.video_provider = cloudflare.',
+    ],
+    fields: {
+      appId: { how: 'Realtime → SFU → ваше приложение → App ID (32 символа 0-9 a-f).', example: '0123456789abcdef0123456789abcdef' },
+      appToken: { how: 'App Secret, который Cloudflare показал при создании приложения (один раз).' },
+    },
+  },
+
+  pagerduty: {
+    steps: [
+      'PagerDuty → Services → Service Directory → New Service «LawBid prod» (план Free). Интеграция: Amazon CloudWatch.',
+      'Скопируйте Integration URL вида https://events.pagerduty.com/integration/<ключ>/enqueue.',
+      'Вставьте в поле ниже → «Сохранить» (код 2FA) → «Проверить» → «Включить». Сервер сам подпишет ссылку на топик lawbid-prod-critical.',
+      'Проверка и тестовая тревога: страница «Запуск», пункт PagerDuty (кнопка «Отправить тестовую тревогу» позвонит на телефон — это 1 из 100 бесплатных звонков в месяц).',
+    ],
+    links: [{ label: 'PagerDuty', url: 'https://www.pagerduty.com' }],
+    enable: [
+      'Заполните ссылку → «Сохранить» → «Проверить» → «Включить».',
+      'Подписка появляется на странице «Запуск»: Pending, затем Confirmed (PagerDuty подтверждает сам).',
+    ],
+    fields: {
+      integrationUrl: {
+        how: 'PagerDuty → ваш сервис → Integrations → Amazon CloudWatch → Integration URL. Это секрет: не в чат и не в git.',
+        example: 'https://events.pagerduty.com/integration/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/enqueue',
+      },
+    },
+  },
+
+  github: {
+    steps: [
+      'GitHub → Settings → Developer settings → Fine-grained tokens → Generate. Доступ: только репозиторий LawBid, право Contents: Read-only.',
+      'Репозиторий укажите как владелец/имя. Токен нужен только если репозиторий закрытый.',
+    ],
+    links: [{ label: 'Fine-grained tokens', url: 'https://github.com/settings/personal-access-tokens/new' }],
+    enable: ['Заполните → «Сохранить» → «Проверить» → «Включить». Страница «Запуск» начнёт сверять версию с main.'],
+    fields: {
+      repo: { how: 'Адрес репозитория на GitHub без https://github.com/', example: 'syimykkalykov1999/LawBid' },
+      token: { how: 'Fine-grained token с правом только чтения (Contents: Read-only). Пусто — если репозиторий открытый.' },
+    },
+  },
+
+  turnstile: {
+    steps: [
+      'Cloudflare → Turnstile → Add widget. Имя: lawbid-web. Домены: lawbid.dev, www.lawbid.dev. Тип: Managed.',
+      'Cloudflare покажет Site key (публичный) и Secret key — скопируйте оба.',
+      'Вставьте их в поля ниже, домены — через запятую → «Сохранить» (код 2FA) → «Проверить».',
+      'Режим включается отдельно: Админка → Настройки → security.turnstile.mode = monitor (только запись в журнал), через неделю — enforce (блокировать ботов).',
+      'Работает только на веб-версии. Телефоны защищает App Check. Цена: бесплатно.',
+    ],
+    links: [{ label: 'Cloudflare Turnstile', url: 'https://developers.cloudflare.com/turnstile/' }],
+    enable: [
+      'Заполните ключи → «Сохранить» → «Проверить» → «Включить».',
+      'Сама карточка ничего не блокирует: режим — в Настройках, security.turnstile.mode.',
+    ],
+    fields: {
+      secretKey: { how: 'Turnstile → ваш виджет → Settings → Secret key.' },
+      siteKey: { how: 'Turnstile → ваш виджет → Site key (публичный, попадает в веб-приложение).' },
+      hostnames: { how: 'Домены сайта через запятую. Пусто — принимать любой домен.', example: 'lawbid.dev,www.lawbid.dev' },
+    },
+  },
+
   livekit: {
     steps: [
       'Поднимите LiveKit: свой сервер (бесплатно, open-source, livekit.io/self-hosting) или аккаунт LiveKit Cloud (cloud.livekit.io) — платный, включайте, когда появится выручка.',
@@ -245,6 +336,26 @@ export const GUIDES: Record<string, ProviderGuide> = {
       url: { how: 'LIVEKIT_URL: адрес сервера, начинается с wss://.', example: 'wss://lawbid-abc123.livekit.cloud' },
       apiKey: { how: 'LIVEKIT_API_KEY: LiveKit Cloud → Settings → Keys → API Key.', example: 'APIxxxxxxxx' },
       apiSecret: { how: 'LIVEKIT_API_SECRET: там же, Secret (показывается один раз).', example: 'длинная строка' },
+    },
+  },
+
+  opensearch: {
+    steps: [
+      'Это отдельный поисковый движок. Сейчас поиск работает на Postgres и этого не нужно: включайте, когда Postgres станет узким местом (медленный поиск при большом числе пользователей).',
+      'Создание: в Terraform (infra/envs/prod/terraform.tfvars) в блоке growth поставьте opensearch_enabled = true и примените. AWS создаст движок сам; адрес появится в выводе growth_opensearch_endpoint (начинается с https://vpc-…).',
+      'Вставьте адрес в поле ниже и нажмите «Сохранить» (потребуется код 2FA), затем «Проверить». Имя и пароль нужны только если вы включили закрытый доступ по паролю; по умолчанию доступ только изнутри нашей сети и поля пустые.',
+      'Включение шагами: 1) Настройки → search.engine = shadow. Система сама заполнит движок данными (несколько минут) и будет сравнивать ответы, показывая людям результат Postgres. 2) Через пару дней без расхождений в логах поставьте search.engine = engine. 3) Если что-то не так — верните postgres, это мгновенно и ничего не теряет.',
+    ],
+    links: [{ label: 'Amazon OpenSearch Service', url: 'https://aws.amazon.com/opensearch-service/' }],
+    enable: [
+      'Заполните адрес → «Добавить ключи» → «Сохранить» → «Проверить» → «Включить».',
+      'Сам ключ поиск не переключает: Админка → Настройки → search.engine = shadow, потом engine. Пока адреса нет, система не даст выбрать shadow или engine.',
+    ],
+    fields: {
+      url: { how: 'OPENSEARCH_URL: адрес движка из growth_opensearch_endpoint, с https://.', example: 'https://vpc-lawbid-search-abc123.us-east-1.es.amazonaws.com' },
+      username: { how: 'OPENSEARCH_USERNAME: только если у движка включён вход по паролю. Иначе оставьте пустым.' },
+      password: { how: 'OPENSEARCH_PASSWORD: пароль к имени выше. Иначе оставьте пустым.' },
+      prefix: { how: 'Приставка имён индексов. Оставьте lawbid; для нагрузочной среды — lawbid-loadtest, чтобы среды не смешивались.', example: 'lawbid' },
     },
   },
 
@@ -331,6 +442,36 @@ export const GUIDES: Record<string, ProviderGuide> = {
       privateCdnDomain: { how: 'Домен CloudFront для приватных файлов (фото и голосовые в чатах, файлы дел, документы). Заполняйте все три поля сразу или ни одного — тогда ссылки подписывает сам S3. Домен и ID ключа показывает `terraform output` (documents_cdn_domain, documents_cdn_key_pair_id).', example: 'd1234abcd.cloudfront.net' },
       privateCdnKeyId: { how: 'ID публичного ключа CloudFront из группы ключей.', example: 'K2JCJMDEHXQW5F' },
       privateCdnPrivateKey: { how: 'Закрытый ключ пары (PEM целиком). Его же можно положить в Secrets Manager как CLOUDFRONT_PRIVATE_KEY_PEM — см. docs/runbooks/DEPLOY_PROD.md.' },
+    },
+  },
+
+  cloudflare_r2: {
+    steps: [
+      'Нужен аккаунт Cloudflare. Домен lawbid.dev должен быть добавлен в Cloudflare (смена серверов имён в Namecheap; все текущие DNS-записи перенесите как есть, без оранжевого облака).',
+      'Cloudflare → R2 → Create bucket (имя, например, lawbid-public-media; НЕ такое же, как бакеты AWS).',
+      'Бакет → Settings → Custom Domains → Connect Domain → media.lawbid.dev. Не включайте r2.dev. В Settings → CORS разрешите PUT с адресов приложения и админки, заголовки Content-Type и Cache-Control.',
+      'R2 → Manage API Tokens → Create API token → права «Object Read & Write», только на этот бакет. Скопируйте Access Key ID и Secret Access Key (показывается один раз).',
+      'Account ID — справа на странице R2 (или в адресе дашборда).',
+      'Необязательно: Cache Purge. Создайте токен с правом Zone → Cache Purge на lawbid.dev и вставьте его вместе с Zone ID — тогда удалённые фото пропадают из кэша сразу, а не через сутки.',
+    ],
+    links: [
+      { label: 'Cloudflare R2', url: 'https://dash.cloudflare.com/?to=/:account/r2/overview' },
+      { label: 'API-токены R2', url: 'https://dash.cloudflare.com/?to=/:account/r2/api-tokens' },
+    ],
+    enable: [
+      'Пока ничего не включено — всё работает как раньше (AWS).',
+      'Вставьте значения → «Добавить ключи» → «Сохранить» → «Проверить».',
+      'Затем Настройки → media.public_store = r2: новые публичные фото пойдут в R2. Старые остаются на AWS и продолжают открываться (их можно перенести скриптом migrate-public-media-to-r2).',
+      'Откат: media.public_store = aws. Файлы, уже лежащие в R2, остаются доступными, пока ключи R2 сохранены.',
+    ],
+    fields: {
+      accountId: { how: 'Cloudflare → R2 → Account ID (32 символа).', example: '0123456789abcdef0123456789abcdef' },
+      accessKeyId: { how: 'R2 → Manage API Tokens → Create API token → Access Key ID.' },
+      secretAccessKey: { how: 'Там же, Secret Access Key. Показывается один раз.' },
+      bucket: { how: 'Имя созданного бакета R2. Должно отличаться от бакетов AWS.', example: 'lawbid-public-media' },
+      publicBaseUrl: { how: 'Свой домен, подключённый к бакету (Settings → Custom Domains), с https, без пути.', example: 'https://media.lawbid.dev' },
+      zoneId: { how: 'Cloudflare → ваш домен → Overview → справа Zone ID. Можно оставить пустым.' },
+      purgeToken: { how: 'Токен с правом Zone → Cache Purge на этот домен. Можно оставить пустым.' },
     },
   },
 

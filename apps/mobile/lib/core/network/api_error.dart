@@ -28,6 +28,9 @@ abstract final class ApiErrorCodes {
   /// older than the server keeps — reload the list from the first page.
   static const syncTooOld = 'SYNC_TOO_OLD';
 
+  /// A write sent an old `version` (409): somebody else saved first.
+  static const staleVersion = 'STALE_VERSION';
+
   // Auth (docs/01 §10, stage 1.4). TOKEN_EXPIRED is the one code
   // AuthInterceptor's silent refresh keys off (§10.4).
   static const tokenExpired = 'TOKEN_EXPIRED';
@@ -35,6 +38,9 @@ abstract final class ApiErrorCodes {
   static const authOtpExpired = 'AUTH_OTP_EXPIRED';
   static const authOtpLocked = 'AUTH_OTP_LOCKED';
   static const authOtpRequestLimit = 'AUTH_OTP_REQUEST_LIMIT';
+
+  /// Owner 2026-10-25: a new password found in a breach / the common list.
+  static const authPasswordCompromised = 'AUTH_PASSWORD_COMPROMISED';
 
   /// Owner 2026-10-16: the number is registered; an SMS code is only for new
   /// numbers (sign in with the password, or set one through the reset).
@@ -63,6 +69,8 @@ abstract final class ApiErrorCodes {
   static const passkeyLimit = 'PASSKEY_LIMIT';
   static const reauthInvalid = 'REAUTH_INVALID';
   static const deviceAttestationRequired = 'DEVICE_ATTESTATION_REQUIRED';
+  // 2026-10-24: web-only bot check; the app never sends it.
+  static const turnstileFailed = 'TURNSTILE_FAILED';
   static const accountSuspended = 'ACCOUNT_SUSPENDED';
   // Owner 2026-10-05 (client fraud): limited while staff check the account.
   static const accountRestricted = 'ACCOUNT_RESTRICTED';
@@ -133,6 +141,8 @@ abstract final class ApiErrorCodes {
   // Owner 2026-10-05 (storage like Telegram): per-user and per-chat caps.
   static const storageQuotaExceeded = 'STORAGE_QUOTA_EXCEEDED';
   static const chatStorageFull = 'CHAT_STORAGE_FULL';
+  // 2026-10-24: daily upload-bytes cap per person.
+  static const dailyUploadLimitExceeded = 'DAILY_UPLOAD_LIMIT_EXCEEDED';
   static const fileNotAttachable = 'FILE_NOT_ATTACHABLE';
   static const fileStorageUnavailable = 'FILE_STORAGE_UNAVAILABLE';
   // Verification (docs/03 §2, stages 3.3–3.4)
@@ -191,6 +201,8 @@ abstract final class ApiErrorCodes {
   static const callNotAllowed = 'CALL_NOT_ALLOWED';
   static const callInProgress = 'CALL_IN_PROGRESS';
   static const callStateConflict = 'CALL_STATE_CONFLICT';
+  // Group calls via Cloudflare SFU: the media server is unreachable right now.
+  static const callMediaUnavailable = 'CALL_MEDIA_UNAVAILABLE';
   // OQ-043 direct chats / message requests.
   static const directChatNotAllowed = 'DIRECT_CHAT_NOT_ALLOWED';
   static const messageRequestDeclined = 'MESSAGE_REQUEST_DECLINED';
@@ -327,6 +339,7 @@ abstract final class ApiErrorCodes {
     idempotencyKeyConflict,
     appUpdateRequired,
     syncTooOld,
+    staleVersion,
     tokenExpired,
     authOtpInvalid,
     authOtpExpired,
@@ -343,6 +356,7 @@ abstract final class ApiErrorCodes {
     authSocialProviderUnavailable,
     authProviderDisabled,
     authInvalidCredentials,
+    authPasswordCompromised,
     postAttachmentsNotAllowed,
     accountExistsUseOtherMethod,
     identifierAlreadyLinked,
@@ -354,6 +368,7 @@ abstract final class ApiErrorCodes {
     passkeyNotFound,
     passkeyLimit,
     deviceAttestationRequired,
+    turnstileFailed,
     accountSuspended,
     accountRestricted,
     accountDeleted,
@@ -406,6 +421,7 @@ abstract final class ApiErrorCodes {
     fileNotUploaded,
     storageQuotaExceeded,
     chatStorageFull,
+    dailyUploadLimitExceeded,
     fileNotAttachable,
     fileStorageUnavailable,
     verificationAlreadyPending,
@@ -450,6 +466,7 @@ abstract final class ApiErrorCodes {
     callNotAllowed,
     callInProgress,
     callStateConflict,
+    callMediaUnavailable,
     directChatNotAllowed,
     messageRequestDeclined,
     messageRequestLimit,
@@ -600,7 +617,12 @@ class ApiException implements Exception {
       }
     }
     return ApiException(
-      code: networkErrorCode,
+      // S15-13: a Wi-Fi sign-in page answering instead of the API is still a
+      // network failure for every caller (`isNetworkError`), but screens
+      // that want to can tell it apart.
+      code: isCaptivePortalResponse(e.response)
+          ? captivePortalCode
+          : networkErrorCode,
       message: e.message ?? 'Network error',
       statusCode: e.response?.statusCode,
       guest: guest,
@@ -614,6 +636,11 @@ class ApiException implements Exception {
   /// "the request never got a real answer".
   static const networkErrorCode = 'NETWORK_ERROR';
 
+  /// S15-13: an HTML page (2xx/3xx or 511) came back from a JSON route: a
+  /// captive portal (Wi-Fi sign-in) sits in front of the API. Counts as a
+  /// network failure ([isNetworkError]); never retried.
+  static const captivePortalCode = 'CAPTIVE_PORTAL';
+
   final String code;
   final String message;
   final Map<String, dynamic>? details;
@@ -624,7 +651,10 @@ class ApiException implements Exception {
   /// token. A 401 on it means «sign in to see this», a 429 «try later».
   final bool guest;
 
-  bool get isNetworkError => code == networkErrorCode;
+  bool get isNetworkError =>
+      code == networkErrorCode || code == captivePortalCode;
+
+  bool get isCaptivePortal => code == captivePortalCode;
 
   @override
   String toString() => 'ApiException($code: $message)';
@@ -651,4 +681,15 @@ Future<T> guardApiCall<T>(Future<T> Function() call) async {
       message: 'Unexpected response shape from the server.',
     );
   }
+}
+
+/// S15-13: true when [response] is an HTML page where the API speaks JSON and
+/// the status is one a Wi-Fi sign-in page uses (200-399, or 511 "network
+/// authentication required"). A bare ALB 502/503 HTML page is NOT captive.
+bool isCaptivePortalResponse(Response<dynamic>? response) {
+  if (response == null) return false;
+  final status = response.statusCode ?? 0;
+  if (!((status >= 200 && status < 400) || status == 511)) return false;
+  final type = response.headers.value(Headers.contentTypeHeader) ?? '';
+  return type.toLowerCase().contains('text/html');
 }

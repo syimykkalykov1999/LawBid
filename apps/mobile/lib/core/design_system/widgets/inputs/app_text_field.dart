@@ -27,6 +27,7 @@ class AppTextField extends StatefulWidget {
     this.inputFormatters,
     this.onChanged,
     this.autofocus = false,
+    this.tapAnywhere = false,
     this.semanticLabel,
     this.label,
     this.helperText,
@@ -41,6 +42,7 @@ class AppTextField extends StatefulWidget {
     this.obscureText = false,
     this.trailing,
     this.minHeight = 44,
+    this.compact = false,
   });
 
   final TextEditingController? controller;
@@ -63,6 +65,10 @@ class AppTextField extends StatefulWidget {
   /// Hint below the field when there is no error.
   final String? helperText;
   final int maxLines;
+
+  /// Owner 2026-10-24: a tap anywhere in the box (its padding, the empty
+  /// lines) puts the cursor in the field, not only on the text line.
+  final bool tapAnywhere;
 
   /// Shows a live `n/max` counter and enforces the limit.
   final int? maxLength;
@@ -87,6 +93,11 @@ class AppTextField extends StatefulWidget {
   /// Field height: 52 by default, 44 on the compact auth screens.
   final double minHeight;
 
+  /// Owner 2026-10-23: the search-field style - 44 dp high (the touch
+  /// target), text and icon centred; the font size is the same. Every
+  /// search box (contacts, chats, tasks, Q&A, pickers) uses it.
+  final bool compact;
+
   @override
   State<AppTextField> createState() => _AppTextFieldState();
 }
@@ -110,10 +121,17 @@ class _AppTextFieldState extends State<AppTextField> {
 
   /// Owner 2026-10-19: the `n/max` counter inside the field, bottom right.
   Widget _withCounter(Widget field) {
+    final tappable = !widget.tapAnywhere
+        ? field
+        : GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _focusNode.requestFocus,
+            child: field,
+          );
     final max = widget.maxLength;
     final controller = widget.controller;
-    if (max == null || controller == null) return field;
-    return InsideCounter(controller: controller, max: max, child: field);
+    if (max == null || controller == null) return tappable;
+    return InsideCounter(controller: controller, max: max, child: tappable);
   }
 
   @override
@@ -205,9 +223,12 @@ class _AppTextFieldState extends State<AppTextField> {
                         isDense: true,
                         // Owner 2026-10-19: room for the counter inside.
                         contentPadding: EdgeInsets.only(
-                          top: AppSpacing.lg + 1,
-                          bottom: AppSpacing.lg +
-                              1 +
+                          top: widget.compact
+                              ? AppSpacing.sm
+                              : AppSpacing.lg + 1,
+                          bottom: (widget.compact
+                                  ? AppSpacing.sm
+                                  : AppSpacing.lg + 1) +
                               (widget.maxLength != null &&
                                       widget.controller != null
                                   ? kInsideCounterRoom - 4

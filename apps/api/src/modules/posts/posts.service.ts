@@ -60,6 +60,7 @@ import {
   PostPresenter,
   VISIBLE_POST_WHERE,
 } from './post-presenter.service';
+import { userDirectory } from '../../sharding/user-directory';
 
 /** A display/download name without path parts or control characters. */
 export function safeFileName(name: string): string {
@@ -346,14 +347,17 @@ export class PostsService {
         video_asset_id: true,
         archived_at: true,
         _count: { select: { media: true, attachments: true } },
-        author: { select: { role: true } },
       },
     });
     // Owner 2026-10-18: an archived post is not public (it counts and
     // alerts when the author shows it in the profile again).
     if (!post || post.archived_at) return;
+    // Shard-ready step 6: the author's role from the user directory.
+    const author = await userDirectory(this.prisma).one(post.author_id, {
+      role: true,
+    });
     await this.counters.bump(
-      profileEntity(post.author.role === 'client' ? 'client' : 'attorney'),
+      profileEntity(author?.role === 'client' ? 'client' : 'attorney'),
       post.author_id,
       'posts_count',
       1,

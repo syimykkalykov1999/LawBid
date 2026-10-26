@@ -5,7 +5,8 @@
 #
 # Not counted as "left" (AWS keeps them, they cost nothing and cannot be
 # removed earlier):  KMS keys waiting for deletion (7 days, free after the
-# first hour), inactive ECS task definition revisions.
+# first hour), inactive ECS task definition revisions, deleted (INACTIVE)
+# ECS clusters that the tagging index still lists for about an hour.
 # The tagging API can lag a few minutes behind a delete, so it is asked
 # again for up to WAIT seconds (default 300) before it fails.
 #   verify-clean.sh [--quiet]
@@ -16,6 +17,7 @@ deadline=$(( $(date +%s) + WAIT ))
 
 list_left() {
   local r arns
+  {
   for r in $regions; do
     arns="$(aws resourcegroupstaggingapi get-resources --region "$r" --tag-filters Key=Project,Values=lawbid-loadtest \
       --query 'ResourceTagMappingList[].ResourceARN' --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d')"
@@ -23,13 +25,20 @@ list_left() {
       [ -z "$arn" ] && continue
       case "$arn" in
         *:task-definition/*) continue;;                                  # inactive revisions
+        arn:aws:ecs:*:cluster/*)                                         # a deleted cluster stays INACTIVE in the index for ~1 h
+          cstate="$(aws ecs describe-clusters --region "$r" --clusters "$arn" --query 'clusters[0].status' --output text 2>/dev/null || echo Gone)"
+          case "$cstate" in INACTIVE|None|Gone) continue;; esac;;
         arn:aws:kms:*:key/*)
           state="$(aws kms describe-key --region "$r" --key-id "$arn" --query KeyMetadata.KeyState --output text 2>/dev/null || echo Gone)"
           case "$state" in PendingDeletion|Gone|PendingReplicaDeletion) continue;; esac;;
       esac
       echo "$r $arn"
     done <<<"$arns"
-  done | sort -u
+  done
+  # CloudFront key-value stores and functions cannot carry tags: find them by name.
+  aws cloudfront list-key-value-stores --query 'KeyValueStoreList.Items[?starts_with(Name, `lawbid-loadtest`)].ARN' --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d;/^None$/d;s/^/global /'
+  aws cloudfront list-functions --query 'FunctionList.Items[?starts_with(Name, `lawbid-loadtest`)].FunctionMetadata.FunctionARN' --output text 2>/dev/null | tr '\t' '\n' | sed '/^$/d;/^None$/d;s/^/global /'
+  } | sort -u
 }
 
 while :; do

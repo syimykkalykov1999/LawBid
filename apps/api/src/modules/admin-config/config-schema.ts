@@ -47,12 +47,67 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   }
   // Owner 2026-10-22: calls. The provider switch is checked again on save
   // (livekit needs LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET).
+  out['media.public_store'] = {
+    type: 'string',
+    defaultValue: 'aws',
+    description:
+      'Where new PUBLIC media (avatars, post and review photos, stickers) is stored: aws or r2 (Cloudflare R2; needs Integrations → Cloudflare R2). Private files (chats, cases, documents, verification) always stay on AWS.',
+    pattern: /^(aws|r2)$/,
+  };
+  // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
+  out['search.engine'] = {
+    type: 'string',
+    defaultValue: 'postgres',
+    description:
+      'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
+    pattern: /^(postgres|shadow|engine)$/,
+  };
+  out['search.engine_timeout_ms'] = {
+    type: 'integer',
+    defaultValue: 800,
+    description:
+      'The search engine answers slower than this, milliseconds: the search falls back to Postgres for that request.',
+    min: 100,
+    max: 5000,
+  };
+  out['search.reindex_keep_days'] = {
+    type: 'integer',
+    defaultValue: 7,
+    description:
+      'After a search reindex, the old index is kept this many days so you can roll back, then deleted.',
+    min: 1,
+    max: 60,
+  };
+  out['search.reindex_throttle_ms'] = {
+    type: 'integer',
+    defaultValue: 200,
+    description:
+      'A search reindex pauses this many milliseconds between batches of 500 documents, so it does not slow the database.',
+    min: 0,
+    max: 5000,
+  };
   out['calls.video_provider'] = {
     type: 'string',
     defaultValue: 'p2p',
     description:
-      'Who carries video calls: p2p (device to device, up to 9 people) or livekit (media server; needs the LiveKit keys in Integrations).',
-    pattern: /^(p2p|livekit)$/,
+      'Who carries video calls: p2p (device to device, up to 9 people), livekit (media server; needs the LiveKit keys in Integrations) or cloudflare (Cloudflare SFU for group calls; needs the Cloudflare SFU keys in Integrations).',
+    pattern: /^(p2p|livekit|cloudflare)$/,
+  };
+  out['calls.sfu_max_participants'] = {
+    type: 'integer',
+    defaultValue: 20,
+    description:
+      'Most people in one group call while calls run on Cloudflare SFU (calls.video_provider = cloudflare).',
+    min: 2,
+    max: 100,
+  };
+  out['calls.sfu_fallback_mesh_max'] = {
+    type: 'integer',
+    defaultValue: 4,
+    description:
+      'Only while Cloudflare is down or not configured: group calls up to this many people keep their video (device to device); with more people everyone is audio only. Calls are never refused.',
+    min: 2,
+    max: 100,
   };
   out['calls.max_participants'] = {
     type: 'integer',
@@ -61,6 +116,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Most people in one group call. With p2p the effective cap is 9 whatever is set here.',
     min: 2,
     max: 50,
+  };
+  out['calls.solo_end_seconds'] = {
+    type: 'integer',
+    defaultValue: 30,
+    description:
+      'When only one person is left in a call, the call ends after this many seconds unless somebody joins. 0 = end at once.',
+    min: 0,
+    max: 600,
   };
   for (const provider of COST_PROVIDERS) {
     for (const window of ['per_minute_max', 'daily_max', 'monthly_max']) {
@@ -189,6 +252,39 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: ADMIN_THROTTLE_MIN,
     max: ADMIN_THROTTLE_MAX,
   };
+  for (const key of [
+    'rate_limit.bid_create_per_day',
+    'rate_limit.bid_counter_per_hour',
+    'rate_limit.case_create_per_day',
+    'rate_limit.chat_save_per_minute',
+    'rate_limit.forward_per_minute',
+  ] as const) {
+    out[key] = { ...out[key], min: 1, max: 100000 };
+  }
+  out['realtime.max_connects_per_ip_per_minute'] = {
+    ...out['realtime.max_connects_per_ip_per_minute'],
+    description:
+      'New live connections per minute from one address (0 = no limit). Mobile networks and offices share addresses: keep it generous.',
+    min: 0,
+    max: 100000,
+  };
+  out['security.password_hash_concurrency'] = {
+    ...out['security.password_hash_concurrency'],
+    description:
+      'Password checks running at once on one server (the rest wait). Keep it at about half the server threads (UV_THREADPOOL_SIZE).',
+    min: 1,
+    max: 64,
+  };
+  out['security.password_hash_max_queue'] = {
+    ...out['security.password_hash_max_queue'],
+    min: 0,
+    max: 100000,
+  };
+  out['security.password_breach_timeout_ms'] = {
+    ...out['security.password_breach_timeout_ms'],
+    min: 200,
+    max: 10000,
+  };
   out['realtime.max_sockets_per_user'] = {
     ...out['realtime.max_sockets_per_user'],
     description:
@@ -219,6 +315,45 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Firebase App Check on sign-in codes, password reset, social sign-in and the phone-status check: off | monitor (log only, default) | enforce (a request without a valid token from the app gets 403; a code by e-mail still works).',
     pattern: /^(off|monitor|enforce)$/,
+  };
+  out['security.turnstile.mode'] = {
+    ...out['security.turnstile.mode'],
+    description:
+      'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
+    pattern: /^(off|monitor|enforce)$/,
+  };
+  // Legal-grade protection of client documents (2026-10-24).
+  out['security.attorney_strong_auth'] = {
+    ...out['security.attorney_strong_auth'],
+    description:
+      'On (default): an attorney or assistant who has a passkey cannot sign in with the password alone (a stolen password is not enough). Accounts without a passkey are not affected. Off: password sign-in always works.',
+  };
+  out['files.confidential_url_ttl_sec'] = {
+    ...out['files.confidential_url_ttl_sec'],
+    description:
+      'Seconds a link to a case file, chat document or support attachment stays valid (60–3600, default 900). The app asks for a new link on every open and access is re-checked each time.',
+    min: 60,
+    max: 3600,
+  };
+  out['files.access_log_enabled'] = {
+    ...out['files.access_log_enabled'],
+    description:
+      'On (default): remember who other than the owner opened a confidential file and from which device; the owner can see it. Off: nothing is recorded.',
+  };
+  out['security.seal_case_metadata'] = {
+    ...out['security.seal_case_metadata'],
+    description:
+      'On (default): chat attachment file names and the case private details are stored encrypted; a background job seals the old rows. Off: new rows are written as before (already sealed ones stay sealed).',
+  };
+  out['security.seal_journal_text'] = {
+    ...out['security.seal_journal_text'],
+    description:
+      'Off (default). On: free text in case-journal entries is encrypted. The journal cannot be rewritten, so every key id used while this is on must stay in MESSAGE_ENC_KEYS for 5 years.',
+  };
+  out['push.chat_preview'] = {
+    ...out['push.chat_preview'],
+    description:
+      "On (default, today's behaviour): a chat push shows the message text. Off: it shows only «New message» and Google/Apple never see the text. Recommended: off for attorney accounts.",
   };
   out['verification.bar_document_for_manual_states'] = {
     ...out['verification.bar_document_for_manual_states'],
@@ -282,6 +417,47 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 50,
   };
+  // 2026-10-24 (abuse batch B, item 10): SMS pumping.
+  out['sms.prefix_velocity_max'] = {
+    ...out['sms.prefix_velocity_max'],
+    description:
+      'Most SMS codes in the window to numbers with the same first 6 digits; above it the prefix is blocked for «sms.prefix_block_minutes», nothing is sent and an alert is logged (SMS-pumping brake). 0 = off.',
+    min: 0,
+    max: 1000,
+  };
+  out['sms.country_velocity_max'] = {
+    ...out['sms.country_velocity_max'],
+    description:
+      'Most SMS codes in the window to one country (dial code); above it the country is blocked for «sms.prefix_block_minutes». 0 = off.',
+    min: 0,
+    max: 100_000,
+  };
+  out['sms.prefix_velocity_window_minutes'] = {
+    ...out['sms.prefix_velocity_window_minutes'],
+    description: 'Window of the two SMS velocity rules, minutes.',
+    min: 1,
+    max: 1440,
+  };
+  out['sms.prefix_block_minutes'] = {
+    ...out['sms.prefix_block_minutes'],
+    description: 'How long a tripped prefix / country stays blocked, minutes.',
+    min: 1,
+    max: 10_080,
+  };
+  out['sms.signup_daily_cap'] = {
+    ...out['sms.signup_daily_cap'],
+    description:
+      'Hard cap of SMS sign-up codes (to new numbers) per UTC day. When reached, SMS sign-up is closed until 00:00 UTC and an alert is logged; password reset and e-mail codes keep working. Not touched by the auto spend limits. 0 = off.',
+    min: 0,
+    max: 1_000_000,
+  };
+  out['storage.daily_upload_mb_per_user'] = {
+    ...out['storage.daily_upload_mb_per_user'],
+    description:
+      'Most MB one person may upload per UTC day (avatars, documents and exports do not count). Stops an upload-and-delete loop. 0 = no cap.',
+    min: 0,
+    max: 1_000_000,
+  };
   // Owner 2026-10-05: zero-maintenance operations (Система → Здоровье системы).
   out['ops.db_slow_ms'] = {
     ...out['ops.db_slow_ms'],
@@ -296,6 +472,54 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Alert when the newest database backup is older than this many hours.',
     min: 2,
     max: 24 * 14,
+  };
+  out['search.ranked_cache_ttl_sec'] = {
+    ...out['search.ranked_cache_ttl_sec'],
+    description:
+      'Seconds a search result list is shared by everyone asking the same query (30-60 is right).',
+    min: 10,
+    max: 900,
+  };
+  out['usage.cloudflare_egress_warn_gb'] = {
+    ...out['usage.cloudflare_egress_warn_gb'],
+    description:
+      'Warn when Cloudflare calls traffic this month (GB) reaches this; 0 = off. Free until 1000.',
+    min: 0,
+    max: 10000,
+  };
+  out['usage.cloudflare_egress_crit_gb'] = {
+    ...out['usage.cloudflare_egress_crit_gb'],
+    description:
+      'Urgent alert when Cloudflare calls traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 10000,
+  };
+  out['usage.bunny_bandwidth_warn_gb'] = {
+    ...out['usage.bunny_bandwidth_warn_gb'],
+    description:
+      'Warn when Bunny video traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_bandwidth_crit_gb'] = {
+    ...out['usage.bunny_bandwidth_crit_gb'],
+    description:
+      'Urgent alert when Bunny video traffic this month (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_storage_warn_gb'] = {
+    ...out['usage.bunny_storage_warn_gb'],
+    description: 'Warn when Bunny stored video (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
+  };
+  out['usage.bunny_storage_crit_gb'] = {
+    ...out['usage.bunny_storage_crit_gb'],
+    description:
+      'Urgent alert when Bunny stored video (GB) reaches this; 0 = off.',
+    min: 0,
+    max: 1000000,
   };
   out['economy.max_spend_percent'] = {
     ...out['economy.max_spend_percent'],
@@ -343,6 +567,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Bulk payouts and refunds of this many cents or more wait for a second admin to approve them (0 = all of them). Changing it needs a fresh 2FA code.',
     min: 0,
     max: 100_000_000,
+  };
+  out['admin.dual_control'] = {
+    ...out['admin.dual_control'],
+    description:
+      'Second-admin approval for payouts, refunds, bonuses and the ops buttons. Off (default): the admin who asks runs the action at once after a fresh 2FA code. On: amounts from billing.dual_approval_min_cents wait for another admin.',
   };
   out['admin.reason_required_areas'] = {
     ...out['admin.reason_required_areas'],

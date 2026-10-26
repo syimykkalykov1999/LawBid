@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { keyStrengthProblem, weakKeysInList } from './key-strength';
 import {
   isDeployedEnv,
   resolveEmailProvider,
@@ -93,15 +94,43 @@ export const envSchema = z
     // database. Unset → `<DATABASE_URL database>_demo`, created and
     // migrated by the API itself; `off` → no demo world.
     DEMO_DATABASE_URL: z.string().min(1).optional(),
+    // Own PgBouncer (docs/architecture/DB_POOLER.md). Set by infra when
+    // `db_pooler_enabled = true`: DATABASE_URL is sent to this host:port
+    // (src/prisma/pooler-url.ts). Unset = direct database connection.
+    DB_POOLER_HOST: z.string().min(1).optional(),
+    DB_POOLER_PORT: z.coerce.number().int().positive().optional(),
+    DB_POOLER_QUERY: z.string().optional(),
     REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
     // How long one Redis command may wait before failing. The e2e harness
     // raises it: a busy CI runner stalls the event loop past 2 s while an
     // app boots, and the timer then fires before the reply is read.
     REDIS_COMMAND_TIMEOUT_MS: z.coerce.number().int().positive().default(2000),
+    // Batch C item 9 (2026-10-24): a separate allkeys-lru Redis for pure
+    // caches (search results, translations, link previews …) so cache keys
+    // can never fill the queue Redis (noeviction). Unset = caches use
+    // REDIS_URL. Command timeout is short: a slow cache is skipped.
+    REDIS_CACHE_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    REDIS_CACHE_COMMAND_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(500),
     // Owner 2026-10-22 (server load audit, finding 5): the Socket.IO Redis
     // adapter. `sharded` (Redis 7 sharded pub/sub: an event reaches only the
     // instances holding its room); `classic` = the old pub/sub, a rollback
     // switch. Set the same value on the API and the worker.
+    // Redis Cluster switch (docs/architecture/REDIS_CLUSTER_READY.md): true =
+    // REDIS_URL is the configuration endpoint of an ElastiCache "cluster mode
+    // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
+    // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
+    REDIS_CLUSTER: envBoolean(false),
+    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
+    // the load test; false = old behaviour) and an optional single BullMQ
+    // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
+    REDIS_AUTOPIPELINE: envBoolean(false),
+    REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
+    // Local docker cluster only: JSON natMap for announced addresses.
+    REDIS_CLUSTER_NAT_MAP: z.string().optional(),
     SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),
     SUBSCRIPTION_PAST_DUE_GRACE_DAYS: z.coerce
       .number()
@@ -758,12 +787,55 @@ export const envSchema = z
     STUN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_URLS: z.preprocess(blankToUndefined, z.string().optional()),
     TURN_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
+    // Cloudflare Realtime TURN (also settable in admin -> Integrations).
+    CLOUDFLARE_TURN_KEY_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_TURN_API_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Batch C item 11: usage alerts (GraphQL Analytics, «Account Analytics:
+    // Read»); also settable in admin -> Integrations -> Cloudflare TURN.
+    CLOUDFLARE_ANALYTICS_ACCOUNT_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_ANALYTICS_API_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Batch C item 16: Bunny account API key for the usage poll.
+    BUNNY_ACCOUNT_API_KEY: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    // Cloudflare Realtime SFU for group calls (also settable in admin ->
+    // Integrations -> Cloudflare SFU); used when calls.video_provider =
+    // cloudflare.
+    CLOUDFLARE_SFU_APP_ID: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
+    CLOUDFLARE_SFU_APP_TOKEN: z.preprocess(
+      blankToUndefined,
+      z.string().optional(),
+    ),
     // Owner 2026-10-22: LiveKit (open-source SFU) for big calls; used only
     // when `calls.video_provider` = livekit (admin → Settings). Also
     // settable in admin → Integrations → LiveKit.
     LIVEKIT_URL: z.preprocess(blankToUndefined, z.string().optional()),
     LIVEKIT_API_KEY: z.preprocess(blankToUndefined, z.string().optional()),
     LIVEKIT_API_SECRET: z.preprocess(blankToUndefined, z.string().optional()),
+    // Owner 2026-10-24 (search-ready): the search engine behind the
+    // `search.engine` switch (admin → Settings); also settable in admin →
+    // Integrations → Search engine. Unused while the switch is `postgres`.
+    OPENSEARCH_URL: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_USERNAME: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_PASSWORD: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
+    OPENSEARCH_REPLICAS: z.preprocess(blankToUndefined, z.string().optional()),
     // docs/06 §2.1 (stage 6.2): encrypts admin TOTP secrets at rest
     // (admin_credentials.totp_secret_enc). Admin sign-in is 503 until set.
     ADMIN_TOTP_ENC_KEY: z.preprocess(
@@ -843,6 +915,18 @@ export const envSchema = z
         path: ['REDIS_URL'],
         message:
           'REDIS_URL must be rediss:// (TLS) on staging/production: the Redis connection must be encrypted',
+      });
+    }
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      env.REDIS_CACHE_URL &&
+      !env.REDIS_CACHE_URL.startsWith('rediss://')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['REDIS_CACHE_URL'],
+        message:
+          'REDIS_CACHE_URL must be rediss:// (TLS) on staging/production',
       });
     }
     // Security audit 2026-10-01: deployed behind the ALB with 0 hops,
@@ -996,6 +1080,38 @@ export const envSchema = z
             code: 'custom',
             path: [key],
             message: `${key} still holds a placeholder/test value; generate a real secret (docs/KEYS_SETUP.md)`,
+          });
+        }
+      }
+    }
+    // S3-13: on a deployed environment the data keys must look random.
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      process.env.KEY_STRENGTH_CHECK !== 'off'
+    ) {
+      const lists = {
+        JWT_KEYS: env.JWT_KEYS,
+        SECRETS_MASTER_KEYS: env.SECRETS_MASTER_KEYS,
+        MESSAGE_ENC_KEYS: env.MESSAGE_ENC_KEYS,
+      } as const;
+      for (const [name, list] of Object.entries(lists)) {
+        // A placeholder is already reported above.
+        if (!list || placeholderSecretPattern.test(list)) continue;
+        for (const weak of weakKeysInList(list)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: `${name} key ${weak}; use base64 of 32 random bytes (openssl rand -base64 32) or a KMS-wrapped key`,
+          });
+        }
+      }
+      if (env.ADMIN_TOTP_ENC_KEY) {
+        const problem = keyStrengthProblem(env.ADMIN_TOTP_ENC_KEY);
+        if (problem) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['ADMIN_TOTP_ENC_KEY'],
+            message: `ADMIN_TOTP_ENC_KEY ${problem}; use base64 of 32 random bytes (openssl rand -base64 32)`,
           });
         }
       }
