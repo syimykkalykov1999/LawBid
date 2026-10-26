@@ -661,8 +661,10 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
   /** Password hashes (scrypt) running at once on one server; the rest wait,
-   * so a sign-in flood cannot starve the server's file / DNS work. */
-  'security.password_hash_concurrency': 4,
+   * so a sign-in flood cannot starve the server's file / DNS work. 2 (not 4):
+   * each scrypt is 64 MiB and about 100-200 ms of CPU, and the launch task
+   * is 0.5 vCPU / 1 GiB (review R-59); raise it with the task size. */
+  'security.password_hash_concurrency': 2,
   /** Hashes allowed to wait; beyond it the request gets RATE_LIMITED. */
   'security.password_hash_max_queue': 200,
   /** Owner 2026-10-07: sign-in codes (SMS or e-mail) one phone / e-mail
