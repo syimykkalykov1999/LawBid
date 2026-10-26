@@ -211,7 +211,7 @@ class VoicePlayer extends Notifier<VoicePlayback> {
       if (kIsWeb) {
         final url = v.localPath ?? v.url;
         if (url == null) {
-          state = state.copyWith(loading: false);
+          _resetFailed(load);
           return;
         }
         await p.setUrl(url);
@@ -226,14 +226,21 @@ class VoicePlayer extends Notifier<VoicePlayback> {
         await p.setFilePath(path);
         if (load != _load) return;
       } else {
-        state = state.copyWith(loading: false);
+        _resetFailed(load);
         return;
       }
       await p.setSpeed(state.speed);
       await _playFaded(p);
     } on Object {
-      if (ref.mounted) state = state.copyWith(loading: false, playing: false);
+      _resetFailed(load);
     }
+  }
+
+  /// A note that could not be loaded leaves no «current note» behind, so
+  /// the next tap loads it again instead of replaying the old source.
+  void _resetFailed(int load) {
+    if (!ref.mounted || load != _load) return;
+    state = VoicePlayback(speed: state.speed);
   }
 
   /// Bumped by every fade / start / stop: a ramp that finds a newer number
@@ -360,7 +367,11 @@ class VoicePlayer extends Notifier<VoicePlayback> {
         );
     final data = res.data;
     if (data == null || data.isEmpty) return null;
-    await file.writeAsBytes(data, flush: true);
+    // Written beside and renamed: a half-written file is never taken as the
+    // finished note.
+    final part = File('${file.path}.part');
+    await part.writeAsBytes(data, flush: true);
+    await part.rename(file.path);
     return file.path;
   }
 
