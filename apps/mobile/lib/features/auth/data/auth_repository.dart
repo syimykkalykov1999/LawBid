@@ -93,6 +93,12 @@ abstract interface class AuthRepository {
     required String code,
   });
 
+  /// `POST /auth/reauth/demo` (owner 2026-10-08): demo sessions only — the
+  /// same single-use `reauthToken` as [reauthWithOtp] but without the code
+  /// step (the demo world sends no SMS/e-mail). A real session gets
+  /// [ReauthResult.invalid] (server 403) and must use [reauthWithOtp].
+  Future<ReauthResult> reauthDemo();
+
   /// `DELETE /users/me` (file 01 §10.7) — starts the 14-day deletion grace
   /// period. Requires a fresh, unused [reauthToken] from [reauthWithOtp].
   /// On [AccountDeletionResult.success], the server has already revoked

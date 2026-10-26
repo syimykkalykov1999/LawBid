@@ -196,6 +196,9 @@ export const OWNER_MEDIA_SETTINGS = {
   // See docs/architecture/SEARCH_READY.md.
   'search.engine': 'postgres',
   // Engine answers slower than this fall back to Postgres, ms.
+  // Which kind of engine 'search.engine' talks to: domain (provisioned
+  // OpenSearch, default) or serverless (Amazon OpenSearch Serverless, SigV4).
+  'search.engine_kind': 'domain',
   'search.engine_timeout_ms': 800,
   // Owner 2026-10-25 (zero-downtime reindex, docs/runbooks/search-reindex.md):
   // the old index generation is kept this many days for a rollback, and the
@@ -433,6 +436,25 @@ export const OWNER_CONTINGENCY_SETTINGS = {
   'fees.contingency_max_percent': 100,
   'fees.contingency_blocked_practices':
     'criminal_defense,dui_and_dwi,traffic_tickets,family_law',
+} as const;
+
+// Owner 2026-10-25 (docs/architecture/EXPERIMENTS.md): the ranking events log
+// and A/B experiments. Impressions and clicks are kept for this share of
+// users (the same users every time), everything else is always kept; weeks
+// older than the retention leave by themselves.
+export const OWNER_EXPERIMENT_SETTINGS = {
+  /** Cost gate, three states: 'off' | 'on' | 'auto'. Auto stores impressions
+   * and clicks only while an experiment is running (bids, accepts, reports
+   * are always kept unless off). The sample percent below is the ceiling. */
+  'ranking.events_mode': 'auto',
+  /** Share of users (0-100) whose impressions and clicks are stored. */
+  'ranking.impression_sample_percent': 10,
+  'ranking.events_retention_days': 90,
+  /** An experiment may start at this share of users at most; more only by a
+   * separate «Увеличить долю» step (fresh 2FA code). */
+  'experiments.max_start_percent': 10,
+  /** CTR@k: positions 1..k count as «seen near the top». */
+  'experiments.ctr_k': 5,
 } as const;
 
 // Owner 2026-10-05: case urgency. A case with a date reads as "very
@@ -1123,6 +1145,7 @@ export const APP_SETTINGS = {
   ...OWNER_INVITE_SETTINGS,
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_URGENCY_SETTINGS,
+  ...OWNER_EXPERIMENT_SETTINGS,
   ...OWNER_STALE_SETTINGS,
   ...OWNER_CONTINGENCY_SETTINGS,
   ...OWNER_TRUST_SETTINGS,
