@@ -1,7 +1,7 @@
 ---
 id: aws-budget-ceiling
 title: Задать потолок расходов AWS на месяц
-category: aws
+category: money
 cost: Бесплатно
 time: 5 минут
 launch: budget

@@ -27,7 +27,7 @@ const people: Record<string, Record<string, unknown>> = {
 function setup(
   message: Record<string, unknown>,
   group = false,
-  opts: { iconOn?: boolean; off?: string[] } = {},
+  opts: { iconOn?: boolean; off?: string[]; preview?: boolean } = {},
 ) {
   const iconOn = opts.iconOn ?? true;
   const off = new Set(opts.off ?? []);
@@ -116,6 +116,13 @@ function setup(
     undefined,
     undefined,
     files as never,
+    undefined,
+    {
+      boolean: (k: string) =>
+        Promise.resolve(
+          k === 'push.chat_preview' ? opts.preview !== false : true,
+        ),
+    } as never,
   );
   const job: MessageJobData = {
     kind: 'message',
@@ -200,6 +207,32 @@ describe('PushDispatcher chat pushes like WhatsApp', () => {
     await d.dispatch(job, 'j');
     expect(sent[0].body).toBe('🎤 Голосовое сообщение 1:05');
     expect(sent[0].data.kind).toBe('voice');
+  });
+
+  it('push.chat_preview off (S3-11): no message text reaches the push', async () => {
+    const one = setup(base, false, { preview: false });
+    await one.d.dispatch(one.job, 'j');
+    expect(one.sent[0].body).toBe('Новое');
+    expect(JSON.stringify(one.sent[0])).not.toContain('привет');
+
+    // An attachment keeps its kind label (no text, no file name).
+    const photo = setup(
+      {
+        ...base,
+        type: 'attachment',
+        body_display: 'секрет',
+        file: { mime: 'image/png' },
+      },
+      false,
+      { preview: false },
+    );
+    await photo.d.dispatch(photo.job, 'j');
+    expect(photo.sent[0].body).toBe('📷 Фото');
+
+    const grp = setup(base, true, { preview: false });
+    await grp.d.dispatch(grp.job, 'j');
+    expect(grp.sent[0].body).toBe('Ann Lee: Новое');
+    expect(JSON.stringify(grp.sent[0])).not.toContain('привет');
   });
 
   it('group: title = group, body «Имя: текст», each sender in data', async () => {
