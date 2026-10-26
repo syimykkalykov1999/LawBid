@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { readSwitchMode } from '../../common/app-settings/switch-mode';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
@@ -20,7 +21,6 @@ export const LINK_PREVIEW_CACHE_TTL_SEC = 24 * 3600;
 export const LINK_PREVIEW_NEGATIVE_TTL_SEC = 3600;
 /** One person: a screen of chat bubbles opening at once is about 20. */
 export const LINK_PREVIEW_USER_PER_MINUTE = 30;
-export const LINK_PREVIEW_USER_PER_DAY = 1000;
 /** Everybody together: real outbound fetches (cache misses) per minute. */
 export const LINK_PREVIEW_GLOBAL_PER_MINUTE = 300;
 const CACHE_PREFIX = 'lp:v1:';
@@ -83,7 +83,7 @@ export class LinkPreviewService {
     const day = user.allowed
       ? await this.limiter.consumeFixedWindow(
           ['link-preview', 'user', 'd', userId],
-          LINK_PREVIEW_USER_PER_DAY,
+          await this.settings.number('chat.link_preview_per_user_per_day'),
           86_400,
         )
       : user;
@@ -118,7 +118,10 @@ export class LinkPreviewService {
     const canonical = url.toString();
 
     // The kill switch hides the cards, it does not break chats.
-    if (!(await this.settings.boolean('chat.link_preview_enabled'))) {
+    if (
+      (await readSwitchMode(this.settings, 'chat.link_preview_enabled')) ===
+      'off'
+    ) {
       return this.empty(canonical);
     }
 

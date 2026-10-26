@@ -269,6 +269,7 @@ describe('JobsRunner', () => {
     // Owner 2026-10-24: + search.index (every minute).
     // Owner 2026-10-27: + moderation.appeal-sla (hourly).
     // Day-one foundations: + ledger.reconcile (nightly).
+    // DB-ops hardening: + db.health (daily).
     // S1-3: + chat.redeliver (every minute).
     // BUG-1 (package N-12b): + chat.search-backfill (every 5 minutes).
     expect(upserts).toHaveLength(70);
