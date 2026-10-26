@@ -1,3 +1,4 @@
+import { trialReminderJob } from './trial-reminder';
 import {
   BadRequestException,
   ConflictException,
@@ -28,7 +29,6 @@ import {
   PAYMENT_PROVIDER,
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_JOBS_QUEUE,
-  TRIAL_REMINDER_DAYS_BEFORE,
   TRIAL_REMINDER_JOB,
   SEATS_HARD_CAP,
 } from './billing.constants';
@@ -1063,16 +1063,14 @@ export class SubscriptionsService implements OnModuleDestroy {
     row: Pick<Subscription, 'id' | 'trial_ends_at'>,
   ): Promise<void> {
     if (!this.queue || !row.trial_ends_at) return;
-    const at =
-      row.trial_ends_at.getTime() - TRIAL_REMINDER_DAYS_BEFORE * 86_400_000;
-    const delay = at - Date.now();
-    if (delay <= 0) return;
+    const job = trialReminderJob(row);
+    if (!job) return;
     await this.queue.add(
       TRIAL_REMINDER_JOB,
       { subscriptionId: row.id },
       {
-        jobId: `trial-${row.id}-${row.trial_ends_at.getTime()}`,
-        delay,
+        jobId: job.jobId,
+        delay: job.delay,
         removeOnComplete: true,
         removeOnFail: 100,
       },
