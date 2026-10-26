@@ -1,7 +1,7 @@
 ---
 id: aws-root-mfa
 title: Защитить главный вход в AWS (root): MFA и удаление ключей
-category: security
+category: system
 cost: Бесплатно (аппаратный ключ YubiKey по желанию, цену проверьте в магазине)
 time: 20 минут
 verified: 2026-10-25

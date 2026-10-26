@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { forEachDatabase } from '../../../sharding/for-each-database';
 import { HIDDEN_TAG_PREFIX } from '../../posts/hidden-tags';
 import type { SearchEntity } from './search-engine.mappings';
 
@@ -32,12 +33,31 @@ export const REINDEX_SOURCE: Record<
 export class SearchDocsLoader {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** id → document, only for ids that are searchable right now. */
+  /**
+   * id → document, only for ids that are searchable right now. Rows live on
+   * the physical database of their shard, so every database is asked (one
+   * database: one plain call, as before) and the answers are merged.
+   */
   async load(
     entity: SearchEntity,
     ids: string[],
   ): Promise<Map<string, SearchDoc>> {
     if (ids.length === 0) return new Map();
+    const parts = await forEachDatabase(this.prisma, () =>
+      this.loadHere(entity, ids),
+    );
+    if (parts.length === 1) return parts[0];
+    const out = new Map<string, SearchDoc>();
+    for (const part of parts) {
+      for (const [id, doc] of part) if (!out.has(id)) out.set(id, doc);
+    }
+    return out;
+  }
+
+  private loadHere(
+    entity: SearchEntity,
+    ids: string[],
+  ): Promise<Map<string, SearchDoc>> {
     switch (entity) {
       case 'person':
         return this.people(ids);
@@ -52,8 +72,26 @@ export class SearchDocsLoader {
     }
   }
 
-  /** The next [limit] ids after [after] (uuid order) for a reindex walk. */
+  /**
+   * The next [limit] ids after [after] (uuid order) for a reindex walk. One
+   * global keyset over all physical databases: each returns its next
+   * [limit] ids, the union is sorted and cut, so the checkpoint stays a
+   * plain id (one database: identical to a single query).
+   */
   async idsAfter(
+    entity: SearchEntity,
+    after: string | null,
+    limit: number,
+  ): Promise<string[]> {
+    const parts = await forEachDatabase(this.prisma, () =>
+      this.idsAfterHere(entity, after, limit),
+    );
+    if (parts.length === 1) return parts[0];
+    const all = [...new Set(parts.flat())].sort();
+    return all.slice(0, Math.max(1, Math.floor(limit)));
+  }
+
+  private async idsAfterHere(
     entity: SearchEntity,
     after: string | null,
     limit: number,
@@ -65,6 +103,28 @@ export class SearchDocsLoader {
        WHERE ${Prisma.raw(src.where)}
          AND (${after}::UUID IS NULL OR id > ${after}::UUID)
        ORDER BY id LIMIT ${Math.max(1, Math.floor(limit))}`,
+    );
+    return rows.map((r) => r.id);
+  }
+
+  /** [limit] random ids of the rows a reindex walks (verification sample). */
+  async sampleIds(entity: SearchEntity, limit: number): Promise<string[]> {
+    const parts = await forEachDatabase(this.prisma, () =>
+      this.sampleIdsHere(entity, limit),
+    );
+    if (parts.length === 1) return parts[0];
+    return [...new Set(parts.flat())].slice(0, Math.max(1, Math.floor(limit)));
+  }
+
+  private async sampleIdsHere(
+    entity: SearchEntity,
+    limit: number,
+  ): Promise<string[]> {
+    const src = REINDEX_SOURCE[entity];
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>(
+      Prisma.sql`SELECT id::TEXT AS id FROM ${Prisma.raw(src.table)}
+       WHERE ${Prisma.raw(src.where)}
+       ORDER BY random() LIMIT ${Math.max(1, Math.floor(limit))}`,
     );
     return rows.map((r) => r.id);
   }

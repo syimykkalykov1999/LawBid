@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { keyStrengthProblem, weakKeysInList } from './key-strength';
 import {
   isDeployedEnv,
   resolveEmailProvider,
@@ -129,6 +130,11 @@ export const envSchema = z
     // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
     // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
     REDIS_CLUSTER: envBoolean(false),
+    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
+    // the load test; false = old behaviour) and an optional single BullMQ
+    // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
+    REDIS_AUTOPIPELINE: envBoolean(false),
+    REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
     // Local docker cluster only: JSON natMap for announced addresses.
     REDIS_CLUSTER_NAT_MAP: z.string().optional(),
     SOCKET_IO_ADAPTER: z.enum(['sharded', 'classic']).default('sharded'),
@@ -1080,6 +1086,38 @@ export const envSchema = z
             code: 'custom',
             path: [key],
             message: `${key} still holds a placeholder/test value; generate a real secret (docs/KEYS_SETUP.md)`,
+          });
+        }
+      }
+    }
+    // S3-13: on a deployed environment the data keys must look random.
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      process.env.KEY_STRENGTH_CHECK !== 'off'
+    ) {
+      const lists = {
+        JWT_KEYS: env.JWT_KEYS,
+        SECRETS_MASTER_KEYS: env.SECRETS_MASTER_KEYS,
+        MESSAGE_ENC_KEYS: env.MESSAGE_ENC_KEYS,
+      } as const;
+      for (const [name, list] of Object.entries(lists)) {
+        // A placeholder is already reported above.
+        if (!list || placeholderSecretPattern.test(list)) continue;
+        for (const weak of weakKeysInList(list)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: [name],
+            message: `${name} key ${weak}; use base64 of 32 random bytes (openssl rand -base64 32) or a KMS-wrapped key`,
+          });
+        }
+      }
+      if (env.ADMIN_TOTP_ENC_KEY) {
+        const problem = keyStrengthProblem(env.ADMIN_TOTP_ENC_KEY);
+        if (problem) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['ADMIN_TOTP_ENC_KEY'],
+            message: `ADMIN_TOTP_ENC_KEY ${problem}; use base64 of 32 random bytes (openssl rand -base64 32)`,
           });
         }
       }

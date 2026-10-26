@@ -7,6 +7,8 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { privateDetailsAad } from '../../../common/secrets/field-aad';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import type { Prisma } from '@prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -86,6 +88,8 @@ export class CaseInvitesService {
     private readonly settings: AppSettingsService,
     private readonly files: FilesService,
     @Optional() private readonly photos?: CasePhotosService,
+    // S3-5: private details are stored sealed (only their length is shown).
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   /** POST /cases/:id/invites. */
@@ -520,7 +524,14 @@ export class CaseInvitesService {
         imagesCount: files?.images ?? 0,
         documentsCount: files?.documents ?? 0,
         descriptionLength: row.case.description.length,
-        privateDetailsLength: row.case.private_details?.length ?? 0,
+        privateDetailsLength: !row.case.private_details
+          ? 0
+          : (
+              this.cipher?.openField(
+                row.case.private_details,
+                privateDetailsAad(row.case_id),
+              ) ?? row.case.private_details
+            ).length,
       },
       attorney,
     };
