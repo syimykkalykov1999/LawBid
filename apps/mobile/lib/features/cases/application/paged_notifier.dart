@@ -108,20 +108,47 @@ abstract class PagedNotifier<T> extends AsyncNotifier<PaginatedList<T>> {
       ..onDispose(() => timer?.cancel());
   }
 
+  bool _refreshFetch = false;
+
+  /// True only while [refresh] is calling [fetch] (read synchronously at
+  /// the start of `fetch`): a repository that serves its first page from
+  /// the phone's HTTP cache must skip that copy now (pull-to-refresh).
+  @protected
+  bool get refreshing => _refreshFetch;
+
+  Future<CursorPage<T>> _fetchFresh() {
+    _refreshFetch = true;
+    try {
+      return fetch(null);
+    } finally {
+      _refreshFetch = false;
+    }
+  }
+
+  /// Re-reads the first page. A newer refresh supersedes an older one; a
+  /// failure while rows are shown keeps the rows and does not throw (the
+  /// pull-to-refresh spinner just ends).
   Future<void> refresh() async {
-    _generation++;
+    final generation = ++_generation;
     _extended = false;
     final previous = state.value;
     if (previous == null) {
       state = const AsyncLoading();
       final next = await AsyncValue.guard(
-        () async => PaginatedList.firstPage(await fetch(null)),
+        () async => PaginatedList.firstPage(await _fetchFresh()),
       );
-      if (ref.mounted) state = next;
+      if (ref.mounted && generation == _generation) state = next;
       return;
     }
-    final page = await fetch(null);
-    if (ref.mounted) state = AsyncData(PaginatedList.firstPage(page));
+    final CursorPage<T> page;
+    try {
+      page = await _fetchFresh();
+    } on Object {
+      return;
+    }
+    if (ref.mounted && generation == _generation) {
+      state = AsyncData(PaginatedList.firstPage(page));
+    }
   }
 
   Future<void> loadMore() async {
