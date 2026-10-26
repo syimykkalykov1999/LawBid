@@ -1,7 +1,7 @@
 ---
 id: github-branch-ruleset
 title: Защитить ветку main на GitHub (ruleset)
-category: security
+category: system
 cost: Бесплатно для публичного репозитория
 time: 15 минут
 verified: 2026-10-25
