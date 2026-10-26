@@ -183,9 +183,9 @@ function recommended(component: string, h: Health, e: Economy | undefined): Alar
     case 'worker':
     case 'queues':
     case 'stripe_webhooks':
-      return onAws ? { action: { kind: 'restart' }, label: 'Перезапустить фоновые задачи' } : null;
+      return onAws ? { action: { kind: 'restart' }, label: 'Перезапустить фоновые задачи (в «Здоровье системы»)' } : null;
     case 'database': {
-      if (!h.heavyPause) return { action: { kind: 'pause', paused: true }, label: 'Поставить тяжёлые задачи на паузу' };
+      if (!h.heavyPause) return { action: { kind: 'pause', paused: true }, label: 'Поставить тяжёлые задачи на паузу (в «Здоровье системы»)' };
       return e?.capacity.onAws && e.capacity.dbNext
         ? { action: { kind: 'increase', target: 'db' }, label: `Увеличить базу до ${e.capacity.dbNext}` }
         : null;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 
@@ -185,6 +186,7 @@ class _PostAttachmentsSheetState extends ConsumerState<PostAttachmentsSheet> {
                           borderRadius: BorderRadius.circular(AppRadii.field),
                           child: CachedNetworkImage(
                             imageUrl: media[i].previewUrl,
+                            cacheManager: AppImageCaches.feed,
                             memCacheWidth: 600,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) =>

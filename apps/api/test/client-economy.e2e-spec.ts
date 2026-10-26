@@ -729,7 +729,6 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       openReports: expect.any(Number),
       supportUnread: expect.any(Number),
       trustQueue: expect.any(Number),
-      approvalsPending: expect.any(Number),
     });
     expect(first.headers['cache-control']).toBe('private, max-age=30');
     const etag = first.headers.etag;

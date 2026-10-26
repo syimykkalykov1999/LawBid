@@ -514,3 +514,9 @@ PATCH /admin/data-requests/{id}/status added the new `emergency` enum value to t
 PATCH /admin/data-requests/{id}/status added the new `other` enum value to the `data/requestType` response property for the response status `200`
 PATCH /admin/data-requests/{id}/status added the new `preservation` enum value to the `data/requestType` response property for the response status `200`
 PATCH /admin/data-requests/{id}/status added the new `search_warrant` enum value to the `data/requestType` response property for the response status `200`
+# Owner 2026-10-26 (PR #382, dedup cleanup): intentional removal: no second admin — the owner forbids four-eyes approvals, so the admin approvals queue is gone (the admin panel drops its page in the same PR; no other client calls it)
+GET /admin/approvals api path removed without deprecation
+GET /admin/approvals/count api path removed without deprecation
+POST /admin/approvals/{id}/approve api path removed without deprecation
+POST /admin/approvals/{id}/reject api path removed without deprecation
+GET /admin/counts removed the required property `data/approvalsPending` from the response with the `200` status
