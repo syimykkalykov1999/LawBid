@@ -1,10 +1,11 @@
-import { Controller, Get, Header } from '@nestjs/common';
+import { Controller, Get, Header, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelopeResponse } from '../../common/dto/api-docs.decorators';
 import {
   ALL_ADMIN_ROLES,
   AdminEndpoint,
   CurrentAdmin,
+  Roles,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { DashboardDto } from './admin.dto';
@@ -24,7 +25,22 @@ export class DashboardController {
   @ApiOperation({ summary: 'Operational numbers (cached ≤ 60 s)' })
   @ApiEnvelopeResponse(DashboardDto)
   async getDashboard(@CurrentAdmin() admin: AdminActor): Promise<DashboardDto> {
-    const d = await this.dashboard.get();
+    return this.forAdmin(await this.dashboard.get(), admin);
+  }
+
+  /** Owner 2026-10-25: «Обновить» on the user totals, at most once per 10 min. */
+  @Post('totals/refresh')
+  @Roles('super_admin')
+  @ApiOperation({ summary: 'Recount user totals now (max once per 10 min)' })
+  @ApiEnvelopeResponse(DashboardDto)
+  async refreshTotals(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<DashboardDto> {
+    await this.dashboard.refreshTotals();
+    return this.forAdmin(await this.dashboard.get(), admin);
+  }
+
+  private forAdmin(d: DashboardDto, admin: AdminActor): DashboardDto {
     // Money is closed to everyone but the super admin (owner 2026-10-02).
     if (admin.adminRole === 'super_admin') return d;
     return {
