@@ -1216,3 +1216,4 @@ PRINCIPLE (owner 07:55): assume the attacker is an automated AI (tireless, tries
 - NEXT after helpers report: ~11:55 launched ab098005 ci-node-pin (jest SIGSEGV on Node 24.21 → pin safe Node everywhere + workerIdleMemoryLimit). Train waiting on Mobile CI queue (20).
 - NEXT after helpers report: ~12:00 PR #425 ci-node-pin opened (Node 22.23.4 in .nvmrc/engines/setup-node/Dockerfiles + workerIdleMemoryLimit; local dev was on 24.21 = source of SIGSEGV). Shared Prisma client regenerated from main. Owner later: nvm use 22 locally.
 - NEXT after helpers report: 14:49 #419 MERGED (main contract-export OOM fixed). Train told to re-merge main into OOM-failed PRs so CI reruns. Open 30, mobile queue 6.
+- NEXT after helpers report: 15:45 merged #392 (experiments/A-B framework). Open 29; reruns of ~25 PRs on CI after #419.
