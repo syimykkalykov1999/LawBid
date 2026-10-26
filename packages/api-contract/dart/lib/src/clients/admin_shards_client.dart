@@ -30,7 +30,7 @@ abstract class AdminShardsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Start the split (2FA step-up; runs at once while admin.dual_control is off)
+  /// Start the split (one 2FA step-up, no second admin)
   @POST('/admin/shards/split')
   Future<ShardActionEnvelope> startSplit({
     @Body() required SplitStartDto body,

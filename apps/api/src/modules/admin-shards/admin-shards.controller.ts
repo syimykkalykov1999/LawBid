@@ -28,7 +28,6 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
-import { AdminApprovalsService } from '../admin-auth/admin-approvals.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   ShardActionDto,
@@ -43,10 +42,9 @@ const E = ErrorCode;
 
 /**
  * Shard-ready step 10: the «Разделить базу» button (super_admin only).
- * Preview and progress are plain reads. Starting needs a fresh 2FA code AND
- * a second admin (four-eyes, the same approvals queue as payouts); rollback
- * and resume need a fresh 2FA code. Every action is an audit_log row.
- * Set SHARD_SPLIT_FOUR_EYES=off when there is only one admin.
+ * Preview and progress are plain reads. Starting, rollback and resume need
+ * one fresh 2FA code (step-up), nothing else: the owner forbids second-admin
+ * (four-eyes) approvals. Every action is an audit_log row.
  */
 @ApiTags('admin-shards')
 @AdminEndpoint('super_admin')
@@ -58,33 +56,7 @@ export class AdminShardsController {
     private readonly orphans: OrphanChecker,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
-    private readonly approvals: AdminApprovalsService,
   ) {}
-
-  onModuleInit(): void {
-    this.approvals.register({
-      kind: 'shard_split',
-      label: 'Разделить базу данных на два сервера',
-      route: {
-        path: '/api/v1/admin/shards/split',
-        method: 'POST',
-        roles: ['super_admin'],
-      },
-      execute: async (requester, payload) => {
-        const p = payload as { toDb: string; shards: number[] };
-        const started = await this.moves.startSplit(
-          p.toDb,
-          p.shards,
-          requester.id,
-        );
-        await this.log(requester, 'shards.split_started', {
-          toDb: p.toDb,
-          shards: p.shards.length,
-        });
-        return { moves: started.map((m) => m.id) };
-      },
-    });
-  }
 
   @Get('overview')
   @ApiOperation({ summary: 'Databases, shard distribution, recent moves' })
@@ -116,13 +88,12 @@ export class AdminShardsController {
   @Post('split')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      'Start the split (2FA step-up; runs at once while admin.dual_control is off)',
+    summary: 'Start the split (one 2FA step-up, no second admin)',
   })
   @ApiEnvelopeResponse(ShardActionDto)
   @ApiErrors({
     403: [E.ADMIN_STEP_UP_REQUIRED],
-    409: [E.ADMIN_APPROVAL_PENDING],
+    409: [E.FEATURE_DISABLED],
   })
   async startSplit(
     @CurrentAdmin() admin: AdminActor,
@@ -140,17 +111,6 @@ export class AdminShardsController {
       toDb: dto.toDb,
       shards: dto.shards.length,
     });
-    if (process.env.SHARD_SPLIT_FOUR_EYES !== 'off') {
-      await this.approvals.gate(admin, {
-        kind: 'shard_split',
-        payload: {
-          toDb: dto.toDb,
-          shards: [...new Set(dto.shards)].sort((a, b) => a - b),
-        },
-        amountCents: 2_147_483_647,
-        summary: `Разделить базу: ${dto.shards.length} логических шардов на ${dto.toDb}`,
-      });
-    }
     const started = await this.run(() =>
       this.moves.startSplit(dto.toDb, dto.shards, admin.id),
     );

@@ -45,8 +45,6 @@ export type ApprovalKind =
   | 'payroll_bonus'
   | 'partner_payout'
   | 'partner_commission_paid'
-  // Shard-ready step 10: the «Разделить базу» button.
-  | 'shard_split'
   // Owner 2026-10-24: AWS Budgets from the admin («Масштаб»). Always
   // needs a second admin, whatever the amount.
   | 'aws_budget_limit'

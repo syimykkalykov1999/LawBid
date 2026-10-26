@@ -20,7 +20,7 @@ npm run shard:move --workspace apps/api -- plan 200 db1       # dry run of one s
 ```
 
 ## Do it
-Admin: Система, Здоровье системы, «Разделить базу», «Показать план», «Разделить базу» (fresh 2FA, then a second admin approves in «Согласования»). Or the CLI: `split db1` / `move 200 db1`.
+Admin: Система, Здоровье системы, «Разделить базу», «Показать план», «Разделить базу» (one fresh 2FA code; no second admin). Or the CLI: `split db1` / `move 200 db1`.
 During a move, writes of that one part pause for seconds; the page shows progress per part. A stopped move shows «Продолжить» (resumes from the saved step).
 
 ## Roll back

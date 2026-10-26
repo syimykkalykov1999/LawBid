@@ -69318,7 +69318,7 @@
             }
           },
           "409": {
-            "description": "Conflict: ADMIN_APPROVAL_PENDING",
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -69363,7 +69363,7 @@
             "admin": []
           }
         ],
-        "summary": "Start the split (2FA step-up; runs at once while admin.dual_control is off)",
+        "summary": "Start the split (one 2FA step-up, no second admin)",
         "tags": [
           "admin-shards"
         ]

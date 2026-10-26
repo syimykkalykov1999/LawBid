@@ -25,8 +25,8 @@ import { formatDateTime } from '@/lib/utils';
  * Shard-ready step 10: «Разделить базу». One card on the system-health page:
  * the plan preview (which parts move, how many rows, how long), the check
  * that the new database is ready, the live progress and the rollback button.
- * Starting needs a fresh 2FA code (the client asks by itself) and a second
- * administrator's approval (Согласования).
+ * Starting needs one fresh 2FA code (the client asks by itself); no second
+ * administrator (the owner forbids four-eyes).
  */
 export function ShardSplitCard() {
   const qc = useQueryClient();
@@ -56,7 +56,6 @@ export function ShardSplitCard() {
       toast.success('Разделение запущено. Прогресс ниже.');
       refresh();
     },
-    // ADMIN_APPROVAL_PENDING shows as an info toast (second admin must approve).
     onError: (e) => toast.error(e),
   });
   const rollback = useMutation({
@@ -143,7 +142,7 @@ export function ShardSplitCard() {
               <p className="break-words text-sm text-danger">{readiness.problems.join('. ')}</p>
             ) : null}
             <p className="text-xs text-muted">
-              Запуск потребует свежий код 2FA и подтверждение второго администратора (раздел «Согласования»).
+              Запуск потребует свежий код 2FA.
             </p>
             <Button
               className="self-start"
