@@ -95,7 +95,7 @@ export const CLIENT_TUNING_DEFS = {
   // S12-5 (observability round 12). Both need the person's analytics consent
   // (Settings → Privacy → «Usage statistics») and a Sentry DSN for the first.
   'client.sentry_traces_percent': {
-    default: 5,
+    default: 0,
     min: 0,
     max: 100,
     description:

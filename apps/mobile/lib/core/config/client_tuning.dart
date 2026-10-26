@@ -25,7 +25,7 @@ abstract final class ClientTuning {
   static int _videoPrefetchAhead = 3;
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
-  static int _sentryTracesPercent = 5;
+  static int _sentryTracesPercent = 0;
   static int _traceparentPercent = 5;
 
   /// S15-12: receive timeout of the latency-critical reads (the start's
@@ -120,7 +120,7 @@ abstract final class ClientTuning {
       4096,
     ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
-    _sentryTracesPercent = pick('client.sentry_traces_percent', 5, 0, 100);
+    _sentryTracesPercent = pick('client.sentry_traces_percent', 0, 0, 100);
     _traceparentPercent = pick('client.traceparent_percent', 5, 0, 100);
   }
 
