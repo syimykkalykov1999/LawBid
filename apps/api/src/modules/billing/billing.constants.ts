@@ -24,6 +24,11 @@ export const STRIPE_WEBHOOKS_DLQ = 'stripe-webhooks-dlq';
 export const STRIPE_WEBHOOK_JOB = 'stripe-event';
 export const SUBSCRIPTION_JOBS_QUEUE = 'subscriptions';
 export const TRIAL_REMINDER_JOB = 'trial-reminder';
+/** S10-6: hourly sweep that re-creates delayed reminder jobs Redis lost. */
+export const TRIAL_REMINDER_RECONCILE_JOB = 'trial-reminder-reconcile';
+/** A reminder is "missed" (sent late by the sweep) only this long after its
+ * time, so the sweep never races the delayed job itself. */
+export const TRIAL_REMINDER_MISSED_AFTER_MS = 30 * 60_000;
 
 /** §1.5 "5 повторов с backoff, затем dead-letter". */
 export const WEBHOOK_JOB_OPTS = {
