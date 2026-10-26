@@ -25,6 +25,7 @@ import {
   canScatter,
   mergeScatter,
   perDatabaseArgs,
+  runScatter,
 } from '../sharding/scatter-gather';
 import { shardFromArgs } from '../sharding/shard-args';
 import { shardStats } from '../sharding/shard-stats';
@@ -258,18 +259,15 @@ export class PrismaService
                 if (keys.length > 1) {
                   shardStats.scatter(model);
                   const per = perDatabaseArgs(op, args);
-                  return Promise.all(
-                    keys.map((k) => {
-                      const c = clientFor(k) as unknown as Record<
-                        string,
-                        Record<string, unknown>
-                      >;
-                      return (c[prop][op] as (a?: unknown) => unknown).call(
-                        c[prop],
-                        per,
-                      );
-                    }),
-                  ).then((results) => mergeScatter(op, args, results));
+                  return runScatter(op, model, keys, (k) => {
+                    const c = clientFor(k) as unknown as Record<
+                      string,
+                      Record<string, unknown>
+                    >;
+                    return (
+                      c[prop][op] as (a?: unknown) => Promise<unknown>
+                    ).call(c[prop], per);
+                  }).then((results) => mergeScatter(op, args, results));
                 }
               }
               // A single-row write or OrThrow read that names no shard (a

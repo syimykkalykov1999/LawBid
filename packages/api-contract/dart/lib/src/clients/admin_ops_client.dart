@@ -7,11 +7,13 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/heavy_hitters_envelope.dart';
 import '../models/heavy_jobs_dto.dart';
+import '../models/post_status_incident_dto.dart';
 import '../models/queue_retry_result_envelope.dart';
 import '../models/scale_dto.dart';
 import '../models/scale_extras_envelope.dart';
 import '../models/search_index_status_envelope.dart';
 import '../models/start_search_reindex_dto.dart';
+import '../models/status_page_envelope.dart';
 import '../models/system_health_envelope.dart';
 import '../models/update_ops_settings_dto.dart';
 
@@ -75,6 +77,26 @@ abstract class AdminOpsClient {
   @PATCH('/admin/system-health/settings')
   Future<SystemHealthEnvelope> updateOpsSettings({
     @Body() required UpdateOpsSettingsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Incidents shown on the public status page
+  @GET('/admin/status-page')
+  Future<StatusPageEnvelope> getStatusPage({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Post an incident on the public status page
+  @POST('/admin/status-page/incidents')
+  Future<StatusPageEnvelope> createIncident({
+    @Body() required PostStatusIncidentDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Mark a posted incident as resolved
+  @POST('/admin/status-page/incidents/{id}/resolve')
+  Future<StatusPageEnvelope> resolveIncident({
+    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
