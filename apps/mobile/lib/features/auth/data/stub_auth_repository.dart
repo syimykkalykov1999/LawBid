@@ -146,6 +146,12 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<ReauthResult> reauthDemo() async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    return const ReauthResult.success(reauthToken: 'stub-demo-reauth-token');
+  }
+
+  @override
   Future<AccountDeletionResult> deleteAccount({
     required String reauthToken,
   }) async {
