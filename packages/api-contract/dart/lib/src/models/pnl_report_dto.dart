@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'pnl_day_dto.dart';
 import 'pnl_kind_line_dto.dart';
 import 'pnl_period_dto.dart';
 import 'pnl_week_dto.dart';
@@ -19,6 +20,7 @@ class PnlReportDto {
     required this.week,
     required this.month,
     required this.weeks,
+    required this.days,
     required this.byKind,
     required this.vendorDataFrom,
   });
@@ -33,6 +35,7 @@ class PnlReportDto {
   final PnlPeriodDto? week;
   final PnlPeriodDto? month;
   final List<PnlWeekDto> weeks;
+  final List<PnlDayDto> days;
   final List<PnlKindLineDto> byKind;
   final String? vendorDataFrom;
 

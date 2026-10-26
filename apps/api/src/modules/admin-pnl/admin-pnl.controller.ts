@@ -10,11 +10,11 @@ import {
 import { PnlReportDto } from './admin-pnl.dto';
 
 /**
- * Owner 2026-10-25: «Прибыль» (Деньги, super admin only). Reads ONLY the
+ * Owner 2026-10-25: «Прибыль» (Деньги, super admin and finance). Reads ONLY the
  * stored daily snapshot; the button recounts at most once per 10 minutes.
  */
 @ApiTags('admin-pnl')
-@AdminEndpoint('super_admin')
+@AdminEndpoint('super_admin', 'finance')
 @SkipAutoAudit()
 @Controller('admin/pnl')
 export class AdminPnlController {
@@ -47,6 +47,7 @@ function toDto(
       week: null,
       month: null,
       weeks: [],
+      days: [],
       byKind: [],
       vendorDataFrom: null,
     };

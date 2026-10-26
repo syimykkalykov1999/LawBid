@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ArrowClockwise } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
@@ -33,7 +34,12 @@ export default function PnlPage() {
     },
     onError: (e) => toast.error(e),
   });
+  const [view, setView] = useState<'days' | 'weeks'>('days');
   const r = q.data;
+  const rows: { from: string; revenueUsd: number; costUsd: number; profitUsd: number; marginPercent?: number | null }[] =
+    view === 'days'
+      ? (r?.days ?? []).map((d) => ({ from: d.day, revenueUsd: d.revenueUsd, costUsd: d.costUsd, profitUsd: d.profitUsd }))
+      : (r?.weeks ?? []).map((w) => ({ from: w.weekStart, revenueUsd: w.revenueUsd, costUsd: w.costUsd, profitUsd: w.profitUsd, marginPercent: w.marginPercent }));
   const when = r?.computedAt ? new Date(r.computedAt).toLocaleString('ru-RU') : null;
 
   return (
@@ -71,25 +77,35 @@ export default function PnlPage() {
             <p className="mb-6 text-xs text-muted">Счетов сервисов пока нет: считаются только постоянные платежи.</p>
           )}
 
-          <SectionTitle>12 недель</SectionTitle>
-          <Card className="mb-6 p-4" data-testid="pnl-weeks">
+          <SectionTitle>Динамика</SectionTitle>
+          <div className="mb-2 flex gap-2" role="tablist">
+            <Button variant={view === 'days' ? 'default' : 'outline'} onClick={() => setView('days')}>
+              30 дней
+            </Button>
+            <Button variant={view === 'weeks' ? 'default' : 'outline'} onClick={() => setView('weeks')}>
+              12 недель
+            </Button>
+          </div>
+          <Card className="mb-6 p-4" data-testid="pnl-trend">
             <div className="flex h-24 items-end gap-1" aria-hidden>
-              {barHeights(r.weeks.map((w) => ({ usd: Math.max(w.profitUsd, 0) }))).map((h, i) => (
-                <div key={r.weeks[i].weekStart} className="flex-1 rounded-sm bg-accent/70" style={{ height: `${h}%` }} />
+              {barHeights(rows.map((w) => ({ usd: Math.max(w.profitUsd, 0) }))).map((h, i) => (
+                <div key={rows[i].from} className="flex-1 rounded-sm bg-accent/70" style={{ height: `${h}%` }} />
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted">Прибыль по неделям, слева старые. Убыточные недели показаны пустыми, цифры ниже.</p>
+            <p className="mt-2 text-xs text-muted">
+              Прибыль по {view === 'days' ? 'дням' : 'неделям'}, слева старые. Убыточные периоды показаны пустыми, цифры ниже.
+            </p>
             <div className="mt-3 grid gap-1 text-sm">
-              {r.weeks
+              {rows
                 .slice()
                 .reverse()
                 .map((w) => (
-                  <div key={w.weekStart} className="flex flex-wrap justify-between gap-2">
-                    <span className="text-muted">с {w.weekStart}</span>
+                  <div key={w.from} className="flex flex-wrap justify-between gap-2">
+                    <span className="text-muted">{view === 'days' ? w.from : `с ${w.from}`}</span>
                     <span>
                       доход {money(w.revenueUsd)}, расходы {money(w.costUsd)},{' '}
-                      <b className={w.profitUsd < 0 ? 'text-danger' : 'text-heading'}>прибыль {money(w.profitUsd)}</b> (
-                      {marginText(w.marginPercent)})
+                      <b className={w.profitUsd < 0 ? 'text-danger' : 'text-heading'}>прибыль {money(w.profitUsd)}</b>
+                      {w.marginPercent !== undefined ? ` (${marginText(w.marginPercent)})` : ''}
                     </span>
                   </div>
                 ))}

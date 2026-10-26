@@ -18,6 +18,13 @@ export class PnlWeekDto {
   @ApiProperty({ type: Number, nullable: true }) marginPercent!: number | null;
 }
 
+export class PnlDayDto {
+  @ApiProperty() day!: string;
+  @ApiProperty() revenueUsd!: number;
+  @ApiProperty() costUsd!: number;
+  @ApiProperty() profitUsd!: number;
+}
+
 export class PnlKindLineDto {
   @ApiProperty({ enum: PNL_KINDS }) kind!: string;
   @ApiProperty() revenueUsd!: number;
@@ -36,6 +43,7 @@ export class PnlReportDto {
   @ApiProperty({ type: PnlPeriodDto, nullable: true })
   month!: PnlPeriodDto | null;
   @ApiProperty({ type: [PnlWeekDto] }) weeks!: PnlWeekDto[];
+  @ApiProperty({ type: [PnlDayDto] }) days!: PnlDayDto[];
   @ApiProperty({ type: [PnlKindLineDto] }) byKind!: PnlKindLineDto[];
   @ApiProperty({ type: String, nullable: true }) vendorDataFrom!: string | null;
 }

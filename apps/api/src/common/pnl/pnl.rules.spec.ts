@@ -117,6 +117,19 @@ describe('pnl rules', () => {
     );
   });
 
+  it('30 days trend ends today, oldest first, gaps are zero', () => {
+    const s = buildPnl({
+      rows: [row({ day: '2026-10-21' })],
+      vendorDaily: [],
+      fixed: [],
+      now: NOW,
+    });
+    expect(s.days).toHaveLength(30);
+    expect(s.days[29].day).toBe(NOW.toISOString().slice(0, 10));
+    expect(s.days.find((d) => d.day === '2026-10-21')?.revenueUsd).toBe(96.8);
+    expect(s.days[0].revenueUsd).toBe(0);
+  });
+
   it('month revenue is split by kind, biggest first', () => {
     const s = buildPnl({
       rows: [

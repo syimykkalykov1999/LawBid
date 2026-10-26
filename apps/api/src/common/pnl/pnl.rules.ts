@@ -56,6 +56,13 @@ export interface PnlWeek {
   marginPercent: number | null;
 }
 
+export interface PnlDay {
+  day: string;
+  revenueUsd: number;
+  costUsd: number;
+  profitUsd: number;
+}
+
 export interface PnlKindLine {
   kind: PnlKind;
   revenueUsd: number;
@@ -69,6 +76,8 @@ export interface PnlSnapshot {
   month: PnlPeriod;
   /** 12 weeks, oldest first, the last one is the current week (partial). */
   weeks: PnlWeek[];
+  /** Last 30 days, oldest first, the last one is today (partial). */
+  days: PnlDay[];
   /** This month's net revenue by source, biggest first (zero lines left out). */
   byKind: PnlKindLine[];
   /** First day the vendors' bills are known for (earlier: fixed costs only). */
@@ -180,6 +189,18 @@ export function buildPnl(input: {
     });
   }
 
+  const days: PnlDay[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = isoDay(dayMs(today) - i * DAY_MS);
+    const p = period(d, d);
+    days.push({
+      day: d,
+      revenueUsd: p.revenueUsd,
+      costUsd: p.costUsd,
+      profitUsd: p.profitUsd,
+    });
+  }
+
   const dates = input.vendorDaily.map((v) => v.date).sort();
   return {
     asOf: today,
@@ -187,6 +208,7 @@ export function buildPnl(input: {
     week: period(week, today),
     month: period(monthFirst, today),
     weeks,
+    days,
     byKind: [...monthByKind.entries()]
       .map(([kind, v]) => ({ kind, revenueUsd: r2(v) }))
       .filter((k) => k.revenueUsd > 0)
