@@ -56,15 +56,18 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
 
   CaseBidsKey get _bidsKey => (caseId: widget.caseId, sort: _sort);
 
-  Future<void> _run(Future<void> Function() action, {String? doneKey}) async {
-    if (_busy) return;
+  /// Returns true only when [action] ran and succeeded.
+  Future<bool> _run(Future<void> Function() action, {String? doneKey}) async {
+    if (_busy) return false;
     setState(() => _busy = true);
     final t = ref.read(translatorProvider);
     try {
       await action();
       if (mounted && doneKey != null) showAppSnackBar(context, t.t(doneKey));
+      return true;
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+      return false;
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -89,8 +92,8 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
       destructive: destructive,
     );
     if (!ok) return;
-    await _run(action, doneKey: doneKey);
-    if (popAfter && mounted && context.canPop()) context.pop();
+    final done = await _run(action, doneKey: doneKey);
+    if (done && popAfter && mounted && context.canPop()) context.pop();
   }
 
   Future<void> _dispute(OwnerCase c) async {
@@ -132,7 +135,14 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
         ),
       ),
     );
-    controller.dispose();
+    // The sheet's exit animation still reads the controller after the
+    // future completes; dispose once it has finished.
+    unawaited(
+      Future<void>.delayed(
+        const Duration(milliseconds: 500),
+        controller.dispose,
+      ),
+    );
     if (reason == null) return;
     await _run(
       () => ref.read(caseActionsProvider).dispute(c.id, reason),
