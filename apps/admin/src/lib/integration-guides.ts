@@ -391,6 +391,43 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
   },
 
+  google_calendar: {
+    steps: [
+      'console.cloud.google.com → APIs & Services → Library → включите Google Calendar API.',
+      'APIs & Services → Credentials → Create credentials → OAuth client ID → тип «Web application».',
+      'В «Authorized redirect URIs» добавьте https://api.lawbid.dev/api/v1/calendar/oauth/google/callback и скопируйте Client ID и Client secret.',
+    ],
+    links: [{ label: 'Google Cloud Credentials', url: 'https://console.cloud.google.com/apis/credentials' }],
+    enable: [
+      'Вставьте Client ID и Client secret (GOOGLE_CALENDAR_CLIENT_ID, GOOGLE_CALENDAR_CLIENT_SECRET) → «Сохранить» → «Проверить».',
+      'Затем в Настройках включите calendar.google_enabled: у адвокатов появится кнопка «Привязать Google Календарь».',
+      'Пока выключено, запись работает как раньше, без календаря.',
+    ],
+    fields: {
+      clientId: { how: 'Credentials → OAuth 2.0 Client IDs → ваш Web-клиент → Client ID.', example: '123-abc.apps.googleusercontent.com' },
+      clientSecret: { how: 'Там же: Client secret (показывается при создании клиента).', example: 'GOCSPX-…' },
+    },
+  },
+
+  microsoft_calendar: {
+    steps: [
+      'portal.azure.com → Microsoft Entra ID → App registrations → New registration.',
+      'Supported account types: «Accounts in any organizational directory and personal Microsoft accounts»; Redirect URI (Web): https://api.lawbid.dev/api/v1/calendar/oauth/microsoft/callback.',
+      'API permissions → Microsoft Graph → Delegated: Calendars.ReadWrite, offline_access. Certificates & secrets → New client secret → скопируйте Value.',
+    ],
+    links: [{ label: 'Azure App registrations', url: 'https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade' }],
+    enable: [
+      'Вставьте Application (client) ID и значение секрета (MS_CALENDAR_CLIENT_ID, MS_CALENDAR_CLIENT_SECRET) → «Сохранить» → «Проверить».',
+      'Затем в Настройках включите calendar.microsoft_enabled: у адвокатов появится кнопка «Привязать Outlook».',
+      'Пока выключено, запись работает как раньше, без календаря.',
+    ],
+    fields: {
+      clientId: { how: 'App registrations → ваше приложение → Overview → Application (client) ID.', example: '00000000-0000-0000-0000-000000000000' },
+      clientSecret: { how: 'Certificates & secrets → Client secrets → колонка Value (не Secret ID).', example: 'abc8Q~…' },
+      tenant: { how: 'Необязательно. «common» — рабочие и личные аккаунты; ID каталога — только ваша организация.', example: 'common' },
+    },
+  },
+
   apple_signin: {
     steps: [
       'Bundle ID приложения: com.lawbid.lawbid.',
