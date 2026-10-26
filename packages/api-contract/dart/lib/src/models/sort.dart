@@ -12,6 +12,8 @@ enum Sort {
   lowestPrice('lowest_price'),
   @JsonValue('highest_rating')
   highestRating('highest_rating'),
+  @JsonValue('best_match')
+  bestMatch('best_match'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

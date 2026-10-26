@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/bootstrap_envelope.dart';
+import '../models/my_flags_envelope.dart';
 
 part 'config_client.g.dart';
 
@@ -15,6 +16,12 @@ abstract class ConfigClient {
 
   @GET('/config/bootstrap')
   Future<BootstrapEnvelope> getBootstrap({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Feature flags for the signed-in user (rollout applied)
+  @GET('/config/flags')
+  Future<MyFlagsEnvelope> myFeatureFlags({
     @Extras() Map<String, dynamic>? extras,
   });
 }
