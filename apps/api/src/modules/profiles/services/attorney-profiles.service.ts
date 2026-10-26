@@ -561,6 +561,11 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
           this.privacy.visibleTo(viewerId, [row.user_id], 'about_from'),
         ])
       : [new Set([row.user_id]), new Set([row.user_id])];
+    // One cached query for both advertising flags (review R-72).
+    const flags = (await this.advertising?.profileFlags(
+      row.user_id,
+      states.keys(),
+    )) ?? { advertisingLabel: false, sponsored: false };
     return {
       id: row.user_id,
       username: row.username,
@@ -574,10 +579,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       avatarUrl256: photoOk.has(row.user_id) ? avatar.url256 : null,
       languages: row.languages,
       verifiedBadge: row.trust_badge,
-      advertisingLabel: await this.labelFor(row.user_id, states.keys()),
-      sponsored:
-        (await this.advertising?.sponsored([row.user_id]))?.has(row.user_id) ??
-        false,
+      advertisingLabel: flags.advertisingLabel,
+      sponsored: flags.sponsored,
       advertisingDisclaimer: aboutOk.has(row.user_id)
         ? await this.disclaimerFor(row.user_id, row.bio)
         : null,

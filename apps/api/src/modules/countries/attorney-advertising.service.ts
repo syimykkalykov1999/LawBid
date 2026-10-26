@@ -11,6 +11,8 @@ import {
 import { attorneysWithEntitlementSql } from '../plans/entitlements.service';
 
 const CACHE_MS = 60_000;
+/** Most attorneys whose paid-placement flags one process remembers. */
+const PLACEMENT_CACHE_MAX = 2000;
 
 /**
  * Owner 2026-10-22 (audit #4 §5): New York Rule 7.1(f) (and any state the
@@ -31,6 +33,14 @@ const CACHE_MS = 60_000;
 export class AttorneyAdvertisingService {
   private cache?: { at: number; states: Set<string> };
   private adsCache?: { at: number; value: AttorneyAdsSettings };
+  /** Review R-72: paid-placement flags per attorney (one row, 60 s). The
+   * generation is the version stamp: `invalidate()` bumps it, so an admin
+   * change never serves a flag cached under the old rules. */
+  private placementGen = 0;
+  private readonly placementCache = new Map<
+    string,
+    { at: number; gen: number; sponsored: boolean; paid: boolean }
+  >();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -64,6 +74,8 @@ export class AttorneyAdvertisingService {
   invalidate(): void {
     this.cache = undefined;
     this.adsCache = undefined;
+    this.placementGen += 1;
+    this.placementCache.clear();
   }
 
   /** True when any of [stateCodes] requires the label. */
@@ -100,6 +112,52 @@ export class AttorneyAdvertisingService {
       FROM unnest(${ids}::uuid[]) AS u(id)
       WHERE ${attorneysWithEntitlementSql('priority_search', Prisma.sql`u.id`)}`);
     return new Set(rows.map((r) => r.id));
+  }
+
+  /**
+   * Both profile flags for one attorney from ONE cached query (a profile
+   * view used to run the entitlement subquery twice, uncached): `sponsored`
+   * (always on) and `advertisingLabel` (labelled state, or paid placement
+   * while `paidPlacementLabel` is on).
+   */
+  async profileFlags(
+    attorneyId: string,
+    stateCodes: Iterable<string>,
+  ): Promise<{ advertisingLabel: boolean; sponsored: boolean }> {
+    const hit = this.placementCache.get(attorneyId);
+    let flags =
+      hit && hit.gen === this.placementGen && Date.now() - hit.at < CACHE_MS
+        ? hit
+        : undefined;
+    if (!flags) {
+      const gen = this.placementGen;
+      const rows = await this.prisma.$queryRaw<
+        { sponsored: boolean; paid: boolean }[]
+      >(Prisma.sql`
+        SELECT ${attorneysWithEntitlementSql('priority_search', Prisma.sql`${attorneyId}::uuid`)} AS sponsored,
+               (${attorneysWithEntitlementSql('priority_search', Prisma.sql`${attorneyId}::uuid`)}
+                OR EXISTS (SELECT 1 FROM case_promotions cp
+                           WHERE cp.user_id = ${attorneyId}::uuid
+                             AND cp.status = 'active'
+                             AND cp.ends_at > now())) AS paid`);
+      flags = {
+        at: Date.now(),
+        gen,
+        sponsored: rows[0]?.sponsored === true,
+        paid: rows[0]?.paid === true,
+      };
+      if (gen === this.placementGen) {
+        if (this.placementCache.size >= PLACEMENT_CACHE_MAX) {
+          const oldest = this.placementCache.keys().next().value;
+          if (oldest !== undefined) this.placementCache.delete(oldest);
+        }
+        this.placementCache.set(attorneyId, flags);
+      }
+    }
+    const advertisingLabel =
+      (await this.requiresLabel(stateCodes)) ||
+      ((await this.adsSettings()).paidPlacementLabel && flags.paid);
+    return { advertisingLabel, sponsored: flags.sponsored };
   }
 
   /** Label for one attorney: licensed in a labelled state, or paid. */
