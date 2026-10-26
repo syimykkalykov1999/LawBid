@@ -62,6 +62,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Who answers searches: postgres (today), shadow (ask the search engine too, show Postgres, log the differences) or engine (the search engine, Postgres if it fails or is slow). The engine needs Integrations → Search engine (OpenSearch).',
     pattern: /^(postgres|shadow|engine)$/,
   };
+  out['search.engine_kind'] = {
+    type: 'string',
+    defaultValue: 'domain',
+    description:
+      'Which search engine the app talks to: domain (OpenSearch domain, about $25 a month for the smallest) or serverless (Amazon OpenSearch Serverless, from about $350 a month, no servers to size). Serverless needs growth.opensearch_serverless_enabled in Terraform. Changing it needs a reindex.',
+    pattern: /^(domain|serverless)$/,
+  };
   out['search.engine_timeout_ms'] = {
     type: 'integer',
     defaultValue: 800,
@@ -577,6 +584,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Third-party services may cost at most this percent of the last 30 days’ revenue (admin: Экономика).',
     min: 1,
+    max: 100,
+  };
+  out['ranking.events_mode'] = {
+    ...out['ranking.events_mode'],
+    description:
+      'Ranking events log: off, on, or auto (impressions only while an experiment runs).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['ranking.impression_sample_percent'] = {
+    ...out['ranking.impression_sample_percent'],
+    min: 0,
     max: 100,
   };
   out['chat.search.backfill_mode'] = {
