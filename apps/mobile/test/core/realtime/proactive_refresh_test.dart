@@ -97,7 +97,8 @@ void main() {
         1000,
       );
       expect(RealtimeTimings.fromAppConfig({}).offlineSeconds, 8);
-      // The old flat knobs (fallback for old servers), overridden by the object where given.
+      // The old flat knobs (fallback for old servers), overridden by the
+      // object where given.
       final flat = RealtimeTimings.fromAppConfig({
         'client.realtime_reconnect_min_ms': '2000',
         'client.realtime_reconnect_max_ms': '60000',
