@@ -14,7 +14,10 @@ import {
   MESSAGE_KID_ROW_ALARM,
   MessageReencryptJob,
 } from '../../jobs/handlers/message-reencrypt.job';
-import { OBSERVED_QUEUES } from '../../jobs/handlers/ops-metrics.job';
+import {
+  OBSERVED_QUEUES,
+  SLOW_LANE_QUEUES,
+} from '../../jobs/handlers/ops-metrics.job';
 import { PartitionService } from '../../partitioning/partition.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -386,6 +389,7 @@ export class SystemHealthService implements OnModuleDestroy {
     let waiting = 0;
     let failed = 0;
     let oldestSec = 0;
+    let slowOldestSec = 0;
     let dlq = 0;
     const paused: string[] = [];
     for (const q of this.open()) {
@@ -398,20 +402,26 @@ export class SystemHealthService implements OnModuleDestroy {
       failed += c.failed ?? 0;
       const [oldest] = await withTimeout(q.getWaiting(0, 0));
       if (oldest) {
-        oldestSec = Math.max(
-          oldestSec,
-          Math.floor((now.getTime() - oldest.timestamp) / 1000),
-        );
+        const age = Math.floor((now.getTime() - oldest.timestamp) / 1000);
+        // Long lanes (heavy cron, deletions, fan-outs) may wait for a while.
+        if (SLOW_LANE_QUEUES.includes(q.name)) {
+          slowOldestSec = Math.max(slowOldestSec, age);
+        } else {
+          oldestSec = Math.max(oldestSec, age);
+        }
       }
       if (await q.isPaused()) paused.push(q.name);
     }
     const status: HealthStatus =
       oldestSec > 300
         ? 'red'
-        : oldestSec > 60 || dlq > 0 || waiting > 1000
+        : oldestSec > 60 || dlq > 0 || waiting > 1000 || slowOldestSec > 3600
           ? 'yellow'
           : 'green';
-    return { status, detail: { waiting, failed, oldestSec, dlq, paused } };
+    return {
+      status,
+      detail: { waiting, failed, oldestSec, slowOldestSec, dlq, paused },
+    };
   }
 
   private async backup(now: Date): Promise<Omit<HealthItemDto, 'key'>> {

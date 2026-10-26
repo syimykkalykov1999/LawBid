@@ -13,6 +13,7 @@ import {
   encodeCursor as encodeKeyset,
 } from '../../common/pagination/cursor.util';
 import { GUEST_USER_ID } from '../../common/viewer/guest';
+import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -80,6 +81,8 @@ export class FeedService implements FeedProvider {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly contentFilter: ContentFilterService,
     @Optional() private readonly promoDelivery?: PromotionDeliveryService,
+    // DB-ops S5-6: the guest feed (no viewer, no writes) reads the replica.
+    @Optional() private readonly read?: PrismaReadService,
   ) {}
 
   /** The organic page plus paid promoted posts (owner 2026-10-05):
@@ -175,7 +178,7 @@ export class FeedService implements FeedProvider {
         throw badCursor();
       }
     }
-    const rows = await this.prisma.post.findMany({
+    const rows = await (this.read?.db ?? this.prisma).post.findMany({
       where: {
         AND: [
           VISIBLE_POST_WHERE,

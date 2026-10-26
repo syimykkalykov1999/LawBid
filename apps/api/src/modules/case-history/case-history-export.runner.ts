@@ -23,6 +23,11 @@ import type {
   HistoryExportStatus,
 } from './dto/case-history.dto';
 import { bullOptions } from '../../redis/redis-connection';
+import {
+  closeWorker,
+  isStalledFailure,
+  workerTuning,
+} from '../../common/queues/queue-hardening';
 
 export const HISTORY_EXPORT_QUEUE = 'case-history-export';
 export const HISTORY_EXPORT_OPTIONS = Symbol('HISTORY_EXPORT_OPTIONS');
@@ -100,6 +105,7 @@ export class CaseHistoryExportRunner
       (job: Job<ExportJob>) => this.process(job.data),
       {
         ...bullOptions(HISTORY_EXPORT_QUEUE, url, { worker: true }),
+        ...workerTuning(HISTORY_EXPORT_QUEUE),
         concurrency: 2,
       },
     );
@@ -110,7 +116,10 @@ export class CaseHistoryExportRunner
         { exportId, err: error.message },
         'case history export failed',
       );
-      if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      if (
+        job.attemptsMade >= (job.opts.attempts ?? 1) ||
+        isStalledFailure(error)
+      ) {
         void this.setState(exportId, { userId, status: 'failed', key: null });
         void this.redis.del(activeKey(userId));
         void this.prisma.dataExportJob.updateMany({
@@ -160,17 +169,35 @@ export class CaseHistoryExportRunner
         status: 'queued',
       },
     });
-    await this.queue.add(
-      'case-history.export',
-      { exportId, userId: user.sub, role: user.role },
-      {
-        jobId: exportId,
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5_000 },
-        removeOnComplete: { count: 200 },
-        removeOnFail: { count: 500 },
-      },
-    );
+    try {
+      await this.queue.add(
+        'case-history.export',
+        { exportId, userId: user.sub, role: user.role },
+        {
+          jobId: exportId,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+          removeOnComplete: { count: 200 },
+          removeOnFail: { count: 500 },
+        },
+      );
+    } catch (error) {
+      // S10-4: a failed enqueue must not leave the user blocked behind a
+      // `queued` state and the 15-minute active marker.
+      await this.setState(exportId, {
+        userId: user.sub,
+        status: 'failed',
+        key: null,
+      }).catch(() => undefined);
+      await this.redis.del(activeKey(user.sub)).catch(() => undefined);
+      await this.prisma.dataExportJob
+        .updateMany({
+          where: { id: exportId },
+          data: { status: 'failed', error: 'could not be queued' },
+        })
+        .catch(() => undefined);
+      throw error;
+    }
     return { exportId, status: 'queued', url: null, expiresAt: null };
   }
 
@@ -274,7 +301,7 @@ export class CaseHistoryExportRunner
   }
 
   async onApplicationShutdown(): Promise<void> {
-    await this.worker?.close();
+    await closeWorker(this.worker);
     await this.queue?.close();
   }
 }
