@@ -42,6 +42,12 @@ const row = (o: Partial<CostRegistryRow>): CostRegistryRow => ({
   alarm: "лимит SMS",
   note: null,
   ceService: null,
+  status: {
+    state: "auto",
+    live: "idle",
+    reason: "Авто: включится само, когда понадобится.",
+    checkedAt: "2026-10-26T10:00:00Z",
+  },
   monthUsd: 7,
   projectedUsd: 14,
   monthSource: "real",
@@ -181,6 +187,17 @@ describe("cost registry on «Расходы»", () => {
     );
     expect(screen.getByTestId("ladder-auto").textContent).toContain(
       "Автомасштаб размера базы",
+    );
+  });
+
+  it("every row has a quiet status dot with the reason on hover, and a faint legend", async () => {
+    renderIt();
+    const dot = await screen.findByTestId("dot-vendor.twilio");
+    expect(dot.getAttribute("data-live")).toBe("idle");
+    expect(dot.getAttribute("title")).toContain("включится само");
+    expect(dot.className).not.toMatch(/animate|pulse|blink/);
+    expect(screen.getByTestId("status-legend").textContent).toContain(
+      "нужно ваше внимание",
     );
   });
 

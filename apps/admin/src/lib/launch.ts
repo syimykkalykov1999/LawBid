@@ -437,3 +437,24 @@ export function saveRegistryView(v: RegistryView): void {
     /* private window or blocked storage: the view just is not remembered */
   }
 }
+
+// --- status dot (owner 2026-10-26): quiet, static, reason on hover ----------
+
+export type CostRowStatus = CostRegistryRow["status"];
+export type StatusLive = CostRowStatus["live"];
+
+/** Muted colours on purpose: the dots must never compete with the alarms. */
+export const STATUS_DOT: Record<StatusLive, { color: string; word: string }> = {
+  active: { color: "#8fb99a", word: "работает сейчас" },
+  idle: { color: "#c8cbd0", word: "выключено, ждёт своего часа" },
+  attention: { color: "#dcc08a", word: "посмотрите" },
+};
+
+export const STATUS_LEGEND =
+  "● зелёный — работает сейчас · ○ серый — выключено, включится когда понадобится · ● жёлтый — нужно ваше внимание";
+
+/** Hover / tap text: the word, then the one-phrase reason. */
+export function statusTitle(s: CostRowStatus | null | undefined): string {
+  if (!s) return "Состояние неизвестно";
+  return `${STATUS_DOT[s.live].word}: ${s.reason}`;
+}

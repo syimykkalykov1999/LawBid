@@ -150895,6 +150895,41 @@
           "name"
         ]
       },
+      "CostRowStatusDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "off",
+              "on",
+              "auto"
+            ],
+            "type": "string"
+          },
+          "live": {
+            "enum": [
+              "active",
+              "idle",
+              "attention"
+            ],
+            "type": "string",
+            "description": "green works now · grey off or waiting · yellow look at it"
+          },
+          "reason": {
+            "type": "string",
+            "description": "One Russian phrase for the hover text."
+          },
+          "checkedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "live",
+          "reason",
+          "checkedAt"
+        ]
+      },
       "CostRegistryRowDto": {
         "type": "object",
         "properties": {
@@ -151058,6 +151093,9 @@
             "nullable": true,
             "description": "AWS Cost Explorer service name whose bill belongs to the row."
           },
+          "status": {
+            "$ref": "#/components/schemas/CostRowStatusDto"
+          },
           "monthUsd": {
             "type": "number",
             "nullable": true
@@ -151117,6 +151155,7 @@
           "alarm",
           "note",
           "ceService",
+          "status",
           "monthUsd",
           "projectedUsd",
           "monthSource",

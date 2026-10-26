@@ -54,14 +54,39 @@ function make(
     getMode: jest.fn().mockResolvedValue(ssmMode),
     setMode: jest.fn().mockResolvedValue(undefined),
   };
+  const ops = {
+    workerHeartbeat: jest
+      .fn()
+      .mockResolvedValue({ at: NOW.toISOString(), mode: 'cron' }),
+    isHeavyPaused: jest.fn().mockResolvedValue(false),
+    isEconomyLimited: jest.fn().mockResolvedValue(false),
+    cost: jest.fn().mockResolvedValue({ actualUsd: 100, limitUsd: 350 }),
+    capacity: jest.fn().mockResolvedValue({
+      dbCpuPercent: 10,
+      dbConnections: 5,
+      dbMaxConnections: 100,
+      redisMemoryPercent: 20,
+    }),
+  };
+  const redis = {
+    get: jest.fn().mockResolvedValue(
+      JSON.stringify({
+        at: NOW.toISOString(),
+        bunny: { bandwidthLevel: 'crit' },
+        cloudflare: { level: 'ok' },
+      }),
+    ),
+  };
   const svc = new CostRegistryService(
     spend as never,
     settings as never,
     ssm as never,
     writer as never,
     audit as never,
+    ops as never,
+    redis as never,
   );
-  return { svc, writer, audit, ssm, stored, spend };
+  return { svc, writer, audit, ssm, stored, spend, ops, redis };
 }
 
 describe('CostRegistryService.report', () => {
@@ -100,6 +125,41 @@ describe('CostRegistryService.report', () => {
     )!;
     expect(db.editable).toBe(false);
     expect(db.state).toBeNull();
+  });
+});
+
+describe('CostRegistryService status dots', () => {
+  it('reads only cheap cached sources and maps them to green / grey / amber', async () => {
+    const { svc, ops } = make();
+    const r = await svc.report(NOW);
+    const by = (id: string) => r.rows.find((x) => x.id === id)!.status;
+    expect(by('vendor.bunny')).toMatchObject({
+      live: 'attention',
+      state: 'auto',
+    });
+    expect(by('vendor.bunny').reason).toContain('Bunny');
+    expect(by('aws.db_autoscale').live).toBe('idle');
+    expect(by('aws.alb').live).toBe('active');
+    expect(by('aws.opensearch').live).toBe('idle');
+    expect(by('hidden.cron_jobs').live).toBe('active');
+    expect(by('hidden.usage_poll').live).toBe('active');
+    expect(by('aws.alb').checkedAt).toBe(NOW.toISOString());
+    expect(ops.capacity).toHaveBeenCalledTimes(1); // once per report, not per row
+  });
+
+  it('pressure, a dead worker and a failing source show up; a failing source never throws', async () => {
+    const { svc, ops } = make();
+    ops.capacity.mockResolvedValue({
+      dbCpuPercent: 95,
+      dbConnections: 5,
+      dbMaxConnections: 100,
+      redisMemoryPercent: 20,
+    });
+    ops.workerHeartbeat.mockRejectedValue(new Error('redis down'));
+    const r = await svc.report(NOW);
+    const by = (id: string) => r.rows.find((x) => x.id === id)!.status;
+    expect(by('aws.db_autoscale').live).toBe('attention');
+    expect(by('hidden.cron_jobs').live).toBe('attention');
   });
 });
 

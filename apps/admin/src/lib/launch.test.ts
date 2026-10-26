@@ -19,6 +19,8 @@ import {
   filterRegistry,
   registrySummary,
   rowMatchesSearch,
+  STATUS_DOT,
+  statusTitle,
 } from "./launch";
 
 const item = (id: string, group: LaunchItem["group"]): LaunchItem => ({
@@ -257,5 +259,21 @@ describe("registry view (search, filters, sort, summary)", () => {
       k100: 230,
       m1: 11300,
     });
+  });
+});
+
+describe("status dot", () => {
+  it("quiet muted colours, one phrase on hover", () => {
+    expect(Object.keys(STATUS_DOT)).toEqual(["active", "idle", "attention"]);
+    for (const d of Object.values(STATUS_DOT))
+      expect(d.color).toMatch(/^#[0-9a-f]{6}$/);
+    const t = statusTitle({
+      state: "auto",
+      live: "attention",
+      reason: "База под нагрузкой.",
+      checkedAt: "x",
+    });
+    expect(t).toBe("посмотрите: База под нагрузкой.");
+    expect(statusTitle(null)).toContain("неизвестно");
   });
 });

@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ErrorNote, SectionTitle } from "@/components/page-header";
 import { Badge, Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/empty";
+import { StatusDot, StatusLegend } from "@/components/status-dot";
 import { useToast } from "@/components/ui/toast";
 import { api, errorText } from "@/lib/api/client";
 import {
@@ -163,6 +164,7 @@ function RegistryList({
     });
   return (
     <div>
+      <StatusLegend />
       <div
         className="sticky top-0 z-10 mb-3 flex flex-col gap-2 rounded-xl border border-line bg-surface p-3"
         data-testid="registry-bar"
@@ -406,6 +408,7 @@ function Row({
           {expanded ? "▾ " : "▸ "}
           {row.name}
         </button>
+        <StatusDot status={row.status} testId={`dot-${row.id}`} />
         <StateControl row={row} busy={busy} onPick={onPick} />
         <span
           className="w-28 text-right text-sm text-ink"

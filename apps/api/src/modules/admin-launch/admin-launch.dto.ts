@@ -220,6 +220,18 @@ export class UpdatePricesDto {
 
 // --- cost registry (owner 2026-10-25) --------------------------------------
 
+export class CostRowStatusDto {
+  @ApiProperty({ enum: ['off', 'on', 'auto'] }) state!: 'off' | 'on' | 'auto';
+  @ApiProperty({
+    enum: ['active', 'idle', 'attention'],
+    description: 'green works now · grey off or waiting · yellow look at it',
+  })
+  live!: 'active' | 'idle' | 'attention';
+  @ApiProperty({ description: 'One Russian phrase for the hover text.' })
+  reason!: string;
+  @ApiProperty() checkedAt!: string;
+}
+
 export class CostRegistryRowDto {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
@@ -278,6 +290,7 @@ export class CostRegistryRowDto {
       'AWS Cost Explorer service name whose bill belongs to the row.',
   })
   ceService!: string | null;
+  @ApiProperty({ type: CostRowStatusDto }) status!: CostRowStatusDto;
   @ApiProperty({ type: Number, nullable: true }) monthUsd!: number | null;
   @ApiProperty({ type: Number, nullable: true }) projectedUsd!: number | null;
   @ApiProperty({ enum: ['real', 'split', 'none'] }) monthSource!:

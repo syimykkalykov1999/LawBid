@@ -682,6 +682,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
     ceService: 'AWS Secrets Manager',
     awsTypes: [
+      'aws_secretsmanager_secret_rotation',
       'aws_secretsmanager_secret',
       'aws_secretsmanager_secret_version',
     ],

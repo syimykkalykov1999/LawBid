@@ -1,4 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { OpsStateService } from '../../common/ops/ops-state.service';
+import { pressures } from '../../common/economy/economy.rules';
+import {
+  computeRowStatus,
+  type RowStatus,
+  type StatusSignals,
+  type UsageLevelLike,
+} from '../../common/ops/cost-registry.status';
+import { USAGE_SNAPSHOT_REDIS_KEY } from '../../common/ops/usage/usage-hard-stop.service';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
@@ -23,6 +34,12 @@ import {
 import { SpendService } from '../../common/ops/spend/spend.service';
 import { SsmParamGateway } from '../../common/ops/ssm-param.gateway';
 import { AuditLogService } from '../admin-access/audit-log.service';
+
+interface UsageSnap {
+  at?: string;
+  cloudflare?: { level?: string };
+  bunny?: { bandwidthLevel?: string; storageLevel?: string };
+}
 
 export class RegistryModeError extends Error {
   constructor(
@@ -66,6 +83,7 @@ export interface RegistryRow {
   alarm: string | null;
   note: string | null;
   ceService: string | null;
+  status: RowStatus;
   monthUsd: number | null;
   projectedUsd: number | null;
   monthSource: 'real' | 'split' | 'none';
@@ -96,6 +114,8 @@ export class CostRegistryService {
     private readonly ssm: SsmParamGateway,
     private readonly writer: AppSettingsWriter,
     private readonly audit: AuditLogService,
+    private readonly ops: OpsStateService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   private controlKey(e: CostEntry): string {
@@ -155,6 +175,62 @@ export class CostRegistryService {
     return { state: e.defaultState, known: false, note: null };
   }
 
+  /**
+   * The few cheap readings behind the status dots: the worker heartbeat, the
+   * economy state, the cached AWS budget reading, the newest capacity reading
+   * and the usage snapshot (all already in Redis). A source that fails says
+   * «unknown», never an error.
+   */
+  async signals(now: Date): Promise<StatusSignals> {
+    const safe = async <T>(f: () => Promise<T>): Promise<T | null> => {
+      try {
+        return await f();
+      } catch {
+        return null;
+      }
+    };
+    const [hb, paused, econ, cost, cap, usageRaw] = await Promise.all([
+      safe(() => this.ops.workerHeartbeat()),
+      safe(() => this.ops.isHeavyPaused()),
+      safe(() => this.ops.isEconomyLimited()),
+      safe(() => this.ops.cost()),
+      safe(() => this.ops.capacity()),
+      safe(() => this.redis.get(USAGE_SNAPSHOT_REDIS_KEY)),
+    ]);
+    let usage: UsageSnap | null = null;
+    try {
+      usage = usageRaw ? (JSON.parse(usageRaw) as UsageSnap) : null;
+    } catch {
+      usage = null;
+    }
+    const lvl = (...v: (string | undefined)[]): UsageLevelLike | null => {
+      if (!usage) return null;
+      if (v.includes('crit')) return 'crit';
+      if (v.includes('warn')) return 'warn';
+      return 'ok';
+    };
+    return {
+      workerAlive: hb ? now.getTime() - Date.parse(hb.at) < 180_000 : false,
+      heavyPaused: paused ?? false,
+      economyLimited: econ ?? false,
+      budgetRatio:
+        cost && cost.limitUsd > 0 ? cost.actualUsd / cost.limitUsd : null,
+      pressures: cap
+        ? pressures({
+            dbCpuPercent: cap.dbCpuPercent,
+            dbConnections: cap.dbConnections,
+            dbMaxConnections: cap.dbMaxConnections,
+            redisMemoryPercent: cap.redisMemoryPercent,
+          }).map((p) => p.kind)
+        : [],
+      bunny: lvl(usage?.bunny?.bandwidthLevel, usage?.bunny?.storageLevel),
+      cloudflare: lvl(usage?.cloudflare?.level),
+      usageAgeHours: usage?.at
+        ? (now.getTime() - Date.parse(usage.at)) / 3_600_000
+        : null,
+    };
+  }
+
   async report(now: Date = new Date()): Promise<RegistryReport> {
     const [spendReport, raw] = await Promise.all([
       this.spend.report(now),
@@ -179,6 +255,7 @@ export class CostRegistryService {
       now,
     );
     const live = await Promise.all(COST_REGISTRY.map((e) => this.liveState(e)));
+    const signals = await this.signals(now);
     const rows: RegistryRow[] = COST_REGISTRY.map((e, i) => {
       const a = attr.byId[e.id];
       const locked = this.lockedReason(e);
@@ -221,6 +298,14 @@ export class CostRegistryService {
         alarm: e.alarm,
         note: e.note ?? null,
         ceService: e.ceService ?? null,
+        status: computeRowStatus({
+          entry: e,
+          state: live[i].state,
+          stateKnown: live[i].known,
+          stateNote: live[i].note,
+          signals,
+          now,
+        }),
         monthUsd: a.monthUsd,
         projectedUsd: a.projectedUsd,
         monthSource: a.source,
