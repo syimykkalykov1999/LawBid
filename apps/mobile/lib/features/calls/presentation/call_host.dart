@@ -175,7 +175,6 @@ class CallHost extends ConsumerWidget {
                       : CallPipWindow(
                           key: const Key('call-floating-pip'),
                           stream: stream,
-                          mirror: false,
                           topInset: MediaQuery.paddingOf(context).top + 56,
                           bottomInset:
                               MediaQuery.paddingOf(context).bottom + 96,

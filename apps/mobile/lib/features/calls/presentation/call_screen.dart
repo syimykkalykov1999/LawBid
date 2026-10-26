@@ -58,22 +58,27 @@ class CallScreen extends ConsumerStatefulWidget {
   ConsumerState<CallScreen> createState() => _CallScreenState();
 }
 
-/// Untouched this long, a video call's controls fade away.
-const kCallControlsIdle = Duration(seconds: 4);
-
 class _CallScreenState extends ConsumerState<CallScreen>
     with SingleTickerProviderStateMixin {
+  /// The rings / Accept breathing. UI-07: it runs only while the call rings
+  /// (and motion is allowed) — never for the whole call.
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1800),
-  )..repeat();
-  Timer? _tick;
+  );
   Timer? _closeTimer;
-  Timer? _idle;
+
+  /// UI-03: the two pictures of a 1:1 video call keep one renderer each for
+  /// the whole call; a swap moves them between the full screen and the
+  /// small card (the keys carry them across), never builds a new one.
+  final GlobalKey _remoteView = GlobalKey(debugLabel: 'call-remote-view');
+  final GlobalKey _localView = GlobalKey(debugLabel: 'call-local-view');
 
   CallPeer? _lastPeer;
   late final CallScreenVisible _visible =
       ref.read(callScreenVisibleProvider.notifier);
+  late final CallVideoLayoutNotifier _layout =
+      ref.read(callVideoLayoutProvider.notifier);
 
   bool _closing = false;
 
@@ -109,28 +114,30 @@ class _CallScreenState extends ConsumerState<CallScreen>
   void initState() {
     super.initState();
     _alive++;
+    // A fresh screen: no fade timer left from an earlier one (and the
+    // notifier is read now — dispose uses it again).
+    _layout.stopIdle();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _visible.set(visible: true);
       // Opened (a stale tap) with no call at all: nothing to show.
       if (ref.read(callControllerProvider).phase == CallPhase.idle) _close();
     });
-    // The timer's text only (the rest rebuilds on the call's own changes).
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
   }
 
-  /// Any touch: the controls stay (or come back) for another 4 s.
-  void _touched() {
-    _idle?.cancel();
-    if (!_canHide) return;
-    _idle = Timer(kCallControlsIdle, () {
-      if (mounted && _canHide) {
-        ref.read(callVideoLayoutProvider.notifier).hideControls();
-      }
-    });
+  /// UI-07: the rings pulse only while the call rings and motion is on.
+  void _syncPulse({required bool on}) {
+    if (on && !_pulse.isAnimating) {
+      unawaited(_pulse.repeat());
+    } else if (!on && _pulse.isAnimating) {
+      _pulse.stop();
+    }
   }
+
+  /// Any touch: the controls stay (or come back) for another 4 s (UI-04).
+  void _touched() => ref
+      .read(callVideoLayoutProvider.notifier)
+      .touched(canHide: _canHide && mounted);
 
   /// One tap on the picture: show / hide the controls (video only).
   void _tapPicture() {
@@ -140,8 +147,9 @@ class _CallScreenState extends ConsumerState<CallScreen>
       layout.showControls();
       _touched();
     } else {
-      _idle?.cancel();
-      layout.hideControls();
+      layout
+        ..stopIdle()
+        ..hideControls();
     }
   }
 
@@ -264,11 +272,11 @@ class _CallScreenState extends ConsumerState<CallScreen>
   void dispose() {
     _alive--;
     _closeTimer?.cancel();
-    _idle?.cancel();
+    // A closed (minimised) screen never fades its controls away.
+    _layout.stopIdle();
     final visible = _visible;
     Future.microtask(() => visible.set(visible: _alive > 0));
     _pulse.dispose();
-    _tick?.cancel();
     super.dispose();
   }
 
@@ -353,6 +361,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
     final active = s.phase == CallPhase.active;
     final incoming = s.phase == CallPhase.incoming;
     final ringing = s.phase == CallPhase.outgoing || incoming;
+    _syncPulse(on: ringing && !context.reduceMotion);
 
     // --- 1:1: which picture is big ----------------------------------------
     final peerVideo = remoteStream != null && !peerCameraOff;
@@ -384,11 +393,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
       _canHide = couldHide;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        final layout = ref.read(callVideoLayoutProvider.notifier);
         if (_canHide) {
           _touched();
         } else {
-          _idle?.cancel();
-          ref.read(callVideoLayoutProvider.notifier).showControls();
+          layout
+            ..stopIdle()
+            ..showControls();
         }
       });
     }
@@ -398,17 +409,27 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
     // --- the words at the top ---------------------------------------------
     final title = group ? callLabel(s, me) : (peer?.name ?? '');
-    final status = _status(t, s);
     // A voice call of two shows the name big in the middle instead.
     final bigCentre = !videoMode && !group;
 
+    // UI-03: one renderer per picture for the whole call — the GlobalKey
+    // carries it between the full screen and the small card on a swap.
+    Widget view({required bool local}) => CallVideoView(
+          key: local ? _localView : _remoteView,
+          stream: local ? localStream! : remoteStream!,
+          mirror: callMirrorFor(isLocal: local, frontCamera: frontCamera),
+        );
+
     Widget picture;
     if (groupVideo) {
-      picture = CallGroupGrid(
-        session: s,
-        media: media,
-        controlsInset: hidden ? 0 : sheetHeight,
-        onTapBackground: _tapPicture,
+      // UI-07: the grid's pictures never repaint the controls over them.
+      picture = RepaintBoundary(
+        child: CallGroupGrid(
+          session: s,
+          media: media,
+          controlsInset: hidden ? 0 : sheetHeight,
+          onTapBackground: _tapPicture,
+        ),
       );
     } else if (group) {
       picture = Stack(
@@ -427,22 +448,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
           fit: StackFit.expand,
           children: [
             const ColoredBox(color: AppCallColors.stage),
-            AnimatedSwitcher(
-              duration: context.reduceMotion ? Duration.zero : CallMotion.quick,
-              child: bigStream == null
-                  ? Center(
-                      key: const ValueKey('cam-off'),
-                      child: CallAvatar(peer: peer, size: 120),
-                    )
-                  : CallVideoView(
-                      key: ValueKey('big-$selfBig'),
-                      stream: bigStream,
-                      mirror: callMirrorFor(
-                        isLocal: selfBig,
-                        frontCamera: frontCamera,
-                      ),
-                    ),
-            ),
+            if (bigStream == null) ...[
+              // AN-1 / UI-09: their camera is off — their photo blurred
+              // behind the big avatar (initials only without a photo).
+              CallPhotoBackdrop(url: peer?.avatarUrl),
+              Center(
+                key: const ValueKey('cam-off'),
+                child: CallAvatar(peer: peer, size: 120),
+              ),
+            ] else
+              view(local: selfBig),
           ],
         ),
       );
@@ -451,12 +466,14 @@ class _CallScreenState extends ConsumerState<CallScreen>
         fit: StackFit.expand,
         children: [
           const CallAudioBackdrop(),
+          // AN-1: the person's photo blurred behind the big one.
+          CallPhotoBackdrop(url: peer?.avatarUrl),
           _BigPerson(
             peer: peer,
             pulse: _pulse,
             ringing: ringing && !context.reduceMotion,
             name: peer?.name ?? '',
-            status: status,
+            session: s,
             type: type,
             bottomInset: sheetHeight,
           ),
@@ -466,7 +483,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
 
     final topBar = _TopBar(
       title: bigCentre ? '' : title,
-      status: bigCentre ? '' : status,
+      session: bigCentre ? null : s,
       type: type,
       onMinimize:
           incoming ? null : () => unawaited(Navigator.of(context).maybePop()),
@@ -553,21 +570,56 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   fit: StackFit.expand,
                   children: [
                     Positioned.fill(child: picture),
-                    // Our small picture (1:1 video).
+                    // UI-06: soft dark scrims under the top line and the
+                    // sheet while a picture is live, so the white words
+                    // and buttons read on any picture; they fade with the
+                    // controls.
+                    if (videoMode) ...[
+                      Positioned(
+                        key: const Key('call-scrim-top'),
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: math.max(
+                          kCallScrimHeight,
+                          safe.top + kCallTopRowHeight + AppSpacing.xxl,
+                        ),
+                        child: _Fade(
+                          hidden: hidden,
+                          offset: Offset.zero,
+                          child: const _Scrim(top: true),
+                        ),
+                      ),
+                      Positioned(
+                        key: const Key('call-scrim-bottom'),
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: sheetHeight + AppSpacing.xxl * 2,
+                        child: _Fade(
+                          hidden: hidden,
+                          offset: Offset.zero,
+                          child: const _Scrim(top: false),
+                        ),
+                      ),
+                    ],
+                    // Our small picture (1:1 video). It stays while the
+                    // controls hide (UI-04) and moves down to the edge.
                     if (smallStream != null && !layout.pipHidden)
                       Positioned.fill(
                         child: CallPipWindow(
-                          stream: smallStream,
-                          mirror: callMirrorFor(
-                            isLocal: !selfBig,
-                            frontCamera: frontCamera,
-                          ),
-                          topInset: safe.top + 64,
-                          bottomInset:
-                              hidden ? safe.bottom + 16 : sheetHeight + 12,
+                          swapTick: selfBig ? 1 : 0,
+                          // UI-05: below the top line (chevron, name, «+»)
+                          // and above the sheet — never over a button.
+                          topInset:
+                              safe.top + kCallTopRowHeight + AppSpacing.sm,
+                          bottomInset: hidden
+                              ? safe.bottom + AppSpacing.lg
+                              : sheetHeight + AppSpacing.md,
                           onTap: _tapPicture,
                           onSwap:
                               ref.read(callVideoLayoutProvider.notifier).swap,
+                          child: view(local: !selfBig),
                         ),
                       ),
                     // The top line: chevron, name + timer, «+».
@@ -630,11 +682,99 @@ class _CallScreenState extends ConsumerState<CallScreen>
         peer?.name ??
         '';
   }
+}
 
-  /// The line under the name: the running time, or what is happening.
-  /// Owner 2026-10-26: never «0:00» or an empty flash — until the call is
-  /// up it says what is going on.
-  String _status(Translator t, CallSession s) => callStatusText(t, s);
+/// The top line's height under the status bar (chevron, name, «+»).
+const double kCallTopRowHeight = 52 + 2 * AppSpacing.xs;
+
+/// The top scrim's height (REFERENCE.md: 160 px, black 45 % → 0).
+const double kCallScrimHeight = 160;
+
+/// UI-06: a soft black gradient (45 % → 0) from the top or the bottom edge.
+class _Scrim extends StatelessWidget {
+  const _Scrim({required this.top});
+
+  final bool top;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: top ? Alignment.topCenter : Alignment.bottomCenter,
+              end: top ? Alignment.bottomCenter : Alignment.topCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.45),
+                Colors.black.withValues(alpha: 0),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+/// UI-07: the running time. Only this small part ticks every second (and
+/// only while the call is up) — the rest of the screen rebuilds on the
+/// call's own changes. The time comes from [callClockProvider] (tests fix
+/// it). Before the call is up it says what is going on (never «0:00»).
+class _CallClock extends ConsumerStatefulWidget {
+  const _CallClock({required this.session, required this.builder});
+
+  final CallSession session;
+  final Widget Function(BuildContext context, String text) builder;
+
+  @override
+  ConsumerState<_CallClock> createState() => _CallClockState();
+}
+
+class _CallClockState extends ConsumerState<_CallClock> {
+  Timer? _timer;
+
+  bool get _running {
+    final s = widget.session;
+    return s.phase == CallPhase.active &&
+        s.connectedAt != null &&
+        !s.reconnecting;
+  }
+
+  void _sync() {
+    if (_running) {
+      _timer ??= Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(_CallClock old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(translatorProvider);
+    final now = ref.watch(callClockProvider)();
+    return widget.builder(
+      context,
+      callStatusText(t, widget.session, now: now),
+    );
+  }
 }
 
 /// Slides and fades a part of the call away while it is hidden; it can be
@@ -676,7 +816,7 @@ class _Fade extends StatelessWidget {
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.title,
-    required this.status,
+    required this.session,
     required this.type,
     required this.onMinimize,
     required this.onAdd,
@@ -685,7 +825,9 @@ class _TopBar extends StatelessWidget {
   });
 
   final String title;
-  final String status;
+
+  /// Whose status / timer shows under the name (null: none).
+  final CallSession? session;
   final AppTypographyTokens type;
   final VoidCallback? onMinimize;
   final VoidCallback? onAdd;
@@ -735,18 +877,7 @@ class _TopBar extends StatelessWidget {
                   const SizedBox(height: 2),
                   Semantics(
                     liveRegion: true,
-                    child: Text(
-                      status,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: type.caption.copyWith(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: CallTextSizes.status,
-                        shadows: kCallTextShadow,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
+                    child: _statusText(),
                   ),
                 ],
               ),
@@ -766,6 +897,26 @@ class _TopBar extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+extension on _TopBar {
+  Widget _statusText() {
+    Widget text(String status) => Text(
+          status,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: type.caption.copyWith(
+            color: Colors.white.withValues(alpha: 0.9),
+            fontSize: CallTextSizes.status,
+            shadows: kCallTextShadow,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        );
+    final s = session;
+    if (s == null) return text('');
+    return _CallClock(session: s, builder: (_, status) => text(status));
   }
 }
 
@@ -825,7 +976,7 @@ class _BigPerson extends StatelessWidget {
     required this.pulse,
     required this.ringing,
     required this.name,
-    required this.status,
+    required this.session,
     required this.type,
     required this.bottomInset,
   });
@@ -834,7 +985,7 @@ class _BigPerson extends StatelessWidget {
   final Animation<double> pulse;
   final bool ringing;
   final String name;
-  final String status;
+  final CallSession session;
   final AppTypographyTokens type;
   final double bottomInset;
 
@@ -882,18 +1033,22 @@ class _BigPerson extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Semantics(
             liveRegion: true,
-            child: AnimatedSwitcher(
-              duration: context.reduceMotion ? Duration.zero : CallMotion.quick,
-              // Only a change of kind cross-fades (not every second).
-              child: Text(
-                status,
-                key: ValueKey(_kind(status)),
-                maxLines: 1,
-                textAlign: TextAlign.center,
-                style: type.body.copyWith(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: CallTextSizes.bigStatus,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+            child: _CallClock(
+              session: session,
+              builder: (context, status) => AnimatedSwitcher(
+                duration:
+                    context.reduceMotion ? Duration.zero : CallMotion.quick,
+                // Only a change of kind cross-fades (not every second).
+                child: Text(
+                  status,
+                  key: ValueKey(_kind(status)),
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: type.body.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: CallTextSizes.bigStatus,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ),
@@ -987,7 +1142,7 @@ class _IncomingButtons extends ConsumerWidget {
 /// «Calling…», «0:42», «Busy», «Calls open once the client accepts…».
 /// Owner 2026-10-26: never «0:00» or an empty flash — until the call is up
 /// (no start time yet) it says «Connecting…».
-String callStatusText(Translator t, CallSession s) {
+String callStatusText(Translator t, CallSession s, {DateTime? now}) {
   switch (s.phase) {
     case CallPhase.outgoing:
       return t.t('call.status.calling');
@@ -1000,7 +1155,7 @@ String callStatusText(Translator t, CallSession s) {
       final at = s.connectedAt;
       return at == null
           ? t.t('call.status.connecting')
-          : voiceClock(DateTime.now().difference(at));
+          : voiceClock((now ?? DateTime.now()).difference(at));
     case CallPhase.ended:
       switch (s.errorCode) {
         case kMicDenied:
@@ -1068,7 +1223,8 @@ class _RingsPainter extends CustomPainter {
     }
   }
 
+  // UI-07: a ring that is off never repaints for a moving progress.
   @override
   bool shouldRepaint(_RingsPainter old) =>
-      old.progress != progress || old.on != on;
+      on != old.on || (on && progress != old.progress);
 }

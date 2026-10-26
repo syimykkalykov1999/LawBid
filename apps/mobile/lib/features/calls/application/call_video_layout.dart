@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/features/calls/application/call_controller.dart';
+
+/// Untouched this long, a video call's controls fade away.
+const kCallControlsIdle = Duration(seconds: 4);
 
 /// The corner the small picture rests in.
 enum PipCorner { topEnd, topStart, bottomEnd, bottomStart }
@@ -50,11 +55,35 @@ class CallVideoLayout {
 }
 
 class CallVideoLayoutNotifier extends Notifier<CallVideoLayout> {
+  Timer? _idle;
+
   @override
   CallVideoLayout build() {
     // A new call starts with the default view.
-    ref.watch(callControllerProvider.select((s) => s.call?.id));
+    ref
+      ..watch(callControllerProvider.select((s) => s.call?.id))
+      ..onDispose(stopIdle);
     return const CallVideoLayout();
+  }
+
+  /// UI-04 (WhatsApp): any touch on a video call. While the controls show
+  /// and [canHide] (video live, no prompt / notice / vote, not ringing),
+  /// they fade away after [kCallControlsIdle] untouched; every touch starts
+  /// the 4 s again. Voice calls pass `canHide: false` — they never hide.
+  void touched({required bool canHide}) {
+    _idle?.cancel();
+    _idle = null;
+    if (!canHide || state.controlsHidden) return;
+    _idle = Timer(kCallControlsIdle, () {
+      _idle = null;
+      hideControls();
+    });
+  }
+
+  /// The controls must stay (a prompt came, the video went): no fading.
+  void stopIdle() {
+    _idle?.cancel();
+    _idle = null;
   }
 
   /// 1:1: a tap on the small picture swaps the two.

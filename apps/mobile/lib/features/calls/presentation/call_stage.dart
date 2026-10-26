@@ -425,23 +425,31 @@ class CallTile extends StatelessWidget {
                         stream: picture,
                         mirror: mirror,
                       )
-                    : Center(
+                    // AN-1 / UI-09: camera off = their photo blurred behind
+                    // the big avatar (initials only when there is no photo).
+                    : Stack(
                         key: const ValueKey('avatar'),
-                        child: Opacity(
-                          opacity: ringing ? 0.55 : 1,
-                          child: LayoutBuilder(
-                            builder: (_, box) => CallAvatar(
-                              peer: callPeerOf(member),
-                              size: (box.biggest.shortestSide *
-                                      (compact
-                                          ? 0.5
-                                          : big
-                                              ? 0.32
-                                              : 0.42))
-                                  .clamp(28, 140),
+                        fit: StackFit.expand,
+                        children: [
+                          CallPhotoBackdrop(url: member.avatarUrl),
+                          Center(
+                            child: Opacity(
+                              opacity: ringing ? 0.55 : 1,
+                              child: LayoutBuilder(
+                                builder: (_, box) => CallAvatar(
+                                  peer: callPeerOf(member),
+                                  size: (box.biggest.shortestSide *
+                                          (compact
+                                              ? 0.5
+                                              : big
+                                                  ? 0.32
+                                                  : 0.42))
+                                      .clamp(28, 140),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
               ),
               // The speaker's ring (drawn over the picture, animated).

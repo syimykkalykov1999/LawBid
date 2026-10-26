@@ -32,40 +32,6 @@ class _Media extends FakeCallMedia {
   ValueListenable<Map<String, MediaStream>> get remoteStreams => remotes;
 }
 
-/// Counts renderer mounts and the stream each shows.
-class _Surface extends StatefulWidget {
-  const _Surface(this.stream);
-  final MediaStream stream;
-  static int mounted = 0;
-  static int disposed = 0;
-
-  @override
-  State<_Surface> createState() => _SurfaceState();
-}
-
-class _SurfaceState extends State<_Surface> {
-  @override
-  void initState() {
-    super.initState();
-    _Surface.mounted++;
-  }
-
-  @override
-  void dispose() {
-    _Surface.disposed++;
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => ColoredBox(
-        color: Colors.teal,
-        child: Text(
-          widget.stream.id,
-          key: ValueKey('shown-${widget.stream.id}'),
-        ),
-      );
-}
-
 void main() {
   testWidgets(
       'a group video call: the streams change underneath (the swap) — the '
@@ -74,8 +40,7 @@ void main() {
       ..physicalSize = const Size(390, 844) * 3
       ..devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    _Surface.mounted = 0;
-    _Surface.disposed = 0;
+    CountingSurface.reset();
     final media = _Media();
     final s = callSessionGroup(3, video: true);
     await tester.pumpWidget(
@@ -87,9 +52,7 @@ void main() {
               .overrideWith(() => FixedCallController(s, media)),
           callVideoLayoutProvider
               .overrideWith(() => FixedLayout(const CallVideoLayout())),
-          callVideoSurfaceProvider.overrideWithValue(
-            (stream, {mirror = false}) => _Surface(stream),
-          ),
+          callVideoSurfaceProvider.overrideWithValue(CountingSurface.surface),
         ],
         child: MaterialApp(
           theme: AppTheme.of(AppThemeId.values.first),
@@ -99,7 +62,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(_Surface.mounted, 3);
+    expect(CountingSurface.mounted, 3);
     expect(find.byKey(const ValueKey('shown-u1-sfu')), findsOneWidget);
     expect(find.byKey(const ValueKey('avatar')), findsNothing);
 
@@ -115,8 +78,8 @@ void main() {
     expect(find.byKey(const ValueKey('shown-u2-mesh')), findsOneWidget);
     expect(find.byKey(const ValueKey('shown-me-mesh')), findsOneWidget);
     // Not one renderer thrown away or made anew; no avatar shown.
-    expect(_Surface.mounted, 3);
-    expect(_Surface.disposed, 0);
+    expect(CountingSurface.mounted, 3);
+    expect(CountingSurface.disposed, 0);
     expect(find.byKey(const ValueKey('avatar')), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
