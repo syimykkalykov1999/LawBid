@@ -1,8 +1,13 @@
-import { PublicDirectoryService } from './public-directory.service';
+import {
+  decodeDirectoryCursor,
+  encodeDirectoryCursor,
+  PublicDirectoryService,
+} from './public-directory.service';
 
 const row = (avatar: string | null, photoFrom = 'everyone') => ({
   username: 'jane',
   username_lower: 'jane',
+  trust_level: 2,
   bio: null,
   firm_names: [],
   languages: [],
@@ -26,7 +31,18 @@ function make(opts: {
   rows?: unknown[];
 }) {
   const prisma = {
-    attorneyProfile: { findMany: jest.fn(() => Promise.resolve(opts.rows)) },
+    attorneyProfile: {
+      findMany: jest.fn<Promise<unknown>, [unknown?]>(() =>
+        Promise.resolve(opts.rows),
+      ),
+      findUnique: jest.fn<Promise<unknown>, [unknown?]>(() =>
+        Promise.resolve({
+          trust_level: 1,
+          rating_avg: 3.5,
+          username_lower: 'old',
+        }),
+      ),
+    },
     file: { findMany: jest.fn(() => Promise.resolve(opts.files ?? [])) },
   };
   const storage = {
@@ -88,5 +104,49 @@ describe('PublicDirectoryService photoUrl (og:image)', () => {
       ]
     )[0].where;
     expect(where.id.in).toEqual(['f1']);
+  });
+});
+
+describe('PublicDirectoryService keyset cursor', () => {
+  it('round-trips the composite sort key as an opaque string', () => {
+    const c = { t: 2, r: '4.50', u: 'jane' };
+    expect(decodeDirectoryCursor(encodeDirectoryCursor(c))).toEqual(c);
+    expect(decodeDirectoryCursor('jane')).toBeNull();
+  });
+
+  it('next page cursor carries trust_level, rating_avg and username', async () => {
+    const { svc } = make({ rows: [row(null), row(null)] });
+    const page = await svc.attorneys({ limit: 1 });
+    expect(decodeDirectoryCursor(page.nextCursor as string)).toEqual({
+      t: 2,
+      r: '4.5',
+      u: 'jane',
+    });
+  });
+
+  it('filters strictly after the cursor on the whole sort key', async () => {
+    const { svc, prisma } = make({ rows: [] });
+    await svc.attorneys({
+      cursor: encodeDirectoryCursor({ t: 2, r: '4.5', u: 'jane' }),
+    });
+    const arg = prisma.attorneyProfile.findMany.mock.calls[0][0] as {
+      where: { OR: unknown[] };
+      cursor?: unknown;
+    };
+    expect(arg.cursor).toBeUndefined();
+    expect(arg.where.OR).toEqual([
+      { trust_level: { lt: 2 } },
+      { trust_level: 2, rating_avg: { lt: '4.5' } },
+      { trust_level: 2, rating_avg: '4.5', username_lower: { gt: 'jane' } },
+    ]);
+  });
+
+  it('a plain username cursor from an older page still works', async () => {
+    const { svc, prisma } = make({ rows: [] });
+    await svc.attorneys({ cursor: 'Old' });
+    const arg = prisma.attorneyProfile.findMany.mock.calls[0][0] as {
+      where: { OR: unknown[] };
+    };
+    expect(arg.where.OR[0]).toEqual({ trust_level: { lt: 1 } });
   });
 });
