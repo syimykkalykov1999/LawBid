@@ -120,7 +120,13 @@ type PublicCore = Pick<
   | 'qa'
   | 'rating'
   | 'counters'
-> & { userId: string; consultationBookable: boolean };
+> & {
+  userId: string;
+  consultationBookable: boolean;
+  /** profile + user `updated_at` when cached: a cache hit is served only
+   * while both still match (suspension, avatar, name are seen at once). */
+  stamp: string;
+};
 
 @Injectable()
 export class AttorneyProfilesService implements OnApplicationShutdown {
@@ -513,7 +519,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       ? await this.settings.number('cache.attorney_profile_sec')
       : 0;
     const lower = username.toLowerCase();
-    const core =
+    let core =
       this.cache && ttl > 0
         ? await cached<PublicCore>(
             this.cache,
@@ -522,6 +528,21 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
             () => this.loadPublicCore(lower),
           )
         : await this.loadPublicCore(lower);
+    if (this.cache && ttl > 0) {
+      // One primary-key read keeps the cached body honest: a suspended or
+      // changed profile (another module's write) is never served stale.
+      const now = await this.prisma.attorneyProfile.findUnique({
+        where: { user_id: core.userId },
+        select: { updated_at: true, user: { select: { updated_at: true } } },
+      });
+      const stamp = now
+        ? `${now.updated_at.toISOString()}|${now.user.updated_at.toISOString()}`
+        : null;
+      if (stamp !== core.stamp) {
+        await this.dropPublicCore(lower);
+        core = await this.loadPublicCore(lower);
+      }
+    }
     if (core.userId !== viewerId) this.recordView(core.userId);
     const [follow, [photoOk, aboutOk], relation] = await Promise.all([
       this.prisma.follow.findUnique({
@@ -587,6 +608,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
         name_mismatch: true,
         trust_level: true,
         trust_badge: true,
+        updated_at: true,
         rating_avg: true,
         rating_count: true,
         posts_count: true,
@@ -600,6 +622,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
             first_name: true,
             last_name: true,
             avatar_file_id: true,
+            updated_at: true,
           },
         },
         licenses: {
@@ -638,6 +661,7 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       Math.max(0, base + (m.get(row.user_id) ?? 0));
     return {
       userId: row.user_id,
+      stamp: `${row.updated_at.toISOString()}|${row.user.updated_at.toISOString()}`,
       username: row.username,
       firstName: row.user.first_name,
       lastName: row.user.last_name,
