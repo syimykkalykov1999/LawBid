@@ -1,29 +1,25 @@
 'use client';
 
-import { ArrowUp } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ErrorNote, PageHeader, SectionTitle } from '@/components/page-header';
-import { StepUpDialog } from '@/components/step-up-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
-import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
 import { Field, Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { UpdatedAgo } from '@/components/updated-ago';
-import { ApiError, api, errorText } from '@/lib/api/client';
+import { api, errorText } from '@/lib/api/client';
 import { economyLine, usd, type Economy } from '@/lib/economy';
 import { formatDateTime } from '@/lib/utils';
-
-type Target = 'db' | 'redis';
 
 /**
  * Owner 2026-10-16 «чтобы мы не уходили в минус, платя только сторонним
  * системам»: revenue against what third-party services cost, the rule
  * (X % of 30-day revenue, not below $Y), the container ceiling (automatic
- * or a number) and the database / Redis tiers with a one-click raise.
+ * or a number) and the database / Redis tiers (raised in «Масштаб», dedup D-14).
  */
 export default function EconomyPage() {
   const qc = useQueryClient();
@@ -46,21 +42,6 @@ export default function EconomyPage() {
       toast.success('Сохранено');
     },
     onError: (err) => toast.error(err),
-  });
-
-  const [confirm, setConfirm] = useState<Target | null>(null);
-  const [stepUp, setStepUp] = useState<Target | null>(null);
-  const raise = useMutation({
-    mutationFn: async (target: Target) =>
-      (await api.POST('/admin/economy/increase', { body: { target } })).data!.data as Economy,
-    onSuccess: (r, target) => {
-      set(r);
-      toast.success(target === 'db' ? 'База увеличивается: 1–5 минут' : 'Redis увеличивается: 1–5 минут');
-    },
-    onError: (err, target) => {
-      if (err instanceof ApiError && err.code === 'ADMIN_STEP_UP_REQUIRED') setStepUp(target);
-      else toast.error(err);
-    },
   });
 
   // Drafts of the editable fields; reset when the server value changes.
@@ -297,11 +278,14 @@ export default function EconomyPage() {
           </Card>
 
           <SectionTitle>База данных и Redis</SectionTitle>
-          {!e.capacity.onAws ? (
-            <p className="mb-3 text-sm text-muted">
-              Нагрузка базы и Redis читается, а кнопки работают только на AWS.
-            </p>
-          ) : null}
+          <p className="mb-3 text-sm text-muted">
+            {e.capacity.onAws ? 'Нагрузка базы и Redis.' : 'Нагрузка базы и Redis читается, а менять размер можно только на AWS.'}{' '}
+            Увеличить или уменьшить — в{' '}
+            <Link href="/scale" className="text-gold-600 underline-offset-2 hover:underline">
+              «Масштабе»
+            </Link>
+            .
+          </p>
           <div className="mb-3 grid gap-3 md:grid-cols-2">
             <Card className="flex flex-col gap-2 p-4">
               <div className="text-sm font-medium text-heading">База данных (PostgreSQL)</div>
@@ -319,15 +303,6 @@ export default function EconomyPage() {
                 </span>{' '}
                 (тревога выше 80%)
               </div>
-              <Button
-                className="mt-auto self-start"
-                variant="outline"
-                disabled={!e.capacity.onAws || !e.capacity.dbNext}
-                loading={raise.isPending && raise.variables === 'db'}
-                onClick={() => setConfirm('db')}
-              >
-                <ArrowUp size={16} /> {e.capacity.dbNext ? `Увеличить до ${e.capacity.dbNext}` : 'Больше некуда'}
-              </Button>
             </Card>
             <Card className="flex flex-col gap-2 p-4">
               <div className="text-sm font-medium text-heading">Redis</div>
@@ -337,15 +312,6 @@ export default function EconomyPage() {
               <div className="text-sm text-muted">
                 Память: <span className="text-ink">{pct(e.capacity.redisMemoryPercent)}</span> (тревога выше 75%)
               </div>
-              <Button
-                className="mt-auto self-start"
-                variant="outline"
-                disabled={!e.capacity.onAws || !e.capacity.redisNext}
-                loading={raise.isPending && raise.variables === 'redis'}
-                onClick={() => setConfirm('redis')}
-              >
-                <ArrowUp size={16} /> {e.capacity.redisNext ? `Увеличить до ${e.capacity.redisNext}` : 'Больше некуда'}
-              </Button>
             </Card>
           </div>
           <Card className="mb-6 overflow-x-auto">
@@ -427,43 +393,6 @@ export default function EconomyPage() {
         </>
       )}
 
-      <Dialog
-        open={confirm !== null}
-        onClose={() => setConfirm(null)}
-        title={confirm === 'db' ? 'Увеличить базу данных?' : 'Увеличить Redis?'}
-        description={
-          confirm === 'db'
-            ? `Размер ${e?.capacity.dbClass ?? ''} → ${e?.capacity.dbNext ?? ''}. База перезапустится на 1–5 минут: приложение в это время может отвечать с ошибками. Счёт вырастет примерно на разницу цен ступеней. Вернуть обратно можно только вручную.`
-            : `Размер ${e?.capacity.redisClass ?? ''} → ${e?.capacity.redisNext ?? ''}. Redis перезапустится на 1–5 минут: вход и чаты могут подвисать. Счёт вырастет примерно на разницу цен ступеней.`
-        }
-      >
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setConfirm(null)}>
-            Отмена
-          </Button>
-          <Button
-            variant="gold"
-            onClick={() => {
-              const t = confirm;
-              setConfirm(null);
-              if (t) raise.mutate(t);
-            }}
-          >
-            Увеличить
-          </Button>
-        </div>
-      </Dialog>
-
-      <StepUpDialog
-        open={stepUp !== null}
-        description="Это действие меняет базу данных или Redis на AWS. Подтвердите, что это вы."
-        onCancel={() => setStepUp(null)}
-        onDone={() => {
-          const t = stepUp;
-          setStepUp(null);
-          if (t) raise.mutate(t);
-        }}
-      />
     </>
   );
 }
