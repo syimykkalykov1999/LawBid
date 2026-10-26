@@ -33568,13 +33568,14 @@
             "name": "sort",
             "required": false,
             "in": "query",
+            "description": "Owner 2026-10-25: when omitted the admin setting bids.default_sort applies (newest by default).",
             "schema": {
-              "default": "newest",
               "type": "string",
               "enum": [
                 "newest",
                 "lowest_price",
-                "highest_rating"
+                "highest_rating",
+                "best_match"
               ]
             }
           },
@@ -133680,6 +133681,14 @@
           },
           "attorney": {
             "$ref": "#/components/schemas/BidAttorneySummaryDto"
+          },
+          "bestPrice": {
+            "type": "boolean",
+            "description": "Owner 2026-10-25: the lowest reasonable price on the case (suspiciously low bids excluded). For a later \"best price\" label."
+          },
+          "lowOffer": {
+            "type": "boolean",
+            "description": "Owner 2026-10-25: far below the case median (setting bids.dumping_guard on); false when the guard is off."
           }
         },
         "required": [
@@ -133700,7 +133709,9 @@
           "outsidePractice",
           "outsideLicensedStates",
           "createdAt",
-          "attorney"
+          "attorney",
+          "bestPrice",
+          "lowOffer"
         ]
       },
       "CaseBidItemListEnvelope": {
