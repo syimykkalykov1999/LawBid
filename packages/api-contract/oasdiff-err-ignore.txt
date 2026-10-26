@@ -136,7 +136,6 @@ GET /admin/moderation/targets/{type}/{id} added the new `legal_answer` enum valu
 GET /admin/moderation/targets/{type}/{id} added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_answer` enum value to the `data/targetType` response property for the response status `200`
 POST /admin/moderation/targets/{type}/{id}/actions added the new `legal_question` enum value to the `data/targetType` response property for the response status `200`
->>>>>>> origin/claude/release-20oct
 # release-20oct: новые enum legal_answer/legal_question, типы contact/place, conversationId nullable у звонков (групповые) — все изменения намеренные, старых клиентов в магазинах ещё нет
 GET /admin/moderation/appeals added the new `legal_answer` enum value to the `data/items/targetType` response property for the response status `200`
 GET /admin/moderation/appeals added the new `legal_question` enum value to the `data/items/targetType` response property for the response status `200`
@@ -492,3 +491,9 @@ POST /users/me/role added the new `sms_terms` enum value to the `data/pendingLeg
 PUT /admin/legal/documents/{type}/{locale}/draft added the new `advertising_disclosure` enum value to the `data/docType` response property for the response status `200`
 PUT /admin/legal/documents/{type}/{locale}/draft added the new `community_guidelines` enum value to the `data/docType` response property for the response status `200`
 PUT /admin/legal/documents/{type}/{locale}/draft added the new `sms_terms` enum value to the `data/docType` response property for the response status `200`
+# Owner 2026-10-26 (PR #382, dedup cleanup): intentional removal: no second admin — the owner forbids four-eyes approvals, so the admin approvals queue is gone (the admin panel drops its page in the same PR; no other client calls it)
+GET /admin/approvals api path removed without deprecation
+GET /admin/approvals/count api path removed without deprecation
+POST /admin/approvals/{id}/approve api path removed without deprecation
+POST /admin/approvals/{id}/reject api path removed without deprecation
+GET /admin/counts removed the required property `data/approvalsPending` from the response with the `200` status

@@ -55,6 +55,20 @@ const HOUR_MS = 3600 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const LAST_RUN_KEY = 'storage:cleanup:last';
 
+/**
+ * Dedup D-7: the photos of a deleted post must outlive the legal promise
+ * (`legal.deleted_retention_days`, 90) that deleted content stays available
+ * to official requests. `storage.deleted_posts_media_days` can only make the
+ * wait longer, never shorter.
+ */
+export function postMediaRetentionDays(
+  storageDays: number,
+  legalDays: number,
+): number {
+  const ok = (n: number) => (Number.isFinite(n) ? n : 0);
+  return Math.max(1, ok(storageDays), ok(legalDays));
+}
+
 export interface CleanupResult {
   pendingUploadsRemoved: number;
   orphansFound: number;
@@ -83,7 +97,9 @@ const EMPTY: CleanupResult = {
  *    avatars, infected / broken uploads — are set aside (deleted_at,
  *    reason `orphan`): they stop being attachable at once;
  * 3. photos and documents of posts deleted more than
- *    `storage.deleted_posts_media_days` ago are set aside too (`released`);
+ *    max(`storage.deleted_posts_media_days`, `legal.deleted_retention_days`)
+ *    ago are set aside too (`released`), unless the post, or its author, is
+ *    under a legal hold (then they stay used);
  * 4. after `storage.purge_after_days` the set-aside files are checked once
  *    more (a restored post gets its photos back) and their objects removed
  *    through FileReleaseService (shared objects stay for the other rows);
@@ -129,18 +145,21 @@ export class StorageCleanupService {
   }
 
   private async cleanup(now: Date): Promise<CleanupResult> {
-    const [graceHours, purgeDays, postDays] = await Promise.all([
-      this.settings.number('storage.orphan_grace_hours'),
-      this.settings.number('storage.purge_after_days'),
-      this.settings.number('storage.deleted_posts_media_days'),
-    ]);
+    const [graceHours, purgeDays, storagePostDays, legalDays] =
+      await Promise.all([
+        this.settings.number('storage.orphan_grace_hours'),
+        this.settings.number('storage.purge_after_days'),
+        this.settings.number('storage.deleted_posts_media_days'),
+        this.settings.number('legal.deleted_retention_days'),
+      ]);
+    const postDays = postMediaRetentionDays(storagePostDays, legalDays);
     const graceCutoff = new Date(
       now.getTime() - Math.max(1, graceHours) * HOUR_MS,
     );
     const purgeCutoff = new Date(
       now.getTime() - Math.max(0, purgeDays) * DAY_MS,
     );
-    const postCutoff = new Date(now.getTime() - Math.max(1, postDays) * DAY_MS);
+    const postCutoff = new Date(now.getTime() - postDays * DAY_MS);
     const result: CleanupResult = { ...EMPTY };
 
     result.pendingUploadsRemoved = await this.sweepPendingUploads(now);
@@ -228,6 +247,76 @@ export class StorageCleanupService {
    * and documents count as unused). Never the exempt purposes.
    */
   private async unused(where: Prisma.Sql, postCutoff: Date): Promise<string[]> {
+    return this.withoutHeld(await this.unusedUnheld(where, postCutoff));
+  }
+
+  /**
+   * Dedup D-7: among [ids] (files nothing live uses), drop the ones a post
+   * still lists whose author or the post itself is under an active legal
+   * hold. Interim check against `legal_holds`; the shared hold helper of the
+   * privacy work (`common/privacy/legal-hold.ts`) replaces it when it lands.
+   */
+  private async withoutHeld(
+    ids: string[],
+    now: Date = new Date(),
+  ): Promise<string[]> {
+    if (ids.length === 0) return ids;
+    const parts = await forEachDatabase(
+      this.prisma,
+      () => this.prisma.$queryRaw<
+        { file_id: string; post_id: string; author_id: string }[]
+      >`
+      SELECT pm.file_id::TEXT AS file_id, p.id::TEXT AS post_id,
+             p.author_id::TEXT AS author_id
+      FROM post_media pm JOIN posts p ON p.id = pm.post_id
+      WHERE pm.file_id = ANY(${ids}::UUID[])
+      UNION
+      SELECT pa.file_id::TEXT, p.id::TEXT, p.author_id::TEXT
+      FROM post_attachments pa JOIN posts p ON p.id = pa.post_id
+      WHERE pa.file_id = ANY(${ids}::UUID[])`,
+    );
+    const rows = parts.flat();
+    if (rows.length === 0) return ids;
+    const holds = await this.prisma.legalHold.findMany({
+      where: {
+        released_at: null,
+        AND: [
+          { OR: [{ expires_at: null }, { expires_at: { gt: now } }] },
+          {
+            OR: [
+              {
+                target_type: 'user',
+                target_id: { in: [...new Set(rows.map((r) => r.author_id))] },
+              },
+              {
+                target_type: 'post',
+                target_id: { in: [...new Set(rows.map((r) => r.post_id))] },
+              },
+            ],
+          },
+        ],
+      },
+      select: { target_type: true, target_id: true },
+    });
+    if (holds.length === 0) return ids;
+    const heldUsers = new Set(
+      holds.filter((h) => h.target_type === 'user').map((h) => h.target_id),
+    );
+    const heldPosts = new Set(
+      holds.filter((h) => h.target_type === 'post').map((h) => h.target_id),
+    );
+    const heldFiles = new Set(
+      rows
+        .filter((r) => heldUsers.has(r.author_id) || heldPosts.has(r.post_id))
+        .map((r) => r.file_id),
+    );
+    return ids.filter((id) => !heldFiles.has(id));
+  }
+
+  private async unusedUnheld(
+    where: Prisma.Sql,
+    postCutoff: Date,
+  ): Promise<string[]> {
     if (readsAreSplit(this.prisma)) return this.unusedSplit(where, postCutoff);
     const exempt = [...CLEANUP_EXEMPT_PURPOSES];
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`

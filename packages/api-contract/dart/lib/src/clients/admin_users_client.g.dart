@@ -25,7 +25,7 @@ class _AdminUsersClient implements AdminUsersClient {
     int? limit = 20,
     String? q,
     Role? role,
-    Status2? status,
+    Status? status,
     String? stateCode,
     String? countryCode,
     DateTime? from,
