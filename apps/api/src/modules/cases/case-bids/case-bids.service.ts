@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
 import { FilesService } from '../../files/files.service';
@@ -19,6 +20,9 @@ import {
   type CaseBidsQueryDto,
   type CaseBidsSort,
 } from './dto/case-bids.dto';
+
+/** The most bids one delta answer carries (a case never has this many). */
+export const CASE_BIDS_DELTA_MAX = 200;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -142,6 +146,28 @@ export class CaseBidsService {
     if (access?.kind !== 'owner') throw caseNotFound();
     // OQ-054: viewing its bids is the client's own action on the case.
     await touchClientActive(this.prisma, caseId, user.sub);
+
+    // Owner 2026-10-22 (delta audit D-P4, Telegram): only the bids changed
+    // since (a counter, accept, withdraw …); a bid never leaves this list,
+    // so deletedIds is empty and meta.syncedAt moves the client forward.
+    const since = parseUpdatedSince(query.updatedSince);
+    if (since) {
+      const changed = await this.prisma.bid.findMany({
+        where: { case_id: caseId, updated_at: { gte: since } },
+        orderBy: [{ updated_at: 'desc' }, { id: 'desc' }],
+        take: CASE_BIDS_DELTA_MAX,
+        include: BID_LIST_INCLUDE,
+      });
+      return {
+        items: await Promise.all(changed.map((r) => this.toItem(r))),
+        nextCursor: null,
+        deletedIds: [],
+        syncedAt: syncedAt(
+          changed.map((r) => r.updated_at),
+          since,
+        ),
+      };
+    }
 
     const sort = query.sort ?? 'newest';
     const limit = query.limit ?? CASE_BIDS_PAGE_DEFAULT;

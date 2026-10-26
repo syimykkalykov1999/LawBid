@@ -244,10 +244,13 @@ abstract class CasesClient {
   /// Bids on my case with the attorney summary (client, docs/04 §5.2; sort newest / lowest_price / highest_rating).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [updatedSince] - Owner 2026-10-22 (delta audit D-P4): only the bids changed since (ISO), newest change first, no paging; meta.syncedAt = pass it back next time (meta.deletedIds is always empty: a bid never leaves the list). Older than 7 days → 409 SYNC_TOO_OLD.
   @GET('/cases/{id}/bids')
   Future<CaseBidItemListEnvelope> listCaseBids({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
+    @Query('updatedSince') DateTime? updatedSince,
     @Query('sort') Sort? sort = Sort.newest,
     @Query('limit') int? limit = 20,
     @Extras() Map<String, dynamic>? extras,

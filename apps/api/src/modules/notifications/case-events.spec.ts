@@ -11,6 +11,7 @@ describe('case events from notifications', () => {
         caseId: 'c',
         kind: 'bid_new',
         bidId: 'b',
+        bid: { bidId: 'b', status: 'active' },
         source: 'bid_received',
       },
     });
@@ -30,6 +31,41 @@ describe('case events from notifications', () => {
     expect(
       eventOf('case_workspace_activity', { caseId: 'c' })?.data,
     ).toMatchObject({ kind: 'task' });
+  });
+
+  it('a bid event carries the one-bid patch (status, amount) for the app', () => {
+    expect(
+      eventOf('offer_countered', {
+        caseId: 'c',
+        bidId: 'b',
+        amountCents: 9000,
+      })?.data.bid,
+    ).toEqual({ bidId: 'b', status: 'active', amountCents: 9000 });
+    expect(
+      eventOf('offer_accepted', { caseId: 'c', bidId: 'b' })?.data.bid,
+    ).toEqual({ bidId: 'b', status: 'accepted' });
+    expect(
+      eventOf('bid_rejected', { caseId: 'c', bidId: 'b', reason: 'withdrawn' })
+        ?.data.bid,
+    ).toEqual({ bidId: 'b', status: 'withdrawn' });
+    expect(
+      eventOf('bid_rejected', {
+        caseId: 'c',
+        bidId: 'b',
+        reason: 'another_bid_accepted',
+      })?.data.bid,
+    ).toEqual({ bidId: 'b', status: 'rejected_auto' });
+    expect(
+      eventOf('negotiation_failed', { caseId: 'c', bidId: 'b' })?.data.bid,
+    ).toEqual({ bidId: 'b', status: 'failed_negotiation' });
+    // No bid id, or a reason the patch cannot say for certain: no patch.
+    expect(
+      eventOf('offer_countered', { caseId: 'c' })?.data.bid,
+    ).toBeUndefined();
+    expect(
+      eventOf('bid_rejected', { caseId: 'c', bidId: 'b', reason: 'x' })?.data
+        .bid,
+    ).toBeUndefined();
   });
 
   it('consultation_update → consultation:update; unrelated types → nothing', () => {
@@ -58,6 +94,7 @@ describe('case events from notifications', () => {
       caseId: 'c',
       kind: 'bid_new',
       bidId: 'b',
+      bid: { bidId: 'b', status: 'active' },
       source: 'bid_received',
     });
     toUsers.mockClear();

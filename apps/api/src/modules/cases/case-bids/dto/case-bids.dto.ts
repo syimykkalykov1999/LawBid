@@ -9,6 +9,7 @@ import {
   Min,
   MaxLength,
 } from 'class-validator';
+import { UpdatedSinceQuery } from '../../../../common/sync/sync.util';
 import {
   BidAttorneySummaryDto,
   BidDto,
@@ -50,6 +51,11 @@ export class CaseBidsQueryDto {
   @Min(1)
   @Max(CASE_BIDS_PAGE_MAX)
   limit?: number;
+
+  @UpdatedSinceQuery(
+    'Owner 2026-10-22 (delta audit D-P4): only the bids changed since (ISO), newest change first, no paging; meta.syncedAt = pass it back next time (meta.deletedIds is always empty: a bid never leaves the list). Older than 7 days → 409 SYNC_TOO_OLD.',
+  )
+  updatedSince?: string;
 }
 
 export { BidAttorneySummaryDto };
@@ -67,4 +73,7 @@ export class CaseBidItemDto extends OmitType(BidDto, [
 export interface CaseBidPage {
   items: CaseBidItemDto[];
   nextCursor: string | null;
+  /** With ?updatedSince (delta audit D-P4). */
+  deletedIds?: string[];
+  syncedAt?: string;
 }

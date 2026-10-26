@@ -604,6 +604,7 @@ class _CasesClient implements CasesClient {
   Future<CaseBidItemListEnvelope> listCaseBids({
     required String id,
     String? cursor,
+    DateTime? updatedSince,
     Sort? sort = Sort.newest,
     int? limit = 20,
     Map<String, dynamic>? extras,
@@ -612,6 +613,7 @@ class _CasesClient implements CasesClient {
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{
       r'cursor': cursor,
+      r'updatedSince': updatedSince?.toIso8601String(),
       r'sort': sort?.toJson(),
       r'limit': limit,
     };
