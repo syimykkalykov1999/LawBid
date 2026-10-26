@@ -30,12 +30,14 @@ import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   BackfillRunDto,
   HeavyJobsDto,
+  QueueRetryResultDto,
   ScaleDto,
   ScaleExtrasDto,
   SystemHealthDto,
   UpdateOpsSettingsDto,
 } from './admin-ops.dto';
 import { BackfillsService } from './backfills.service';
+import { QueueAdminService } from './queue-admin.service';
 import { ScaleService } from './scale.service';
 import { SystemHealthService } from './system-health.service';
 
@@ -62,6 +64,7 @@ export class AdminOpsController {
     private readonly reencrypt: MessageReencryptJob,
     private readonly scale: ScaleService,
     private readonly backfills: BackfillsService,
+    private readonly queues: QueueAdminService,
   ) {}
 
   @Get()
@@ -157,6 +160,26 @@ export class AdminOpsController {
     await this.reencrypt.restart();
     await this.log(admin, 'ops.message_reencrypt_restart', null);
     return this.health.report();
+  }
+
+  @Post('queues/retry-failed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Retry failed background jobs and replay Stripe dead letters (needs step-up)',
+  })
+  @ApiEnvelopeResponse(QueueRetryResultDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async retryFailedJobs(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<QueueRetryResultDto> {
+    await this.auth.assertStepUp(admin.sessionId);
+    const result = await this.queues.retryFailed();
+    await this.log(admin, 'ops.queues_retry_failed', {
+      retried: String(result.retried),
+      stripeReplayed: String(result.stripeReplayed),
+    });
+    return result;
   }
 
   @Post('heavy-jobs')
