@@ -11,7 +11,7 @@ import { api, ApiError } from '@/lib/api/client';
  *   poll /admin/counts only; heavy aggregates (dashboard, trust stats…) are
  *   precomputed on the server and revalidated when the tab regains focus
  *   (owner 2026-10-23: no timers except the live work queues — the support
- *   inbox and thread, approvals, the system-health board);
+ *   inbox and thread, the system-health board);
  * - a 429 is never retried (providers.tsx) and backs the timer off to
  *   RATE_LIMITED_BACKOFF_MS until a request succeeds again;
  * - pages show «обновлено N с назад» (UpdatedAgo) instead of refetching.

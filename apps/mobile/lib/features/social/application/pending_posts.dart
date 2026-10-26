@@ -54,7 +54,11 @@ class PendingPost {
 
 class PendingPosts extends Notifier<List<PendingPost>> {
   @override
-  List<PendingPost> build() => const [];
+  List<PendingPost> build() {
+    // Audit C9: a failed post never carries over to the next account.
+    ref.watch(currentUserIdProvider);
+    return const [];
+  }
 
   /// Starts sending [draft] in the background; returns at once.
   /// [onPublished] runs with the live post (a snackbar, haptics).

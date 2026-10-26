@@ -16,7 +16,7 @@ import '../models/change_user_phone_dto.dart';
 import '../models/phone_changed_envelope.dart';
 import '../models/role.dart';
 import '../models/sanction_result_envelope.dart';
-import '../models/status2.dart';
+import '../models/status.dart';
 import '../models/suspend_user_dto.dart';
 import '../models/warn_user_dto.dart';
 
@@ -44,7 +44,7 @@ abstract class AdminUsersClient {
     @Query('limit') int? limit = 20,
     @Query('q') String? q,
     @Query('role') Role? role,
-    @Query('status') Status2? status,
+    @Query('status') Status? status,
     @Query('stateCode') String? stateCode,
     @Query('countryCode') String? countryCode,
     @Query('from') DateTime? from,
