@@ -34,7 +34,8 @@
     "admin:set-credentials": "node dist/src/cli/set-admin-credentials.js",
     "i18n:import": "node dist/src/cli/import-translations.js",
     "flags:sync": "ts-node --transpile-only scripts/sync-flag-defaults.ts",
-    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts"
+    "media:migrate-r2": "ts-node --transpile-only scripts/migrate-public-media-to-r2.ts",
+    "media:avatar-previews": "ts-node --transpile-only scripts/backfill-avatar-previews.ts"
   },
   "dependencies": {
     "@aws-sdk/client-application-auto-scaling": "^3.1146.0",

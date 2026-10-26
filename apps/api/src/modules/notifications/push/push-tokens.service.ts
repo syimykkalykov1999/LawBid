@@ -20,6 +20,7 @@ export class PushTokensService {
     platform: string,
     localReminders = false,
     chatStyle = false,
+    actorStyle = false,
   ): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: {
@@ -40,6 +41,7 @@ export class PushTokensService {
         platform,
         local_reminders: localReminders,
         chat_style: chatStyle,
+        actor_style: actorStyle,
       },
       update: {
         user_id: userId,
@@ -47,6 +49,7 @@ export class PushTokensService {
         platform,
         local_reminders: localReminders,
         chat_style: chatStyle,
+        actor_style: actorStyle,
         last_seen_at: new Date(),
       },
     });
@@ -132,6 +135,46 @@ export class PushTokensService {
       select: { fcm_token: true },
     });
     return rows.map((r) => r.fcm_token);
+  }
+
+  /** Owner 2026-10-26: Android devices whose app draws notifications with
+   * a person (their round photo) itself from a data-only push. */
+  async actorStyleTokens(userId: string): Promise<string[]> {
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId, platform: 'android', actor_style: true },
+      select: { fcm_token: true },
+    });
+    return rows.map((r) => r.fcm_token);
+  }
+
+  /** Owner 2026-10-26: the account and signed-in session of a device, by
+   * its FCM token (a notification button acts only while the device is
+   * still signed in — push-actions.service). */
+  async deviceSession(
+    token: string,
+  ): Promise<{ userId: string; sessionChainId: string } | null> {
+    const row = await this.prisma.pushToken.findUnique({
+      where: { fcm_token: token },
+      select: {
+        user_id: true,
+        session: {
+          select: { session_chain_id: true },
+        },
+      },
+    });
+    if (!row) return null;
+    const live = await this.prisma.session.findFirst({
+      where: {
+        user_id: row.user_id,
+        session_chain_id: row.session.session_chain_id,
+        revoked_at: null,
+        expires_at: { gt: new Date() },
+      },
+      select: { id: true },
+    });
+    return live
+      ? { userId: row.user_id, sessionChainId: row.session.session_chain_id }
+      : null;
   }
 
   /** The reminders an iPhone has armed itself (it reports after each

@@ -1548,6 +1548,7 @@ class CounterpartAvatar extends StatelessWidget {
     final name = counterpart.displayName ?? counterpart.username ?? '?';
     final avatar = GoldRingAvatar(
       url: counterpart.avatarUrl,
+      fullUrl: counterpart.avatarFullUrl,
       initials: avatarInitials(name),
       size: size,
       ring: counterpart.verified,

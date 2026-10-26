@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
@@ -296,11 +296,8 @@ class _MicAvatar extends StatelessWidget {
           initials: avatarInitials((name ?? '').trim().isEmpty ? '?' : name!),
           imageProvider: url == null
               ? null
-              : CachedNetworkImageProvider(
-                  url!,
-                  // Signed URLs change per request: cache by the path.
-                  cacheKey: Uri.parse(url!).path,
-                ),
+              // Kept by the file, retried on a fresh link.
+              : stableNetworkImage(url!),
         ),
         PositionedDirectional(
           bottom: -2,

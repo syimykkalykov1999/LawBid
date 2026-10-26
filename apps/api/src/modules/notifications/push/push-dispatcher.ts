@@ -65,6 +65,8 @@ import {
   type PushTextName,
 } from './chat-push';
 import { bullOptions } from '../../../redis/redis-connection';
+import { pushActionKey, signPushAction } from './push-action-token';
+import { actorPushData, CHAT_CATEGORY } from './actor-push';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -146,6 +148,35 @@ export class PushDispatcher
    * collapsing chat, so it could drop alerts. PUSH_CHAT_COLLAPSE=1 turns it on. */
   private chatCollapse(): boolean {
     return process.env.PUSH_CHAT_COLLAPSE === '1';
+  }
+
+  private actionKeyCache?: Buffer | null;
+
+  /** Owner 2026-10-26: the signed ticket behind a chat notification's
+   * «Ответить» / «Прочитано» buttons (push-action-token.ts); none without
+   * the pepper (then the buttons are simply not shown). */
+  private actionToken(
+    recipientId: string,
+    chatId: string,
+    group: boolean,
+  ): Record<string, string> {
+    if (this.actionKeyCache === undefined) {
+      let pepper: string | undefined;
+      try {
+        pepper = this.config.get<string>('AUTH_EVENT_PEPPER');
+      } catch {
+        pepper = undefined;
+      }
+      this.actionKeyCache = pepper ? pushActionKey(pepper) : null;
+    }
+    if (!this.actionKeyCache) return {};
+    return {
+      actionToken: signPushAction(this.actionKeyCache, {
+        u: recipientId,
+        c: chatId,
+        g: group ? 1 : 0,
+      }),
+    };
   }
 
   /** The push words in [lang] (the app's own 85-language keys; built-in
@@ -554,26 +585,45 @@ export class PushDispatcher
     // Owner 2026-10-20 (like WhatsApp): a missed call shows who called —
     // the caller's name on top, "Missed call" below.
     let shown = text;
-    if (n.type === 'missed_call' && typeof payload.actorId === 'string') {
-      const who = await this.prisma.user.findUnique({
-        where: { id: payload.actorId },
-        select: { first_name: true, last_name: true },
-      });
-      const caller = [who?.first_name, who?.last_name]
+    // Owner 2026-10-26 (WhatsApp / Instagram): who did it — their name and
+    // photo on the notification. Same rule as the bell list: an attorney
+    // by public profile; a client stays anonymous (no name, no photo).
+    const actor =
+      typeof payload.actorId === 'string'
+        ? await this.prisma.user.findUnique({
+            where: { id: payload.actorId },
+            select: { role: true, ...CHAT_SENDER_SELECT },
+          })
+        : null;
+    if (n.type === 'missed_call' && actor) {
+      const caller = [actor.first_name, actor.last_name]
         .filter(Boolean)
         .join(' ');
       if (caller) shown = { title: caller, body: text.title };
+    }
+    let actorData: Record<string, string> = {};
+    // A planner reminder keeps its own alarm-style alert.
+    if (actor?.role === 'attorney' && n.type !== 'task_reminder') {
+      const pics = await this.avatarUrls(n.user_id, [actor.avatar_file_id]);
+      actorData = actorPushData({
+        name: chatSenderName(actor),
+        avatar: pics.get(actor.avatar_file_id ?? '') ?? null,
+        avatarKey: actor.avatar_file_id ?? null,
+      });
     }
     const icon = await this.badges.iconFor(n.user_id);
     await this.sender.send(
       {
         userId: n.user_id,
         ...shown,
-        data: deepLink,
+        data: { ...deepLink, ...actorData },
         badge: icon.badge,
         ...(icon.on ? {} : { iconBadge: false }),
         sound: 'notification',
         ...(n.type === 'task_reminder' ? { reminder: true } : {}),
+        // Drawn by the app with the photo (Android), the photo attached by
+        // the notification extension (iPhone).
+        ...(actorData.style ? { actor: true } : {}),
       },
       `n:${n.id}`,
     );
@@ -837,6 +887,10 @@ export class PushDispatcher
           conversationId: data.groupId,
           messageId: data.messageId,
           ...chat,
+          // Owner 2026-10-26: «Ответить» / «Прочитано» on the notification.
+          ...(chat
+            ? this.actionToken(data.recipientId, data.groupId, true)
+            : {}),
         },
         badge: icon.badge,
         ...(icon.on ? {} : { iconBadge: false }),
@@ -850,7 +904,7 @@ export class PushDispatcher
               }),
             }
           : {}),
-        ...(chat ? { chat: true } : {}),
+        ...(chat ? { chat: true, iosCategory: CHAT_CATEGORY } : {}),
       },
     };
   }
@@ -1022,6 +1076,8 @@ export class PushDispatcher
           messageId: data.messageId,
           ...(data.event ? { event: data.event } : {}),
           ...chat,
+          // Owner 2026-10-26: «Ответить» / «Прочитано» on the notification.
+          ...this.actionToken(data.recipientId, data.conversationId, false),
         },
         badge: icon.badge,
         ...(icon.on ? {} : { iconBadge: false }),
@@ -1030,6 +1086,7 @@ export class PushDispatcher
         // One stack per chat in the shade (WhatsApp).
         threadId: data.conversationId,
         chat: true,
+        iosCategory: CHAT_CATEGORY,
       },
       dedupeKey,
     );

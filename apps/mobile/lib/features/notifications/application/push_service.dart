@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
@@ -84,6 +85,7 @@ class PushService {
     // Owner 2026-10-22: a chat notification the app draws itself (Android)
     // opens its chat, also when it started the app.
     _subs.add(chatNotificationsChannel.opens.listen(_openData));
+
     unawaited(
       chatNotificationsChannel.takeLaunchOpen().then((data) {
         if (data != null) _openData(data);
@@ -266,23 +268,36 @@ class PushService {
       );
 
   Future<void> _register(String token) {
+    // Owner 2026-10-26: «Ответить» / «Прочитано» on a notification answer
+    // through this server with this device's token (app closed too).
+    if (!kIsWeb) {
+      unawaited(
+        chatNotificationsChannel.setPushActions(
+          apiBase: _ref.read(appEnvironmentProvider).apiBaseUrl,
+          deviceToken: token,
+        ),
+      );
+    }
     final registrar = _registrar;
     if (registrar == null) return _post(token).catchError((Object _) {});
     return registrar.register(token);
   }
 
-  Future<void> _post(String token) =>
-      _ref.read(notificationsRepositoryProvider).registerPushToken(
-            token,
-            ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
-            web: kIsWeb,
-            // Owner 2026-10-20: this app arms the planner reminders itself.
-            localReminders: TaskReminderScheduler.supported,
-            // Owner 2026-10-22: Android draws chat pushes itself (sender's
-            // photo, one notification per chat).
-            chatStyle:
-                !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
-          );
+  Future<void> _post(String token) => _ref
+      .read(notificationsRepositoryProvider)
+      .registerPushToken(
+        token,
+        ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+        web: kIsWeb,
+        // Owner 2026-10-20: this app arms the planner reminders itself.
+        localReminders: TaskReminderScheduler.supported,
+        // Owner 2026-10-22: Android draws chat pushes itself (sender's
+        // photo, one notification per chat).
+        chatStyle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+        // Owner 2026-10-26: … and notifications with a person (their
+        // round photo: bids, comments, likes, missed calls).
+        actorStyle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
+      );
 
   String? _voipToken;
 
