@@ -220,6 +220,14 @@ export const envSchema = z
       )
       .optional()
       .or(z.literal('').transform(() => undefined)),
+    // Owner 2026-10-28: public base of this API (…/api/v1), used for calendar
+    // links and the Google / Outlook OAuth return address. Default
+    // https://api.lawbid.dev/api/v1.
+    CALENDAR_API_BASE_URL: z
+      .string()
+      .regex(/^https:\/\/[a-z0-9.-]+(:\d+)?(\/[\w./-]*[\w-])?$/i)
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
     // docs/01_FOUNDATION_AUTH.md §15 stage 1.4: "код 000000 только в
     // NODE_ENV=development" — validated below (.superRefine) so a
     // misconfigured staging/production env fails at boot instead of
