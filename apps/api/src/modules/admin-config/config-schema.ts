@@ -80,10 +80,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   };
   out['events.sink'] = {
     type: 'string',
-    defaultValue: 'db',
+    defaultValue: 'auto',
     description:
-      'Internal event stream (user signed up, case created, bid placed, payment, post...): off (not recorded), db (own table, default), stream (table + Kinesis; needs the stream turned on in infrastructure) or auto (db, moves to stream when events per day pass the ceiling below).',
+      'Internal event stream (user signed up, case created, bid placed, payment, post...): off (not recorded), db (own table), stream (table + Kinesis; needs the stream turned on in infrastructure) or auto (default: not recorded until a consumer such as experiments / analytics needs the events; then db, moving to stream when events per day pass the ceiling below).',
     pattern: /^(off|db|stream|auto)$/,
+  };
+  out['events.max_per_day'] = {
+    type: 'integer',
+    defaultValue: 1000000,
+    description:
+      'Hard ceiling: events recorded per day at most, in every mode; past it the rest of the day records nothing.',
+    min: 1000,
+    max: 2000000000,
   };
   out['events.retention_days'] = {
     type: 'integer',

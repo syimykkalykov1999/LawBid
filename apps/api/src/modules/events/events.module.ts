@@ -34,6 +34,7 @@ export class EventsModule implements OnModuleInit {
     this.consumers.register({
       name: 'ops.daily-counter',
       types: '*',
+      internal: true,
       handle: async () => {
         if (!this.redis) return;
         const key = dayCounterKey(new Date());

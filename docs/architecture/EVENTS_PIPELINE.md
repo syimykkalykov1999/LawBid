@@ -9,7 +9,7 @@ One internal domain-event bus. Features say "this happened" once; analytics, exp
 
 ## Design
 - `DomainEvents.emit(tx, type, payload)` (typed by `DomainEventMap`) inside the business transaction -> outbox effect -> append-only table `domain_events`. `flush(tickets)` after the commit runs the in-process consumers registered by name (`DomainEventConsumers`).
-- Setting `events.sink`: `off` (nothing) | `db` (default) | `stream` (table + Kinesis) | `auto` (db; stream above `events.auto_ceiling_per_day`, decided every 5 minutes from a Redis day counter).
+- Setting `events.sink`: `off` (nothing) | `db` (table) | `stream` (table + Kinesis) | `auto` (DEFAULT: off while no consumer outside the pipeline is registered, i.e. until experiments / analytics read events; then db, and stream above `events.auto_ceiling_per_day`, decided every 5 minutes from a Redis day counter). Hard ceiling `events.max_per_day` (1 000 000) in every mode. Perf review 2026-10-26 R-41.
 - Cron `events.maintain` (every 5 minutes, near-free): auto signal, ship unpublished rows to Kinesis (at-least-once, consumers dedupe by `key`), hourly retention (`events.retention_days`, 30).
 - Terraform: `growth.events_stream_enabled = false` builds the stream + IAM + `EVENTS_STREAM_NAME`. The Kinesis SDK package is loaded lazily; add `@aws-sdk/client-kinesis` to the API dependencies before turning the stream on.
 

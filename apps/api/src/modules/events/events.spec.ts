@@ -91,6 +91,48 @@ describe('DomainEvents outbox write', () => {
     expect(outbox.emit).not.toHaveBeenCalled();
   });
 
+  it('auto (the default) records nothing until a business consumer is registered (R-41)', async () => {
+    const { events, consumers, emitted } = bus('auto');
+    consumers.register({
+      name: 'ops.daily-counter',
+      types: '*',
+      internal: true,
+      handle: () => undefined,
+    });
+    expect(await events.sink()).toBe('off');
+    expect(
+      await events.emit({} as never, 'post.published', {
+        postId: 'p',
+        authorId: 'a',
+      }),
+    ).toBeNull();
+    expect(emitted).toHaveLength(0);
+
+    const live = bus('auto');
+    live.consumers.register({
+      name: 'experiments.exposure',
+      types: ['case.created'],
+      handle: () => undefined,
+    });
+    expect(await live.events.sink()).toBe('db');
+  });
+
+  it('a day past events.max_per_day records nothing more, in any mode', async () => {
+    const consumers = new DomainEventConsumers();
+    const redis = { get: jest.fn(async () => '1000') };
+    const events = new DomainEvents(
+      {} as never,
+      { emit: jest.fn(), flush: jest.fn() } as never,
+      consumers,
+      {
+        string: jest.fn(async () => 'db'),
+        number: jest.fn(async () => 1000),
+      } as never,
+      redis as never,
+    );
+    expect(await events.sink()).toBe('off');
+  });
+
   it('stream without a configured stream falls back to db', async () => {
     delete process.env.EVENTS_STREAM_NAME;
     const { events } = bus('stream');

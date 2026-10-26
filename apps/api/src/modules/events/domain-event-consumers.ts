@@ -6,6 +6,12 @@ export interface DomainEventConsumer {
   readonly name: string;
   /** Event types handled, or '*' for all. */
   readonly types: readonly DomainEventType[] | '*';
+  /**
+   * Bookkeeping of the pipeline itself (the daily counter): it does not
+   * make recording worthwhile, so `events.sink = auto` stays off with only
+   * internal consumers (perf review 2026-10-26, R-41).
+   */
+  readonly internal?: boolean;
   handle(event: DomainEventRecord): Promise<void> | void;
 }
 
@@ -24,6 +30,12 @@ export class DomainEventConsumers {
       throw new Error(`event consumer already registered: ${consumer.name}`);
     }
     this.byName.set(consumer.name, consumer);
+  }
+
+  /** True when someone outside the pipeline consumes events (Auto = on). */
+  hasBusinessConsumers(): boolean {
+    for (const c of this.byName.values()) if (!c.internal) return true;
+    return false;
   }
 
   names(): string[] {

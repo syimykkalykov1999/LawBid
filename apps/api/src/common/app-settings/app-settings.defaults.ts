@@ -257,7 +257,9 @@ export const OWNER_MEDIA_SETTINGS = {
   // off = nothing is recorded; db = table `domain_events` (default, cheap);
   // stream = table + Kinesis (needs events_stream_enabled in Terraform);
   // auto = db, switches to stream above the daily ceiling.
-  'events.sink': 'db',
+  // Perf review 2026-10-26 (R-41): auto = off until a consumer needs events.
+  'events.sink': 'auto',
+  'events.max_per_day': 1000000,
   'events.retention_days': 30,
   'events.auto_ceiling_per_day': 2000000,
   'media.avatar_quality': 95,
