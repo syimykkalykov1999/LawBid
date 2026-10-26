@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { readSwitchMode } from '../../common/app-settings/switch-mode';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -69,7 +70,18 @@ export class FileAccessService {
           f.owner_user_id !== viewer && CONFIDENTIAL_PURPOSES.has(f.purpose),
       );
       if (others.length === 0) return;
-      if (!(await this.settings.boolean('files.access_log_enabled'))) return;
+      const mode = await readSwitchMode(
+        this.settings,
+        'files.access_log_enabled',
+      );
+      if (mode === 'off') return;
+      // auto: a sample of views (files.access_log_sample_percent).
+      if (mode === 'auto') {
+        const pct = await this.settings.number(
+          'files.access_log_sample_percent',
+        );
+        if (Math.random() * 100 >= pct) return;
+      }
       const fresh: ViewedFile[] = [];
       for (const f of others) {
         const ok = await this.redis.set(
