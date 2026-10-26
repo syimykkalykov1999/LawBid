@@ -31,6 +31,14 @@ function messagePage(args: {
 }
 
 function build() {
+  // A plain function, not jest.fn(messagePage): a jest mock keeps every
+  // returned page in mock.results, i.e. all 50 000 messages, and the
+  // memory check below would measure the mock instead of the export.
+  const messageTakes: number[] = [];
+  const findMessages = (args: Parameters<typeof messagePage>[0]) => {
+    messageTakes.push(args.take);
+    return messagePage(args);
+  };
   const empty = jest.fn().mockResolvedValue([]);
   const update = jest.fn().mockResolvedValue({});
   const prisma = {
@@ -63,7 +71,7 @@ function build() {
     postLike: { findMany: empty },
     commentLike: { findMany: empty },
     caseCommentLike: { findMany: empty },
-    message: { findMany: jest.fn(messagePage) },
+    message: { findMany: findMessages },
     file: {
       create: jest.fn().mockResolvedValue({ id: 'f1' }),
       // S10-3 (#380): a takeover reuses the first run's file row.
@@ -86,7 +94,14 @@ function build() {
     { sendEmail: jest.fn() },
     { setContext: jest.fn(), warn: jest.fn() } as never,
   );
-  return { svc, prisma, storage, notifications, streamed: () => streamed };
+  return {
+    svc,
+    prisma,
+    storage,
+    notifications,
+    messageTakes,
+    streamed: () => streamed,
+  };
 }
 
 const used = () => {
@@ -96,7 +111,8 @@ const used = () => {
 
 describe('DataExportService (streamed)', () => {
   it('builds a 50 000-message export from pages, never the whole list', async () => {
-    const { svc, prisma, storage, notifications, streamed } = build();
+    const { svc, prisma, storage, notifications, messageTakes, streamed } =
+      build();
     const base = used();
     let peak = 0;
     const t = setInterval(() => (peak = Math.max(peak, used() - base)), 20);
@@ -109,9 +125,8 @@ describe('DataExportService (streamed)', () => {
     expect(r.bytes).toBeGreaterThan(50 * 1024 * 1024);
     expect(streamed()).toBe(r.bytes);
     // 1000 messages per round trip: 50 full pages plus one empty probe.
-    const calls = (prisma.message.findMany as jest.Mock).mock.calls;
-    expect(calls.length).toBe(51);
-    expect(calls.every((c) => c[0].take === 1000)).toBe(true);
+    expect(messageTakes.length).toBe(51);
+    expect(messageTakes.every((t) => t === 1000)).toBe(true);
     expect(storage.putStream).toHaveBeenCalledWith(
       'docs',
       'exports/user-data/u1/e1.zip',
