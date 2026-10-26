@@ -29,3 +29,8 @@ ac627bb4e800fc525c963e5bcd26efd5233e9c0d:apps/mobile/lib/features/cases/presenta
 # Owner 2026-10-20: a chat-folder i18n key in the chat-actions e2e fixture
 # ("i18n_key: '...'"), not a secret. Pinned to this one commit, file and line.
 7ccfb3f85fccdafb2945c37801f61981b519bc47:apps/api/test/owner-chat-actions.e2e-spec.ts:generic-api-key:94
+# 2026-10-25: the fixed throwaway CI test pepper ("ci_otp_key_pepper_...") in the
+# workflow env, same value as the older api-ci.yml env; not a secret. Pinned to
+# this one commit, file and line.
+10f40f7f399eb69bbac0da4f541c709a3c048cb6:.github/workflows/e2e-quarantine.yml:generic-api-key:29
+10f40f7f399eb69bbac0da4f541c709a3c048cb6:.github/workflows/api-ci.yml:generic-api-key:82
