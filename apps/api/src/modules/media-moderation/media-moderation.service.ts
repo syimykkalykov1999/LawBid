@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { readSwitchMode } from '../../common/app-settings/switch-mode';
 import type { MediaModerationCheck, Prisma } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
@@ -227,12 +228,13 @@ export class MediaModerationService {
 
   private async thresholds(): Promise<Thresholds> {
     const [enabled, hide, review, min] = await Promise.all([
-      this.settings.boolean('moderation.image.enabled'),
+      readSwitchMode(this.settings, 'moderation.image.enabled'),
       this.settings.number('moderation.image.hide_confidence'),
       this.settings.number('moderation.image.review_confidence'),
       this.settings.number('moderation.image.min_confidence'),
     ]);
-    return { enabled, hide, review, min };
+    // auto = on: the daily cost-guard cap (`image_moderation`) is the ceiling.
+    return { enabled: enabled !== 'off', hide, review, min };
   }
 
   private async run(
