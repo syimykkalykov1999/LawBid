@@ -1,10 +1,19 @@
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 import { DataExportService } from './data-export.service';
 
 jest.setTimeout(180_000);
 
 const MESSAGES = 50_000;
+
+// A full GC before every memory sample: heapUsed without it also counts
+// garbage V8 has not collected yet (under `jest --coverage` in CI that
+// alone passed 256 MB while the export itself held ~one page). With it,
+// the sample is what the export really keeps alive.
+setFlagsFromString('--expose-gc');
+const gc = runInNewContext('gc') as () => void;
 
 /** 50 000 own messages of ~2 KB, served by cursor like Prisma would. */
 function messagePage(args: {
@@ -35,8 +44,12 @@ function build() {
   // returned page in mock.results, i.e. all 50 000 messages, and the
   // memory check below would measure the mock instead of the export.
   const messageTakes: number[] = [];
+  let onPage: () => void = () => undefined;
   const findMessages = (args: Parameters<typeof messagePage>[0]) => {
     messageTakes.push(args.take);
+    // The previous page and every stream buffer are still alive here, so
+    // a whole-list leak would show up in this sample.
+    onPage();
     return messagePage(args);
   };
   const empty = jest.fn().mockResolvedValue([]);
@@ -101,26 +114,38 @@ function build() {
     notifications,
     messageTakes,
     streamed: () => streamed,
+    setOnPage: (f: () => void) => (onPage = f),
   };
 }
 
 const used = () => {
+  gc();
   const m = process.memoryUsage();
   return m.heapUsed + m.external + m.arrayBuffers;
 };
 
 describe('DataExportService (streamed)', () => {
   it('builds a 50 000-message export from pages, never the whole list', async () => {
-    const { svc, prisma, storage, notifications, messageTakes, streamed } =
-      build();
+    const {
+      svc,
+      prisma,
+      storage,
+      notifications,
+      messageTakes,
+      streamed,
+      setOnPage,
+    } = build();
     const base = used();
     let peak = 0;
-    const t = setInterval(() => (peak = Math.max(peak, used() - base)), 20);
+    const sample = () => (peak = Math.max(peak, used() - base));
+    setOnPage(sample);
+    const t = setInterval(sample, 250);
     const progress: number[] = [];
     const r = await svc.process('e1', {
       onProgress: (p) => progress.push(p.rows),
     });
     clearInterval(t);
+    sample();
 
     expect(r.bytes).toBeGreaterThan(50 * 1024 * 1024);
     expect(streamed()).toBe(r.bytes);
