@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:collection' show Queue;
 
 import 'package:dio/dio.dart';
-import 'package:lawbid/core/network/http_transport.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/network/http_transport.dart';
 
 /// Owner 2026-10-23 (Instagram: "content opens instantly"): how Instagram
 /// and TikTok start a video at once is (1) the poster frame is on screen
