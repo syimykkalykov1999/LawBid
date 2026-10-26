@@ -5,6 +5,10 @@ import {
   ApiErrors,
   AUTHENTICATED_ERRORS,
 } from '../../../common/dto/api-docs.decorators';
+import {
+  ApiIfMatchVersion,
+  ExpectedVersion,
+} from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   CurrentUser,
@@ -41,13 +45,19 @@ export class ClientProfileController {
   }
 
   @Patch('profile')
+  @ApiIfMatchVersion()
   @ApiEnvelopeResponse(ClientProfileDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    404: [E.NOT_FOUND],
+    409: [E.STALE_VERSION],
+  })
   async updateMyClientProfile(
     @CurrentUser() user: RequestUser,
     @Body() dto: UpdateClientProfileDto,
+    @ExpectedVersion() expectedVersion?: number,
   ): Promise<ClientProfileDto> {
-    return this.clients.update(user.sub, dto);
+    return this.clients.update(user.sub, dto, new Date(), expectedVersion);
   }
 
   @Patch('contact-preferences')

@@ -152,6 +152,7 @@ export class PasswordAuthService {
       deviceId: deviceInfo.deviceId,
     });
     await this.assertNotDowngraded(user, identifier, deviceInfo, meta);
+    await this.upgradeHash(user.id, dto.password, user.password_hash);
     return this.signIn(user, `password:${identifier}`, deviceInfo, meta);
   }
 
@@ -244,6 +245,7 @@ export class PasswordAuthService {
         });
       }
     }
+    await this.passwords.assertNotCompromised(dto.password);
     await this.storePassword(user.id, dto.password);
     await this.authEvents.record({
       userId: user.id,
@@ -326,6 +328,8 @@ export class PasswordAuthService {
     const { channel, identifier } = this.parseIdentifier(dto.identifier);
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
     this.assertResetByPhone(channel);
+    // Owner 2026-10-25: a refused password does not spend the sign-in code.
+    await this.passwords.assertNotCompromised(dto.newPassword);
     await this.limit(
       ['pwd-reset-verify', 'id', this.rateLimit.hashIdentifier(identifier)],
       RESET_VERIFY_PER_IDENTIFIER,
@@ -432,6 +436,24 @@ export class PasswordAuthService {
       deviceInfo,
       meta,
     );
+  }
+
+  /** S3-6: a correct password under old scrypt parameters is hashed again
+   * with today's (conditional on the stored value, never fatal). */
+  private async upgradeHash(
+    userId: string,
+    password: string,
+    stored: string | null,
+  ): Promise<void> {
+    if (!stored || !this.passwords.needsRehash(stored)) return;
+    try {
+      await this.prisma.user.updateMany({
+        where: { id: userId, password_hash: stored },
+        data: { password_hash: await this.passwords.hash(password) },
+      });
+    } catch {
+      // The old hash still verifies; the next sign-in tries again.
+    }
   }
 
   private async storePassword(userId: string, password: string): Promise<void> {

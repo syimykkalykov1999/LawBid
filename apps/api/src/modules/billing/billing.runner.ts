@@ -20,6 +20,7 @@ import {
 import type { ProviderEvent } from './payment-provider';
 import type { StripeWebhookJobData } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
+import { bullOptions } from '../../redis/redis-connection';
 
 /**
  * BullMQ workers of the billing queues — in the `worker` process always,
@@ -53,14 +54,16 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url || !this.enabled) return;
-    const connection = { url };
-    this.dlq = new Queue(STRIPE_WEBHOOKS_DLQ, { connection });
+    this.dlq = new Queue(
+      STRIPE_WEBHOOKS_DLQ,
+      bullOptions(STRIPE_WEBHOOKS_DLQ, url),
+    );
     this.workers.push(
       new Worker<StripeWebhookJobData>(
         STRIPE_WEBHOOKS_QUEUE,
         (job) => this.processWebhook(job),
         {
-          connection,
+          ...bullOptions(STRIPE_WEBHOOKS_QUEUE, url, { worker: true }),
           concurrency: 4,
         },
       ),
@@ -68,7 +71,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         SUBSCRIPTION_JOBS_QUEUE,
         (job) => this.processSubscriptionJob(job),
         {
-          connection,
+          ...bullOptions(SUBSCRIPTION_JOBS_QUEUE, url, { worker: true }),
           concurrency: 2,
         },
       ),

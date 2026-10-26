@@ -26,6 +26,7 @@
 terraform {
   required_providers {
     aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    tls = { source = "hashicorp/tls", version = "~> 4.0" }
   }
 }
 
@@ -100,7 +101,16 @@ variable "query_wait_timeout" {
 variable "db_tls_mode" {
   type        = string
   default     = "require"
-  description = "server_tls_sslmode towards the database: require, verify-ca or verify-full (the last two need a CA file in the image)."
+  description = "server_tls_sslmode towards the database: require, verify-ca or verify-full. verify-ca / verify-full use the RDS global CA bundle baked into the image (infra/pgbouncer/Dockerfile, /etc/ssl/rds-global-bundle.pem): rebuild and deploy the image BEFORE switching. verify-full also checks the database host name (the DATABASE_URL host must be the RDS endpoint)."
+  validation {
+    condition     = contains(["require", "verify-ca", "verify-full"], var.db_tls_mode)
+    error_message = "db_tls_mode must be require, verify-ca or verify-full."
+  }
+}
+variable "client_tls_private_ca" {
+  type        = bool
+  default     = false
+  description = "Security pass 2026-10-25 (S3-7). false (default): the pooler presents a self-signed certificate it makes at start and the app does not verify it (sslaccept=accept_invalid_certs), as before. true: Terraform makes a private CA and a server certificate for the pooler DNS name (tls provider, stored in a KMS-encrypted Secrets Manager secret; the keys are also in Terraform state, which is encrypted in S3), the pooler uses it and the app verifies it (DB_POOLER_CA_PEM). Cost 0.40 USD / month for the secret."
 }
 variable "cpu_target" {
   type    = number
@@ -128,6 +138,8 @@ variable "tags" {
 }
 
 locals {
+  tls_on         = var.client_tls_private_ca
+  endpoint_fqdn  = "pgbouncer.${var.name}.internal"
   svc            = "pgbouncer"
   server_total   = var.pool_size + var.reserve_pool_size
   max_server_cap = local.server_total # max_db_connections of ONE task
@@ -166,7 +178,7 @@ resource "aws_iam_role_policy_attachment" "execution" {
 data "aws_iam_policy_document" "execution_secret" {
   statement {
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [var.database_url_secret_arn]
+    resources = concat([var.database_url_secret_arn], aws_secretsmanager_secret.tls[*].arn)
   }
   statement {
     actions   = ["kms:Decrypt"]
@@ -185,6 +197,71 @@ resource "aws_iam_role" "task" {
   name               = "${var.name}-pgbouncer-task"
   assume_role_policy = data.aws_iam_policy_document.assume.json
   tags               = var.tags
+}
+
+# --- client TLS: a private CA and a certificate for the pooler name -------------------
+# The API / worker verify the pooler (not just encrypt): a rogue host in the
+# VPC cannot answer as the pooler without this CA's key.
+resource "tls_private_key" "ca" {
+  count       = local.tls_on ? 1 : 0
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+resource "tls_self_signed_cert" "ca" {
+  count                 = local.tls_on ? 1 : 0
+  private_key_pem       = tls_private_key.ca[0].private_key_pem
+  is_ca_certificate     = true
+  validity_period_hours = 24 * 365 * 10
+  allowed_uses          = ["cert_signing", "crl_signing"]
+  subject {
+    common_name  = "${var.name} pgbouncer private CA"
+    organization = "LawBid"
+  }
+}
+
+resource "tls_private_key" "server" {
+  count       = local.tls_on ? 1 : 0
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+resource "tls_cert_request" "server" {
+  count           = local.tls_on ? 1 : 0
+  private_key_pem = tls_private_key.server[0].private_key_pem
+  dns_names       = [local.endpoint_fqdn]
+  subject {
+    common_name  = local.endpoint_fqdn
+    organization = "LawBid"
+  }
+}
+
+resource "tls_locally_signed_cert" "server" {
+  count                 = local.tls_on ? 1 : 0
+  cert_request_pem      = tls_cert_request.server[0].cert_request_pem
+  ca_private_key_pem    = tls_private_key.ca[0].private_key_pem
+  ca_cert_pem           = tls_self_signed_cert.ca[0].cert_pem
+  validity_period_hours = 24 * 365 * 2
+  early_renewal_hours   = 24 * 60
+  allowed_uses          = ["server_auth", "digital_signature", "key_encipherment"]
+}
+
+resource "aws_secretsmanager_secret" "tls" {
+  count                   = local.tls_on ? 1 : 0
+  name                    = "${var.name}/pgbouncer-tls"
+  description             = "PgBouncer client TLS key and certificate (private CA)"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = 7
+  tags                    = var.tags
+}
+
+resource "aws_secretsmanager_secret_version" "tls" {
+  count     = local.tls_on ? 1 : 0
+  secret_id = aws_secretsmanager_secret.tls[0].id
+  secret_string = jsonencode({
+    key  = tls_private_key.server[0].private_key_pem
+    cert = tls_locally_signed_cert.server[0].cert_pem
+  })
 }
 
 # --- network ----------------------------------------------------------------
@@ -289,7 +366,13 @@ resource "aws_ecs_task_definition" "this" {
       { name = "DB_TLS_MODE", value = var.db_tls_mode },
       { name = "METRICS_NAMESPACE", value = var.metrics_namespace },
     ]
-    secrets                = [{ name = "DATABASE_URL", valueFrom = var.database_url_secret_arn }]
+    secrets = concat(
+      [{ name = "DATABASE_URL", valueFrom = var.database_url_secret_arn }],
+      local.tls_on ? [
+        { name = "CLIENT_TLS_KEY_PEM", valueFrom = "${aws_secretsmanager_secret.tls[0].arn}:key::" },
+        { name = "CLIENT_TLS_CERT_PEM", valueFrom = "${aws_secretsmanager_secret.tls[0].arn}:cert::" },
+      ] : [],
+    )
     readonlyRootFilesystem = true
     linuxParameters        = { initProcessEnabled = true }
     mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
@@ -344,7 +427,7 @@ resource "aws_ecs_service" "this" {
     rollback = true
   }
   lifecycle { ignore_changes = [desired_count] }
-  tags = var.tags
+  tags = merge(var.tags, { Component = "pgbouncer" })
 }
 
 # --- autoscaling on CPU (the single PgBouncer thread is the first limit) ---------
@@ -477,6 +560,10 @@ output "endpoint" {
   description = "DNS name apps connect to (DB_POOLER_HOST); resolves to the pooler task addresses."
 }
 output "port" { value = 5432 }
+output "client_ca_pem" {
+  value       = local.tls_on ? tls_self_signed_cert.ca[0].cert_pem : ""
+  description = "Public certificate of the private CA (DB_POOLER_CA_PEM); empty while client_tls_private_ca is off."
+}
 output "security_group_id" { value = aws_security_group.svc.id }
 output "service_name" { value = aws_ecs_service.this.name }
 output "log_group_name" { value = aws_cloudwatch_log_group.this.name }

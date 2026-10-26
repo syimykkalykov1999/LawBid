@@ -43,6 +43,8 @@ export const CRON_JOBS = {
   searchTagTopics: 'search.tag-topics',
   /** Owner 2026-10-24: search-engine outbox → engine (off = prune only). */
   searchIndex: 'search.index',
+  /** Day-one foundations: nightly money-ledger checks + Stripe comparison. */
+  ledgerReconcile: 'ledger.reconcile',
   /** Owner 2026-10-15: crash reports older than 30 days go. */
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
@@ -67,6 +69,8 @@ export const CRON_JOBS = {
   disappearingSweep: 'chat.disappearing',
   /** OQ-041: unanswered calls → missed, abandoned ones → ended. */
   callsSweep: 'calls.sweep',
+  /** S1-3: 1:1 messages whose live event / badge / push died after commit. */
+  chatRedeliver: 'chat.redeliver',
   /** Owner 2026-09-30: undecided client-review appeals → removed. */
   reviewAppealsSweep: 'review-appeals.sweep',
   /** Owner 2026-10-01: reels — expired uploads, stuck encodes, purges. */
@@ -201,6 +205,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.opsBusinessMetrics, pattern: '*/10 * * * *' },
   { name: CRON_JOBS.callsSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.disappearingSweep, pattern: '*/2 * * * *' },
+  { name: CRON_JOBS.chatRedeliver, pattern: '* * * * *' },
   { name: CRON_JOBS.reviewAppealsSweep, pattern: '40 * * * *' },
   { name: CRON_JOBS.videosSweep, pattern: '* * * * *' },
   { name: CRON_JOBS.promotionsExpire, pattern: '2-57/5 * * * *' },
@@ -243,6 +248,8 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.economyGuard, pattern: '*/5 * * * *' },
   // 15:40 UTC ≈ 08:40 Pacific: a weekday-morning payout starts that day.
   { name: CRON_JOBS.treasuryDaily, pattern: '40 15 * * *' },
+  // Nightly, after Stripe has settled the previous day (UTC).
+  { name: CRON_JOBS.ledgerReconcile, pattern: '15 5 * * *' },
   // Every second minute: a 1-minute cron would hold consecutive runs.
   { name: CRON_JOBS.adminSummaries, pattern: '*/2 * * * *' },
   // Every minute: applies cross-family events a request could not (retries

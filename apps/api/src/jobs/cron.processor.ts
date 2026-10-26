@@ -34,6 +34,7 @@ import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { CrossFamilyOutbox } from '../sharding/outbox/cross-family-outbox';
 import { SearchIndexJob } from './handlers/search-index.job';
+import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
@@ -67,6 +68,7 @@ import { StorageCleanupService } from '../modules/storage/storage-cleanup.servic
 import { DataRetentionService } from '../modules/storage/data-retention.service';
 import { StorageStatsService } from '../modules/storage/storage-stats.service';
 import { EconomyService } from '../common/economy/economy.service';
+import { ChatService } from '../modules/chat/chat.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
 
@@ -132,6 +134,7 @@ export class CronProcessor {
     @Optional() private readonly legalExports?: LegalExportBuilder,
     @Optional() private readonly legalRetention?: LegalRetentionService,
     @Optional() private readonly disappearing?: DisappearingSweepService,
+    @Optional() private readonly chat?: ChatService,
     @Optional() private readonly legalQaSweep?: LegalQaSweepJob,
     // Owner 2026-10-22: `contacts.joined`.
     @Optional() private readonly contactsJoined?: ContactsJoinedJob,
@@ -146,6 +149,8 @@ export class CronProcessor {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
     // Owner 2026-10-24: `search.index`.
     @Optional() private readonly searchIndex?: SearchIndexJob,
+    // Day-one foundations: `ledger.reconcile`.
+    @Optional() private readonly ledgerReconcile?: LedgerReconcileJob,
   ) {}
 
   async process(name: string): Promise<unknown> {
@@ -216,6 +221,8 @@ export class CronProcessor {
         return this.opsMetrics.queueDepths();
       case CRON_JOBS.searchIndex:
         return this.searchIndex?.run() ?? null;
+      case CRON_JOBS.ledgerReconcile:
+        return this.ledgerReconcile?.run() ?? null;
       case CRON_JOBS.adminSummaries:
         return this.adminSummaries?.run() ?? null;
       case CRON_JOBS.outboxSweep:
@@ -224,6 +231,8 @@ export class CronProcessor {
         return this.opsMetrics.businessCounters();
       case CRON_JOBS.disappearingSweep:
         return this.disappearing?.run() ?? null;
+      case CRON_JOBS.chatRedeliver:
+        return this.chat?.redeliverPending() ?? null;
       case CRON_JOBS.callsSweep:
         return this.calls.sweep();
       case CRON_JOBS.reviewAppealsSweep:

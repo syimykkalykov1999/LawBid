@@ -12,6 +12,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ck } from '../../redis/redis-cluster-safe';
 
 /**
  * docs/02 §1.5 / docs/05 §4–§6 (stage 5.1): hot counters are not updated
@@ -48,6 +49,27 @@ export const COUNTERS = {
     key: 'id',
     fields: ['like_count', 'reply_count'],
   },
+  // Owner 2026-10-25 (DB audit finding 8): hot rows that every viewer
+  // touched with its own UPDATE. A story's views are recounted from
+  // story_views; the others have several direct writers or no source table
+  // to recount from, so the nightly job leaves them alone (`recount: false`).
+  story: {
+    table: 'stories',
+    key: 'id',
+    fields: ['view_count'],
+  },
+  case_promotion: {
+    table: 'case_promotions',
+    key: 'id',
+    fields: ['impressions', 'reach', 'clicks'],
+    recount: false,
+  },
+  channel: {
+    table: 'channels',
+    key: 'id',
+    fields: ['post_count'],
+    recount: false,
+  },
   attorney: {
     table: 'attorney_profiles',
     key: 'user_id',
@@ -64,7 +86,13 @@ export const COUNTERS = {
 const GLOBAL_COUNTER_TABLES: ReadonlySet<string> = new Set([
   'attorney_profiles',
   'client_profiles',
+  'case_promotions',
 ]);
+
+/** Entities whose nightly reconcile recounts from source tables. */
+function hasRecount(entity: CounterEntity): boolean {
+  return (COUNTERS[entity] as { recount?: boolean }).recount !== false;
+}
 
 export type CounterEntity = keyof typeof COUNTERS;
 
@@ -77,10 +105,27 @@ export function profileEntity(
 export type CounterField<E extends CounterEntity> =
   (typeof COUNTERS)[E]['fields'][number];
 
-const pendingKey = (e: string, f: string) => `cnt:${e}:${f}`;
-const touchedKey = (e: string) => `cnt:touched:${e}`;
+/** S6-6: one hash per field was ONE hot Redis key for every row (a viral
+ * post = tens of thousands of HINCRBY/s on one core). The pending hash is
+ * split into 16 by the id: the last hex digit of the UUID (id % 16). */
+export const COUNTER_SHARDS = 16;
+export function counterShard(id: string): number {
+  const d = Number.parseInt(id.slice(-1), 16);
+  if (!Number.isNaN(d)) return d;
+  let h = 0; // not a UUID: any stable spread will do
+  for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return Math.abs(h) % COUNTER_SHARDS;
+}
+/** Pre-S6-6 key (all ids in one hash): still drained by every flush so a
+ * deploy loses no pending delta. */
+export const legacyKey = (e: string, f: string) => ck(e, `cnt:${e}:${f}`);
+export const pendingKey = (e: string, f: string, shard: number) =>
+  ck(e, `cnt:${e}:${f}:${shard}`);
+export const touchedKey = (e: string) => ck(e, `cnt:touched:${e}`);
 const TOUCHED_TTL_SEC = 2 * 24 * 3600;
 export const COUNTER_FLUSH_MS = 10_000;
+/** Per-process aggregation window before the deltas go to Redis. */
+export const COUNTER_LOCAL_MS = 1_000;
 const BATCH = 500;
 
 /** Atomic HMGET + HDEL of a batch of pending fields. */
@@ -89,11 +134,14 @@ local vals = redis.call('HMGET', KEYS[1], unpack(ARGV))
 redis.call('HDEL', KEYS[1], unpack(ARGV))
 return vals`;
 
-/** Pending bump + "touched today" mark in one call. */
-const BUMP = `
-redis.call('HINCRBY', KEYS[1], ARGV[1], ARGV[2])
-redis.call('SADD', KEYS[2], ARGV[1])
-redis.call('EXPIRE', KEYS[2], ARGV[3])
+/** Pending bumps of one hash shard + "touched today" marks in one call:
+ * ARGV = ttl, then id, delta, id, delta ... */
+const BUMP_MANY = `
+for i = 2, #ARGV, 2 do
+  redis.call('HINCRBY', KEYS[1], ARGV[i], ARGV[i + 1])
+  redis.call('SADD', KEYS[2], ARGV[i])
+end
+redis.call('EXPIRE', KEYS[2], ARGV[1])
 return 1`;
 
 @Injectable()
@@ -101,6 +149,13 @@ export class CounterAggregator
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private timer?: ReturnType<typeof setInterval>;
+  private localTimer?: ReturnType<typeof setInterval>;
+  /** entity|field|id -> delta not yet sent to Redis (S6-6). */
+  private local = new Map<string, number>();
+  /** Set once a flush saw every legacy (unsharded) hash empty; reads then
+   * skip the extra HMGET. Flush keeps draining the legacy hashes anyway. */
+  private legacyDrained = false;
+  private legacyFound = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -120,60 +175,148 @@ export class CounterAggregator
       );
     }, COUNTER_FLUSH_MS);
     this.timer.unref?.();
+    this.localTimer = setInterval(() => {
+      this.flushLocal().catch((error: unknown) =>
+        this.logger.error(
+          { err: error instanceof Error ? error.message : String(error) },
+          'counter local flush failed',
+        ),
+      );
+    }, COUNTER_LOCAL_MS);
+    this.localTimer.unref?.();
   }
 
-  onApplicationShutdown(): void {
+  async onApplicationShutdown(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
+    if (this.localTimer) clearInterval(this.localTimer);
+    await this.flushLocal().catch(() => undefined);
   }
 
   /** Records +delta / -delta for one row. Call only after the source row
-   * change actually happened (e.g. a like insert that affected a row). */
-  async bump<E extends CounterEntity>(
+   * change actually happened (e.g. a like insert that affected a row).
+   * S6-6: the delta is added to an in-process map and goes to Redis once a
+   * second (COUNTER_LOCAL_MS), many bumps of one row becoming one HINCRBY;
+   * a crash loses at most that second, the nightly reconcile repairs it. */
+  bump<E extends CounterEntity>(
     entity: E,
     id: string,
     field: CounterField<E>,
     delta: number,
   ): Promise<void> {
-    await this.redis.eval(
-      BUMP,
-      2,
-      pendingKey(entity, field),
-      touchedKey(entity),
-      id,
-      delta,
-      TOUCHED_TTL_SEC,
+    const k = `${entity}|${field}|${id}`;
+    this.local.set(k, (this.local.get(k) ?? 0) + delta);
+    return Promise.resolve();
+  }
+
+  /** Sends the in-process deltas to Redis: one EVAL per (entity, field,
+   * hash shard), all in flight together (auto-pipelining). On a Redis error
+   * the deltas of that group are merged back and retried next second. */
+  async flushLocal(): Promise<void> {
+    if (this.local.size === 0) return;
+    const taken = this.local;
+    this.local = new Map();
+    const groups = new Map<
+      string,
+      {
+        entity: string;
+        field: string;
+        shard: number;
+        args: (string | number)[];
+      }
+    >();
+    for (const [k, delta] of taken) {
+      if (delta === 0) continue;
+      const [entity, field, id] = k.split('|');
+      const shard = counterShard(id);
+      const gk = `${entity}|${field}|${shard}`;
+      const g =
+        groups.get(gk) ??
+        groups.set(gk, { entity, field, shard, args: [] }).get(gk)!;
+      g.args.push(id, delta);
+    }
+    await Promise.all(
+      [...groups.values()].map(async (g) => {
+        try {
+          await this.redis.eval(
+            BUMP_MANY,
+            2,
+            pendingKey(g.entity, g.field, g.shard),
+            touchedKey(g.entity),
+            TOUCHED_TTL_SEC,
+            ...g.args,
+          );
+        } catch (error) {
+          for (let i = 0; i < g.args.length; i += 2) {
+            const k = `${g.entity}|${g.field}|${String(g.args[i])}`;
+            this.local.set(k, (this.local.get(k) ?? 0) + Number(g.args[i + 1]));
+          }
+          throw error;
+        }
+      }),
     );
   }
 
-  /** Pending (not yet flushed) deltas for [ids] — add to DB values on read. */
+  /** Pending (not yet flushed) deltas for [ids] — add to DB values on read:
+   * Redis (the hash shard of each id) plus this process' own unsent deltas. */
   async pending<E extends CounterEntity>(
     entity: E,
     field: CounterField<E>,
     ids: string[],
   ): Promise<Map<string, number>> {
     if (ids.length === 0) return new Map();
-    const vals = await this.redis.hmget(pendingKey(entity, field), ...ids);
     const out = new Map<string, number>();
-    ids.forEach((id, i) => {
-      const v = vals[i];
-      if (v) out.set(id, Number(v));
+    const byShard = new Map<number, string[]>();
+    for (const id of ids) {
+      const sh = counterShard(id);
+      (byShard.get(sh) ?? byShard.set(sh, []).get(sh)!).push(id);
+    }
+    const add = (id: string, v: number) => out.set(id, (out.get(id) ?? 0) + v);
+    const reads: Promise<void>[] = [...byShard].map(async ([sh, part]) => {
+      const vals = await this.redis.hmget(
+        pendingKey(entity, field, sh),
+        ...part,
+      );
+      part.forEach((id, i) => {
+        const v = vals[i];
+        if (v) add(id, Number(v));
+      });
     });
+    if (!this.legacyDrained) {
+      reads.push(
+        (async () => {
+          const vals = await this.redis.hmget(legacyKey(entity, field), ...ids);
+          ids.forEach((id, i) => {
+            const v = vals[i];
+            if (v) add(id, Number(v));
+          });
+        })(),
+      );
+    }
+    await Promise.all(reads);
+    for (const id of ids) {
+      const l = this.local.get(`${entity}|${field}|${id}`);
+      if (l) add(id, l);
+    }
+    for (const [id, v] of out) if (v === 0) out.delete(id);
     return out;
   }
 
   /** Applies all pending deltas; one flusher across pods. */
   async flush(): Promise<{ rows: number }> {
+    await this.flushLocal();
     const result = await withJobLock(
       this.redis,
       'counters.flush',
       COUNTER_FLUSH_MS,
       async () => {
         let rows = 0;
+        this.legacyFound = 0;
         for (const [entity, def] of Object.entries(COUNTERS)) {
           for (const field of def.fields) {
             rows += await this.flushField(entity, def.table, def.key, field);
           }
         }
+        if (this.legacyFound === 0) this.legacyDrained = true;
         return rows;
       },
     );
@@ -186,7 +329,32 @@ export class CounterAggregator
     key: string,
     field: string,
   ): Promise<number> {
-    const hash = pendingKey(entity, field);
+    let applied = 0;
+    for (let i = 0; i < COUNTER_SHARDS; i += 1) {
+      applied += await this.flushHash(
+        pendingKey(entity, field, i),
+        table,
+        key,
+        field,
+      );
+    }
+    // The pre-S6-6 hash (all ids in one key): drained like any shard.
+    const legacy = await this.flushHash(
+      legacyKey(entity, field),
+      table,
+      key,
+      field,
+    );
+    this.legacyFound += legacy;
+    return applied + legacy;
+  }
+
+  private async flushHash(
+    hash: string,
+    table: string,
+    key: string,
+    field: string,
+  ): Promise<number> {
     let applied = 0;
     let cursor = '0';
     do {
@@ -243,6 +411,7 @@ export class CounterAggregator
    * row are dropped first — the recount is the truth.
    */
   async reconcile(): Promise<{ rows: number }> {
+    await this.flushLocal();
     const result = await withJobLock(
       this.redis,
       'counters.reconcile',
@@ -250,11 +419,12 @@ export class CounterAggregator
       async () => {
         let rows = 0;
         for (const entity of Object.keys(COUNTERS) as CounterEntity[]) {
+          if (!hasRecount(entity)) continue;
           for (;;) {
             const ids = await this.redis.spop(touchedKey(entity), BATCH);
             if (!ids || ids.length === 0) break;
             for (const field of COUNTERS[entity].fields) {
-              await this.redis.hdel(pendingKey(entity, field), ...ids);
+              await this.dropPending(entity, field, ids);
             }
             await this.recount(entity, ids);
             rows += ids.length;
@@ -264,6 +434,25 @@ export class CounterAggregator
       },
     );
     return { rows: result ?? 0 };
+  }
+
+  /** Forgets the pending deltas of [ids] (the recount is the truth). */
+  private async dropPending(
+    entity: string,
+    field: string,
+    ids: string[],
+  ): Promise<void> {
+    const byShard = new Map<number, string[]>();
+    for (const id of ids) {
+      const sh = counterShard(id);
+      (byShard.get(sh) ?? byShard.set(sh, []).get(sh)!).push(id);
+    }
+    await Promise.all([
+      ...[...byShard].map(([sh, part]) =>
+        this.redis.hdel(pendingKey(entity, field, sh), ...part),
+      ),
+      this.redis.hdel(legacyKey(entity, field), ...ids),
+    ]);
   }
 
   /** Sum over every database of `rows`, keyed by the first column. */
@@ -352,7 +541,8 @@ export class CounterAggregator
         WHERE a.user_id = v.id`);
       return;
     }
-    // comment / case / case_comment: every source table sits with the row.
+    // comment / case / case_comment / story: every source table sits with
+    // the row.
     await forEachDatabase(this.prisma, () => this.recountLocal(entity, ids));
   }
 
@@ -403,6 +593,11 @@ export class CounterAggregator
                          WHERE r.parent_comment_id = c.id AND r.deleted_at IS NULL
                            AND r.status = 'published')
         WHERE c.id = ANY(${ids}::UUID[])`;
+    } else if (entity === 'story') {
+      await this.prisma.$executeRaw`
+        UPDATE stories AS s SET
+          view_count = (SELECT count(*) FROM story_views v WHERE v.story_id = s.id)
+        WHERE s.id = ANY(${ids}::UUID[])`;
     } else if (entity === 'client') {
       await this.prisma.$executeRaw`
         UPDATE client_profiles AS a SET

@@ -1,3 +1,4 @@
+import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
 import { CasePhotosService } from './services/case-photos.service';
@@ -50,6 +51,7 @@ import { PresenceModule } from '../presence/presence.module';
   imports: [
     UsersModule,
     LegalAcceptanceModule,
+    UsageLimitsModule,
     ChatSystemModule,
     BidsModule,
     JournalModule,

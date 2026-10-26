@@ -51,3 +51,9 @@ export function notModified(
   }
   return false;
 }
+
+/** A time bucket: put it in a tag so a 304 can never outlive [ms] (covers
+ * inputs the tag does not read: admin settings, presigned URLs). */
+export function timeBucket(ms: number, now: number = Date.now()): number {
+  return Math.floor(now / ms);
+}

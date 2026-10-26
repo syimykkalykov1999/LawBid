@@ -236,7 +236,7 @@ export class CalendarController {
     summary: 'Step 1 of linking: the vendor sign-in page to open',
   })
   @ApiEnvelopeResponse(CalendarConnectStartDto)
-  start(
+  startConnection(
     @CurrentUser() user: RequestUser,
     @Param() p: CalendarProviderParamDto,
   ): Promise<CalendarConnectStartDto> {
@@ -250,7 +250,7 @@ export class CalendarController {
     summary: 'Choose what the link does (busy time / write events)',
   })
   @ApiEnvelopeResponse(CalendarConnectionDto)
-  update(
+  updateConnection(
     @CurrentUser() user: RequestUser,
     @Param() p: CalendarProviderParamDto,
     @Body() dto: UpdateCalendarConnectionDto,
@@ -265,7 +265,7 @@ export class CalendarController {
   @ApiOperation({
     summary: 'Unlink the calendar (the sign-in is revoked where possible)',
   })
-  async disconnect(
+  async disconnectConnection(
     @CurrentUser() user: RequestUser,
     @Param() p: CalendarProviderParamDto,
   ): Promise<void> {
@@ -278,7 +278,7 @@ export class CalendarController {
   @Get('oauth/:provider/callback')
   @ApiOperation({ summary: 'OAuth return address (the vendor calls it)' })
   @ApiProduces('text/html')
-  async callback(
+  async oauthCallback(
     @Param('provider') providerRaw: string,
     @Query() q: OAuthCallbackQueryDto,
     @Res() res: Response,

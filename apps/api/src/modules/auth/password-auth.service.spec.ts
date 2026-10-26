@@ -333,4 +333,38 @@ describe('PasswordAuthService', () => {
     );
     expect(revocation.revokeAllChainsForUser).not.toHaveBeenCalled();
   });
+
+  it('owner 2026-10-25: a common password is refused with AUTH_PASSWORD_COMPROMISED, nothing stored', async () => {
+    const { service, prisma } = await make();
+    const err = await service
+      .setPassword(
+        { password: 'iloveyou', currentPassword: 'Demo1234!' },
+        { sub: 'u1' } as never,
+        {
+          hasReauthToken: false,
+          assertReauth: jest.fn(),
+        },
+      )
+      .catch((e: HttpException) => e);
+    expect(err).toBeInstanceOf(HttpException);
+    expect((err as HttpException).getResponse()).toMatchObject({
+      code: ErrorCode.AUTH_PASSWORD_COMPROMISED,
+    });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('owner 2026-10-25: a refused reset password does not spend the sign-in code', async () => {
+    const { service, otp } = await make();
+    await expect(
+      service.confirmReset(
+        {
+          identifier: '+14155552680',
+          code: '000000',
+          newPassword: 'iloveyou',
+        },
+        META,
+      ),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(otp.verifyOtp).not.toHaveBeenCalled();
+  });
 });

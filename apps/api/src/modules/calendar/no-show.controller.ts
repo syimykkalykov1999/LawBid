@@ -59,7 +59,7 @@ export class NoShowController {
   })
   @ApiEnvelopeResponse(NoShowInfoDto)
   @ApiErrors({ 404: [E.NOT_FOUND] })
-  list(
+  listNoShows(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationNoShowParamDto,
   ) {
@@ -74,7 +74,7 @@ export class NoShowController {
   })
   @ApiEnvelopeResponse(NoShowInfoDto)
   @ApiErrors(ERRORS)
-  mark(
+  markNoShow(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationNoShowParamDto,
   ) {
@@ -86,7 +86,7 @@ export class NoShowController {
   @ApiOperation({ summary: 'I was there: dispute the mark against me' })
   @ApiEnvelopeResponse(NoShowInfoDto)
   @ApiErrors(ERRORS)
-  dispute(
+  disputeNoShow(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationNoShowParamDto,
     @Body() dto: DisputeNoShowDto,
@@ -99,7 +99,7 @@ export class NoShowController {
   @ApiOperation({ summary: 'Take back my own mark' })
   @ApiEnvelopeResponse(NoShowInfoDto)
   @ApiErrors(ERRORS)
-  withdraw(
+  withdrawNoShow(
     @CurrentUser() user: RequestUser,
     @Param() p: ConsultationNoShowParamDto,
   ) {
@@ -122,7 +122,9 @@ export class AdminNoShowController {
   @Get()
   @ApiOperation({ summary: 'Marks waiting for staff (default: disputed)' })
   @ApiEnvelopeResponse(AdminNoShowDto, { isArray: true })
-  async list(@Query() q: AdminNoShowsQueryDto): Promise<AdminNoShowDto[]> {
+  async listAdminNoShows(
+    @Query() q: AdminNoShowsQueryDto,
+  ): Promise<AdminNoShowDto[]> {
     const rows = await this.noShows.adminList(q.state);
     return rows.map((r) => this.dto(r));
   }
@@ -136,7 +138,7 @@ export class AdminNoShowController {
     404: [E.NOT_FOUND],
     409: [E.CONSULTATION_STATE_CONFLICT],
   })
-  async resolve(
+  async resolveNoShow(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: ConsultationNoShowParamDto,
     @Body() dto: ResolveNoShowDto,
