@@ -30,6 +30,7 @@ function build(opts: {
   messages?: Msg[];
   mode?: string;
   rowsPerRun?: number;
+  batch?: number;
   key?: string | null;
   /** Rows the FOR SHARE re-read reports as changed meanwhile. */
   changed?: Record<string, Partial<Msg>>;
@@ -46,7 +47,13 @@ function build(opts: {
   const cipher = new MessageBodyCipher(config);
   const settings = {
     string: jest.fn(async () => opts.mode ?? 'auto'),
-    number: jest.fn(async () => opts.rowsPerRun ?? 5000),
+    number: jest.fn(async (k: string) =>
+      k === 'chat.search.backfill_batch'
+        ? (opts.batch ?? CHAT_SEARCH_BACKFILL_BATCH)
+        : k === 'chat.search.max_tokens_per_message'
+          ? 64
+          : (opts.rowsPerRun ?? 5000),
+    ),
     boolean: jest.fn(async () => false),
   } as unknown as AppSettingsService;
   const index = new MessageSearchIndex(config, cipher, settings);
@@ -173,6 +180,17 @@ describe('ChatSearchBackfillJob', () => {
     );
   });
 
+  it('takes the batch size from chat.search.backfill_batch (R-24)', async () => {
+    const seed = build({});
+    const messages = Array.from({ length: 400 }, (_, i) =>
+      msg(i + 1, `word${i}`, seed.cipher),
+    );
+    const { job, findMany } = build({ messages, batch: 100, rowsPerRun: 250 });
+    const r = await job.run(NIGHT, noSleep);
+    expect(findMany.mock.calls.map((c) => c[0].take)).toEqual([100, 100, 100]);
+    expect(r).toMatchObject({ scanned: 300, done: false });
+  });
+
   it('auto runs only at night; off never; on any time', async () => {
     const seed = build({});
     const messages = [msg(1, 'x', seed.cipher)];
@@ -215,9 +233,13 @@ describe('ChatSearchBackfillJob', () => {
   it('counts a body that does not open, without indexing it', async () => {
     const seed = build({});
     const bad = msg(1, 'hello', seed.cipher);
-    bad.body_display = bad.body_display.replace(/.$/, (c) =>
-      c === 'A' ? 'B' : 'A',
-    );
+    // Flip the first character of the GCM tag (`….<iv>.<tag>.<ct>`): the
+    // last base64 character may only carry padding bits the decoder ignores,
+    // which made this test pass or fail with the random nonce.
+    const parts = bad.body_display.split('.');
+    const tag = parts[parts.length - 2];
+    parts[parts.length - 2] = (tag[0] === 'A' ? 'B' : 'A') + tag.slice(1);
+    bad.body_display = parts.join('.');
     const r = await build({ messages: [bad] }).job.run(NIGHT, noSleep);
     expect(r).toMatchObject({ indexed: 0, failed: 1 });
   });

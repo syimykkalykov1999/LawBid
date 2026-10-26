@@ -560,6 +560,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 100000,
   };
+  out['chat.search.max_tokens_per_message'] = {
+    ...out['chat.search.max_tokens_per_message'],
+    description:
+      'Chat search: index rows written per message (distinct words of 2+ characters, stop-words skipped; prefixes count too).',
+    min: 8,
+    max: 400,
+  };
+  out['chat.search.backfill_batch'] = {
+    ...out['chat.search.backfill_batch'],
+    description:
+      'Chat search backfill: messages per batch (one short transaction each).',
+    min: 50,
+    max: 5000,
+  };
   out['economy.ceiling_mode'] = {
     ...out['economy.ceiling_mode'],
     description:
