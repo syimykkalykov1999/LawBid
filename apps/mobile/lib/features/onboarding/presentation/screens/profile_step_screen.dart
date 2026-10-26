@@ -360,7 +360,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         initial: _states,
         multi: attorney,
       );
-      if (result != null) setState(() => _states = result);
+      if (result != null && mounted) setState(() => _states = result);
     }
 
     Future<void> pickLanguages() async {
@@ -371,7 +371,7 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
         initial: _languages,
         multi: true,
       );
-      if (result != null) setState(() => _languages = result);
+      if (result != null && mounted) setState(() => _languages = result);
     }
 
     final statesValue = _states.isEmpty

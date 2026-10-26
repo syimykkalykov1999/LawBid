@@ -73,6 +73,8 @@ class PendingPostCard extends ConsumerWidget {
                       thumb,
                       width: 40,
                       height: 40,
+                      cacheWidth:
+                          (40 * MediaQuery.devicePixelRatioOf(context)).round(),
                       fit: BoxFit.cover,
                       gaplessPlayback: true,
                       errorBuilder: (_, __, ___) => SizedBox(

@@ -1,5 +1,5 @@
 ---
-status: "accepted"   # in code since PR #336 (admin.dual_control = false by default)
+status: "accepted"   # the whole flow was removed from the code (dedup cleanup D-13, 2026-10-25)
 date: 2026-10-25
 decision-makers: owner
 ---
@@ -34,8 +34,8 @@ acting admin's fresh 2FA code and are written to the audit log.
 - Good: the owner can act alone; fewer stuck requests.
 - Bad: one compromised admin account plus its authenticator can move money up to Stripe-side limits. Mitigation: keep admin accounts few, Stripe payout destinations locked in Stripe, treasury alarms (`treasury-bank-changed`).
 - Revisit when a second human admin exists: write a new ADR that supersedes this one.
-- **Status of the code (PR #336, merged 2026-10-25):** the setting `admin.dual_control` (default `false`) gates the whole maker-checker flow. While it is false, `AdminApprovalsService.gate()` runs every approval kind at once for the asking admin after a fresh 2FA step-up and writes the audit row; the `admin_approvals` table and the «Требуют подтверждения» screen stay in the code for a future second admin. New approval kinds added by later PRs (replica / partition buttons, fraud review, payouts) follow the same rule: direct with 2FA, never waiting for someone else.
+- **Status of the code:** the approvals page, controller, service, the settings `admin.dual_control` and `billing.dual_approval_min_cents` and the `ADMIN_APPROVAL_*` error codes are deleted. Money and ops buttons run directly after a fresh 2FA step-up and write an audit row. The `admin_approvals` table stays read-only for one release (history), then drops (expand/contract). New approval kinds follow the same rule: direct with 2FA.
 
 ## More information
 
-[OWNER.md](../runbooks/OWNER.md) (section "Подтверждение вторым админом" — describes the optional flow behind the setting), `apps/api/src/modules/admin-auth/admin-approvals.service.ts` (`gate()`), `app-settings.defaults.ts` (`'admin.dual_control': false`). Back-filled 2026-10-25, updated the same day after PR #336.
+[OWNER.md](../runbooks/OWNER.md) (section «Второй админ не нужен»). Back-filled 2026-10-25, updated the same day.

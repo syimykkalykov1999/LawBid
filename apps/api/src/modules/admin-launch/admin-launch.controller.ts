@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
-  OnModuleInit,
   Param,
   Post,
 } from '@nestjs/common';
@@ -29,7 +28,6 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
-import { AdminApprovalsService } from '../admin-auth/admin-approvals.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   AwsBudgetsDto,
@@ -48,44 +46,21 @@ const E = ErrorCode;
  * Owner 2026-10-24: «Запуск» (the launch checklist), the PagerDuty
  * subscription and the AWS budgets on «Масштаб». super_admin only. Reads are
  * cached in the services; every change needs a fresh 2FA code and is
- * audited. Budget changes also need a second admin (four-eyes approvals).
+ * audited (no second admin: the owner works alone).
  */
 @ApiTags('admin-launch')
 @AdminEndpoint('super_admin')
 @SkipAutoAudit()
 @Controller('admin/launch')
-export class AdminLaunchController implements OnModuleInit {
+export class AdminLaunchController {
   constructor(
     private readonly checks: LaunchChecksService,
     private readonly paging: PagerDutySnsService,
     private readonly budgets: AwsBudgetsAdminService,
-    private readonly approvals: AdminApprovalsService,
     private readonly audit: AuditLogService,
     private readonly auth: AdminAuthService,
     private readonly rateLimit: RateLimitService,
   ) {}
-
-  /** How an approved budget change runs (as the admin who asked). */
-  onModuleInit(): void {
-    const route = {
-      method: 'POST' as const,
-      roles: ['super_admin'] as const,
-    };
-    this.approvals.register({
-      kind: 'aws_budget_limit',
-      label: 'AWS: изменить месячный потолок расходов',
-      route: { ...route, path: '/api/v1/admin/launch/budgets/limit' },
-      execute: async (requester, payload) =>
-        this.applyLimit(requester, payload as BudgetLimitRequestDto),
-    });
-    this.approvals.register({
-      kind: 'aws_budget_delete',
-      label: 'AWS: удалить старый бюджет',
-      route: { ...route, path: '/api/v1/admin/launch/budgets/delete' },
-      execute: async (requester, payload) =>
-        this.applyDelete(requester, payload as BudgetDeleteRequestDto),
-    });
-  }
 
   private async applyLimit(who: AdminActor, p: BudgetLimitRequestDto) {
     await this.budgets.setLimit(p.name, p.limitUsd);
@@ -216,14 +191,13 @@ export class AdminLaunchController implements OnModuleInit {
   @Post('budgets/limit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      'Change the monthly limit of the prod budget (step-up; second admin only if admin.dual_control is on)',
+    summary: 'Change the monthly limit of the prod budget (fresh 2FA step-up)',
   })
   @ApiEnvelopeResponse(AwsBudgetsDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     403: [E.ADMIN_STEP_UP_REQUIRED],
-    409: [E.ADMIN_APPROVAL_PENDING, E.FEATURE_DISABLED],
+    409: [E.FEATURE_DISABLED],
   })
   async setAwsBudgetLimit(
     @CurrentAdmin() admin: AdminActor,
@@ -237,15 +211,6 @@ export class AdminLaunchController implements OnModuleInit {
         message: 'Only the production budget limit can be changed here.',
       });
     }
-    await this.approvals.gate(admin, {
-      kind: 'aws_budget_limit',
-      payload: { name: dto.name, limitUsd: dto.limitUsd },
-      amountCents: 0,
-      always: true,
-      summary: `Потолок «${dto.name}» → ${dto.limitUsd} $ в месяц`,
-    });
-    // Second-admin rule off (default): gate() returned, run it now. With
-    // admin.dual_control on it threw 409 ADMIN_APPROVAL_PENDING instead.
     await this.applyLimit(admin, dto);
     return this.listAwsBudgets();
   }
@@ -253,14 +218,13 @@ export class AdminLaunchController implements OnModuleInit {
   @Post('budgets/delete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      'Delete the obsolete «LawBid Monthly» budget (step-up; second admin only if admin.dual_control is on)',
+    summary: 'Delete the obsolete «LawBid Monthly» budget (fresh 2FA step-up)',
   })
   @ApiEnvelopeResponse(AwsBudgetsDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
     403: [E.ADMIN_STEP_UP_REQUIRED],
-    409: [E.ADMIN_APPROVAL_PENDING, E.FEATURE_DISABLED],
+    409: [E.FEATURE_DISABLED],
   })
   async deleteAwsBudget(
     @CurrentAdmin() admin: AdminActor,
@@ -277,13 +241,6 @@ export class AdminLaunchController implements OnModuleInit {
         message: 'Only the obsolete budget can be deleted here.',
       });
     }
-    await this.approvals.gate(admin, {
-      kind: 'aws_budget_delete',
-      payload: { name: dto.name },
-      amountCents: 0,
-      always: true,
-      summary: `Удалить старый бюджет «${dto.name}»`,
-    });
     await this.applyDelete(admin, dto);
     return this.listAwsBudgets();
   }

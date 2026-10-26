@@ -55,6 +55,7 @@ class _BidPacksScreenState extends ConsumerState<BidPacksScreen>
     } on Object {
       // The list below shows the truth on the next read.
     }
+    if (!mounted) return;
     _purchaseId = null;
     ref.invalidate(bidPacksProvider);
   }
