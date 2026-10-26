@@ -118,5 +118,10 @@
     "file": "modules/moderation/text-detector.service.ts",
     "kind": "multi",
     "reason": "INCR+EXPIRE on the single daily detect counter key."
+  },
+  {
+    "file": "modules/realtime/realtime-event-log.ts",
+    "kind": "lua-multi-key",
+    "reason": "NEXT_SEQ_LUA keys rt:seq and rt:epoch both go through ck('rtseq', ...): one slot in cluster mode."
   }
 ]
