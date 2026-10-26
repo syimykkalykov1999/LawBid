@@ -15,6 +15,8 @@ analyzer:
     - "**/*.freezed.dart"
     - build/**
     - third_party/**
+    # drift_dev schema generate output (S15-5); regenerate, never edit.
+    - test/**/generated_migrations/**
     - android/**
     - ios/**
     - web/**
