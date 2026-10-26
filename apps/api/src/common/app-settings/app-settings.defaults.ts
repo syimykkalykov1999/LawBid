@@ -799,6 +799,10 @@ export const OWNER_OPS_SETTINGS = {
    * for 15 minutes on their own (renewed while it stays slow). */
   'ops.auto_pause_heavy_jobs': true,
   'ops.db_slow_ms': 800,
+  // Perf review 2026-10-26 (R-25): nightly bloat check «Выкл / Вкл / Авто»
+  // and the biggest table the heap estimate may read (indexes are never read).
+  'db.bloat_mode': 'auto',
+  'db.bloat_scan_max_mb': 256,
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
    * at the minimum until the next month (or until the owner lifts it). */
   'ops.auto_scale_down_on_budget': true,
