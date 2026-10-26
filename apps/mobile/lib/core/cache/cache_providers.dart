@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
+import 'package:lawbid/core/cache/json_off_main.dart';
 import 'package:lawbid/core/cache/network_usage.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/persistence/drift_web.dart'
@@ -108,7 +109,9 @@ class DriftHttpCacheStore implements HttpCacheStore {
     if (row == null) return null;
     return HttpCacheEntry(
       etag: row.etag,
-      data: jsonDecode(row.json),
+      // Owner 2026-10-26 (smoothness): a big cached page (the feed, a
+      // list) is decoded off the UI thread.
+      data: await decodeJsonOffMain(row.json),
       bytes: row.bytes,
       fetchedAt: row.fetchedAt,
     );
