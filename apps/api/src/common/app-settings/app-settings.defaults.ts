@@ -1019,6 +1019,9 @@ export const OWNER_PRIVACY_SETTINGS = {
   'privacy.retention_data_access_log_days': 1825,
   'privacy.retention_session_ip_days': 90,
   'privacy.retention_contact_disclosure_ip_days': 730,
+  // Perf review 2026-10-26 (R-39): rows per statement / per table per run.
+  'privacy.retention_batch': 5000,
+  'privacy.retention_max_rows': 1_000_000,
   'privacy.login_cancels_deletion': false,
   // Cost gate: ceilings on what deletion can bill (e-mail / push of the
   // day-13 notice per run, Twilio delete calls per account).

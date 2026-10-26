@@ -8,13 +8,18 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 
 const DAY_MS = 24 * 3600 * 1000;
-/** Rows per statement: short transactions, no long locks. */
-const BATCH = 5000;
-/** Rows per table per run; the next night continues. */
-const MAX_PER_TABLE = 1_000_000;
-/** Primary-key batches of the sessions walk per run. */
-const MAX_SESSION_BATCHES = 2000;
-const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+/** Default of `privacy.retention_batch`: rows per statement. */
+export const RETENTION_BATCH = 5000;
+/** Default of `privacy.retention_max_rows`: rows per table per run; the
+ * next night continues. */
+export const RETENTION_MAX_ROWS = 1_000_000;
+
+interface SessionBatchRow {
+  last_id: string | null;
+  last_at: Date | null;
+  scanned: bigint;
+  updated: bigint;
+}
 
 export interface PrivacyRetentionResult {
   auditLog: number;
@@ -48,6 +53,9 @@ export interface PrivacyRetentionResult {
 @Injectable()
 export class PrivacyRetentionService implements OnModuleDestroy {
   private retentionDb?: PrismaClient;
+  /** This run's `privacy.retention_batch` / `privacy.retention_max_rows`. */
+  private batchSize = RETENTION_BATCH;
+  private maxRows = RETENTION_MAX_ROWS;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -60,6 +68,18 @@ export class PrivacyRetentionService implements OnModuleDestroy {
 
   async run(now: Date = new Date()): Promise<PrivacyRetentionResult | null> {
     if (!(await this.settings.boolean('privacy.auto_retention'))) return null;
+    const [batch, maxRows] = await Promise.all([
+      this.settings.number('privacy.retention_batch').catch(() => NaN),
+      this.settings.number('privacy.retention_max_rows').catch(() => NaN),
+    ]);
+    this.batchSize =
+      Number.isFinite(batch) && batch >= 100
+        ? Math.min(Math.floor(batch), 50_000)
+        : RETENTION_BATCH;
+    this.maxRows =
+      Number.isFinite(maxRows) && maxRows >= this.batchSize
+        ? Math.floor(maxRows)
+        : RETENTION_MAX_ROWS;
     const [auditDays, accessDays, sessionDays, disclosureDays] =
       await Promise.all([
         this.settings.number('privacy.retention_audit_log_days'),
@@ -145,37 +165,58 @@ export class PrivacyRetentionService implements OnModuleDestroy {
     );
   }
 
-  /** Walks the table by primary key (no index on the date, like
-   * SessionsCleanupJob) and blanks the network columns of old sessions. */
+  /**
+   * Blanks the network columns of sessions unused for the retention period.
+   * Perf review 2026-10-26 (R-39): no full walk any more. The partial index
+   * sessions_net_created_idx (created_at, id) WHERE ip/user_agent is set
+   * holds only rows that still have something to blank; a session unused
+   * since [cut] was created before it, so the walk is an index range
+   * `created_at < cut`, keyset (created_at, id), `privacy.retention_batch`
+   * rows per statement, at most `privacy.retention_max_rows` per run.
+   * Idle back-off: one EXISTS probe on that index first; an idle night
+   * costs one index lookup and no batch.
+   */
   private async sessionIps(cut: Date): Promise<number> {
-    let cursor = ZERO_UUID;
+    const [probe] = await this.prisma.$queryRaw<{ any: boolean }[]>(Prisma.sql`
+      SELECT EXISTS (
+        SELECT 1 FROM sessions
+        WHERE created_at < ${cut} AND (ip IS NOT NULL OR user_agent IS NOT NULL)
+      ) AS any`);
+    if (!probe?.any) return 0;
+    let after: { at: Date; id: string } | null = null;
     let blanked = 0;
-    for (let i = 0; i < MAX_SESSION_BATCHES; i += 1) {
-      const [row] = await this.prisma.$queryRaw<
-        { last_id: string | null; scanned: bigint; updated: bigint }[]
+    let scanned = 0;
+    while (scanned < this.maxRows) {
+      const rows: SessionBatchRow[] = await this.prisma.$queryRaw<
+        SessionBatchRow[]
       >(Prisma.sql`
         WITH batch AS (
-          SELECT id FROM sessions
-          WHERE id > ${cursor}::UUID
-          ORDER BY id
-          LIMIT ${BATCH}
+          SELECT id, created_at FROM sessions
+          WHERE created_at < ${cut} AND (ip IS NOT NULL OR user_agent IS NOT NULL)
+            ${after ? Prisma.sql`AND (created_at, id) > (${after.at}, ${after.id}::UUID)` : Prisma.empty}
+          ORDER BY created_at, id
+          LIMIT ${this.batchSize}
         ),
         changed AS (
           UPDATE sessions s
           SET ip = NULL, user_agent = NULL
           FROM batch b
           WHERE s.id = b.id
-            AND (s.ip IS NOT NULL OR s.user_agent IS NOT NULL)
             AND s.updated_at < ${cut}
             AND NOT ${heldSql('user', Prisma.sql`s.user_id`)}
           RETURNING s.id
-        )
-        SELECT (SELECT id FROM batch ORDER BY id DESC LIMIT 1)::TEXT AS last_id,
+        ),
+        last AS (SELECT id, created_at FROM batch ORDER BY created_at DESC, id DESC LIMIT 1)
+        SELECT (SELECT id FROM last)::TEXT AS last_id,
+               (SELECT created_at FROM last) AS last_at,
                (SELECT count(*) FROM batch) AS scanned,
                (SELECT count(*) FROM changed) AS updated`);
+      const row = rows[0];
+      const n = Number(row?.scanned ?? 0);
+      scanned += n;
       blanked += Number(row?.updated ?? 0);
-      if (Number(row?.scanned ?? 0) < BATCH || !row?.last_id) break;
-      cursor = row.last_id;
+      if (n < this.batchSize || !row?.last_id || !row.last_at) break;
+      after = { at: row.last_at, id: row.last_id };
     }
     return blanked;
   }
@@ -207,10 +248,10 @@ export class PrivacyRetentionService implements OnModuleDestroy {
     step: (limit: number) => Promise<number>,
   ): Promise<number> {
     let total = 0;
-    while (total < MAX_PER_TABLE) {
-      const n = await step(BATCH);
+    while (total < this.maxRows) {
+      const n = await step(this.batchSize);
       total += n;
-      if (n < BATCH) break;
+      if (n < this.batchSize) break;
       await new Promise((r) => setTimeout(r, 200));
     }
     return total;
