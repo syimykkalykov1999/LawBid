@@ -80,6 +80,10 @@ enum ErrorCode {
   deviceAttestationRequired('DEVICE_ATTESTATION_REQUIRED'),
   @JsonValue('TURNSTILE_FAILED')
   turnstileFailed('TURNSTILE_FAILED'),
+  @JsonValue('AGE_ATTESTATION_REQUIRED')
+  ageAttestationRequired('AGE_ATTESTATION_REQUIRED'),
+  @JsonValue('AGE_UNDER_MINIMUM')
+  ageUnderMinimum('AGE_UNDER_MINIMUM'),
   @JsonValue('ACCOUNT_SUSPENDED')
   accountSuspended('ACCOUNT_SUSPENDED'),
   @JsonValue('ACCOUNT_DELETED')

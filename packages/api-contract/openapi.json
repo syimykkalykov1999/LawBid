@@ -79043,6 +79043,587 @@
         ]
       }
     },
+    "/compliance/age-gate": {
+      "get": {
+        "operationId": "ageGateConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgeGateConfigEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Sign-up age gate: mode, minimum age, wording version",
+        "tags": [
+          "compliance"
+        ]
+      }
+    },
+    "/compliance/sms-consent/disclosure": {
+      "get": {
+        "operationId": "disclosure",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsDisclosureEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The wording shown next to the text-message consent",
+        "tags": [
+          "compliance"
+        ]
+      }
+    },
+    "/compliance/sms-consent": {
+      "post": {
+        "operationId": "consent",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsConsentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsConsentResultEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Record separate consent to get text messages (not needed for sign-in codes)",
+        "tags": [
+          "compliance"
+        ]
+      },
+      "delete": {
+        "operationId": "revoke",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsConsentResultEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Withdraw consent to text messages",
+        "tags": [
+          "compliance"
+        ]
+      }
+    },
+    "/admin/compliance/minors": {
+      "get": {
+        "operationId": "minors",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinorsListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Accounts flagged as minors, and accounts whose birth date is under the minimum age",
+        "tags": [
+          "admin-compliance"
+        ]
+      }
+    },
+    "/admin/compliance/minors/{id}/flag": {
+      "post": {
+        "operationId": "flag",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FlagMinorDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinorActionResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Flag an account as a minor: sessions revoked, account suspended, contacts put on the stop-lists",
+        "tags": [
+          "admin-compliance"
+        ]
+      }
+    },
+    "/admin/compliance/minors/{id}/clear": {
+      "post": {
+        "operationId": "clear",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinorActionResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "The flag was a mistake: restore the account",
+        "tags": [
+          "admin-compliance"
+        ]
+      }
+    },
+    "/admin/compliance/minors/{id}/delete": {
+      "post": {
+        "operationId": "deleteMinor",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinorActionResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Delete a flagged minor account now (anonymization). Needs a fresh 2FA step-up.",
+        "tags": [
+          "admin-compliance"
+        ]
+      }
+    },
+    "/admin/compliance/sms/opt-outs/import": {
+      "post": {
+        "operationId": "importOptOuts",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsOptOutImportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmsOptOutImportResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Add numbers from Twilio’s opt-out export to the text-message stop-list. Needs a fresh 2FA step-up.",
+        "tags": [
+          "admin-compliance"
+        ]
+      }
+    },
     "/promotions/quote": {
       "get": {
         "operationId": "getPromotionQuote",
@@ -113571,6 +114152,8 @@
           "PASSKEY_LIMIT",
           "DEVICE_ATTESTATION_REQUIRED",
           "TURNSTILE_FAILED",
+          "AGE_ATTESTATION_REQUIRED",
+          "AGE_UNDER_MINIMUM",
           "ACCOUNT_SUSPENDED",
           "ACCOUNT_DELETED",
           "CLIENT_CONTACTS_INCOMPLETE",
@@ -114118,6 +114701,29 @@
           }
         }
       },
+      "AgeAttestationDto": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "description": "The person ticked \"I am 18 or older\"."
+          },
+          "textVersion": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "Wording version shown next to the checkbox (GET /config/age-gate)."
+          },
+          "birthDate": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "YYYY-MM-DD; optional."
+          }
+        },
+        "required": [
+          "confirmed",
+          "textVersion"
+        ]
+      },
       "OtpVerifyDto": {
         "type": "object",
         "properties": {
@@ -114138,6 +114744,14 @@
           },
           "deviceInfo": {
             "$ref": "#/components/schemas/DeviceInfoDto"
+          },
+          "ageAttestation": {
+            "description": "2026-10-25 (COPPA): \"I am 18 or older\", for a NEW account only.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AgeAttestationDto"
+              }
+            ]
           }
         },
         "required": [
@@ -114205,6 +114819,14 @@
           },
           "deviceInfo": {
             "$ref": "#/components/schemas/DeviceInfoDto"
+          },
+          "ageAttestation": {
+            "description": "2026-10-25 (COPPA): \"I am 18 or older\", for a NEW account only.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AgeAttestationDto"
+              }
+            ]
           }
         },
         "required": [
@@ -114240,6 +114862,14 @@
           },
           "deviceInfo": {
             "$ref": "#/components/schemas/DeviceInfoDto"
+          },
+          "ageAttestation": {
+            "description": "2026-10-25 (COPPA): \"I am 18 or older\", for a NEW account only.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AgeAttestationDto"
+              }
+            ]
           }
         },
         "required": [
@@ -156275,6 +156905,280 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/OutreachTemplateDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "AgeGateConfigDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "off | record | enforce"
+          },
+          "minAge": {
+            "type": "number"
+          },
+          "textVersion": {
+            "type": "string"
+          },
+          "requireBirthDate": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode",
+          "minAge",
+          "textVersion",
+          "requireBirthDate"
+        ]
+      },
+      "AgeGateConfigEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgeGateConfigDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SmsDisclosureDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "text"
+        ]
+      },
+      "SmsDisclosureEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SmsDisclosureDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SmsConsentResultDto": {
+        "type": "object",
+        "properties": {
+          "recorded": {
+            "type": "boolean"
+          },
+          "blockedUntilStart": {
+            "type": "boolean",
+            "description": "The number sent STOP: it must text START."
+          }
+        },
+        "required": [
+          "recorded",
+          "blockedUntilStart"
+        ]
+      },
+      "SmsConsentRequestDto": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "marketing | notifications"
+          },
+          "disclosureVersion": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "The disclosure version the app showed."
+          }
+        },
+        "required": [
+          "purpose",
+          "disclosureVersion"
+        ]
+      },
+      "SmsConsentResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SmsConsentResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MinorRowDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "attested | flagged | deleted"
+          },
+          "birthDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "flaggedAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "flagReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "attestedAt": {
+            "type": "string"
+          },
+          "textVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "status",
+          "birthDate",
+          "flaggedAt",
+          "flagReason",
+          "attestedAt",
+          "textVersion"
+        ]
+      },
+      "MinorsListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MinorRowDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "MinorsListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MinorsListDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MinorActionResultDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string",
+            "description": "flagged | deleted | deletion_deferred | cleared"
+          }
+        },
+        "required": [
+          "userId",
+          "result"
+        ]
+      },
+      "FlagMinorDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 200,
+            "description": "Why the account is believed to be a minor."
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "MinorActionResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MinorActionResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SmsOptOutImportResultDto": {
+        "type": "object",
+        "properties": {
+          "added": {
+            "type": "number"
+          },
+          "skipped": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "added",
+          "skipped"
+        ]
+      },
+      "SmsOptOutImportDto": {
+        "type": "object",
+        "properties": {
+          "phones": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "description": "E.164 numbers from the Twilio opt-out export (up to 1000).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20
+            }
+          }
+        },
+        "required": [
+          "phones"
+        ]
+      },
+      "SmsOptOutImportResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SmsOptOutImportResultDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
