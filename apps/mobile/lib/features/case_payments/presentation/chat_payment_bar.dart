@@ -4,7 +4,9 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
+import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
 import 'package:lawbid/features/case_payments/presentation/payment_request_sheet.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -13,13 +15,65 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 /// the client sees the attorney's open invoice(s) with «Оплатить» (two
 /// taps to Stripe); the attorney gets «Выставить счёт». Nothing when the
 /// flag is off, the attorney cannot receive, or there is nothing to show.
-class ChatPaymentBar extends ConsumerWidget {
+class ChatPaymentBar extends ConsumerStatefulWidget {
   const ChatPaymentBar({required this.caseId, super.key});
 
   final String caseId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatPaymentBar> createState() => _ChatPaymentBarState();
+}
+
+class _ChatPaymentBarState extends ConsumerState<ChatPaymentBar>
+    with WidgetsBindingObserver, ResumeRefreshGate {
+  /// Silent in-flight guard: a double tap must not open two checkouts.
+  bool _paying = false;
+
+  String get caseId => widget.caseId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Back from the external checkout: a paid invoice stops showing «Pay».
+    if (resumeNeedsRefresh(state)) {
+      ref.invalidate(casePaymentsStateProvider(caseId));
+    }
+  }
+
+  Future<void> _pay(PaymentRequest first) async {
+    if (_paying) return;
+    _paying = true;
+    final t = ref.read(translatorProvider);
+    try {
+      final start = await ref
+          .read(casePaymentsRepositoryProvider)
+          .payRequest(first);
+      if (!mounted) return;
+      expectExternalReturn();
+      ref.invalidate(casePaymentsStateProvider(caseId));
+      if (!await openCheckout(start.checkoutUrl) && mounted) {
+        showAppSnackBar(context, t.t('plans.cantOpen'));
+      }
+    } on Object catch (e) {
+      if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      _paying = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     if (!ref.watch(casePaymentsFlagProvider)) return const SizedBox.shrink();
     final state = ref.watch(casePaymentsStateProvider(caseId)).value;
     if (state == null || !state.enabled) return const SizedBox.shrink();
@@ -95,21 +149,7 @@ class ChatPaymentBar extends ConsumerWidget {
           AppButton(
             label: t.t('cpay.req.payShort'),
             icon: AppIcons.lockOutlineRounded,
-            onPressed: () async {
-              try {
-                final start = await ref
-                    .read(casePaymentsRepositoryProvider)
-                    .payRequest(first);
-                ref.invalidate(casePaymentsStateProvider(caseId));
-                if (!await openCheckout(start.checkoutUrl) && context.mounted) {
-                  showAppSnackBar(context, t.t('plans.cantOpen'));
-                }
-              } on Object catch (e) {
-                if (context.mounted) {
-                  showAppSnackBar(context, errorText(t, e));
-                }
-              }
-            },
+            onPressed: () => _pay(first),
           ),
         ],
       );
