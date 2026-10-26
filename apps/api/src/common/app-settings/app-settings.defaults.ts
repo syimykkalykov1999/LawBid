@@ -230,6 +230,25 @@ export const OWNER_MEDIA_SETTINGS = {
   'reco.post.authorQuality': 0.06,
   'reco.post.state': 0.06,
   'reco.post.affinity': 0.06,
+  // Owner 2026-10-25: ranking of the bids a client sees on a case.
+  // bids.default_sort is what the list uses when the app sends no sort
+  // (newest = today; best_match = the weighted score below).
+  'bids.default_sort': 'newest',
+  'bids.best_match.rating': 0.35,
+  'bids.best_match.trust': 0.2,
+  'bids.best_match.speed': 0.15,
+  'bids.best_match.price': 0.2,
+  'bids.best_match.completed': 0.1,
+  // Bayesian rating: the average every attorney starts from and how many
+  // "virtual reviews" of it are mixed in.
+  'bids.bayes_prior': 4,
+  'bids.bayes_weight': 5,
+  // A price below this share of the median is suspiciously low.
+  'bids.low_ratio': 0.4,
+  // Bids needed in one fee type before a median / "best price" exists.
+  'bids.min_bids_for_price': 3,
+  // Flag suspiciously low bids (field lowOffer) and log them for review.
+  'bids.dumping_guard': false,
   // Owner 2026-10-15: topics a case can name (the first + the rest).
   'case.max_practices': 3,
   'post.max_chars_media': 2200,
