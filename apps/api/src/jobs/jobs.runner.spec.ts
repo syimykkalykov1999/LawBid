@@ -47,6 +47,7 @@ import type { ClientFraudService } from '../modules/client-fraud/client-fraud.se
 // bullOptions would open a real shared Redis producer; keep the unit test
 // socket-free and assert on the plain option objects instead.
 jest.mock('../redis/redis-connection', () => ({
+  isRedisClusterMode: () => false,
   bullOptions: (_q: string, url: string, o?: { worker?: boolean }) => ({
     connection: o?.worker ? { url, maxRetriesPerRequest: null } : { url },
   }),
