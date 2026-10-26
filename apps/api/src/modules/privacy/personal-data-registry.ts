@@ -88,6 +88,8 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   UserActivityDay: ['user_id'],
   SearchQueryLog: ['user_id'],
   SearchClick: ['user_id'],
+  // Ranking analytics (impressions / clicks per user): personal, swept.
+  RankingEvent: ['user_id'],
 };
 
 const list = (...models: string[]): string[] => models;
@@ -279,6 +281,7 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'OutreachTemplate',
       'OutreachSuppression',
       'PromoCode',
+      'Experiment',
     ),
     retain_legal: list(
       'LegalHold',
